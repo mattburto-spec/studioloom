@@ -1,0 +1,144 @@
+{
+  "pages": {
+    "A1": {
+      "title": "Explain and justify the need for a solution",
+      "learningGoal": "You will identify a real-world problem and explain why a design solution is needed.",
+      "vocabWarmup": {
+        "terms": [
+          { "term": "Design Brief", "definition": "A document that outlines the goals and requirements of a design project.", "example": "A design brief for a new school library might include the number of students it needs to serve." },
+          { "term": "Client", "definition": "The person or group who needs the design solution.", "example": "The school principal is the client for the new playground design." },
+          { "term": "Constraint", "definition": "A limitation that the design must work within.", "example": "Budget, time, and available materials are common constraints." }
+        ],
+        "activity": {
+          "type": "matching",
+          "items": [
+            { "question": "A document outlining project goals", "answer": "Design Brief" },
+            { "question": "The person who needs the solution", "answer": "Client" },
+            { "question": "A limitation on the design", "answer": "Constraint" }
+          ]
+        }
+      },
+      "introduction": {
+        "text": "Every great design starts with a problem. Before we can create a solution, we need to clearly understand what problem we're solving and why it matters. In this section, you'll investigate a real need and explain why a design solution is important."
+      },
+      "sections": [
+        {
+          "prompt": "What problem have you identified? Describe it clearly.",
+          "scaffolding": {
+            "ell1": {
+              "sentenceStarters": ["The problem I have identified is...", "This is a problem because...", "The people affected by this problem are..."],
+              "hints": ["Think about problems you see at school or at home. Who is affected? Why does it matter?"]
+            },
+            "ell2": {
+              "sentenceStarters": ["The problem is...", "This affects..."]
+            },
+            "ell3": {
+              "extensionPrompts": ["Analyse the root causes of this problem. Consider multiple stakeholders and explain how each is affected differently."]
+            }
+          },
+          "responseType": "text",
+          "exampleResponse": "The problem I have identified is that students in our school cafeteria have nowhere to put their bags during lunch. This causes tripping hazards and makes the space feel crowded."
+        },
+        {
+          "prompt": "Why does this problem need a design solution?",
+          "scaffolding": {
+            "ell1": {
+              "sentenceStarters": ["This problem needs a solution because...", "Without a solution...", "A good solution would help by..."],
+              "hints": ["Think about what happens if nothing changes. Who benefits from a solution?"]
+            },
+            "ell2": {
+              "sentenceStarters": ["A solution is needed because...", "The impact would be..."]
+            },
+            "ell3": {
+              "extensionPrompts": ["Justify the need for a design solution using evidence. Consider economic, social, and practical factors."]
+            }
+          },
+          "responseType": "text"
+        },
+        {
+          "prompt": "Who is your client or target audience? What do they need?",
+          "scaffolding": {
+            "ell1": {
+              "sentenceStarters": ["My client is...", "They need...", "The most important thing for them is..."]
+            },
+            "ell2": {
+              "sentenceStarters": ["The target audience is...", "Their main need is..."]
+            },
+            "ell3": {
+              "extensionPrompts": ["Create a detailed client profile including demographics, needs, preferences, and potential resistance to change."]
+            }
+          },
+          "responseType": "multi"
+        }
+      ],
+      "reflection": {
+        "type": "checklist",
+        "items": [
+          "I clearly described a real problem",
+          "I explained why a solution is needed",
+          "I identified who the client/user is",
+          "I considered how the problem affects people"
+        ]
+      }
+    },
+    "A2": {
+      "title": "Construct a detailed research plan",
+      "learningGoal": "You will plan how to research your design problem by identifying what information you need and where to find it.",
+      "introduction": {
+        "text": "Good design is based on good research. Before jumping into solutions, you need to gather information about the problem, existing solutions, and your users. Let's plan your research."
+      },
+      "sections": [
+        {
+          "prompt": "What do you already know about this problem?",
+          "scaffolding": {
+            "ell1": {
+              "sentenceStarters": ["I already know that...", "One thing I know is...", "I have seen that..."]
+            },
+            "ell2": {
+              "sentenceStarters": ["I know that...", "From my experience..."]
+            },
+            "ell3": {
+              "extensionPrompts": ["Categorise your existing knowledge into facts, assumptions, and opinions. Which assumptions need to be verified through research?"]
+            }
+          },
+          "responseType": "text"
+        },
+        {
+          "prompt": "What do you need to find out? List your research questions.",
+          "scaffolding": {
+            "ell1": {
+              "sentenceStarters": ["I need to find out...", "One question I have is...", "I want to learn about..."],
+              "hints": ["Try to write at least 3 research questions. Good questions start with 'How', 'Why', 'What', or 'Who'."]
+            },
+            "ell2": {
+              "sentenceStarters": ["My research questions are...", "I need to investigate..."]
+            },
+            "ell3": {
+              "extensionPrompts": ["Develop primary and secondary research questions. Explain how each question connects to your design brief."]
+            }
+          },
+          "responseType": "text"
+        },
+        {
+          "prompt": "Where will you find this information? Describe your research methods.",
+          "scaffolding": {
+            "ell1": {
+              "sentenceStarters": ["I will find information by...", "One method I will use is...", "I can ask..."]
+            },
+            "ell2": {
+              "sentenceStarters": ["My research methods include...", "I will use..."]
+            },
+            "ell3": {
+              "extensionPrompts": ["Justify your choice of research methods. Consider reliability, accessibility, and potential bias in your sources."]
+            }
+          },
+          "responseType": "text"
+        }
+      ],
+      "reflection": {
+        "type": "confidence-slider",
+        "items": ["How confident are you that your research plan is thorough?"]
+      }
+    }
+  }
+}

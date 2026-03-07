@@ -1,0 +1,1426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>James 2 — Kids Bible Adventure</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #FAF7F2;
+  --bg-warm: #F5F0E8;
+  --card: #FFFFFF;
+  --card-border: rgba(0,0,0,0.04);
+  --sage: #4A7C59;
+  --sage-light: #E4EFE7;
+  --sage-glow: #6BA37A;
+  --amber: #D4883C;
+  --amber-light: #FFF0DC;
+  --amber-glow: #E9A456;
+  --terra: #C7654F;
+  --terra-light: #FCEAE5;
+  --teal: #3D8B8B;
+  --teal-light: #E3F2F2;
+  --plum: #7A5D8C;
+  --plum-light: #F0E8F5;
+  --text: #2D2319;
+  --text-soft: #6B5D4F;
+  --text-muted: #9C8E7E;
+  --shadow-sm: 0 1px 3px rgba(45,35,25,0.06), 0 1px 2px rgba(45,35,25,0.04);
+  --shadow: 0 4px 16px rgba(45,35,25,0.08), 0 1px 3px rgba(45,35,25,0.04);
+  --shadow-lg: 0 12px 40px rgba(45,35,25,0.12), 0 4px 12px rgba(45,35,25,0.06);
+  --radius: 20px;
+  --radius-sm: 12px;
+  --radius-pill: 100px;
+}
+
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ====== GRAIN OVERLAY ====== */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.25;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+}
+
+/* ====== DECORATIVE BLOBS ====== */
+.blob-1, .blob-2, .blob-3 {
+  position: fixed;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+  filter: blur(80px);
+}
+.blob-1 { width: 400px; height: 400px; background: rgba(74,124,89,0.08); top: -100px; right: -100px; }
+.blob-2 { width: 500px; height: 500px; background: rgba(212,136,60,0.06); bottom: -150px; left: -150px; }
+.blob-3 { width: 300px; height: 300px; background: rgba(61,139,139,0.06); top: 50%; left: 50%; transform: translate(-50%,-50%); }
+
+/* ====== PROGRESS BAR (top) ====== */
+.top-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: rgba(0,0,0,0.04);
+  z-index: 100;
+}
+.top-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--sage), var(--amber));
+  width: 0%;
+  transition: width 0.5s ease;
+  border-radius: 0 2px 2px 0;
+}
+
+/* ====== FLOATING TIMER ====== */
+.float-timer {
+  position: fixed;
+  top: 14px;
+  right: 16px;
+  background: var(--card);
+  color: var(--sage);
+  padding: 8px 16px;
+  border-radius: var(--radius-pill);
+  font-family: 'Baloo 2', cursive;
+  font-size: 1rem;
+  font-weight: 700;
+  z-index: 101;
+  box-shadow: var(--shadow);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.4s ease;
+  border: 1.5px solid var(--card-border);
+}
+.float-timer.visible { opacity: 1; pointer-events: auto; }
+.float-timer .ft-time {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+  width: 52px;
+  text-align: center;
+  display: inline-block;
+}
+.ft-dot {
+  width: 8px; height: 8px;
+  background: var(--sage-glow);
+  border-radius: 50%;
+  animation: dotPulse 2s ease infinite;
+}
+.float-timer.paused .ft-dot { background: var(--amber); animation: none; }
+@keyframes dotPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* ====== PROGRESS DOTS ====== */
+.progress-dots {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  background: var(--card);
+  padding: 8px 16px;
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow);
+  z-index: 100;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  border: 1.5px solid var(--card-border);
+}
+.progress-dots.visible { opacity: 1; }
+.pdot {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: var(--bg-warm);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 2px solid transparent;
+}
+.pdot.active { background: var(--sage); transform: scale(1.3); }
+.pdot.done { background: var(--amber); }
+
+/* ====== WELCOME ====== */
+.welcome {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 24px 80px;
+  position: relative;
+  z-index: 1;
+  text-align: center;
+}
+.w-badge {
+  display: inline-block;
+  background: var(--sage);
+  color: white;
+  padding: 6px 20px;
+  border-radius: var(--radius-pill);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-bottom: 24px;
+  animation: fadeUp 0.7s ease both;
+}
+.w-title {
+  font-family: 'Baloo 2', cursive;
+  font-size: clamp(2.8rem, 8vw, 4.5rem);
+  font-weight: 800;
+  color: var(--text);
+  line-height: 1.05;
+  margin-bottom: 4px;
+  animation: fadeUp 0.7s ease 0.08s both;
+}
+.w-title em {
+  font-style: normal;
+  display: block;
+  background: linear-gradient(135deg, var(--sage), var(--teal));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-size: 0.55em;
+}
+.w-sub {
+  font-size: 1.15rem;
+  color: var(--text-soft);
+  font-weight: 500;
+  margin-bottom: 32px;
+  animation: fadeUp 0.7s ease 0.16s both;
+}
+.w-verse {
+  background: var(--card);
+  border: 1.5px solid var(--card-border);
+  border-radius: var(--radius);
+  padding: 20px 32px;
+  font-family: 'Baloo 2', cursive;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--sage);
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 24px;
+  max-width: 440px;
+  animation: fadeUp 0.7s ease 0.24s both;
+}
+.w-verse cite {
+  display: block;
+  font-style: normal;
+  font-size: 0.75em;
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+/* Video intro card */
+.w-video-wrap {
+  width: 100%;
+  max-width: 460px;
+  margin-bottom: 32px;
+  animation: fadeUp 0.7s ease 0.32s both;
+}
+.w-video-intro {
+  font-size: 0.95rem;
+  color: var(--text-soft);
+  font-weight: 500;
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+.yt-card {
+  position: relative;
+  width: 100%;
+  padding-bottom: 56.25%;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: #1a1a1a;
+  cursor: pointer;
+  box-shadow: var(--shadow-lg);
+}
+.yt-card img {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  transition: transform 0.5s ease, filter 0.5s ease;
+}
+.yt-card:hover img { transform: scale(1.04); filter: brightness(0.9); }
+.yt-play {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.yt-play-btn {
+  width: 64px; height: 64px;
+  background: rgba(255,255,255,0.95);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+  transition: transform 0.3s ease;
+}
+.yt-card:hover .yt-play-btn { transform: scale(1.1); }
+.yt-label {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-top: 10px;
+  text-align: center;
+}
+
+/* Start button */
+.start-btn {
+  background: var(--sage);
+  color: white;
+  border: none;
+  padding: 18px 48px;
+  font-family: 'Baloo 2', cursive;
+  font-size: 1.4rem;
+  font-weight: 700;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(74,124,89,0.35);
+  transition: all 0.3s ease;
+  animation: fadeUp 0.7s ease 0.4s both;
+  position: relative;
+}
+.start-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(74,124,89,0.45);
+  background: var(--sage-glow);
+}
+.start-btn:active { transform: translateY(0); }
+
+/* ====== SECTIONS ====== */
+.section {
+  display: none;
+  min-height: 100vh;
+  padding: 32px 20px 100px;
+  position: relative;
+  z-index: 1;
+}
+.section.active { display: block; animation: fadeIn 0.5s ease; }
+.sec-inner { max-width: 640px; margin: 0 auto; }
+
+/* Section header */
+.sec-head {
+  text-align: center;
+  padding: 32px 24px 28px;
+  border-radius: var(--radius);
+  margin-bottom: 24px;
+  position: relative;
+  overflow: hidden;
+}
+.sec-head::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='30' cy='30' r='1' fill='white' fill-opacity='0.08'/%3E%3C/svg%3E");
+}
+.sec-num {
+  display: inline-flex;
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.2);
+  align-items: center; justify-content: center;
+  font-family: 'Baloo 2', cursive;
+  font-size: 1.3rem; font-weight: 800;
+  color: white;
+  margin-bottom: 10px;
+  position: relative;
+}
+.sec-title {
+  font-family: 'Baloo 2', cursive;
+  font-size: clamp(1.5rem, 5vw, 2rem);
+  font-weight: 800;
+  color: white;
+  position: relative;
+  line-height: 1.15;
+}
+.sec-time {
+  font-size: 0.85rem;
+  color: rgba(255,255,255,0.75);
+  font-weight: 600;
+  margin-top: 4px;
+  position: relative;
+}
+.head-sage { background: linear-gradient(135deg, #3D6B4A, #5A9A6B); }
+.head-teal { background: linear-gradient(135deg, #2D7A7A, #4AADAD); }
+.head-terra { background: linear-gradient(135deg, #B5553F, #D87A65); }
+.head-plum { background: linear-gradient(135deg, #6A4D7C, #9672AD); }
+
+/* Section timer */
+.sec-timer {
+  background: var(--card);
+  border-radius: var(--radius-sm);
+  padding: 14px;
+  text-align: center;
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 20px;
+  border: 1.5px solid var(--card-border);
+}
+.st-display {
+  font-family: 'Baloo 2', cursive;
+  font-size: 2.4rem;
+  font-weight: 800;
+  color: var(--sage);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 1px;
+}
+.st-label { font-size: 0.8rem; color: var(--text-muted); font-weight: 600; }
+.st-btns { display: flex; gap: 8px; justify-content: center; margin-top: 8px; }
+.st-btn {
+  background: var(--bg-warm);
+  border: 1.5px solid transparent;
+  padding: 6px 16px;
+  border-radius: var(--radius-pill);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-soft);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.st-btn:hover { background: var(--sage-light); color: var(--sage); }
+.st-btn.on { background: var(--sage); color: white; }
+.timer-warn .st-display { color: var(--terra); }
+.timer-done { border-color: var(--amber); }
+.timer-done .st-display { color: var(--amber); }
+
+/* ====== CARDS ====== */
+.card {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 22px 24px;
+  margin-bottom: 14px;
+  box-shadow: var(--shadow-sm);
+  border: 1.5px solid var(--card-border);
+  animation: cardUp 0.45s ease both;
+}
+.card h3 {
+  font-family: 'Baloo 2', cursive;
+  font-size: 1.15rem;
+  color: var(--text);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+}
+.card p, .card li {
+  font-size: 1rem;
+  line-height: 1.65;
+  color: var(--text-soft);
+  font-weight: 500;
+}
+.card ul { list-style: none; padding: 0; }
+.card li { padding: 6px 0 6px 24px; position: relative; }
+.card li::before {
+  content: '';
+  position: absolute;
+  left: 4px; top: 14px;
+  width: 8px; height: 8px;
+  background: var(--sage-light);
+  border-radius: 50%;
+  border: 2px solid var(--sage);
+}
+.card strong { color: var(--text); }
+
+/* Question cards */
+.q-card { border-left: 4px solid var(--sage); }
+.q-card.teal { border-left-color: var(--teal); }
+.q-card.amber { border-left-color: var(--amber); }
+.q-card.plum { border-left-color: var(--plum); }
+.q-card.terra { border-left-color: var(--terra); }
+
+.q-num {
+  display: inline-flex;
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  background: var(--sage);
+  color: white;
+  align-items: center; justify-content: center;
+  font-family: 'Baloo 2', cursive;
+  font-weight: 700;
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+/* Verse highlight */
+.verse-hl {
+  background: linear-gradient(135deg, var(--amber-light), #FFF8F0);
+  border: 1.5px solid rgba(212,136,60,0.2);
+  border-radius: var(--radius);
+  padding: 20px 24px;
+  text-align: center;
+  margin: 14px 0;
+}
+.verse-hl p {
+  font-family: 'Baloo 2', cursive;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--amber);
+}
+.verse-hl cite {
+  display: block;
+  font-style: normal;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+/* ====== AUDIO BUTTON ====== */
+.audio-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-warm);
+  color: var(--text-soft);
+  border: 1.5px solid rgba(0,0,0,0.06);
+  padding: 10px 20px;
+  border-radius: var(--radius-pill);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  margin: 8px 0 12px;
+}
+.audio-btn:hover { background: var(--sage-light); color: var(--sage); border-color: rgba(74,124,89,0.15); }
+.audio-btn.speaking { background: var(--sage); color: white; border-color: var(--sage); }
+.audio-btn.loading { opacity: 0.6; pointer-events: none; }
+.audio-btn svg { flex-shrink: 0; }
+.audio-stop { display: none; }
+.audio-btn.speaking .audio-play { display: none; }
+.audio-btn.speaking .audio-stop { display: inline; }
+
+/* ====== QUIZ ====== */
+.quiz {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 22px 24px;
+  margin-bottom: 14px;
+  box-shadow: var(--shadow-sm);
+  border: 1.5px solid var(--card-border);
+  animation: cardUp 0.45s ease both;
+}
+.quiz h3 {
+  font-family: 'Baloo 2', cursive;
+  font-size: 1.1rem;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.quiz-q {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-soft);
+  margin-bottom: 14px;
+  line-height: 1.55;
+}
+.mc-opts { display: flex; flex-direction: column; gap: 8px; }
+.mc-opt {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 16px;
+  border-radius: var(--radius-sm);
+  border: 1.5px solid rgba(0,0,0,0.06);
+  background: var(--bg);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--text);
+  transition: all 0.2s ease;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.mc-opt:hover { border-color: var(--sage-glow); background: var(--sage-light); }
+.mc-opt:active { transform: scale(0.98); }
+.mc-let {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--bg-warm);
+  color: var(--text-soft);
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Baloo 2', cursive;
+  font-weight: 700; font-size: 0.85rem;
+  flex-shrink: 0;
+  transition: all 0.25s;
+}
+.mc-opt.correct { border-color: var(--sage); background: var(--sage-light); }
+.mc-opt.correct .mc-let { background: var(--sage); color: white; }
+.mc-opt.wrong { border-color: var(--terra); background: var(--terra-light); animation: shake 0.4s ease; }
+.mc-opt.wrong .mc-let { background: var(--terra); color: white; }
+.mc-opt.off { pointer-events: none; opacity: 0.5; }
+.mc-fb {
+  margin-top: 12px;
+  padding: 12px 16px;
+  border-radius: var(--radius-sm);
+  font-weight: 700;
+  font-size: 0.9rem;
+  display: none;
+}
+.mc-fb.show { display: block; animation: cardUp 0.3s ease; }
+.mc-fb.correct { background: var(--sage-light); color: var(--sage); }
+.mc-fb.wrong { background: var(--terra-light); color: var(--terra); }
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+}
+
+/* ====== DRAG AND DROP ====== */
+.sort-zone { display: flex; gap: 12px; margin-top: 14px; flex-wrap: wrap; }
+.sort-bucket {
+  flex: 1; min-width: 180px;
+  border-radius: var(--radius);
+  padding: 14px; min-height: 100px;
+  transition: all 0.2s;
+}
+.sort-bucket.living { background: var(--sage-light); border: 2px dashed rgba(74,124,89,0.25); }
+.sort-bucket.dead { background: var(--terra-light); border: 2px dashed rgba(199,101,79,0.25); }
+.sort-bucket.drag-over { border-style: solid; background: var(--amber-light); border-color: var(--amber); }
+.sort-bucket-title {
+  font-family: 'Baloo 2', cursive;
+  font-weight: 700; font-size: 0.95rem;
+  margin-bottom: 10px; text-align: center;
+}
+.sort-bucket.living .sort-bucket-title { color: var(--sage); }
+.sort-bucket.dead .sort-bucket-title { color: var(--terra); }
+.sort-items { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.sort-item {
+  padding: 10px 16px;
+  border-radius: var(--radius-pill);
+  background: var(--card);
+  border: 1.5px solid rgba(0,0,0,0.06);
+  font-weight: 600; font-size: 0.85rem;
+  color: var(--text);
+  cursor: grab; user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  transition: all 0.2s;
+  box-shadow: var(--shadow-sm);
+}
+.sort-item:active { cursor: grabbing; transform: scale(1.04); box-shadow: var(--shadow); }
+.sort-item.placed-correct { background: var(--sage-light); border-color: var(--sage); color: var(--sage); }
+.sort-item.placed-wrong { background: var(--terra-light); border-color: var(--terra); color: var(--terra); }
+.sort-item.dragging { opacity: 0.4; }
+.sort-result {
+  text-align: center; padding: 12px;
+  border-radius: var(--radius-sm);
+  font-weight: 700; display: none; margin-top: 10px;
+}
+.sort-result.show { display: block; animation: cardUp 0.3s ease; }
+@media (max-width: 500px) {
+  .sort-zone { flex-direction: column; }
+  .sort-bucket { min-width: auto; }
+}
+
+/* ====== NAV ====== */
+.nav-row {
+  display: flex; gap: 12px;
+  margin-top: 28px; padding-bottom: 40px;
+}
+.nav-btn {
+  flex: 1;
+  padding: 16px 20px;
+  border-radius: var(--radius-sm);
+  font-family: 'Baloo 2', cursive;
+  font-size: 1.05rem;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.nav-btn:hover { transform: translateY(-2px); }
+.nav-prev {
+  background: var(--card);
+  color: var(--text-soft);
+  border: 1.5px solid var(--card-border);
+  box-shadow: var(--shadow-sm);
+}
+.nav-next {
+  background: var(--sage);
+  color: white;
+  box-shadow: 0 4px 16px rgba(74,124,89,0.3);
+}
+.nav-next:hover { background: var(--sage-glow); }
+
+/* ====== FINISH ====== */
+.finish { text-align: center; padding: 40px 20px; }
+.finish-star {
+  font-size: 3.5rem;
+  margin-bottom: 16px;
+  animation: glow 2s ease infinite;
+}
+@keyframes glow {
+  0%, 100% { transform: scale(1) rotate(0deg); filter: brightness(1); }
+  50% { transform: scale(1.1) rotate(5deg); filter: brightness(1.15); }
+}
+
+/* ====== ANIMATIONS ====== */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes cardUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.card:nth-child(2) { animation-delay: 0.04s; }
+.card:nth-child(3) { animation-delay: 0.08s; }
+.card:nth-child(4) { animation-delay: 0.12s; }
+.card:nth-child(5) { animation-delay: 0.16s; }
+.card:nth-child(6) { animation-delay: 0.2s; }
+
+/* ====== RESPONSIVE ====== */
+@media (max-width: 600px) {
+  .sec-head { padding: 24px 18px 22px; }
+  .card { padding: 18px; }
+  .float-timer { right: 10px; font-size: 0.9rem; padding: 6px 12px; }
+  .float-timer .ft-time { width: 48px; }
+  .nav-row { flex-direction: column; }
+  .blob-1, .blob-2, .blob-3 { display: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="blob-1"></div>
+<div class="blob-2"></div>
+<div class="blob-3"></div>
+
+<div class="top-bar"><div class="top-bar-fill" id="globalFill"></div></div>
+
+<div class="float-timer" id="floatTimer">
+  <span>⏱</span>
+  <span class="ft-time" id="ftTime">00:00</span>
+  <div class="ft-dot"></div>
+</div>
+
+<div class="progress-dots" id="progDots">
+  <div class="pdot active" onclick="goTo(0)"></div>
+  <div class="pdot" onclick="goTo(1)"></div>
+  <div class="pdot" onclick="goTo(2)"></div>
+  <div class="pdot" onclick="goTo(3)"></div>
+  <div class="pdot" onclick="goTo(4)"></div>
+</div>
+
+<!-- ====== WELCOME ====== -->
+<div class="welcome" id="welcome">
+  <div class="w-badge">Kids Bible Adventure</div>
+  <h1 class="w-title">James Chapter 2<em>Living Faith</em></h1>
+  <p class="w-sub">Putting Belief into Practice</p>
+  <div class="w-verse">
+    "Love your neighbour as yourself."
+    <cite>James 2:8</cite>
+  </div>
+
+  <div class="w-video-wrap">
+    <p class="w-video-intro">Before we start, watch this short video that introduces the book of James — who wrote it and why it matters for us today.</p>
+    <div class="yt-card" onclick="window.open('https://www.youtube.com/watch?v=ejciDnL44iA','_blank')">
+      <img src="https://img.youtube.com/vi/ejciDnL44iA/hqdefault.jpg" alt="Intro to James">
+      <div class="yt-play"><div class="yt-play-btn">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="#C7654F"><path d="M8 5v14l11-7z"/></svg>
+      </div></div>
+    </div>
+    <p class="yt-label">📺 Tap to watch on YouTube</p>
+  </div>
+
+  <button class="start-btn" onclick="startAdventure()">Let's Begin →</button>
+</div>
+
+<!-- ====== SECTION 1: BIBLE READING ====== -->
+<div class="section" id="s0">
+  <div class="sec-inner">
+    <div class="sec-head head-sage">
+      <div class="sec-num">1</div>
+      <h2 class="sec-title">Bible Reading & Talk</h2>
+      <div class="sec-time">About 10 minutes</div>
+    </div>
+
+    <div class="sec-timer" id="timer-0">
+      <div class="st-label">Time for this activity</div>
+      <div class="st-display" id="td-0">10:00</div>
+      <div class="st-btns">
+        <button class="st-btn on" onclick="toggleT(0)">⏸ Pause</button>
+        <button class="st-btn" onclick="resetT(0)">↻ Reset</button>
+      </div>
+    </div>
+
+    <div class="card" style="text-align:center;">
+      <h3 style="justify-content:center;">📺 Listen to James 2:1-8</h3>
+      <div class="yt-card" onclick="window.open('https://www.youtube.com/watch?v=E2lhfJFPSck','_blank')">
+        <img src="https://img.youtube.com/vi/E2lhfJFPSck/hqdefault.jpg" alt="James 2:1-8">
+        <div class="yt-play"><div class="yt-play-btn">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="#C7654F"><path d="M8 5v14l11-7z"/></svg>
+        </div></div>
+      </div>
+      <p class="yt-label">Tap to watch on YouTube</p>
+    </div>
+
+    <div class="card">
+      <h3>📖 What to do</h3>
+      <button class="audio-btn" onclick="speak(this,'s1intro')">
+        <svg class="audio-play" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0014 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+        <svg class="audio-stop" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+        Listen to instructions
+      </button>
+      <p id="s1intro">Let's read from the Bible together! If you can read, take turns. If you're younger, just listen carefully. We're reading from <strong>James chapter 2</strong>, verses 1 to 9, and then verses 14 to 17.</p>
+    </div>
+
+    <div class="card">
+      <h3>📜 Quick Summary</h3>
+      <button class="audio-btn" onclick="speak(this,'s1sum')">
+        <svg class="audio-play" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0014 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+        <svg class="audio-stop" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+        Listen
+      </button>
+      <p id="s1sum">James says we shouldn't treat rich people better than poor people. God loves <strong>everyone</strong> the same! And he also says that just <strong>saying</strong> we believe isn't enough — we need to <strong>show</strong> our faith by helping people who need it.</p>
+      <div class="verse-hl"><p>Faith + Action = Real Love ❤️</p></div>
+    </div>
+
+    <div class="card q-card">
+      <h3><span class="q-num">1</span> Talk about it</h3>
+      <button class="audio-btn" onclick="speak(this,'q1')">
+        <svg class="audio-play" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0014 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+        <svg class="audio-stop" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+        Listen
+      </button>
+      <p id="q1">Imagine two new kids come to your school. One is wearing really cool brand-name clothes and the other has old, worn-out clothes. How might people treat them differently?</p>
+    </div>
+
+    <div class="card q-card teal">
+      <h3><span class="q-num" style="background:var(--teal)">2</span> Think deeper</h3>
+      <button class="audio-btn" onclick="speak(this,'q2')">
+        <svg class="audio-play" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0014 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+        <svg class="audio-stop" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+        Listen
+      </button>
+      <p id="q2">Why does God want us to treat everyone the same? Why is it important?</p>
+    </div>
+
+    <div class="card q-card amber">
+      <h3><span class="q-num" style="background:var(--amber)">3</span> Real life</h3>
+      <button class="audio-btn" onclick="speak(this,'q3')">
+        <svg class="audio-play" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0014 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+        <svg class="audio-stop" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+        Listen
+      </button>
+      <p id="q3">If you saw someone at school sitting alone at lunch, what could you <strong>do</strong> to show God's love?</p>
+    </div>
+
+    <div class="quiz" style="border-left:4px solid var(--teal);">
+      <h3 style="color:var(--teal);">🧠 Quick Quiz</h3>
+      <div class="quiz-q">In James's story, a rich man and a poor man come to church. What did the people do wrong?</div>
+      <div class="mc-opts" id="quiz1">
+        <div class="mc-opt" onclick="checkMC(this,'quiz1',false,'Not quite — James says the problem was treating them differently.')"><span class="mc-let">A</span>They didn't say hello to either person</div>
+        <div class="mc-opt" onclick="checkMC(this,'quiz1',true,'That\'s right! They gave the rich man a great seat but made the poor man stand. James says this is wrong.')"><span class="mc-let">B</span>They gave the rich man the best seat and made the poor man stand</div>
+        <div class="mc-opt" onclick="checkMC(this,'quiz1',false,'Not quite — it was about how they treated them differently based on how they looked.')"><span class="mc-let">C</span>They asked both of them to leave</div>
+      </div>
+      <div class="mc-fb" id="quiz1-feedback"></div>
+    </div>
+
+    <div class="quiz" style="border-left:4px solid var(--sage);">
+      <h3 style="color:var(--sage);">🧠 What Does James Say?</h3>
+      <div class="quiz-q">James calls "Love your neighbour as yourself" the ______ Law. Why?</div>
+      <div class="mc-opts" id="quiz2">
+        <div class="mc-opt" onclick="checkMC(this,'quiz2',false,'Not quite — try again!')"><span class="mc-let">A</span>The Biggest Law — because it's the longest rule</div>
+        <div class="mc-opt" onclick="checkMC(this,'quiz2',false,'Close, but not the word James used!')"><span class="mc-let">B</span>The Golden Law — because it's about being golden</div>
+        <div class="mc-opt" onclick="checkMC(this,'quiz2',true,'Yes! The Royal Law — because it comes from the King (God), and if you follow this one law, you\'ll follow all the others too!')"><span class="mc-let">C</span>The Royal Law — because it's the King's most important command</div>
+      </div>
+      <div class="mc-fb" id="quiz2-feedback"></div>
+    </div>
+
+    <div class="nav-row">
+      <button class="nav-btn nav-prev" onclick="goTo(-1)">← Back</button>
+      <button class="nav-btn nav-next" onclick="goTo(1)">Next Activity →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ====== SECTION 2: WORD SEARCH ====== -->
+<div class="section" id="s1">
+  <div class="sec-inner">
+    <div class="sec-head head-teal">
+      <div class="sec-num">2</div>
+      <h2 class="sec-title">Word Search</h2>
+      <div class="sec-time">About 10 minutes</div>
+    </div>
+    <div class="sec-timer" id="timer-1">
+      <div class="st-label">Time for this activity</div>
+      <div class="st-display" id="td-1">10:00</div>
+      <div class="st-btns">
+        <button class="st-btn on" onclick="toggleT(1)">⏸ Pause</button>
+        <button class="st-btn" onclick="resetT(1)">↻ Reset</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>🔍 What to do</h3>
+      <button class="audio-btn" onclick="speak(this,'s2intro')">
+        <svg class="audio-play" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0014 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+        <svg class="audio-stop" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+        Listen to instructions
+      </button>
+      <p id="s2intro">Use the printed word search sheet to find all the hidden words from James chapter 2. The words can go across, down, or diagonally. Work on your own or with a partner!</p>
+    </div>
+
+    <div class="card">
+      <h3>📝 Words to Find</h3>
+      <p>Look for these 10 words hidden in the grid:</p>
+      <p style="text-align:center; font-family:'Baloo 2',cursive; font-size:1.15rem; font-weight:700; color:var(--sage); line-height:2.2; margin-top:8px;">
+        LOVE · FAITH · ACTION · KIND · MERCY<br>
+        EQUAL · HELP · DEEDS · BELIEVE · SHARE
+      </p>
+    </div>
+
+    <div class="card q-card terra">
+      <h3><span class="q-num" style="background:var(--terra)">⭐</span> Bonus Challenge</h3>
+      <button class="audio-btn" onclick="speak(this,'bonus')">
+        <svg class="audio-play" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0014 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+        <svg class="audio-stop" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+        Listen
+      </button>
+      <p id="bonus">Which <strong>two</strong> words from the list go together to describe what James 2 teaches? (Hint: James says one of these without the other is "dead"!)</p>
+    </div>
+
+    <div class="quiz" style="border-left:4px solid var(--amber);">
+      <h3 style="color:var(--amber);">🌳 Sort It Out: Living Faith or Dead Faith?</h3>
+      <div class="quiz-q">Drag each example into the right bucket. Is it "Living Faith" (faith + action) or "Dead Faith" (just words, no action)?</div>
+      <div class="sort-items" id="sortItems">
+        <div class="sort-item" draggable="true" data-answer="living" id="si1">Helping a friend carry their heavy bag</div>
+        <div class="sort-item" draggable="true" data-answer="dead" id="si2">Saying "I'll pray for you" but never praying</div>
+        <div class="sort-item" draggable="true" data-answer="living" id="si3">Sharing your lunch with someone who forgot theirs</div>
+        <div class="sort-item" draggable="true" data-answer="dead" id="si4">Knowing God loves everyone but ignoring the new kid</div>
+        <div class="sort-item" draggable="true" data-answer="living" id="si5">Sitting with someone who looks lonely</div>
+        <div class="sort-item" draggable="true" data-answer="dead" id="si6">Singing about love at church but being mean at school</div>
+      </div>
+      <div class="sort-zone">
+        <div class="sort-bucket living" id="bucketLiving" ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="handleDrop(event,'living')">
+          <div class="sort-bucket-title">🌳 Living Faith</div>
+        </div>
+        <div class="sort-bucket dead" id="bucketDead" ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="handleDrop(event,'dead')">
+          <div class="sort-bucket-title">🍂 Dead Faith</div>
+        </div>
+      </div>
+      <div class="sort-result" id="sortResult"></div>
+    </div>
+
+    <div class="nav-row">
+      <button class="nav-btn nav-prev" onclick="goTo(0)">← Back</button>
+      <button class="nav-btn nav-next" onclick="goTo(2)">Next Activity →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ====== SECTION 3: ACTION PLAN ====== -->
+<div class="section" id="s2">
+  <div class="sec-inner">
+    <div class="sec-head head-terra">
+      <div class="sec-num">3</div>
+      <h2 class="sec-title">Real Love Action Plan</h2>
+      <div class="sec-time">About 10 minutes</div>
+    </div>
+    <div class="sec-timer" id="timer-2">
+      <div class="st-label">Time for this activity</div>
+      <div class="st-display" id="td-2">10:00</div>
+      <div class="st-btns">
+        <button class="st-btn on" onclick="toggleT(2)">⏸ Pause</button>
+        <button class="st-btn" onclick="resetT(2)">↻ Reset</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>✍️ What to do</h3>
+      <button class="audio-btn" onclick="speak(this,'s3intro')">
+        <svg class="audio-play" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0014 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+        <svg class="audio-stop" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+        Listen to instructions
+      </button>
+      <p id="s3intro">James chapter 2, verse 17 says "faith by itself, if it is not accompanied by action, is dead." That means we need to show our love, not just talk about it! Use the printed action plan sheet to write down specific things you will do this week.</p>
+    </div>
+
+    <div class="verse-hl">
+      <p>"Faith by itself, if it is not accompanied by action, is dead."</p>
+      <cite>James 2:17</cite>
+    </div>
+
+    <div class="quiz" style="border-left:4px solid var(--terra);">
+      <h3 style="color:var(--terra);">🤔 What Would You Do?</h3>
+      <div class="quiz-q">Your friend tells you they're really sad because their dog is sick. What does "living faith" look like here?</div>
+      <div class="mc-opts" id="quiz3">
+        <div class="mc-opt" onclick="checkMC(this,'quiz3',false,'Hmm — that doesn\'t really help your friend feel better, does it?')"><span class="mc-let">A</span>Say "that's too bad" and keep playing your game</div>
+        <div class="mc-opt" onclick="checkMC(this,'quiz3',true,'Yes! That\'s living faith — you\'re putting love into ACTION by actually being there for your friend!')"><span class="mc-let">B</span>Stop what you're doing, listen to them, and make them a card</div>
+        <div class="mc-opt" onclick="checkMC(this,'quiz3',false,'That\'s kind — but James would say real faith does something too, not just says something.')"><span class="mc-let">C</span>Say "I hope your dog gets better" and walk away</div>
+      </div>
+      <div class="mc-fb" id="quiz3-feedback"></div>
+    </div>
+
+    <div class="quiz" style="border-left:4px solid var(--plum);">
+      <h3 style="color:var(--plum);">🤔 One More Scenario</h3>
+      <div class="quiz-q">There's a kid at your church who always sits alone because they're new and shy. Which response would James be most proud of?</div>
+      <div class="mc-opts" id="quiz4">
+        <div class="mc-opt" onclick="checkMC(this,'quiz4',false,'That shows you noticed — but James says faith needs action, not just feelings!')"><span class="mc-let">A</span>Feel sorry for them but sit with your own friends</div>
+        <div class="mc-opt" onclick="checkMC(this,'quiz4',false,'Good thought — but who will actually go and do it?')"><span class="mc-let">B</span>Tell your mum that someone should talk to them</div>
+        <div class="mc-opt" onclick="checkMC(this,'quiz4',true,'That\'s it! You didn\'t just feel sorry — you DID something. That\'s faith and action working together!')"><span class="mc-let">C</span>Go sit with them, introduce yourself, and invite them to join your group</div>
+      </div>
+      <div class="mc-fb" id="quiz4-feedback"></div>
+    </div>
+
+    <div class="card q-card">
+      <h3>🏠 At Home</h3>
+      <button class="audio-btn" onclick="speak(this,'a1')">
+        <svg class="audio-play" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0014 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+        <svg class="audio-stop" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+        Listen
+      </button>
+      <p id="a1">Write down one kind thing you can <strong>do</strong> for your family this week. Be specific! Not just "be nice" — something real, like "help wash up after dinner without being asked."</p>
+    </div>
+
+    <div class="card q-card teal">
+      <h3>🏫 At School or With Friends</h3>
+      <button class="audio-btn" onclick="speak(this,'a2')">
+        <svg class="audio-play" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0014 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+        <svg class="audio-stop" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+        Listen
+      </button>
+      <p id="a2">Write down one way you can show love to someone who feels left out. Think about who might be lonely or need a friend.</p>
+    </div>
+
+    <div class="card q-card plum">
+      <h3>🤫 Secret Kindness Mission</h3>
+      <button class="audio-btn" onclick="speak(this,'a3')">
+        <svg class="audio-play" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0014 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+        <svg class="audio-stop" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+        Listen
+      </button>
+      <p id="a3">Write down something kind you'll do this week <strong>without anyone knowing it was you!</strong> This is your secret mission from God.</p>
+    </div>
+
+    <div class="card" style="text-align:center;">
+      <h3 style="justify-content:center;">📺 Watch: Putting Faith into Action</h3>
+      <div class="yt-card" onclick="window.open('https://www.youtube.com/watch?v=AbTNMMkGGpQ','_blank')">
+        <img src="https://img.youtube.com/vi/AbTNMMkGGpQ/hqdefault.jpg" alt="Faith into Action">
+        <div class="yt-play"><div class="yt-play-btn">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="#C7654F"><path d="M8 5v14l11-7z"/></svg>
+        </div></div>
+      </div>
+      <p class="yt-label">Tap to watch on YouTube</p>
+    </div>
+
+    <div class="nav-row">
+      <button class="nav-btn nav-prev" onclick="goTo(1)">← Back</button>
+      <button class="nav-btn nav-next" onclick="goTo(3)">Next Activity →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ====== SECTION 4: MEMORY VERSE ====== -->
+<div class="section" id="s3">
+  <div class="sec-inner">
+    <div class="sec-head head-plum">
+      <div class="sec-num">4</div>
+      <h2 class="sec-title">Memory Verse & Colouring</h2>
+      <div class="sec-time">About 15 minutes</div>
+    </div>
+    <div class="sec-timer" id="timer-3">
+      <div class="st-label">Time for this activity</div>
+      <div class="st-display" id="td-3">15:00</div>
+      <div class="st-btns">
+        <button class="st-btn on" onclick="toggleT(3)">⏸ Pause</button>
+        <button class="st-btn" onclick="resetT(3)">↻ Reset</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>🎨 What to do</h3>
+      <button class="audio-btn" onclick="speak(this,'s4intro')">
+        <svg class="audio-play" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0014 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+        <svg class="audio-stop" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+        Listen to instructions
+      </button>
+      <p id="s4intro">Use your printed colouring sheet to colour in the memory verse design. While you colour, try to learn the verse by heart! Say it out loud a few times. Then draw a picture at the bottom of how you can love your neighbour.</p>
+    </div>
+
+    <div class="verse-hl" style="font-size:1.1rem;">
+      <p style="font-size:1.4rem;">"Love your neighbour as yourself."</p>
+      <cite>James 2:8</cite>
+    </div>
+
+    <div class="card">
+      <h3>🧠 Memory Verse Challenge</h3>
+      <button class="audio-btn" onclick="speak(this,'vc')">
+        <svg class="audio-play" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0014 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+        <svg class="audio-stop" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+        Listen
+      </button>
+      <p id="vc">Try to learn the verse! Here's how:</p>
+      <ul>
+        <li>Say it together 3 times while looking at it</li>
+        <li>Cover up one word and say it again</li>
+        <li>Cover up two words and say it again</li>
+        <li>Keep going until you can say the whole thing without looking!</li>
+        <li>Quiz each other — can you say it from memory?</li>
+      </ul>
+    </div>
+
+    <div class="card q-card amber">
+      <h3>💬 While you colour, talk about this</h3>
+      <button class="audio-btn" onclick="speak(this,'cq')">
+        <svg class="audio-play" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0014 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+        <svg class="audio-stop" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+        Listen
+      </button>
+      <p id="cq">Who is your "neighbour"? Is it just the person who lives next door, or does it mean something bigger? What's one kind thing you could do for someone this week?</p>
+    </div>
+
+    <div class="quiz" style="border-left:4px solid var(--plum);">
+      <h3 style="color:var(--plum);">🧠 Verse Quiz: Fill in the Blank</h3>
+      <div class="quiz-q">"Love your _________ as _________." — James 2:8</div>
+      <div class="mc-opts" id="quiz5">
+        <div class="mc-opt" onclick="checkMC(this,'quiz5',false,'Not quite — that\'s a good thing to do, but it\'s not the exact words!')"><span class="mc-let">A</span>friends ... always</div>
+        <div class="mc-opt" onclick="checkMC(this,'quiz5',true,'You got it! "Love your neighbour as yourself." You\'re learning it! 🌟')"><span class="mc-let">B</span>neighbour ... yourself</div>
+        <div class="mc-opt" onclick="checkMC(this,'quiz5',false,'Close, but try again! Think about the exact words from James 2:8.')"><span class="mc-let">C</span>family ... them</div>
+      </div>
+      <div class="mc-fb" id="quiz5-feedback"></div>
+    </div>
+
+    <div class="quiz" style="border-left:4px solid var(--amber);">
+      <h3 style="color:var(--amber);">🧠 Big Picture Quiz</h3>
+      <div class="quiz-q">What are the TWO big lessons from James chapter 2?</div>
+      <div class="mc-opts" id="quiz6">
+        <div class="mc-opt" onclick="checkMC(this,'quiz6',false,'Those are good things, but they\'re not the main lessons from James 2.')"><span class="mc-let">A</span>Read your Bible every day and always be happy</div>
+        <div class="mc-opt" onclick="checkMC(this,'quiz6',true,'Exactly right! Treat everyone the same AND back up what you believe with action. You understood James 2! 🎉')"><span class="mc-let">B</span>Don't show favouritism AND show your faith through action</div>
+        <div class="mc-opt" onclick="checkMC(this,'quiz6',false,'Hmm — James does talk about rich and poor, but it\'s about something bigger than just money.')"><span class="mc-let">C</span>Give money to poor people and don't be rich</div>
+      </div>
+      <div class="mc-fb" id="quiz6-feedback"></div>
+    </div>
+
+    <div class="nav-row">
+      <button class="nav-btn nav-prev" onclick="goTo(2)">← Back</button>
+      <button class="nav-btn nav-next" onclick="goTo(4)">Finish! 🎉</button>
+    </div>
+  </div>
+</div>
+
+<!-- ====== SECTION 5: FINISH ====== -->
+<div class="section" id="s4">
+  <div class="sec-inner">
+    <div class="finish">
+      <div class="finish-star">🌟</div>
+      <div class="sec-head head-sage" style="margin-bottom:28px;">
+        <h2 class="sec-title">Amazing Work!</h2>
+        <div class="sec-time">You've finished all the activities!</div>
+      </div>
+
+      <div class="card">
+        <h3>🌳 What we learned today</h3>
+        <button class="audio-btn" onclick="speak(this,'fin')">
+          <svg class="audio-play" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0014 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+          <svg class="audio-stop" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+          Listen
+        </button>
+        <p id="fin">Today we learned from James chapter 2 that God wants us to love <strong>everyone</strong> the same — no matter what they look like or how much they have. And we learned that real faith means <strong>doing</strong> something about it, not just saying we believe. Remember: Faith plus Action equals Real Love!</p>
+      </div>
+
+      <div class="verse-hl" style="font-size:1.1rem;">
+        <p style="font-size:1.4rem;">"Love your neighbour as yourself."</p>
+        <cite>James 2:8</cite>
+      </div>
+
+      <div class="card">
+        <h3>📋 Remember</h3>
+        <ul>
+          <li>Take your Action Plan sheet home and put it somewhere you'll see it</li>
+          <li>Try to do each kind thing you wrote down this week</li>
+          <li>Practise saying the memory verse</li>
+          <li>Bring your sheets back next week to share what you did!</li>
+        </ul>
+      </div>
+
+      <div class="card" style="text-align:center;">
+        <h3 style="justify-content:center;">🙏 Let's Pray</h3>
+        <button class="audio-btn" onclick="speak(this,'pray')">
+          <svg class="audio-play" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0014 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+          <svg class="audio-stop" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+          Listen
+        </button>
+        <p id="pray">Dear God, thank you for loving all of us the same. Help us to love other people the way you love us. Help us to not just say we believe, but to show it by being kind and helping others. Please help us with our action plans this week. In Jesus' name, Amen.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ====== STATE ======
+let cur = -1;
+const secTimes = [600,600,600,900];
+let timers = [null,null,null,null];
+let timeLeft = [...secTimes];
+let running = [false,false,false,false];
+let elapsed = 0;
+const TOTAL = 2700;
+let globalInt = null;
+
+// ====== ELEVENLABS ======
+const cache = {};
+let curAudio = null;
+let curBtn = null;
+
+async function speak(btn, id) {
+  if (curAudio && !curAudio.paused) {
+    curAudio.pause(); curAudio.currentTime = 0;
+    if (curBtn) curBtn.classList.remove('speaking');
+    if (curBtn === btn) { curBtn = null; curAudio = null; return; }
+  }
+  const el = document.getElementById(id);
+  if (!el) return;
+  const text = (el.innerText || el.textContent).trim();
+  if (!text) return;
+
+  if (cache[id]) { playBlob(btn, cache[id]); return; }
+
+  btn.classList.add('loading');
+  try {
+    const r = await fetch('https://api.elevenlabs.io/v1/text-to-speech/OGPd6dgozimm16K8HUKl', {
+      method: 'POST',
+      headers: { 'xi-api-key': 'sk_0954e141266372c653c4b8304c09a7ccb56f3f254b6e645f', 'Content-Type': 'application/json', 'Accept': 'audio/mpeg' },
+      body: JSON.stringify({ text, model_id: 'eleven_multilingual_v2', voice_settings: { stability: 0.5, similarity_boost: 0.75, style: 0, use_speaker_boost: true } })
+    });
+    if (!r.ok) { btn.classList.remove('loading'); fallbackTTS(btn, text); return; }
+    const blob = await r.blob();
+    cache[id] = blob;
+    btn.classList.remove('loading');
+    playBlob(btn, blob);
+  } catch(e) { btn.classList.remove('loading'); fallbackTTS(btn, text); }
+}
+
+function playBlob(btn, blob) {
+  const a = new Audio(URL.createObjectURL(blob));
+  curAudio = a; curBtn = btn;
+  btn.classList.add('speaking');
+  a.onended = () => { btn.classList.remove('speaking'); curBtn = null; curAudio = null; };
+  a.onerror = () => { btn.classList.remove('speaking'); curBtn = null; curAudio = null; };
+  a.play().catch(() => btn.classList.remove('speaking'));
+}
+
+function fallbackTTS(btn, text) {
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.rate = 0.85; u.pitch = 1.05;
+  const voices = window.speechSynthesis.getVoices();
+  const pref = voices.find(v => v.lang.startsWith('en'));
+  if (pref) u.voice = pref;
+  btn.classList.add('speaking'); curBtn = btn;
+  u.onend = () => { btn.classList.remove('speaking'); curBtn = null; };
+  u.onerror = () => { btn.classList.remove('speaking'); curBtn = null; };
+  window.speechSynthesis.speak(u);
+}
+if (window.speechSynthesis) window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
+
+// ====== TIMERS ======
+function fmt(s) { return `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`; }
+
+function startT(i) {
+  if (timers[i]) return;
+  running[i] = true;
+  const btn = document.querySelector(`#timer-${i} .st-btn`);
+  if (btn) { btn.textContent = '⏸ Pause'; btn.classList.add('on'); }
+  timers[i] = setInterval(() => {
+    if (timeLeft[i] > 0) { timeLeft[i]--; updTD(i); }
+    else { clearInterval(timers[i]); timers[i] = null; running[i] = false;
+      document.getElementById(`timer-${i}`)?.classList.add('timer-done'); playChime(); }
+  }, 1000);
+}
+
+function toggleT(i) {
+  if (running[i]) {
+    clearInterval(timers[i]); timers[i] = null; running[i] = false;
+    const btn = document.querySelector(`#timer-${i} .st-btn`);
+    if (btn) { btn.textContent = '▶ Play'; btn.classList.remove('on'); }
+    document.getElementById('floatTimer').classList.add('paused');
+  } else { startT(i); document.getElementById('floatTimer').classList.remove('paused'); }
+}
+
+function resetT(i) {
+  clearInterval(timers[i]); timers[i] = null; running[i] = false;
+  timeLeft[i] = secTimes[i]; updTD(i);
+  const el = document.getElementById(`timer-${i}`);
+  if (el) { el.classList.remove('timer-done','timer-warn'); }
+  const btn = document.querySelector(`#timer-${i} .st-btn`);
+  if (btn) { btn.textContent = '▶ Play'; btn.classList.remove('on'); }
+}
+
+function updTD(i) {
+  const d = document.getElementById(`td-${i}`);
+  if (d) d.textContent = fmt(timeLeft[i]);
+  if (timeLeft[i] <= 60 && timeLeft[i] > 0) document.getElementById(`timer-${i}`)?.classList.add('timer-warn');
+  document.getElementById('ftTime').textContent = fmt(timeLeft[i]);
+}
+
+function playChime() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [523, 659].forEach((f, i) => {
+      setTimeout(() => {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.connect(g); g.connect(ctx.destination);
+        o.frequency.value = f; o.type = 'sine';
+        g.gain.setValueAtTime(0.3, ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 1);
+        o.start(); o.stop(ctx.currentTime + 1);
+      }, i * 300);
+    });
+  } catch(e) {}
+}
+
+// ====== NAVIGATION ======
+function startAdventure() {
+  document.getElementById('welcome').style.display = 'none';
+  goTo(0);
+  globalInt = setInterval(() => {
+    elapsed++;
+    document.getElementById('globalFill').style.width = Math.min((elapsed/TOTAL)*100, 100) + '%';
+  }, 1000);
+}
+
+function goTo(i) {
+  if (curAudio && !curAudio.paused) { curAudio.pause(); curAudio.currentTime = 0; }
+  if (window.speechSynthesis) window.speechSynthesis.cancel();
+  document.querySelectorAll('.audio-btn').forEach(b => { b.classList.remove('speaking','loading'); });
+  curBtn = null; curAudio = null;
+
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  cur = i;
+  const s = document.getElementById(`s${i}`);
+  if (s) { s.classList.add('active'); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+
+  if (i >= 0 && i < 4 && !running[i]) startT(i);
+
+  document.querySelectorAll('.pdot').forEach((d, j) => {
+    d.classList.remove('active');
+    if (j < i) d.classList.add('done');
+    if (j === i) d.classList.add('active');
+  });
+  document.getElementById('progDots').classList.add('visible');
+  document.getElementById('floatTimer').classList.toggle('visible', i < 4);
+  if (i < 4) updTD(i);
+}
+
+// ====== QUIZZES ======
+function checkMC(opt, qid, correct, fb) {
+  const el = document.getElementById(qid + '-feedback');
+  document.querySelectorAll(`#${qid} .mc-opt`).forEach(o => o.classList.remove('correct','wrong'));
+  if (correct) {
+    opt.classList.add('correct');
+    el.className = 'mc-fb show correct';
+    el.textContent = '✅ ' + fb;
+    document.querySelectorAll(`#${qid} .mc-opt`).forEach(o => o.classList.add('off'));
+  } else {
+    opt.classList.add('wrong');
+    el.className = 'mc-fb show wrong';
+    el.textContent = '❌ ' + fb;
+    setTimeout(() => { opt.classList.remove('wrong'); el.classList.remove('show'); }, 2200);
+  }
+}
+
+// ====== DRAG & DROP ======
+let dragged = null, sortedN = 0;
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.sort-item').forEach(item => {
+    item.addEventListener('dragstart', e => {
+      dragged = item; item.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', item.id);
+    });
+    item.addEventListener('dragend', () => {
+      item.classList.remove('dragging');
+      document.querySelectorAll('.sort-bucket').forEach(b => b.classList.remove('drag-over'));
+    });
+    let tc = null, ox = 0, oy = 0;
+    item.addEventListener('touchstart', e => {
+      dragged = item;
+      const t = e.touches[0], r = item.getBoundingClientRect();
+      ox = t.clientX - r.left; oy = t.clientY - r.top;
+      tc = item.cloneNode(true);
+      Object.assign(tc.style, { position:'fixed', zIndex:'3000', pointerEvents:'none', opacity:'0.85', transform:'scale(1.05)', width:r.width+'px', left:(t.clientX-ox)+'px', top:(t.clientY-oy)+'px' });
+      document.body.appendChild(tc); item.style.opacity = '0.3';
+    }, {passive:true});
+    item.addEventListener('touchmove', e => {
+      e.preventDefault(); if (!tc) return;
+      const t = e.touches[0];
+      tc.style.left = (t.clientX-ox)+'px'; tc.style.top = (t.clientY-oy)+'px';
+      document.querySelectorAll('.sort-bucket').forEach(b => {
+        const r = b.getBoundingClientRect();
+        b.classList.toggle('drag-over', t.clientX>=r.left && t.clientX<=r.right && t.clientY>=r.top && t.clientY<=r.bottom);
+      });
+    }, {passive:false});
+    item.addEventListener('touchend', e => {
+      if (!tc || !dragged) return;
+      const t = e.changedTouches[0];
+      tc.parentNode?.removeChild(tc); tc = null; dragged.style.opacity = '';
+      document.querySelectorAll('.sort-bucket').forEach(b => {
+        const r = b.getBoundingClientRect();
+        if (t.clientX>=r.left && t.clientX<=r.right && t.clientY>=r.top && t.clientY<=r.bottom) {
+          placeSort(dragged, b, b.id==='bucketLiving'?'living':'dead');
+        }
+        b.classList.remove('drag-over');
+      });
+      dragged = null;
+    });
+  });
+});
+
+function handleDrop(e, type) {
+  e.preventDefault(); e.currentTarget.classList.remove('drag-over');
+  if (!dragged) return;
+  placeSort(dragged, e.currentTarget, type); dragged = null;
+}
+
+function placeSort(item, bucket, type) {
+  const ok = item.dataset.answer === type;
+  item.draggable = false; item.style.cursor = 'default'; item.style.opacity = '';
+  if (ok) { item.classList.add('placed-correct'); bucket.appendChild(item); sortedN++; }
+  else {
+    item.classList.add('placed-wrong'); bucket.appendChild(item);
+    setTimeout(() => { item.classList.remove('placed-wrong'); item.draggable = true; item.style.cursor = 'grab'; document.getElementById('sortItems').appendChild(item); }, 1200);
+  }
+  if (sortedN >= 6) {
+    const r = document.getElementById('sortResult');
+    r.textContent = '🌟 Amazing! You sorted them all correctly! Remember: real faith always shows up in how we treat people!';
+    r.style.background = 'var(--sage-light)'; r.style.color = 'var(--sage)';
+    r.classList.add('show');
+  }
+}
+</script>
+</body>
+</html>
