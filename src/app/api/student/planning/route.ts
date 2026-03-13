@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { SESSION_COOKIE_NAME } from "@/lib/constants";
 
+// Reverse mapping for pre-migration-011 fallback
+const PAGE_ID_TO_NUMBER: Record<string, number> = {
+  A1: 1, A2: 2, A3: 3, A4: 4,
+  B1: 5, B2: 6, B3: 7, B4: 8,
+  C1: 9, C2: 10, C3: 11, C4: 12,
+  D1: 13, D2: 14, D3: 15, D4: 16,
+};
+
 async function getStudentId(request: NextRequest): Promise<string | null> {
   const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
   if (!token) return null;
@@ -45,7 +53,8 @@ export async function GET(request: NextRequest) {
     id: t.id,
     title: t.title,
     status: t.status,
-    pageNumber: t.page_number,
+    pageId: t.page_id || null,
+    startDate: t.start_date,
     targetDate: t.target_date,
     timeLogged: t.time_logged,
   }));
@@ -61,7 +70,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { unitId, title, pageNumber } = body;
+  const { unitId, title, pageId, startDate, targetDate } = body;
 
   if (!unitId || !title) {
     return NextResponse.json(
@@ -83,17 +92,58 @@ export async function POST(request: NextRequest) {
 
   const nextOrder = (existing?.[0]?.sort_order || 0) + 1;
 
+  // Try with page_id (post-migration 011)
   const { data, error } = await supabase
     .from("planning_tasks")
     .insert({
       student_id: studentId,
       unit_id: unitId,
       title,
-      page_number: pageNumber || null,
+      page_id: pageId || null,
+      start_date: startDate || null,
+      target_date: targetDate || null,
       sort_order: nextOrder,
     })
     .select()
     .single();
+
+  if (error && (error.message?.includes("does not exist") || error.message?.includes("Could not find"))) {
+    // Fallback: migration 011 not yet applied, use page_number
+    const pageNumber = pageId ? PAGE_ID_TO_NUMBER[pageId] || null : null;
+
+    const { data: fallbackData, error: fallbackError } = await supabase
+      .from("planning_tasks")
+      .insert({
+        student_id: studentId,
+        unit_id: unitId,
+        title,
+        page_number: pageNumber,
+        start_date: startDate || null,
+        target_date: targetDate || null,
+        sort_order: nextOrder,
+      })
+      .select()
+      .single();
+
+    if (fallbackError) {
+      return NextResponse.json(
+        { error: fallbackError.message },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      task: {
+        id: fallbackData.id,
+        title: fallbackData.title,
+        status: fallbackData.status,
+        pageId: fallbackData.page_id || null,
+        startDate: fallbackData.start_date,
+        targetDate: fallbackData.target_date,
+        timeLogged: fallbackData.time_logged,
+      },
+    });
+  }
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -104,7 +154,8 @@ export async function POST(request: NextRequest) {
       id: data.id,
       title: data.title,
       status: data.status,
-      pageNumber: data.page_number,
+      pageId: data.page_id || null,
+      startDate: data.start_date,
       targetDate: data.target_date,
       timeLogged: data.time_logged,
     },
@@ -119,7 +170,7 @@ export async function PATCH(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { taskId, status, title } = body;
+  const { taskId, status, title, startDate, targetDate } = body;
 
   if (!taskId) {
     return NextResponse.json({ error: "taskId required" }, { status: 400 });
@@ -130,6 +181,8 @@ export async function PATCH(request: NextRequest) {
   const updates: Record<string, unknown> = {};
   if (status) updates.status = status;
   if (title) updates.title = title;
+  if (startDate !== undefined) updates.start_date = startDate || null;
+  if (targetDate !== undefined) updates.target_date = targetDate || null;
 
   const { error } = await supabase
     .from("planning_tasks")

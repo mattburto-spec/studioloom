@@ -54,10 +54,10 @@ export default function TeacherLoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-dark-blue to-dark-blue/90 px-4">
+    <div className="min-h-screen flex items-center justify-center gradient-hero px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2">Questerra</h1>
+          <h1 className="text-3xl font-bold text-white mb-2">StudioLoom</h1>
           <p className="text-white/60">Teacher Portal</p>
         </div>
 
@@ -136,7 +136,7 @@ export default function TeacherLoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 bg-dark-blue text-white rounded-lg font-medium hover:bg-dark-blue/90 transition disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-full py-3 gradient-cta text-white rounded-full font-medium hover:opacity-90 transition disabled:opacity-40 disabled:cursor-not-allowed shadow-md shadow-brand-pink/20"
             >
               {loading
                 ? mode === "login" ? "Logging in..." : "Creating account..."

@@ -1,14 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { CRITERIA, PAGES, type CriterionKey } from "@/lib/constants";
-import type { StudentProgress } from "@/types";
+import { getPageSettings, getPageColor } from "@/lib/constants";
+import type { StudentProgress, PageSettingsMap, UnitPage } from "@/types";
 
 interface SubwayNavProps {
   unitId: string;
   currentPageId: string;
-  lockedPages: number[];
+  lockedPages: string[];
   progress: StudentProgress[];
+  pageSettings?: PageSettingsMap;
+  pages: UnitPage[];
 }
 
 export function SubwayNav({
@@ -16,58 +18,37 @@ export function SubwayNav({
   currentPageId,
   lockedPages,
   progress,
+  pageSettings,
+  pages,
 }: SubwayNavProps) {
-  function getPageStatus(pageNumber: number) {
-    if (lockedPages.includes(pageNumber)) return "locked";
-    const p = progress.find((pr) => pr.page_number === pageNumber);
+  // Filter to only enabled pages
+  const visiblePages = pageSettings
+    ? pages.filter((p) => getPageSettings(pageSettings, p.id).enabled)
+    : pages;
+
+  function getPageStatus(pageId: string) {
+    if (lockedPages.includes(pageId)) return "locked";
+    const p = progress.find((pr) => pr.page_id === pageId);
     if (!p) return "not_started";
     return p.status;
   }
 
   return (
     <div className="relative">
-      {/* Criterion labels */}
-      <div className="flex mb-2">
-        {(Object.keys(CRITERIA) as CriterionKey[]).map((key) => (
-          <div key={key} className="flex-1 text-center">
-            <span
-              className="text-[10px] font-medium uppercase tracking-wider"
-              style={{ color: CRITERIA[key].color }}
-            >
-              {CRITERIA[key].name}
-            </span>
-          </div>
-        ))}
-      </div>
-
       {/* Rail and dots */}
       <div className="relative flex items-center">
         {/* Background rail */}
         <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-0.5 bg-gray-200" />
 
-        {/* Color segments */}
-        {(Object.keys(CRITERIA) as CriterionKey[]).map((key, i) => (
-          <div
-            key={key}
-            className="absolute top-1/2 -translate-y-1/2 h-0.5"
-            style={{
-              left: `${(i / 4) * 100}%`,
-              width: "25%",
-              backgroundColor: CRITERIA[key].color,
-              opacity: 0.3,
-            }}
-          />
-        ))}
-
         {/* Dots */}
         <div className="relative flex justify-between w-full">
-          {PAGES.map((page) => {
-            const status = getPageStatus(page.number);
+          {visiblePages.map((page) => {
+            const status = getPageStatus(page.id);
             const isCurrent = page.id === currentPageId;
             const isLocked = status === "locked";
             const isComplete = status === "complete";
             const isInProgress = status === "in_progress";
-            const color = CRITERIA[page.criterion].color;
+            const color = getPageColor(page);
 
             const dot = (
               <div

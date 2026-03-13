@@ -1,15 +1,32 @@
 @import "tailwindcss";
 
 @theme {
-  --color-dark-blue: #1B3A5C;
+  /* === Brand colours (inspired by Uncode Creative Landing) === */
+  --color-brand-purple: #7B2FF2;
+  --color-brand-violet: #5C16C5;
+  --color-brand-pink: #FF3366;
+  --color-brand-coral: #FF6B6B;
+  --color-brand-lilac: #C084FC;
+
+  /* === Criterion colours (functional — unchanged) === */
   --color-accent-blue: #2E86AB;
   --color-accent-green: #2DA05E;
   --color-accent-orange: #E86F2C;
   --color-accent-purple: #8B2FC9;
+
+  /* === Legacy alias (components still reference dark-blue) === */
+  --color-dark-blue: #1B3A5C;
+
+  /* === Surfaces === */
   --color-surface: #FFFFFF;
   --color-surface-alt: #F8F9FA;
+  --color-surface-dark: #1A1A2E;
+
+  /* === Text === */
   --color-text-primary: #1A1A2E;
   --color-text-secondary: #6B7280;
+
+  /* === Border === */
   --color-border: #E5E7EB;
 }
 
@@ -19,4 +36,358 @@
     color: var(--color-text-primary);
     background: var(--color-surface);
   }
+}
+
+/* === Reusable gradient utilities === */
+@layer utilities {
+  /* Full-bleed: breaks out of any parent max-width to span full viewport */
+  .full-bleed {
+    width: 100vw;
+    margin-left: calc(50% - 50vw);
+  }
+  .gradient-hero {
+    background: linear-gradient(135deg, #7B2FF2 0%, #5C16C5 50%, #4A0FB0 100%);
+  }
+  .gradient-hero-warm {
+    background: linear-gradient(135deg, #7B2FF2 0%, #9333EA 40%, #C026D3 100%);
+  }
+  .gradient-cta {
+    background: linear-gradient(135deg, #FF3366 0%, #FF6B6B 100%);
+  }
+}
+
+/* === Scroll animations for landing page unit library === */
+@keyframes scroll-left {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+@keyframes scroll-right {
+  0% { transform: translateX(-50%); }
+  100% { transform: translateX(0); }
+}
+
+/* === Wizard blueprint animations === */
+@keyframes card-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+.animate-card-pulse {
+  animation: card-pulse 2s ease-in-out infinite;
+}
+.animate-cursor-blink {
+  animation: cursor-blink 1s step-end infinite;
+}
+@keyframes fade-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+.animate-fade-in {
+  animation: fade-in 200ms ease-out;
+}
+@keyframes slide-up-fade {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-slide-up {
+  animation: slide-up-fade 300ms ease-out both;
+}
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(12px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.animate-slide-in-right {
+  animation: slide-in-right 200ms ease-out both;
+}
+
+@keyframes slide-in-left {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+.animate-slide-in-left {
+  animation: slide-in-left 250ms ease-out both;
+}
+
+@keyframes pop-in {
+  from { opacity: 0; transform: scale(0.3); }
+  to { opacity: 1; transform: scale(1); }
+}
+.animate-pop-in { animation: pop-in 200ms cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+
+@keyframes slide-up-spring {
+  from { opacity: 0; transform: translateY(24px) scale(0.95); }
+  50% { transform: translateY(-4px) scale(1.02); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.animate-slide-up-spring {
+  animation: slide-up-spring 500ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* Context drawer expand/collapse */
+.drawer-content {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 200ms ease-out;
+}
+.drawer-content.open {
+  grid-template-rows: 1fr;
+}
+.drawer-content > div {
+  overflow: hidden;
+}
+
+/* Narrative export print styles */
+@media print {
+  .narrative-no-print { display: none !important; }
+  .narrative-page-break { break-before: page; }
+  .narrative-cover { break-after: page; }
+  body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  @page { margin: 1.5cm 2cm; }
+}
+
+/* === Timeline builder — Notion-style block interactions === */
+
+/* Block hover: subtle background + reveal handle & accent */
+.timeline-block {
+  position: relative;
+  border-radius: 4px;
+  transition: background 150ms ease;
+}
+.timeline-block .block-handle {
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+.timeline-block:hover .block-handle {
+  opacity: 1;
+}
+.timeline-block:hover {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+/* Left accent line (role-colored, hover-reveal) */
+.timeline-block-accent {
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  width: 2px;
+  border-radius: 1px;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+.timeline-block:hover .timeline-block-accent,
+.timeline-block.expanded .timeline-block-accent {
+  opacity: 1;
+}
+
+/* Drag state */
+.timeline-block-dragging {
+  box-shadow: 0 8px 24px -4px rgba(0,0,0,0.12), 0 2px 8px -2px rgba(0,0,0,0.06);
+  transform: scale(1.02);
+  opacity: 0.92;
+  z-index: 50;
+  background: white !important;
+  border-radius: 6px;
+}
+
+/* Legacy — keep for transition */
+.timeline-card {
+  transition: transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 200ms ease-out,
+              opacity 200ms ease-out;
+}
+.timeline-card-dragging {
+  box-shadow: 0 12px 28px -4px rgba(0,0,0,0.15), 0 4px 12px -2px rgba(0,0,0,0.08);
+  transform: scale(1.03) rotate(0.5deg);
+  opacity: 0.92;
+  z-index: 50;
+}
+@keyframes insert-line-pulse {
+  0%, 100% { opacity: 1; transform: scaleX(1); }
+  50% { opacity: 0.6; transform: scaleX(0.97); }
+}
+.timeline-insert-line {
+  height: 2px;
+  background: var(--color-brand-purple);
+  border-radius: 1px;
+  animation: insert-line-pulse 1.2s ease-in-out infinite;
+}
+
+/* ===== DECK BUILDER — playing card metaphor ===== */
+
+/* Card container — handles 3D flip */
+.deck-card-container {
+  perspective: 800px;
+  transition: transform 400ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  cursor: pointer;
+}
+.deck-card-container:hover {
+  transform: translateY(-4px) scale(1.02);
+}
+
+/* The card itself — 3D flip transform */
+.deck-card {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 500ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.deck-card-container.flipped .deck-card {
+  transform: rotateY(180deg);
+}
+
+/* Card faces */
+.deck-card-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  border-radius: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: white;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.deck-card-front {
+  z-index: 2;
+}
+.deck-card-back {
+  transform: rotateY(180deg);
+  z-index: 1;
+}
+
+/* Card hover — lift + shadow */
+.deck-card-face:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.04);
+}
+
+/* Card drag state */
+.deck-card-dragging {
+  box-shadow: 0 12px 28px -4px rgba(0, 0, 0, 0.15), 0 4px 12px -2px rgba(0, 0, 0, 0.08) !important;
+  transform: scale(1.05) rotate(1deg) !important;
+}
+
+/* Lesson stack — collapsed */
+.deck-stack {
+  position: relative;
+  cursor: pointer;
+  transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  width: 100%;
+}
+.deck-stack:hover {
+  transform: translateY(-2px);
+}
+.deck-stack-overrun {
+  /* Red glow for overrun */
+}
+.deck-stack-overrun > div:last-of-type {
+  border-color: rgba(239, 68, 68, 0.3) !important;
+}
+
+/* Card dealing animation — each card flies in */
+@keyframes deck-deal {
+  0% {
+    opacity: 0;
+    transform: translateX(-60px) translateY(20px) rotate(-8deg) scale(0.8);
+  }
+  60% {
+    opacity: 1;
+    transform: translateX(4px) translateY(-2px) rotate(0.5deg) scale(1.02);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) translateY(0) rotate(0) scale(1);
+  }
+}
+.deck-card-deal {
+  animation: deck-deal 400ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* Fan container */
+.deck-fan-container {
+  animation: deck-fan-in 300ms ease-out;
+}
+@keyframes deck-fan-in {
+  from { opacity: 0; transform: translateX(-10px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* Add card button */
+.deck-add-card {
+  min-height: 160px;
+  border: 2px dashed rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 200ms ease;
+  cursor: pointer;
+}
+.deck-add-card:hover {
+  border-color: var(--color-brand-purple, #7B2FF2);
+  background: rgba(123, 47, 242, 0.03);
+}
+
+/* Duration slider — thin horizontal range input */
+.deck-duration-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+}
+.deck-duration-slider::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.08);
+}
+.deck-duration-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  background: white;
+  margin-top: -4.5px;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+  transition: transform 150ms ease;
+}
+.deck-duration-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+.deck-duration-slider::-moz-range-track {
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.08);
+  border: none;
+}
+.deck-duration-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  background: white;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+}
+
+/* Smooth scrollbar for wizard builder panel */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: #d1d5db transparent;
+}
+.scrollbar-thin::-webkit-scrollbar {
+  width: 4px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 2px;
 }

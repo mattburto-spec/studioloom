@@ -3,8 +3,10 @@
 import { useState, useEffect, use } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { CRITERIA, PAGES, type CriterionKey } from "@/lib/constants";
-import type { Student, StudentProgress, Unit } from "@/types";
+import { getPageColor } from "@/lib/constants";
+import { getPageList } from "@/lib/unit-adapter";
+import type { Student, StudentProgress, Unit, UnitPage } from "@/types";
+import type { AssessmentRecordRow } from "@/types/assessment";
 
 interface ProgressCell {
   status: "not_started" | "in_progress" | "complete";
@@ -12,7 +14,9 @@ interface ProgressCell {
   timeSpent: number;
 }
 
-type StudentProgressMap = Record<string, Record<number, ProgressCell>>;
+type GradingStatus = "ungraded" | "draft" | "published";
+
+type StudentProgressMap = Record<string, Record<string, ProgressCell>>;
 
 export default function ProgressTrackingPage({
   params,
@@ -25,8 +29,9 @@ export default function ProgressTrackingPage({
   const [progressMap, setProgressMap] = useState<StudentProgressMap>({});
   const [className, setClassName] = useState("");
   const [loading, setLoading] = useState(true);
+  const [gradingStatusMap, setGradingStatusMap] = useState<Record<string, GradingStatus>>({});
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
-  const [selectedPage, setSelectedPage] = useState<number | null>(null);
+  const [selectedPage, setSelectedPage] = useState<string | null>(null);
   const [detailResponses, setDetailResponses] = useState<Record<string, string> | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
@@ -75,7 +80,7 @@ export default function ProgressTrackingPage({
       const map: StudentProgressMap = {};
       (progress || []).forEach((p: StudentProgress) => {
         if (!map[p.student_id]) map[p.student_id] = {};
-        map[p.student_id][p.page_number] = {
+        map[p.student_id][p.page_id] = {
           status: p.status as "not_started" | "in_progress" | "complete",
           hasResponses:
             p.responses !== null &&
@@ -87,12 +92,31 @@ export default function ProgressTrackingPage({
       setProgressMap(map);
     }
 
+    // Fetch grading status
+    try {
+      const assessRes = await fetch(
+        `/api/teacher/assessments?classId=${classId}&unitId=${unitId}`
+      );
+      if (assessRes.ok) {
+        const { assessments } = (await assessRes.json()) as {
+          assessments: AssessmentRecordRow[];
+        };
+        const statusMap: Record<string, GradingStatus> = {};
+        for (const a of assessments) {
+          statusMap[a.student_id] = a.is_draft ? "draft" : "published";
+        }
+        setGradingStatusMap(statusMap);
+      }
+    } catch {
+      // grading status is non-critical — silently skip
+    }
+
     setLoading(false);
   }
 
-  async function loadStudentDetail(student: Student, pageNumber: number) {
+  async function loadStudentDetail(student: Student, pageId: string) {
     setSelectedStudent(student);
-    setSelectedPage(pageNumber);
+    setSelectedPage(pageId);
     setDetailLoading(true);
     setDetailResponses(null);
 
@@ -102,7 +126,7 @@ export default function ProgressTrackingPage({
       .select("responses")
       .eq("student_id", student.id)
       .eq("unit_id", unitId)
-      .eq("page_number", pageNumber)
+      .eq("page_id", pageId)
       .single();
 
     setDetailResponses(
@@ -140,10 +164,10 @@ export default function ProgressTrackingPage({
     return Object.values(sp).filter((c) => c.status === "complete").length;
   }
 
-  function getPageCompletion(pageNumber: number): number {
+  function getPageCompletion(pageId: string): number {
     let count = 0;
     students.forEach((s) => {
-      if (progressMap[s.id]?.[pageNumber]?.status === "complete") count++;
+      if (progressMap[s.id]?.[pageId]?.status === "complete") count++;
     });
     return count;
   }
@@ -159,7 +183,7 @@ export default function ProgressTrackingPage({
     );
   }
 
-  const pageContent = unit?.content_data?.pages || {};
+  const unitPages: UnitPage[] = unit ? getPageList(unit.content_data) : [];
 
   return (
     <main className="max-w-7xl mx-auto px-4 py-8">
@@ -188,7 +212,7 @@ export default function ProgressTrackingPage({
             {unit?.title || "Unit Progress"}
           </h1>
           <p className="text-text-secondary mt-1">
-            {students.length} students · {PAGES.length} pages
+            {students.length} students · {unitPages.length} pages
           </p>
         </div>
 
@@ -226,40 +250,14 @@ export default function ProgressTrackingPage({
           <div className="overflow-x-auto">
             <table className="w-full border-collapse">
               <thead>
-                {/* Criterion header row */}
-                <tr>
-                  <th className="sticky left-0 z-10 bg-white" />
-                  {(Object.keys(CRITERIA) as CriterionKey[]).map((key) => {
-                    const criterion = CRITERIA[key];
-                    const pageCount = PAGES.filter(
-                      (p) => p.criterion === key
-                    ).length;
-                    return (
-                      <th
-                        key={key}
-                        colSpan={pageCount}
-                        className="px-1 py-2 text-center text-xs font-semibold uppercase tracking-wider border-b-2"
-                        style={{
-                          borderBottomColor: criterion.color,
-                          color: criterion.color,
-                        }}
-                      >
-                        {criterion.name}
-                      </th>
-                    );
-                  })}
-                  <th className="px-2 py-2 text-xs font-medium text-text-secondary border-b border-border">
-                    Done
-                  </th>
-                </tr>
                 {/* Page ID header row */}
                 <tr className="border-b border-border">
                   <th className="sticky left-0 z-10 bg-white px-4 py-2 text-left text-xs font-medium text-text-secondary min-w-[160px]">
                     Student
                   </th>
-                  {PAGES.map((page) => {
-                    const criterion = CRITERIA[page.criterion];
-                    const completion = getPageCompletion(page.number);
+                  {unitPages.map((page) => {
+                    const color = getPageColor(page);
+                    const completion = getPageCompletion(page.id);
                     const pct =
                       students.length > 0
                         ? Math.round((completion / students.length) * 100)
@@ -267,16 +265,16 @@ export default function ProgressTrackingPage({
                     return (
                       <th
                         key={page.id}
-                        className="px-1 py-2 text-center text-xs font-medium min-w-[36px] cursor-default"
+                        className="px-1 py-2 text-center text-xs font-medium min-w-[36px] cursor-default border-b-2"
                         title={`${page.id}: ${page.title}\n${completion}/${students.length} complete (${pct}%)`}
-                        style={{ color: criterion.color }}
+                        style={{ color, borderBottomColor: color }}
                       >
                         {page.id}
                       </th>
                     );
                   })}
                   <th className="px-2 py-2 text-center text-xs font-medium text-text-secondary min-w-[48px]">
-                    /16
+                    /{unitPages.length}
                   </th>
                 </tr>
               </thead>
@@ -290,8 +288,14 @@ export default function ProgressTrackingPage({
                     >
                       <td className="sticky left-0 z-10 bg-white px-4 py-2">
                         <div className="flex flex-col">
-                          <span className="text-sm font-medium text-text-primary truncate max-w-[140px]">
+                          <span className="text-sm font-medium text-text-primary truncate max-w-[140px] flex items-center gap-1.5">
                             {student.display_name || student.username}
+                            {gradingStatusMap[student.id] === "published" && (
+                              <span className="inline-block w-2 h-2 rounded-full bg-accent-green" title="Graded" />
+                            )}
+                            {gradingStatusMap[student.id] === "draft" && (
+                              <span className="inline-block w-2 h-2 rounded-full bg-amber-400" title="Draft grade" />
+                            )}
                           </span>
                           {student.display_name && (
                             <span className="text-xs text-text-secondary font-mono">
@@ -300,9 +304,9 @@ export default function ProgressTrackingPage({
                           )}
                         </div>
                       </td>
-                      {PAGES.map((page) => {
+                      {unitPages.map((page) => {
                         const cell =
-                          progressMap[student.id]?.[page.number];
+                          progressMap[student.id]?.[page.id];
                         return (
                           <td
                             key={page.id}
@@ -310,7 +314,7 @@ export default function ProgressTrackingPage({
                           >
                             <button
                               onClick={() =>
-                                loadStudentDetail(student, page.number)
+                                loadStudentDetail(student, page.id)
                               }
                               className={`w-7 h-7 rounded text-xs font-medium transition hover:scale-110 ${getStatusColor(
                                 cell?.status
@@ -325,7 +329,7 @@ export default function ProgressTrackingPage({
                       <td className="px-2 py-2 text-center">
                         <span
                           className={`text-sm font-medium ${
-                            completed === 16
+                            completed === unitPages.length
                               ? "text-accent-green"
                               : completed > 0
                               ? "text-text-primary"
@@ -345,8 +349,8 @@ export default function ProgressTrackingPage({
                   <td className="sticky left-0 z-10 bg-surface-alt/30 px-4 py-2 text-xs font-medium text-text-secondary">
                     Class completion
                   </td>
-                  {PAGES.map((page) => {
-                    const completion = getPageCompletion(page.number);
+                  {unitPages.map((page) => {
+                    const completion = getPageCompletion(page.id);
                     const pct =
                       students.length > 0
                         ? Math.round((completion / students.length) * 100)
@@ -379,8 +383,7 @@ export default function ProgressTrackingPage({
                   {selectedStudent.display_name || selectedStudent.username}
                 </h2>
                 <p className="text-sm text-text-secondary">
-                  {PAGES.find((p) => p.number === selectedPage)?.id}:{" "}
-                  {PAGES.find((p) => p.number === selectedPage)?.title}
+                  {selectedPage}: {unitPages.find(p => p.id === selectedPage)?.title}
                 </p>
               </div>
               <button
@@ -411,12 +414,8 @@ export default function ProgressTrackingPage({
                 <div className="space-y-4">
                   {/* Get page content sections to label responses */}
                   {(() => {
-                    const pageId = PAGES.find(
-                      (p) => p.number === selectedPage
-                    )?.id;
-                    const page = pageId
-                      ? (pageContent as Record<string, { sections?: { prompt: string }[]; reflection?: { type: string; items: string[] } }>)[pageId]
-                      : null;
+                    const selectedUnitPage = unitPages.find(p => p.id === selectedPage);
+                    const page = selectedUnitPage?.content as { sections?: { prompt: string }[]; reflection?: { type: string; items: string[] } } | undefined;
                     const sections = page?.sections || [];
 
                     return Object.entries(detailResponses).map(

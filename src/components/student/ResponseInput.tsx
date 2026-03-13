@@ -2,6 +2,11 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import type { ResponseType } from "@/types";
+import { compressImage } from "@/lib/compress-image";
+import { DecisionMatrix } from "./DecisionMatrix";
+import { PMIFramework } from "./PMIFramework";
+import { PairwiseComparison } from "./PairwiseComparison";
+import { TradeOffSliders } from "./TradeOffSliders";
 
 interface ResponseInputProps {
   sectionIndex: number;
@@ -12,6 +17,7 @@ interface ResponseInputProps {
   placeholder?: string;
   unitId?: string;
   pageId?: string;
+  allowedTypes?: ("text" | "upload" | "voice" | "link")[];
 }
 
 export function ResponseInput({
@@ -23,22 +29,34 @@ export function ResponseInput({
   placeholder = "Type your response here...",
   unitId,
   pageId,
+  allowedTypes,
 }: ResponseInputProps) {
-  const [activeType, setActiveType] = useState<ResponseType>(
-    responseType === "multi" ? "text" : responseType
-  );
-
-  const typeOptions: { type: ResponseType; label: string; icon: string }[] = [
+  const allTypeOptions: { type: ResponseType; label: string; icon: string }[] = [
     { type: "text", label: "Text", icon: "✏️" },
     { type: "upload", label: "Upload", icon: "📎" },
     { type: "voice", label: "Voice", icon: "🎤" },
-    { type: "sketch", label: "Sketch", icon: "🎨" },
+    { type: "link", label: "Link", icon: "🔗" },
   ];
+
+  // Filter type options based on allowed types
+  const typeOptions = allowedTypes
+    ? allTypeOptions.filter((opt) =>
+        allowedTypes.includes(opt.type as "text" | "upload" | "voice" | "link")
+      )
+    : allTypeOptions;
+
+  const [activeType, setActiveType] = useState<ResponseType>(
+    responseType === "multi"
+      ? typeOptions.length > 0
+        ? (typeOptions[0].type as ResponseType)
+        : "text"
+      : responseType
+  );
 
   return (
     <div className="space-y-2">
       {/* Response type selector for multi */}
-      {responseType === "multi" && (
+      {responseType === "multi" && typeOptions.length > 1 && (
         <div className="flex gap-1">
           {typeOptions.map((opt) => (
             <button
@@ -76,7 +94,7 @@ export function ResponseInput({
       )}
 
       {/* Text input */}
-      {(activeType === "text" || (responseType === "text" && responseType !== "multi")) && (
+      {(activeType === "text" || (responseType === "text" && (responseType as string) !== "multi")) && (
         <textarea
           id={`response-${sectionIndex}`}
           value={value}
@@ -109,15 +127,29 @@ export function ResponseInput({
         />
       )}
 
-      {/* Sketch */}
-      {activeType === "sketch" && (
-        <SketchInput
-          value={value}
-          onChange={onChange}
-          unitId={unitId}
-          pageId={pageId}
-          sectionIndex={sectionIndex}
-        />
+      {/* Link */}
+      {activeType === "link" && (
+        <LinkInput value={value} onChange={onChange} />
+      )}
+
+      {/* Decision Matrix */}
+      {activeType === "decision-matrix" && (
+        <DecisionMatrix value={value} onChange={onChange} />
+      )}
+
+      {/* PMI Framework */}
+      {activeType === "pmi" && (
+        <PMIFramework value={value} onChange={onChange} />
+      )}
+
+      {/* Pairwise Comparison */}
+      {activeType === "pairwise" && (
+        <PairwiseComparison value={value} onChange={onChange} />
+      )}
+
+      {/* Trade-Off Sliders */}
+      {activeType === "trade-off-sliders" && (
+        <TradeOffSliders value={value} onChange={onChange} />
       )}
     </div>
   );
@@ -152,8 +184,11 @@ function UploadInput({
     if (!unitId || !pageId) return;
     setUploading(true);
 
+    // Compress images before upload (5-8MB → ~400KB)
+    const processedFile = await compressImage(file);
+
     const formData = new FormData();
-    formData.append("file", file);
+    formData.append("file", processedFile);
     formData.append("unitId", unitId);
     formData.append("pageId", pageId);
 
@@ -443,247 +478,123 @@ function VoiceInput({
 }
 
 // ========================================
-// Sketch Input
+// Link Input
 // ========================================
-function SketchInput({
+function LinkInput({
   value,
   onChange,
-  unitId,
-  pageId,
-  sectionIndex,
 }: {
   value: string;
   onChange: (v: string) => void;
-  unitId?: string;
-  pageId?: string;
-  sectionIndex: number;
 }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [drawing, setDrawing] = useState(false);
-  const [color, setColor] = useState("#000000");
-  const [brushSize, setBrushSize] = useState(3);
-  const [tool, setTool] = useState<"pen" | "eraser">("pen");
-  const [saving, setSaving] = useState(false);
-  const lastPos = useRef<{ x: number; y: number } | null>(null);
-
-  const sketchData = value && value.startsWith("{") ? (() => {
+  const linkData = value && value.startsWith("{") ? (() => {
     try {
       const parsed = JSON.parse(value);
-      return parsed.type === "sketch" ? parsed : null;
+      return parsed.type === "link" ? parsed : null;
     } catch { return null; }
   })() : null;
 
-  // Initialize canvas
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || sketchData) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+  const [url, setUrl] = useState(linkData?.url || "");
+  const [title, setTitle] = useState(linkData?.title || "");
+  const [error, setError] = useState("");
 
-    // Set canvas dimensions
-    const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width;
-    canvas.height = 300;
-
-    // White background
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-  }, [sketchData]);
-
-  const getPos = useCallback((e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return { x: 0, y: 0 };
-    const rect = canvas.getBoundingClientRect();
-
-    if ("touches" in e) {
-      return {
-        x: e.touches[0].clientX - rect.left,
-        y: e.touches[0].clientY - rect.top,
-      };
+  function isValidUrl(str: string): boolean {
+    try {
+      new URL(str.startsWith("http") ? str : `https://${str}`);
+      return true;
+    } catch {
+      return false;
     }
-    return {
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
-    };
-  }, []);
-
-  const startDraw = useCallback((e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    e.preventDefault();
-    setDrawing(true);
-    lastPos.current = getPos(e);
-  }, [getPos]);
-
-  const draw = useCallback((e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    e.preventDefault();
-    if (!drawing) return;
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext("2d");
-    if (!ctx || !lastPos.current) return;
-
-    const pos = getPos(e);
-    ctx.beginPath();
-    ctx.moveTo(lastPos.current.x, lastPos.current.y);
-    ctx.lineTo(pos.x, pos.y);
-    ctx.strokeStyle = tool === "eraser" ? "#ffffff" : color;
-    ctx.lineWidth = tool === "eraser" ? brushSize * 3 : brushSize;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-    ctx.stroke();
-    lastPos.current = pos;
-  }, [drawing, color, brushSize, tool, getPos]);
-
-  const endDraw = useCallback(() => {
-    setDrawing(false);
-    lastPos.current = null;
-  }, []);
-
-  function clearCanvas() {
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext("2d");
-    if (!ctx || !canvas) return;
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
 
-  async function saveSketch() {
-    const canvas = canvasRef.current;
-    if (!canvas || !unitId || !pageId) return;
-    setSaving(true);
-
-    canvas.toBlob(async (blob) => {
-      if (!blob) { setSaving(false); return; }
-
-      const file = new File([blob], `sketch_${sectionIndex}.png`, {
-        type: "image/png",
-      });
-
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("unitId", unitId);
-      formData.append("pageId", pageId);
-
-      try {
-        const res = await fetch("/api/student/upload", {
-          method: "POST",
-          body: formData,
-        });
-        const data = await res.json();
-        if (data.url) {
-          onChange(JSON.stringify({
-            type: "sketch",
-            url: data.url,
-            filename: data.filename,
-          }));
-        }
-      } catch (err) {
-        console.error("Sketch save failed:", err);
-      } finally {
-        setSaving(false);
-      }
-    }, "image/png");
+  function getDomain(urlStr: string): string {
+    try {
+      return new URL(urlStr.startsWith("http") ? urlStr : `https://${urlStr}`).hostname;
+    } catch {
+      return "";
+    }
   }
 
-  const colors = ["#000000", "#EF4444", "#3B82F6", "#22C55E", "#F59E0B", "#8B5CF6"];
+  function saveLink() {
+    const fullUrl = url.startsWith("http") ? url : `https://${url}`;
+    if (!isValidUrl(fullUrl)) {
+      setError("Please enter a valid URL");
+      return;
+    }
+    setError("");
+    onChange(JSON.stringify({
+      type: "link",
+      url: fullUrl,
+      title: title || getDomain(fullUrl),
+    }));
+  }
 
-  if (sketchData) {
+  if (linkData) {
+    const domain = getDomain(linkData.url);
     return (
-      <div className="border border-border rounded-lg p-4">
-        <div className="flex items-center justify-between mb-2">
-          <p className="text-sm font-medium text-text-primary">Your Sketch</p>
-          <button
-            onClick={() => onChange("")}
-            className="text-xs text-red-400 hover:text-red-600"
-          >
-            Remove & Redraw
-          </button>
-        </div>
+      <div className="border border-border rounded-lg p-4 flex items-center gap-3">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={sketchData.url}
-          alt="Sketch"
-          className="w-full rounded border border-border"
+          src={`https://www.google.com/s2/favicons?domain=${domain}&sz=32`}
+          alt=""
+          className="w-8 h-8"
         />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-text-primary truncate">
+            {linkData.title}
+          </p>
+          <p className="text-xs text-text-secondary truncate">{linkData.url}</p>
+        </div>
+        <button
+          onClick={() => onChange("")}
+          className="text-xs text-red-400 hover:text-red-600"
+        >
+          Remove
+        </button>
       </div>
     );
   }
 
   return (
-    <div className="border border-border rounded-lg overflow-hidden">
-      {/* Toolbar */}
-      <div className="flex items-center gap-2 px-3 py-2 bg-surface-alt border-b border-border flex-wrap">
-        <button
-          onClick={() => setTool("pen")}
-          className={`px-2 py-1 text-xs rounded transition ${
-            tool === "pen" ? "bg-accent-blue text-white" : "bg-white text-text-secondary hover:bg-gray-100"
-          }`}
-        >
-          ✏️ Pen
-        </button>
-        <button
-          onClick={() => setTool("eraser")}
-          className={`px-2 py-1 text-xs rounded transition ${
-            tool === "eraser" ? "bg-accent-blue text-white" : "bg-white text-text-secondary hover:bg-gray-100"
-          }`}
-        >
-          🧹 Eraser
-        </button>
-
-        <div className="w-px h-5 bg-border mx-1" />
-
-        {colors.map((c) => (
-          <button
-            key={c}
-            onClick={() => { setColor(c); setTool("pen"); }}
-            className={`w-5 h-5 rounded-full border-2 transition ${
-              color === c && tool === "pen" ? "border-text-primary scale-125" : "border-transparent"
-            }`}
-            style={{ backgroundColor: c }}
-          />
-        ))}
-
-        <div className="w-px h-5 bg-border mx-1" />
-
-        <select
-          value={brushSize}
-          onChange={(e) => setBrushSize(Number(e.target.value))}
-          className="text-xs bg-white border border-border rounded px-1 py-0.5"
-        >
-          <option value={1}>Thin</option>
-          <option value={3}>Medium</option>
-          <option value={6}>Thick</option>
-          <option value={10}>Extra Thick</option>
-        </select>
-
-        <div className="flex-1" />
-
-        <button
-          onClick={clearCanvas}
-          className="px-2 py-1 text-xs text-red-400 hover:text-red-600 bg-white rounded border border-border"
-        >
-          Clear
-        </button>
-        <button
-          onClick={saveSketch}
-          disabled={saving}
-          className="px-3 py-1 text-xs bg-accent-blue text-white rounded hover:bg-accent-blue/90 transition disabled:opacity-50"
-        >
-          {saving ? "Saving..." : "💾 Save Sketch"}
-        </button>
+    <div className="border border-border rounded-lg p-4 space-y-3">
+      <div>
+        <input
+          type="url"
+          value={url}
+          onChange={(e) => { setUrl(e.target.value); setError(""); }}
+          placeholder="https://www.canva.com/design/..."
+          className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-accent-blue focus:border-transparent"
+        />
+        {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
       </div>
-
-      {/* Canvas */}
-      <canvas
-        ref={canvasRef}
-        className="w-full cursor-crosshair bg-white touch-none"
-        style={{ height: 300 }}
-        onMouseDown={startDraw}
-        onMouseMove={draw}
-        onMouseUp={endDraw}
-        onMouseLeave={endDraw}
-        onTouchStart={startDraw}
-        onTouchMove={draw}
-        onTouchEnd={endDraw}
+      <input
+        type="text"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        placeholder="Link title (optional)"
+        className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-accent-blue focus:border-transparent"
+        onKeyDown={(e) => {
+          if (e.key === "Enter") saveLink();
+        }}
       />
+      {url && isValidUrl(url.startsWith("http") ? url : `https://${url}`) && (
+        <div className="flex items-center gap-2 text-xs text-text-secondary">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={`https://www.google.com/s2/favicons?domain=${getDomain(url)}&sz=16`}
+            alt=""
+            className="w-4 h-4"
+          />
+          <span>{getDomain(url)}</span>
+        </div>
+      )}
+      <button
+        onClick={saveLink}
+        disabled={!url.trim()}
+        className="px-4 py-2 text-sm bg-accent-blue text-white rounded-lg hover:bg-accent-blue/90 transition disabled:opacity-40"
+      >
+        Save Link
+      </button>
     </div>
   );
 }

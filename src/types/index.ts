@@ -1,4 +1,4 @@
-import type { EllLevel, PageId } from "@/lib/constants";
+import type { EllLevel, CriterionKey } from "@/lib/constants";
 
 export interface Teacher {
   id: string;
@@ -13,15 +13,23 @@ export interface Class {
   name: string;
   code: string;
   created_at: string;
+  // LMS integration (provider-agnostic)
+  external_class_id: string | null;
+  external_provider: string | null;
+  last_synced_at: string | null;
 }
 
 export interface Student {
   id: string;
   username: string;
   display_name: string | null;
+  avatar_url: string | null;
   class_id: string;
   ell_level: EllLevel;
   created_at: string;
+  // LMS integration (provider-agnostic)
+  external_id: string | null;
+  external_provider: string | null;
 }
 
 export interface StudentSession {
@@ -39,14 +47,47 @@ export interface Unit {
   thumbnail_url: string | null;
   content_data: UnitContentData;
   created_at: string;
+  // Repository fields
+  is_published: boolean;
+  author_teacher_id: string | null;
+  author_name: string | null;
+  school_name: string | null;
+  tags: string[];
+  grade_level: string | null;
+  duration_weeks: number | null;
+  topic: string | null;
+  global_context: string | null;
+  key_concept: string | null;
+  fork_count: number;
+  forked_from: string | null;
 }
 
 export interface ClassUnit {
   class_id: string;
   unit_id: string;
   is_active: boolean;
-  locked_pages: number[];
+  locked_pages: string[]; // page IDs (was number[] in v1)
+  // Due dates
+  final_due_date: string | null;
+  page_due_dates: PageDueDatesMap;
+  // Per-page settings
+  page_settings: PageSettingsMap;
 }
+
+// --- Per-Page Due Dates Types ---
+
+/** Map of page IDs to due date strings, e.g. { "A1": "2026-04-01", "B2": "2026-04-15" } */
+export type PageDueDatesMap = Partial<Record<string, string>>;
+
+// --- Per-Page Settings Types ---
+
+export interface PageSettings {
+  enabled: boolean;
+  assessment_type: "formative" | "summative";
+  export_pdf: boolean;
+}
+
+export type PageSettingsMap = Partial<Record<string, PageSettings>>;
 
 export type ProgressStatus = "not_started" | "in_progress" | "complete";
 
@@ -54,7 +95,7 @@ export interface StudentProgress {
   id: string;
   student_id: string;
   unit_id: string;
-  page_number: number;
+  page_id: string;
   status: ProgressStatus;
   responses: Record<string, unknown>;
   time_spent: number;
@@ -69,11 +110,30 @@ export interface PlanningTask {
   unit_id: string;
   title: string;
   status: PlanningTaskStatus;
+  start_date: string | null;
   target_date: string | null;
   actual_date: string | null;
   time_logged: number;
-  page_number: number | null;
+  page_id: string | null;
   sort_order: number;
+  created_at: string;
+}
+
+// --- Portfolio Entry Types ---
+
+export type PortfolioEntryType = 'entry' | 'photo' | 'link' | 'note' | 'mistake' | 'auto';
+
+export interface PortfolioEntry {
+  id: string;
+  student_id: string;
+  unit_id: string;
+  type: PortfolioEntryType;
+  content: string | null;
+  media_url: string | null;
+  link_url: string | null;
+  link_title: string | null;
+  page_id: string | null;
+  section_index: number | null;
   created_at: string;
 }
 
@@ -99,13 +159,37 @@ export interface EllScaffolding {
   ell3?: { extensionPrompts?: string[] };
 }
 
-export type ResponseType = "text" | "upload" | "sketch" | "voice" | "multi";
+export type ResponseType = "text" | "upload" | "voice" | "link" | "multi" | "decision-matrix" | "pmi" | "pairwise" | "trade-off-sliders";
+
+export interface ActivityMedia {
+  type: "image" | "video";
+  url: string;
+  caption?: string;
+}
+
+export interface ActivityLink {
+  url: string;
+  label: string;
+}
+
+export type ContentStyle = "info" | "warning" | "tip" | "context";
 
 export interface ActivitySection {
   prompt: string;
   scaffolding?: EllScaffolding;
-  responseType: ResponseType;
+  responseType?: ResponseType;
   exampleResponse?: string;
+  portfolioCapture?: boolean;
+  /** Assessment criteria this activity addresses — e.g. ["A","B"] or ["AO1","AO3"]. Framework-agnostic. */
+  criterionTags?: string[];
+  /** Estimated duration in minutes for this activity section. */
+  durationMinutes?: number;
+  /** Stable activity ID from v4 timeline — used for response keys that survive rebalancing. */
+  activityId?: string;
+  media?: ActivityMedia;
+  links?: ActivityLink[];
+  /** Visual style for content-only blocks (no responseType). */
+  contentStyle?: ContentStyle;
 }
 
 export interface Reflection {
@@ -120,14 +204,213 @@ export interface PageContent {
   introduction?: {
     text: string;
     media?: { type: "image" | "video"; url: string };
+    links?: ActivityLink[];
   };
   sections: ActivitySection[];
   reflection?: Reflection;
 }
 
-export type UnitContentData = {
-  pages?: Partial<Record<PageId, PageContent>>;
-};
+// --- Flexible Page Types (v2) ---
+
+export type PageType = "strand" | "context" | "skill" | "reflection" | "custom" | "lesson";
+
+export interface UnitPage {
+  id: string;                // nanoid(8) for new pages; "A1"/"B3" for migrated v1
+  type: PageType;
+  criterion?: CriterionKey;  // only for "strand" type
+  strandIndex?: number;      // e.g. 1-4 within criterion
+  phaseLabel?: string;       // v4 timeline phase grouping ("Research", "Ideation", etc.)
+  title: string;
+  content: PageContent;
+}
+
+export interface UnitContentDataV2 {
+  version: 2;
+  pages: UnitPage[];
+}
+
+/** v3: journey-based — lessons as sequential blocks, criteria as section-level tags. */
+export interface UnitContentDataV3 {
+  version: 3;
+  generationModel: "journey";
+  pages: UnitPage[];
+  lessonLengthMinutes?: number;
+  assessmentCriteria?: string[];
+}
+
+// --- Timeline Types (v4) ---
+
+export type TimelineActivityRole = "warmup" | "intro" | "core" | "reflection" | "content";
+
+/** A single activity in the unit timeline. Activities belong to the unit, not to lessons. */
+export interface TimelineActivity {
+  id: string;                    // nanoid(8) — stable across lesson rebalancing
+  role: TimelineActivityRole;
+  title: string;
+  prompt: string;
+  durationMinutes: number;       // REQUIRED — drives lesson boundary computation
+  responseType?: ResponseType;   // optional — content-role activities have no response
+  scaffolding?: EllScaffolding;
+  exampleResponse?: string;
+  portfolioCapture?: boolean;
+  criterionTags?: string[];
+  phaseLabel?: string;           // "Research", "Prototyping" — grouping hint from AI
+  media?: ActivityMedia;
+  links?: ActivityLink[];
+  contentStyle?: ContentStyle;   // visual style for content-role blocks
+  // Role-specific fields
+  vocabTerms?: VocabTerm[];      // for warmup role
+  reflectionType?: "confidence-slider" | "checklist" | "short-response";
+  reflectionItems?: string[];    // for reflection role
+}
+
+/** Computed lesson boundary — derived at runtime from timeline + lessonLength. Not manually set. */
+export interface ComputedLesson {
+  lessonNumber: number;
+  lessonId: string;              // "L01", "L02"
+  activityIds: string[];         // which activities fall in this lesson
+  totalMinutes: number;          // sum of activity durations in this lesson
+  slackMinutes: number;          // lessonLength - totalMinutes
+}
+
+/** v4: timeline-based — activities as a flat sequence, lessons computed from duration. */
+export interface UnitContentDataV4 {
+  version: 4;
+  generationModel: "timeline";
+  timeline: TimelineActivity[];
+  lessonLengthMinutes: number;
+  assessmentCriteria?: string[];
+}
+
+// --- Timeline Outline Types ---
+
+export interface TimelinePhase {
+  phaseId: string;
+  title: string;                 // "Research & Discovery"
+  summary: string;
+  estimatedLessons: number;      // approximate count
+  primaryFocus: string;
+  criterionTags: string[];
+}
+
+export interface TimelineOutlineOption {
+  approach: string;
+  description: string;
+  strengths: string[];
+  phases: TimelinePhase[];
+  estimatedActivityCount: number;
+}
+
+/** Lightweight lesson skeleton — generated fast (~10-15s) before full activity generation */
+export interface TimelineLessonSkeleton {
+  lessonNumber: number;
+  lessonId: string;              // "L01", "L02"
+  title: string;
+  keyQuestion: string;
+  estimatedMinutes: number;
+  phaseLabel: string;
+  criterionTags: string[];
+  activityHints: string[];       // ["Warmup: vocab review", "Core: product teardown", "Reflection: surprises"]
+}
+
+/** Full skeleton for a unit — provides context for per-lesson parallel generation */
+export interface TimelineSkeleton {
+  lessons: TimelineLessonSkeleton[];
+  narrativeArc: string;          // 2-3 sentence unit flow summary
+}
+
+/** v1: keyed by PageId ("A1"-"D4"). v2: ordered array. v3: journey. v4: timeline. */
+export type UnitContentData =
+  | { pages?: Partial<Record<string, PageContent>> }
+  | UnitContentDataV2
+  | UnitContentDataV3
+  | UnitContentDataV4;
+
+// --- LMS Integration Types ---
+
+export type LMSProviderType = "managebac" | "toddle" | "canvas" | "schoology";
+
+export interface TeacherIntegration {
+  id: string;
+  teacher_id: string;
+  provider: LMSProviderType;
+  subdomain: string | null;
+  encrypted_api_token: string | null;
+  lti_consumer_key: string | null;
+  lti_consumer_secret: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// --- AI Unit Creator Types ---
+
+export interface AISettings {
+  teacher_id: string;
+  provider: string;
+  api_endpoint: string;
+  model_name: string;
+  // encrypted_api_key is never sent to client
+}
+
+export type CriteriaFocusLevel = "standard" | "emphasis" | "light";
+
+export interface UnitWizardInput {
+  title: string;
+  gradeLevel: string;
+  durationWeeks: number;
+  topic: string;
+  globalContext: string;
+  keyConcept: string;
+  relatedConcepts: string[];
+  statementOfInquiry: string;
+  selectedCriteria: CriterionKey[];
+  criteriaFocus: Partial<Record<CriterionKey, CriteriaFocusLevel>>;
+  atlSkills: string[];
+  specificSkills: string[];
+  resourceUrls: string[];
+  specialRequirements: string;
+}
+
+// --- Journey-Based Unit Generation Types (v3) ---
+
+/** Input for journey-mode unit generation — end goal + weeks, criteria as tags not structure. */
+export interface LessonJourneyInput {
+  title: string;
+  gradeLevel: string;
+  endGoal: string;
+  durationWeeks: number;
+  lessonsPerWeek: number;
+  lessonLengthMinutes: number;
+  topic: string;
+  globalContext: string;
+  keyConcept: string;
+  relatedConcepts: string[];
+  statementOfInquiry: string;
+  atlSkills: string[];
+  specificSkills: string[];
+  resourceUrls: string[];
+  specialRequirements: string;
+  /** Which assessment criteria exist for tagging (e.g. ["A","B","C","D"] for MYP). Not structural. */
+  assessmentCriteria: string[];
+  curriculumFramework?: string;
+}
+
+/** A single lesson in a journey outline. */
+export interface JourneyOutlineLesson {
+  lessonId: string;
+  title: string;
+  summary: string;
+  primaryFocus: string;
+  criterionTags: string[];
+}
+
+/** One of 3 journey outline approaches the teacher can pick. */
+export interface JourneyOutlineOption {
+  approach: string;
+  description: string;
+  strengths: string[];
+  lessonPlan: JourneyOutlineLesson[];
+}
 
 // --- Auth context types ---
 
@@ -138,4 +421,30 @@ export interface StudentAuthContext {
 
 export interface TeacherAuthContext {
   teacher: Teacher;
+}
+
+// --- Student Design Assistant types ---
+
+export interface DesignConversation {
+  id: string;
+  studentId: string;
+  unitId: string;
+  pageId?: string;
+  startedAt: string;
+  endedAt?: string;
+  turnCount: number;
+  bloomLevel: number;      // 1-6 (Bloom's taxonomy)
+  effortScore: number;     // 3-strike effort gating
+  summary?: string;
+}
+
+export interface ConversationTurn {
+  id: string;
+  conversationId: string;
+  turnNumber: number;
+  role: "student" | "assistant";
+  content: string;
+  questionType?: string;   // Richard Paul's 6 question types
+  bloomLevel?: number;
+  createdAt: string;
 }

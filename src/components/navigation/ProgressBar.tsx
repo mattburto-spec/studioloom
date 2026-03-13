@@ -1,31 +1,65 @@
 "use client";
 
-import { CRITERIA, PAGES, type CriterionKey } from "@/lib/constants";
-import type { StudentProgress } from "@/types";
+import { CRITERIA, type CriterionKey } from "@/lib/constants";
+import type { StudentProgress, UnitPage } from "@/types";
 
 interface ProgressBarProps {
   progress: StudentProgress[];
+  pages: UnitPage[];
 }
 
-export function ProgressBar({ progress }: ProgressBarProps) {
-  const criteria = Object.keys(CRITERIA) as CriterionKey[];
+export function ProgressBar({ progress, pages }: ProgressBarProps) {
+  // Group pages by criterion for strand pages
+  const criterionGroups = new Map<CriterionKey, UnitPage[]>();
+  const otherPages: UnitPage[] = [];
+
+  for (const page of pages) {
+    if (page.type === "strand" && page.criterion && page.criterion in CRITERIA) {
+      const key = page.criterion as CriterionKey;
+      if (!criterionGroups.has(key)) criterionGroups.set(key, []);
+      criterionGroups.get(key)!.push(page);
+    } else {
+      otherPages.push(page);
+    }
+  }
+
+  // If no criterion grouping found, show a single progress bar
+  if (criterionGroups.size === 0) {
+    const completed = pages.filter((p) =>
+      progress.some((pr) => pr.page_id === p.id && pr.status === "complete")
+    ).length;
+    const fillPercent = pages.length > 0 ? (completed / pages.length) * 100 : 0;
+
+    return (
+      <div className="flex gap-1.5">
+        <div
+          className="flex-1 h-2.5 rounded-full bg-gray-100 overflow-hidden"
+          title={`${completed}/${pages.length} complete`}
+        >
+          <div
+            className="h-full rounded-full transition-all duration-500"
+            style={{ width: `${fillPercent}%`, backgroundColor: "#2E86AB" }}
+          />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex gap-1.5">
-      {criteria.map((key) => {
-        const criterionPages = PAGES.filter((p) => p.criterion === key);
-        const completed = criterionPages.filter((p) =>
+      {Array.from(criterionGroups.entries()).map(([key, groupPages]) => {
+        const completed = groupPages.filter((p) =>
           progress.some(
-            (pr) => pr.page_number === p.number && pr.status === "complete"
+            (pr) => pr.page_id === p.id && pr.status === "complete"
           )
         ).length;
-        const fillPercent = (completed / criterionPages.length) * 100;
+        const fillPercent = (completed / groupPages.length) * 100;
 
         return (
           <div
             key={key}
             className="flex-1 h-2.5 rounded-full bg-gray-100 overflow-hidden"
-            title={`${CRITERIA[key].name}: ${completed}/${criterionPages.length}`}
+            title={`${CRITERIA[key].name}: ${completed}/${groupPages.length}`}
           >
             <div
               className="h-full rounded-full transition-all duration-500"

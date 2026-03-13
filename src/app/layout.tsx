@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Questerra — MYP Design Process",
+  title: "StudioLoom — MYP Design Process",
   description: "A guided design process platform for MYP Design students and teachers",
 };
 

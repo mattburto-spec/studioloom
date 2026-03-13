@@ -1,5 +1,5 @@
 {
-  "name": "questerra",
+  "name": "studioloom",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -9,23 +9,33 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.78.0",
+    "@supabase/ssr": "^0.6.1",
+    "@supabase/supabase-js": "^2.49.4",
+    "browser-image-compression": "^2.0.2",
+    "jspdf": "^4.2.0",
+    "jszip": "^3.10.1",
+    "mammoth": "^1.11.0",
+    "nanoid": "^5.1.5",
     "next": "^15.3.3",
+    "officeparser": "^6.0.4",
+    "pdf-parse": "^2.4.5",
+    "pptxgenjs": "^4.0.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "@supabase/supabase-js": "^2.49.4",
-    "@supabase/ssr": "^0.6.1",
-    "nanoid": "^5.1.5"
+    "react-markdown": "^10.1.0"
   },
   "devDependencies": {
-    "typescript": "^5.8.3",
+    "@eslint/eslintrc": "^3",
+    "@tailwindcss/postcss": "^4.1.7",
+    "@types/jszip": "^3.4.0",
     "@types/node": "^22.15.21",
     "@types/react": "^19.1.4",
     "@types/react-dom": "^19.1.5",
-    "tailwindcss": "^4.1.7",
-    "@tailwindcss/postcss": "^4.1.7",
-    "postcss": "^8.5.3",
     "eslint": "^9.27.0",
     "eslint-config-next": "^15.3.3",
-    "@eslint/eslintrc": "^3"
+    "postcss": "^8.5.3",
+    "tailwindcss": "^4.1.7",
+    "typescript": "^5.8.3"
   }
 }

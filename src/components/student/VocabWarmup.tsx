@@ -16,7 +16,7 @@ export function VocabWarmup({ warmup, ellLevel }: VocabWarmupProps) {
   if (ellLevel > 2) return null;
 
   return (
-    <div className="bg-accent-blue/5 border border-accent-blue/20 rounded-xl p-5">
+    <div className="bg-white rounded-2xl shadow-sm border border-border/50 p-5">
       <h3 className="text-sm font-semibold text-accent-blue mb-3 uppercase tracking-wide">
         📖 Vocabulary Warm-up
       </h3>

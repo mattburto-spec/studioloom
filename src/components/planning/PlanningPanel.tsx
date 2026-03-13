@@ -1,13 +1,16 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { PAGES, CRITERIA, type CriterionKey } from "@/lib/constants";
+import { getPageColor } from "@/lib/constants";
+import type { UnitPage } from "@/types";
 
 interface Task {
   id: string;
   title: string;
   status: "todo" | "in_progress" | "done";
+  pageId: string | null;
   pageNumber: number | null;
+  startDate: string | null;
   targetDate: string | null;
   timeLogged: number;
 }
@@ -16,13 +19,14 @@ interface PlanningPanelProps {
   unitId: string;
   open: boolean;
   onClose: () => void;
+  pages: UnitPage[];
 }
 
-export function PlanningPanel({ unitId, open, onClose }: PlanningPanelProps) {
+export function PlanningPanel({ unitId, open, onClose, pages }: PlanningPanelProps) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [newTaskTitle, setNewTaskTitle] = useState("");
-  const [newTaskPage, setNewTaskPage] = useState<number | null>(null);
+  const [newTaskPage, setNewTaskPage] = useState<string | null>(null);
   const [view, setView] = useState<"kanban" | "list">("kanban");
   const [draggedTask, setDraggedTask] = useState<string | null>(null);
 
@@ -53,7 +57,7 @@ export function PlanningPanel({ unitId, open, onClose }: PlanningPanelProps) {
       body: JSON.stringify({
         unitId,
         title: newTaskTitle.trim(),
-        pageNumber: newTaskPage,
+        pageId: newTaskPage,
       }),
     });
 
@@ -99,12 +103,12 @@ export function PlanningPanel({ unitId, open, onClose }: PlanningPanelProps) {
     { status: "done", label: "Done", color: "border-accent-green" },
   ];
 
-  function getPageLabel(pageNumber: number | null) {
-    if (!pageNumber) return null;
-    const page = PAGES.find((p) => p.number === pageNumber);
+  function getPageLabel(task: Task) {
+    const pid = task.pageId;
+    if (!pid) return null;
+    const page = pages.find((p) => p.id === pid);
     if (!page) return null;
-    const criterion = CRITERIA[page.criterion as CriterionKey];
-    return { id: page.id, color: criterion.color };
+    return { id: page.id, color: getPageColor(page) };
   }
 
   if (!open) return null;
@@ -172,13 +176,13 @@ export function PlanningPanel({ unitId, open, onClose }: PlanningPanelProps) {
             <select
               value={newTaskPage || ""}
               onChange={(e) =>
-                setNewTaskPage(e.target.value ? Number(e.target.value) : null)
+                setNewTaskPage(e.target.value || null)
               }
               className="px-2 py-2 text-xs border border-border rounded-lg bg-white"
             >
               <option value="">Page</option>
-              {PAGES.map((p) => (
-                <option key={p.number} value={p.number}>
+              {pages.map((p) => (
+                <option key={p.id} value={p.id}>
                   {p.id}
                 </option>
               ))}
@@ -222,7 +226,7 @@ export function PlanningPanel({ unitId, open, onClose }: PlanningPanelProps) {
                     </div>
                     <div className="space-y-2 flex-1">
                       {colTasks.map((task) => {
-                        const pageLabel = getPageLabel(task.pageNumber);
+                        const pageLabel = getPageLabel(task);
                         return (
                           <div
                             key={task.id}
@@ -269,7 +273,7 @@ export function PlanningPanel({ unitId, open, onClose }: PlanningPanelProps) {
                 </p>
               ) : (
                 tasks.map((task) => {
-                  const pageLabel = getPageLabel(task.pageNumber);
+                  const pageLabel = getPageLabel(task);
                   return (
                     <div
                       key={task.id}

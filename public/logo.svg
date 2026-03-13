@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <!-- StudioLoom: 2x2 woven grid (mono-purple on white bg) -->
+  <rect width="32" height="32" rx="6" fill="white"/>
+  <!-- Horizontal wefts -->
+  <rect x="2" y="8" width="28" height="5" rx="2.5" fill="#7B2FF2"/>
+  <rect x="2" y="19" width="28" height="5" rx="2.5" fill="#7B2FF2"/>
+  <!-- Vertical warps -->
+  <rect x="8" y="2" width="5" height="28" rx="2.5" fill="#7B2FF2"/>
+  <rect x="19" y="2" width="5" height="28" rx="2.5" fill="#7B2FF2"/>
+  <!-- Over segments: weft1 over warp1, weft2 over warp2 -->
+  <rect x="4" y="8" width="12" height="5" rx="2.5" fill="#7B2FF2"/>
+  <rect x="16" y="19" width="12" height="5" rx="2.5" fill="#7B2FF2"/>
+</svg>

@@ -1,0 +1,492 @@
+[
+  {
+    "slug": "empathy-mapping-user-needs",
+    "name": "Empathy Mapping: Understanding the User",
+    "description": "Students synthesize user research by categorizing observations into what the user Says, Thinks, Does, and Feels. This helps uncover hidden user needs and pain points before defining the design problem.",
+    "category": "design-thinking",
+    "phases": ["empathy", "research"],
+    "thinking_type": "analytical",
+    "duration_minutes": 30,
+    "group_size": "small-group",
+    "materials": ["Sticky notes (4 colors)", "Markers", "A3 paper or whiteboard"],
+    "tools": [],
+    "resources_needed": "Prior user interview notes, survey data, or a detailed user persona.",
+    "teacher_notes": "Students often struggle with the 'Thinks' and 'Feels' quadrants because they require inference. Encourage them to look at body language or tone of voice from their research. If they get stuck, have them roleplay as the user.",
+    "template": {
+      "sections": [
+        {
+          "prompt": "Create an Empathy Map based on your user research.\n\nStep 1: Setup\nDraw a large cross on your paper to create four quadrants. Label them: Says, Thinks, Does, and Feels.\n\nStep 2: Populate\nReview your research notes and write one observation per sticky note. Place it in the correct quadrant:\n- Says: Direct quotes from the user.\n- Thinks: What might they be thinking but not saying aloud? (Look for hesitations or contradictions).\n- Does: Actions and behaviors you observed.\n- Feels: Emotions they experienced (frustrated, excited, confused).\n\nStep 3: Synthesize\nWrite a short paragraph summarizing the biggest conflict or surprise you found. For example, did they say one thing but do another?",
+          "responseType": "multi",
+          "scaffolding": {
+            "ell1": {
+              "sentenceStarters": [
+                "The user said ___.",
+                "I saw the user ___.",
+                "The user feels ___."
+              ],
+              "hints": [
+                "Use one sticky note for one idea.",
+                "Look at your interview notes for quotes."
+              ]
+            },
+            "ell2": {
+              "sentenceStarters": [
+                "A conflict I noticed is that the user says ___, but does ___.",
+                "Based on their actions, I infer the user feels ___."
+              ]
+            },
+            "ell3": {
+              "extensionPrompts": [
+                "What underlying values or beliefs drive the user's feelings?",
+                "How might cognitive bias be affecting what the user 'Says' versus what they 'Do'?"
+              ]
+            }
+          },
+          "exampleResponse": "The biggest conflict we found was that the user says they want to eat healthy, but what they do is buy snacks from the vending machine when they are stressed. This shows that convenience and stress-relief are currently overpowering their desire for health. We need to design a solution that makes healthy choices just as convenient."
+        }
+      ],
+      "vocabTerms": [
+        {
+          "term": "Empathy",
+          "definition": "The ability to understand and share the feelings of another person.",
+          "example": "We used empathy to understand why the user was frustrated with the current product."
+        },
+        {
+          "term": "Inference",
+          "definition": "A conclusion reached on the basis of evidence and reasoning.",
+          "example": "I made an inference that the user was confused because they frowned while using the app."
+        }
+      ],
+      "reflection": {
+        "type": "confidence-slider",
+        "items": [
+          "I can distinguish between what a user says and what they actually do.",
+          "I can identify hidden needs based on user emotions."
+        ]
+      }
+    },
+    "ai_hints": {
+      "whenToUse": "Use after initial user interviews or observations, right before students write their problem statement.",
+      "topicAdaptation": "Provide a specific user persona related to the current project (e.g., an elderly person struggling with packaging, or a student organizing their locker).",
+      "modifierAxes": [
+        {
+          "id": "collaboration",
+          "label": "Collaboration Mode",
+          "description": "How students work together to build the map",
+          "type": "select",
+          "options": [
+            { "value": "group-consensus", "label": "Group Consensus", "promptDelta": "Work together as a group to agree on where each sticky note belongs before placing it." },
+            { "value": "silent-mapping", "label": "Silent Mapping", "promptDelta": "Spend the first 10 minutes adding sticky notes in silence to ensure all voices are heard, then discuss." }
+          ],
+          "default": "group-consensus"
+        },
+        {
+          "id": "data-source",
+          "label": "Data Source",
+          "description": "Where the empathy data comes from",
+          "type": "select",
+          "options": [
+            { "value": "primary-research", "label": "Primary Research", "promptDelta": "Use the raw notes and transcripts from the interviews you conducted." },
+            { "value": "provided-persona", "label": "Provided Persona", "promptDelta": "Use the character profile and scenario provided by the teacher." }
+          ],
+          "default": "primary-research"
+        }
+      ]
+    },
+    "criteria": [],
+    "curriculum_frameworks": [],
+    "source": "system"
+  },
+  {
+    "slug": "think-puzzle-explore-routine",
+    "name": "Think, Puzzle, Explore",
+    "description": "A visible thinking routine that helps students connect to prior knowledge, identify areas of confusion, and plan independent research. Great for kicking off a new design context.",
+    "category": "visible-thinking",
+    "phases": ["research", "define"],
+    "thinking_type": "metacognitive",
+    "duration_minutes": 20,
+    "group_size": "individual",
+    "materials": ["Notebooks or digital document"],
+    "tools": [],
+    "resources_needed": "A stimulus to introduce the topic (a video, a physical product, an article, or an image).",
+    "teacher_notes": "Don't skip the 'Explore' step. Ensure students write actionable questions (e.g., 'How can I find out...') rather than just stating what they don't know. This sets up their research plan.",
+    "template": {
+      "sections": [
+        {
+          "prompt": "Look at the design stimulus provided by your teacher. Complete the following three steps:\n\n1. Think: What do you think you know about this topic or product? List 3-4 bullet points.\n2. Puzzle: What questions or puzzles do you have? What is confusing or missing? List 2-3 questions.\n3. Explore: How can you explore these puzzles? Write down 2 specific ways you will research the answers (e.g., 'I will interview...', 'I will test the material by...').",
+          "responseType": "text",
+          "scaffolding": {
+            "ell1": {
+              "sentenceStarters": [
+                "I think this is used for ___.",
+                "I am puzzled by ___.",
+                "I will explore this by looking at ___."
+              ],
+              "hints": [
+                "Think: What do you see?",
+                "Puzzle: What don't you understand?"
+              ]
+            },
+            "ell2": {
+              "sentenceStarters": [
+                "My prior knowledge suggests that ___.",
+                "A question this raises for me is ___.",
+                "To find the answer, my next step is to ___."
+              ]
+            },
+            "ell3": {
+              "extensionPrompts": [
+                "What assumptions are hidden in your 'Think' statements?",
+                "How might different stakeholders view this puzzle differently?"
+              ]
+            }
+          },
+          "exampleResponse": "Think: I think this sustainable packaging is made from mushrooms. I think it is biodegradable and replaces styrofoam.\nPuzzle: I am puzzled about how strong it is compared to plastic. Does it dissolve if it gets wet in the rain?\nExplore: I will explore this by finding a case study online about companies using mushroom packaging. I will also try to find a sample to test with water."
+        }
+      ],
+      "vocabTerms": [
+        {
+          "term": "Stimulus",
+          "definition": "Something that provokes thought or action.",
+          "example": "The video about ocean plastic was the stimulus for our project."
+        }
+      ],
+      "reflection": {
+        "type": "checklist",
+        "items": [
+          "I identified what I already know.",
+          "I formulated clear questions about what I don't know.",
+          "I created a realistic plan to find the answers."
+        ]
+      }
+    },
+    "ai_hints": {
+      "whenToUse": "Use at the very beginning of a unit or when introducing a complex new material/technology.",
+      "topicAdaptation": "Insert the specific topic into the prompt (e.g., 'Think, Puzzle, Explore: Smart Textiles').",
+      "modifierAxes": [
+        {
+          "id": "format",
+          "label": "Response Format",
+          "description": "How students record their thinking",
+          "type": "select",
+          "options": [
+            { "value": "written", "label": "Written Document", "promptDelta": "Type your responses in full sentences." },
+            { "value": "visual", "label": "Visual Map", "promptDelta": "Create a mind map with sketches to represent your thoughts, puzzles, and exploration plans." }
+          ],
+          "default": "written"
+        },
+        {
+          "id": "depth",
+          "label": "Exploration Depth",
+          "description": "How far students take the 'Explore' step",
+          "type": "select",
+          "options": [
+            { "value": "planning", "label": "Planning Only", "promptDelta": "Just write down how you will find the answers." },
+            { "value": "action", "label": "Plan & Execute", "promptDelta": "Write your plan, then spend 15 minutes actually conducting the research and record your findings." }
+          ],
+          "default": "planning"
+        }
+      ]
+    },
+    "criteria": [],
+    "curriculum_frameworks": [],
+    "source": "system"
+  },
+  {
+    "slug": "rose-bud-thorn-critique",
+    "name": "Rose, Bud, Thorn Critique",
+    "description": "A structured peer feedback activity where students identify strengths (Rose), opportunities (Bud), and weaknesses (Thorn) in a design prototype. Promotes constructive and balanced critique.",
+    "category": "evaluation",
+    "phases": ["evaluation", "testing"],
+    "thinking_type": "critical",
+    "duration_minutes": 25,
+    "group_size": "pairs",
+    "materials": ["Sticky notes (Pink, Green, Blue)", "Pens"],
+    "tools": [],
+    "resources_needed": "Students must have a physical or digital prototype ready to share.",
+    "teacher_notes": "Enforce the rule that every 'Thorn' must be accompanied by a 'Bud'. This prevents feedback from becoming overly negative and trains students to see problems as design opportunities.",
+    "template": {
+      "sections": [
+        {
+          "prompt": "Swap prototypes with your partner. Review their work and provide feedback using the Rose, Bud, Thorn method.\n\n1. Rose (Pink sticky note):\nIdentify 2 things that are working well. What is successful about this design?\n\n2. Thorn (Blue sticky note):\nIdentify 1-2 things that are not working. What is confusing, broken, or failing to meet the user's needs?\n\n3. Bud (Green sticky note):\nIdentify 2 areas of opportunity. What is a new idea this sparked? How could a 'Thorn' be fixed or improved?\n\n4. Discuss:\nPresent your feedback to your partner. Explain why you chose each point.",
+          "responseType": "multi",
+          "scaffolding": {
+            "ell1": {
+              "sentenceStarters": [
+                "Rose: I like ___ because ___.",
+                "Thorn: I am confused by ___.",
+                "Bud: You could try ___."
+              ],
+              "hints": [
+                "Rose = Good",
+                "Thorn = Bad",
+                "Bud = New Idea"
+              ]
+            },
+            "ell2": {
+              "sentenceStarters": [
+                "A strong feature of this design is ___.",
+                "One issue that might frustrate the user is ___.",
+                "An opportunity for improvement would be to ___."
+              ]
+            },
+            "ell3": {
+              "extensionPrompts": [
+                "How does the 'Thorn' you identified relate to the original design constraints?",
+                "Suggest a specific manufacturing or material change for your 'Bud'."
+              ]
+            }
+          },
+          "exampleResponse": "Rose: The ergonomic handle is very comfortable to hold, and the color scheme fits the target audience perfectly.\nThorn: The button to open the lid is too small and hard to press with one hand.\nBud: You could make the button textured so it's easier to grip, or change the mechanism to a slide-to-open feature instead of a push-button."
+        }
+      ],
+      "vocabTerms": [
+        {
+          "term": "Critique",
+          "definition": "A detailed analysis and assessment of a design.",
+          "example": "We held a critique session to improve our prototypes."
+        },
+        {
+          "term": "Constructive Feedback",
+          "definition": "Feedback intended to help the recipient improve, rather than just pointing out flaws.",
+          "example": "Giving a 'Bud' idea is a great way to offer constructive feedback."
+        }
+      ],
+      "reflection": {
+        "type": "short-response",
+        "items": [
+          "Which piece of feedback was most surprising to you, and how will you use it to improve your design?"
+        ]
+      }
+    },
+    "ai_hints": {
+      "whenToUse": "Use during the prototyping or testing phase when students need peer feedback before making their final iteration.",
+      "topicAdaptation": "Specify the criteria they should focus on (e.g., 'Focus your Rose, Bud, Thorn on the sustainability of the materials used').",
+      "modifierAxes": [
+        {
+          "id": "format",
+          "label": "Critique Format",
+          "description": "How the feedback is delivered",
+          "type": "select",
+          "options": [
+            { "value": "gallery-walk", "label": "Gallery Walk", "promptDelta": "Leave your prototype on your desk. Walk around the room and leave one Rose, Bud, or Thorn sticky note on three different projects." },
+            { "value": "paired-interview", "label": "Paired Interview", "promptDelta": "Sit with a partner and verbally explain your Rose, Bud, and Thorn while they take notes." }
+          ],
+          "default": "paired-interview"
+        },
+        {
+          "id": "focus",
+          "label": "Feedback Focus",
+          "description": "What lens the reviewer should use",
+          "type": "select",
+          "options": [
+            { "value": "user-experience", "label": "User Experience", "promptDelta": "Evaluate the design strictly from the perspective of the end-user using it for the first time." },
+            { "value": "aesthetics-function", "label": "Aesthetics & Function", "promptDelta": "Evaluate how well the product looks (aesthetics) and how well it works mechanically (function)." }
+          ],
+          "default": "user-experience"
+        }
+      ]
+    },
+    "criteria": [],
+    "curriculum_frameworks": [],
+    "source": "system"
+  },
+  {
+    "slug": "biomimicry-brainstorm",
+    "name": "Biomimicry Brainstorming",
+    "description": "Students analyze how nature solves specific problems (e.g., adhesion, aerodynamics, water collection) and apply those biological strategies to generate innovative design concepts.",
+    "category": "brainstorming",
+    "phases": ["ideation"],
+    "thinking_type": "creative",
+    "duration_minutes": 40,
+    "group_size": "pairs",
+    "materials": ["Sketching paper", "Pencils/Fine-liners"],
+    "tools": ["Internet access for biological research"],
+    "resources_needed": "Access to AskNature.org or printed cards showing biological mechanisms (e.g., gecko feet, lotus leaves, kingfisher beaks).",
+    "teacher_notes": "Students often just copy the look of an animal (biomorphism) rather than how it functions (biomimicry). Emphasize that they are extracting the functional mechanism. E.g., don't make a train that looks like a bird; make a train nose that displaces air like a bird's beak.",
+    "template": {
+      "sections": [
+        {
+          "prompt": "Use nature to inspire a solution to your design problem.\n\n1. Identify the Function:\nWhat exactly does your design need to do? (e.g., 'stick to a wall', 'repel water', 'stay cool').\n\n2. Biological Research:\nSearch AskNature.org (or use the provided resources) to find an organism that performs this function. Write down the organism and briefly explain how it achieves this.\n\n3. Abstract the Mechanism:\nDraw a simple diagram showing the mechanical or chemical principle the organism uses, without drawing the animal itself.\n\n4. Apply to Design:\nSketch 2 different ideas for your product that use this biological mechanism. Add annotations to explain how it works.",
+          "responseType": "upload",
+          "scaffolding": {
+            "ell1": {
+              "sentenceStarters": [
+                "My design needs to ___.",
+                "The ___ (animal/plant) does this by ___.",
+                "My idea uses this by ___."
+              ],
+              "hints": [
+                "Focus on what the design does, not what it looks like.",
+                "Label your sketches."
+              ]
+            },
+            "ell2": {
+              "sentenceStarters": [
+                "The core function required is ___.",
+                "In nature, the ___ achieves this function through ___.",
+                "I have adapted this biological strategy into my design by ___."
+              ]
+            },
+            "ell3": {
+              "extensionPrompts": [
+                "How can you manufacture this biological mechanism using available materials?",
+                "What are the limitations of this biological approach when applied to a human context?"
+              ]
+            }
+          },
+          "exampleResponse": "Function: Repel water and dirt.\nOrganism: Lotus leaf. It has microscopic bumps covered in wax that make water bead up and roll off, taking dirt with it.\nApplication: I sketched a design for an outdoor backpack. Instead of using toxic waterproofing chemical sprays, the fabric itself is woven with microscopic textured bumps that mimic the lotus leaf, allowing rain to roll off instantly."
+        }
+      ],
+      "vocabTerms": [
+        {
+          "term": "Biomimicry",
+          "definition": "The design and production of materials, structures, and systems that are modeled on biological entities and processes.",
+          "example": "Velcro is a classic example of biomimicry, inspired by burrs sticking to dog fur."
+        },
+        {
+          "term": "Mechanism",
+          "definition": "A system of parts working together in a machine or biological organism.",
+          "example": "We studied the cooling mechanism of termite mounds."
+        }
+      ],
+      "reflection": {
+        "type": "confidence-slider",
+        "items": [
+          "I can identify the core function my design needs to perform.",
+          "I can translate a biological strategy into a mechanical design feature."
+        ]
+      }
+    },
+    "ai_hints": {
+      "whenToUse": "Use during ideation when students are stuck on conventional ideas and need a radical shift in perspective.",
+      "topicAdaptation": "Provide specific biological examples relevant to the project (e.g., structural strength examples for architecture, thermal regulation examples for clothing).",
+      "modifierAxes": [
+        {
+          "id": "research-level",
+          "label": "Research Independence",
+          "description": "How students find their biological inspiration",
+          "type": "select",
+          "options": [
+            { "value": "guided", "label": "Guided (Cards provided)", "promptDelta": "Choose one of the 5 biological inspiration cards provided by the teacher." },
+            { "value": "independent", "label": "Independent Research", "promptDelta": "Use AskNature.org to independently research and find an organism that solves your functional problem." }
+          ],
+          "default": "guided"
+        },
+        {
+          "id": "output",
+          "label": "Output Format",
+          "description": "How the final idea is presented",
+          "type": "select",
+          "options": [
+            { "value": "sketch", "label": "Annotated Sketch", "promptDelta": "Draw your concepts on paper with detailed annotations." },
+            { "value": "cad", "label": "3D CAD Model", "promptDelta": "Create a quick 3D model in TinkerCAD or Fusion360 demonstrating the structural mechanism." }
+          ],
+          "default": "sketch"
+        }
+      ]
+    },
+    "criteria": [],
+    "curriculum_frameworks": [],
+    "source": "system"
+  },
+  {
+    "slug": "isometric-exploded-view",
+    "name": "Isometric Exploded View Sketching",
+    "description": "Students practice technical communication by sketching their product in an isometric exploded view. This develops spatial awareness and prepares them for CAD modeling and assembly planning.",
+    "category": "skills",
+    "phases": ["making", "planning"],
+    "thinking_type": "analytical",
+    "duration_minutes": 45,
+    "group_size": "individual",
+    "materials": ["Isometric dot paper", "Pencils", "Rulers", "Fine-liners"],
+    "tools": [],
+    "resources_needed": "A multi-part physical object to practice on (e.g., a pen, a flashlight, or a simple toy).",
+    "teacher_notes": "Ensure students understand the 30-degree angle rule of isometric projection before starting. Remind them to draw light construction lines first. The 'explosion' should follow a single axis (usually the Y-axis/vertical) so it's clear how parts fit together.",
+    "template": {
+      "sections": [
+        {
+          "prompt": "Create an exploded isometric sketch of your product to show how the components assemble.\n\n1. Setup:\nUsing isometric dot paper, establish your vertical (Y) axis and your 30-degree left and right axes.\n\n2. Explode the Parts:\nImagine pulling your product apart along a single axis (usually pulling the top parts straight up, and bottom parts straight down). \n\n3. Sketch:\n- Draw the main body of the product first.\n- Draw the other components 'floating' above or below where they connect.\n- Keep all vertical lines straight up and down. Keep all horizontal lines following the 30-degree dots.\n\n4. Trail Lines:\nDraw dashed 'trail lines' connecting the center of each floating part to the exact hole or slot where it belongs in the main body.\n\n5. Annotate:\nLabel each part with its name and material.",
+          "responseType": "upload",
+          "scaffolding": {
+            "ell1": {
+              "sentenceStarters": [
+                "This part is the ___.",
+                "It is made of ___."
+              ],
+              "hints": [
+                "Use the dots to keep your lines straight.",
+                "Draw lightly at first."
+              ]
+            },
+            "ell2": {
+              "sentenceStarters": [
+                "The ___ connects to the ___.",
+                "The dashed lines show that ___."
+              ]
+            },
+            "ell3": {
+              "extensionPrompts": [
+                "Apply rendering techniques (shading, thick/thin lines) to show the texture of different materials.",
+                "Include a Bill of Materials (BOM) table in the corner of your page."
+              ]
+            }
+          },
+          "exampleResponse": "[Student uploads a photo of an isometric sketch of a flashlight. The casing is in the center, the bulb and lens are floating above connected by dashed lines, and the batteries and end-cap are floating below. Each part is labeled with terms like 'Aluminum Casing' and 'LED Bulb'.]"
+        }
+      ],
+      "vocabTerms": [
+        {
+          "term": "Isometric Projection",
+          "definition": "A method for visually representing three-dimensional objects in two dimensions, where the three coordinate axes appear equally foreshortened and the angle between any two of them is 120 degrees.",
+          "example": "We used isometric projection so we could see three sides of the box at once."
+        },
+        {
+          "term": "Exploded View",
+          "definition": "A diagram showing the components of an object slightly separated by distance, suspended in surrounding space.",
+          "example": "The exploded view made it easy to see how to assemble the IKEA furniture."
+        }
+      ],
+      "reflection": {
+        "type": "checklist",
+        "items": [
+          "All my vertical lines are perfectly straight up and down.",
+          "All my horizontal lines follow the 30-degree isometric grid.",
+          "My dashed trail lines clearly show how the parts fit together.",
+          "I have labeled every component."
+        ]
+      }
+    },
+    "ai_hints": {
+      "whenToUse": "Use right before students move into the workshop to build, or before they transition from 2D sketching to 3D CAD modeling.",
+      "topicAdaptation": "If students are doing a digital unit (e.g., app design), adapt this to an 'exploded UI' showing the layers of an interface (background, content, navigation bar).",
+      "modifierAxes": [
+        {
+          "id": "complexity",
+          "label": "Part Complexity",
+          "description": "How many parts the student should draw",
+          "type": "select",
+          "options": [
+            { "value": "simple", "label": "Simple (2-3 parts)", "promptDelta": "Focus on just the main body and 1-2 attachments. Keep it simple to practice the isometric angles." },
+            { "value": "complex", "label": "Complex (All parts)", "promptDelta": "Explode every single component, including internal mechanisms, screws, and fasteners." }
+          ],
+          "default": "simple"
+        },
+        {
+          "id": "medium",
+          "label": "Drawing Medium",
+          "description": "Tools used for the drawing",
+          "type": "select",
+          "options": [
+            { "value": "analog", "label": "Paper & Pencil", "promptDelta": "Use isometric dot paper, a sharp pencil, and a ruler." },
+            { "value": "digital-sketch", "label": "Digital Sketching", "promptDelta": "Use a tablet (e.g., iPad with Procreate or Sketchbook) with an isometric grid layer turned on." }
+          ],
+          "default": "analog"
+        }
+      ]
+    },
+    "criteria": [],
+    "curriculum_frameworks": [],
+    "source": "system"
+  }
+]

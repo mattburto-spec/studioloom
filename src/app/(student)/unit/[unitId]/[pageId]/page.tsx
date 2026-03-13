@@ -1,439 +1,586 @@
 "use client";
 
-import { useState, useEffect, useCallback, use } from "react";
+import { useState, use } from "react";
 import { useRouter } from "next/navigation";
-import { CRITERIA, PAGES, type CriterionKey, type PageId } from "@/lib/constants";
-import { ProgressBar } from "@/components/navigation/ProgressBar";
-import { SubwayNav } from "@/components/navigation/SubwayNav";
-import { ResponseInput } from "@/components/student/ResponseInput";
-import { VocabWarmup } from "@/components/student/VocabWarmup";
-import { FloatingTimer } from "@/components/planning/FloatingTimer";
+import { CRITERIA, PAGE_TYPE_LABELS, type CriterionKey } from "@/lib/constants";
+import { isV3 } from "@/lib/unit-adapter";
+import { usePageData } from "@/hooks/usePageData";
+import { usePageResponses } from "@/hooks/usePageResponses";
+import { ActivityCard } from "@/components/student/ActivityCard";
+import { SectionDivider } from "@/components/student/SectionDivider";
+import { MobileBottomNav } from "@/components/student/MobileBottomNav";
 import { PlanningPanel } from "@/components/planning/PlanningPanel";
-import type { Unit, StudentProgress, PageContent } from "@/types";
+import { GanttPanel } from "@/components/planning/GanttPanel";
+import { QuickCaptureFAB } from "@/components/portfolio/QuickCaptureFAB";
+import { PortfolioPanel } from "@/components/portfolio/PortfolioPanel";
+import { ExportPagePdf } from "@/components/student/ExportPagePdf";
+import { NarrativeModal } from "@/components/portfolio/NarrativeModal";
+import { VocabWarmup } from "@/components/student/VocabWarmup";
+import { TextToSpeech } from "@/components/student/TextToSpeech";
+import { useUnitNav } from "@/contexts/UnitNavContext";
+import { ScrollReveal } from "@/components/student/ScrollReveal";
+import { toEmbedUrl } from "@/lib/video-embed";
+import StudentFeedbackPulse from "@/components/teacher/knowledge/StudentFeedbackPulse";
+import DesignAssistantWidget from "@/components/student/DesignAssistantWidget";
+import { useStudent } from "@/app/(student)/student-context";
+import type { PageContent } from "@/types";
 
-interface UnitPageData {
-  unit: Unit;
-  lockedPages: number[];
-  progress: StudentProgress[];
-  ellLevel: number;
-}
-
-export default function UnitPage({
+export default function UnitPageView({
   params,
 }: {
   params: Promise<{ unitId: string; pageId: string }>;
 }) {
   const { unitId, pageId } = use(params);
   const router = useRouter();
-  const [data, setData] = useState<UnitPageData | null>(null);
-  const [responses, setResponses] = useState<Record<string, string>>({});
-  const [saving, setSaving] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [confidenceLevel, setConfidenceLevel] = useState(3);
+  const unitNav = useUnitNav();
+
+  const { data, loading, allPages, currentPage, enabledPages, nextPage, currentSettings, pageColor } =
+    usePageData(unitId, pageId);
+  const { responses, setResponses, saving, showSaveToast, saveProgress } =
+    usePageResponses(unitId, pageId, currentPage, data);
+
+  const { student } = useStudent();
   const [planOpen, setPlanOpen] = useState(false);
-
-  const currentPage = PAGES.find((p) => p.id === pageId);
-  const currentPageIndex = PAGES.findIndex((p) => p.id === pageId);
-  const nextPage = currentPageIndex < 15 ? PAGES[currentPageIndex + 1] : null;
-  const prevPage = currentPageIndex > 0 ? PAGES[currentPageIndex - 1] : null;
-
-  useEffect(() => {
-    async function loadData() {
-      try {
-        const res = await fetch(`/api/student/unit?unitId=${unitId}`);
-        if (!res.ok) {
-          router.push("/dashboard");
-          return;
-        }
-        const result = await res.json();
-        setData(result);
-
-        // Load saved responses for this page
-        const pageProgress = result.progress.find(
-          (p: StudentProgress) => p.page_number === currentPage?.number
-        );
-        if (pageProgress?.responses) {
-          setResponses(pageProgress.responses as Record<string, string>);
-        }
-      } catch {
-        router.push("/dashboard");
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadData();
-  }, [unitId, pageId, router, currentPage?.number]);
-
-  const saveProgress = useCallback(
-    async (newStatus?: string) => {
-      if (!currentPage) return;
-      setSaving(true);
-      try {
-        await fetch("/api/student/progress", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            unitId,
-            pageNumber: currentPage.number,
-            status: newStatus || "in_progress",
-            responses,
-          }),
-        });
-      } finally {
-        setSaving(false);
-      }
-    },
-    [unitId, currentPage, responses]
-  );
-
-  // Auto-save on response changes (debounced)
-  useEffect(() => {
-    if (!data || Object.keys(responses).length === 0) return;
-    const timer = setTimeout(() => {
-      saveProgress();
-    }, 2000);
-    return () => clearTimeout(timer);
-  }, [responses, data, saveProgress]);
-
-  // Mark page as in_progress on first visit
-  useEffect(() => {
-    if (!data || !currentPage) return;
-    const pageProgress = data.progress.find(
-      (p) => p.page_number === currentPage.number
-    );
-    if (!pageProgress || pageProgress.status === "not_started") {
-      saveProgress("in_progress");
-    }
-  }, [data, currentPage, saveProgress]);
+  const [portfolioOpen, setPortfolioOpen] = useState(false);
+  const [ganttOpen, setGanttOpen] = useState(false);
+  const [narrativeOpen, setNarrativeOpen] = useState(false);
+  const [confidenceLevel, setConfidenceLevel] = useState(3);
+  const [showFeedbackPulse, setShowFeedbackPulse] = useState(false);
+  const [pendingNavTarget, setPendingNavTarget] = useState<string | null>(null);
 
   if (loading || !data || !currentPage) {
-    return (
-      <div className="max-w-3xl mx-auto px-4 py-8">
-        <div className="animate-pulse space-y-4">
-          <div className="h-3 bg-gray-200 rounded w-full" />
-          <div className="h-10 bg-gray-200 rounded w-full" />
-          <div className="h-64 bg-gray-200 rounded w-full" />
-        </div>
-      </div>
-    );
+    return null; // Layout handles the loading state
   }
 
-  const criterion = CRITERIA[currentPage.criterion as CriterionKey];
-  const pageContent: PageContent | undefined =
-    data.unit.content_data?.pages?.[pageId as PageId];
+  const journeyMode = isV3(data.unit.content_data);
+  const currentIndex = enabledPages.findIndex((p) => p.id === pageId);
+  const criterion = currentPage.type === "strand" && currentPage.criterion
+    ? CRITERIA[currentPage.criterion as CriterionKey]
+    : null;
+  const pageContent: PageContent | undefined = currentPage.content;
 
-  // Get ELL-specific scaffolding
-  const ellKey = `ell${data.ellLevel}` as "ell1" | "ell2" | "ell3";
+  let sectionNum = 0;
+  const hasContext = pageContent?.learningGoal || pageContent?.vocabWarmup || pageContent?.introduction;
+
+  const displayTitle = currentPage.phaseLabel && pageContent?.title?.startsWith(`${currentPage.phaseLabel}: `)
+    ? pageContent.title.slice(currentPage.phaseLabel.length + 2)
+    : pageContent?.title || currentPage.title;
 
   return (
-    <main className="max-w-3xl mx-auto px-4 py-6 pb-24">
-      {/* Progress bar */}
-      <div className="mb-4">
-        <ProgressBar progress={data.progress} />
-      </div>
-
-      {/* Subway navigation */}
-      <div className="mb-8">
-        <SubwayNav
-          unitId={unitId}
-          currentPageId={pageId}
-          lockedPages={data.lockedPages}
-          progress={data.progress}
-        />
-      </div>
-
-      {/* Page header */}
-      <div className="mb-6">
-        <div className="flex items-center gap-2 mb-2">
-          <span
-            className="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded"
-            style={{
-              backgroundColor: criterion.color + "15",
-              color: criterion.color,
-            }}
-          >
-            Criterion {currentPage.criterion}
-          </span>
-          <span className="text-xs text-text-secondary">
-            {criterion.name}
-          </span>
-        </div>
-        <h1 className="text-2xl font-bold text-text-primary">
-          {currentPage.id}: {pageContent?.title || currentPage.title}
-        </h1>
-      </div>
-
-      {/* Learning goal */}
-      {pageContent?.learningGoal && (
-        <div className="bg-surface-alt rounded-xl p-4 mb-6 border-l-4"
-          style={{ borderLeftColor: criterion.color }}
-        >
-          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wide mb-1">
-            Learning Goal
-          </p>
-          <p className="text-sm text-text-primary">
-            {pageContent.learningGoal}
-          </p>
-        </div>
-      )}
-
-      {/* Vocab warm-up (ELL 1-2) */}
-      {pageContent?.vocabWarmup && (
-        <div className="mb-6">
-          <VocabWarmup
-            warmup={pageContent.vocabWarmup}
-            ellLevel={data.ellLevel}
-          />
-        </div>
-      )}
-
-      {/* Introduction */}
-      {pageContent?.introduction && (
-        <div className="mb-8">
-          <p className="text-text-primary leading-relaxed">
-            {pageContent.introduction.text}
-          </p>
-          {pageContent.introduction.media && (
-            <div className="mt-3 rounded-lg overflow-hidden bg-surface-alt">
-              {pageContent.introduction.media.type === "image" && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={pageContent.introduction.media.url}
-                  alt=""
-                  className="w-full"
-                />
+    <div className="min-h-screen bg-white">
+      {/* ── Hero header — full-width colored block ── */}
+      <div className="w-full" style={{ backgroundColor: pageColor }}>
+        <div className="max-w-4xl mx-auto px-6 pt-6 pb-10">
+          {/* Top bar: hamburger (mobile) + back to dashboard */}
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-2">
+              {unitNav && (
+                <button
+                  onClick={() => unitNav.setSidebarOpen(true)}
+                  className="md:hidden w-9 h-9 rounded-lg bg-white/20 flex items-center justify-center text-white hover:bg-white/30 transition"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="3" y1="6" x2="21" y2="6" />
+                    <line x1="3" y1="12" x2="21" y2="12" />
+                    <line x1="3" y1="18" x2="21" y2="18" />
+                  </svg>
+                </button>
               )}
             </div>
-          )}
+            <button
+              onClick={() => router.push("/dashboard")}
+              className="flex items-center gap-1.5 text-white/70 hover:text-white text-sm font-medium transition"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                <polyline points="9 22 9 12 15 12 15 22" />
+              </svg>
+              Dashboard
+            </button>
+          </div>
+
+          <p className="text-sm text-white/70 font-medium mb-3 uppercase tracking-wider">
+            Lesson {currentIndex + 1} of {enabledPages.length}
+          </p>
+
+          <h1 className="text-4xl md:text-5xl font-extrabold text-white leading-tight">
+            {journeyMode || currentPage.type === "lesson"
+              ? displayTitle
+              : `${currentPage.id}: ${displayTitle}`}
+          </h1>
+
+          {/* Badges */}
+          <div className="flex items-center gap-2 mt-5 flex-wrap">
+            {(journeyMode || currentPage.type === "lesson") && pageContent?.sections?.some(s => s.criterionTags?.length) && (
+              pageContent.sections
+                .flatMap(s => s.criterionTags || [])
+                .filter((v, i, a) => a.indexOf(v) === i)
+                .map(tag => {
+                  const criterionMeta = CRITERIA[tag as CriterionKey];
+                  return (
+                    <span
+                      key={tag}
+                      className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-white/20 text-white"
+                    >
+                      <span
+                        className="w-2 h-2 rounded-full bg-white/60"
+                      />
+                      {criterionMeta ? `${tag}: ${criterionMeta.name}` : tag}
+                    </span>
+                  );
+                })
+            )}
+            {!journeyMode && currentPage.type !== "lesson" && criterion && (
+              <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-full bg-white/20 text-white">
+                Criterion {currentPage.criterion}: {criterion.name}
+              </span>
+            )}
+            {currentSettings.assessment_type === "summative" && (
+              <span className="inline-flex items-center text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-full bg-white/20 text-white">
+                Summative
+              </span>
+            )}
+            {currentSettings.export_pdf && pageContent?.sections && (
+              <ExportPagePdf
+                pageId={pageId}
+                pageTitle={pageContent.title || currentPage.title}
+                sections={pageContent.sections}
+                responses={responses}
+                studentName={data.studentName || "Student"}
+                unitTitle={data.unit.title}
+              />
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Main scrollable content — white background ── */}
+      <main className="max-w-4xl mx-auto px-6 py-10 pb-28">
+
+        {/* ── Section 1: Context (Learning Goal + Vocab + Intro) ── */}
+        {hasContext && (
+          <>
+            {/* Learning goal — SOLID colored block (Makey Makey style) */}
+            {pageContent?.learningGoal && (
+              <ScrollReveal>
+                <div
+                  className="full-bleed py-10 mb-8"
+                  style={{ backgroundColor: pageColor }}
+                >
+                  <div className="max-w-4xl mx-auto px-6">
+                    <div className="flex items-center justify-between mb-3">
+                      <h2 className="text-sm font-bold uppercase tracking-widest text-white/70">
+                        Learning Objectives
+                      </h2>
+                      <TextToSpeech text={pageContent.learningGoal} />
+                    </div>
+                    <p className="text-xl md:text-2xl font-medium text-white leading-relaxed">
+                      {pageContent.learningGoal}
+                    </p>
+                  </div>
+                </div>
+              </ScrollReveal>
+            )}
+
+            <SectionDivider number={++sectionNum} color={pageColor} />
+
+            {/* Vocab warmup — bold colored accent block */}
+            {pageContent?.vocabWarmup && (
+              <ScrollReveal delay={100}>
+                <div
+                  className="rounded-2xl p-6 md:p-8 mb-8"
+                  style={{ backgroundColor: pageColor + "18" }}
+                >
+                  <VocabWarmup warmup={pageContent.vocabWarmup} ellLevel={data.ellLevel} />
+                </div>
+              </ScrollReveal>
+            )}
+
+            {/* Introduction — big readable paragraph */}
+            {pageContent?.introduction && (
+              <ScrollReveal delay={150}>
+                <div className="mb-8">
+                  <div className="flex items-start gap-3">
+                    <p className="text-lg text-gray-700 leading-relaxed flex-1">
+                      {pageContent.introduction.text}
+                    </p>
+                    <TextToSpeech text={pageContent.introduction.text} />
+                  </div>
+                  {pageContent.introduction.media?.type === "image" && (
+                    <div className="mt-6 rounded-2xl overflow-hidden shadow-sm">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={pageContent.introduction.media.url} alt="" className="w-full" />
+                    </div>
+                  )}
+                  {pageContent.introduction.media?.type === "video" && (() => {
+                    const embedUrl = toEmbedUrl(pageContent.introduction.media!.url);
+                    return embedUrl ? (
+                      <div className="mt-6 rounded-2xl overflow-hidden bg-black aspect-video shadow-sm">
+                        <iframe
+                          src={embedUrl}
+                          className="w-full h-full"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          allowFullScreen
+                        />
+                      </div>
+                    ) : null;
+                  })()}
+                  {pageContent.introduction.links && pageContent.introduction.links.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-4">
+                      {pageContent.introduction.links.map((link, i) => (
+                        <a
+                          key={i}
+                          href={link.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-opacity hover:opacity-80"
+                          style={{ backgroundColor: pageColor + "15", color: pageColor }}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                            <polyline points="15 3 21 3 21 9" />
+                            <line x1="10" y1="14" x2="21" y2="3" />
+                          </svg>
+                          {link.label}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </ScrollReveal>
+            )}
+          </>
+        )}
+
+        {/* ── Activity sections with dividers ── */}
+        {pageContent?.sections ? (
+          pageContent.sections.map((section, i) => {
+            const responseKey = section.activityId ? `activity_${section.activityId}` : `section_${i}`;
+            return (
+              <ScrollReveal key={section.activityId || i} delay={i * 80}>
+                <SectionDivider number={++sectionNum} color={pageColor} />
+                <ActivityCard
+                  section={section}
+                  index={i}
+                  ellLevel={data.ellLevel}
+                  responseValue={responses[responseKey] || ""}
+                  onResponseChange={(val) =>
+                    setResponses((prev) => ({
+                      ...prev,
+                      [responseKey]: val,
+                    }))
+                  }
+                  isLast={true}
+                  arrowOffset={0}
+                  allowedTypes={[...new Set(pageContent.sections.map(s => s.responseType).filter(Boolean))] as ("text" | "upload" | "voice" | "link")[]}
+                  unitId={unitId}
+                  pageId={pageId}
+                  pageColor={pageColor}
+                />
+              </ScrollReveal>
+            );
+          })
+        ) : (
+          <>
+            <SectionDivider number={++sectionNum} color={pageColor} />
+            <div className="text-center py-12">
+              <p className="text-gray-500 text-lg">
+                Content for this page hasn&apos;t been added yet.
+              </p>
+              <p className="text-gray-400 text-sm mt-1">
+                Your teacher will upload the content soon.
+              </p>
+              <div className="mt-8 text-left max-w-lg mx-auto">
+                <textarea
+                  value={responses["freeform"] || ""}
+                  onChange={(e) =>
+                    setResponses((prev) => ({
+                      ...prev,
+                      freeform: e.target.value,
+                    }))
+                  }
+                  placeholder="You can still write notes here..."
+                  rows={4}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-accent-blue focus:border-transparent resize-y text-base"
+                />
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* ── Reflection — solid colored block ── */}
+        {pageContent?.reflection && (
+          <ScrollReveal>
+            <SectionDivider number={++sectionNum} color={pageColor} />
+            <div
+              className="full-bleed py-10"
+              style={{ backgroundColor: pageColor }}
+            >
+            <div className="max-w-4xl mx-auto px-6">
+              <h2 className="text-sm font-bold uppercase tracking-widest mb-4 text-white/70">
+                Reflection
+              </h2>
+              {pageContent.reflection.type === "confidence-slider" && (
+                <div>
+                  <p className="text-base text-white mb-4">
+                    How confident are you about this section?
+                  </p>
+                  <div className="flex items-center gap-4">
+                    <span className="text-sm text-white/70">Not sure</span>
+                    <input
+                      type="range"
+                      min={1}
+                      max={5}
+                      value={confidenceLevel}
+                      onChange={(e) => setConfidenceLevel(Number(e.target.value))}
+                      className="flex-1 h-2"
+                      style={{ accentColor: "white" }}
+                    />
+                    <span className="text-sm text-white/70">Very confident</span>
+                  </div>
+                </div>
+              )}
+              {pageContent.reflection.type === "checklist" && (
+                <div className="space-y-3">
+                  {pageContent.reflection.items.map((item, i) => (
+                    <label key={i} className="flex items-start gap-3 text-base cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="mt-1 w-5 h-5"
+                        style={{ accentColor: "white" }}
+                        checked={responses[`check_${i}`] === "true"}
+                        onChange={(e) =>
+                          setResponses((prev) => ({
+                            ...prev,
+                            [`check_${i}`]: String(e.target.checked),
+                          }))
+                        }
+                      />
+                      <span className="text-white">{item}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+              {pageContent.reflection.type === "short-response" && (
+                <div className="space-y-4">
+                  {pageContent.reflection.items.map((item, i) => (
+                    <div key={i}>
+                      <p className="text-base text-white mb-2 font-medium">{item}</p>
+                      <textarea
+                        value={responses[`reflection_${i}`] || ""}
+                        onChange={(e) =>
+                          setResponses((prev) => ({
+                            ...prev,
+                            [`reflection_${i}`]: e.target.value,
+                          }))
+                        }
+                        rows={3}
+                        className="w-full px-4 py-3 border border-white/20 bg-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-white/40 focus:border-transparent resize-y text-base text-white placeholder:text-white/40"
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            </div>
+          </ScrollReveal>
+        )}
+
+        {/* ── Complete & Continue — solid colored block ── */}
+        <ScrollReveal>
+          <div
+            className="mt-12 full-bleed py-10 text-center"
+            style={{ backgroundColor: pageColor }}
+          >
+            <button
+              onClick={async () => {
+                await saveProgress("complete");
+                if (student?.id) {
+                  // Show feedback pulse before navigating
+                  setPendingNavTarget(nextPage ? `/unit/${unitId}/${nextPage.id}` : null);
+                  setShowFeedbackPulse(true);
+                } else if (nextPage) {
+                  router.push(`/unit/${unitId}/${nextPage.id}`);
+                }
+              }}
+              disabled={saving}
+              className="px-10 py-4 rounded-xl font-bold text-lg transition-all hover:shadow-lg hover:scale-105 active:scale-95 disabled:opacity-50 bg-white"
+              style={{ color: pageColor }}
+            >
+              {saving
+                ? "Saving..."
+                : nextPage
+                  ? "Complete & Continue"
+                  : "Mark as Complete"}
+            </button>
+            {nextPage && (
+              <p className="text-sm text-white/70 mt-3">
+                Next: Lesson {currentIndex + 2}
+              </p>
+            )}
+          </div>
+        </ScrollReveal>
+
+      </main>
+
+      {/* Panels */}
+      <PlanningPanel unitId={unitId} open={planOpen} onClose={() => setPlanOpen(false)} pages={allPages} />
+      <PortfolioPanel
+        unitId={unitId}
+        open={portfolioOpen}
+        onClose={() => setPortfolioOpen(false)}
+        onRequestCapture={() => {
+          window.dispatchEvent(new CustomEvent("questerra:open-capture"));
+        }}
+        onOpenNarrative={() => {
+          setPortfolioOpen(false);
+          setNarrativeOpen(true);
+        }}
+        unitTitle={data.unit.title}
+        studentName={data.studentName}
+      />
+      <GanttPanel
+        unitId={unitId}
+        open={ganttOpen}
+        onClose={() => setGanttOpen(false)}
+        pageDueDates={data.pageDueDates || {}}
+        currentPageId={pageId}
+        pages={allPages}
+      />
+      <NarrativeModal
+        open={narrativeOpen}
+        onClose={() => setNarrativeOpen(false)}
+        unit={data.unit}
+        progress={data.progress}
+        studentName={data.studentName || "Student"}
+      />
+
+      {/* Save toast */}
+      {showSaveToast && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-accent-green text-white text-sm font-medium rounded-full shadow-lg">
+          Saved
         </div>
       )}
 
-      {/* Activity sections */}
-      {pageContent?.sections ? (
-        <div className="space-y-8">
-          {pageContent.sections.map((section, i) => {
-            const scaffolding = section.scaffolding?.[ellKey];
-            const sentenceStarters =
-              (scaffolding as { sentenceStarters?: string[] })
-                ?.sentenceStarters || [];
-            const extensionPrompts =
-              data.ellLevel === 3
-                ? (scaffolding as { extensionPrompts?: string[] })
-                    ?.extensionPrompts || []
-                : [];
-
-            return (
-              <div key={i} className="scroll-mt-20">
-                <div className="border-b border-border pb-1 mb-3">
-                  <h2 className="text-base font-semibold text-text-primary">
-                    {section.prompt}
-                  </h2>
-                </div>
-
-                {/* Extension prompts for ELL 3 */}
-                {extensionPrompts.length > 0 && (
-                  <div className="bg-accent-purple/5 border border-accent-purple/20 rounded-lg p-3 mb-3">
-                    <p className="text-xs font-semibold text-accent-purple mb-1">
-                      Extension
-                    </p>
-                    {extensionPrompts.map((prompt, j) => (
-                      <p key={j} className="text-sm text-text-secondary">
-                        {prompt}
-                      </p>
-                    ))}
-                  </div>
-                )}
-
-                {/* Hints for ELL 1 */}
-                {data.ellLevel === 1 &&
-                  (scaffolding as { hints?: string[] })?.hints && (
-                    <div className="bg-accent-orange/5 border border-accent-orange/20 rounded-lg p-3 mb-3">
-                      <p className="text-xs font-semibold text-accent-orange mb-1">
-                        💡 Hints
-                      </p>
-                      {((scaffolding as { hints?: string[] }).hints || []).map(
-                        (hint, j) => (
-                          <p key={j} className="text-sm text-text-secondary">
-                            {hint}
-                          </p>
-                        )
-                      )}
-                    </div>
-                  )}
-
-                <ResponseInput
-                  sectionIndex={i}
-                  responseType={section.responseType}
-                  value={responses[`section_${i}`] || ""}
-                  onChange={(val) =>
-                    setResponses((prev) => ({
-                      ...prev,
-                      [`section_${i}`]: val,
-                    }))
-                  }
-                  sentenceStarters={sentenceStarters}
-                  unitId={unitId}
-                  pageId={pageId}
-                />
-
-                {/* Example response (collapsible) */}
-                {section.exampleResponse && (
-                  <details className="mt-2">
-                    <summary className="text-xs text-text-secondary cursor-pointer hover:text-text-primary">
-                      Show example response
-                    </summary>
-                    <div className="mt-2 bg-surface-alt rounded-lg p-3 text-sm text-text-secondary italic">
-                      {section.exampleResponse}
-                    </div>
-                  </details>
-                )}
+      {/* Student feedback pulse — shown after completing a page */}
+      {showFeedbackPulse && student?.id && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 p-6 animate-pop-in">
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Quick check-in</h3>
+                <p className="text-sm text-gray-500">How did this lesson go? (takes 10 seconds)</p>
               </div>
-            );
-          })}
-        </div>
-      ) : (
-        /* Fallback when no content_data exists for this page */
-        <div className="bg-surface-alt rounded-xl p-8 text-center mb-8">
-          <p className="text-text-secondary">
-            Content for this page hasn&apos;t been added yet.
-          </p>
-          <p className="text-text-secondary/70 text-sm mt-1">
-            Your teacher will upload the content soon.
-          </p>
-          {/* Still show a text area for freeform response */}
-          <div className="mt-6 text-left max-w-lg mx-auto">
-            <textarea
-              value={responses["freeform"] || ""}
-              onChange={(e) =>
-                setResponses((prev) => ({
-                  ...prev,
-                  freeform: e.target.value,
-                }))
-              }
-              placeholder="You can still write notes here..."
-              rows={4}
-              className="w-full px-4 py-3 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-blue focus:border-transparent resize-y text-sm"
+              <button
+                onClick={() => {
+                  setShowFeedbackPulse(false);
+                  if (pendingNavTarget) router.push(pendingNavTarget);
+                }}
+                className="text-gray-400 hover:text-gray-600 text-sm font-medium"
+              >
+                Skip
+              </button>
+            </div>
+            <StudentFeedbackPulse
+              studentId={student.id}
+              unitId={unitId}
+              pageId={pageId}
+              onSubmit={() => {
+                setShowFeedbackPulse(false);
+                if (pendingNavTarget) router.push(pendingNavTarget);
+              }}
+              onClose={() => {
+                setShowFeedbackPulse(false);
+                if (pendingNavTarget) router.push(pendingNavTarget);
+              }}
             />
           </div>
         </div>
       )}
 
-      {/* Reflection / Self-check */}
-      {pageContent?.reflection && (
-        <div className="mt-10 border-t border-border pt-6">
-          <h3 className="text-base font-semibold text-text-primary mb-3">
-            Reflection
-          </h3>
-          {pageContent.reflection.type === "confidence-slider" && (
-            <div>
-              <p className="text-sm text-text-secondary mb-3">
-                How confident are you about this section?
-              </p>
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-text-secondary">Not sure</span>
-                <input
-                  type="range"
-                  min={1}
-                  max={5}
-                  value={confidenceLevel}
-                  onChange={(e) => setConfidenceLevel(Number(e.target.value))}
-                  className="flex-1 accent-accent-blue"
-                />
-                <span className="text-xs text-text-secondary">Very confident</span>
-              </div>
-            </div>
-          )}
-          {pageContent.reflection.type === "checklist" && (
-            <div className="space-y-2">
-              {pageContent.reflection.items.map((item, i) => (
-                <label key={i} className="flex items-start gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    className="mt-0.5 accent-accent-blue"
-                    checked={responses[`check_${i}`] === "true"}
-                    onChange={(e) =>
-                      setResponses((prev) => ({
-                        ...prev,
-                        [`check_${i}`]: String(e.target.checked),
-                      }))
-                    }
-                  />
-                  <span className="text-text-primary">{item}</span>
-                </label>
-              ))}
-            </div>
-          )}
-          {pageContent.reflection.type === "short-response" && (
-            <div className="space-y-2">
-              {pageContent.reflection.items.map((item, i) => (
-                <div key={i}>
-                  <p className="text-sm text-text-primary mb-1">{item}</p>
-                  <textarea
-                    value={responses[`reflection_${i}`] || ""}
-                    onChange={(e) =>
-                      setResponses((prev) => ({
-                        ...prev,
-                        [`reflection_${i}`]: e.target.value,
-                      }))
-                    }
-                    rows={2}
-                    className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-blue focus:border-transparent resize-y text-sm"
-                  />
-                </div>
-              ))}
-            </div>
-          )}
+      {/* Floating action buttons */}
+      {!planOpen && !portfolioOpen && !ganttOpen && (
+        <div className="fixed right-4 z-40 flex flex-col-reverse items-end gap-3" style={{ bottom: "5.5rem" }}>
+          <div className="group flex items-center gap-2 animate-pop-in">
+            <span className="px-2.5 py-1 rounded-lg bg-gray-900/80 text-white text-xs font-medium shadow-lg opacity-0 translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 pointer-events-none whitespace-nowrap">
+              Portfolio
+            </span>
+            <button
+              onClick={() => setPortfolioOpen(true)}
+              className="w-11 h-11 rounded-full gradient-cta text-white shadow-lg shadow-brand-pink/30 hover:scale-110 hover:shadow-xl active:scale-95 transition-all duration-150 flex items-center justify-center"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+              </svg>
+            </button>
+          </div>
+
+          <div className="group flex items-center gap-2 animate-pop-in" style={{ animationDelay: "50ms" }}>
+            <span className="px-2.5 py-1 rounded-lg bg-gray-900/80 text-white text-xs font-medium shadow-lg opacity-0 translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 pointer-events-none whitespace-nowrap">
+              My Plan
+            </span>
+            <button
+              onClick={() => setPlanOpen(true)}
+              className="w-11 h-11 rounded-full gradient-cta text-white shadow-lg shadow-brand-pink/30 hover:scale-110 hover:shadow-xl active:scale-95 transition-all duration-150 flex items-center justify-center"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 11l3 3L22 4" />
+                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+              </svg>
+            </button>
+          </div>
+
+          <div className="group flex items-center gap-2 animate-pop-in" style={{ animationDelay: "100ms" }}>
+            <span className="px-2.5 py-1 rounded-lg bg-gray-900/80 text-white text-xs font-medium shadow-lg opacity-0 translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 pointer-events-none whitespace-nowrap">
+              Schedule
+            </span>
+            <button
+              onClick={() => setGanttOpen(true)}
+              className="w-11 h-11 rounded-full gradient-cta text-white shadow-lg shadow-brand-pink/30 hover:scale-110 hover:shadow-xl active:scale-95 transition-all duration-150 flex items-center justify-center"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                <line x1="16" y1="2" x2="16" y2="6" />
+                <line x1="8" y1="2" x2="8" y2="6" />
+                <line x1="3" y1="10" x2="21" y2="10" />
+              </svg>
+            </button>
+          </div>
         </div>
       )}
 
-      {/* Planning Panel */}
-      <PlanningPanel unitId={unitId} open={planOpen} onClose={() => setPlanOpen(false)} />
+      <QuickCaptureFAB
+        unitId={unitId}
+        hidden={!portfolioOpen}
+        onEntryCreated={() => {
+          setPortfolioOpen(false);
+          setTimeout(() => setPortfolioOpen(true), 50);
+        }}
+      />
 
-      {/* Floating Timer */}
-      <FloatingTimer unitId={unitId} />
+      {/* Mobile bottom nav */}
+      <MobileBottomNav
+        enabledPages={enabledPages}
+        currentPageId={pageId}
+        unitId={unitId}
+        pageColor={pageColor}
+        onDone={async () => {
+          await saveProgress("complete");
+          if (nextPage) {
+            router.push(`/unit/${unitId}/${nextPage.id}`);
+          }
+        }}
+      />
 
-      {/* Save status + Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-border py-3 px-4 z-30">
-        <div className="max-w-3xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {prevPage && (
-              <button
-                onClick={() => router.push(`/unit/${unitId}/${prevPage.id}`)}
-                className="px-4 py-2 text-sm text-text-secondary hover:text-text-primary border border-border rounded-lg hover:bg-surface-alt transition"
-              >
-                ← {prevPage.id}
-              </button>
-            )}
-            <button
-              onClick={() => setPlanOpen(true)}
-              className="px-3 py-2 text-sm text-text-secondary hover:text-text-primary border border-border rounded-lg hover:bg-surface-alt transition"
-            >
-              📋 Plan
-            </button>
-          </div>
-
-          <span className="text-xs text-text-secondary">
-            {saving ? "Saving..." : "Auto-saved"}
-          </span>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={async () => {
-                await saveProgress("complete");
-                if (nextPage) {
-                  router.push(`/unit/${unitId}/${nextPage.id}`);
-                }
-              }}
-              className="px-4 py-2 text-sm font-medium text-white rounded-lg transition"
-              style={{ backgroundColor: criterion.color }}
-            >
-              {nextPage
-                ? `Save & Continue → ${nextPage.id}`
-                : "Mark Complete ✓"}
-            </button>
-          </div>
-        </div>
-      </div>
-    </main>
+      {/* Design Assistant — Socratic mentor chat widget */}
+      {student?.id && (
+        <DesignAssistantWidget
+          unitId={unitId}
+          pageId={pageId}
+          studentId={student.id}
+        />
+      )}
+    </div>
   );
 }

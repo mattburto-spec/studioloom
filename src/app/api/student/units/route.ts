@@ -2,6 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { SESSION_COOKIE_NAME } from "@/lib/constants";
 
+// Forward mapping for pre-migration-011 fallback
+const NUMBER_TO_PAGE_ID: Record<number, string> = {
+  1: "A1", 2: "A2", 3: "A3", 4: "A4",
+  5: "B1", 6: "B2", 7: "B3", 8: "B4",
+  9: "C1", 10: "C2", 11: "C3", 12: "C4",
+  13: "D1", 14: "D2", 15: "D3", 16: "D4",
+};
+
 export async function GET(request: NextRequest) {
   const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
   if (!token) {
@@ -33,23 +41,36 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Student not found" }, { status: 404 });
   }
 
-  // Get active units for this class
-  const { data: classUnits } = await supabase
+  // Get active units — try locked_page_ids first, fall back to locked_pages
+  let classUnits: Record<string, unknown>[] | null = null;
+
+  const { data: cuNew, error: cuError } = await supabase
     .from("class_units")
-    .select("unit_id, locked_pages")
+    .select("unit_id, locked_page_ids")
     .eq("class_id", student.class_id)
     .eq("is_active", true);
+
+  if (cuError && (cuError.message?.includes("does not exist") || cuError.message?.includes("Could not find"))) {
+    const { data: cuOld } = await supabase
+      .from("class_units")
+      .select("unit_id, locked_pages")
+      .eq("class_id", student.class_id)
+      .eq("is_active", true);
+    classUnits = cuOld as Record<string, unknown>[] | null;
+  } else {
+    classUnits = cuNew as Record<string, unknown>[] | null;
+  }
 
   if (!classUnits || classUnits.length === 0) {
     return NextResponse.json({ units: [] });
   }
 
-  const unitIds = classUnits.map((cu) => cu.unit_id);
+  const unitIds = classUnits.map((cu) => cu.unit_id as string);
 
   // Get units
   const { data: units } = await supabase
     .from("units")
-    .select("id, title, description, thumbnail_url")
+    .select("id, title, description, thumbnail_url, content_data")
     .in("id", unitIds);
 
   // Get progress for this student
@@ -60,11 +81,29 @@ export async function GET(request: NextRequest) {
     .in("unit_id", unitIds);
 
   // Combine units with progress
-  const unitsWithProgress = (units || []).map((unit) => ({
-    ...unit,
-    progress: (progress || []).filter((p) => p.unit_id === unit.id),
-    locked_pages: classUnits.find((cu) => cu.unit_id === unit.id)?.locked_pages || [],
-  }));
+  const unitsWithProgress = (units || []).map((unit) => {
+    const cu = classUnits!.find((c) => c.unit_id === unit.id);
+    const lockedPages =
+      (cu?.locked_page_ids as string[]) ||
+      (cu?.locked_pages as string[]) ||
+      [];
+
+    // Normalize progress — ensure page_id exists
+    const unitProgress = (progress || [])
+      .filter((p) => p.unit_id === unit.id)
+      .map((p: Record<string, unknown>) => {
+        if (!p.page_id && p.page_number) {
+          return { ...p, page_id: NUMBER_TO_PAGE_ID[p.page_number as number] || `page_${p.page_number}` };
+        }
+        return p;
+      });
+
+    return {
+      ...unit,
+      progress: unitProgress,
+      locked_pages: lockedPages,
+    };
+  });
 
   return NextResponse.json({ units: unitsWithProgress });
 }
