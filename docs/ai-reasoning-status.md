@@ -165,6 +165,38 @@ Not needed before first test users. The per-teacher RAG pipeline works fine for 
 
 ---
 
+## Activity-Type-Aware Timing Intelligence — NEW (March 13 2026)
+
+### Problem Solved
+The AI was generating identical timing for all MYP grades (6-10, ages 11-16). A Grade 6 student can experiment with circuits for 40 min but struggles with 20 min of technical reading. Timing should vary by cognitive demand, not just by grade.
+
+### Implementation
+- **File**: `src/lib/ai/prompts.ts` — `GradeTimingProfile` type, `getGradeTimingProfile()`, `buildTimingBlock()`
+- **File**: `src/lib/ai/quality-evaluator.ts` — structural check for over-long activities by type
+
+### Timing Profiles (per MYP Year)
+
+| MYP Year | Age | Reading/Analysis | Hands-On/Making | Collaborative | Digital/Research |
+|----------|-----|-----------------|-----------------|---------------|-----------------|
+| 1 | 11 | ≤12 min | ≤40 min | ≤15 min | ≤15 min |
+| 2 | 12 | ≤15 min | ≤40 min | ≤15 min | ≤20 min |
+| 3 | 13 | ≤20 min | ≤45 min | ≤20 min | ≤25 min |
+| 4 | 15 | ≤25 min | ≤45 min | ≤25 min | ≤30 min |
+| 5 | 16 | ≤30 min | ≤45 min | ≤25 min | ≤35 min |
+
+### How It Works
+1. **Prompt injection**: Grade-specific timing block injected into all generation prompts (journey, timeline, per-lesson)
+2. **Quality evaluator**: Classifies activities by `responseType` (text=cognitive, upload=hands-on) and checks against per-type limits
+3. **Learning from uploads**: Uploaded lesson plans already have timing extracted per phase (3-pass analysis) — flows into generation via RAG
+4. **Feedback loop**: Teacher "too_long"/"too_short" feedback feeds back into future generation
+
+### Three Layers of Timing Intelligence
+1. **Base knowledge** — timing profiles baked into prompts (research-backed)
+2. **Learned patterns** — from uploaded lesson plans via RAG retrieval
+3. **Feedback refinement** — teacher feedback corrects and improves over time
+
+---
+
 ## Key Files Reference
 
 | File | Purpose |
