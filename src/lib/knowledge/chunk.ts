@@ -316,7 +316,7 @@ function chunkLessonPhase(
   profile: LessonProfile
 ): Chunk[] {
   // Try to find the matching text section in the source document
-  let phaseText = findPhaseText(phase.title, fullText);
+  const phaseText = findPhaseText(phase.title, fullText);
 
   // Build rich preamble from analysis intelligence
   const preambleParts: string[] = [

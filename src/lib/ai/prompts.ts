@@ -1,5 +1,5 @@
 import type { UnitWizardInput, LessonJourneyInput, JourneyOutlineOption, TimelineOutlineOption, TimelinePhase, TimelineLessonSkeleton, TimelineSkeleton, DesignLessonType } from "@/types";
-import { CRITERIA, PAGES, type CriterionKey, MYP_GLOBAL_CONTEXTS, MYP_KEY_CONCEPTS, MYP_RELATED_CONCEPTS_DESIGN, EMPHASIS_PAGE_COUNT, buildPageDefinitions } from "@/lib/constants";
+import { CRITERIA, type CriterionKey, MYP_GLOBAL_CONTEXTS, MYP_KEY_CONCEPTS, MYP_RELATED_CONCEPTS_DESIGN, EMPHASIS_PAGE_COUNT, buildPageDefinitions } from "@/lib/constants";
 import { getActivityLibrarySummary } from "@/lib/activity-library";
 import { getActivityCardSummaryEnriched } from "@/lib/activity-cards";
 import {
@@ -800,7 +800,7 @@ ${buildTimingBlock(getGradeTimingProfile(input.gradeLevel), input.lessonLengthMi
 
 ## Lessons to Generate
 Generate these ${lessonIds.length} lessons (of ${totalLessons} total):
-${lessonIds.map((id, i) => {
+${lessonIds.map((id) => {
   const lessonNum = parseInt(id.replace("L", ""), 10);
   return `  - ${id}: Lesson ${lessonNum} of ${totalLessons}`;
 }).join("\n")}
