@@ -698,7 +698,22 @@ Based on Hattie's Visible Learning research and Victorian HITS:
 ### Safety Culture
 - For ANY lesson involving tools, materials, or equipment: include safety in the introduction or as a content section
 - Safety should be woven naturally into the activity, not as a separate slide
-- For skills-demo lessons: safety briefing is part of the modelling phase`;
+- For skills-demo lessons: safety briefing is part of the modelling phase
+
+### Spaced Retrieval (d=0.71)
+- Vocab warm-ups should spiral back to terms and skills from EARLIER lessons (not just the previous one)
+- Include retrieval starters: quick-sketch, term matching, "recall 3 things from Lesson 2"
+- Prioritise OLDER items for maximum spacing effect
+
+### Self-Assessment Prediction (d=1.44)
+- At criterion phase boundaries (last lesson before moving to next criterion focus), include a self-prediction reflection
+- "Look at the Criterion [X] rubric. What level do you think you've achieved? Circle and explain why."
+- The final lesson should include comprehensive self-assessment across all criteria
+
+### Compare/Contrast Frameworks (d=1.61)
+- For research/investigation sections, use structured comparison templates
+- Side-by-side analysis with guided questions: features, user needs, strengths, limitations
+- Use responseType "decision-matrix" or "pmi" for comparison activities`;
 
 /**
  * Build the user prompt for journey-mode lesson generation.
@@ -1157,7 +1172,22 @@ Based on Hattie's Visible Learning research and Victorian HITS:
 ### Safety Culture
 - For ANY activity involving tools, materials, or equipment: include safety in teacherNotes
 - Safety should be woven naturally into the activity, not as a separate slide
-- For skills demos: safety briefing is part of the content/intro activity`;
+- For skills demos: safety briefing is part of the content/intro activity
+
+### Spaced Retrieval (d=0.71)
+- Warmup activities should spiral back to vocabulary and skills from EARLIER lessons (not just the previous one)
+- Include retrieval starters: quick-sketch, term matching, "recall 3 things from L02"
+- Prioritise OLDER items for maximum spacing effect — retrieving L01 content in L05 is more powerful than retrieving L04 content
+
+### Self-Assessment Prediction (d=1.44)
+- At criterion phase boundaries (last lesson before moving to next criterion focus), include a self-prediction activity
+- "Look at the Criterion [X] rubric. What level do you think you've achieved? Circle and explain why."
+- The final lesson should include comprehensive self-assessment across all criteria
+
+### Compare/Contrast Frameworks (d=1.61)
+- For research/investigation activities, use structured comparison templates
+- Side-by-side analysis with guided questions: features, user needs, strengths, limitations
+- Use responseType "decision-matrix" or "pmi" for these activities`;
 
 /**
  * Build the user prompt for timeline-mode activity generation.
@@ -1550,7 +1580,18 @@ For EVERY lesson, generate:
   Good: ["Identifies at least 3 design features per product", "Explains how each feature meets a specific user need", "Compares products using a structured framework"]
   Bad: ["Understands products"] (not observable)
 
-Learning intentions must BACKWARD MAP from the unit end goal — each lesson's LI builds toward the final product.`;
+Learning intentions must BACKWARD MAP from the unit end goal — each lesson's LI builds toward the final product.
+
+## Cumulative Vocabulary & Skills Tracking (for Spaced Retrieval)
+For EVERY lesson, list:
+- cumulativeVocab: 2-4 KEY vocabulary terms introduced IN THIS LESSON (technical terms students must learn)
+  Example L01: ["user need", "design brief", "target audience"]
+  Example L02: ["ergonomic", "anthropometric data"]
+- cumulativeSkills: 1-3 KEY skills/techniques introduced IN THIS LESSON
+  Example L01: ["conducting user interviews", "writing a design brief"]
+  Example L03: ["sketching isometric views", "annotating designs"]
+
+These lists power spaced retrieval warm-ups — later lessons will quiz students on terms/skills from earlier lessons. Be specific: "CAD" is too vague, "creating a 2D sketch in Fusion 360" is good.`;
 
 /**
  * Build the user prompt for skeleton generation.
@@ -1604,6 +1645,7 @@ ${outline.phases.map((p) => `  - ${p.title} (~${p.estimatedLessons} lessons): ${
 - Criteria must be distributed across all lessons
 - Include a narrativeArc summary (2-3 sentences)
 - Each lesson MUST include lessonType, learningIntention, and successCriteria
+- Each lesson MUST include cumulativeVocab (2-4 new terms) and cumulativeSkills (1-3 new skills)
 - Learning intentions must backward-map from the end goal: "${input.endGoal}"
 - Lesson types should be distributed — not all making or all research`;
 }
@@ -1755,6 +1797,64 @@ export function buildPerLessonTimelinePrompt(
     continuitySection += `\nNext lesson: "${nextLesson.title}" — ${nextLesson.keyQuestion}`;
   }
 
+  // --- HITS Phase 2: Spaced Retrieval Context ---
+  // Collect vocab/skills from ALL previous lessons for retrieval warm-ups
+  let spacedRetrievalSection = "";
+  if (lesson.lessonNumber > 1) {
+    const priorLessons = skeleton.lessons.filter((l) => l.lessonNumber < lesson.lessonNumber);
+    const allPriorVocab = priorLessons.flatMap((l) => (l.cumulativeVocab || []).map((v) => `${v} (L${String(l.lessonNumber).padStart(2, "0")})`));
+    const allPriorSkills = priorLessons.flatMap((l) => (l.cumulativeSkills || []).map((s) => `${s} (L${String(l.lessonNumber).padStart(2, "0")})`));
+    if (allPriorVocab.length > 0 || allPriorSkills.length > 0) {
+      spacedRetrievalSection = `\n## Spaced Retrieval (d=0.71 — use in warm-up)
+The warmup activity MUST include a 3-5 minute retrieval starter that spirals back earlier content.
+Pick 2-3 items from previous lessons (prioritise older items for spacing effect):
+${allPriorVocab.length > 0 ? `Prior Vocabulary: ${allPriorVocab.join(", ")}` : ""}
+${allPriorSkills.length > 0 ? `Prior Skills: ${allPriorSkills.join(", ")}` : ""}
+Examples: "Recall the 3 properties of [material] from L02", "Quick-sketch the [technique] you learned last lesson", "Match these terms to their definitions"
+Include vocabTerms for NEW vocabulary in this lesson PLUS 2-3 retrieval terms from earlier.`;
+    }
+  }
+
+  // --- HITS Phase 2: Self-Assessment Prediction ---
+  // Detect criterion phase boundaries (last lesson emphasising a criterion before next phase)
+  let selfAssessmentSection = "";
+  const currentCriteria = lesson.criterionTags || [];
+  if (nextLesson) {
+    const nextCriteria = nextLesson.criterionTags || [];
+    // If this lesson has criteria that the next lesson does NOT — it's a phase boundary
+    const exitingCriteria = currentCriteria.filter((c) => !nextCriteria.includes(c));
+    if (exitingCriteria.length > 0) {
+      selfAssessmentSection = `\n## Self-Assessment Prediction (d=1.44 — highest effect size in Hattie's research)
+This is the LAST lesson emphasising Criterion ${exitingCriteria.join(", ")} before the unit moves on.
+Include a self-prediction activity (5 min) in the reflection:
+- "Look at the Criterion ${exitingCriteria.join("/")} rubric. What level do you think you've achieved? Circle it and write 1 sentence explaining why."
+- Use reflectionType "short-response" with reflectionItems that include the prediction prompt
+- This is about metacognition — students who predict their own performance learn significantly more`;
+    }
+  }
+  // Also trigger for the FINAL lesson (always a good place for self-assessment)
+  if (lesson.lessonNumber === skeleton.lessons.length) {
+    selfAssessmentSection = `\n## Self-Assessment Prediction (d=1.44 — highest effect size in Hattie's research)
+This is the FINAL lesson. Include a comprehensive self-assessment reflection:
+- "For each criterion (${(input.assessmentCriteria || []).join(", ")}), predict your achievement level and explain your evidence."
+- Use reflectionType "checklist" or "short-response" with items for each criterion
+- Students should compare their predictions to earlier self-assessments (if any)`;
+  }
+
+  // --- HITS Phase 2: Compare/Contrast Templates ---
+  let compareContrastSection = "";
+  if (lesson.lessonType === "research") {
+    compareContrastSection = `\n## Compare/Contrast Framework (d=1.61 — Marzano's #1 strategy)
+This is a RESEARCH lesson — include a structured comparison activity:
+- Use responseType "decision-matrix" or "pmi" for product/solution analysis
+- Frame as: "Compare [Product A] and [Product B] across these criteria: [list 3-5 criteria from the design brief]"
+- Include a scaffolded comparison template with guided questions:
+  * "What design features does each product have?"
+  * "How does each feature meet the user's needs?"
+  * "What are the strengths and limitations of each approach?"
+- This maps directly to Criterion A (Inquiring & Analysing)`;
+  }
+
   const ragSection = options?.ragContext ? options.ragContext + "\n\n---\n\n" : "";
   const lessonProfileSection = options?.lessonContext ? options.lessonContext + "\n\n---\n\n" : "";
 
@@ -1769,7 +1869,7 @@ Key Question: ${lesson.keyQuestion}
 Target Duration: ${lesson.estimatedMinutes} minutes
 Criteria: ${lesson.criterionTags.join(", ")}
 Activity Hints: ${lesson.activityHints.join("; ")}${lesson.lessonType ? `\nLesson Type: ${lesson.lessonType}${getLessonTypeGuidance(lesson.lessonType)}` : ""}${lesson.learningIntention ? `\nLearning Intention: ${lesson.learningIntention}\nSuccess Criteria: ${(lesson.successCriteria || []).map((sc, i) => `${i + 1}. ${sc}`).join("; ")}` : ""}
-${continuitySection}
+${continuitySection}${spacedRetrievalSection}${selfAssessmentSection}${compareContrastSection}
 
 ## Available Activity Cards
 Consider incorporating these where appropriate:

@@ -317,6 +317,8 @@ export interface TimelineLessonSkeleton {
   lessonType?: DesignLessonType; // AI-classified lesson structure type
   learningIntention?: string;    // "Students will be able to..."
   successCriteria?: string[];    // 2-3 observable criteria
+  cumulativeVocab?: string[];    // Key vocab introduced up to and including this lesson
+  cumulativeSkills?: string[];   // Key skills/techniques introduced up to and including this lesson
 }
 
 /** Full skeleton for a unit — provides context for per-lesson parallel generation */

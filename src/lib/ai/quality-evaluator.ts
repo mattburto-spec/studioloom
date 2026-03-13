@@ -313,6 +313,25 @@ function buildStructuralReport(
     warnings.push("Making/testing activities detected but no safety mentions — add safety reminders in teacher notes");
   }
 
+  // Check: spaced retrieval in warmups (only matters if multi-lesson unit)
+  const warmups = activities.filter((a) => a.role === "warmup");
+  const warmupsWithVocab = warmups.filter((a) => a.vocabTerms && a.vocabTerms.length > 0);
+  if (warmups.length > 1 && warmupsWithVocab.length < warmups.length * 0.5) {
+    warnings.push("Less than half of warmup activities include vocabulary — warmups should spiral back prior terms for spaced retrieval (d=0.71)");
+  }
+
+  // Check: self-assessment/prediction in reflections
+  const reflections = activities.filter((a) => a.role === "reflection");
+  const hasSelfAssessment = reflections.some((a) =>
+    a.prompt?.toLowerCase().includes("predict") ||
+    a.prompt?.toLowerCase().includes("self-assess") ||
+    a.prompt?.toLowerCase().includes("rubric") ||
+    a.prompt?.toLowerCase().includes("what level")
+  );
+  if (reflections.length > 0 && !hasSelfAssessment) {
+    warnings.push("No self-assessment prediction found — students predicting their own achievement level has the highest effect size in education research (d=1.44)");
+  }
+
   return {
     overallScore: 50, // Unknown — can't evaluate without AI
     principleScores: [],

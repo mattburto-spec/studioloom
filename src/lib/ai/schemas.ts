@@ -470,7 +470,7 @@ export const SINGLE_TIMELINE_OUTLINE_TOOL: Tool = {
 
 const lessonSkeletonSchema = {
   type: "object" as const,
-  required: ["lessonNumber", "lessonId", "title", "keyQuestion", "estimatedMinutes", "phaseLabel", "criterionTags", "activityHints", "lessonType", "learningIntention", "successCriteria"],
+  required: ["lessonNumber", "lessonId", "title", "keyQuestion", "estimatedMinutes", "phaseLabel", "criterionTags", "activityHints", "lessonType", "learningIntention", "successCriteria", "cumulativeVocab", "cumulativeSkills"],
   properties: {
     lessonNumber: { type: "number" as const, description: "1-indexed lesson number" },
     lessonId: { type: "string" as const, description: "Lesson ID like 'L01', 'L02'" },
@@ -491,6 +491,16 @@ const lessonSkeletonSchema = {
       type: "array" as const,
       items: { type: "string" as const },
       description: "2-3 observable criteria showing the learning intention was met",
+    },
+    cumulativeVocab: {
+      type: "array" as const,
+      items: { type: "string" as const },
+      description: "Key vocabulary terms introduced IN THIS LESSON (2-4 new terms). These accumulate across lessons for spaced retrieval.",
+    },
+    cumulativeSkills: {
+      type: "array" as const,
+      items: { type: "string" as const },
+      description: "Key skills/techniques introduced IN THIS LESSON (1-3 new skills). These accumulate for spaced retrieval warm-ups.",
     },
     criterionTags: {
       type: "array" as const,

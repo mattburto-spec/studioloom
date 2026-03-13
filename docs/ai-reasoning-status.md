@@ -209,10 +209,10 @@ The AI model must recognise 6 distinct Design lesson types (research, ideation, 
 
 | # | Gap | Effect Size | Status |
 |---|-----|------------|--------|
-| 1 | Per-lesson learning intentions + success criteria | d=0.56-0.75 | ⏳ Phase 1 |
-| 2 | Lesson-type-aware structure templates (6 types) | d=0.53 | ⏳ Phase 1 |
-| 3 | Explicit rules for 4 under-prompted quality principles | — | ⏳ Phase 1 |
-| 4 | Teacher questioning banks (3 levels per lesson) | d=0.46 | ⏳ Phase 1 |
+| 1 | Per-lesson learning intentions + success criteria | d=0.56-0.75 | ✅ DONE |
+| 2 | Lesson-type-aware structure templates (6 types) | d=0.53 | ✅ DONE |
+| 3 | Explicit rules for 4 under-prompted quality principles | — | ✅ DONE |
+| 4 | Teacher questioning banks (3 levels per lesson) | d=0.46 | ✅ DONE |
 | 5 | Spaced retrieval warm-ups (spiral earlier content) | d=0.71 | ⏳ Phase 2 |
 | 6 | Self-assessment prediction prompts | d=1.44 | ⏳ Phase 2 |
 | 7 | Compare/contrast templates for Criterion A | d=1.61 (Marzano) | ⏳ Phase 2 |
@@ -220,7 +220,7 @@ The AI model must recognise 6 distinct Design lesson types (research, ideation, 
 | 9 | HITS-aligned quality evaluator principles | — | ⏳ Phase 4 |
 
 ### Implementation Phases
-- **Phase 1** (prompt changes only): Learning intentions, lesson types, questioning, explicit rules
+- **Phase 1** (prompt changes only): ✅ COMPLETE — Learning intentions, lesson types, questioning, explicit rules
 - **Phase 2** (schema additions): Spaced practice, self-assessment, compare/contrast
 - **Phase 3** (knowledge pipeline): Extract structure/timing/questions from uploads
 - **Phase 4** (quality evaluator): Add HITS-aligned scoring principles

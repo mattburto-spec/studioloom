@@ -79,6 +79,9 @@ These should be added as explicit generation rules so the AI is told to include 
 ## Implementation Roadmap
 
 ### Phase 1: Prompt Enhancement (no schema/DB changes)
+**Status: ✅ COMPLETE (March 14, 2026)**
+Commit: 4feb1fe — all 4 items implemented as prompt-only changes.
+
 **Impact: HIGH | Effort: LOW**
 
 1. **Learning intentions + success criteria** — add to per-lesson generation prompts
