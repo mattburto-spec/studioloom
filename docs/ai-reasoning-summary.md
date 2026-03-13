@@ -1,6 +1,6 @@
 # StudioLoom AI Reasoning Model — Summary & Gap Analysis
 
-Last updated: March 13, 2026
+Last updated: March 14, 2026
 
 ---
 
@@ -121,7 +121,7 @@ The teacher enters an end goal ("Students design sustainable packaging"), and th
 The AI is personalised — it knows the teacher's curriculum (MYP vs GCSE vs PLTW), their school context (equipment, class size), and uses the correct vocabulary for their framework. It also retrieves similar lessons from the knowledge base (RAG) and injects feedback from teachers who taught similar content.
 
 ### Layer 2: Feedback Loop
-**Who:** Teachers + Students | **Status:** ✅ Backend complete, ⚠️ collection UI unwired
+**Who:** Teachers + Students | **Status:** ✅ Complete
 
 After a teacher teaches a generated lesson, they can submit feedback: "timing was too long," "students loved the prototyping activity," "the research phase needs more scaffolding." This feedback:
 - Aggregates across all teachers who taught similar content
@@ -131,7 +131,7 @@ After a teacher teaches a generated lesson, they can submit feedback: "timing wa
 **This is the moat.** Every lesson taught makes the next generated unit better.
 
 ### Layer 3: Student Design Assistant
-**Who:** Students | **Model:** Haiku | **Status:** ✅ API complete, ⚠️ no chat UI
+**Who:** Students | **Model:** Haiku | **Status:** ✅ Complete
 
 A Socratic mentor that helps students think through their design process. Based on Khanmigo research:
 - **Never gives answers** — only asks questions
@@ -184,7 +184,33 @@ Student opens page ──→ Sees lightbulb icon ──→ Asks for help ──�
                                                                 adapts to Bloom's level
 ```
 
-### Gaps That Can Wait
+### HITS Research Gaps — NEW (March 14, 2026)
+
+Research against Victorian HITS, Hattie, Marzano, and Rosenshine identified 9 gaps in the AI model.
+Full analysis: `docs/design/hits-gap-analysis.md`
+
+**Key insight**: Design is not a standard subject — 6 distinct lesson types (research, ideation, skills-demo, making, testing, critique) need different structures and timing. A 40-min making block IS good pedagogy.
+
+**Phase 1 — Prompt-only changes (highest ROI):**
+
+| Gap | Evidence | What to Build |
+|-----|----------|---------------|
+| No learning intentions / success criteria | d=0.56-0.75 | Auto-generate per lesson, process-focused for design |
+| One-size-fits-all lesson structure | d=0.53 | 6 Design lesson type templates with correct sequencing |
+| 4 quality principles not in generation prompts | — | Add productive failure, critique culture, digital/physical, safety as explicit rules |
+| No teacher questioning banks | d=0.46 | 3-5 tiered questions per lesson for circulation |
+
+**Phase 2 — Schema additions:**
+
+| Gap | Evidence | What to Build |
+|-----|----------|---------------|
+| No spaced practice / retrieval warm-ups | d=0.71 | Spiral earlier skills/vocab into later lesson starters |
+| No self-assessment prediction | d=1.44 | "Predict your rubric level" before submissions |
+| No compare/contrast templates | d=1.61 (Marzano) | Product analysis frameworks for Criterion A |
+
+**Phases 3-4**: Knowledge pipeline extraction + quality evaluator expansion.
+
+### Other Gaps That Can Wait
 
 | # | Gap | Layer | Impact | Why it can wait |
 |---|-----|-------|--------|-----------------|

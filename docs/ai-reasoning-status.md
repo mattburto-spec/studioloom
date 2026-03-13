@@ -1,6 +1,6 @@
 # AI Reasoning Architecture — Implementation Status
 
-Last updated: March 13, 2026
+Last updated: March 14, 2026
 
 ## Layer 1: Unit Generation — ✅ COMPLETE
 
@@ -194,6 +194,36 @@ The AI was generating identical timing for all MYP grades (6-10, ages 11-16). A 
 1. **Base knowledge** — timing profiles baked into prompts (research-backed)
 2. **Learned patterns** — from uploaded lesson plans via RAG retrieval
 3. **Feedback refinement** — teacher feedback corrects and improves over time
+
+---
+
+## HITS Integration — Gap Analysis (March 14, 2026)
+
+Based on research into Victorian HITS framework, Hattie Visible Learning, Marzano, and Rosenshine.
+Full analysis: `docs/design/hits-gap-analysis.md`
+
+### Key Insight: Design Is Not a Standard Subject
+The AI model must recognise 6 distinct Design lesson types (research, ideation, skills-demo, making, testing, critique) — each with different structures, timing, and HITS emphasis. A 40-min making block IS good pedagogy. Forcing standard lesson structure on Design is harmful.
+
+### Gaps Identified (by priority)
+
+| # | Gap | Effect Size | Status |
+|---|-----|------------|--------|
+| 1 | Per-lesson learning intentions + success criteria | d=0.56-0.75 | ⏳ Phase 1 |
+| 2 | Lesson-type-aware structure templates (6 types) | d=0.53 | ⏳ Phase 1 |
+| 3 | Explicit rules for 4 under-prompted quality principles | — | ⏳ Phase 1 |
+| 4 | Teacher questioning banks (3 levels per lesson) | d=0.46 | ⏳ Phase 1 |
+| 5 | Spaced retrieval warm-ups (spiral earlier content) | d=0.71 | ⏳ Phase 2 |
+| 6 | Self-assessment prediction prompts | d=1.44 | ⏳ Phase 2 |
+| 7 | Compare/contrast templates for Criterion A | d=1.61 (Marzano) | ⏳ Phase 2 |
+| 8 | Extract lesson patterns from uploaded plans | — | ⏳ Phase 3 |
+| 9 | HITS-aligned quality evaluator principles | — | ⏳ Phase 4 |
+
+### Implementation Phases
+- **Phase 1** (prompt changes only): Learning intentions, lesson types, questioning, explicit rules
+- **Phase 2** (schema additions): Spaced practice, self-assessment, compare/contrast
+- **Phase 3** (knowledge pipeline): Extract structure/timing/questions from uploads
+- **Phase 4** (quality evaluator): Add HITS-aligned scoring principles
 
 ---
 
