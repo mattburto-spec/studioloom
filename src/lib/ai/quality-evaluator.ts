@@ -115,7 +115,7 @@ Topic: ${context.topic || "unknown"}
 Grade: ${context.gradeLevel || "unknown"}
 End Goal: ${context.endGoal || "unknown"}
 Total Duration: ${totalMinutes}m across ${context.totalLessons || "?"} lessons
-Age-Appropriate Max Core Activity: ${timingProfile.maxCoreActivityMinutes} minutes (${timingProfile.attentionNote})
+Age-Appropriate Timing: Reading/writing/analysis ≤${timingProfile.maxHighCognitiveMinutes}min, Hands-on/making ≤${timingProfile.maxHandsOnMinutes}min, Discussion/collaboration ≤${timingProfile.maxCollaborativeMinutes}min. ${timingProfile.pacingNote}
 
 ## Generated Activities (${activities.length} total)
 ${activitySummary}
@@ -252,25 +252,34 @@ function buildStructuralReport(
     );
   }
 
-  // Check age-appropriate activity durations
+  // Check age-appropriate activity durations by cognitive demand
   const timingProfile = getGradeTimingProfile(gradeLevel || "Year 3 (Grade 8)");
   const coreActivities = activities.filter((a) => a.role === "core");
-  const overLongActivities = coreActivities.filter(
-    (a) => (a.durationMinutes || 0) > timingProfile.maxCoreActivityMinutes
-  );
-  if (overLongActivities.length > 0) {
-    const severelyOverLong = overLongActivities.filter(
-      (a) => (a.durationMinutes || 0) > timingProfile.maxCoreActivityMinutes * 1.5
-    );
-    if (severelyOverLong.length > 0) {
-      criticalIssues.push(
-        `${severelyOverLong.length} core activit${severelyOverLong.length === 1 ? "y" : "ies"} far exceed the ${timingProfile.maxCoreActivityMinutes}-minute attention limit for this grade — break into shorter segments`
-      );
+
+  // Classify activities by cognitive demand using responseType as proxy
+  const highCognitiveTypes = new Set(["text", "decision-matrix", "pmi", "pairwise", "trade-off-sliders"]);
+  const handsOnTypes = new Set(["upload", "voice"]);
+
+  const overLongActivities: string[] = [];
+  for (const a of coreActivities) {
+    const dur = a.durationMinutes || 0;
+    let maxForType: number;
+    if (a.responseType && handsOnTypes.has(a.responseType)) {
+      maxForType = timingProfile.maxHandsOnMinutes;
+    } else if (a.responseType && highCognitiveTypes.has(a.responseType)) {
+      maxForType = timingProfile.maxHighCognitiveMinutes;
     } else {
-      warnings.push(
-        `${overLongActivities.length} core activit${overLongActivities.length === 1 ? "y exceeds" : "ies exceed"} the ${timingProfile.maxCoreActivityMinutes}-minute recommended maximum for MYP Year ${timingProfile.mypYear} students`
-      );
+      // Default: use collaborative limit as middle ground
+      maxForType = timingProfile.maxCollaborativeMinutes;
     }
+    if (dur > maxForType) {
+      overLongActivities.push(`"${a.title}" (${dur}m, max ${maxForType}m for this activity type)`);
+    }
+  }
+  if (overLongActivities.length > 0) {
+    warnings.push(
+      `${overLongActivities.length} activit${overLongActivities.length === 1 ? "y exceeds" : "ies exceed"} age-appropriate duration for MYP Year ${timingProfile.mypYear}: ${overLongActivities.join("; ")}`
+    );
   }
 
   // Check ELL scaffolding

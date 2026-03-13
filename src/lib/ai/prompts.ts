@@ -24,21 +24,47 @@ import { getFrameworkFromContext } from "@/lib/ai/teacher-context";
 
 export interface GradeTimingProfile {
   mypYear: number;
-  maxCoreActivityMinutes: number;
   warmupMinutes: number;
   introMinutes: number;
   reflectionMinutes: number;
-  activitiesPerLessonMin: number;
-  activitiesPerLessonMax: number;
-  attentionNote: string;
+  /** Max minutes for HIGH cognitive demand activities (reading, writing, analysis, documentation) */
+  maxHighCognitiveMinutes: number;
+  /** Max minutes for ACTIVE/HANDS-ON activities (making, experimenting, building, testing) */
+  maxHandsOnMinutes: number;
+  /** Max minutes for COLLABORATIVE activities (discussion, peer review, group work) */
+  maxCollaborativeMinutes: number;
+  /** Max minutes for DIGITAL/RESEARCH activities (online research, digital tools, CAD) */
+  maxDigitalMinutes: number;
+  /** General pacing and scaffolding guidance for the AI */
+  pacingNote: string;
 }
 
 const TIMING_PROFILES: Record<number, GradeTimingProfile> = {
-  1: { mypYear: 1, maxCoreActivityMinutes: 12, warmupMinutes: 5, introMinutes: 5, reflectionMinutes: 5, activitiesPerLessonMin: 4, activitiesPerLessonMax: 6, attentionNote: "11-year-olds sustain focus ~10-12 min. Use frequent transitions, movement breaks, and short chunked tasks. Heavy scaffolding needed — checklists, sentence starters, worked examples for every task." },
-  2: { mypYear: 2, maxCoreActivityMinutes: 15, warmupMinutes: 5, introMinutes: 5, reflectionMinutes: 5, activitiesPerLessonMin: 4, activitiesPerLessonMax: 6, attentionNote: "12-year-olds sustain focus ~12-15 min. Mix active and passive tasks. Scaffold with sentence starters and templates but allow some choice." },
-  3: { mypYear: 3, maxCoreActivityMinutes: 20, warmupMinutes: 5, introMinutes: 5, reflectionMinutes: 5, activitiesPerLessonMin: 3, activitiesPerLessonMax: 5, attentionNote: "13-year-olds sustain focus ~15-20 min. Balance structured guidance with growing autonomy. Provide reference materials but reduce step-by-step scaffolding." },
-  4: { mypYear: 4, maxCoreActivityMinutes: 30, warmupMinutes: 5, introMinutes: 5, reflectionMinutes: 5, activitiesPerLessonMin: 3, activitiesPerLessonMax: 5, attentionNote: "15-year-olds can handle 25-30 min focused blocks. Support extended independent work with clear success criteria. Scaffold through exemplars rather than templates." },
-  5: { mypYear: 5, maxCoreActivityMinutes: 35, warmupMinutes: 5, introMinutes: 3, reflectionMinutes: 5, activitiesPerLessonMin: 2, activitiesPerLessonMax: 4, attentionNote: "16-year-olds can handle 30-35 min deep work blocks. Minimise transitions to allow flow state. Scaffold through prompts and peer critique rather than templates." },
+  1: {
+    mypYear: 1, warmupMinutes: 5, introMinutes: 5, reflectionMinutes: 5,
+    maxHighCognitiveMinutes: 12, maxHandsOnMinutes: 40, maxCollaborativeMinutes: 15, maxDigitalMinutes: 15,
+    pacingNote: "MYP Year 1 (age 11): Students sustain cognitive focus for ~10-12 minutes but can engage in hands-on making for much longer. Reading, writing, and analysis tasks must be SHORT (≤12 min) and heavily scaffolded with checklists, sentence starters, and worked examples. Hands-on/making activities can run 20-40 min as long as they have clear checkpoints. Break reading-heavy tasks into small chunks with partner discussion between them.",
+  },
+  2: {
+    mypYear: 2, warmupMinutes: 5, introMinutes: 5, reflectionMinutes: 5,
+    maxHighCognitiveMinutes: 15, maxHandsOnMinutes: 40, maxCollaborativeMinutes: 15, maxDigitalMinutes: 20,
+    pacingNote: "MYP Year 2 (age 12): Cognitive focus extends to ~12-15 minutes. Still scaffold reading/analysis tasks with sentence starters and templates, but allow some choice in how students respond. Hands-on making activities can run 20-40 min. Mix active and passive tasks — avoid back-to-back reading/writing activities.",
+  },
+  3: {
+    mypYear: 3, warmupMinutes: 5, introMinutes: 5, reflectionMinutes: 5,
+    maxHighCognitiveMinutes: 20, maxHandsOnMinutes: 45, maxCollaborativeMinutes: 20, maxDigitalMinutes: 25,
+    pacingNote: "MYP Year 3 (age 13): Cognitive focus ~15-20 minutes. Balance structured guidance with growing autonomy. Provide reference materials and exemplars but reduce step-by-step scaffolding. Students can handle longer research tasks and sustained making sessions.",
+  },
+  4: {
+    mypYear: 4, warmupMinutes: 5, introMinutes: 5, reflectionMinutes: 5,
+    maxHighCognitiveMinutes: 25, maxHandsOnMinutes: 45, maxCollaborativeMinutes: 25, maxDigitalMinutes: 30,
+    pacingNote: "MYP Year 4 (age 15): Cognitive focus ~25 minutes. Support extended independent work with clear success criteria. Scaffold through exemplars and peer critique rather than templates. Students can manage longer analysis and documentation tasks.",
+  },
+  5: {
+    mypYear: 5, warmupMinutes: 5, introMinutes: 3, reflectionMinutes: 5,
+    maxHighCognitiveMinutes: 30, maxHandsOnMinutes: 45, maxCollaborativeMinutes: 25, maxDigitalMinutes: 35,
+    pacingNote: "MYP Year 5 (age 16): Cognitive focus ~30 minutes. Minimise unnecessary transitions to allow flow state during deep work. Scaffold through prompts and peer critique. Students can sustain extended analysis, documentation, and independent making sessions.",
+  },
 };
 
 /**
@@ -53,18 +79,23 @@ export function getGradeTimingProfile(gradeLevel: string): GradeTimingProfile {
 
 /**
  * Build a timing constraints block for injection into generation prompts.
+ * Uses activity-type-aware durations rather than hard caps.
  */
 export function buildTimingBlock(profile: GradeTimingProfile, lessonLengthMinutes: number): string {
   const coreTime = lessonLengthMinutes - profile.warmupMinutes - profile.introMinutes - profile.reflectionMinutes;
-  return `## Age-Appropriate Timing Constraints
-${profile.attentionNote}
+  return `## Age-Appropriate Pacing (${profile.pacingNote})
 
-- Warmup: ~${profile.warmupMinutes} minutes
-- Introduction: ~${profile.introMinutes} minutes
-- Core activities: ${profile.activitiesPerLessonMin}-${profile.activitiesPerLessonMax} per lesson, each MAXIMUM ${profile.maxCoreActivityMinutes} minutes (${coreTime} minutes total for core work)
-- Reflection: ~${profile.reflectionMinutes} minutes
-- CRITICAL: No single core activity should exceed ${profile.maxCoreActivityMinutes} minutes. If a task needs more time, break it into sub-activities with clear transition points between them.
-- All section durations within a lesson should sum to approximately ${lessonLengthMinutes} minutes.`;
+Timing by activity type — duration depends on COGNITIVE DEMAND, not just the clock:
+- Reading, writing, analysis, documentation (HIGH cognitive): ≤${profile.maxHighCognitiveMinutes} min per activity
+- Making, experimenting, building, testing (HANDS-ON): ≤${profile.maxHandsOnMinutes} min per activity
+- Discussion, peer review, group critique (COLLABORATIVE): ≤${profile.maxCollaborativeMinutes} min per activity
+- Online research, digital tools, CAD work (DIGITAL): ≤${profile.maxDigitalMinutes} min per activity
+
+Lesson structure:
+- Warmup: ~${profile.warmupMinutes} min | Introduction: ~${profile.introMinutes} min | Reflection: ~${profile.reflectionMinutes} min
+- Core work: ~${coreTime} min available (2-4 core activities per lesson)
+- All sections should sum to approximately ${lessonLengthMinutes} minutes
+- Avoid placing two high-cognitive activities back-to-back — alternate with hands-on or collaborative tasks`;
 }
 
 // =========================================================================
@@ -1635,7 +1666,7 @@ ${activitySuggestions}
 ${buildTimingBlock(getGradeTimingProfile(input.gradeLevel), input.lessonLengthMinutes)}
 
 ## Generation Target
-Generate ${getGradeTimingProfile(input.gradeLevel).activitiesPerLessonMin}-${getGradeTimingProfile(input.gradeLevel).activitiesPerLessonMax} activities totalling approximately ${lesson.estimatedMinutes} minutes.
+Generate 3-6 activities totalling approximately ${lesson.estimatedMinutes} minutes.
 Include a warmup at the start and a reflection at the end.
 Activity IDs should be: L${String(lesson.lessonNumber).padStart(2, "0")}-a1, L${String(lesson.lessonNumber).padStart(2, "0")}-a2, etc.
 All activities in this lesson should have phaseLabel: "${lesson.phaseLabel}"
