@@ -19,6 +19,8 @@ import {
   formatLessonProfiles,
   incrementProfileReferences,
 } from "@/lib/knowledge/retrieve-lesson-profiles";
+import { retrieveAggregatedFeedback } from "@/lib/knowledge/feedback";
+import { formatFeedbackContext } from "@/lib/ai/prompts";
 import type { LessonJourneyInput, TimelineOutlineOption } from "@/types";
 
 function createSupabaseServer(request: NextRequest) {
@@ -106,7 +108,7 @@ export async function POST(request: NextRequest) {
       modelName: creds.modelName,
     });
 
-    // Retrieve RAG context (only for first request to save API calls)
+    // Retrieve RAG context + feedback (only for first request to save API calls)
     let ragContext = "";
     if (index === 0) {
       const query = `${journeyInput.topic} ${journeyInput.title} ${journeyInput.endGoal} ${journeyInput.gradeLevel}`;
@@ -135,6 +137,17 @@ export async function POST(request: NextRequest) {
         if (profiles.length > 0) {
           const profileContext = formatLessonProfiles(profiles);
           ragContext = profileContext + (ragContext ? "\n\n---\n\n" + ragContext : "");
+          // Inject aggregated feedback from these profiles (Layer 2 → outlines)
+          try {
+            const profileIds = profiles.map((p) => p.id);
+            const aggregatedFeedback = await retrieveAggregatedFeedback(profileIds);
+            if (aggregatedFeedback.length > 0) {
+              const feedbackBlock = formatFeedbackContext(aggregatedFeedback);
+              ragContext = ragContext + "\n\n---\n\n" + feedbackBlock;
+            }
+          } catch {
+            // Feedback is enhancement
+          }
           incrementProfileReferences(profiles.map((p) => p.id)).catch(() => {});
         }
       } catch {

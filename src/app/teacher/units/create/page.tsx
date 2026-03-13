@@ -367,6 +367,71 @@ export default function CreateUnitWizardPage() {
     // If all 3 succeeded, APPEND_TIMELINE_OUTLINE already set outlineStatus to "done"
   }
 
+  /**
+   * Generate a single additional approach (for "Suggest another" buttons).
+   * Reads existing approaches to tell the AI what to avoid.
+   */
+  async function generateAdditionalApproach(angleHint: string) {
+    const hasTimelineOutlines = state.timelineOutlineOptions.some(Boolean);
+    const existingOptions = hasTimelineOutlines
+      ? state.timelineOutlineOptions.filter(Boolean)
+      : state.journeyOutlineOptions;
+    const nextIndex = existingOptions.length;
+    const avoidApproaches = existingOptions
+      .map((opt) => opt?.approach)
+      .filter(Boolean) as string[];
+
+    if (hasTimelineOutlines) {
+      // Timeline mode — use the single-outline endpoint
+      try {
+        const res = await fetch("/api/teacher/generate-timeline-outline-single", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            journeyInput: state.journeyInput,
+            angleHint,
+            avoidApproaches,
+            index: nextIndex,
+          }),
+        });
+        const data = await res.json();
+        if (res.ok && data.option) {
+          dispatch({
+            type: "APPEND_TIMELINE_OUTLINE",
+            option: { ...data.option, phases: data.option.phases || [] },
+            index: nextIndex,
+          });
+        }
+      } catch {
+        // Silent fail — button just stops loading
+      }
+    } else {
+      // Journey mode — use the journey endpoint in single mode
+      try {
+        const res = await fetch("/api/teacher/generate-journey-outlines", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            journeyInput: state.journeyInput,
+            angleHint,
+            avoidApproaches,
+            index: nextIndex,
+          }),
+        });
+        const data = await res.json();
+        if (res.ok && data.option) {
+          dispatch({
+            type: "APPEND_JOURNEY_OUTLINE",
+            option: { ...data.option, lessonPlan: data.option.lessonPlan || [] },
+            index: nextIndex,
+          });
+        }
+      } catch {
+        // Silent fail
+      }
+    }
+  }
+
   async function generateTimelinePhase(
     phaseIndex: number,
     phase: TimelinePhase,
@@ -1014,6 +1079,7 @@ export default function CreateUnitWizardPage() {
         onRegenerateActivity={handleRegenerateActivity}
         onGenerateSkeleton={generateSkeleton}
         onBuildFromSkeleton={generateAllTimelineFromSkeleton}
+        onGenerateAdditional={generateAdditionalApproach}
       />
 
       {/* Activity Browser panel */}

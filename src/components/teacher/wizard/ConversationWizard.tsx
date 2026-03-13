@@ -30,6 +30,7 @@ interface Props {
   onRegenerateActivity?: (activityId: string) => void;
   onGenerateSkeleton?: () => void;
   onBuildFromSkeleton?: () => void;
+  onGenerateAdditional?: (angleHint: string) => Promise<void>;
 }
 
 export function ConversationWizard({
@@ -46,6 +47,7 @@ export function ConversationWizard({
   onRegenerateActivity,
   onGenerateSkeleton,
   onBuildFromSkeleton,
+  onGenerateAdditional,
 }: Props) {
   const { phase, journeyMode } = state;
   const [timelineView, setTimelineView] = useState<"list" | "deck">("list");
@@ -203,6 +205,7 @@ export function ConversationWizard({
           state={state}
           dispatch={dispatch}
           onGenerateOutlines={onGenerateOutlines}
+          onGenerateAdditional={onGenerateAdditional}
         />
       )}
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { CRITERIA } from "@/lib/constants";
 import type { WizardState, WizardDispatch } from "@/hooks/useWizardState";
 
@@ -7,10 +8,12 @@ interface Props {
   state: WizardState;
   dispatch: WizardDispatch;
   onGenerateOutlines: () => void;
+  onGenerateAdditional?: (angleHint: string) => Promise<void>;
 }
 
-export function ApproachPicker({ state, dispatch, onGenerateOutlines }: Props) {
+export function ApproachPicker({ state, dispatch, onGenerateOutlines, onGenerateAdditional }: Props) {
   const { outlineStatus, outlineError, journeyMode } = state;
+  const [suggestingIndex, setSuggestingIndex] = useState<number | null>(null);
 
   // Timeline mode uses timelineOutlineOptions, journey uses journeyOutlineOptions, criterion uses outlineOptions
   const hasTimelineOutlines = state.timelineOutlineOptions.some(Boolean);
@@ -38,6 +41,24 @@ export function ApproachPicker({ state, dispatch, onGenerateOutlines }: Props) {
       dispatch({ type: "SELECT_OUTLINE", index: idx });
     }
   }
+
+  async function handleSuggest(angleHint: string) {
+    if (!onGenerateAdditional || suggestingIndex !== null) return;
+    const nextIndex = outlineOptions.length;
+    setSuggestingIndex(nextIndex);
+    try {
+      await onGenerateAdditional(angleHint);
+    } finally {
+      setSuggestingIndex(null);
+    }
+  }
+
+  // Only show suggest buttons when all initial approaches are loaded and mode supports it
+  const showSuggestButtons =
+    outlineStatus === "done" &&
+    filledOptionCount >= 3 &&
+    (hasTimelineOutlines || journeyMode) &&
+    !!onGenerateAdditional;
 
   return (
     <div className="max-w-2xl mx-auto animate-slide-up">
@@ -89,7 +110,7 @@ export function ApproachPicker({ state, dispatch, onGenerateOutlines }: Props) {
         <div className="space-y-3">
           {Array.from({ length: Math.max(3, outlineOptions.length) }).map((_, idx) => {
             const option = outlineOptions[idx];
-            const colors = [CRITERIA.A.color, CRITERIA.C.color, CRITERIA.B.color];
+            const colors = [CRITERIA.A.color, CRITERIA.C.color, CRITERIA.B.color, "#7C3AED", "#0891B2"];
             const color = colors[idx % colors.length];
 
             // Skeleton placeholder for slots not yet filled
@@ -147,6 +168,11 @@ export function ApproachPicker({ state, dispatch, onGenerateOutlines }: Props) {
                       {isSelected && (
                         <span className="px-2 py-0.5 bg-brand-purple text-white text-[10px] font-bold rounded-full">
                           Selected
+                        </span>
+                      )}
+                      {idx >= 3 && (
+                        <span className="px-2 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-medium rounded-full">
+                          AI Suggestion
                         </span>
                       )}
                     </div>
@@ -254,12 +280,58 @@ export function ApproachPicker({ state, dispatch, onGenerateOutlines }: Props) {
             );
           })}
 
+          {/* Suggest skeleton (loading state for new suggestion) */}
+          {suggestingIndex !== null && (
+            <div className="w-full rounded-2xl border-2 border-dashed border-amber-300 bg-amber-50/30 p-5 animate-pulse">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-amber-400 text-white text-sm font-bold flex-shrink-0">
+                  {suggestingIndex + 1}
+                </div>
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 w-56 bg-amber-200/60 rounded" />
+                  <div className="h-3 w-full bg-amber-100/60 rounded" />
+                  <div className="h-3 w-3/4 bg-amber-100/60 rounded" />
+                  <p className="text-[10px] text-amber-600 font-medium mt-2">Generating a new approach...</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Suggest another approach buttons */}
+          {showSuggestButtons && suggestingIndex === null && (
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={() => handleSuggest(
+                  "A creative, unconventional approach — something surprising that a teacher wouldn't normally think of. Challenge assumptions about how this topic is typically taught."
+                )}
+                className="flex-1 flex items-center justify-center gap-2 py-3 px-4 border-2 border-dashed border-purple-200 rounded-2xl text-xs font-medium text-purple-600 hover:bg-purple-50 hover:border-purple-300 transition-all"
+              >
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" className="flex-shrink-0">
+                  <path d="M8 0l1.5 5.5L15 7l-5.5 1.5L8 14l-1.5-5.5L1 7l5.5-1.5z" />
+                </svg>
+                Suggest a creative alternative
+              </button>
+              <button
+                onClick={() => handleSuggest(
+                  "A proven, practical approach based on what experienced teachers find most effective — prioritise real-world project outcomes, student engagement, and manageable pacing."
+                )}
+                className="flex-1 flex items-center justify-center gap-2 py-3 px-4 border-2 border-dashed border-teal-200 rounded-2xl text-xs font-medium text-teal-600 hover:bg-teal-50 hover:border-teal-300 transition-all"
+              >
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="flex-shrink-0">
+                  <circle cx="8" cy="8" r="6" />
+                  <path d="M5 8l2 2 4-4" />
+                </svg>
+                Suggest based on what works
+              </button>
+            </div>
+          )}
+
           <button
             onClick={onGenerateOutlines}
-            disabled={outlineStatus === "loading"}
-            className="w-full py-2 text-xs text-text-secondary/60 hover:text-text-secondary border border-dashed border-border rounded-xl transition"
+            disabled={outlineStatus === "loading" || suggestingIndex !== null}
+            className="w-full py-2 text-xs text-text-secondary/60 hover:text-text-secondary border border-dashed border-border rounded-xl transition disabled:opacity-40"
           >
-            Regenerate options
+            Regenerate all options
           </button>
         </div>
       )}

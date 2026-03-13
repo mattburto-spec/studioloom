@@ -881,6 +881,94 @@ Generate 3 genuinely different approaches. Each MUST include exactly ${totalLess
 }
 
 // =========================================================================
+// Journey Mode — Single outline generation (for "suggest another" feature)
+// =========================================================================
+
+export const SINGLE_JOURNEY_OUTLINE_SYSTEM_PROMPT = `You are an expert Design curriculum designer. Generate ONE unit outline structured as a continuous learning journey.
+
+The teacher has an END GOAL — the final product or outcome students must achieve. You design a single lesson sequence that works backwards from that goal.
+
+Output valid JSON matching this schema:
+{
+  "approach": "Short name (e.g., 'Rapid Prototype First')",
+  "description": "2-3 sentences on what makes this approach distinctive",
+  "strengths": ["Strength 1", "Strength 2"],
+  "lessonPlan": [
+    {
+      "lessonId": "L01",
+      "title": "Lesson title",
+      "summary": "One-sentence description of what students do",
+      "primaryFocus": "Research|Ideation|Planning|Skill Building|Making|Testing|Iteration|Evaluation|Presentation",
+      "criterionTags": ["A"]
+    }
+  ]
+}
+
+Rules:
+1. Generate exactly 1 option (NOT wrapped in an "options" array)
+2. The option MUST have exactly the number of lessons specified
+3. A lesson can address multiple criteria (criterionTags: ["B", "C"])
+4. Ensure ALL specified criteria appear across the unit
+5. The first lesson should hook students; the last should celebrate the outcome
+6. Output ONLY valid JSON — no markdown, no explanations`;
+
+export function buildSingleJourneyOutlinePrompt(
+  input: LessonJourneyInput,
+  angleHint: string,
+  avoidApproaches: string[],
+  ragContext?: string,
+  teachingContextBlock?: string
+): string {
+  const totalLessons = input.durationWeeks * input.lessonsPerWeek;
+  const lessonIds = Array.from({ length: totalLessons }, (_, i) =>
+    `L${String(i + 1).padStart(2, "0")}`
+  );
+
+  const skillsSection = input.specificSkills?.length > 0
+    ? `\nSpecific Making Skills: ${input.specificSkills.join(", ")}`
+    : "";
+
+  const requirementsSection = input.specialRequirements
+    ? `\nSpecial Requirements: ${input.specialRequirements}`
+    : "";
+
+  const ragSection = ragContext
+    ? `\n${ragContext}\n\nUse the reference examples above as inspiration.\n`
+    : "";
+
+  const avoidSection = avoidApproaches.length > 0
+    ? `\n\nIMPORTANT: Do NOT use these approaches (already taken by other options): ${avoidApproaches.join(", ")}. Be genuinely different.`
+    : "";
+
+  const contextBlock = teachingContextBlock ? teachingContextBlock + "\n\n" : "";
+
+  return `${contextBlock}Generate 1 lesson journey outline for the following unit, taking a **${angleHint}** angle:
+${ragSection}
+## Unit Context
+- End Goal: ${input.endGoal}
+- Title: ${input.title}
+- Topic: ${input.topic}
+- Grade Level: ${input.gradeLevel}
+- Duration: ${input.durationWeeks} weeks
+- Lessons Per Week: ${input.lessonsPerWeek}
+- Lesson Length: ${input.lessonLengthMinutes} minutes each
+- Total Lessons: ${totalLessons}
+- Global Context: ${input.globalContext}
+- Key Concept: ${input.keyConcept}
+- Related Concepts: ${(input.relatedConcepts || []).join(", ")}
+- Statement of Inquiry: ${input.statementOfInquiry}
+- ATL Skills: ${(input.atlSkills || []).join(", ")}${skillsSection}${requirementsSection}
+- Assessment Criteria to Tag: ${(input.assessmentCriteria || []).join(", ")}
+
+## Lesson IDs
+Generate an outline for exactly ${totalLessons} lessons with IDs: ${lessonIds.join(", ")}
+
+## Requirements
+- ${angleHint}
+- Be genuinely creative and distinctive${avoidSection}`;
+}
+
+// =========================================================================
 // Timeline Mode — Flat activity sequence
 // =========================================================================
 

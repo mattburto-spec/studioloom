@@ -2,8 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { resolveCredentials } from "@/lib/ai/resolve-credentials";
 import { createAIProvider } from "@/lib/ai";
-import { JOURNEY_OUTLINE_SYSTEM_PROMPT, buildJourneyOutlinePrompt } from "@/lib/ai/prompts";
-import { JOURNEY_OUTLINE_TOOL } from "@/lib/ai/schemas";
+import {
+  JOURNEY_OUTLINE_SYSTEM_PROMPT,
+  SINGLE_JOURNEY_OUTLINE_SYSTEM_PROMPT,
+  buildJourneyOutlinePrompt,
+  buildSingleJourneyOutlinePrompt,
+} from "@/lib/ai/prompts";
+import { JOURNEY_OUTLINE_TOOL, SINGLE_JOURNEY_OUTLINE_TOOL } from "@/lib/ai/schemas";
 import {
   retrieveContext,
   formatRetrievedContext,
@@ -16,6 +21,8 @@ import {
   formatLessonProfiles,
   incrementProfileReferences,
 } from "@/lib/knowledge/retrieve-lesson-profiles";
+import { retrieveAggregatedFeedback } from "@/lib/knowledge/feedback";
+import { formatFeedbackContext } from "@/lib/ai/prompts";
 import type { LessonJourneyInput, JourneyOutlineOption } from "@/types";
 
 function createSupabaseServer(request: NextRequest) {
@@ -50,7 +57,13 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { journeyInput } = body as { journeyInput: LessonJourneyInput };
+  const { journeyInput, angleHint, avoidApproaches, index } = body as {
+    journeyInput: LessonJourneyInput;
+    angleHint?: string;
+    avoidApproaches?: string[];
+    index?: number;
+  };
+  const singleMode = !!angleHint;
 
   if (!journeyInput?.endGoal) {
     return NextResponse.json(
@@ -125,6 +138,16 @@ export async function POST(request: NextRequest) {
         const profileContext = formatLessonProfiles(profiles);
         ragContext = profileContext + (ragContext ? "\n\n---\n\n" + ragContext : "");
         const profileIds = profiles.map((p) => p.id);
+        // Inject aggregated feedback from these profiles (Layer 2 → outlines)
+        try {
+          const aggregatedFeedback = await retrieveAggregatedFeedback(profileIds);
+          if (aggregatedFeedback.length > 0) {
+            const feedbackBlock = formatFeedbackContext(aggregatedFeedback);
+            ragContext = ragContext + "\n\n---\n\n" + feedbackBlock;
+          }
+        } catch {
+          // Feedback is enhancement
+        }
         incrementProfileReferences(profileIds).catch(() => {});
       }
     } catch {
@@ -137,44 +160,83 @@ export async function POST(request: NextRequest) {
     const teachingBlock = buildTeachingContextBlock(teachingContext || undefined);
     const teachingContextBlock = (frameworkBlock + teachingBlock).trim() || undefined;
 
-    const userPrompt = buildJourneyOutlinePrompt(journeyInput, ragContext || undefined, teachingContextBlock);
-
-    // Use tool-based generation if available
-    if (provider.generateOutlines) {
-      const result = await provider.generateOutlines(
-        JOURNEY_OUTLINE_SYSTEM_PROMPT,
-        userPrompt,
-        JOURNEY_OUTLINE_TOOL
+    // Branch: single mode (for "suggest another" feature) vs batch (3 outlines)
+    if (singleMode) {
+      const userPrompt = buildSingleJourneyOutlinePrompt(
+        journeyInput,
+        angleHint!,
+        avoidApproaches || [],
+        ragContext || undefined,
+        teachingContextBlock
       );
 
-      const options = (result as { options?: JourneyOutlineOption[] }).options;
-      if (!options || !Array.isArray(options)) {
-        return NextResponse.json(
-          { error: "AI did not return valid outline options" },
-          { status: 422 }
+      if (provider.generateOutlines) {
+        const result = await provider.generateOutlines(
+          SINGLE_JOURNEY_OUTLINE_SYSTEM_PROMPT,
+          userPrompt,
+          SINGLE_JOURNEY_OUTLINE_TOOL
         );
+
+        const option = result as unknown as JourneyOutlineOption;
+        if (!option?.approach || !option?.lessonPlan) {
+          return NextResponse.json(
+            { error: "AI did not return a valid outline option" },
+            { status: 422 }
+          );
+        }
+
+        return NextResponse.json({
+          option: { ...option, lessonPlan: option.lessonPlan || [] },
+          index: index ?? 0,
+        });
       }
 
-      // Validate each option has the right number of lessons
-      const totalLessons = journeyInput.durationWeeks * journeyInput.lessonsPerWeek;
-      const validated = options.map((opt) => ({
-        ...opt,
-        lessonPlan: opt.lessonPlan || [],
-      }));
+      if (provider.generateText) {
+        const text = await provider.generateText(
+          SINGLE_JOURNEY_OUTLINE_SYSTEM_PROMPT,
+          userPrompt,
+          { maxTokens: 3000, temperature: 0.8 }
+        );
+        const parsed = JSON.parse(text);
+        return NextResponse.json({ option: parsed, index: index ?? 0 });
+      }
+    } else {
+      // Standard batch mode: generate 3 outlines
+      const userPrompt = buildJourneyOutlinePrompt(journeyInput, ragContext || undefined, teachingContextBlock);
 
-      return NextResponse.json({ options: validated });
-    }
+      if (provider.generateOutlines) {
+        const result = await provider.generateOutlines(
+          JOURNEY_OUTLINE_SYSTEM_PROMPT,
+          userPrompt,
+          JOURNEY_OUTLINE_TOOL
+        );
 
-    // Fallback: text generation + JSON parse
-    if (provider.generateText) {
-      const text = await provider.generateText(
-        JOURNEY_OUTLINE_SYSTEM_PROMPT,
-        userPrompt,
-        { maxTokens: 6000, temperature: 0.8 }
-      );
+        const options = (result as { options?: JourneyOutlineOption[] }).options;
+        if (!options || !Array.isArray(options)) {
+          return NextResponse.json(
+            { error: "AI did not return valid outline options" },
+            { status: 422 }
+          );
+        }
 
-      const parsed = JSON.parse(text);
-      return NextResponse.json({ options: parsed.options || [] });
+        const validated = options.map((opt) => ({
+          ...opt,
+          lessonPlan: opt.lessonPlan || [],
+        }));
+
+        return NextResponse.json({ options: validated });
+      }
+
+      if (provider.generateText) {
+        const text = await provider.generateText(
+          JOURNEY_OUTLINE_SYSTEM_PROMPT,
+          userPrompt,
+          { maxTokens: 6000, temperature: 0.8 }
+        );
+
+        const parsed = JSON.parse(text);
+        return NextResponse.json({ options: parsed.options || [] });
+      }
     }
 
     return NextResponse.json(

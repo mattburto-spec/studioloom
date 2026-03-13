@@ -294,6 +294,12 @@ export const JOURNEY_OUTLINE_TOOL: Tool = {
   },
 };
 
+export const SINGLE_JOURNEY_OUTLINE_TOOL: Tool = {
+  name: "output_journey_outline",
+  description: "Output a single learning journey approach for the unit",
+  input_schema: journeyOutlineOptionSchema,
+};
+
 // =========================================================================
 // Timeline Mode — Flat activity sequence, lessons derived from duration
 // =========================================================================

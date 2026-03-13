@@ -139,6 +139,7 @@ type Action =
   | { type: "SET_JOURNEY_INPUT"; key: keyof LessonJourneyInput; value: unknown }
   | { type: "BULK_SET_JOURNEY_INPUT"; values: Partial<LessonJourneyInput> }
   | { type: "SET_JOURNEY_OUTLINES"; options: JourneyOutlineOption[] }
+  | { type: "APPEND_JOURNEY_OUTLINE"; option: JourneyOutlineOption; index: number }
   | { type: "SELECT_JOURNEY_OUTLINE"; index: number | null }
   | { type: "SET_BATCH_STATUS"; batchIndex: number; status: GenerationStatus }
   | { type: "INIT_JOURNEY_BATCHES" }
@@ -497,6 +498,17 @@ function reducer(state: WizardState, action: Action): WizardState {
     case "SET_JOURNEY_OUTLINES":
       return { ...state, journeyOutlineOptions: action.options, outlineStatus: "done" };
 
+    case "APPEND_JOURNEY_OUTLINE": {
+      const options = [...state.journeyOutlineOptions];
+      options[action.index] = action.option;
+      const filledCount = options.filter(Boolean).length;
+      return {
+        ...state,
+        journeyOutlineOptions: options,
+        outlineStatus: filledCount >= 3 ? "done" : "loading",
+      };
+    }
+
     case "SELECT_JOURNEY_OUTLINE":
       return { ...state, selectedJourneyOutline: action.index };
 
@@ -597,12 +609,12 @@ function reducer(state: WizardState, action: Action): WizardState {
     case "APPEND_TIMELINE_OUTLINE": {
       const options = [...state.timelineOutlineOptions];
       options[action.index] = action.option;
-      // Mark as done once all 3 slots are filled
+      // Mark as done once at least 3 slots are filled (supports additional suggestions)
       const filledCount = options.filter(Boolean).length;
       return {
         ...state,
         timelineOutlineOptions: options,
-        outlineStatus: filledCount >= 3 ? "done" : "loading",
+        outlineStatus: filledCount >= 3 ? "done" : state.outlineStatus === "done" ? "done" : "loading",
       };
     }
 
