@@ -382,6 +382,10 @@ const timelineActivitySchema = {
       items: { type: "string" as const },
       description: "Reflection prompts/checklist items (for reflection role activities)",
     },
+    teacherNotes: {
+      type: "string" as const,
+      description: "Brief teacher guidance: 2-3 circulation questions at different cognitive levels, safety reminders, or differentiation tips",
+    },
   },
 };
 
@@ -466,7 +470,7 @@ export const SINGLE_TIMELINE_OUTLINE_TOOL: Tool = {
 
 const lessonSkeletonSchema = {
   type: "object" as const,
-  required: ["lessonNumber", "lessonId", "title", "keyQuestion", "estimatedMinutes", "phaseLabel", "criterionTags", "activityHints"],
+  required: ["lessonNumber", "lessonId", "title", "keyQuestion", "estimatedMinutes", "phaseLabel", "criterionTags", "activityHints", "lessonType", "learningIntention", "successCriteria"],
   properties: {
     lessonNumber: { type: "number" as const, description: "1-indexed lesson number" },
     lessonId: { type: "string" as const, description: "Lesson ID like 'L01', 'L02'" },
@@ -474,6 +478,20 @@ const lessonSkeletonSchema = {
     keyQuestion: { type: "string" as const, description: "Driving question for the lesson" },
     estimatedMinutes: { type: "number" as const, description: "Target duration in minutes" },
     phaseLabel: { type: "string" as const, description: "Phase this lesson belongs to (e.g. 'Research', 'Prototyping')" },
+    lessonType: {
+      type: "string" as const,
+      enum: ["research", "ideation", "skills-demo", "making", "testing", "critique"],
+      description: "Primary lesson type — determines activity structure and timing",
+    },
+    learningIntention: {
+      type: "string" as const,
+      description: "What students will learn/be able to do (process-focused, starts with 'Students will...')",
+    },
+    successCriteria: {
+      type: "array" as const,
+      items: { type: "string" as const },
+      description: "2-3 observable criteria showing the learning intention was met",
+    },
     criterionTags: {
       type: "array" as const,
       items: { type: "string" as const },

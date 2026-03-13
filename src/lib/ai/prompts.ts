@@ -1,4 +1,4 @@
-import type { UnitWizardInput, LessonJourneyInput, JourneyOutlineOption, TimelineOutlineOption, TimelinePhase, TimelineLessonSkeleton, TimelineSkeleton } from "@/types";
+import type { UnitWizardInput, LessonJourneyInput, JourneyOutlineOption, TimelineOutlineOption, TimelinePhase, TimelineLessonSkeleton, TimelineSkeleton, DesignLessonType } from "@/types";
 import { CRITERIA, PAGES, type CriterionKey, MYP_GLOBAL_CONTEXTS, MYP_KEY_CONCEPTS, MYP_RELATED_CONCEPTS_DESIGN, EMPHASIS_PAGE_COUNT, buildPageDefinitions } from "@/lib/constants";
 import { getActivityLibrarySummary } from "@/lib/activity-library";
 import { getActivityCardSummaryEnriched } from "@/lib/activity-cards";
@@ -675,7 +675,30 @@ IMPORTANT: Include "durationMinutes" on EVERY section. All section durations wit
 12. Set "portfolioCapture": true on 1-2 sections per lesson that represent substantive design work (analysis, sketches, justifications, creation evidence, evaluations)
 13. Each lesson should be SELF-CONTAINED enough to work as a single class period, but CONNECTED enough that the unit tells a coherent story
 14. The first lesson should hook students with the end goal and build excitement
-15. The final lesson should include completion, presentation, or celebration of the end product`;
+15. The final lesson should include completion, presentation, or celebration of the end product
+
+## Evidence-Based Teaching Strategies (MUST follow)
+Based on Hattie's Visible Learning research and Victorian HITS:
+
+### Productive Failure (d=0.82 scaffolding)
+- Include at least one activity where students can safely fail and learn from it
+- Follow failure with structured reflection: "What went wrong? What did you learn? What will you change?"
+- Frame failure positively: "Testing reveals opportunities, not mistakes"
+
+### Critique Culture (d=0.73 feedback)
+- Embed at least one peer feedback or self-assessment section per 3 lessons
+- Use structured protocols: Two Stars & a Wish, Gallery Walk, TAG feedback
+- Provide sentence starters for constructive critique in scaffolding
+
+### Digital + Physical Balance (d=0.57 worked examples)
+- Mix screen-based and hands-on activities across the unit
+- Don't front-load ALL research/digital then ALL making — interleave where possible
+- For making lessons: include a digital planning step before physical construction
+
+### Safety Culture
+- For ANY lesson involving tools, materials, or equipment: include safety in the introduction or as a content section
+- Safety should be woven naturally into the activity, not as a separate slide
+- For skills-demo lessons: safety briefing is part of the modelling phase`;
 
 /**
  * Build the user prompt for journey-mode lesson generation.
@@ -1110,7 +1133,31 @@ Build from curious exploration → creative energy → productive struggle → c
 5. Set portfolioCapture: true on 1-2 core activities per ~lesson-length of time
 6. First activities should hook students with the end goal
 7. Final activities should include completion/celebration of the end product
-8. Give each activity a unique short ID (a1, a2, a3, ...)`;
+8. Give each activity a unique short ID (a1, a2, a3, ...)
+9. Add teacherNotes to at least 2 core activities per lesson-length with: circulation questions at different cognitive levels, safety reminders for hands-on activities, differentiation tips
+
+## Evidence-Based Teaching Strategies (MUST follow)
+Based on Hattie's Visible Learning research and Victorian HITS:
+
+### Productive Failure (d=0.82)
+- Design at least one activity where students can safely fail and learn from it
+- Follow failure with structured reflection: "What went wrong? What did you learn? What will you change?"
+- Frame failure positively: "Testing reveals opportunities, not mistakes"
+
+### Critique Culture (d=0.73)
+- Embed at least one peer feedback or self-assessment activity per 3 lessons-worth of activities
+- Use structured protocols: Two Stars & a Wish, Gallery Walk, TAG feedback
+- Provide sentence starters for constructive critique
+
+### Digital + Physical Balance
+- Mix screen-based and hands-on activities within the unit
+- Don't front-load ALL research/digital then ALL making — interleave where possible
+- For making activities: include a digital planning step before physical construction
+
+### Safety Culture
+- For ANY activity involving tools, materials, or equipment: include safety in teacherNotes
+- Safety should be woven naturally into the activity, not as a separate slide
+- For skills demos: safety briefing is part of the content/intro activity`;
 
 /**
  * Build the user prompt for timeline-mode activity generation.
@@ -1475,7 +1522,35 @@ The teacher has an END GOAL. Work backwards: what must students have completed b
 5. Include a narrative arc — a 2-3 sentence summary of how the unit flows emotionally and intellectually
 6. Phase labels should match the selected approach's phases
 7. Early lessons: research, exploration, understanding. Middle: ideation, skill-building. Late: making, testing, presenting.
-8. Output ONLY valid JSON — no markdown, no explanations`;
+8. Output ONLY valid JSON — no markdown, no explanations
+
+## Lesson Types (REQUIRED)
+Classify each lesson as ONE of these Design lesson types:
+- "research" — gathering info, analysis, product comparison, user interviews
+- "ideation" — brainstorming, divergent thinking, sketching, SCAMPER, mind mapping
+- "skills-demo" — teaching a tool/technique with I Do → We Do → You Do sequence
+- "making" — extended hands-on creation, prototyping, building
+- "testing" — testing prototypes, gathering user feedback, measuring, recording data
+- "critique" — peer review, self-assessment, gallery walk, structured feedback
+
+Each type has a DIFFERENT lesson structure:
+- Research: mini-lesson → guided inquiry → independent analysis → share findings
+- Ideation: stimulus → divergent (individual) → convergent (group) → select
+- Skills-demo: safety/demo (I Do) → guided practice (We Do) → independent (You Do)
+- Making: brief safety check → extended making (teacher circulates) → clean-up → reflection
+- Testing: predict → test → record → analyse → iterate plan
+- Critique: criteria reminder → gallery walk/peer critique → self-assess → goal-set
+
+## Learning Intentions & Success Criteria (CRITICAL)
+For EVERY lesson, generate:
+- learningIntention: ONE clear sentence starting with "Students will..." — focused on PROCESS not content recall
+  Good: "Students will analyse two existing products to identify design features that meet user needs"
+  Bad: "Students will learn about user needs" (too vague)
+- successCriteria: 2-3 OBSERVABLE criteria that show the intention was met
+  Good: ["Identifies at least 3 design features per product", "Explains how each feature meets a specific user need", "Compares products using a structured framework"]
+  Bad: ["Understands products"] (not observable)
+
+Learning intentions must BACKWARD MAP from the unit end goal — each lesson's LI builds toward the final product.`;
 
 /**
  * Build the user prompt for skeleton generation.
@@ -1527,7 +1602,10 @@ ${outline.phases.map((p) => `  - ${p.title} (~${p.estimatedLessons} lessons): ${
 - Each lesson has 3-4 brief activity hints (one line each)
 - Phase labels must match the approach phases above
 - Criteria must be distributed across all lessons
-- Include a narrativeArc summary (2-3 sentences)`;
+- Include a narrativeArc summary (2-3 sentences)
+- Each lesson MUST include lessonType, learningIntention, and successCriteria
+- Learning intentions must backward-map from the end goal: "${input.endGoal}"
+- Lesson types should be distributed — not all making or all research`;
 }
 
 /**
@@ -1598,6 +1676,48 @@ export async function buildRAGSkeletonPrompt(
 }
 
 // =========================================================================
+// LESSON TYPE GUIDANCE (HITS-informed structure per Design lesson type)
+// =========================================================================
+
+function getLessonTypeGuidance(type: DesignLessonType): string {
+  const guidance: Record<DesignLessonType, string> = {
+    "research": `
+Structure: Mini-lesson (5-10min) → Guided investigation → Independent analysis → Share findings
+- Include a content activity to model the analysis technique before students try it
+- Core activities should use compare/contrast or structured investigation frameworks
+- teacherNotes questions: "What patterns do you notice?", "How does this relate to your user's needs?", "What evidence supports that conclusion?"`,
+    "ideation": `
+Structure: Stimulus/inspiration (5min) → Divergent thinking (individual, 15-20min) → Convergent (group, 10-15min) → Select/refine
+- Start with visual stimulus or constraint introduction — NOT a lecture
+- Core activities: sketching, SCAMPER, mind mapping, brainstorming — keep these as LONG activities, don't fragment
+- teacherNotes questions: "What if you combined these two ideas?", "What constraint haven't you considered?", "Which idea best meets the user's needs?"`,
+    "skills-demo": `
+Structure: Safety briefing + Demo — I Do (10-15min) → Guided practice — We Do (10min) → Independent practice — You Do (15-25min)
+- The demo/I Do phase is a CONTENT activity (no student response) with safety warnings
+- We Do should be scaffolded with checkpoints
+- You Do should have clear success criteria and teacher circulation
+- teacherNotes questions: "Show me your technique before continuing", "What should you check before the next step?", "What safety precaution applies here?"`,
+    "making": `
+Structure: Brief safety check (2-3min) → Extended making with teacher circulation (25-40min) → Clean-up (5min) → Quick reflection (5min)
+- Making time should be ONE long core activity — do NOT fragment into multiple short activities
+- Teacher circulates and gives verbal feedback (include teacherNotes for what to look for)
+- Safety considerations are NON-NEGOTIABLE for this lesson type
+- teacherNotes questions: "Talk me through your process", "What's your next step and why?", "How does this compare to your plan?"`,
+    "testing": `
+Structure: Review hypothesis/design intent (5min) → Test/gather data (15-25min) → Record results → Analyse → Plan iteration
+- Frame as predict → test → reflect cycle (productive failure built in)
+- Include a structured recording template (table, checklist, or rubric)
+- teacherNotes questions: "What did you expect to happen?", "What does this result tell you about your design?", "What would you change for the next iteration?"`,
+    "critique": `
+Structure: Criteria reminder (5min) → Gallery walk OR peer critique protocol (15-20min) → Self-assessment (10min) → Goal-setting (5min)
+- Use a structured critique protocol (Two Stars & a Wish, TAG feedback, etc.)
+- Include self-assessment against rubric criteria
+- teacherNotes questions: "What specific evidence supports that feedback?", "How will you use this feedback in your next iteration?", "What's the strongest aspect of this design?"`,
+  };
+  return guidance[type] || "";
+}
+
+// =========================================================================
 // PER-LESSON GENERATION (Stage 2 — uses skeleton context, runs in parallel)
 // =========================================================================
 
@@ -1648,7 +1768,7 @@ Phase: ${lesson.phaseLabel}
 Key Question: ${lesson.keyQuestion}
 Target Duration: ${lesson.estimatedMinutes} minutes
 Criteria: ${lesson.criterionTags.join(", ")}
-Activity Hints: ${lesson.activityHints.join("; ")}
+Activity Hints: ${lesson.activityHints.join("; ")}${lesson.lessonType ? `\nLesson Type: ${lesson.lessonType}${getLessonTypeGuidance(lesson.lessonType)}` : ""}${lesson.learningIntention ? `\nLearning Intention: ${lesson.learningIntention}\nSuccess Criteria: ${(lesson.successCriteria || []).map((sc, i) => `${i + 1}. ${sc}`).join("; ")}` : ""}
 ${continuitySection}
 
 ## Available Activity Cards
@@ -1677,7 +1797,8 @@ Remember:
 - Content activities: omit responseType. Use contentStyle, media, links where helpful.
 - Warmup activities need: vocabTerms
 - Reflection activities need: reflectionType, reflectionItems
-- Set portfolioCapture: true on 1-2 core activities`;
+- Set portfolioCapture: true on 1-2 core activities
+- Add teacherNotes to at least 2 core activities with: 2-3 circulation questions at different cognitive levels (recall → analysis → evaluation), safety reminders for making/testing lessons, differentiation tips where relevant`;
 }
 
 /**

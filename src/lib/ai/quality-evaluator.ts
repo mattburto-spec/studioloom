@@ -288,6 +288,31 @@ function buildStructuralReport(
     warnings.push("Less than half of core activities have ELL scaffolding");
   }
 
+  // Check: teacher notes / questioning prompts present
+  const teacherNotesCount = activities.filter((a) => a.teacherNotes).length;
+  if (teacherNotesCount === 0) {
+    warnings.push("No teacher notes or questioning prompts found — add circulation questions for at least 2 core activities");
+  }
+
+  // Check: safety mentions for making/testing activities
+  const hasMakingActivities = activities.some((a) =>
+    a.role === "core" && (
+      a.responseType === "upload" ||
+      a.prompt?.toLowerCase().includes("make") ||
+      a.prompt?.toLowerCase().includes("build") ||
+      a.prompt?.toLowerCase().includes("prototype") ||
+      a.prompt?.toLowerCase().includes("test")
+    )
+  );
+  const hasSafetyMention = activities.some((a) =>
+    a.teacherNotes?.toLowerCase().includes("safety") ||
+    a.contentStyle === "warning" ||
+    a.prompt?.toLowerCase().includes("safety")
+  );
+  if (hasMakingActivities && !hasSafetyMention) {
+    warnings.push("Making/testing activities detected but no safety mentions — add safety reminders in teacher notes");
+  }
+
   return {
     overallScore: 50, // Unknown — can't evaluate without AI
     principleScores: [],

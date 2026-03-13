@@ -240,6 +240,8 @@ export interface UnitContentDataV3 {
 
 // --- Timeline Types (v4) ---
 
+export type DesignLessonType = "research" | "ideation" | "skills-demo" | "making" | "testing" | "critique";
+
 export type TimelineActivityRole = "warmup" | "intro" | "core" | "reflection" | "content";
 
 /** A single activity in the unit timeline. Activities belong to the unit, not to lessons. */
@@ -262,6 +264,7 @@ export interface TimelineActivity {
   vocabTerms?: VocabTerm[];      // for warmup role
   reflectionType?: "confidence-slider" | "checklist" | "short-response";
   reflectionItems?: string[];    // for reflection role
+  teacherNotes?: string;         // questioning prompts, safety reminders, differentiation tips
 }
 
 /** Computed lesson boundary — derived at runtime from timeline + lessonLength. Not manually set. */
@@ -311,6 +314,9 @@ export interface TimelineLessonSkeleton {
   phaseLabel: string;
   criterionTags: string[];
   activityHints: string[];       // ["Warmup: vocab review", "Core: product teardown", "Reflection: surprises"]
+  lessonType?: DesignLessonType; // AI-classified lesson structure type
+  learningIntention?: string;    // "Students will be able to..."
+  successCriteria?: string[];    // 2-3 observable criteria
 }
 
 /** Full skeleton for a unit — provides context for per-lesson parallel generation */
