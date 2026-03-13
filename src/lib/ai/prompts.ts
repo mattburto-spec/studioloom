@@ -18,6 +18,57 @@ import { buildFrameworkPromptBlock } from "@/lib/ai/framework-vocabulary";
 import type { PartialTeachingContext } from "@/types/lesson-intelligence";
 import { getFrameworkFromContext } from "@/lib/ai/teacher-context";
 
+// =========================================================================
+// Grade-Aware Timing Profiles
+// =========================================================================
+
+export interface GradeTimingProfile {
+  mypYear: number;
+  maxCoreActivityMinutes: number;
+  warmupMinutes: number;
+  introMinutes: number;
+  reflectionMinutes: number;
+  activitiesPerLessonMin: number;
+  activitiesPerLessonMax: number;
+  attentionNote: string;
+}
+
+const TIMING_PROFILES: Record<number, GradeTimingProfile> = {
+  1: { mypYear: 1, maxCoreActivityMinutes: 12, warmupMinutes: 5, introMinutes: 5, reflectionMinutes: 5, activitiesPerLessonMin: 4, activitiesPerLessonMax: 6, attentionNote: "11-year-olds sustain focus ~10-12 min. Use frequent transitions, movement breaks, and short chunked tasks. Heavy scaffolding needed — checklists, sentence starters, worked examples for every task." },
+  2: { mypYear: 2, maxCoreActivityMinutes: 15, warmupMinutes: 5, introMinutes: 5, reflectionMinutes: 5, activitiesPerLessonMin: 4, activitiesPerLessonMax: 6, attentionNote: "12-year-olds sustain focus ~12-15 min. Mix active and passive tasks. Scaffold with sentence starters and templates but allow some choice." },
+  3: { mypYear: 3, maxCoreActivityMinutes: 20, warmupMinutes: 5, introMinutes: 5, reflectionMinutes: 5, activitiesPerLessonMin: 3, activitiesPerLessonMax: 5, attentionNote: "13-year-olds sustain focus ~15-20 min. Balance structured guidance with growing autonomy. Provide reference materials but reduce step-by-step scaffolding." },
+  4: { mypYear: 4, maxCoreActivityMinutes: 30, warmupMinutes: 5, introMinutes: 5, reflectionMinutes: 5, activitiesPerLessonMin: 3, activitiesPerLessonMax: 5, attentionNote: "15-year-olds can handle 25-30 min focused blocks. Support extended independent work with clear success criteria. Scaffold through exemplars rather than templates." },
+  5: { mypYear: 5, maxCoreActivityMinutes: 35, warmupMinutes: 5, introMinutes: 3, reflectionMinutes: 5, activitiesPerLessonMin: 2, activitiesPerLessonMax: 4, attentionNote: "16-year-olds can handle 30-35 min deep work blocks. Minimise transitions to allow flow state. Scaffold through prompts and peer critique rather than templates." },
+};
+
+/**
+ * Parse the MYP year from a gradeLevel string like "Year 3 (Grade 8)".
+ * Returns the timing profile for that year, defaulting to Year 3 if parsing fails.
+ */
+export function getGradeTimingProfile(gradeLevel: string): GradeTimingProfile {
+  const match = gradeLevel?.match(/Year\s*(\d)/i);
+  const year = match ? parseInt(match[1], 10) : 3;
+  return TIMING_PROFILES[year] || TIMING_PROFILES[3];
+}
+
+/**
+ * Build a timing constraints block for injection into generation prompts.
+ */
+export function buildTimingBlock(profile: GradeTimingProfile, lessonLengthMinutes: number): string {
+  const coreTime = lessonLengthMinutes - profile.warmupMinutes - profile.introMinutes - profile.reflectionMinutes;
+  return `## Age-Appropriate Timing Constraints
+${profile.attentionNote}
+
+- Warmup: ~${profile.warmupMinutes} minutes
+- Introduction: ~${profile.introMinutes} minutes
+- Core activities: ${profile.activitiesPerLessonMin}-${profile.activitiesPerLessonMax} per lesson, each MAXIMUM ${profile.maxCoreActivityMinutes} minutes (${coreTime} minutes total for core work)
+- Reflection: ~${profile.reflectionMinutes} minutes
+- CRITICAL: No single core activity should exceed ${profile.maxCoreActivityMinutes} minutes. If a task needs more time, break it into sub-activities with clear transition points between them.
+- All section durations within a lesson should sum to approximately ${lessonLengthMinutes} minutes.`;
+}
+
+// =========================================================================
+
 /**
  * System prompt that teaches the AI about MYP Design, the page structure,
  * and the exact JSON schema to output.
@@ -534,14 +585,9 @@ Each lesson should end by previewing what comes next.
 The final lesson should circle back to the original goal.
 
 ## Timing
-Each lesson is exactly [X] minutes. Budget approximately:
-- 5 minutes: vocab warm-up
-- 5 minutes: introduction / connection to prior learning
-- [remaining]: 2-4 activity sections (core tasks)
-- 5 minutes: reflection
+Each lesson is exactly [X] minutes. The prompt below provides age-appropriate timing constraints based on the students' grade level — follow them precisely. Activity durations MUST respect the maximum core activity length for the grade.
 
-Adjust activity count and depth based on lesson length.
-IMPORTANT: Include "durationMinutes" on EVERY section — how many minutes that activity should take. All section durations within a lesson should sum to roughly [X] minus 10 (warm-up + reflection).
+IMPORTANT: Include "durationMinutes" on EVERY section. All section durations within a lesson should sum to the lesson length.
 
 ## JSON Schema (for each lesson page)
 {
@@ -680,6 +726,8 @@ ${activitySuggestions}
 - Statement of Inquiry: ${input.statementOfInquiry}
 - ATL Skills: ${(input.atlSkills || []).join(", ")}${skillsSection}${resourceSection}${requirementsSection}
 - Assessment Criteria: ${(input.assessmentCriteria || []).join(", ")} (tag each section with the relevant criteria)
+
+${buildTimingBlock(getGradeTimingProfile(input.gradeLevel), input.lessonLengthMinutes)}
 
 ## Lessons to Generate
 Generate these ${lessonIds.length} lessons (of ${totalLessons} total):
@@ -1005,11 +1053,8 @@ Tag every CORE activity with criterionTags (e.g. ["A"], ["B","C"]). Warmup/intro
 
 ## Timing
 - Total duration of ALL activities ≈ totalLessons × lessonLengthMinutes
-- Each activity has a realistic durationMinutes (5-40 minutes typically)
-- Warmups: ~5 minutes
-- Intros: ~5 minutes
-- Core activities: 10-40 minutes depending on complexity
-- Reflections: ~5 minutes
+- Each activity has a realistic durationMinutes
+- The prompt below provides age-appropriate timing constraints based on the students' grade level — core activity durations MUST respect the maximum for the grade
 - Place warmup+intro+reflection bookends at approximately every [lessonLength] minutes of cumulative core time
 
 ## Sequencing
@@ -1122,6 +1167,8 @@ ${activitySuggestions}
 - Statement of Inquiry: ${input.statementOfInquiry}
 - ATL Skills: ${(input.atlSkills || []).join(", ")}${skillsSection}${resourceSection}${requirementsSection}
 - Assessment Criteria: ${(input.assessmentCriteria || []).join(", ")} (tag each core activity)
+
+${buildTimingBlock(getGradeTimingProfile(input.gradeLevel), input.lessonLengthMinutes)}
 
 ## Generation Target
 Generate a flat list of activities. Total duration should be approximately ${totalMinutes} minutes.
@@ -1585,8 +1632,10 @@ ${activitySuggestions}
 - Key Concept: ${input.keyConcept}
 - Assessment Criteria: ${(input.assessmentCriteria || []).join(", ")}
 
+${buildTimingBlock(getGradeTimingProfile(input.gradeLevel), input.lessonLengthMinutes)}
+
 ## Generation Target
-Generate 3-6 activities totalling approximately ${lesson.estimatedMinutes} minutes.
+Generate ${getGradeTimingProfile(input.gradeLevel).activitiesPerLessonMin}-${getGradeTimingProfile(input.gradeLevel).activitiesPerLessonMax} activities totalling approximately ${lesson.estimatedMinutes} minutes.
 Include a warmup at the start and a reflection at the end.
 Activity IDs should be: L${String(lesson.lessonNumber).padStart(2, "0")}-a1, L${String(lesson.lessonNumber).padStart(2, "0")}-a2, etc.
 All activities in this lesson should have phaseLabel: "${lesson.phaseLabel}"

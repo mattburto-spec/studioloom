@@ -1,3 +1,5 @@
+import { getGradeTimingProfile } from "@/lib/ai/prompts";
+
 /**
  * Post-Generation Quality Evaluator (Layer 4)
  *
@@ -106,11 +108,14 @@ export async function evaluateTimelineQuality(
     return parts.join(" | ");
   }).join("\n");
 
+  const timingProfile = getGradeTimingProfile(context.gradeLevel || "Year 3 (Grade 8)");
+
   const userPrompt = `## Unit Context
 Topic: ${context.topic || "unknown"}
 Grade: ${context.gradeLevel || "unknown"}
 End Goal: ${context.endGoal || "unknown"}
 Total Duration: ${totalMinutes}m across ${context.totalLessons || "?"} lessons
+Age-Appropriate Max Core Activity: ${timingProfile.maxCoreActivityMinutes} minutes (${timingProfile.attentionNote})
 
 ## Generated Activities (${activities.length} total)
 ${activitySummary}
@@ -119,7 +124,7 @@ Evaluate these activities against all 10 principles. Be honest but constructive.
 
   // If no API key, return a structural-only report
   if (!apiKey) {
-    return buildStructuralReport(activities, portfolioCaptureCount, totalMinutes, expectedMinutes);
+    return buildStructuralReport(activities, portfolioCaptureCount, totalMinutes, expectedMinutes, context.gradeLevel);
   }
 
   try {
@@ -136,7 +141,7 @@ Evaluate these activities against all 10 principles. Be honest but constructive.
     // Extract text response
     const textBlock = response.content.find((b) => b.type === "text");
     if (!textBlock || textBlock.type !== "text") {
-      return buildStructuralReport(activities, portfolioCaptureCount, totalMinutes, expectedMinutes);
+      return buildStructuralReport(activities, portfolioCaptureCount, totalMinutes, expectedMinutes, context.gradeLevel);
     }
 
     // Parse JSON from response — extract JSON object even if AI adds trailing text
@@ -202,7 +207,7 @@ Evaluate these activities against all 10 principles. Be honest but constructive.
     };
   } catch (err) {
     console.warn("[quality-evaluator] AI evaluation failed, returning structural report:", err);
-    return buildStructuralReport(activities, portfolioCaptureCount, totalMinutes, expectedMinutes);
+    return buildStructuralReport(activities, portfolioCaptureCount, totalMinutes, expectedMinutes, context.gradeLevel);
   }
 }
 
@@ -214,7 +219,8 @@ function buildStructuralReport(
   activities: TimelineActivity[],
   portfolioCaptureCount: number,
   totalMinutes: number,
-  expectedMinutes: number
+  expectedMinutes: number,
+  gradeLevel?: string
 ): QualityReport {
   const warnings: string[] = [];
   const criticalIssues: string[] = [];
@@ -246,8 +252,28 @@ function buildStructuralReport(
     );
   }
 
-  // Check ELL scaffolding
+  // Check age-appropriate activity durations
+  const timingProfile = getGradeTimingProfile(gradeLevel || "Year 3 (Grade 8)");
   const coreActivities = activities.filter((a) => a.role === "core");
+  const overLongActivities = coreActivities.filter(
+    (a) => (a.durationMinutes || 0) > timingProfile.maxCoreActivityMinutes
+  );
+  if (overLongActivities.length > 0) {
+    const severelyOverLong = overLongActivities.filter(
+      (a) => (a.durationMinutes || 0) > timingProfile.maxCoreActivityMinutes * 1.5
+    );
+    if (severelyOverLong.length > 0) {
+      criticalIssues.push(
+        `${severelyOverLong.length} core activit${severelyOverLong.length === 1 ? "y" : "ies"} far exceed the ${timingProfile.maxCoreActivityMinutes}-minute attention limit for this grade — break into shorter segments`
+      );
+    } else {
+      warnings.push(
+        `${overLongActivities.length} core activit${overLongActivities.length === 1 ? "y exceeds" : "ies exceed"} the ${timingProfile.maxCoreActivityMinutes}-minute recommended maximum for MYP Year ${timingProfile.mypYear} students`
+      );
+    }
+  }
+
+  // Check ELL scaffolding
   const scaffoldedCount = coreActivities.filter((a) => a.scaffolding?.ell1 || a.scaffolding?.ell2).length;
   if (coreActivities.length > 0 && scaffoldedCount < coreActivities.length * 0.5) {
     warnings.push("Less than half of core activities have ELL scaffolding");
