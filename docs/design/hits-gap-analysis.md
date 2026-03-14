@@ -104,6 +104,15 @@ Commit: 4feb1fe — all 4 items implemented as prompt-only changes.
    - Questions for circulation during making time
 
 ### Phase 2: Spaced Practice & Self-Assessment (schema additions)
+
+> **✅ Phase 2 COMPLETE** (2026-03-14) — Implemented via prompt-only + schema changes:
+> - Skeleton schema extended with `cumulativeVocab` and `cumulativeSkills` per lesson
+> - Per-lesson prompts inject spaced retrieval context from all prior lessons
+> - Self-assessment prediction triggered at criterion phase boundaries and final lesson
+> - Compare/contrast framework guidance injected for research lesson types
+> - Quality evaluator structural checks added for spaced retrieval and self-assessment
+> - Both TIMELINE and JOURNEY system prompts updated with Phase 2 strategies
+
 **Impact: HIGH | Effort: MEDIUM**
 
 5. **Spaced retrieval warm-ups**

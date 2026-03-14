@@ -17,6 +17,38 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Admin routes — require Supabase Auth (email check in page/API)
+  if (pathname.startsWith("/admin")) {
+    const response = NextResponse.next();
+
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll();
+          },
+          setAll(cookiesToSet: Array<{ name: string; value: string; options?: Record<string, unknown> }>) {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              response.cookies.set(name, value, options);
+            });
+          },
+        },
+      }
+    );
+
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) {
+      const loginUrl = new URL("/teacher/login", request.url);
+      loginUrl.searchParams.set("redirect", pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+
+    return response;
+  }
+
   // Teacher routes — require Supabase Auth
   if (pathname.startsWith("/teacher")) {
     const response = NextResponse.next();

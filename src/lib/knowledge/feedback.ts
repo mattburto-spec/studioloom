@@ -293,23 +293,28 @@ export async function updateQualityFromFeedback(
 
   if (!chunks?.length) return;
 
+  // Feedback deltas — configurable via admin panel (model-config-defaults.ts)
+  // Import defaults inline to avoid circular dependency; admin override loaded at call site
+  const { DEFAULT_FEEDBACK_WEIGHTS } = await import("@/lib/ai/model-config-defaults");
+  const fw = DEFAULT_FEEDBACK_WEIGHTS;
+
   let delta = 0;
 
   if (feedbackType === "teacher") {
     const tf = feedbackData as TeacherPostLessonFeedback;
     if (tf.overall_rating >= 4 && tf.would_use_again) {
-      delta = 0.1; // Strong positive signal
+      delta = fw.teacherStrongPositive;
     } else if (tf.overall_rating >= 4) {
-      delta = 0.05; // Good but not enthusiastic
+      delta = fw.teacherPositive;
     } else if (tf.overall_rating <= 2) {
-      delta = -0.1; // Negative signal
+      delta = fw.teacherNegative;
     }
   } else {
     const sf = feedbackData as StudentPostLessonFeedback;
     if (sf.understanding >= 4 && sf.pace === "just_right") {
-      delta = 0.05; // Student found it effective
+      delta = fw.studentPositive;
     } else if (sf.understanding <= 2) {
-      delta = -0.05; // Student struggled
+      delta = fw.studentNegative;
     }
   }
 

@@ -71,10 +71,11 @@ const TIMING_PROFILES: Record<number, GradeTimingProfile> = {
  * Parse the MYP year from a gradeLevel string like "Year 3 (Grade 8)".
  * Returns the timing profile for that year, defaulting to Year 3 if parsing fails.
  */
-export function getGradeTimingProfile(gradeLevel: string): GradeTimingProfile {
+export function getGradeTimingProfile(gradeLevel: string, configProfiles?: Record<number, GradeTimingProfile>): GradeTimingProfile {
   const match = gradeLevel?.match(/Year\s*(\d)/i);
   const year = match ? parseInt(match[1], 10) : 3;
-  return TIMING_PROFILES[year] || TIMING_PROFILES[3];
+  const profiles = configProfiles || TIMING_PROFILES;
+  return profiles[year] || profiles[3] || TIMING_PROFILES[3];
 }
 
 /**

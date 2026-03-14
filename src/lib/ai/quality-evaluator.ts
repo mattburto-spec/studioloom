@@ -1,4 +1,6 @@
 import { getGradeTimingProfile } from "@/lib/ai/prompts";
+import type { StructuralThresholds } from "@/types/ai-model-config";
+import { DEFAULT_STRUCTURAL_THRESHOLDS } from "@/lib/ai/model-config-defaults";
 
 /**
  * Post-Generation Quality Evaluator (Layer 4)
@@ -68,6 +70,8 @@ interface UnitContext {
   totalLessons?: number;
   /** How many lessons' worth of activities are being evaluated (defaults to totalLessons) */
   lessonsInBatch?: number;
+  /** Optional configurable thresholds for structural checks */
+  thresholds?: Partial<StructuralThresholds>;
 }
 
 /**
@@ -124,7 +128,7 @@ Evaluate these activities against all 10 principles. Be honest but constructive.
 
   // If no API key, return a structural-only report
   if (!apiKey) {
-    return buildStructuralReport(activities, portfolioCaptureCount, totalMinutes, expectedMinutes, context.gradeLevel);
+    return buildStructuralReport(activities, portfolioCaptureCount, totalMinutes, expectedMinutes, context.gradeLevel, context.thresholds);
   }
 
   try {
@@ -141,7 +145,7 @@ Evaluate these activities against all 10 principles. Be honest but constructive.
     // Extract text response
     const textBlock = response.content.find((b) => b.type === "text");
     if (!textBlock || textBlock.type !== "text") {
-      return buildStructuralReport(activities, portfolioCaptureCount, totalMinutes, expectedMinutes, context.gradeLevel);
+      return buildStructuralReport(activities, portfolioCaptureCount, totalMinutes, expectedMinutes, context.gradeLevel, context.thresholds);
     }
 
     // Parse JSON from response — extract JSON object even if AI adds trailing text
@@ -207,7 +211,7 @@ Evaluate these activities against all 10 principles. Be honest but constructive.
     };
   } catch (err) {
     console.warn("[quality-evaluator] AI evaluation failed, returning structural report:", err);
-    return buildStructuralReport(activities, portfolioCaptureCount, totalMinutes, expectedMinutes, context.gradeLevel);
+    return buildStructuralReport(activities, portfolioCaptureCount, totalMinutes, expectedMinutes, context.gradeLevel, context.thresholds);
   }
 }
 
@@ -220,25 +224,27 @@ function buildStructuralReport(
   portfolioCaptureCount: number,
   totalMinutes: number,
   expectedMinutes: number,
-  gradeLevel?: string
+  gradeLevel?: string,
+  thresholdOverrides?: Partial<StructuralThresholds>
 ): QualityReport {
+  const t = { ...DEFAULT_STRUCTURAL_THRESHOLDS, ...thresholdOverrides };
   const warnings: string[] = [];
   const criticalIssues: string[] = [];
 
   // Check for reflection activities
-  const hasReflection = activities.some((a) => a.role === "reflection");
-  if (!hasReflection) {
+  const reflectionCount = activities.filter((a) => a.role === "reflection").length;
+  if (reflectionCount < t.minReflections) {
     warnings.push("No reflection activities found — students should reflect on their learning");
   }
 
   // Check for warmup
-  const hasWarmup = activities.some((a) => a.role === "warmup");
-  if (!hasWarmup) {
+  const warmupCount = activities.filter((a) => a.role === "warmup").length;
+  if (warmupCount < t.minWarmups) {
     warnings.push("No warmup activities — lessons should start with vocab or engagement hooks");
   }
 
   // Check portfolio captures
-  if (portfolioCaptureCount === 0) {
+  if (portfolioCaptureCount < t.minPortfolioCapture) {
     warnings.push("No portfolio capture points — students need evidence of their process");
   }
 
@@ -284,13 +290,13 @@ function buildStructuralReport(
 
   // Check ELL scaffolding
   const scaffoldedCount = coreActivities.filter((a) => a.scaffolding?.ell1 || a.scaffolding?.ell2).length;
-  if (coreActivities.length > 0 && scaffoldedCount < coreActivities.length * 0.5) {
-    warnings.push("Less than half of core activities have ELL scaffolding");
+  if (coreActivities.length > 0 && scaffoldedCount < coreActivities.length * (t.ellCoveragePercent / 100)) {
+    warnings.push(`Less than ${t.ellCoveragePercent}% of core activities have ELL scaffolding`);
   }
 
   // Check: teacher notes / questioning prompts present
   const teacherNotesCount = activities.filter((a) => a.teacherNotes).length;
-  if (teacherNotesCount === 0) {
+  if (teacherNotesCount < t.minTeacherNotes) {
     warnings.push("No teacher notes or questioning prompts found — add circulation questions for at least 2 core activities");
   }
 
@@ -316,19 +322,19 @@ function buildStructuralReport(
   // Check: spaced retrieval in warmups (only matters if multi-lesson unit)
   const warmups = activities.filter((a) => a.role === "warmup");
   const warmupsWithVocab = warmups.filter((a) => a.vocabTerms && a.vocabTerms.length > 0);
-  if (warmups.length > 1 && warmupsWithVocab.length < warmups.length * 0.5) {
-    warnings.push("Less than half of warmup activities include vocabulary — warmups should spiral back prior terms for spaced retrieval (d=0.71)");
+  if (warmups.length > 1 && warmupsWithVocab.length < warmups.length * (t.spacedRetrievalPercent / 100)) {
+    warnings.push(`Less than ${t.spacedRetrievalPercent}% of warmup activities include vocabulary — warmups should spiral back prior terms for spaced retrieval (d=0.71)`);
   }
 
   // Check: self-assessment/prediction in reflections
   const reflections = activities.filter((a) => a.role === "reflection");
-  const hasSelfAssessment = reflections.some((a) =>
+  const selfAssessmentCount = reflections.filter((a) =>
     a.prompt?.toLowerCase().includes("predict") ||
     a.prompt?.toLowerCase().includes("self-assess") ||
     a.prompt?.toLowerCase().includes("rubric") ||
     a.prompt?.toLowerCase().includes("what level")
-  );
-  if (reflections.length > 0 && !hasSelfAssessment) {
+  ).length;
+  if (reflections.length > 0 && selfAssessmentCount < t.minSelfAssessment) {
     warnings.push("No self-assessment prediction found — students predicting their own achievement level has the highest effect size in education research (d=1.44)");
   }
 

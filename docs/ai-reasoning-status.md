@@ -1,6 +1,6 @@
 # AI Reasoning Architecture — Implementation Status
 
-Last updated: March 14, 2026
+Last updated: March 14, 2026 (Admin Panel added)
 
 ## Layer 1: Unit Generation — ✅ COMPLETE
 
@@ -213,17 +213,65 @@ The AI model must recognise 6 distinct Design lesson types (research, ideation, 
 | 2 | Lesson-type-aware structure templates (6 types) | d=0.53 | ✅ DONE |
 | 3 | Explicit rules for 4 under-prompted quality principles | — | ✅ DONE |
 | 4 | Teacher questioning banks (3 levels per lesson) | d=0.46 | ✅ DONE |
-| 5 | Spaced retrieval warm-ups (spiral earlier content) | d=0.71 | ⏳ Phase 2 |
-| 6 | Self-assessment prediction prompts | d=1.44 | ⏳ Phase 2 |
-| 7 | Compare/contrast templates for Criterion A | d=1.61 (Marzano) | ⏳ Phase 2 |
+| 5 | Spaced retrieval warm-ups (spiral earlier content) | d=0.71 | ✅ DONE |
+| 6 | Self-assessment prediction prompts | d=1.44 | ✅ DONE |
+| 7 | Compare/contrast templates for Criterion A | d=1.61 (Marzano) | ✅ DONE |
 | 8 | Extract lesson patterns from uploaded plans | — | ⏳ Phase 3 |
 | 9 | HITS-aligned quality evaluator principles | — | ⏳ Phase 4 |
 
 ### Implementation Phases
 - **Phase 1** (prompt changes only): ✅ COMPLETE — Learning intentions, lesson types, questioning, explicit rules
-- **Phase 2** (schema additions): Spaced practice, self-assessment, compare/contrast
+- **Phase 2** (schema additions): ✅ COMPLETE — Spaced practice, self-assessment, compare/contrast
 - **Phase 3** (knowledge pipeline): Extract structure/timing/questions from uploads
 - **Phase 4** (quality evaluator): Add HITS-aligned scoring principles
+
+---
+
+## Platform Owner Admin Panel — ✅ COMPLETE (March 14 2026)
+
+### Purpose
+Hidden admin interface at `/admin/ai-model` that gives the platform owner (email allowlist) full control over the AI model's behaviour without code changes. All ~56 dials have hardcoded defaults; an empty config produces identical output to the pre-admin-panel codebase (zero breakage risk).
+
+### 8 Configurable Categories
+
+| # | Category | Dials | What It Controls |
+|---|----------|-------|-----------------|
+| 1 | Generation Emphasis | 20 sliders (1-10) | How strongly the AI emphasises each pedagogy concept (e.g. iteration, scaffolding, safety) |
+| 2 | Timing Profiles | per grade x activity type grid | Max minutes per activity type per MYP year |
+| 3 | Quality Evaluation Weights | 10 principle weights | How heavily each of the 10 pedagogy principles is scored |
+| 4 | Structural Check Thresholds | 7 thresholds | Min activities, max duration, vocabulary count, etc. |
+| 5 | Feedback Loop Weights | 5 dials | Delta values for quality re-scoring from teacher/student feedback |
+| 6 | RAG Retrieval Weighting | 4 dials | Similarity threshold, max chunks, recency bias, quality floor |
+| 7 | Relative Emphasis Breakdown | 6 percentages (sum to 100%) | Balance between pedagogy, timing, differentiation, assessment, engagement, safety |
+| 8 | Student Design Assistant | 5 dials | Bloom's escalation rate, effort threshold, max turns, response length, question types |
+
+### Architecture
+- **DB**: `ai_model_config` table (single row, JSONB `config` column) + `ai_model_config_history` for audit trail with `changed_by`, `change_summary`, `previous_config`
+- **Config resolution**: `getModelConfig()` in `src/lib/ai/model-config.ts` — fetches from DB with 60s in-memory cache, deep-merges over hardcoded defaults from `src/lib/ai/model-config-defaults.ts`
+- **Auth**: `middleware.ts` blocks `/admin/*` routes unless user email is in allowlist
+- **Test sandbox**: Generate a skeleton with current slider values (~10s) to preview effect of changes
+
+### Files
+
+| File | Purpose |
+|------|---------|
+| `src/types/ai-model-config.ts` | TypeScript types for all 8 config categories |
+| `src/lib/ai/model-config-defaults.ts` | Hardcoded default values for every dial |
+| `src/lib/ai/model-config.ts` | `getModelConfig()` — DB fetch + cache + deep-merge |
+| `src/app/admin/layout.tsx` | Admin layout wrapper |
+| `src/app/admin/ai-model/page.tsx` | Admin panel UI (~56 sliders/inputs) |
+| `src/app/api/admin/ai-model/route.ts` | GET/PUT config API with history logging |
+| `src/app/api/admin/ai-model/test/route.ts` | Test sandbox API — generates skeleton with current config |
+| `supabase/migrations/024_ai_model_config.sql` | Migration: config + history tables |
+
+### Modified Files
+- `middleware.ts` — admin auth block added
+- `src/lib/ai/prompts.ts` — timing profiles now read from config via `getModelConfig()`
+- `src/lib/ai/quality-evaluator.ts` — structural thresholds now configurable
+- `src/lib/knowledge/feedback.ts` — feedback delta values now configurable
+
+### Migration Status
+- `024_ai_model_config.sql` — PENDING (not yet applied to Supabase)
 
 ---
 
@@ -241,6 +289,11 @@ The AI model must recognise 6 distinct Design lesson types (research, ideation, 
 | `src/components/teacher/wizard/QualityReportPanel.tsx` | Layer 4: Quality score UI |
 | `src/hooks/useWizardState.ts` | Layer 4: Wizard state for quality report |
 | `src/types/lesson-intelligence.ts` | Types: QualityReport, PrincipleScore, PedagogyPrinciple |
+| `src/types/ai-model-config.ts` | Admin: Config types for all 8 categories |
+| `src/lib/ai/model-config-defaults.ts` | Admin: Hardcoded default values |
+| `src/lib/ai/model-config.ts` | Admin: `getModelConfig()` with cache + deep-merge |
+| `src/app/admin/ai-model/page.tsx` | Admin: AI model config UI |
+| `src/app/api/admin/ai-model/route.ts` | Admin: Config GET/PUT API |
 
 ## Migrations
 
@@ -248,3 +301,4 @@ The AI model must recognise 6 distinct Design lesson types (research, ideation, 
 |-----------|--------|---------|
 | `022_design_assistant.sql` | APPLIED | Layer 3: conversation tables |
 | `023_quality_report.sql` | APPLIED | Layer 4: quality_report + teacher_id on units |
+| `024_ai_model_config.sql` | PENDING | Admin panel: ai_model_config + ai_model_config_history |
