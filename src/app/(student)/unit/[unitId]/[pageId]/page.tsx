@@ -175,6 +175,7 @@ export default function UnitPageView({
       {openStudio.state && (openStudio.state.unlocked || openStudio.justRevoked) && (
         <div className="max-w-4xl mx-auto px-6 pt-6">
           <OpenStudioBanner
+            unitId={unitId}
             unlocked={openStudio.state.unlocked}
             activeSession={openStudio.state.activeSession}
             teacherNote={openStudio.state.teacherNote}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 
 /**
  * OpenStudioBanner — appears at the top of the unit page when Open Studio is unlocked.
@@ -10,6 +11,8 @@ import { useState } from "react";
  */
 
 interface OpenStudioBannerProps {
+  /** Unit ID for linking to the dedicated Open Studio page */
+  unitId: string;
   /** Whether Open Studio is unlocked for this student+unit */
   unlocked: boolean;
   /** Active session data, or null if no session yet */
@@ -36,6 +39,7 @@ interface OpenStudioBannerProps {
 }
 
 export function OpenStudioBanner({
+  unitId,
   unlocked,
   activeSession,
   teacherNote,
@@ -118,6 +122,27 @@ export function OpenStudioBanner({
             &ldquo;{teacherNote}&rdquo;
           </p>
         )}
+
+        {/* Portal to dedicated Open Studio experience */}
+        <Link
+          href={`/open-studio/${unitId}`}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "8px",
+            padding: "10px 20px",
+            background: "linear-gradient(135deg, #7c3aed, #6d28d9)",
+            color: "white",
+            borderRadius: "10px",
+            fontSize: "14px",
+            fontWeight: 600,
+            textDecoration: "none",
+            marginBottom: "12px",
+            transition: "transform 0.15s",
+          }}
+        >
+          Enter Open Studio →
+        </Link>
 
         <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
           <input

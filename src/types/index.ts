@@ -536,6 +536,51 @@ export interface OpenStudioSession {
   reflection: string | null;
 }
 
+// --- Open Studio Profile — Discovery output
+export type OpenStudioArchetype = 'make' | 'research' | 'lead' | 'serve' | 'create' | 'solve' | 'entrepreneurship';
+export type OpenStudioDiscoveryStep = 'strengths' | 'interests' | 'needs' | 'narrowing' | 'commitment' | 'complete';
+
+export interface OpenStudioStrength {
+  area: string;
+  description: string;
+}
+
+export interface OpenStudioInterest {
+  topic: string;
+  category: string;
+}
+
+export interface OpenStudioNeed {
+  need: string;
+  context: string;
+}
+
+export interface OpenStudioConversationMessage {
+  role: 'ai' | 'student';
+  content: string;
+  step: OpenStudioDiscoveryStep;
+  timestamp: string;
+}
+
+export interface OpenStudioProfile {
+  id: string;
+  student_id: string;
+  unit_id: string;
+  strengths: OpenStudioStrength[];
+  interests: OpenStudioInterest[];
+  needs_identified: OpenStudioNeed[];
+  project_statement: string | null;
+  archetype: OpenStudioArchetype | null;
+  discovery_conversation: OpenStudioConversationMessage[];
+  discovery_step: OpenStudioDiscoveryStep;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// Open Studio Journey Phase (client-side state)
+export type OpenStudioJourneyPhase = 'discovery' | 'planning' | 'working' | 'sharing';
+
 // --- Student Toolkit Tool Sessions ---
 
 export interface StudentToolSession {

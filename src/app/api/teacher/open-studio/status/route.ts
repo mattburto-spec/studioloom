@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { createServerClient } from "@supabase/ssr";
 
 /**
  * Teacher Open Studio Status API
@@ -17,15 +17,18 @@ import { createClient } from "@supabase/supabase-js";
  */
 
 function getSupabase(request: NextRequest) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-  const accessToken = request.cookies.get("sb-access-token")?.value;
-
-  return createClient(supabaseUrl, supabaseAnonKey, {
-    global: {
-      headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
-    },
-  });
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll() {},
+      },
+    }
+  );
 }
 
 export async function GET(request: NextRequest) {
@@ -213,6 +216,12 @@ export async function PATCH(request: NextRequest) {
 
   if (!existing || (existing as Record<string, unknown>).classes === null) {
     return NextResponse.json({ error: "Status not found" }, { status: 404 });
+  }
+
+  // Verify the authenticated teacher owns this class
+  const classData = (existing as Record<string, unknown>).classes as { teacher_id: string } | null;
+  if (!classData || classData.teacher_id !== user.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
   if (action === "revoke") {
