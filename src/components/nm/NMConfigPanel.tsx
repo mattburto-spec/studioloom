@@ -15,6 +15,14 @@ interface NMConfigPanelProps {
   onSave: (config: NMUnitConfig) => void;
 }
 
+type Step = "competency" | "elements" | "checkpoints";
+
+const STEPS: { key: Step; label: string; num: number }[] = [
+  { key: "competency", label: "Competency", num: 1 },
+  { key: "elements", label: "Elements", num: 2 },
+  { key: "checkpoints", label: "Checkpoints", num: 3 },
+];
+
 export function NMConfigPanel({
   unitId,
   pages,
@@ -25,6 +33,8 @@ export function NMConfigPanel({
   const [enabled, setEnabled] = useState(currentConfig?.enabled ?? false);
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saved" | "error">("idle");
+  const [step, setStep] = useState<Step>("competency");
+
   const [selectedCompetency, setSelectedCompetency] = useState(
     currentConfig?.competencies?.[0] ?? "agency_in_learning"
   );
@@ -34,9 +44,7 @@ export function NMConfigPanel({
   const [checkpoints, setCheckpoints] = useState(
     currentConfig?.checkpoints ?? {}
   );
-  const [checkpointElements, setCheckpointElements] = useState<
-    Record<string, string[]>
-  >(
+  const [checkpointElements, setCheckpointElements] = useState<Record<string, string[]>>(
     Object.entries(currentConfig?.checkpoints ?? {}).reduce(
       (acc, [pageId, config]) => {
         acc[pageId] = config.elements;
@@ -46,31 +54,25 @@ export function NMConfigPanel({
     )
   );
 
-  const competencyOptions = NM_COMPETENCIES;
   const availableElements = getElementsForCompetency(selectedCompetency);
 
   const handleToggleElement = (elementId: string) => {
     setSelectedElements((prev) =>
-      prev.includes(elementId)
-        ? prev.filter((id) => id !== elementId)
-        : [...prev, elementId]
+      prev.includes(elementId) ? prev.filter((id) => id !== elementId) : [...prev, elementId]
     );
   };
 
   const handleToggleCheckpoint = (pageId: string) => {
     if (checkpoints[pageId]) {
-      const newCheckpoints = { ...checkpoints };
-      delete newCheckpoints[pageId];
-      setCheckpoints(newCheckpoints);
-      const newElements = { ...checkpointElements };
-      delete newElements[pageId];
-      setCheckpointElements(newElements);
+      const c = { ...checkpoints };
+      delete c[pageId];
+      setCheckpoints(c);
+      const e = { ...checkpointElements };
+      delete e[pageId];
+      setCheckpointElements(e);
     } else {
       setCheckpoints({ ...checkpoints, [pageId]: { elements: selectedElements } });
-      setCheckpointElements({
-        ...checkpointElements,
-        [pageId]: selectedElements,
-      });
+      setCheckpointElements({ ...checkpointElements, [pageId]: selectedElements });
     }
   };
 
@@ -80,10 +82,7 @@ export function NMConfigPanel({
       ? current.filter((id) => id !== elementId)
       : [...current, elementId];
     setCheckpointElements({ ...checkpointElements, [pageId]: updated });
-    setCheckpoints({
-      ...checkpoints,
-      [pageId]: { elements: updated },
-    });
+    setCheckpoints({ ...checkpoints, [pageId]: { elements: updated } });
   };
 
   const handleSave = async () => {
@@ -101,6 +100,7 @@ export function NMConfigPanel({
       setTimeout(() => {
         setExpanded(false);
         setSaveStatus("idle");
+        setStep("competency");
       }, 1200);
     } catch {
       setSaveStatus("error");
@@ -108,6 +108,11 @@ export function NMConfigPanel({
       setSaving(false);
     }
   };
+
+  const canAdvanceFromElements = selectedElements.length > 0;
+  const checkpointCount = Object.keys(checkpoints).length;
+
+  const currentStepIndex = STEPS.findIndex((s) => s.key === step);
 
   return (
     <div
@@ -132,328 +137,277 @@ export function NMConfigPanel({
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <h3
-            style={{
-              margin: 0,
-              fontSize: "15px",
-              fontWeight: 600,
-              color: enabled ? "#4f46e5" : "#1f2937",
-            }}
-          >
+          <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 600, color: enabled ? "#4f46e5" : "#1f2937" }}>
             New Metrics
           </h3>
           {enabled && (
-            <span
-              style={{
-                fontSize: "12px",
-                background: "#4f46e5",
-                color: "white",
-                padding: "2px 8px",
-                borderRadius: "999px",
-              }}
-            >
+            <span style={{ fontSize: "12px", background: "#4f46e5", color: "white", padding: "2px 8px", borderRadius: "999px" }}>
               Enabled
             </span>
           )}
+          {enabled && selectedElements.length > 0 && (
+            <span style={{ fontSize: "11px", color: "#6b7280" }}>
+              {selectedElements.length} elements · {checkpointCount} checkpoint{checkpointCount !== 1 ? "s" : ""}
+            </span>
+          )}
         </div>
-
-        {/* Toggle switch */}
         <button
           onClick={(e) => {
             e.stopPropagation();
             setEnabled(!enabled);
-            if (!enabled) setExpanded(true);
+            if (!enabled) { setExpanded(true); setStep("competency"); }
           }}
           style={{
-            position: "relative",
-            width: "44px",
-            height: "24px",
-            borderRadius: "999px",
-            border: "none",
-            background: enabled ? "#4f46e5" : "#d1d5db",
-            cursor: "pointer",
-            padding: 0,
+            position: "relative", width: "44px", height: "24px", borderRadius: "999px",
+            border: "none", background: enabled ? "#4f46e5" : "#d1d5db", cursor: "pointer", padding: 0,
           }}
         >
-          <div
-            style={{
-              position: "absolute",
-              top: "2px",
-              left: enabled ? "22px" : "2px",
-              width: "20px",
-              height: "20px",
-              borderRadius: "999px",
-              background: "white",
-              transition: "left 0.2s",
-            }}
-          />
+          <div style={{
+            position: "absolute", top: "2px", left: enabled ? "22px" : "2px",
+            width: "20px", height: "20px", borderRadius: "999px", background: "white", transition: "left 0.2s",
+          }} />
         </button>
       </div>
 
-      {/* Content */}
+      {/* Wizard content */}
       {expanded && enabled && (
-        <div style={{ padding: "16px", borderTop: "1px solid #e5e7eb" }}>
-          {/* Competency selector */}
-          <div style={{ marginBottom: "20px" }}>
-            <label
-              style={{
-                display: "block",
-                fontSize: "13px",
-                fontWeight: 600,
-                color: "#374151",
-                marginBottom: "6px",
-              }}
-            >
-              Competency
-            </label>
-            <select
-              value={selectedCompetency}
-              onChange={(e) => {
-                setSelectedCompetency(e.target.value);
-                setSelectedElements([]);
-              }}
-              style={{
-                width: "100%",
-                padding: "8px 12px",
-                borderRadius: "8px",
-                border: "1px solid #d1d5db",
-                fontSize: "14px",
-                background: "white",
-              }}
-            >
-              {competencyOptions.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-            <p
-              style={{
-                fontSize: "12px",
-                color: "#6b7280",
-                margin: "6px 0 0 0",
-              }}
-            >
-              {competencyOptions.find((c) => c.id === selectedCompetency)?.description}
-            </p>
-          </div>
-
-          {/* Element picker */}
-          <div style={{ marginBottom: "20px" }}>
-            <label
-              style={{
-                display: "block",
-                fontSize: "13px",
-                fontWeight: 600,
-                color: "#374151",
-                marginBottom: "8px",
-              }}
-            >
-              Assessment Elements
-            </label>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr",
-                gap: "8px",
-              }}
-            >
-              {availableElements.map((elem) => (
-                <label
-                  key={elem.id}
+        <div style={{ borderTop: "1px solid #e5e7eb" }}>
+          {/* Step indicator */}
+          <div style={{ display: "flex", alignItems: "center", padding: "12px 16px", gap: "4px", background: "#fafbfc" }}>
+            {STEPS.map((s, i) => (
+              <div key={s.key} style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                <button
+                  onClick={() => {
+                    if (s.key === "elements" && step === "competency") return;
+                    if (s.key === "checkpoints" && selectedElements.length === 0) return;
+                    setStep(s.key);
+                  }}
                   style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: "10px",
-                    padding: "10px 12px",
-                    borderRadius: "8px",
-                    border: selectedElements.includes(elem.id)
-                      ? "1px solid #4f46e5"
-                      : "1px solid #e5e7eb",
-                    background: selectedElements.includes(elem.id)
-                      ? "#f0f4ff"
-                      : "white",
-                    cursor: "pointer",
+                    display: "flex", alignItems: "center", gap: "6px", padding: "4px 10px",
+                    borderRadius: "999px", border: "none", cursor: "pointer",
+                    background: step === s.key ? "#4f46e5" : i < currentStepIndex ? "#e0e7ff" : "#f3f4f6",
+                    color: step === s.key ? "white" : i < currentStepIndex ? "#4f46e5" : "#9ca3af",
+                    fontSize: "12px", fontWeight: step === s.key ? 600 : 500,
+                    transition: "all 0.2s",
                   }}
                 >
-                  <input
-                    type="checkbox"
-                    checked={selectedElements.includes(elem.id)}
-                    onChange={() => handleToggleElement(elem.id)}
-                    style={{
-                      marginTop: "2px",
-                      cursor: "pointer",
-                      width: "16px",
-                      height: "16px",
-                    }}
-                  />
-                  <div style={{ flex: 1 }}>
-                    <div
-                      style={{
-                        fontSize: "13px",
-                        fontWeight: 500,
-                        color: "#1f2937",
-                      }}
-                    >
-                      {elem.name}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: "12px",
-                        color: "#6b7280",
-                        marginTop: "2px",
-                      }}
-                    >
-                      {elem.studentDescription}
-                    </div>
-                  </div>
-                </label>
-              ))}
-            </div>
+                  <span style={{
+                    width: "18px", height: "18px", borderRadius: "999px", display: "flex",
+                    alignItems: "center", justifyContent: "center", fontSize: "10px", fontWeight: 700,
+                    background: step === s.key ? "rgba(255,255,255,0.25)" : "transparent",
+                  }}>
+                    {i < currentStepIndex ? "✓" : s.num}
+                  </span>
+                  {s.label}
+                </button>
+                {i < STEPS.length - 1 && (
+                  <div style={{ width: "16px", height: "1px", background: i < currentStepIndex ? "#a5b4fc" : "#e5e7eb" }} />
+                )}
+              </div>
+            ))}
           </div>
 
-          {/* Checkpoint placer */}
-          {selectedElements.length > 0 && (
-            <div>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  color: "#374151",
-                  marginBottom: "8px",
-                }}
-              >
-                Assessment Checkpoints
-              </label>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "8px" }}>
-                {pages.map((page) => {
-                  const isCheckpoint = !!checkpoints[page.id];
-                  return (
-                    <div
-                      key={page.id}
+          <div style={{ padding: "16px" }}>
+            {/* STEP 1: Competency */}
+            {step === "competency" && (
+              <div>
+                <p style={{ fontSize: "13px", color: "#6b7280", marginTop: 0, marginBottom: "12px" }}>
+                  Which competency will students reflect on during this unit?
+                </p>
+                <div style={{ display: "grid", gap: "8px" }}>
+                  {NM_COMPETENCIES.map((c) => (
+                    <button
+                      key={c.id}
+                      onClick={() => {
+                        setSelectedCompetency(c.id);
+                        setSelectedElements([]);
+                      }}
                       style={{
-                        borderRadius: "8px",
-                        border: "1px solid #e5e7eb",
-                        background: isCheckpoint ? "#f0f4ff" : "white",
-                        overflow: "hidden",
+                        textAlign: "left", padding: "12px 14px", borderRadius: "10px",
+                        border: selectedCompetency === c.id ? "2px solid #4f46e5" : "1px solid #e5e7eb",
+                        background: selectedCompetency === c.id ? "#f0f4ff" : "white",
+                        cursor: "pointer", transition: "all 0.15s",
                       }}
                     >
-                      <div
+                      <div style={{ fontSize: "14px", fontWeight: 600, color: selectedCompetency === c.id ? "#4f46e5" : "#1f2937", marginBottom: "2px" }}>
+                        {c.name}
+                      </div>
+                      <div style={{ fontSize: "12px", color: "#6b7280" }}>{c.description}</div>
+                    </button>
+                  ))}
+                </div>
+                <div style={{ marginTop: "16px", display: "flex", justifyContent: "flex-end" }}>
+                  <button
+                    onClick={() => setStep("elements")}
+                    style={{
+                      padding: "8px 20px", borderRadius: "8px", border: "none",
+                      background: "#4f46e5", color: "white", fontSize: "13px", fontWeight: 600, cursor: "pointer",
+                    }}
+                  >
+                    Next: Pick Elements →
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 2: Elements */}
+            {step === "elements" && (
+              <div>
+                <p style={{ fontSize: "13px", color: "#6b7280", marginTop: 0, marginBottom: "12px" }}>
+                  Which elements should students reflect on? Pick 2-4 for best results.
+                </p>
+                <div style={{ display: "grid", gap: "8px" }}>
+                  {availableElements.map((elem) => {
+                    const selected = selectedElements.includes(elem.id);
+                    return (
+                      <button
+                        key={elem.id}
+                        onClick={() => handleToggleElement(elem.id)}
                         style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "8px",
-                          padding: "10px 12px",
-                          borderBottom: isCheckpoint ? "1px solid #e5e7eb" : "none",
+                          textAlign: "left", display: "flex", alignItems: "flex-start", gap: "10px",
+                          padding: "10px 12px", borderRadius: "10px",
+                          border: selected ? "2px solid #4f46e5" : "1px solid #e5e7eb",
+                          background: selected ? "#f0f4ff" : "white",
+                          cursor: "pointer", transition: "all 0.15s",
                         }}
                       >
-                        <input
-                          type="checkbox"
-                          checked={isCheckpoint}
-                          onChange={() => handleToggleCheckpoint(page.id)}
+                        <div style={{
+                          flexShrink: 0, width: "20px", height: "20px", borderRadius: "4px",
+                          border: selected ? "none" : "2px solid #d1d5db",
+                          background: selected ? "#4f46e5" : "white",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          color: "white", fontSize: "12px", marginTop: "1px",
+                        }}>
+                          {selected && "✓"}
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: "13px", fontWeight: 500, color: "#1f2937" }}>{elem.name}</div>
+                          <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "2px" }}>{elem.studentDescription}</div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+                {selectedElements.length > 0 && (
+                  <div style={{ marginTop: "8px", fontSize: "12px", color: "#4f46e5", fontWeight: 500 }}>
+                    {selectedElements.length} selected
+                  </div>
+                )}
+                <div style={{ marginTop: "16px", display: "flex", justifyContent: "space-between" }}>
+                  <button
+                    onClick={() => setStep("competency")}
+                    style={{
+                      padding: "8px 16px", borderRadius: "8px",
+                      border: "1px solid #d1d5db", background: "white",
+                      fontSize: "13px", fontWeight: 500, cursor: "pointer",
+                    }}
+                  >
+                    ← Back
+                  </button>
+                  <button
+                    onClick={() => setStep("checkpoints")}
+                    disabled={!canAdvanceFromElements}
+                    style={{
+                      padding: "8px 20px", borderRadius: "8px", border: "none",
+                      background: canAdvanceFromElements ? "#4f46e5" : "#d1d5db",
+                      color: "white", fontSize: "13px", fontWeight: 600,
+                      cursor: canAdvanceFromElements ? "pointer" : "not-allowed",
+                    }}
+                  >
+                    Next: Place Checkpoints →
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 3: Checkpoints */}
+            {step === "checkpoints" && (
+              <div>
+                <p style={{ fontSize: "13px", color: "#6b7280", marginTop: 0, marginBottom: "12px" }}>
+                  Which lessons should include a student reflection checkpoint? We recommend 1-3 across the unit.
+                </p>
+                <div style={{ display: "grid", gap: "6px" }}>
+                  {pages.map((page) => {
+                    const isCP = !!checkpoints[page.id];
+                    return (
+                      <div key={page.id} style={{ borderRadius: "10px", border: "1px solid #e5e7eb", background: isCP ? "#f0f4ff" : "white", overflow: "hidden" }}>
+                        <button
+                          onClick={() => handleToggleCheckpoint(page.id)}
                           style={{
-                            cursor: "pointer",
-                            width: "16px",
-                            height: "16px",
-                          }}
-                        />
-                        <label
-                          style={{
-                            flex: 1,
-                            fontSize: "13px",
-                            fontWeight: 500,
-                            color: "#1f2937",
-                            cursor: "pointer",
+                            width: "100%", textAlign: "left", display: "flex", alignItems: "center", gap: "10px",
+                            padding: "10px 12px", border: "none", background: "transparent", cursor: "pointer",
                           }}
                         >
-                          {page.title}
-                        </label>
+                          <div style={{
+                            flexShrink: 0, width: "20px", height: "20px", borderRadius: "4px",
+                            border: isCP ? "none" : "2px solid #d1d5db",
+                            background: isCP ? "#4f46e5" : "white",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            color: "white", fontSize: "12px",
+                          }}>
+                            {isCP && "✓"}
+                          </div>
+                          <span style={{ fontSize: "13px", fontWeight: 500, color: "#1f2937" }}>{page.title}</span>
+                        </button>
+                        {/* Per-checkpoint element toggle */}
+                        {isCP && (
+                          <div style={{ padding: "6px 12px 10px 42px", display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                            {availableElements.filter(e => selectedElements.includes(e.id)).map((elem) => {
+                              const active = (checkpointElements[page.id] || []).includes(elem.id);
+                              return (
+                                <button
+                                  key={elem.id}
+                                  onClick={() => handleCheckpointElementToggle(page.id, elem.id)}
+                                  style={{
+                                    padding: "3px 10px", borderRadius: "999px", fontSize: "11px", fontWeight: 500,
+                                    border: active ? "1px solid #4f46e5" : "1px solid #d1d5db",
+                                    background: active ? "#e0e7ff" : "white",
+                                    color: active ? "#4338ca" : "#6b7280",
+                                    cursor: "pointer", transition: "all 0.15s",
+                                  }}
+                                >
+                                  {elem.name}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
-
-                      {/* Sub-elements selector for this checkpoint */}
-                      {isCheckpoint && (
-                        <div style={{ padding: "8px 12px" }}>
-                          {availableElements.map((elem) => (
-                            <label
-                              key={elem.id}
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "8px",
-                                padding: "6px 0",
-                                fontSize: "12px",
-                                cursor: "pointer",
-                                color: "#6b7280",
-                              }}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={(checkpointElements[page.id] || []).includes(
-                                  elem.id
-                                )}
-                                onChange={() =>
-                                  handleCheckpointElementToggle(page.id, elem.id)
-                                }
-                                style={{
-                                  cursor: "pointer",
-                                  width: "14px",
-                                  height: "14px",
-                                }}
-                              />
-                              {elem.name}
-                            </label>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
+                {checkpointCount > 0 && (
+                  <div style={{ marginTop: "8px", fontSize: "12px", color: "#4f46e5", fontWeight: 500 }}>
+                    {checkpointCount} checkpoint{checkpointCount !== 1 ? "s" : ""} placed
+                  </div>
+                )}
+                <div style={{ marginTop: "16px", display: "flex", justifyContent: "space-between" }}>
+                  <button
+                    onClick={() => setStep("elements")}
+                    style={{
+                      padding: "8px 16px", borderRadius: "8px",
+                      border: "1px solid #d1d5db", background: "white",
+                      fontSize: "13px", fontWeight: 500, cursor: "pointer",
+                    }}
+                  >
+                    ← Back
+                  </button>
+                  <button
+                    onClick={handleSave}
+                    disabled={saving}
+                    style={{
+                      padding: "8px 24px", borderRadius: "8px", border: "none",
+                      background: saveStatus === "saved" ? "#059669" : saveStatus === "error" ? "#dc2626" : "#4f46e5",
+                      color: "white", fontSize: "13px", fontWeight: 600,
+                      cursor: saving ? "wait" : "pointer",
+                      opacity: saving ? 0.7 : 1, transition: "background 0.2s",
+                    }}
+                  >
+                    {saving ? "Saving..." : saveStatus === "saved" ? "Saved!" : saveStatus === "error" ? "Failed — retry" : "Save Configuration"}
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
-
-          {/* Save button */}
-          <div
-            style={{
-              marginTop: "16px",
-              display: "flex",
-              justifyContent: "flex-end",
-              gap: "8px",
-            }}
-          >
-            <button
-              onClick={() => setExpanded(false)}
-              style={{
-                padding: "8px 16px",
-                borderRadius: "8px",
-                border: "1px solid #d1d5db",
-                background: "white",
-                fontSize: "13px",
-                fontWeight: 500,
-                cursor: "pointer",
-              }}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              style={{
-                padding: "8px 16px",
-                borderRadius: "8px",
-                border: "none",
-                background: saveStatus === "saved" ? "#059669" : saveStatus === "error" ? "#dc2626" : "#4f46e5",
-                color: "white",
-                fontSize: "13px",
-                fontWeight: 600,
-                cursor: saving ? "wait" : "pointer",
-                opacity: saving ? 0.7 : 1,
-                transition: "background 0.2s",
-              }}
-            >
-              {saving ? "Saving..." : saveStatus === "saved" ? "Saved!" : saveStatus === "error" ? "Failed — try again" : "Save Configuration"}
-            </button>
+            )}
           </div>
         </div>
       )}

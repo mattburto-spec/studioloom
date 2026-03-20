@@ -420,6 +420,18 @@ export default function UnitPageView({
           </ScrollReveal>
         )}
 
+        {/* ── NM Competency Pulse — above Complete & Continue ── */}
+        {nmCheckpoint && !nmCompleted && (
+          <div className="max-w-2xl mx-auto px-6 mt-8">
+            <CompetencyPulse
+              pageId={pageId}
+              unitId={unitId}
+              elements={nmCheckpoint.elements}
+              onComplete={() => setNmCompleted(true)}
+            />
+          </div>
+        )}
+
         {/* ── Complete & Continue — solid colored block ── */}
         <ScrollReveal>
           <div
@@ -532,17 +544,7 @@ export default function UnitPageView({
         </div>
       )}
 
-      {/* NM Competency Pulse — shown inline when this page has a checkpoint configured */}
-      {nmCheckpoint && !nmCompleted && (
-        <div className="max-w-4xl mx-auto px-6 mb-6">
-          <CompetencyPulse
-            pageId={pageId}
-            unitId={unitId}
-            elements={nmCheckpoint.elements}
-            onComplete={() => setNmCompleted(true)}
-          />
-        </div>
-      )}
+      {/* NM pulse removed from here — moved inline above Complete & Continue */}
 
       {/* Floating action buttons */}
       {!planOpen && !portfolioOpen && !ganttOpen && (

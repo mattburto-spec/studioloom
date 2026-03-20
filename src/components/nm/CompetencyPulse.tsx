@@ -20,6 +20,7 @@ export function CompetencyPulse({
   const [reflection, setReflection] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const allRated = elements.every((e) => ratings[e.id] !== undefined);
 
@@ -38,9 +39,10 @@ export function CompetencyPulse({
         body: JSON.stringify({
           pageId,
           unitId,
-          ratings: elements.map((e) => ({
-            elementId: e.id,
+          assessments: elements.map((e) => ({
+            element: e.id,
             rating: ratings[e.id],
+            comment: null,
           })),
           reflection: reflection || null,
         }),
@@ -51,9 +53,14 @@ export function CompetencyPulse({
         setTimeout(() => {
           onComplete();
         }, 1500);
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        console.error("Assessment save failed:", res.status, errData);
+        setError("Something went wrong — please try again.");
       }
     } catch (error) {
       console.error("Assessment submission failed:", error);
+      setError("Connection error — please try again.");
     } finally {
       setLoading(false);
     }
@@ -219,6 +226,13 @@ export function CompetencyPulse({
           }}
         />
       </div>
+
+      {/* Error message */}
+      {error && (
+        <div style={{ marginBottom: "10px", padding: "8px 12px", borderRadius: "8px", background: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626", fontSize: "12px" }}>
+          {error}
+        </div>
+      )}
 
       {/* Submit button */}
       <button
