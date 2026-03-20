@@ -31,7 +31,7 @@ export interface IntegrityMetadata {
   /** Timestamp when monitoring began */
   startTime: number;
   /** Timestamp of most recent activity */
-  lastActiveTime: number;
+  lastActiveTime?: number;
 }
 
 interface MonitoredTextareaProps {

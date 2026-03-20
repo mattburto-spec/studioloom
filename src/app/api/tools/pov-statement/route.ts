@@ -140,13 +140,12 @@ Evaluate this statement. Is it specific? Is the need verb-based? Is the insight 
 
     // Log usage
     logUsage({
-      userId: sessionId,
-      toolId: "pov-statement",
+      endpoint: "tools/pov-statement/evaluate",
       model: "claude-haiku-4-5-20251001",
-      action: "evaluate",
       inputTokens: data.usage?.input_tokens || 0,
       outputTokens: data.usage?.output_tokens || 0,
-    }).catch(console.error);
+      metadata: { sessionId, action: "evaluate" },
+    });
 
     return NextResponse.json({
       evaluation,

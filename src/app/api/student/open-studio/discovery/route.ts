@@ -619,7 +619,7 @@ export async function POST(request: NextRequest) {
     ];
 
     // Determine next step
-    let nextStep = currentStep;
+    let nextStep: DiscoveryStep = currentStep;
     let discoveryComplete = false;
 
     if (stepIsComplete) {

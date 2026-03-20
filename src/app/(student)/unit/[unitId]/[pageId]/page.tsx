@@ -51,7 +51,7 @@ export default function UnitPageView({
   const [confidenceLevel, setConfidenceLevel] = useState(3);
   const [showFeedbackPulse, setShowFeedbackPulse] = useState(false);
   const [pendingNavTarget, setPendingNavTarget] = useState<string | null>(null);
-  const [nmCheckpoint, setNmCheckpoint] = useState<{ elements: Array<{ id: string; name: string; studentDescription: string }> } | null>(null);
+  const [nmCheckpoint, setNmCheckpoint] = useState<{ elements: Array<{ id: string; name: string; studentDescription: string; definition: string; color: string }> } | null>(null);
   const [showNmPulse, setShowNmPulse] = useState(false);
   const [nmCompleted, setNmCompleted] = useState(false);
 

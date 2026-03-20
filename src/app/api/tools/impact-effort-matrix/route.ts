@@ -95,11 +95,11 @@ export async function POST(req: NextRequest) {
     const { action, challenge, sessionId, idea, effortLevel, ideas } = body;
 
     // Rate limiting
-    const rateLimitResult = await rateLimit(sessionId, TOOLKIT_LIMITS);
+    const rateLimitResult = rateLimit(sessionId, TOOLKIT_LIMITS);
     if (!rateLimitResult.allowed) {
       return NextResponse.json(
         { error: "Rate limit exceeded" },
-        { status: 429, headers: { "Retry-After": rateLimitResult.retryAfter?.toString() || "60" } }
+        { status: 429, headers: { "Retry-After": String(Math.ceil((rateLimitResult.retryAfterMs || 60000) / 1000)) } }
       );
     }
 
@@ -154,13 +154,12 @@ They rated it with provided impact and effort scores. Now they need to clarify t
       }
 
       // Log usage
-      await logUsage({
-        sessionId,
-        toolId: "impact-effort-matrix",
-        action: "nudge",
+      logUsage({
+        endpoint: "tools/impact-effort-matrix/nudge",
         model: "claude-haiku-4-5-20251001",
-        inputTokens: 300, // rough estimate
+        inputTokens: 300,
         outputTokens: 150,
+        metadata: { sessionId, action: "nudge" },
       });
     } else if (action === "recommendations") {
       if (!ideas || ideas.length === 0) {
@@ -216,13 +215,12 @@ Analyze this prioritization and recommend the top 3 ideas to pursue based on imp
       }
 
       // Log usage
-      await logUsage({
-        sessionId,
-        toolId: "impact-effort-matrix",
-        action: "recommendations",
+      logUsage({
+        endpoint: "tools/impact-effort-matrix/recommendations",
         model: "claude-haiku-4-5-20251001",
         inputTokens: 400,
         outputTokens: 200,
+        metadata: { sessionId, action: "recommendations" },
       });
     } else {
       return NextResponse.json({ error: "Invalid action" }, { status: 400 });

@@ -385,13 +385,9 @@ export function ResponseInput({
       {responseType === "toolkit-tool" && toolId === "morphological-chart" && (
         <Suspense fallback={<div>Loading...</div>}>
           <MorphologicalChartToolComponent
-            toolId={toolId}
             mode="embedded"
             challenge={toolChallenge}
-            onSave={(state) => {
-              onChange(JSON.stringify({ type: "toolkit-tool", toolId, state }));
-            }}
-            onComplete={(data) => {
+            onComplete={(data: any) => {
               onChange(JSON.stringify({ type: "toolkit-tool", toolId, data }));
             }}
           />

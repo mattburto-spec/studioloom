@@ -179,18 +179,24 @@ async function generateInsights(
 
 export async function POST(req: NextRequest) {
   try {
-    const limitStatus = await rateLimit(req, TOOLKIT_LIMITS);
+    const body: RequestBody = await req.json();
+    const { action, challenge, sessionId, stepIndex = 0, idea = "", existingIdeas = [], allIdeas = [], phase = "", persona = "" } = body;
+
+    const limitStatus = rateLimit(`tool:journey-map:${sessionId}`, TOOLKIT_LIMITS);
     if (!limitStatus.allowed) {
       return NextResponse.json({ error: "Rate limited" }, { status: 429 });
     }
 
-    const body: RequestBody = await req.json();
-    const { action, challenge, sessionId, stepIndex = 0, idea = "", existingIdeas = [], allIdeas = [], phase = "", persona = "" } = body;
-
     if (action === "nudge") {
       const nudgeText = await generateNudge(stepIndex, idea, existingIdeas, challenge, persona);
 
-      await logUsage(sessionId, "journey-map", "nudge", "claude-haiku-4-5-20251001", 100, 50);
+      logUsage({
+        endpoint: "tools/journey-map/nudge",
+        model: "claude-haiku-4-5-20251001",
+        inputTokens: 100,
+        outputTokens: 50,
+        metadata: { sessionId, action: "nudge" },
+      });
 
       return NextResponse.json({
         success: true,
@@ -201,7 +207,13 @@ export async function POST(req: NextRequest) {
     if (action === "insights") {
       const insightsText = await generateInsights(challenge, allIdeas, persona);
 
-      await logUsage(sessionId, "journey-map", "insights", "claude-haiku-4-5-20251001", 300, 150);
+      logUsage({
+        endpoint: "tools/journey-map/insights",
+        model: "claude-haiku-4-5-20251001",
+        inputTokens: 300,
+        outputTokens: 150,
+        metadata: { sessionId, action: "insights" },
+      });
 
       return NextResponse.json({
         success: true,

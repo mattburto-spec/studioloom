@@ -200,9 +200,12 @@ export async function POST(request: NextRequest) {
     const timingProfile = getGradeTimingProfile(journeyInput.gradeLevel);
     const lessonMinutes = journeyInput.lessonLengthMinutes || 50;
     const timingCtx: TimingContext = {
-      lessonType: "theory",
       periodMinutes: lessonMinutes,
+      isWorkshop: false,
       transitionMinutes: 3,
+      setupMinutes: 0,
+      cleanupMinutes: 0,
+      gradeProfile: timingProfile,
     };
 
     for (const [pageId, page] of Object.entries(validation.pages)) {

@@ -158,9 +158,12 @@ export async function POST(request: NextRequest) {
     let repairedLesson = lesson;
     if (lesson) {
       const timingCtx: TimingContext = {
-        lessonType: "theory",
         periodMinutes: lessonLengthMinutes,
+        isWorkshop: false,
         transitionMinutes: 3,
+        setupMinutes: 0,
+        cleanupMinutes: 0,
+        gradeProfile: timingProfile,
       };
       const result = validateLessonTiming(
         lesson as GeneratedLesson,

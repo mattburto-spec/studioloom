@@ -157,13 +157,12 @@ Analyze this specification. Is it complete? Are requirements and criteria measur
 
     // Log usage
     logUsage({
-      userId: sessionId,
-      toolId: "design-specification",
+      endpoint: "tools/design-specification/analyze",
       model: "claude-haiku-4-5-20251001",
-      action: "analyze",
       inputTokens: data.usage?.input_tokens || 0,
       outputTokens: data.usage?.output_tokens || 0,
-    }).catch(console.error);
+      metadata: { sessionId, action: "analyze" },
+    });
 
     return NextResponse.json({
       analysis,

@@ -152,18 +152,24 @@ async function generateImplications(challenge: string, allSections: Record<strin
 
 export async function POST(req: NextRequest) {
   try {
-    const limitStatus = await rateLimit(req, TOOLKIT_LIMITS);
+    const body: RequestBody = await req.json();
+    const { action, challenge, sessionId, section = "", currentText = "", allSections = {} } = body;
+
+    const limitStatus = rateLimit(`tool:user-persona:${sessionId}`, TOOLKIT_LIMITS);
     if (!limitStatus.allowed) {
       return NextResponse.json({ error: "Rate limited" }, { status: 429 });
     }
 
-    const body: RequestBody = await req.json();
-    const { action, challenge, sessionId, section = "", currentText = "", allSections = {} } = body;
-
     if (action === "nudge") {
       const nudgeText = await generateNudge(section, currentText, challenge);
 
-      await logUsage(sessionId, "user-persona", "nudge", "claude-haiku-4-5-20251001", 100, 50);
+      logUsage({
+        endpoint: "tools/user-persona/nudge",
+        model: "claude-haiku-4-5-20251001",
+        inputTokens: 100,
+        outputTokens: 50,
+        metadata: { sessionId, action: "nudge" },
+      });
 
       return NextResponse.json({
         success: true,
@@ -174,7 +180,13 @@ export async function POST(req: NextRequest) {
     if (action === "implications") {
       const implicationsText = await generateImplications(challenge, allSections);
 
-      await logUsage(sessionId, "user-persona", "implications", "claude-haiku-4-5-20251001", 300, 150);
+      logUsage({
+        endpoint: "tools/user-persona/implications",
+        model: "claude-haiku-4-5-20251001",
+        inputTokens: 300,
+        outputTokens: 150,
+        metadata: { sessionId, action: "implications" },
+      });
 
       return NextResponse.json({
         success: true,

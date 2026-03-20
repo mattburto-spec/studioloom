@@ -72,11 +72,11 @@ export async function POST(req: NextRequest) {
     const { action, challenge, sessionId, options, comparisons } = body;
 
     // Rate limiting
-    const rateLimitResult = await rateLimit(sessionId, TOOLKIT_LIMITS);
+    const rateLimitResult = rateLimit(sessionId, TOOLKIT_LIMITS);
     if (!rateLimitResult.allowed) {
       return NextResponse.json(
         { error: "Rate limit exceeded" },
-        { status: 429, headers: { "Retry-After": rateLimitResult.retryAfter?.toString() || "60" } }
+        { status: 429, headers: { "Retry-After": String(Math.ceil((rateLimitResult.retryAfterMs || 60000) / 1000)) } }
       );
     }
 
@@ -155,13 +155,12 @@ Analyze this decision. Who won and why? Are there clear patterns in their prefer
       }
 
       // Log usage
-      await logUsage({
-        sessionId,
-        toolId: "pairwise-comparison",
-        action: "analysis",
+      logUsage({
+        endpoint: "tools/pairwise-comparison/analysis",
         model: "claude-haiku-4-5-20251001",
         inputTokens: 400,
         outputTokens: 200,
+        metadata: { sessionId, action: "analysis" },
       });
     } else {
       return NextResponse.json({ error: "Invalid action" }, { status: 400 });

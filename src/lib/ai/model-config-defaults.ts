@@ -55,27 +55,27 @@ export const DEFAULT_GENERATION_EMPHASIS: GenerationEmphasis = {
 
 export const DEFAULT_TIMING_PROFILES: TimingProfiles = {
   1: {
-    mypYear: 1, warmupMinutes: 5, introMinutes: 5, reflectionMinutes: 5,
+    mypYear: 1, avgStudentAge: 11, warmupMinutes: 5, introMinutes: 5, reflectionMinutes: 5,
     maxHighCognitiveMinutes: 12, maxHandsOnMinutes: 40, maxCollaborativeMinutes: 15, maxDigitalMinutes: 15,
     pacingNote: "MYP Year 1 (age 11): Students sustain cognitive focus for ~10-12 minutes but can engage in hands-on making for much longer. Reading, writing, and analysis tasks must be SHORT (≤12 min) and heavily scaffolded with checklists, sentence starters, and worked examples. Hands-on/making activities can run 20-40 min as long as they have clear checkpoints. Break reading-heavy tasks into small chunks with partner discussion between them.",
   },
   2: {
-    mypYear: 2, warmupMinutes: 5, introMinutes: 5, reflectionMinutes: 5,
+    mypYear: 2, avgStudentAge: 12, warmupMinutes: 5, introMinutes: 5, reflectionMinutes: 5,
     maxHighCognitiveMinutes: 15, maxHandsOnMinutes: 40, maxCollaborativeMinutes: 15, maxDigitalMinutes: 20,
     pacingNote: "MYP Year 2 (age 12): Cognitive focus extends to ~12-15 minutes. Still scaffold reading/analysis tasks with sentence starters and templates, but allow some choice in how students respond. Hands-on making activities can run 20-40 min. Mix active and passive tasks — avoid back-to-back reading/writing activities.",
   },
   3: {
-    mypYear: 3, warmupMinutes: 5, introMinutes: 5, reflectionMinutes: 5,
+    mypYear: 3, avgStudentAge: 13, warmupMinutes: 5, introMinutes: 5, reflectionMinutes: 5,
     maxHighCognitiveMinutes: 20, maxHandsOnMinutes: 45, maxCollaborativeMinutes: 20, maxDigitalMinutes: 25,
     pacingNote: "MYP Year 3 (age 13): Cognitive focus ~15-20 minutes. Balance structured guidance with growing autonomy. Provide reference materials and exemplars but reduce step-by-step scaffolding. Students can handle longer research tasks and sustained making sessions.",
   },
   4: {
-    mypYear: 4, warmupMinutes: 5, introMinutes: 5, reflectionMinutes: 5,
+    mypYear: 4, avgStudentAge: 15, warmupMinutes: 5, introMinutes: 5, reflectionMinutes: 5,
     maxHighCognitiveMinutes: 25, maxHandsOnMinutes: 45, maxCollaborativeMinutes: 25, maxDigitalMinutes: 30,
     pacingNote: "MYP Year 4 (age 15): Cognitive focus ~25 minutes. Support extended independent work with clear success criteria. Scaffold through exemplars and peer critique rather than templates. Students can manage longer analysis and documentation tasks.",
   },
   5: {
-    mypYear: 5, warmupMinutes: 5, introMinutes: 3, reflectionMinutes: 5,
+    mypYear: 5, avgStudentAge: 16, warmupMinutes: 5, introMinutes: 3, reflectionMinutes: 5,
     maxHighCognitiveMinutes: 30, maxHandsOnMinutes: 45, maxCollaborativeMinutes: 25, maxDigitalMinutes: 35,
     pacingNote: "MYP Year 5 (age 16): Cognitive focus ~30 minutes. Minimise unnecessary transitions to allow flow state during deep work. Scaffold through prompts and peer critique. Students can sustain extended analysis, documentation, and independent making sessions.",
   },

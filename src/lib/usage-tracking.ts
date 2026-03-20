@@ -27,6 +27,10 @@ interface UsageEntry {
   inputTokens?: number;
   outputTokens?: number;
   metadata?: Record<string, unknown>;
+  tool?: string;
+  toolId?: string;
+  sessionId?: string;
+  action?: string;
 }
 
 /**

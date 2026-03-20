@@ -147,13 +147,12 @@ Synthesize this feedback into top 3 action items. What should the designer focus
 
     // Log usage
     logUsage({
-      userId: sessionId,
-      toolId: "feedback-capture-grid",
+      endpoint: "tools/feedback-capture-grid/synthesize",
       model: "claude-haiku-4-5-20251001",
-      action: "synthesize",
       inputTokens: data.usage?.input_tokens || 0,
       outputTokens: data.usage?.output_tokens || 0,
-    }).catch(console.error);
+      metadata: { sessionId, action: "synthesize" },
+    });
 
     return NextResponse.json({
       synthesis,

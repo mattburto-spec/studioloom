@@ -1,9 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { SESSION_COOKIE_NAME, SESSION_DURATION_DAYS } from "@/lib/constants";
+import { rateLimit } from "@/lib/rate-limit";
 import { nanoid } from "nanoid";
 
+// Rate limit: 10 attempts/min, 50/hour per IP — prevents brute-force on class codes
+const LOGIN_LIMITS = [
+  { maxRequests: 10, windowMs: 60 * 1000 },
+  { maxRequests: 50, windowMs: 60 * 60 * 1000 },
+];
+
 export async function POST(request: NextRequest) {
+  // Rate limit by IP
+  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  const { allowed, retryAfterMs } = rateLimit(`login:${ip}`, LOGIN_LIMITS);
+  if (!allowed) {
+    return NextResponse.json(
+      { error: "Too many login attempts. Please try again later." },
+      { status: 429, headers: { "Retry-After": String(Math.ceil((retryAfterMs || 60000) / 1000)) } }
+    );
+  }
+
   const { classCode, username } = await request.json();
 
   if (!classCode || !username) {

@@ -194,7 +194,7 @@ Now, what would your user think about this approach?`;
       const parts = parseToolLinks(text);
 
       // The link part should contain slug to build href
-      const linkPart = parts.find((p) => typeof p !== 'string' && p.slug);
+      const linkPart = parts.find((p): p is { type: "toolLink"; name: string; slug: string } => typeof p !== 'string' && 'slug' in p);
       expect(linkPart?.slug).toBe('scamper');
     });
 

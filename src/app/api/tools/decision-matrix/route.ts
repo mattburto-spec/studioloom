@@ -228,11 +228,11 @@ What important criteria might they have overlooked?`;
 
       // Log usage
       logUsage({
+        endpoint: "tools/decision-matrix/suggest-criteria",
         model: "claude-haiku-4-5-20251001",
         inputTokens,
         outputTokens,
-        tool: "decision-matrix",
-        action: "suggest-criteria",
+        metadata: { sessionId, action: "suggest-criteria" },
       });
 
       return NextResponse.json(suggestions);
@@ -262,11 +262,11 @@ Challenge the quality of their reasoning. Push for more specificity, evidence, o
 
       // Log usage
       logUsage({
+        endpoint: "tools/decision-matrix/challenge",
         model: "claude-haiku-4-5-20251001",
         inputTokens,
         outputTokens,
-        tool: "decision-matrix",
-        action: "challenge",
+        metadata: { sessionId, action: "challenge" },
       });
 
       return NextResponse.json(nudgeResponse);
@@ -297,11 +297,11 @@ Analyze the patterns in their decision and what this matrix reveals about their 
 
       // Log usage
       logUsage({
+        endpoint: "tools/decision-matrix/insights",
         model: "claude-haiku-4-5-20251001",
         inputTokens,
         outputTokens,
-        tool: "decision-matrix",
-        action: "insights",
+        metadata: { sessionId, action: "insights" },
       });
 
       return NextResponse.json({ insights: text });

@@ -361,7 +361,7 @@ IDEA JUST ADDED: "${idea.trim()}"`;
 
     /* ─── Action: Summary insights ─── */
     if (action === "insights") {
-      const { allStakeholders = [], categorized = {}, needs = {} } = body;
+      const { allStakeholders = [], categorized = {} as Record<string, string[]>, needs = {} as Record<string, string> } = body;
 
       if (!allStakeholders || allStakeholders.length === 0) {
         return NextResponse.json({ insights: "" });
