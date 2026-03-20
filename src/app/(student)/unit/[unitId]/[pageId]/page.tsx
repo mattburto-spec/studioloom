@@ -422,7 +422,7 @@ export default function UnitPageView({
 
         {/* ── NM Competency Pulse — above Complete & Continue ── */}
         {nmCheckpoint && !nmCompleted && (
-          <div className="max-w-2xl mx-auto px-6 mt-8">
+          <div className="max-w-4xl mx-auto px-6 mt-10 mb-2">
             <CompetencyPulse
               pageId={pageId}
               unitId={unitId}

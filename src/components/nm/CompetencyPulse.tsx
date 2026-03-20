@@ -10,6 +10,33 @@ interface CompetencyPulseProps {
   onComplete: () => void;
 }
 
+// Pop art palette — bold, saturated, unmistakable
+const POP = {
+  hotPink: "#FF2D78",
+  electricYellow: "#FFE135",
+  cyan: "#00D4FF",
+  black: "#1a1a1a",
+  white: "#ffffff",
+  cream: "#FFF8E7",
+  dotPink: "radial-gradient(circle, #FF2D78 1px, transparent 1px)",
+  // Rating pill colors
+  pill1Bg: "#FFE135",
+  pill1Border: "#E6CA00",
+  pill1Text: "#1a1a1a",
+  pill2Bg: "#00D4FF",
+  pill2Border: "#00A8CC",
+  pill2Text: "#1a1a1a",
+  pill3Bg: "#FF2D78",
+  pill3Border: "#D4005A",
+  pill3Text: "#ffffff",
+};
+
+const PILL_COLORS = [
+  { bg: POP.pill1Bg, border: POP.pill1Border, text: POP.pill1Text, selectedBg: "#E6CA00" },
+  { bg: POP.pill2Bg, border: POP.pill2Border, text: POP.pill2Text, selectedBg: "#00A8CC" },
+  { bg: POP.pill3Bg, border: POP.pill3Border, text: POP.pill3Text, selectedBg: "#D4005A" },
+];
+
 export function CompetencyPulse({
   pageId,
   unitId,
@@ -30,8 +57,8 @@ export function CompetencyPulse({
 
   const handleSubmit = async () => {
     if (!allRated) return;
-
     setLoading(true);
+    setError(null);
     try {
       const res = await fetch("/api/student/nm-assessment", {
         method: "POST",
@@ -47,19 +74,16 @@ export function CompetencyPulse({
           reflection: reflection || null,
         }),
       });
-
       if (res.ok) {
         setSubmitted(true);
-        setTimeout(() => {
-          onComplete();
-        }, 1500);
+        setTimeout(() => onComplete(), 1500);
       } else {
         const errData = await res.json().catch(() => ({}));
         console.error("Assessment save failed:", res.status, errData);
         setError("Something went wrong — please try again.");
       }
-    } catch (error) {
-      console.error("Assessment submission failed:", error);
+    } catch (err) {
+      console.error("Assessment submission failed:", err);
       setError("Connection error — please try again.");
     } finally {
       setLoading(false);
@@ -68,33 +92,21 @@ export function CompetencyPulse({
 
   if (submitted) {
     return (
-      <div
-        style={{
-          borderRadius: "12px",
-          border: "1px solid #7c3aed",
-          background: "#f5f3ff",
-          padding: "20px",
-          textAlign: "center",
-          animation: "fadeOut 0.3s ease-out 1.2s forwards",
-        }}
-      >
-        <div style={{ fontSize: "32px", marginBottom: "8px" }}>✨</div>
-        <p
-          style={{
-            margin: 0,
-            fontSize: "15px",
-            fontWeight: 600,
-            color: "#7c3aed",
-          }}
-        >
-          Thanks for reflecting!
+      <div style={{
+        borderRadius: "16px", border: `3px solid ${POP.black}`, background: POP.electricYellow,
+        padding: "32px", textAlign: "center", position: "relative", overflow: "hidden",
+        animation: "nmPopIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)",
+        boxShadow: `6px 6px 0px ${POP.black}`,
+      }}>
+        <div style={{ fontSize: "48px", marginBottom: "8px" }}>POW!</div>
+        <p style={{ margin: 0, fontSize: "18px", fontWeight: 900, color: POP.black, fontFamily: "'Arial Black', 'Impact', sans-serif", letterSpacing: "0.5px" }}>
+          Reflection complete!
         </p>
         <style>{`
-          @keyframes fadeOut {
-            to {
-              opacity: 0;
-              transform: translateY(-8px);
-            }
+          @keyframes nmPopIn {
+            0% { transform: scale(0.8) rotate(-2deg); opacity: 0; }
+            50% { transform: scale(1.05) rotate(1deg); }
+            100% { transform: scale(1) rotate(0deg); opacity: 1; }
           }
         `}</style>
       </div>
@@ -102,157 +114,164 @@ export function CompetencyPulse({
   }
 
   return (
-    <div
-      style={{
-        borderRadius: "12px",
-        border: "1px solid #c4b5fd",
-        background: "white",
-        padding: "20px",
-        animation: "slideIn 0.3s ease-out",
-      }}
-    >
+    <div style={{
+      borderRadius: "16px", border: `3px solid ${POP.black}`, background: POP.white,
+      overflow: "hidden", animation: "nmSlideUp 0.4s ease-out",
+      boxShadow: `6px 6px 0px ${POP.black}`,
+    }}>
       <style>{`
-        @keyframes slideIn {
-          from {
-            opacity: 0;
-            transform: translateY(8px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
+        @keyframes nmSlideUp {
+          from { opacity: 0; transform: translateY(16px); }
+          to { opacity: 1; transform: translateY(0); }
         }
+        @keyframes nmDotPulse {
+          0%, 100% { opacity: 0.15; }
+          50% { opacity: 0.25; }
+        }
+        .nm-pill:hover { transform: scale(1.04); }
+        .nm-pill:active { transform: scale(0.97); }
       `}</style>
 
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
-        <span style={{ fontSize: "18px" }}>💭</span>
-        <h3
-          style={{
-            margin: 0,
-            fontSize: "15px",
-            fontWeight: 600,
-            color: "#1f2937",
-          }}
-        >
-          Quick reflection
-        </h3>
+      {/* Header bar — hot pink with halftone pattern */}
+      <div style={{
+        background: POP.hotPink, padding: "16px 20px", position: "relative", overflow: "hidden",
+      }}>
+        {/* Halftone dot overlay */}
+        <div style={{
+          position: "absolute", inset: 0,
+          backgroundImage: "radial-gradient(circle, rgba(255,255,255,0.2) 1.5px, transparent 1.5px)",
+          backgroundSize: "8px 8px",
+          animation: "nmDotPulse 3s ease-in-out infinite",
+        }} />
+        <div style={{ position: "relative", display: "flex", alignItems: "center", gap: "10px" }}>
+          <div style={{
+            width: "36px", height: "36px", borderRadius: "10px", border: `2px solid ${POP.black}`,
+            background: POP.electricYellow, display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: "18px", fontWeight: 900, fontFamily: "'Arial Black', sans-serif",
+            boxShadow: `2px 2px 0 ${POP.black}`,
+          }}>
+            NM
+          </div>
+          <div>
+            <h3 style={{
+              margin: 0, fontSize: "17px", fontWeight: 900, color: POP.white,
+              fontFamily: "'Arial Black', 'Impact', sans-serif", letterSpacing: "0.5px",
+              textShadow: `1px 1px 0 ${POP.black}`,
+            }}>
+              Quick Reflection
+            </h3>
+            <p style={{ margin: 0, fontSize: "12px", color: "rgba(255,255,255,0.85)", fontWeight: 500 }}>
+              How did you go? Be honest — there are no wrong answers.
+            </p>
+          </div>
+        </div>
       </div>
 
       {/* Element ratings */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "16px", marginBottom: "16px" }}>
-        {elements.map((elem) => (
-          <div key={elem.id}>
-            <div style={{ marginBottom: "8px" }}>
-              <div
-                style={{
-                  fontSize: "13px",
-                  fontWeight: 500,
-                  color: "#1f2937",
-                  marginBottom: "2px",
-                }}
-              >
-                {elem.name}
+      <div style={{ padding: "20px" }}>
+        <div style={{ display: "grid", gap: "20px", marginBottom: "20px" }}>
+          {elements.map((elem) => (
+            <div key={elem.id} style={{
+              padding: "16px", borderRadius: "12px", border: `2px solid ${POP.black}`,
+              background: ratings[elem.id] !== undefined ? "#f0fdf4" : POP.cream,
+              transition: "all 0.2s",
+            }}>
+              <div style={{ marginBottom: "10px" }}>
+                <div style={{
+                  fontSize: "14px", fontWeight: 800, color: POP.black,
+                  fontFamily: "'Arial Black', sans-serif",
+                }}>
+                  {elem.name}
+                </div>
+                <div style={{ fontSize: "13px", color: "#555", marginTop: "2px" }}>
+                  {elem.studentDescription}
+                </div>
               </div>
-              <div
-                style={{
-                  fontSize: "12px",
-                  color: "#6b7280",
-                }}
-              >
-                {elem.studentDescription}
-              </div>
-            </div>
 
-            {/* 3-point rating pills */}
-            <div style={{ display: "flex", gap: "8px" }}>
-              {STUDENT_RATING_SCALE.map((option) => (
-                <button
-                  key={option.value}
-                  onClick={() => handleRating(elem.id, option.value)}
-                  style={{
-                    flex: 1,
-                    padding: "8px 10px",
-                    borderRadius: "8px",
-                    border:
-                      ratings[elem.id] === option.value
-                        ? `2px solid #7c3aed`
-                        : "1px solid #d1d5db",
-                    background:
-                      ratings[elem.id] === option.value ? "#7c3aed" : "white",
-                    color:
-                      ratings[elem.id] === option.value ? "white" : "#6b7280",
-                    fontSize: "12px",
-                    fontWeight: 500,
-                    cursor: "pointer",
-                    transition: "all 0.2s",
-                  }}
-                >
-                  {option.label}
-                </button>
-              ))}
+              {/* 3-point rating pills — pop art buttons */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px" }}>
+                {STUDENT_RATING_SCALE.map((option, i) => {
+                  const colors = PILL_COLORS[i];
+                  const selected = ratings[elem.id] === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      className="nm-pill"
+                      onClick={() => handleRating(elem.id, option.value)}
+                      style={{
+                        padding: "10px 8px", borderRadius: "10px",
+                        border: `2px solid ${POP.black}`,
+                        background: selected ? colors.selectedBg : colors.bg,
+                        color: colors.text, fontSize: "13px", fontWeight: 800,
+                        fontFamily: "'Arial Black', sans-serif",
+                        cursor: "pointer", transition: "all 0.15s",
+                        boxShadow: selected ? `3px 3px 0 ${POP.black}` : `2px 2px 0 ${POP.black}`,
+                        transform: selected ? "translate(-1px, -1px)" : "none",
+                        opacity: selected ? 1 : 0.85,
+                      }}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
+          ))}
+        </div>
+
+        {/* Reflection textarea */}
+        <div style={{ marginBottom: "16px" }}>
+          <label style={{
+            display: "block", fontSize: "13px", fontWeight: 800, color: POP.black,
+            fontFamily: "'Arial Black', sans-serif", marginBottom: "6px",
+          }}>
+            One thing you noticed about yourself as a learner?
+          </label>
+          <textarea
+            value={reflection}
+            onChange={(e) => setReflection(e.target.value)}
+            placeholder="Optional — but great learners notice things..."
+            style={{
+              width: "100%", padding: "12px 14px", borderRadius: "10px",
+              border: `2px solid ${POP.black}`, fontSize: "14px", fontFamily: "inherit",
+              resize: "vertical", minHeight: "70px", outline: "none",
+              boxShadow: `2px 2px 0 ${POP.black}`,
+            }}
+          />
+        </div>
+
+        {/* Error message */}
+        {error && (
+          <div style={{
+            marginBottom: "12px", padding: "10px 14px", borderRadius: "10px",
+            background: POP.electricYellow, border: `2px solid ${POP.black}`,
+            color: POP.black, fontSize: "13px", fontWeight: 700,
+            fontFamily: "'Arial Black', sans-serif",
+          }}>
+            {error}
           </div>
-        ))}
-      </div>
+        )}
 
-      {/* Reflection textarea */}
-      <div style={{ marginBottom: "16px" }}>
-        <label
+        {/* Submit button */}
+        <button
+          onClick={handleSubmit}
+          disabled={!allRated || loading}
           style={{
-            display: "block",
-            fontSize: "12px",
-            fontWeight: 500,
-            color: "#6b7280",
-            marginBottom: "6px",
+            width: "100%", padding: "14px",
+            borderRadius: "12px", border: `3px solid ${POP.black}`,
+            background: allRated && !loading ? POP.hotPink : "#ccc",
+            color: allRated && !loading ? POP.white : "#888",
+            fontSize: "16px", fontWeight: 900,
+            fontFamily: "'Arial Black', 'Impact', sans-serif",
+            letterSpacing: "1px", textTransform: "uppercase",
+            cursor: allRated && !loading ? "pointer" : "not-allowed",
+            boxShadow: allRated && !loading ? `4px 4px 0 ${POP.black}` : "none",
+            transition: "all 0.15s",
           }}
         >
-          What&apos;s one thing you noticed about yourself as a learner?
-        </label>
-        <textarea
-          value={reflection}
-          onChange={(e) => setReflection(e.target.value)}
-          placeholder="Optional..."
-          style={{
-            width: "100%",
-            padding: "10px 12px",
-            borderRadius: "8px",
-            border: "1px solid #d1d5db",
-            fontSize: "13px",
-            fontFamily: "inherit",
-            resize: "vertical",
-            minHeight: "80px",
-            outline: "none",
-          }}
-        />
+          {loading ? "SAVING..." : "DONE!"}
+        </button>
       </div>
-
-      {/* Error message */}
-      {error && (
-        <div style={{ marginBottom: "10px", padding: "8px 12px", borderRadius: "8px", background: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626", fontSize: "12px" }}>
-          {error}
-        </div>
-      )}
-
-      {/* Submit button */}
-      <button
-        onClick={handleSubmit}
-        disabled={!allRated || loading}
-        style={{
-          width: "100%",
-          padding: "10px",
-          borderRadius: "8px",
-          border: "none",
-          background: allRated && !loading ? "#7c3aed" : "#d1d5db",
-          color: "white",
-          fontSize: "13px",
-          fontWeight: 600,
-          cursor: allRated && !loading ? "pointer" : "not-allowed",
-          transition: "all 0.2s",
-        }}
-      >
-        {loading ? "Saving..." : "Complete Reflection"}
-      </button>
     </div>
   );
 }

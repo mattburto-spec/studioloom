@@ -117,36 +117,59 @@ export function NMConfigPanel({
   return (
     <div
       style={{
-        borderRadius: "12px",
-        border: "1px solid #e5e7eb",
-        background: "#f9fafb",
+        borderRadius: "14px",
+        border: "3px solid #1a1a1a",
+        background: "#ffffff",
         marginBottom: "16px",
         overflow: "hidden",
+        boxShadow: enabled ? "4px 4px 0 #1a1a1a" : "2px 2px 0 #1a1a1a",
+        transition: "box-shadow 0.2s",
       }}
     >
-      {/* Header */}
+      {/* Header — pop art pink bar */}
       <div
         onClick={() => setExpanded(!expanded)}
         style={{
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          padding: "14px 16px",
+          padding: "12px 16px",
           cursor: "pointer",
-          background: enabled ? "#f0f4ff" : "#f9fafb",
+          background: enabled ? "#FF2D78" : "#f5f5f5",
+          position: "relative",
+          overflow: "hidden",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <h3 style={{ margin: 0, fontSize: "15px", fontWeight: 600, color: enabled ? "#4f46e5" : "#1f2937" }}>
+        {/* Halftone dots overlay when enabled */}
+        {enabled && (
+          <div style={{
+            position: "absolute", inset: 0,
+            backgroundImage: "radial-gradient(circle, rgba(255,255,255,0.15) 1.5px, transparent 1.5px)",
+            backgroundSize: "8px 8px",
+          }} />
+        )}
+        <div style={{ position: "relative", display: "flex", alignItems: "center", gap: "10px" }}>
+          <div style={{
+            width: "28px", height: "28px", borderRadius: "8px",
+            border: "2px solid #1a1a1a",
+            background: "#FFE135",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: "11px", fontWeight: 900, fontFamily: "'Arial Black', sans-serif",
+            boxShadow: "1px 1px 0 #1a1a1a",
+          }}>NM</div>
+          <h3 style={{
+            margin: 0, fontSize: "15px", fontWeight: 900,
+            fontFamily: "'Arial Black', 'Impact', sans-serif",
+            color: enabled ? "#fff" : "#1a1a1a",
+            textShadow: enabled ? "1px 1px 0 rgba(0,0,0,0.3)" : "none",
+          }}>
             New Metrics
           </h3>
-          {enabled && (
-            <span style={{ fontSize: "12px", background: "#4f46e5", color: "white", padding: "2px 8px", borderRadius: "999px" }}>
-              Enabled
-            </span>
-          )}
           {enabled && selectedElements.length > 0 && (
-            <span style={{ fontSize: "11px", color: "#6b7280" }}>
+            <span style={{
+              fontSize: "11px", fontWeight: 700, color: "rgba(255,255,255,0.9)",
+              background: "rgba(0,0,0,0.2)", padding: "2px 8px", borderRadius: "999px",
+            }}>
               {selectedElements.length} elements · {checkpointCount} checkpoint{checkpointCount !== 1 ? "s" : ""}
             </span>
           )}
@@ -159,12 +182,16 @@ export function NMConfigPanel({
           }}
           style={{
             position: "relative", width: "44px", height: "24px", borderRadius: "999px",
-            border: "none", background: enabled ? "#4f46e5" : "#d1d5db", cursor: "pointer", padding: 0,
+            border: "2px solid #1a1a1a", background: enabled ? "#FFE135" : "#d1d5db",
+            cursor: "pointer", padding: 0,
           }}
         >
           <div style={{
-            position: "absolute", top: "2px", left: enabled ? "22px" : "2px",
-            width: "20px", height: "20px", borderRadius: "999px", background: "white", transition: "left 0.2s",
+            position: "absolute", top: "1px", left: enabled ? "20px" : "1px",
+            width: "18px", height: "18px", borderRadius: "999px",
+            background: enabled ? "#1a1a1a" : "white",
+            border: "1px solid #1a1a1a",
+            transition: "left 0.2s",
           }} />
         </button>
       </div>
