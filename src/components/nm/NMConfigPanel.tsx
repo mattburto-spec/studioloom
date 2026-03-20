@@ -23,6 +23,8 @@ export function NMConfigPanel({
 }: NMConfigPanelProps) {
   const [expanded, setExpanded] = useState(false);
   const [enabled, setEnabled] = useState(currentConfig?.enabled ?? false);
+  const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saved" | "error">("idle");
   const [selectedCompetency, setSelectedCompetency] = useState(
     currentConfig?.competencies?.[0] ?? "agency_in_learning"
   );
@@ -84,14 +86,27 @@ export function NMConfigPanel({
     });
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const config: NMUnitConfig = {
       enabled,
       competencies: enabled ? [selectedCompetency] : [],
       elements: enabled ? selectedElements : [],
       checkpoints: enabled ? checkpoints : {},
     };
-    onSave(config);
+    setSaving(true);
+    setSaveStatus("idle");
+    try {
+      await onSave(config);
+      setSaveStatus("saved");
+      setTimeout(() => {
+        setExpanded(false);
+        setSaveStatus("idle");
+      }, 1200);
+    } catch {
+      setSaveStatus("error");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -423,18 +438,21 @@ export function NMConfigPanel({
             </button>
             <button
               onClick={handleSave}
+              disabled={saving}
               style={{
                 padding: "8px 16px",
                 borderRadius: "8px",
                 border: "none",
-                background: "#4f46e5",
+                background: saveStatus === "saved" ? "#059669" : saveStatus === "error" ? "#dc2626" : "#4f46e5",
                 color: "white",
                 fontSize: "13px",
                 fontWeight: 600,
-                cursor: "pointer",
+                cursor: saving ? "wait" : "pointer",
+                opacity: saving ? 0.7 : 1,
+                transition: "background 0.2s",
               }}
             >
-              Save Configuration
+              {saving ? "Saving..." : saveStatus === "saved" ? "Saved!" : saveStatus === "error" ? "Failed — try again" : "Save Configuration"}
             </button>
           </div>
         </div>

@@ -69,6 +69,7 @@ export default function UnitDetailPage({
   const [loading, setLoading] = useState(true);
   const [showFeedback, setShowFeedback] = useState(false);
   const [nmConfig, setNmConfig] = useState<NMUnitConfig>(DEFAULT_NM_CONFIG);
+  const [showLessons, setShowLessons] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -319,24 +320,48 @@ export default function UnitDetailPage({
           pages={pages.map((p, i) => ({ id: p.id, title: p.title || p.content?.title || `Page ${i + 1}` }))}
           currentConfig={nmConfig}
           onSave={async (config) => {
-            try {
-              await fetch("/api/teacher/nm-config", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ unitId, config }),
-              });
-              setNmConfig(config);
-            } catch (err) {
-              console.error("Failed to save NM config:", err);
+            const res = await fetch("/api/teacher/nm-config", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ unitId, config }),
+            });
+            if (!res.ok) {
+              const errData = await res.json().catch(() => ({}));
+              console.error("Failed to save NM config:", errData);
+              throw new Error(errData.error || "Save failed");
             }
+            setNmConfig(config);
           }}
         />
       </div>
 
       {/* ----------------------------------------------------------------- */}
-      {/* Lesson / page list — SkeletonReview card style                     */}
+      {/* Lesson / page list — collapsible                                   */}
       {/* ----------------------------------------------------------------- */}
-      {isTimelineUnit ? (
+      <button
+        onClick={() => setShowLessons(!showLessons)}
+        className="w-full flex items-center justify-between px-4 py-3 rounded-xl border border-border bg-white hover:bg-surface-alt transition-colors mb-2"
+      >
+        <span className="text-sm font-medium text-text-primary">
+          Unit Plan — {isTimelineUnit ? lessons.length : pages.length}{" "}
+          {isTimelineUnit || isJourneyUnit ? "lessons" : "pages"}
+        </span>
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className={`text-text-tertiary transition-transform ${showLessons ? "rotate-180" : ""}`}
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+
+      {showLessons && isTimelineUnit ? (
         <div className="space-y-6">
           {phaseGroups.map((phase) => (
             <div key={phase.groupKey}>
@@ -368,7 +393,7 @@ export default function UnitDetailPage({
             </div>
           ))}
         </div>
-      ) : (
+      ) : showLessons ? (
         <div className="space-y-6">
           {pageGroups.map((group) => (
             <div key={group.groupKey}>
@@ -416,7 +441,7 @@ export default function UnitDetailPage({
         </div>
       )}
 
-      {pages.length === 0 && lessons.length === 0 && (
+      {showLessons && pages.length === 0 && lessons.length === 0 && (
         <div className="py-12 text-center">
           <p className="text-text-secondary text-sm">No content yet.</p>
           <Link href={`/teacher/units/${unitId}/edit`} className="text-accent-blue text-xs mt-2 inline-block">
