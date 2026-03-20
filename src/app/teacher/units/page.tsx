@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { getPageList, isV3, isV4, normalizeContentData } from "@/lib/unit-adapter";
 import type { Unit } from "@/types";
 import { CRITERIA, type CriterionKey, getPageColor, MYP_GRADE_LEVELS } from "@/lib/constants";
+import { UnitThumbnail } from "@/components/shared/UnitThumbnail";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -578,15 +579,11 @@ export default function TeacherUnitsPage() {
                     className="bg-white rounded-xl overflow-hidden hover:shadow-md transition-shadow flex flex-col"
                   >
                     <Link href={`/teacher/units/${unit.id}`} className="block flex-1">
-                      <div className="w-full h-36 bg-surface-alt">
-                        {unit.thumbnail_url ? (
-                          <img src={unit.thumbnail_url} alt="" className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-3xl text-text-secondary/30">
-                            &#x1F5BC;
-                          </div>
-                        )}
-                      </div>
+                      <UnitThumbnail
+                        thumbnailUrl={unit.thumbnail_url}
+                        title={unit.title}
+                        className="w-full h-36"
+                      />
                       <div className="px-4 pt-3 pb-2">
                         <p className="font-medium text-text-primary text-sm leading-snug line-clamp-2">
                           {unit.title}

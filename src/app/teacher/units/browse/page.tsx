@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { MYP_GRADE_LEVELS, PAGES, CRITERIA, type CriterionKey } from "@/lib/constants";
+import { UnitThumbnail } from "@/components/shared/UnitThumbnail";
 
 interface RepoUnit {
   id: string;
@@ -145,32 +146,11 @@ export default function BrowseUnitsPage() {
               className="bg-white rounded-xl border border-border overflow-hidden hover:shadow-md transition"
             >
               {/* Thumbnail */}
-              <div className="h-32 bg-surface-alt relative">
-                {unit.thumbnail_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={unit.thumbnail_url}
-                    alt=""
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    {/* Mini page grid */}
-                    <div className="grid gap-0.5" style={{ gridTemplateColumns: "repeat(16, 1fr)" }}>
-                      {PAGES.map((page) => {
-                        const c = CRITERIA[page.criterion as CriterionKey];
-                        return (
-                          <div
-                            key={page.id}
-                            className="w-2 h-2 rounded-sm"
-                            style={{ backgroundColor: c.color, opacity: 0.4 }}
-                          />
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
+              <UnitThumbnail
+                thumbnailUrl={unit.thumbnail_url}
+                title={unit.title}
+                className="h-32"
+              />
 
               {/* Content */}
               <div className="p-4">
