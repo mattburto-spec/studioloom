@@ -103,7 +103,7 @@ export default function OpenStudioPage({
 
         if (!statusData.unlocked) {
           // Not unlocked — redirect back to unit with message
-          router.push(`/unit/${unitId}?locked=true`);
+          router.push(`/unit/${unitId}/narrative?locked=true`);
           return;
         }
 
@@ -333,7 +333,7 @@ export default function OpenStudioPage({
           }}
         >
           <Link
-            href={`/unit/${unitId}`}
+            href={`/unit/${unitId}/narrative`}
             style={{
               display: "flex",
               alignItems: "center",
