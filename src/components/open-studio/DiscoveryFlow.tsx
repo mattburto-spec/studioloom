@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { QuestBubble } from "./QuestBubble";
-import { ComicPanel, StepTransition } from "./ComicPanel";
+import { ComicPanel, StepTransition, ProfileReveal, STEP_SCENES } from "./ComicPanel";
 
 interface ConversationMessage {
   role: "ai" | "student";
@@ -58,7 +58,6 @@ export function DiscoveryFlow({ unitId, onComplete, onStepChange }: DiscoveryFlo
   const [isInitializing, setIsInitializing] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastCompletedStep, setLastCompletedStep] = useState<string | null>(null);
-  const [showProfilePanel, setShowProfilePanel] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -197,88 +196,122 @@ export function DiscoveryFlow({ unitId, onComplete, onStepChange }: DiscoveryFlo
   const isDiscoveryComplete = profile?.completed_at !== null;
   const archetypeInfo = profile?.archetype ? ARCHETYPE_LABELS[profile.archetype] : null;
 
+  // Build profile items for inline reveals
+  const profileStrengths = (profile?.strengths || []).map(s => ({ title: s.area, detail: s.description }));
+  const profileInterests = (profile?.interests || []).map(i => ({ title: i.topic, detail: i.category }));
+  const profileNeeds = (profile?.needs_identified || []).map(n => ({ title: n.need, detail: n.context }));
+
+  // Track which steps have profile data to show inline reveals
+  const lastMentorMsgPerStep: Record<string, number> = {};
+  conversation.forEach((msg, idx) => {
+    if (msg.role === "ai") lastMentorMsgPerStep[msg.step] = idx;
+  });
+
   return (
     <div
       style={{
         display: "flex",
-        gap: "24px",
+        flexDirection: "column",
         height: "800px",
-        backgroundColor: "#0f0f1e",
+        backgroundColor: "#0a0a14",
         borderRadius: "16px",
         overflow: "hidden",
         fontFamily: "system-ui, -apple-system, sans-serif",
       }}
     >
-      {/* Main chat area */}
-      <div
+      {/* Step progress bar — compact, always visible */}
+      <motion.div
         style={{
-          flex: 1,
+          padding: "12px 20px",
+          borderBottom: "1px solid #1e1e3f",
+          backgroundColor: "#0f0f1e",
           display: "flex",
-          flexDirection: "column",
-          backgroundColor: "#0a0a14",
-          borderRight: "1px solid #1e1e3f",
+          alignItems: "center",
+          gap: "16px",
         }}
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
       >
-        {/* Step indicator */}
-        <motion.div
-          style={{
-            padding: "20px",
-            borderBottom: "1px solid #1e1e3f",
-            backgroundColor: "#0f0f1e",
-          }}
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          <div style={{ marginBottom: "16px" }}>
-            <div style={{ fontSize: "20px", fontWeight: "600", color: "#ffffff", marginBottom: "4px" }}>
-              {stepInfo.icon} {stepInfo.title}
-            </div>
-            <div style={{ fontSize: "14px", color: "#a0a0b0" }}>{stepInfo.subtitle}</div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: "15px", fontWeight: "600", color: "#ffffff" }}>
+            {stepInfo.icon} {stepInfo.title}
           </div>
+          <div style={{ fontSize: "12px", color: "#a0a0b0" }}>{stepInfo.subtitle}</div>
+        </div>
 
-          {/* Progress dots */}
-          <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
-            {STEP_ORDER.map((step, idx) => {
-              const isActive = idx <= stepIndex;
-              const isCurrentStep = step === currentStep;
-              return (
-                <motion.div
-                  key={step}
-                  style={{
-                    width: "8px",
-                    height: "8px",
-                    borderRadius: "50%",
-                    backgroundColor: isActive ? "#7c3aed" : "#2a2a3e",
-                    transition: "background-color 0.3s",
-                  }}
-                  animate={{ scale: isCurrentStep ? 1.5 : 1 }}
-                />
-              );
-            })}
-          </div>
-        </motion.div>
+        {/* Progress steps as mini comic panels */}
+        <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+          {STEP_ORDER.map((step, idx) => {
+            const isActive = idx <= stepIndex;
+            const isCurrentStep = step === currentStep;
+            const si = STEP_INFO[step];
+            const sc = STEP_SCENES[step] || STEP_SCENES.strengths;
+            return (
+              <motion.div
+                key={step}
+                animate={{ scale: isCurrentStep ? 1.1 : 1 }}
+                style={{
+                  width: isCurrentStep ? "auto" : "28px",
+                  height: "28px",
+                  borderRadius: "6px",
+                  border: `2px solid ${isActive ? sc.accent : "#2a2a3e"}`,
+                  background: isActive ? `${sc.accent}22` : "transparent",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  padding: isCurrentStep ? "0 10px" : "0",
+                  gap: "4px",
+                  transition: "all 0.3s",
+                }}
+              >
+                <span style={{ fontSize: "12px" }}>{si?.icon}</span>
+                {isCurrentStep && (
+                  <span style={{ fontSize: "10px", fontWeight: 700, color: sc.accent, whiteSpace: "nowrap" }}>
+                    {si?.title}
+                  </span>
+                )}
+              </motion.div>
+            );
+          })}
+        </div>
+      </motion.div>
 
-        {/* Comic strip conversation area */}
+        {/* Comic strip — the main visual experience */}
         <div
           style={{
             flex: 1,
             overflowY: "auto",
-            padding: "24px",
+            padding: "20px",
             display: "flex",
             flexDirection: "column",
-            gap: "12px",
+            gap: "10px",
           }}
         >
           <AnimatePresence mode="popLayout">
             {conversation.map((msg, idx) => {
-              // Detect step transitions — show a cinematic panel
               const prevMsg = idx > 0 ? conversation[idx - 1] : null;
               const isNewStep = prevMsg && prevMsg.step !== msg.step && msg.role === "ai";
               const msgStepInfo = STEP_INFO[msg.step] || STEP_INFO.strengths;
 
+              // Show profile reveals after the last mentor message of a completed step
+              const showStrengthReveal = msg.step === "interests" && isNewStep && profileStrengths.length > 0;
+              const showInterestReveal = msg.step === "needs" && isNewStep && profileInterests.length > 0;
+              const showNeedReveal = msg.step === "narrowing" && isNewStep && profileNeeds.length > 0;
+
               return (
                 <div key={`${msg.timestamp}-${idx}`}>
-                  {/* Cinematic step transition panel */}
+                  {/* Profile reveal — what was discovered in the previous step */}
+                  {showStrengthReveal && (
+                    <ProfileReveal label="Strengths Discovered" icon="💪" items={profileStrengths} accentColor="#a78bfa" />
+                  )}
+                  {showInterestReveal && (
+                    <ProfileReveal label="Interests Found" icon="🔥" items={profileInterests} accentColor="#60a5fa" />
+                  )}
+                  {showNeedReveal && (
+                    <ProfileReveal label="Needs Identified" icon="🌍" items={profileNeeds} accentColor="#34d399" />
+                  )}
+
+                  {/* Cinematic step transition */}
                   {isNewStep && (
                     <StepTransition
                       step={msg.step}
@@ -288,7 +321,7 @@ export function DiscoveryFlow({ unitId, onComplete, onStepChange }: DiscoveryFlo
                     />
                   )}
 
-                  {/* Comic panel for the message */}
+                  {/* Comic panel */}
                   <ComicPanel
                     speaker={msg.role === "ai" ? "mentor" : "student"}
                     step={msg.step}
@@ -299,18 +332,13 @@ export function DiscoveryFlow({ unitId, onComplete, onStepChange }: DiscoveryFlo
                   >
                     <div>
                       <div style={{ whiteSpace: "pre-wrap" }}>{msg.content}</div>
-                      <div style={{ fontSize: "10px", color: "#71717a", marginTop: "8px", textAlign: msg.role === "ai" ? "left" : "right" }}>
-                        {new Date(msg.timestamp).toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </div>
                     </div>
                   </ComicPanel>
                 </div>
               );
             })}
 
+            {/* Loading panel */}
             {isLoading && (
               <ComicPanel
                 key="loading"
@@ -321,54 +349,39 @@ export function DiscoveryFlow({ unitId, onComplete, onStepChange }: DiscoveryFlo
                 <motion.div
                   animate={{ opacity: [0.3, 1, 0.3] }}
                   transition={{ duration: 1.5, repeat: Infinity }}
-                  style={{ color: "#a78bfa", display: "flex", gap: "4px", alignItems: "center" }}
+                  style={{ color: "#7c3aed", display: "flex", gap: "2px" }}
                 >
                   <span>Thinking</span>
-                  <motion.span animate={{ opacity: [0, 1, 0] }} transition={{ duration: 1, repeat: Infinity, delay: 0 }}>.</motion.span>
-                  <motion.span animate={{ opacity: [0, 1, 0] }} transition={{ duration: 1, repeat: Infinity, delay: 0.2 }}>.</motion.span>
-                  <motion.span animate={{ opacity: [0, 1, 0] }} transition={{ duration: 1, repeat: Infinity, delay: 0.4 }}>.</motion.span>
+                  <motion.span animate={{ opacity: [0, 1, 0] }} transition={{ duration: 0.8, repeat: Infinity, delay: 0 }}>.</motion.span>
+                  <motion.span animate={{ opacity: [0, 1, 0] }} transition={{ duration: 0.8, repeat: Infinity, delay: 0.2 }}>.</motion.span>
+                  <motion.span animate={{ opacity: [0, 1, 0] }} transition={{ duration: 0.8, repeat: Infinity, delay: 0.4 }}>.</motion.span>
                 </motion.div>
               </ComicPanel>
             )}
 
+            {/* Step complete badge */}
             {lastCompletedStep && lastCompletedStep === currentStep && !isLoading && (
               <motion.div
                 key={`complete-${lastCompletedStep}`}
-                initial={{ opacity: 0, y: 10, scale: 0.9 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
                 transition={{ type: "spring", stiffness: 200 }}
-                style={{
-                  display: "flex",
-                  justifyContent: "center",
-                  marginTop: "8px",
-                }}
+                style={{ display: "flex", justifyContent: "center", margin: "8px 0" }}
               >
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: "auto" }}
+                <div
                   style={{
-                    backgroundColor: "#7c3aed",
-                    color: "#ffffff",
+                    background: "linear-gradient(135deg, #7c3aed, #a78bfa)",
+                    color: "#fff",
                     padding: "8px 20px",
                     borderRadius: "20px",
                     fontSize: "13px",
-                    fontWeight: "600",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    overflow: "hidden",
-                    whiteSpace: "nowrap",
+                    fontWeight: 700,
+                    border: "2px solid #c084fc",
+                    boxShadow: "0 2px 8px rgba(124,58,237,0.3)",
                   }}
                 >
-                  <motion.span
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ type: "spring", delay: 0.1 }}
-                  >
-                    ✓
-                  </motion.span>
-                  Step complete — onward!
-                </motion.div>
+                  ✓ Step complete — onward!
+                </div>
               </motion.div>
             )}
           </AnimatePresence>
@@ -486,178 +499,38 @@ export function DiscoveryFlow({ unitId, onComplete, onStepChange }: DiscoveryFlo
             </button>
           </motion.div>
         )}
-      </div>
 
-      {/* Side profile panel */}
-      {profile && (
+      {/* Project statement bar — shows when discovered, replaces side panel */}
+      {profile?.project_statement && (
         <motion.div
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
           style={{
-            width: "320px",
-            backgroundColor: "#0f0f1e",
-            borderLeft: "1px solid #1e1e3f",
-            padding: "24px",
-            overflowY: "auto",
-            display: showProfilePanel ? "flex" : "none",
-            flexDirection: "column",
-            gap: "24px",
+            padding: "12px 20px",
+            borderTop: "1px solid #1e1e3f",
+            background: "linear-gradient(135deg, #7c3aed11, #7c3aed08)",
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
           }}
         >
-          {/* Project statement */}
-          {profile.project_statement && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-            >
-              <div style={{ fontSize: "12px", fontWeight: "600", color: "#7c3aed", textTransform: "uppercase", marginBottom: "8px" }}>
-                Your Project
-              </div>
-              <div style={{ fontSize: "14px", color: "#e0e0e8", lineHeight: "1.5" }}>
-                {profile.project_statement}
-              </div>
-            </motion.div>
-          )}
-
-          {/* Archetype badge */}
           {archetypeInfo && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-            >
-              <div style={{ fontSize: "12px", fontWeight: "600", color: "#7c3aed", textTransform: "uppercase", marginBottom: "8px" }}>
-                You Are A
-              </div>
-              <div
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  backgroundColor: "#7c3aed20",
-                  padding: "8px 12px",
-                  borderRadius: "6px",
-                  border: "1px solid #7c3aed40",
-                }}
-              >
-                <span style={{ fontSize: "18px" }}>{archetypeInfo.icon}</span>
-                <span style={{ fontSize: "14px", fontWeight: "600", color: "#c4b5fd" }}>
-                  {archetypeInfo.label}
-                </span>
-              </div>
-            </motion.div>
+            <span style={{
+              fontSize: "11px",
+              fontWeight: 700,
+              color: "#c4b5fd",
+              background: "#7c3aed22",
+              padding: "4px 10px",
+              borderRadius: "12px",
+              border: "1px solid #7c3aed33",
+              whiteSpace: "nowrap",
+            }}>
+              {archetypeInfo.icon} {archetypeInfo.label}
+            </span>
           )}
-
-          {/* Strengths section */}
-          {profile.strengths.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-            >
-              <div style={{ fontSize: "12px", fontWeight: "600", color: "#7c3aed", textTransform: "uppercase", marginBottom: "12px" }}>
-                💪 Strengths ({profile.strengths.length})
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                {profile.strengths.map((s, idx) => (
-                  <motion.div
-                    key={idx}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: idx * 0.1 }}
-                    style={{
-                      padding: "10px",
-                      backgroundColor: "#1a1a2e",
-                      borderLeft: "3px solid #7c3aed",
-                      borderRadius: "4px",
-                    }}
-                  >
-                    <div style={{ fontSize: "13px", fontWeight: "600", color: "#e0e0e8" }}>
-                      {s.area}
-                    </div>
-                    <div style={{ fontSize: "12px", color: "#a0a0b0", marginTop: "4px" }}>
-                      {s.description}
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-            </motion.div>
-          )}
-
-          {/* Interests section */}
-          {profile.interests.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-            >
-              <div style={{ fontSize: "12px", fontWeight: "600", color: "#7c3aed", textTransform: "uppercase", marginBottom: "12px" }}>
-                🔥 Interests ({profile.interests.length})
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                {profile.interests.map((i, idx) => (
-                  <motion.div
-                    key={idx}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: idx * 0.1 }}
-                    style={{
-                      padding: "10px",
-                      backgroundColor: "#1a1a2e",
-                      borderLeft: "3px solid #f59e0b",
-                      borderRadius: "4px",
-                    }}
-                  >
-                    <div style={{ fontSize: "13px", fontWeight: "600", color: "#e0e0e8" }}>
-                      {i.topic}
-                    </div>
-                    <div style={{ fontSize: "12px", color: "#a0a0b0" }}>{i.category}</div>
-                  </motion.div>
-                ))}
-              </div>
-            </motion.div>
-          )}
-
-          {/* Needs section */}
-          {profile.needs_identified.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-            >
-              <div style={{ fontSize: "12px", fontWeight: "600", color: "#7c3aed", textTransform: "uppercase", marginBottom: "12px" }}>
-                🌍 Needs ({profile.needs_identified.length})
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                {profile.needs_identified.map((n, idx) => (
-                  <motion.div
-                    key={idx}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: idx * 0.1 }}
-                    style={{
-                      padding: "10px",
-                      backgroundColor: "#1a1a2e",
-                      borderLeft: "3px solid #10b981",
-                      borderRadius: "4px",
-                    }}
-                  >
-                    <div style={{ fontSize: "13px", fontWeight: "600", color: "#e0e0e8" }}>
-                      {n.need}
-                    </div>
-                    <div style={{ fontSize: "12px", color: "#a0a0b0", marginTop: "4px" }}>
-                      {n.context}
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-            </motion.div>
-          )}
-
-          {/* Empty state */}
-          {profile.strengths.length === 0 &&
-            profile.interests.length === 0 &&
-            profile.needs_identified.length === 0 && (
-              <div style={{ textAlign: "center", color: "#a0a0b0", fontSize: "13px" }}>
-                💭 Start sharing to build your profile
-              </div>
-            )}
+          <span style={{ fontSize: "13px", color: "#c4b5fd", fontWeight: 500 }}>
+            {profile.project_statement}
+          </span>
         </motion.div>
       )}
     </div>

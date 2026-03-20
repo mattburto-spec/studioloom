@@ -1,4 +1,4 @@
-export { ComicPanel, StepTransition } from "./ComicPanel";
+export { ComicPanel, StepTransition, ProfileReveal, MentorCharacter, StudentCharacter } from "./ComicPanel";
 export { DiscoveryFlow } from "./DiscoveryFlow";
 export { JourneyMap, type JourneyPhase } from "./JourneyMap";
 export { OpenStudioBanner } from "./OpenStudioBanner";
