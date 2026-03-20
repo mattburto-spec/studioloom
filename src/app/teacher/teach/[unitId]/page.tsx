@@ -751,8 +751,8 @@ export default function TeachingDashboard({
             >
               <span>📋 Teaching Notes</span>
               <svg
-                width: "12", height: "12", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor",
-                strokeWidth: "2.5", style={{ transition: "transform 0.2s", transform: showNotes ? "rotate(180deg)" : "rotate(0deg)" }}
+                width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                strokeWidth="2.5" style={{ transition: "transform 0.2s", transform: showNotes ? "rotate(180deg)" : "rotate(0deg)" }}
               >
                 <path d="M6 9l6 6 6-6" />
               </svg>
@@ -859,8 +859,8 @@ export default function TeachingDashboard({
               >
                 <span>🚀 Extensions ({extensions.length})</span>
                 <svg
-                  width: "12", height: "12", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor",
-                  strokeWidth: "2.5", style={{ transition: "transform 0.2s", transform: showExtensions ? "rotate(180deg)" : "rotate(0deg)" }}
+                  width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                  strokeWidth="2.5" style={{ transition: "transform 0.2s", transform: showExtensions ? "rotate(180deg)" : "rotate(0deg)" }}
                 >
                   <path d="M6 9l6 6 6-6" />
                 </svg>
