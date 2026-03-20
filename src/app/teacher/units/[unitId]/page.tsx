@@ -4,7 +4,7 @@ import { useState, useEffect, use } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import TeacherFeedbackForm from "@/components/teacher/knowledge/TeacherFeedbackForm";
-import { NMConfigPanel } from "@/components/nm";
+import { NMConfigPanel, NMResultsPanel } from "@/components/nm";
 import type { NMUnitConfig } from "@/lib/nm/constants";
 import { DEFAULT_NM_CONFIG } from "@/lib/nm/constants";
 import {
@@ -334,6 +334,15 @@ export default function UnitDetailPage({
           }}
         />
       </div>
+
+      {/* ----------------------------------------------------------------- */}
+      {/* New Metrics results panel                                          */}
+      {/* ----------------------------------------------------------------- */}
+      {nmConfig.enabled && (
+        <div className="mb-6">
+          <NMResultsPanel unitId={unitId} />
+        </div>
+      )}
 
       {/* ----------------------------------------------------------------- */}
       {/* Lesson / page list — collapsible                                   */}
