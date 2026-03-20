@@ -45,6 +45,7 @@ export function OpenStudioClassView({ unitId, classId }: OpenStudioClassViewProp
   const [loading, setLoading] = useState(true);
   const [grantingId, setGrantingId] = useState<string | null>(null);
   const [grantNote, setGrantNote] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
   const fetchStudents = useCallback(async () => {
     try {
@@ -67,6 +68,7 @@ export function OpenStudioClassView({ unitId, classId }: OpenStudioClassViewProp
   }, [fetchStudents]);
 
   const grantOpenStudio = async (studentId: string) => {
+    setError(null);
     try {
       const res = await fetch("/api/teacher/open-studio/status", {
         method: "POST",
@@ -82,9 +84,14 @@ export function OpenStudioClassView({ unitId, classId }: OpenStudioClassViewProp
         setGrantingId(null);
         setGrantNote("");
         fetchStudents();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        console.error("[OpenStudioClassView] Grant failed:", res.status, data);
+        setError(data.error || `Grant failed (${res.status})`);
       }
-    } catch {
-      // Handle error
+    } catch (err) {
+      console.error("[OpenStudioClassView] Network error:", err);
+      setError("Network error");
     }
   };
 
@@ -102,23 +109,6 @@ export function OpenStudioClassView({ unitId, classId }: OpenStudioClassViewProp
       if (res.ok) {
         fetchStudents();
       }
-    } catch {
-      // Handle error
-    }
-  };
-
-  const updateInterval = async (statusId: string, interval: number) => {
-    try {
-      await fetch("/api/teacher/open-studio/status", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          statusId,
-          action: "update",
-          checkInIntervalMin: interval,
-        }),
-      });
-      fetchStudents();
     } catch {
       // Handle error
     }
@@ -168,6 +158,29 @@ export function OpenStudioClassView({ unitId, classId }: OpenStudioClassViewProp
           <div style={{ fontSize: "13px", color: "#6b7280" }}>Guided</div>
         </div>
       </div>
+
+      {/* Error display */}
+      {error && (
+        <div
+          style={{
+            background: "#fef2f2",
+            border: "1px solid #fca5a5",
+            borderRadius: "8px",
+            padding: "10px 14px",
+            marginBottom: "12px",
+            fontSize: "13px",
+            color: "#dc2626",
+          }}
+        >
+          {error}
+          <button
+            onClick={() => setError(null)}
+            style={{ marginLeft: "8px", fontWeight: 600, cursor: "pointer", background: "none", border: "none", color: "#dc2626" }}
+          >
+            &#10005;
+          </button>
+        </div>
+      )}
 
       {/* Unlocked students */}
       {unlocked.length > 0 && (
@@ -219,28 +232,19 @@ export function OpenStudioClassView({ unitId, classId }: OpenStudioClassViewProp
               </div>
 
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                {/* Check-in interval control */}
-                <select
-                  value={openStudio?.check_in_interval_min || 15}
-                  onChange={(e) =>
-                    openStudio &&
-                    updateInterval(openStudio.id, parseInt(e.target.value))
-                  }
+                {/* Journey status — plan will be set during Discovery/Planning */}
+                <span
                   style={{
-                    padding: "4px 8px",
+                    padding: "4px 10px",
                     borderRadius: "6px",
-                    border: "1px solid #ddd6fe",
-                    fontSize: "12px",
-                    background: "white",
+                    background: "#f5f3ff",
+                    fontSize: "11px",
+                    color: "#7c3aed",
+                    fontWeight: 500,
                   }}
-                  title="Check-in interval"
                 >
-                  <option value={5}>5 min</option>
-                  <option value={10}>10 min</option>
-                  <option value={15}>15 min</option>
-                  <option value={20}>20 min</option>
-                  <option value={30}>30 min</option>
-                </select>
+                  {openStudio?.check_in_interval_min ? "Awaiting journey plan" : "No plan yet"}
+                </span>
 
                 <button
                   onClick={() => openStudio && revokeOpenStudio(openStudio.id)}

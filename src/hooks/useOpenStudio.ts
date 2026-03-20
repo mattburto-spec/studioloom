@@ -146,38 +146,16 @@ export function useOpenStudio(unitId: string | null): UseOpenStudioReturn {
     [state?.activeSession, unitId, fetchStatus]
   );
 
-  // Set up check-in timer when session is active
+  // Clean up timers when session ends
   useEffect(() => {
     if (!state?.unlocked || !state.activeSession) {
       if (checkInTimerRef.current) clearInterval(checkInTimerRef.current);
       if (driftTimerRef.current) clearTimeout(driftTimerRef.current);
-      return;
     }
-
-    const intervalMs = state.checkInIntervalMin * 60 * 1000;
-
-    // Periodic check-in
-    checkInTimerRef.current = setInterval(() => {
-      checkInCountRef.current += 1;
-
-      // Every 3rd check-in, do a documentation nudge instead
-      if (checkInCountRef.current % 3 === 0) {
-        triggerCheckIn("documentation_nudge");
-      }
-      // Every 5th check-in, do an alignment check
-      else if (checkInCountRef.current % 5 === 0) {
-        triggerCheckIn("alignment_check");
-      }
-      // Regular check-in
-      else {
-        triggerCheckIn("check_in");
-      }
-    }, intervalMs);
-
-    return () => {
-      if (checkInTimerRef.current) clearInterval(checkInTimerRef.current);
-    };
-  }, [state?.unlocked, state?.activeSession, state?.checkInIntervalMin, triggerCheckIn]);
+    // Note: Periodic check-ins are disabled — they will be driven by the
+    // student's journey plan (built during Discovery/Planning) rather than
+    // a crude repeating timer. Drift detection (inactivity) remains active.
+  }, [state?.unlocked, state?.activeSession]);
 
   // Set up drift detection (resets on activity)
   const resetDriftTimer = useCallback(() => {

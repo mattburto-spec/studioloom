@@ -34,9 +34,11 @@ export function OpenStudioUnlock({
   const [showModal, setShowModal] = useState(false);
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   async function handleUnlock() {
     setSubmitting(true);
+    setErrorMsg(null);
     try {
       const res = await fetch("/api/teacher/open-studio/status", {
         method: "POST",
@@ -52,9 +54,15 @@ export function OpenStudioUnlock({
         setUnlocked(true);
         setShowModal(false);
         onUnlocked?.();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        const msg = data.error || data.details || `Failed (${res.status})`;
+        console.error("[OpenStudioUnlock] Unlock failed:", res.status, msg);
+        setErrorMsg(msg);
       }
-    } catch {
-      // Silent fail — will retry
+    } catch (err) {
+      console.error("[OpenStudioUnlock] Network error:", err);
+      setErrorMsg("Network error — check your connection");
     } finally {
       setSubmitting(false);
     }
@@ -159,6 +167,13 @@ export function OpenStudioUnlock({
                 This note appears when they see Open Studio is unlocked. A personal message makes it feel earned.
               </p>
             </div>
+
+            {errorMsg && (
+              <div className="mb-3 p-3 rounded-lg bg-red-50 border border-red-200">
+                <p className="text-sm text-red-700 font-medium">Unlock failed</p>
+                <p className="text-xs text-red-600 mt-0.5">{errorMsg}</p>
+              </div>
+            )}
 
             <div className="flex gap-2">
               <button

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 /**
  * Teacher Open Studio Status API
@@ -9,14 +10,15 @@ import { createServerClient } from "@supabase/ssr";
  *
  * POST /api/teacher/open-studio/status
  *   → Grant Open Studio to a student (teacher unlock).
- *   Body: { studentId, unitId, classId, teacherNote?, checkInIntervalMin?, carryForward? }
+ *   Body: { studentId, unitId, classId, teacherNote?, carryForward? }
  *
  * PATCH /api/teacher/open-studio/status
  *   → Revoke Open Studio or update settings.
- *   Body: { statusId, action: "revoke" | "update", reason?, checkInIntervalMin?, carryForward? }
+ *   Body: { statusId, action: "revoke" | "update", reason?, carryForward? }
  */
 
-function getSupabase(request: NextRequest) {
+/** Auth-only client — used solely to verify teacher identity via cookies */
+function getAuthClient(request: NextRequest) {
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -31,14 +33,25 @@ function getSupabase(request: NextRequest) {
   );
 }
 
-export async function GET(request: NextRequest) {
-  const supabase = getSupabase(request);
+/** Verify teacher auth, return user or error response */
+async function verifyTeacher(request: NextRequest) {
+  const supabase = getAuthClient(request);
+  const {
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
 
-  // Verify teacher auth
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return { user: null, error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   }
+  return { user, error: null };
+}
+
+export async function GET(request: NextRequest) {
+  const { user, error: authErr } = await verifyTeacher(request);
+  if (authErr) return authErr;
+
+  const db = createAdminClient();
 
   const { searchParams } = new URL(request.url);
   const unitId = searchParams.get("unitId");
@@ -52,11 +65,11 @@ export async function GET(request: NextRequest) {
   }
 
   // Verify teacher owns this class
-  const { data: classData } = await supabase
+  const { data: classData } = await db
     .from("classes")
     .select("id")
     .eq("id", classId)
-    .eq("teacher_id", user.id)
+    .eq("teacher_id", user!.id)
     .single();
 
   if (!classData) {
@@ -64,12 +77,12 @@ export async function GET(request: NextRequest) {
   }
 
   // Get all students in the class with their Open Studio status
-  const { data: students } = await supabase
+  const { data: students } = await db
     .from("students")
     .select("id, username, display_name, avatar_url, ell_level")
     .eq("class_id", classId);
 
-  const { data: statuses } = await supabase
+  const { data: statuses } = await db
     .from("open_studio_status")
     .select("*")
     .eq("unit_id", unitId)
@@ -89,12 +102,10 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const supabase = getSupabase(request);
+  const { user, error: authErr } = await verifyTeacher(request);
+  if (authErr) return authErr;
 
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const db = createAdminClient();
 
   const body = await request.json();
   const {
@@ -102,14 +113,12 @@ export async function POST(request: NextRequest) {
     unitId,
     classId,
     teacherNote,
-    checkInIntervalMin = 15,
     carryForward = false,
   } = body as {
     studentId: string;
     unitId: string;
     classId: string;
     teacherNote?: string;
-    checkInIntervalMin?: number;
     carryForward?: boolean;
   };
 
@@ -121,19 +130,20 @@ export async function POST(request: NextRequest) {
   }
 
   // Verify teacher owns this class
-  const { data: classData } = await supabase
+  const { data: classData } = await db
     .from("classes")
     .select("id")
     .eq("id", classId)
-    .eq("teacher_id", user.id)
+    .eq("teacher_id", user!.id)
     .single();
 
   if (!classData) {
+    console.error("[open-studio] Class not found for teacher:", user!.id, "class:", classId);
     return NextResponse.json({ error: "Class not found" }, { status: 404 });
   }
 
   // Verify student belongs to this class
-  const { data: student } = await supabase
+  const { data: student } = await db
     .from("students")
     .select("id")
     .eq("id", studentId)
@@ -141,11 +151,12 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (!student) {
+    console.error("[open-studio] Student not in class:", studentId, "class:", classId);
     return NextResponse.json({ error: "Student not found in class" }, { status: 404 });
   }
 
   // Upsert Open Studio status (unlock)
-  const { data: status, error } = await supabase
+  const { data: status, error } = await db
     .from("open_studio_status")
     .upsert(
       {
@@ -155,7 +166,7 @@ export async function POST(request: NextRequest) {
         status: "unlocked",
         unlocked_by: "teacher",
         teacher_note: teacherNote || null,
-        check_in_interval_min: Math.max(5, Math.min(30, checkInIntervalMin)),
+        check_in_interval_min: 15,
         carry_forward: carryForward,
         unlocked_at: new Date().toISOString(),
         revoked_at: null,
@@ -167,36 +178,33 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (error) {
-    console.error("[open-studio] Grant error:", error);
+    console.error("[open-studio] Grant error:", error.message, error.details, error.hint);
     return NextResponse.json(
-      { error: "Failed to grant Open Studio" },
+      { error: "Failed to grant Open Studio", details: error.message },
       { status: 500 }
     );
   }
 
+  console.log("[open-studio] Granted Open Studio:", status.id, "student:", studentId, "unit:", unitId);
   return NextResponse.json({ status });
 }
 
 export async function PATCH(request: NextRequest) {
-  const supabase = getSupabase(request);
+  const { user, error: authErr } = await verifyTeacher(request);
+  if (authErr) return authErr;
 
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const db = createAdminClient();
 
   const body = await request.json();
   const {
     statusId,
     action,
     reason,
-    checkInIntervalMin,
     carryForward,
   } = body as {
     statusId: string;
     action: "revoke" | "update";
     reason?: string;
-    checkInIntervalMin?: number;
     carryForward?: boolean;
   };
 
@@ -208,7 +216,7 @@ export async function PATCH(request: NextRequest) {
   }
 
   // Verify teacher owns the class associated with this status
-  const { data: existing } = await supabase
+  const { data: existing } = await db
     .from("open_studio_status")
     .select("*, classes!inner(teacher_id)")
     .eq("id", statusId)
@@ -219,13 +227,13 @@ export async function PATCH(request: NextRequest) {
   }
 
   // Verify the authenticated teacher owns this class
-  const classData = (existing as Record<string, unknown>).classes as { teacher_id: string } | null;
-  if (!classData || classData.teacher_id !== user.id) {
+  const classInfo = (existing as Record<string, unknown>).classes as { teacher_id: string } | null;
+  if (!classInfo || classInfo.teacher_id !== user!.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
   if (action === "revoke") {
-    const { data: updated, error } = await supabase
+    const { data: updated, error } = await db
       .from("open_studio_status")
       .update({
         status: "revoked",
@@ -237,6 +245,7 @@ export async function PATCH(request: NextRequest) {
       .single();
 
     if (error) {
+      console.error("[open-studio] Revoke error:", error.message);
       return NextResponse.json({ error: "Failed to revoke" }, { status: 500 });
     }
     return NextResponse.json({ status: updated });
@@ -244,14 +253,11 @@ export async function PATCH(request: NextRequest) {
 
   if (action === "update") {
     const updates: Record<string, unknown> = {};
-    if (checkInIntervalMin !== undefined) {
-      updates.check_in_interval_min = Math.max(5, Math.min(30, checkInIntervalMin));
-    }
     if (carryForward !== undefined) {
       updates.carry_forward = carryForward;
     }
 
-    const { data: updated, error } = await supabase
+    const { data: updated, error } = await db
       .from("open_studio_status")
       .update(updates)
       .eq("id", statusId)
@@ -259,6 +265,7 @@ export async function PATCH(request: NextRequest) {
       .single();
 
     if (error) {
+      console.error("[open-studio] Update error:", error.message);
       return NextResponse.json({ error: "Failed to update" }, { status: 500 });
     }
     return NextResponse.json({ status: updated });
