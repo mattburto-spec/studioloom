@@ -161,98 +161,120 @@ export default function StudentDashboard() {
                 .map((p) => p.criterion as CriterionKey)
             )];
 
+            const hasStudio = openStudioUnits.has(unit.id);
+
             return (
-              <Link
+              <div
                 key={unit.id}
-                href={`/unit/${unit.id}/${firstPageId}`}
-                className="bg-white rounded-2xl overflow-hidden shadow-sm border border-border hover:shadow-md hover:border-brand-purple/20 transition-all duration-200 group"
+                className="rounded-2xl overflow-hidden shadow-sm border border-border hover:shadow-md transition-all duration-200"
+                style={{ display: "flex", flexDirection: "column" }}
               >
-                {/* Thumbnail */}
-                {unit.thumbnail_url && (
-                  <div className="w-full h-36 overflow-hidden">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={unit.thumbnail_url}
-                      alt=""
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      loading="lazy"
-                    />
-                  </div>
-                )}
-                <div className="p-5">
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <h2 className="font-semibold text-base text-text-primary group-hover:text-brand-purple transition">
+                {/* Main card — links to unit */}
+                <Link
+                  href={`/unit/${unit.id}/${firstPageId}`}
+                  className="bg-white flex-1 group"
+                  style={{ display: "block" }}
+                >
+                  {/* Thumbnail */}
+                  {unit.thumbnail_url && (
+                    <div className="w-full h-36 overflow-hidden">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={unit.thumbnail_url}
+                        alt=""
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        loading="lazy"
+                      />
+                    </div>
+                  )}
+                  <div className="p-5">
+                    <h2 className="font-semibold text-base text-text-primary group-hover:text-brand-purple transition mb-1.5">
                       {unit.title}
                     </h2>
-                    {openStudioUnits.has(unit.id) && (
-                      <span
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider"
-                        style={{
-                          background: "rgba(124,58,237,0.1)",
-                          color: "#7c3aed",
-                          border: "1px solid rgba(124,58,237,0.2)",
-                        }}
-                      >
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                          <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                          <path d="M7 11V7a5 5 0 0 1 10 0" />
-                        </svg>
-                        Studio
-                      </span>
+                    {unit.description && (
+                      <p className="text-text-secondary text-sm mb-4 line-clamp-2 leading-relaxed">
+                        {unit.description}
+                      </p>
                     )}
-                  </div>
-                  {unit.description && (
-                    <p className="text-text-secondary text-sm mb-4 line-clamp-2 leading-relaxed">
-                      {unit.description}
-                    </p>
-                  )}
 
-                  {/* Criterion progress bars */}
-                  <div className="flex gap-1.5 mb-2.5">
-                    {criterionKeys.length > 0 ? criterionKeys.map((key) => {
-                      const cp = getCriterionProgress(unitPages, unit.progress, key);
-                      if (!cp) return null;
-                      const fillPercent = (cp.completed / cp.total) * 100;
-                      return (
-                        <div
-                          key={key}
-                          className="flex-1 h-2.5 rounded-full bg-gray-100 overflow-hidden"
-                          title={`Criterion ${key}: ${cp.completed}/${cp.total}`}
-                        >
+                    {/* Criterion progress bars */}
+                    <div className="flex gap-1.5 mb-2.5">
+                      {criterionKeys.length > 0 ? criterionKeys.map((key) => {
+                        const cp = getCriterionProgress(unitPages, unit.progress, key);
+                        if (!cp) return null;
+                        const fillPercent = (cp.completed / cp.total) * 100;
+                        return (
+                          <div
+                            key={key}
+                            className="flex-1 h-2.5 rounded-full bg-gray-100 overflow-hidden"
+                            title={`Criterion ${key}: ${cp.completed}/${cp.total}`}
+                          >
+                            <div
+                              className="h-full rounded-full transition-all duration-500"
+                              style={{
+                                width: `${fillPercent}%`,
+                                backgroundColor: CRITERIA[key].color,
+                              }}
+                            />
+                          </div>
+                        );
+                      }) : (
+                        <div className="flex-1 h-2.5 rounded-full bg-gray-100 overflow-hidden">
                           <div
                             className="h-full rounded-full transition-all duration-500"
                             style={{
-                              width: `${fillPercent}%`,
-                              backgroundColor: CRITERIA[key].color,
+                              width: `${unitPages.length > 0 ? (unit.progress.filter(p => p.status === "complete").length / unitPages.length) * 100 : 0}%`,
+                              background: "linear-gradient(90deg, #7B2FF2, #A855F7)",
                             }}
                           />
                         </div>
-                      );
-                    }) : (
-                      <div className="flex-1 h-2.5 rounded-full bg-gray-100 overflow-hidden">
-                        <div
-                          className="h-full rounded-full transition-all duration-500"
-                          style={{
-                            width: `${unitPages.length > 0 ? (unit.progress.filter(p => p.status === "complete").length / unitPages.length) * 100 : 0}%`,
-                            background: "linear-gradient(90deg, #7B2FF2, #A855F7)",
-                          }}
-                        />
-                      </div>
-                    )}
-                  </div>
+                      )}
+                    </div>
 
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs text-text-secondary font-medium">
-                      {percent}% complete
-                    </p>
-                    {percent === 100 && (
-                      <span className="text-xs font-semibold text-accent-green bg-accent-green/10 px-2 py-0.5 rounded-full">
-                        Done
-                      </span>
-                    )}
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-text-secondary font-medium">
+                        {percent}% complete
+                      </p>
+                      {percent === 100 && (
+                        <span className="text-xs font-semibold text-accent-green bg-accent-green/10 px-2 py-0.5 rounded-full">
+                          Done
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </Link>
+                </Link>
+
+                {/* Open Studio tab — hangs off the bottom */}
+                {hasStudio && (
+                  <Link
+                    href={`/open-studio/${unit.id}`}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "8px",
+                      padding: "10px 16px",
+                      background: "linear-gradient(135deg, #7c3aed, #6d28d9)",
+                      color: "white",
+                      fontSize: "13px",
+                      fontWeight: 600,
+                      textDecoration: "none",
+                      letterSpacing: "0.01em",
+                      transition: "filter 0.15s",
+                    }}
+                    className="hover:brightness-110"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                      <path d="M7 11V7a5 5 0 0 1 10 0" />
+                    </svg>
+                    Enter Open Studio
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.7 }}>
+                      <path d="M5 12h14M12 5l7 7-7 7" />
+                    </svg>
+                  </Link>
+                )}
+              </div>
             );
           })}
         </div>

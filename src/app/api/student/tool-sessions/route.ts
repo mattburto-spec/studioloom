@@ -172,17 +172,39 @@ export async function GET(request: NextRequest) {
     const unitId = searchParams.get("unitId");
     const pageId = searchParams.get("pageId");
     const sectionIndex = searchParams.get("sectionIndex");
-
-    if (!toolId) {
-      return NextResponse.json(
-        { error: "toolId query param is required" },
-        { status: 400 }
-      );
-    }
+    const statusFilter = searchParams.get("status");
+    const limit = parseInt(searchParams.get("limit") || "1", 10);
 
     const supabase = createAdminClient();
 
-    // Build query for embedded or standalone session
+    // List mode: no toolId → return recent sessions for this student
+    if (!toolId) {
+      let listQuery = supabase
+        .from("student_tool_sessions")
+        .select("id, tool_id, challenge, status, started_at:created_at, version")
+        .eq("student_id", studentId)
+        .order("updated_at", { ascending: false })
+        .limit(Math.min(limit, 20));
+
+      if (statusFilter) {
+        listQuery = listQuery.eq("status", statusFilter);
+      }
+
+      const { data: sessions, error: queryError } = await listQuery;
+
+      if (queryError) {
+        console.error("[tool-sessions GET] List error:", queryError);
+        Sentry.captureException(queryError);
+        return NextResponse.json(
+          { error: "Failed to list sessions" },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({ sessions: sessions || [] });
+    }
+
+    // Lookup mode: find a specific tool session
     let query = supabase
       .from("student_tool_sessions")
       .select("id, status")
@@ -193,14 +215,12 @@ export async function GET(request: NextRequest) {
       .limit(1);
 
     if (unitId && pageId) {
-      // Embedded mode lookup
       query = query.eq("unit_id", unitId).eq("page_id", pageId);
 
       if (sectionIndex) {
         query = query.eq("section_index", parseInt(sectionIndex, 10));
       }
     } else {
-      // Standalone mode: just find most recent in_progress session for this tool
       query = query.eq("mode", "standalone");
     }
 

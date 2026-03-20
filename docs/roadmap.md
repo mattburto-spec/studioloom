@@ -907,6 +907,32 @@ Live at `/tools/report-writer`. Full bulk workflow:
 
 ---
 
+## Phase 6.7: New Metrics / Melbourne Metrics ✅ PHASE 1 COMPLETE (20 Mar 2026)
+
+University of Melbourne competency assessment framework. 7 competencies (starting with Agency in Learning). Parallel assessment layer — doesn't replace MYP criteria, runs alongside it.
+
+### What's Built (Phase 1)
+- **Constants & data model** — 7 competencies, 12 elements for Agency in Learning, 5-level progression scales (Year 5-8 and 9-12), Student 3-point scale, Teacher 4-point scale
+- **Database** — `competency_assessments` table (migration 030), `nm_config` JSONB on `units` table, RLS policies. Migration 032 fixes page_id type (UUID→TEXT)
+- **Teacher NM Config** — 3-step wizard on unit detail page: select competency → pick elements → assign to checkpoint pages. Pop art styled header.
+- **Student Competency Pulse** — 3-point self-assessment card ("This was hard for me" / "I'm getting there" / "I did this well") with reflection textarea. Positioned above Complete & Continue button in student lesson view. Pop art identity with "POW!" success animation.
+- **Teacher Observation Snap** — 4-point modal (Emerging/Developing/Applying/Extending) for quick in-class observations. Accessible from Teaching Mode via per-student NM button.
+- **NM Results Panel** — Collapsible panel on teacher unit detail page. Two views: By Student (per-student element ratings + avg) and By Element (class distribution bars).
+- **Dashboard integration** — Pop art "NM Results" button on unit rows when NM enabled.
+- **Teaching Mode integration** — Per-student NM observation button on student cards in teaching cockpit.
+- **Pop art visual identity** — hot pink (#FF2D78), electric yellow (#FFE135), cyan (#00D4FF), bold black borders, halftone dots, box shadows, Arial Black font. Distinct from main StudioLoom theme.
+
+### Phase 2 (Future)
+- **Progression tracking over time** — show student growth across units on a progression level timeline
+- **NM-aware AI mentor** — Design Assistant references NM data ("I notice you rated yourself low on 'Being Reflective' — let's work on that")
+- **NM portfolio integration** — auto-capture NM pulse responses as portfolio entries showing competency growth
+- **Remaining 6 competencies** — add element definitions as Melbourne kits are obtained
+- **Class-wide NM dashboard** — dedicated `/teacher/nm-dashboard` page with heat maps, trend lines, cohort comparisons
+- **Student NM profile** — student-facing view of their competency growth with progression level visualisation
+- **Export/reporting** — generate NM progress reports for parent conferences, IB coordinator reviews
+
+---
+
 ## Phase 7: Freemium & Monetisation
 
 ### Tiered Plans
