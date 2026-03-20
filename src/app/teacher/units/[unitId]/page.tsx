@@ -361,7 +361,7 @@ export default function UnitDetailPage({
         </svg>
       </button>
 
-      {showLessons && isTimelineUnit ? (
+      {showLessons && (isTimelineUnit ? (
         <div className="space-y-6">
           {phaseGroups.map((phase) => (
             <div key={phase.groupKey}>
@@ -393,7 +393,7 @@ export default function UnitDetailPage({
             </div>
           ))}
         </div>
-      ) : showLessons ? (
+      ) : (
         <div className="space-y-6">
           {pageGroups.map((group) => (
             <div key={group.groupKey}>
@@ -439,7 +439,7 @@ export default function UnitDetailPage({
             </div>
           ))}
         </div>
-      )}
+      ))}
 
       {showLessons && pages.length === 0 && lessons.length === 0 && (
         <div className="py-12 text-center">
