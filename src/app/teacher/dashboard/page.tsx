@@ -625,6 +625,7 @@ function UnitProgressRow({
   const completePct = total > 0 ? (unit.completedCount / total) * 100 : 0;
   const inProgressPct = total > 0 ? (unit.inProgressCount / total) * 100 : 0;
   const studioCount = unit.openStudioCount ?? 0;
+  const nmEnabled = unit.nmEnabled ?? false;
 
   return (
     <div className="px-5 py-3.5 flex items-center gap-4">
@@ -678,6 +679,34 @@ function UnitProgressRow({
         </svg>
         {studioCount > 0 ? `${studioCount} in Studio` : "Studio"}
       </Link>
+
+      {nmEnabled && (
+        <Link
+          href={`/teacher/units/${unit.unitId}`}
+          className="inline-flex items-center gap-1 text-xs font-black px-2.5 py-1.5 rounded-lg transition whitespace-nowrap"
+          style={{
+            background: "#FF2D78",
+            color: "#fff",
+            border: "2px solid #1a1a1a",
+            boxShadow: "2px 2px 0 #1a1a1a",
+            fontFamily: "'Arial Black', sans-serif",
+            fontSize: "10px",
+            letterSpacing: "0.5px",
+          }}
+          title="View NM Results"
+        >
+          <span style={{
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            width: "16px", height: "16px", borderRadius: "4px",
+            background: "#FFE135", border: "1.5px solid #1a1a1a",
+            fontSize: "8px", fontWeight: 900, color: "#1a1a1a",
+            lineHeight: 1,
+          }}>
+            NM
+          </span>
+          Results
+        </Link>
+      )}
 
       <Link
         href={`/teacher/classes/${classId}/progress/${unit.unitId}`}

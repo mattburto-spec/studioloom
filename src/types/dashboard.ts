@@ -25,6 +25,8 @@ export interface DashboardUnit {
   completionPct: number;
   /** Number of students with Open Studio unlocked for this unit */
   openStudioCount?: number;
+  /** Whether New Metrics is enabled for this unit */
+  nmEnabled?: boolean;
 }
 
 export interface StuckStudent {

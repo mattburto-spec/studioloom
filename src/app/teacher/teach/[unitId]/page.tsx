@@ -6,6 +6,9 @@ import { createClient } from "@/lib/supabase/client";
 import { getPageList, normalizeContentData, isV3, isV4 } from "@/lib/unit-adapter";
 import { computeLessonBoundaries } from "@/lib/timeline";
 import PhaseTimer from "@/components/teach/PhaseTimer";
+import { ObservationSnap } from "@/components/nm";
+import { AGENCY_ELEMENT_MAP } from "@/lib/nm/constants";
+import type { NMUnitConfig } from "@/lib/nm/constants";
 import type {
   Unit, UnitPage, UnitContentDataV4, TimelineActivity,
   ComputedLesson, WorkshopPhases, LessonExtension, PageContent,
@@ -92,6 +95,9 @@ export default function TeachingDashboard({
   const [showNotes, setShowNotes] = useState(true);
   const [showExtensions, setShowExtensions] = useState(false);
   const [studentSort, setStudentSort] = useState<"name" | "status" | "help">("help");
+
+  // NM Observation state
+  const [nmObsStudent, setNmObsStudent] = useState<{ id: string; name: string } | null>(null);
 
   // -----------------------------------------------------------------------
   // Load unit + classes
@@ -518,6 +524,27 @@ export default function TeachingDashboard({
                       >
                         {config.label}
                       </span>
+
+                      {/* NM Observation button */}
+                      {(unit?.nm_config as NMUnitConfig | null)?.enabled && (
+                        <button
+                          onClick={() => setNmObsStudent({ id: s.id, name: s.name })}
+                          title={`NM Observation for ${s.name}`}
+                          style={{
+                            width: "26px", height: "26px", borderRadius: "6px",
+                            border: "2px solid #1a1a1a", background: "#FF2D78",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            cursor: "pointer", boxShadow: "1px 1px 0 #1a1a1a",
+                            fontSize: "8px", fontWeight: 900, color: "#fff",
+                            fontFamily: "'Arial Black', sans-serif",
+                            flexShrink: 0, transition: "transform 0.1s",
+                          }}
+                          onMouseEnter={(e) => (e.currentTarget.style.transform = "scale(1.1)")}
+                          onMouseLeave={(e) => (e.currentTarget.style.transform = "scale(1)")}
+                        >
+                          NM
+                        </button>
+                      )}
                     </div>
                   );
                 })
@@ -705,6 +732,37 @@ export default function TeachingDashboard({
           )}
         </aside>
       </div>
+
+      {/* NM Observation Snap Modal */}
+      {nmObsStudent && unit?.nm_config && (unit.nm_config as NMUnitConfig).enabled && (() => {
+        const nmCfg = unit.nm_config as NMUnitConfig;
+        const nmElements = (nmCfg.elements || [])
+          .map((eid: string) => AGENCY_ELEMENT_MAP[eid])
+          .filter(Boolean);
+        if (nmElements.length === 0) return null;
+        return (
+          <div
+            style={{
+              position: "fixed", inset: 0, zIndex: 50,
+              background: "rgba(0,0,0,0.5)", display: "flex",
+              alignItems: "center", justifyContent: "center",
+              padding: "20px",
+            }}
+            onClick={(e) => { if (e.target === e.currentTarget) setNmObsStudent(null); }}
+          >
+            <div style={{ maxWidth: "520px", width: "100%" }}>
+              <ObservationSnap
+                studentId={nmObsStudent.id}
+                studentName={nmObsStudent.name}
+                unitId={unitId}
+                elements={nmElements}
+                onComplete={() => setNmObsStudent(null)}
+                onClose={() => setNmObsStudent(null)}
+              />
+            </div>
+          </div>
+        );
+      })()}
     </main>
   );
 }

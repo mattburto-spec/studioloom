@@ -49,6 +49,7 @@ interface ClassUnitRow {
     id: string;
     title: string;
     content_data: UnitContentData;
+    nm_config: { enabled?: boolean } | null;
   };
 }
 
@@ -94,7 +95,7 @@ export async function GET(request: NextRequest) {
     // Active class_units with unit title + content_data
     supabase
       .from("class_units")
-      .select("class_id, unit_id, units!inner(id, title, content_data)")
+      .select("class_id, unit_id, units!inner(id, title, content_data, nm_config)")
       .in("class_id", classIds)
       .eq("is_active", true),
     // All students in teacher's classes
@@ -145,10 +146,10 @@ export async function GET(request: NextRequest) {
     studentsByClass.set(s.class_id, arr);
   }
 
-  // Build unit lookup (unitId -> { title, totalPages })
+  // Build unit lookup (unitId -> { title, totalPages, nmEnabled })
   const unitInfo = new Map<
     string,
-    { title: string; totalPages: number }
+    { title: string; totalPages: number; nmEnabled: boolean }
   >();
   for (const cu of classUnits) {
     if (!unitInfo.has(cu.unit_id)) {
@@ -156,6 +157,7 @@ export async function GET(request: NextRequest) {
       unitInfo.set(cu.unit_id, {
         title: cu.units.title,
         totalPages: pages.length,
+        nmEnabled: !!cu.units.nm_config?.enabled,
       });
     }
   }
@@ -300,6 +302,7 @@ export async function GET(request: NextRequest) {
         notStartedCount: Math.max(0, notStartedCount),
         completionPct,
         openStudioCount: osCount,
+        nmEnabled: info.nmEnabled,
       };
     });
 
