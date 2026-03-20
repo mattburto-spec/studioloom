@@ -7,7 +7,7 @@ import {
   generateResponse,
 } from "@/lib/design-assistant/conversation";
 import { rateLimit, DESIGN_ASSISTANT_LIMITS } from "@/lib/rate-limit";
-import { SESSION_COOKIE_NAME } from "@/lib/constants";
+import { requireStudentAuth } from "@/lib/auth/student";
 
 /**
  * POST /api/student/design-assistant
@@ -30,24 +30,9 @@ import { SESSION_COOKIE_NAME } from "@/lib/constants";
  */
 export async function POST(request: NextRequest) {
   // Student auth via session token cookie (not Supabase Auth)
-  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-  if (!token) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const supabase = createAdminClient();
-  const { data: session } = await supabase
-    .from("student_sessions")
-    .select("student_id")
-    .eq("token", token)
-    .gt("expires_at", new Date().toISOString())
-    .single();
-
-  if (!session) {
-    return NextResponse.json({ error: "Invalid session" }, { status: 401 });
-  }
-
-  const studentId = session.student_id;
+  const auth = await requireStudentAuth(request);
+  if (auth.error) return auth.error;
+  const studentId = auth.studentId;
 
   const body = await request.json();
   const { conversationId, unitId, pageId, message } = body as {
@@ -139,24 +124,9 @@ export async function POST(request: NextRequest) {
  */
 export async function GET(request: NextRequest) {
   // Student auth via session token cookie
-  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-  if (!token) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const supabase = createAdminClient();
-  const { data: session } = await supabase
-    .from("student_sessions")
-    .select("student_id")
-    .eq("token", token)
-    .gt("expires_at", new Date().toISOString())
-    .single();
-
-  if (!session) {
-    return NextResponse.json({ error: "Invalid session" }, { status: 401 });
-  }
-
-  const getStudentId = session.student_id;
+  const auth = await requireStudentAuth(request);
+  if (auth.error) return auth.error;
+  const studentId = auth.studentId;
 
   const { searchParams } = new URL(request.url);
   const conversationId = searchParams.get("conversationId");
@@ -170,10 +140,11 @@ export async function GET(request: NextRequest) {
     }
 
     if (unitId) {
+      const supabase = createAdminClient();
       let query = supabase
         .from("design_conversations")
         .select("*")
-        .eq("student_id", getStudentId)
+        .eq("student_id", studentId)
         .eq("unit_id", unitId)
         .is("ended_at", null) // only active conversations
         .order("created_at", { ascending: false })

@@ -6,33 +6,19 @@
  * Actions:
  *   1. "synthesize" — AI synthesizes feedback into top 3 action items
  *
- * Uses Haiku 4.5 for speed.
+ * Uses shared toolkit helpers — see src/lib/toolkit/shared-api.ts
  */
 
-import { NextRequest, NextResponse } from "next/server";
-import { rateLimit } from "@/lib/rate-limit";
-import { logUsage } from "@/lib/usage-tracking";
+import { NextRequest } from "next/server";
+import {
+  callHaiku,
+  validateToolkitRequest,
+  parseToolkitJSON,
+  logToolkitUsage,
+  toolkitErrorResponse,
+} from "@/lib/toolkit";
 
-const TOOLKIT_LIMITS = [
-  { maxRequests: 50, windowMs: 60 * 1000 },
-  { maxRequests: 500, windowMs: 60 * 60 * 1000 },
-];
-
-type ActionType = "synthesize";
-
-interface RequestBody {
-  action: ActionType;
-  sessionId: string;
-  prototypeDescription: string;
-  feedback: {
-    likes: string;
-    wishes: string;
-    questions: string;
-    ideas: string;
-  };
-}
-
-// ─── Synthesis System Prompt ───
+// ─── Tool-specific prompt builders ───
 
 function buildSynthesisSystemPrompt(): string {
   return `You are a design feedback facilitator. You've just collected feedback using the Feedback Capture Grid method.
@@ -57,115 +43,53 @@ RESPONSE FORMAT: Return a JSON object:
 }`;
 }
 
-// ─── Handler ───
+// ─── POST handler ───
 
 export async function POST(request: NextRequest) {
+  const validated = await validateToolkitRequest(request, "feedback-capture-grid", ["synthesize"]);
+  if (validated.error) return validated.error;
+  const { body } = validated;
+  const { action, sessionId } = body;
+
   try {
-    const clientId = request.headers.get("x-forwarded-for") || "unknown";
-    const rateLimitResult = rateLimit(clientId, TOOLKIT_LIMITS);
+    /* ─── Action: Synthesize feedback ─── */
+    if (action === "synthesize") {
+      const { prototypeDescription = "", feedback = {} } = body;
+      if (!prototypeDescription || !(feedback as Record<string, string>).likes) {
+        return Response.json({ error: "Missing required fields" }, { status: 400 });
+      }
 
-    if (!rateLimitResult.allowed) {
-      return NextResponse.json(
-        { error: "Rate limit exceeded" },
-        { status: 429 }
-      );
-    }
-
-    const body: RequestBody = await request.json();
-    const { action, sessionId, prototypeDescription, feedback } = body;
-
-    if (action !== "synthesize") {
-      return NextResponse.json({ error: "Invalid action" }, { status: 400 });
-    }
-
-    if (!prototypeDescription || !feedback.likes) {
-      return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 }
-      );
-    }
-
-    // Build prompt
-    const systemPrompt = buildSynthesisSystemPrompt();
-    const userPrompt = `Prototype: ${prototypeDescription}
+      const userPrompt = `Prototype: ${prototypeDescription}
 
 LIKES (What works well):
-${feedback.likes || "(none provided)"}
+${(feedback as Record<string, string>).likes || "(none provided)"}
 
 WISHES (What could be better):
-${feedback.wishes || "(none provided)"}
+${(feedback as Record<string, string>).wishes || "(none provided)"}
 
 QUESTIONS (What's unclear):
-${feedback.questions || "(none provided)"}
+${(feedback as Record<string, string>).questions || "(none provided)"}
 
 IDEAS (New possibilities):
-${feedback.ideas || "(none provided)"}
+${(feedback as Record<string, string>).ideas || "(none provided)"}
 
-Synthesize this feedback into top 3 action items. What should the designer focus on first?`;
+Synthesize this feedback into top 3 action items for improvement.`;
 
-    // Call Claude Haiku
-    const response = await fetch("https://api.anthropic.com/v1/messages/create", {
-      method: "POST",
-      headers: {
-        "x-api-key": process.env.ANTHROPIC_API_KEY || "",
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 300,
-        system: systemPrompt,
-        messages: [
-          {
-            role: "user",
-            content: userPrompt,
-          },
-        ],
-      }),
-    });
+      const result = await callHaiku(buildSynthesisSystemPrompt(), userPrompt, 250);
+      const parsed = parseToolkitJSON(result.text, { synthesis: result.text.trim() });
 
-    if (!response.ok) {
-      const error = await response.text();
-      console.error("Claude API error:", error);
-      return NextResponse.json(
-        { error: "Claude API error" },
-        { status: response.status }
-      );
+      logToolkitUsage("tools/feedback-capture-grid/synthesize", result, {
+        sessionId,
+        action: "synthesize",
+      });
+
+      return Response.json({
+        synthesis: parsed.synthesis || result.text.trim(),
+      });
     }
 
-    const data = await response.json();
-    const content = data.content?.[0]?.text || "";
-
-    // Parse JSON response
-    let synthesis = content;
-    try {
-      const parsed = JSON.parse(content);
-      synthesis = parsed.synthesis || content;
-    } catch {
-      // If not valid JSON, use raw text
-    }
-
-    // Log usage
-    logUsage({
-      endpoint: "tools/feedback-capture-grid/synthesize",
-      model: "claude-haiku-4-5-20251001",
-      inputTokens: data.usage?.input_tokens || 0,
-      outputTokens: data.usage?.output_tokens || 0,
-      metadata: { sessionId, action: "synthesize" },
-    });
-
-    return NextResponse.json({
-      synthesis,
-      usage: {
-        inputTokens: data.usage?.input_tokens || 0,
-        outputTokens: data.usage?.output_tokens || 0,
-      },
-    });
-  } catch (error) {
-    console.error("Feedback Capture Grid API error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return Response.json({ error: "Invalid action" }, { status: 400 });
+  } catch (err) {
+    return toolkitErrorResponse("feedback-capture-grid", err);
   }
 }

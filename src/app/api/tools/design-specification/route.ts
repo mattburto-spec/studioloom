@@ -6,34 +6,19 @@
  * Actions:
  *   1. "analyze" — AI analyzes completeness, flags gaps, checks for measurability
  *
- * Uses Haiku 4.5 for speed.
+ * Uses shared toolkit helpers — see src/lib/toolkit/shared-api.ts
  */
 
-import { NextRequest, NextResponse } from "next/server";
-import { rateLimit } from "@/lib/rate-limit";
-import { logUsage } from "@/lib/usage-tracking";
+import { NextRequest } from "next/server";
+import {
+  callHaiku,
+  validateToolkitRequest,
+  parseToolkitJSON,
+  logToolkitUsage,
+  toolkitErrorResponse,
+} from "@/lib/toolkit";
 
-const TOOLKIT_LIMITS = [
-  { maxRequests: 50, windowMs: 60 * 1000 },
-  { maxRequests: 500, windowMs: 60 * 60 * 1000 },
-];
-
-type ActionType = "analyze";
-
-interface RequestBody {
-  action: ActionType;
-  sessionId: string;
-  designTopic: string;
-  sections: {
-    requirements: string;
-    constraints: string;
-    userNeeds: string;
-    successCriteria: string;
-    specifications: string;
-  };
-}
-
-// ─── Analysis System Prompt ───
+// ─── Tool-specific prompt builders ───
 
 function buildAnalysisSystemPrompt(): string {
   return `You are a design engineering mentor evaluating a student's Design Specification.
@@ -64,118 +49,56 @@ RESPONSE FORMAT: Return a JSON object:
 }`;
 }
 
-// ─── Handler ───
+// ─── POST handler ───
 
 export async function POST(request: NextRequest) {
+  const validated = await validateToolkitRequest(request, "design-specification", ["analyze"]);
+  if (validated.error) return validated.error;
+  const { body } = validated;
+  const { action, sessionId } = body;
+
   try {
-    const clientId = request.headers.get("x-forwarded-for") || "unknown";
-    const rateLimitResult = rateLimit(clientId, TOOLKIT_LIMITS);
+    /* ─── Action: Analyze specification ─── */
+    if (action === "analyze") {
+      const { designTopic = "", sections = {} } = body;
+      if (!designTopic || !(sections as Record<string, string>).requirements) {
+        return Response.json({ error: "Missing required fields" }, { status: 400 });
+      }
 
-    if (!rateLimitResult.allowed) {
-      return NextResponse.json(
-        { error: "Rate limit exceeded" },
-        { status: 429 }
-      );
-    }
-
-    const body: RequestBody = await request.json();
-    const { action, sessionId, designTopic, sections } = body;
-
-    if (action !== "analyze") {
-      return NextResponse.json({ error: "Invalid action" }, { status: 400 });
-    }
-
-    if (!designTopic || !sections.requirements) {
-      return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 }
-      );
-    }
-
-    // Build prompt
-    const systemPrompt = buildAnalysisSystemPrompt();
-    const userPrompt = `Design Topic: ${designTopic}
+      const userPrompt = `Design Topic: ${designTopic}
 
 REQUIREMENTS:
-${sections.requirements || "(not filled)"}
+${(sections as Record<string, string>).requirements || "(not filled)"}
 
 CONSTRAINTS:
-${sections.constraints || "(not filled)"}
+${(sections as Record<string, string>).constraints || "(not filled)"}
 
 USER NEEDS:
-${sections.userNeeds || "(not filled)"}
+${(sections as Record<string, string>).userNeeds || "(not filled)"}
 
 SUCCESS CRITERIA:
-${sections.successCriteria || "(not filled)"}
+${(sections as Record<string, string>).successCriteria || "(not filled)"}
 
 SPECIFICATIONS:
-${sections.specifications || "(not filled)"}
+${(sections as Record<string, string>).specifications || "(not filled)"}
 
-Analyze this specification. Is it complete? Are requirements and criteria measurable? Are specifications precise? What's missing?`;
+Evaluate this design specification. Is it specific? Is it measurable? What needs improvement?`;
 
-    // Call Claude Haiku
-    const response = await fetch("https://api.anthropic.com/v1/messages/create", {
-      method: "POST",
-      headers: {
-        "x-api-key": process.env.ANTHROPIC_API_KEY || "",
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 250,
-        system: systemPrompt,
-        messages: [
-          {
-            role: "user",
-            content: userPrompt,
-          },
-        ],
-      }),
-    });
+      const result = await callHaiku(buildAnalysisSystemPrompt(), userPrompt, 200);
+      const parsed = parseToolkitJSON(result.text, { analysis: result.text.trim() });
 
-    if (!response.ok) {
-      const error = await response.text();
-      console.error("Claude API error:", error);
-      return NextResponse.json(
-        { error: "Claude API error" },
-        { status: response.status }
-      );
+      logToolkitUsage("tools/design-specification/analyze", result, {
+        sessionId,
+        action: "analyze",
+      });
+
+      return Response.json({
+        analysis: parsed.analysis || result.text.trim(),
+      });
     }
 
-    const data = await response.json();
-    const content = data.content?.[0]?.text || "";
-
-    // Parse JSON response
-    let analysis = content;
-    try {
-      const parsed = JSON.parse(content);
-      analysis = parsed.analysis || content;
-    } catch {
-      // If not valid JSON, use raw text
-    }
-
-    // Log usage
-    logUsage({
-      endpoint: "tools/design-specification/analyze",
-      model: "claude-haiku-4-5-20251001",
-      inputTokens: data.usage?.input_tokens || 0,
-      outputTokens: data.usage?.output_tokens || 0,
-      metadata: { sessionId, action: "analyze" },
-    });
-
-    return NextResponse.json({
-      analysis,
-      usage: {
-        inputTokens: data.usage?.input_tokens || 0,
-        outputTokens: data.usage?.output_tokens || 0,
-      },
-    });
-  } catch (error) {
-    console.error("Design Specification API error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return Response.json({ error: "Invalid action" }, { status: 400 });
+  } catch (err) {
+    return toolkitErrorResponse("design-specification", err);
   }
 }

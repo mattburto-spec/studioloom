@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
+import { requireTeacherAuth } from "@/lib/auth/verify-teacher-unit";
 import {
   getKnowledgeItems,
   searchKnowledgeItems,
@@ -11,25 +11,6 @@ import type {
   KnowledgeItemType,
 } from "@/types/knowledge-library";
 
-async function getTeacherId(request: NextRequest): Promise<string | null> {
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll() {},
-      },
-    }
-  );
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user?.id || null;
-}
-
 /**
  * GET /api/teacher/knowledge/items
  *
@@ -37,10 +18,9 @@ async function getTeacherId(request: NextRequest): Promise<string | null> {
  * Query params: search, type, tags (comma-separated), framework, archived
  */
 export async function GET(request: NextRequest) {
-  const teacherId = await getTeacherId(request);
-  if (!teacherId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireTeacherAuth(request);
+  if (auth.error) return auth.error;
+  const teacherId = auth.teacherId;
 
   const { searchParams } = new URL(request.url);
   const search = searchParams.get("search");
@@ -70,10 +50,9 @@ export async function GET(request: NextRequest) {
  * Create a new knowledge item. Generates RAG chunks in the background.
  */
 export async function POST(request: NextRequest) {
-  const teacherId = await getTeacherId(request);
-  if (!teacherId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireTeacherAuth(request);
+  if (auth.error) return auth.error;
+  const teacherId = auth.teacherId;
 
   const body: CreateKnowledgeItemRequest = await request.json();
 

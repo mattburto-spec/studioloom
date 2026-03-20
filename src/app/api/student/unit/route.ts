@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { SESSION_COOKIE_NAME } from "@/lib/constants";
+import { requireStudentAuth } from "@/lib/auth/student";
 
 // Forward mapping for pre-migration-011 fallback
 const NUMBER_TO_PAGE_ID: Record<number, string> = {
@@ -11,10 +11,9 @@ const NUMBER_TO_PAGE_ID: Record<number, string> = {
 };
 
 export async function GET(request: NextRequest) {
-  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-  if (!token) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireStudentAuth(request);
+  if (auth.error) return auth.error;
+  const studentId = auth.studentId;
 
   const { searchParams } = new URL(request.url);
   const unitId = searchParams.get("unitId");
@@ -25,23 +24,11 @@ export async function GET(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  // Validate session
-  const { data: session } = await supabase
-    .from("student_sessions")
-    .select("student_id")
-    .eq("token", token)
-    .gt("expires_at", new Date().toISOString())
-    .single();
-
-  if (!session) {
-    return NextResponse.json({ error: "Invalid session" }, { status: 401 });
-  }
-
   // Get student's class and name
   const { data: student } = await supabase
     .from("students")
     .select("class_id, ell_level, display_name, username")
-    .eq("id", session.student_id)
+    .eq("id", studentId)
     .single();
 
   if (!student) {
@@ -104,7 +91,7 @@ export async function GET(request: NextRequest) {
   const { data: progress } = await supabase
     .from("student_progress")
     .select("*")
-    .eq("student_id", session.student_id)
+    .eq("student_id", studentId)
     .eq("unit_id", unitId);
 
   const cu = classUnit as Record<string, unknown>;

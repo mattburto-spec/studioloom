@@ -6,30 +6,20 @@
  *   2. "clusters" — Suggest natural groupings from observations
  *   3. "insights" — Synthesize patterns and themes across clusters
  *
- * Uses Haiku 4.5 for speed.
+ * Uses shared toolkit helpers — see src/lib/toolkit/shared-api.ts
  */
 
-import { NextRequest, NextResponse } from "next/server";
-import { rateLimit } from "@/lib/rate-limit";
-import { logUsage } from "@/lib/usage-tracking";
+import { NextRequest } from "next/server";
+import {
+  callHaiku,
+  validateToolkitRequest,
+  parseToolkitJSON,
+  parseToolkitJSONArray,
+  logToolkitUsage,
+  toolkitErrorResponse,
+} from "@/lib/toolkit";
 
-const TOOLKIT_LIMITS = [
-  { maxRequests: 50, windowMs: 60 * 1000 },
-  { maxRequests: 500, windowMs: 60 * 60 * 1000 },
-];
-
-type ActionType = "nudge" | "clusters" | "insights";
-
-interface RequestBody {
-  action: ActionType;
-  context: string;
-  sessionId: string;
-  observation?: string;
-  allObservations?: string[];
-  effortLevel?: "low" | "medium" | "high";
-  observations?: string[];
-  clusters?: Array<{ name: string; items: string[] }>;
-}
+// ─── Tool-specific prompt builders ───
 
 function buildNudgeSystemPrompt(effortLevel: "low" | "medium" | "high"): string {
   const effortStrategy: Record<string, string> = {
@@ -107,73 +97,24 @@ RULES:
 RESPONSE FORMAT: 2-3 short paragraphs of plain text. No headers, no bullets, no markdown.`;
 }
 
-async function callHaiku(
-  systemPrompt: string,
-  userPrompt: string,
-  maxTokens: number
-): Promise<{ text: string; inputTokens: number; outputTokens: number }> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error("AI service not configured");
-
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: maxTokens,
-      temperature: 0.8,
-      system: systemPrompt,
-      messages: [{ role: "user", content: userPrompt }],
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`AI call failed: ${response.status} ${errorText}`);
-  }
-
-  const data = await response.json();
-  const textBlock = data.content?.find((b: { type: string }) => b.type === "text");
-
-  return {
-    text: textBlock?.text || "",
-    inputTokens: data.usage?.input_tokens || 0,
-    outputTokens: data.usage?.output_tokens || 0,
-  };
-}
+// ─── POST handler ───
 
 export async function POST(request: NextRequest) {
+  const validated = await validateToolkitRequest(request, "affinity-diagram", ["nudge", "clusters", "insights"]);
+  if (validated.error) return validated.error;
+  const { body } = validated;
+  const { action, context, sessionId } = body;
+
   try {
-    const body = (await request.json()) as RequestBody;
-    const { action, context, sessionId } = body;
-
-    if (!action || !context?.trim() || !sessionId) {
-      return NextResponse.json(
-        { error: "Missing required fields: action, context, sessionId" },
-        { status: 400 }
-      );
-    }
-
-    const { allowed, retryAfterMs } = rateLimit(
-      `affinity-diagram:${sessionId}`,
-      TOOLKIT_LIMITS
-    );
-    if (!allowed) {
-      return NextResponse.json(
-        { error: "Too many requests. Take a moment to think, then try again." },
-        { status: 429, headers: { "Retry-After": String(Math.ceil((retryAfterMs || 1000) / 1000)) } }
-      );
-    }
-
-    /* ─── NUDGE ─── */
+    /* ─── Action: Effort-gated nudge ─── */
     if (action === "nudge") {
-      const { observation, allObservations = [], effortLevel = "medium" } = body;
-      if (!observation?.trim()) {
-        return NextResponse.json({ error: "Missing observation" }, { status: 400 });
+      const observation = (body.observation as string) ?? "";
+      const allObservations = (body.allObservations || []) as string[];
+      const effortLevel = (body.effortLevel as "low" | "medium" | "high") || "medium";
+      const context = (body.context as string) ?? "";
+
+      if (!observation.trim()) {
+        return Response.json({ error: "Missing observation" }, { status: 400 });
       }
 
       const systemPrompt = buildNudgeSystemPrompt(effortLevel);
@@ -184,44 +125,24 @@ ${allObservations.length > 1 ? `Other observations so far:\n${allObservations.fi
 Respond with JSON feedback.`;
 
       const result = await callHaiku(systemPrompt, userPrompt, 120);
+      const parsed = parseToolkitJSON(result.text, { acknowledgment: "", nudge: result.text.trim() });
 
-      let nudgeText = result.text.trim();
-      let acknowledgment = "";
+      logToolkitUsage("tools/affinity-diagram/nudge", result, { sessionId, effortLevel, action: "nudge" });
 
-      try {
-        const jsonMatch = nudgeText.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          const parsed = JSON.parse(jsonMatch[0]);
-          nudgeText = parsed.nudge || nudgeText;
-          acknowledgment = parsed.acknowledgment || "";
-        }
-      } catch {
-        const nudgeMatch = nudgeText.match(/"nudge"\s*:\s*"([^"]+)"/);
-        const ackMatch = nudgeText.match(/"acknowledgment"\s*:\s*"([^"]+)"/);
-        if (nudgeMatch) nudgeText = nudgeMatch[1];
-        if (ackMatch) acknowledgment = ackMatch[1];
-      }
-
-      logUsage({
-        endpoint: "tools/affinity-diagram/nudge",
-        model: "claude-haiku-4-5-20251001",
-        inputTokens: result.inputTokens,
-        outputTokens: result.outputTokens,
-        metadata: { sessionId, effortLevel, action: "nudge" },
-      });
-
-      return NextResponse.json({
-        nudge: nudgeText,
-        acknowledgment,
+      return Response.json({
+        nudge: parsed.nudge || result.text.trim(),
+        acknowledgment: parsed.acknowledgment || "",
         effortLevel,
       });
     }
 
-    /* ─── CLUSTERS ─── */
+    /* ─── Action: Suggest clusters ─── */
     if (action === "clusters") {
-      const { observations = [] } = body;
+      const observations = (body.observations || []) as string[];
+      const context = (body.context as string) ?? "";
+
       if (!Array.isArray(observations) || observations.length < 2) {
-        return NextResponse.json({ error: "Need at least 2 observations" }, { status: 400 });
+        return Response.json({ error: "Need at least 2 observations" }, { status: 400 });
       }
 
       const systemPrompt = buildClustersSystemPrompt();
@@ -233,37 +154,28 @@ ${observations.map((obs, i) => `${i}. ${obs}`).join("\n")}
 Suggest natural cluster groupings with reasoning.`;
 
       const result = await callHaiku(systemPrompt, userPrompt, 500);
+      const clusters = parseToolkitJSONArray(result.text) || [];
 
-      let clusters: Array<{ items: number[]; reason: string }> = [];
-      try {
-        const jsonMatch = result.text.match(/\[[\s\S]*\]/);
-        if (jsonMatch) {
-          clusters = JSON.parse(jsonMatch[0]);
-        }
-      } catch (err) {
-        console.warn("[affinity] Failed to parse clusters:", err);
-      }
-
-      logUsage({
-        endpoint: "tools/affinity-diagram/clusters",
-        model: "claude-haiku-4-5-20251001",
-        inputTokens: result.inputTokens,
-        outputTokens: result.outputTokens,
-        metadata: { sessionId, clusterCount: clusters.length, action: "clusters" },
+      logToolkitUsage("tools/affinity-diagram/clusters", result, {
+        sessionId,
+        clusterCount: clusters.length,
+        action: "clusters",
       });
 
-      return NextResponse.json({ clusters });
+      return Response.json({ clusters });
     }
 
-    /* ─── INSIGHTS ─── */
+    /* ─── Action: Summary insights ─── */
     if (action === "insights") {
-      const { clusters: clusterData = [] } = body;
+      const clusterData = (body.clusters || []) as Array<{ name: string; items: string[] }>;
+      const context = (body.context as string) ?? "";
+
       if (!Array.isArray(clusterData) || clusterData.length === 0) {
-        return NextResponse.json({ insights: "" });
+        return Response.json({ insights: "" });
       }
 
       const systemPrompt = buildInsightsSystemPrompt();
-      const clustersSummary = (clusterData as Array<{ name: string; items: string[] }>)
+      const clustersSummary = clusterData
         .map((c, i) => {
           return `${c.name}:\n${c.items.map((item, j) => `  ${j + 1}. ${item}`).join("\n")}`;
         })
@@ -278,24 +190,17 @@ What patterns and insights emerge from these clusters?`;
 
       const result = await callHaiku(systemPrompt, userPrompt, 350);
 
-      logUsage({
-        endpoint: "tools/affinity-diagram/insights",
-        model: "claude-haiku-4-5-20251001",
-        inputTokens: result.inputTokens,
-        outputTokens: result.outputTokens,
-        metadata: { sessionId, clusterCount: clusterData.length, action: "insights" },
+      logToolkitUsage("tools/affinity-diagram/insights", result, {
+        sessionId,
+        clusterCount: clusterData.length,
+        action: "insights",
       });
 
-      return NextResponse.json({ insights: result.text.trim() });
+      return Response.json({ insights: result.text.trim() });
     }
 
-    return NextResponse.json({ error: "Unknown action" }, { status: 400 });
+    return Response.json({ error: "Unknown action" }, { status: 400 });
   } catch (err) {
-    console.error("[affinity-diagram] Error:", err);
-    const errorMessage = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json(
-      { error: `Affinity Diagram tool error: ${errorMessage}` },
-      { status: 500 }
-    );
+    return toolkitErrorResponse("affinity-diagram", err);
   }
 }

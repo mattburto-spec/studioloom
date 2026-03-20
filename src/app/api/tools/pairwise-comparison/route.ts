@@ -9,36 +9,19 @@
  * One interaction mode:
  *   1. "analysis" — Cross-option synthesis + ranking + detection of inconsistencies
  *
- * Uses Haiku 4.5. Focuses on finding the overall winner and explaining preference patterns.
+ * Uses shared toolkit helpers — see src/lib/toolkit/shared-api.ts
  */
 
-import { NextRequest, NextResponse } from "next/server";
-import { rateLimit } from "@/lib/rate-limit";
-import { logUsage } from "@/lib/usage-tracking";
+import { NextRequest } from "next/server";
+import {
+  callHaiku,
+  validateToolkitRequest,
+  parseToolkitJSON,
+  logToolkitUsage,
+  toolkitErrorResponse,
+} from "@/lib/toolkit";
 
-const TOOLKIT_LIMITS = [
-  { maxRequests: 50, windowMs: 60 * 1000 },
-  { maxRequests: 500, windowMs: 60 * 60 * 1000 },
-];
-
-type ActionType = "analysis";
-
-interface Comparison {
-  optionA: string;
-  optionB: string;
-  winner: string;
-  reasoning: string;
-}
-
-interface RequestBody {
-  action: ActionType;
-  challenge: string;
-  sessionId: string;
-  options?: string[];
-  comparisons?: Comparison[];
-}
-
-// ─── Analysis Generation ───
+// ─── Tool-specific prompt builders ───
 
 function buildAnalysisSystemPrompt(): string {
   return `You are a decision-making mentor analyzing a student's pairwise comparison results.
@@ -64,114 +47,65 @@ RESPONSE FORMAT: Return JSON with:
 }`;
 }
 
-// ─── Main Handler ───
+// ─── POST handler ───
 
-export async function POST(req: NextRequest) {
+export async function POST(request: NextRequest) {
+  const validated = await validateToolkitRequest(request, "pairwise-comparison", ["analysis"]);
+  if (validated.error) return validated.error;
+  const { body } = validated;
+  const { action, challenge, sessionId } = body;
+
   try {
-    const body: RequestBody = await req.json();
-    const { action, challenge, sessionId, options, comparisons } = body;
-
-    // Rate limiting
-    const rateLimitResult = rateLimit(sessionId, TOOLKIT_LIMITS);
-    if (!rateLimitResult.allowed) {
-      return NextResponse.json(
-        { error: "Rate limit exceeded" },
-        { status: 429, headers: { "Retry-After": String(Math.ceil((rateLimitResult.retryAfterMs || 60000) / 1000)) } }
-      );
-    }
-
-    let responseData: Record<string, unknown> = {};
-
+    /* ─── Action: Analysis synthesis ─── */
     if (action === "analysis") {
-      if (!options || !comparisons || options.length === 0 || comparisons.length === 0) {
-        return NextResponse.json({ error: "Missing options or comparisons" }, { status: 400 });
+      const { options = [], comparisons = [] } = body;
+      if (!Array.isArray(options) || !Array.isArray(comparisons) || options.length === 0 || comparisons.length === 0) {
+        return Response.json({ error: "Missing options or comparisons" }, { status: 400 });
       }
 
       // Calculate win counts
       const winCounts: Record<string, number> = {};
-      options.forEach(opt => {
-        winCounts[opt] = comparisons.filter(c => c.winner === opt).length;
+      (options as string[]).forEach((opt) => {
+        winCounts[opt] = (comparisons as Array<{ winner: string }>).filter((c) => c.winner === opt).length;
       });
 
       // Identify top 3
-      const ranked = options
-        .map(opt => ({ option: opt, wins: winCounts[opt] }))
+      const ranked = (options as string[])
+        .map((opt) => ({ option: opt, wins: winCounts[opt] }))
         .sort((a, b) => b.wins - a.wins)
         .slice(0, 3);
 
-      // Build reasoning summary from top comparisons
-      const topOption = ranked[0];
-      const topComparisons = comparisons.filter(c => c.winner === topOption.option).slice(0, 3);
-      const reasoningSummary = topComparisons.map(c => c.reasoning).join(' ');
+      // Build comparison summary for AI
+      const comparisonSummary = (comparisons as Array<{ optionA: string; optionB: string; winner: string; reasoning: string }>)
+        .map((c) => `${c.optionA} vs ${c.optionB}: ${c.winner} won (${c.reasoning})`)
+        .join("\n");
 
-      const systemPrompt = buildAnalysisSystemPrompt();
-      const userPrompt = `Challenge: ${challenge}
+      const userPrompt = `Decision: "${challenge}"
 
-Options compared: ${options.join(', ')}
+Options ranked by wins:
+${ranked.map((r) => `${r.option}: ${r.wins} wins`).join("\n")}
 
-Win counts:
-${Object.entries(winCounts).map(([opt, wins]) => `- ${opt}: ${wins} wins`).join('\n')}
+All comparisons:
+${comparisonSummary}
 
-Winner: ${topOption.option} (${topOption.wins} wins)
+Analyze this pairwise comparison and explain the results.`;
 
-Key reasoning from top comparisons: ${reasoningSummary}
+      const result = await callHaiku(buildAnalysisSystemPrompt(), userPrompt, 200);
+      const parsed = parseToolkitJSON(result.text, { analysis: result.text.trim() });
 
-Analyze this decision. Who won and why? Are there clear patterns in their preferences?`;
-
-      const aiResponse = await fetch("https://api.anthropic.com/v1/messages/create", {
-        method: "POST",
-        headers: {
-          "x-api-key": process.env.ANTHROPIC_API_KEY || "",
-          "anthropic-version": "2023-06-01",
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "claude-haiku-4-5-20251001",
-          max_tokens: 400,
-          system: systemPrompt,
-          messages: [{ role: "user", content: userPrompt }],
-        }),
+      logToolkitUsage("tools/pairwise-comparison/analysis", result, {
+        sessionId,
+        optionCount: options.length,
+        action: "analysis",
       });
 
-      if (!aiResponse.ok) {
-        console.error("[pairwise] AI API error:", await aiResponse.text());
-        return NextResponse.json({ analysis: "" }, { status: 200 });
-      }
-
-      const aiData = await aiResponse.json() as Record<string, unknown>;
-      const aiContent = (aiData.content as Array<{ type: string; text?: string }>)?.[0]?.text || "";
-
-      // Parse JSON from AI response
-      const jsonMatch = aiContent.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        try {
-          const parsed = JSON.parse(jsonMatch[0]);
-          responseData.analysis = parsed.analysis || "";
-        } catch {
-          responseData.analysis = "";
-        }
-      } else {
-        responseData.analysis = "";
-      }
-
-      // Log usage
-      logUsage({
-        endpoint: "tools/pairwise-comparison/analysis",
-        model: "claude-haiku-4-5-20251001",
-        inputTokens: 400,
-        outputTokens: 200,
-        metadata: { sessionId, action: "analysis" },
+      return Response.json({
+        analysis: parsed.analysis || result.text.trim(),
       });
-    } else {
-      return NextResponse.json({ error: "Invalid action" }, { status: 400 });
     }
 
-    return NextResponse.json(responseData);
-  } catch (error) {
-    console.error("[pairwise] Error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return Response.json({ error: "Invalid action" }, { status: 400 });
+  } catch (err) {
+    return toolkitErrorResponse("pairwise-comparison", err);
   }
 }

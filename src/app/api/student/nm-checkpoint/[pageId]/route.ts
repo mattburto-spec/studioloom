@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { SESSION_COOKIE_NAME } from "@/lib/constants";
+import { getStudentId } from "@/lib/auth/student";
 import { AGENCY_ELEMENT_MAP } from "@/lib/nm/constants";
 import type { NMUnitConfig } from "@/lib/nm/constants";
 
@@ -28,31 +28,19 @@ export async function GET(
     return NextResponse.json({ checkpoint: null });
   }
 
-  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-  if (!token) {
+  const studentId = await getStudentId(request);
+  if (!studentId) {
     // For unauthenticated users (public toolkit), just return null
     return NextResponse.json({ checkpoint: null });
   }
 
   const supabase = createAdminClient();
 
-  // Validate session
-  const { data: session } = await supabase
-    .from("student_sessions")
-    .select("student_id")
-    .eq("token", token)
-    .gt("expires_at", new Date().toISOString())
-    .single();
-
-  if (!session) {
-    return NextResponse.json({ checkpoint: null });
-  }
-
   // Get student's class_id for per-class NM config lookup
   const { data: student } = await supabase
     .from("students")
     .select("class_id")
-    .eq("id", session.student_id)
+    .eq("id", studentId)
     .single();
 
   // Get NM config: class-specific (class_units) with fallback to unit-level (units)

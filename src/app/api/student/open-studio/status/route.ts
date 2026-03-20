@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { SESSION_COOKIE_NAME } from "@/lib/constants";
+import { requireStudentAuth } from "@/lib/auth/student";
 
 /**
  * GET /api/student/open-studio/status?unitId={id}
@@ -8,24 +8,11 @@ import { SESSION_COOKIE_NAME } from "@/lib/constants";
  * Used by the OpenStudioBanner and Design Assistant to determine AI mode.
  */
 export async function GET(request: NextRequest) {
-  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-  if (!token) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireStudentAuth(request);
+  if (auth.error) return auth.error;
+  const studentId = auth.studentId;
 
   const supabase = createAdminClient();
-
-  // Validate session
-  const { data: session } = await supabase
-    .from("student_sessions")
-    .select("student_id")
-    .eq("token", token)
-    .gt("expires_at", new Date().toISOString())
-    .single();
-
-  if (!session) {
-    return NextResponse.json({ error: "Invalid session" }, { status: 401 });
-  }
 
   const { searchParams } = new URL(request.url);
   const unitId = searchParams.get("unitId");
@@ -38,7 +25,7 @@ export async function GET(request: NextRequest) {
   const { data: status } = await supabase
     .from("open_studio_status")
     .select("*")
-    .eq("student_id", session.student_id)
+    .eq("student_id", studentId)
     .eq("unit_id", unitId)
     .single();
 
@@ -55,7 +42,7 @@ export async function GET(request: NextRequest) {
   const { data: activeSession } = await supabase
     .from("open_studio_sessions")
     .select("id, session_number, focus_area, started_at, ai_interactions, check_in_count, drift_flags")
-    .eq("student_id", session.student_id)
+    .eq("student_id", studentId)
     .eq("unit_id", unitId)
     .eq("status_id", status.id)
     .is("ended_at", null)

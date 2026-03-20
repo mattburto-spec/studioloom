@@ -4,18 +4,20 @@
  * Three rounds of rapid brainstorming: initial burst, build & combine, wild ideas.
  * Encourages quantity and creativity over evaluation.
  *
- * Uses Haiku 4.5 for speed (student-facing).
+ * Uses shared toolkit helpers — see src/lib/toolkit/shared-api.ts
  */
 
-import { NextRequest, NextResponse } from "next/server";
-import { rateLimit } from "@/lib/rate-limit";
-import { logUsage } from "@/lib/usage-tracking";
+import { NextRequest } from "next/server";
+import {
+  callHaiku,
+  validateToolkitRequest,
+  parseToolkitJSON,
+  parseToolkitJSONArray,
+  logToolkitUsage,
+  toolkitErrorResponse,
+} from "@/lib/toolkit";
 
-// Rate limit: generous for toolkit (50/min per session, 500/hour)
-const TOOLKIT_LIMITS = [
-  { maxRequests: 50, windowMs: 60 * 1000 },
-  { maxRequests: 500, windowMs: 60 * 60 * 1000 },
-];
+// ─── Tool-specific config ───
 
 const BRAINSTORM_ROUNDS = [
   { round: 1, title: "Initial Burst", desc: "rapid-fire ideas with no filtering, pure divergent thinking" },
@@ -23,18 +25,7 @@ const BRAINSTORM_ROUNDS = [
   { round: 3, title: "Wild Ideas", desc: "pushing for impossible or absurd ideas then finding kernels of possibility" },
 ];
 
-type ActionType = "prompts" | "nudge" | "insights";
-
-interface RequestBody {
-  action: ActionType;
-  challenge: string;
-  sessionId: string;
-  roundIndex?: number;
-  idea?: string;
-  existingIdeas?: string[];
-  effortLevel?: "low" | "medium" | "high";
-  allIdeas?: string[][];
-}
+// ─── Tool-specific prompt builders (unique pedagogical rules) ───
 
 function buildPromptsSystemPrompt(ideaCount: number): string {
   let difficultyInstruction: string;
@@ -76,7 +67,6 @@ Example: ["What's the wildest version of this idea?", "Who would this benefit in
 }
 
 function buildNudgeSystemPrompt(effortLevel: "low" | "medium" | "high"): string {
-  // For Brainstorm Web: PURE DIVERGENT THINKING. Never evaluate. Never ask "could this work?"
   const effortStrategy: Record<string, string> = {
     low: `EFFORT LEVEL: LOW — The student's response is brief or minimal. Push for expansion.
 - Do NOT praise a vague idea — but stay warm and encouraging
@@ -138,86 +128,25 @@ RULES:
 RESPONSE FORMAT: 2-3 short paragraphs of plain text. Use no headers, no bullets, no markdown.`;
 }
 
-async function callHaiku(
-  systemPrompt: string,
-  userPrompt: string,
-  maxTokens: number
-): Promise<{ text: string; inputTokens: number; outputTokens: number }> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error("AI service not configured");
-
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: maxTokens,
-      temperature: 0.8,
-      system: systemPrompt,
-      messages: [{ role: "user", content: userPrompt }],
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`AI call failed: ${response.status} ${errorText}`);
-  }
-
-  const data = await response.json();
-  const textBlock = data.content?.find((b: { type: string }) => b.type === "text");
-
-  return {
-    text: textBlock?.text || "",
-    inputTokens: data.usage?.input_tokens || 0,
-    outputTokens: data.usage?.output_tokens || 0,
-  };
-}
+// ─── POST handler ───
 
 export async function POST(request: NextRequest) {
+  const validated = await validateToolkitRequest(request, "brainstorm-web", ["prompts", "nudge", "insights"]);
+  if (validated.error) return validated.error;
+  const { body } = validated;
+  const { action, challenge, sessionId } = body;
+
   try {
-    const body = (await request.json()) as RequestBody;
-    const { action, challenge, sessionId } = body;
-
-    // Validate
-    if (!action || !challenge?.trim() || !sessionId) {
-      return NextResponse.json(
-        { error: "Missing required fields: action, challenge, sessionId" },
-        { status: 400 }
-      );
-    }
-
-    if (!["prompts", "nudge", "insights"].includes(action)) {
-      return NextResponse.json(
-        { error: "Invalid action. Must be: prompts, nudge, or insights" },
-        { status: 400 }
-      );
-    }
-
-    // Rate limit by session
-    const { allowed, retryAfterMs } = rateLimit(
-      `brainstorm-web:${sessionId}`,
-      TOOLKIT_LIMITS
-    );
-    if (!allowed) {
-      return NextResponse.json(
-        { error: "Too many requests. Take a breath and try again shortly." },
-        { status: 429, headers: { "Retry-After": String(Math.ceil((retryAfterMs || 1000) / 1000)) } }
-      );
-    }
-
     /* ─── Action: Generate contextual prompts ─── */
     if (action === "prompts") {
-      const roundIndex = body.roundIndex ?? 0;
+      const roundIndex = (body.roundIndex as number) ?? 0;
       if (roundIndex < 0 || roundIndex > 2) {
-        return NextResponse.json({ error: "roundIndex must be 0-2" }, { status: 400 });
+        return Response.json({ error: "roundIndex must be 0-2" }, { status: 400 });
       }
 
       const round = BRAINSTORM_ROUNDS[roundIndex];
-      const existingIdeas = body.existingIdeas || [];
+      const existingIdeas = (body.existingIdeas || []) as string[];
+      const challenge = (body.challenge as string) ?? "";
 
       let userPrompt = `DESIGN CHALLENGE: "${challenge.trim()}"
 
@@ -233,117 +162,84 @@ Generate 4 NEW prompts that spark DIFFERENT ideas from what they've already writ
 
       const result = await callHaiku(buildPromptsSystemPrompt(existingIdeas.length), userPrompt, 400);
 
-      // Parse JSON array from response
-      let prompts: string[];
-      try {
-        prompts = JSON.parse(result.text);
-        if (!Array.isArray(prompts)) throw new Error("Not an array");
-        prompts = prompts.slice(0, 4).map(p => String(p).trim());
-      } catch {
-        const matches = result.text.match(/"([^"]+)"/g);
-        if (matches && matches.length >= 2) {
-          prompts = matches.slice(0, 4).map(m => m.replace(/"/g, "").trim());
+      const prompts = parseToolkitJSONArray(result.text) || (() => {
+        if (roundIndex === 0) {
+          return [
+            `What's the first idea that comes to mind about "${challenge.trim()}"?`,
+            `What if you had unlimited resources to solve this?`,
+            `Who would benefit most from a solution to this problem?`,
+            `What's something completely different you could try?`,
+          ];
+        } else if (roundIndex === 1) {
+          return [
+            `How could you combine two of your existing ideas?`,
+            `What if you took your best idea and made it bigger or smaller?`,
+            `How could you adapt one of your ideas for a different audience?`,
+            `What if you merged the best parts of two different ideas?`,
+          ];
         } else {
-          if (roundIndex === 0) {
-            prompts = [
-              `What's the first idea that comes to mind about "${challenge.trim()}"?`,
-              `What if you had unlimited resources to solve this?`,
-              `Who would benefit most from a solution to this problem?`,
-              `What's something completely different you could try?`,
-            ];
-          } else if (roundIndex === 1) {
-            prompts = [
-              `How could you combine two of your existing ideas?`,
-              `What if you took your best idea and made it bigger or smaller?`,
-              `How could you adapt one of your ideas for a different audience?`,
-              `What if you merged the best parts of two different ideas?`,
-            ];
-          } else {
-            prompts = [
-              `What's the most outrageous, impossible version of this?`,
-              `What would aliens or robots suggest?`,
-              `If failure wasn't a possibility, what would you try?`,
-              `What if you completely reversed your approach?`,
-            ];
-          }
+          return [
+            `What's the most outrageous, impossible version of this?`,
+            `What would aliens or robots suggest?`,
+            `If failure wasn't a possibility, what would you try?`,
+            `What if you completely reversed your approach?`,
+          ];
         }
-      }
+      })();
 
-      logUsage({
-        endpoint: "tools/brainstorm-web/prompts",
-        model: "claude-haiku-4-5-20251001",
-        inputTokens: result.inputTokens,
-        outputTokens: result.outputTokens,
-        metadata: { sessionId, roundIndex, action: "prompts" },
-      });
-
-      return NextResponse.json({ prompts });
+      logToolkitUsage("tools/brainstorm-web/prompts", result, { sessionId, roundIndex, action: "prompts" });
+      return Response.json({ prompts: prompts.slice(0, 4) });
     }
 
     /* ─── Action: Effort-gated Socratic nudge ─── */
     if (action === "nudge") {
-      const { idea, roundIndex, effortLevel: clientEffort } = body;
-      if (!idea?.trim()) {
-        return NextResponse.json({ error: "Missing idea" }, { status: 400 });
+      const idea = (body.idea as string) ?? "";
+      const roundIndex = (body.roundIndex as number) ?? 0;
+      const clientEffort = body.effortLevel as "low" | "medium" | "high" | undefined;
+      if (!idea.trim()) {
+        return Response.json({ error: "Missing idea" }, { status: 400 });
       }
 
-      const round = BRAINSTORM_ROUNDS[roundIndex ?? 0];
-      const existingIdeas = body.existingIdeas || [];
-      const effort = clientEffort || "medium";
+      const round = BRAINSTORM_ROUNDS[roundIndex];
+      const challenge = (body.challenge as string) ?? "";
+      const existingIdeas = (body.existingIdeas || []) as string[];
+      const effort = (clientEffort as "low" | "medium" | "high") || "medium";
 
       let userPrompt = `DESIGN CHALLENGE: "${challenge.trim()}"
 BRAINSTORM ROUND: Round ${round.round} — ${round.title}
-IDEA JUST ADDED: "${idea.trim()}"`;
+IDEA JUST ADDED: "${(idea as string).trim()}"`;
 
       if (existingIdeas.length > 1) {
-        userPrompt += `\nOTHER IDEAS IN THIS ROUND: ${existingIdeas.filter(i => i !== idea.trim()).join("; ")}`;
+        userPrompt += `\nOTHER IDEAS IN THIS ROUND: ${existingIdeas.filter(i => i !== (idea as string).trim()).join("; ")}`;
       }
 
       userPrompt += `\n\nReturn a JSON object with your acknowledgment and follow-up question.`;
 
       const result = await callHaiku(buildNudgeSystemPrompt(effort), userPrompt, 120);
+      const parsed = parseToolkitJSON(result.text, { acknowledgment: "", nudge: result.text.trim() });
 
-      // Parse structured JSON response
-      let nudgeText = result.text.trim();
-      let acknowledgment = "";
-
-      try {
-        const jsonMatch = nudgeText.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          const parsed = JSON.parse(jsonMatch[0]);
-          nudgeText = parsed.nudge || nudgeText;
-          acknowledgment = parsed.acknowledgment || "";
-        }
-      } catch {
-        const nudgeMatch = nudgeText.match(/"nudge"\s*:\s*"([^"]+)"/);
-        const ackMatch = nudgeText.match(/"acknowledgment"\s*:\s*"([^"]+)"/);
-        if (nudgeMatch) nudgeText = nudgeMatch[1];
-        if (ackMatch) acknowledgment = ackMatch[1];
-      }
-
-      logUsage({
-        endpoint: "tools/brainstorm-web/nudge",
-        model: "claude-haiku-4-5-20251001",
-        inputTokens: result.inputTokens,
-        outputTokens: result.outputTokens,
-        metadata: { sessionId, roundIndex, action: "nudge", effortLevel: effort },
+      logToolkitUsage("tools/brainstorm-web/nudge", result, {
+        sessionId,
+        roundIndex,
+        action: "nudge",
+        effortLevel: effort,
       });
 
-      return NextResponse.json({
-        nudge: nudgeText,
-        acknowledgment,
+      return Response.json({
+        nudge: parsed.nudge || result.text.trim(),
+        acknowledgment: parsed.acknowledgment || "",
         effortLevel: effort,
       });
     }
 
     /* ─── Action: Summary insights ─── */
     if (action === "insights") {
-      const { allIdeas } = body;
-      if (!allIdeas || !Array.isArray(allIdeas)) {
-        return NextResponse.json({ error: "Missing allIdeas" }, { status: 400 });
+      const allIdeas = (body.allIdeas as string[][]) || [];
+      if (!Array.isArray(allIdeas) || allIdeas.length === 0) {
+        return Response.json({ error: "Missing allIdeas" }, { status: 400 });
       }
 
-      // Build a readable summary of all ideas
+      const challenge = (body.challenge as string) ?? "";
       const ideaSummary = BRAINSTORM_ROUNDS.map((round, i) => {
         const ideas = allIdeas[i] || [];
         if (ideas.length === 0) return `Round ${round.round} (${round.title}): No ideas`;
@@ -361,24 +257,12 @@ Help the student see patterns, themes, and promising directions across all their
 
       const result = await callHaiku(buildInsightsSystemPrompt(), userPrompt, 300);
 
-      logUsage({
-        endpoint: "tools/brainstorm-web/insights",
-        model: "claude-haiku-4-5-20251001",
-        inputTokens: result.inputTokens,
-        outputTokens: result.outputTokens,
-        metadata: { sessionId, totalIdeas, action: "insights" },
-      });
-
-      return NextResponse.json({ insights: result.text.trim() });
+      logToolkitUsage("tools/brainstorm-web/insights", result, { sessionId, totalIdeas, action: "insights" });
+      return Response.json({ insights: result.text.trim() });
     }
 
-    return NextResponse.json({ error: "Unknown action" }, { status: 400 });
+    return Response.json({ error: "Unknown action" }, { status: 400 });
   } catch (err) {
-    console.error("[brainstorm-web] Error:", err);
-    const errorMessage = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json(
-      { error: `Brainstorm Web tool error: ${errorMessage}` },
-      { status: 500 }
-    );
+    return toolkitErrorResponse("brainstorm-web", err);
   }
 }

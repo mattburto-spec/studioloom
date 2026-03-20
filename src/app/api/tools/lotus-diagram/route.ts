@@ -6,32 +6,20 @@
  *   2. "nudge"    — Effort-gated Socratic feedback after adding an idea
  *   3. "insights" — Synthesis across all petals, find themes and connections
  *
- * Uses Haiku 4.5 for speed. Short responses only.
+ * Uses shared toolkit helpers — see src/lib/toolkit/shared-api.ts
  */
 
-import { NextRequest, NextResponse } from "next/server";
-import { rateLimit } from "@/lib/rate-limit";
-import { logUsage } from "@/lib/usage-tracking";
+import { NextRequest } from "next/server";
+import {
+  callHaiku,
+  validateToolkitRequest,
+  parseToolkitJSON,
+  parseToolkitJSONArray,
+  logToolkitUsage,
+  toolkitErrorResponse,
+} from "@/lib/toolkit";
 
-const TOOLKIT_LIMITS = [
-  { maxRequests: 50, windowMs: 60 * 1000 },
-  { maxRequests: 500, windowMs: 60 * 60 * 1000 },
-];
-
-type ActionType = "prompts" | "nudge" | "insights";
-
-interface RequestBody {
-  action: ActionType;
-  theme: string;
-  petalTheme?: string;
-  petalIndex?: number;
-  sessionId: string;
-  idea?: string;
-  existingIdeas?: string[];
-  effortLevel?: "low" | "medium" | "high";
-  petals?: string[];
-  allIdeas?: string[][];
-}
+// ─── Tool-specific prompt builders (unique pedagogical rules) ───
 
 function buildPromptsSystemPrompt(ideaCount: number): string {
   let difficultyInstruction: string;
@@ -126,171 +114,91 @@ RULES:
 RESPONSE FORMAT: 2-3 short paragraphs of plain text. Use no headers, no bullets, no markdown.`;
 }
 
-async function callHaiku(
-  systemPrompt: string,
-  userPrompt: string,
-  maxTokens: number
-): Promise<{ text: string; inputTokens: number; outputTokens: number }> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error("AI service not configured");
-
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: maxTokens,
-      temperature: 0.8,
-      system: systemPrompt,
-      messages: [{ role: "user", content: userPrompt }],
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`AI call failed: ${response.status} ${errorText}`);
-  }
-
-  const data = await response.json();
-  const textBlock = data.content?.find((b: { type: string }) => b.type === "text");
-
-  return {
-    text: textBlock?.text || "",
-    inputTokens: data.usage?.input_tokens || 0,
-    outputTokens: data.usage?.output_tokens || 0,
-  };
-}
+// ─── POST handler ───
 
 export async function POST(request: NextRequest) {
+  const validated = await validateToolkitRequest(request, "lotus-diagram", ["prompts", "nudge", "insights"]);
+  if (validated.error) return validated.error;
+  const { body } = validated;
+  const { action, theme, sessionId } = body;
+
   try {
-    const body = (await request.json()) as RequestBody;
-    const { action, theme, sessionId } = body;
-
-    if (!action || !theme?.trim() || !sessionId) {
-      return NextResponse.json(
-        { error: "Missing required fields: action, theme, sessionId" },
-        { status: 400 }
-      );
-    }
-
-    const { allowed, retryAfterMs } = rateLimit(
-      `lotus-diagram:${sessionId}`,
-      TOOLKIT_LIMITS
-    );
-    if (!allowed) {
-      return NextResponse.json(
-        { error: "Too many requests. Take a moment to think, then try again." },
-        { status: 429, headers: { "Retry-After": String(Math.ceil((retryAfterMs || 1000) / 1000)) } }
-      );
-    }
-
-    /* ─── PROMPTS ─── */
+    /* ─── Action: Generate contextual prompts ─── */
     if (action === "prompts") {
-      const { petalTheme, petalIndex = 0, existingIdeas = [] } = body;
-      if (!petalTheme?.trim()) {
-        return NextResponse.json({ error: "Missing petalTheme" }, { status: 400 });
+      const petalTheme = body.petalTheme ?? "";
+      const petalIndex = (body.petalIndex as number) ?? 0;
+      const existingIdeas = (body.existingIdeas || []) as string[];
+      const theme = (body.theme as string) ?? "";
+
+      if (!petalTheme?.toString().trim()) {
+        return Response.json({ error: "Missing petalTheme" }, { status: 400 });
       }
 
       const systemPrompt = buildPromptsSystemPrompt(existingIdeas.length);
-      const userPrompt = `Central theme: "${theme.trim()}"
-Petal sub-theme: "${petalTheme.trim()}"
+      let userPrompt = `Central theme: "${theme.trim()}"
+Petal sub-theme: "${petalTheme.toString().trim()}"
 Petal index: ${petalIndex}
 
 ${existingIdeas.length > 0 ? `Existing ideas for this petal:\n${existingIdeas.map((idea, i) => `${i + 1}. ${idea}`).join("\n")}\n\nGenerate 4 NEW questions that push in DIFFERENT directions from these ideas.` : "Generate 4 thought-provoking questions specific to this petal theme."}`;
 
       const result = await callHaiku(systemPrompt, userPrompt, 400);
 
-      let prompts: string[] = [];
-      try {
-        prompts = JSON.parse(result.text);
-        if (!Array.isArray(prompts)) throw new Error("Not an array");
-        prompts = prompts.slice(0, 4).map(p => String(p).trim());
-      } catch {
-        const matches = result.text.match(/"([^"]+)"/g);
-        if (matches && matches.length >= 2) {
-          prompts = matches.slice(0, 4).map(m => m.replace(/"/g, "").trim());
-        } else {
-          prompts = [
-            `What would ${petalTheme.toLowerCase()} look like if you focused on the most unusual angle?`,
-            `How might someone from a completely different field approach ${petalTheme.toLowerCase()}?`,
-            `What assumption are you making about ${petalTheme.toLowerCase()} that might not be true?`,
-            `If ${petalTheme.toLowerCase()} had to solve a completely different problem, what would it look like?`,
-          ];
-        }
-      }
+      const prompts = parseToolkitJSONArray(result.text) || [
+        `What would ${petalTheme.toString().toLowerCase()} look like if you focused on the most unusual angle?`,
+        `How might someone from a completely different field approach ${petalTheme.toString().toLowerCase()}?`,
+        `What assumption are you making about ${petalTheme.toString().toLowerCase()} that might not be true?`,
+        `If ${petalTheme.toString().toLowerCase()} had to solve a completely different problem, what would it look like?`,
+      ];
 
-      logUsage({
-        endpoint: "tools/lotus-diagram/prompts",
-        model: "claude-haiku-4-5-20251001",
-        inputTokens: result.inputTokens,
-        outputTokens: result.outputTokens,
-        metadata: { sessionId, petalIndex, action: "prompts" },
-      });
+      logToolkitUsage("tools/lotus-diagram/prompts", result, { sessionId, petalIndex, action: "prompts" });
 
-      return NextResponse.json({ prompts });
+      return Response.json({ prompts: prompts.slice(0, 4) });
     }
 
-    /* ─── NUDGE ─── */
+    /* ─── Action: Effort-gated Socratic nudge ─── */
     if (action === "nudge") {
-      const { idea, petalTheme, petalIndex = 0, existingIdeas = [], effortLevel = "medium" } = body;
-      if (!idea?.trim()) {
-        return NextResponse.json({ error: "Missing idea" }, { status: 400 });
+      const idea = (body.idea as string) ?? "";
+      const petalTheme = body.petalTheme ?? "";
+      const petalIndex = (body.petalIndex as number) ?? 0;
+      const existingIdeas = (body.existingIdeas || []) as string[];
+      const effortLevel = (body.effortLevel as "low" | "medium" | "high") || "medium";
+      const theme = (body.theme as string) ?? "";
+
+      if (!idea.trim()) {
+        return Response.json({ error: "Missing idea" }, { status: 400 });
       }
-      if (!petalTheme?.trim()) {
-        return NextResponse.json({ error: "Missing petalTheme" }, { status: 400 });
+      if (!petalTheme?.toString().trim()) {
+        return Response.json({ error: "Missing petalTheme" }, { status: 400 });
       }
 
       const systemPrompt = buildNudgeSystemPrompt(effortLevel);
-      const userPrompt = `Central theme: "${theme.trim()}"
-Petal: "${petalTheme.trim()}"
+      let userPrompt = `Central theme: "${theme.trim()}"
+Petal: "${petalTheme.toString().trim()}"
 Idea just added: "${idea.trim()}"
 ${existingIdeas.length > 1 ? `Other ideas in this petal: ${existingIdeas.filter(i => i !== idea.trim()).join("; ")}` : ""}
 
 Respond with JSON feedback.`;
 
       const result = await callHaiku(systemPrompt, userPrompt, 120);
+      const parsed = parseToolkitJSON(result.text, { acknowledgment: "", nudge: result.text.trim() });
 
-      let nudgeText = result.text.trim();
-      let acknowledgment = "";
+      logToolkitUsage("tools/lotus-diagram/nudge", result, { sessionId, petalIndex, effortLevel, action: "nudge" });
 
-      try {
-        const jsonMatch = nudgeText.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          const parsed = JSON.parse(jsonMatch[0]);
-          nudgeText = parsed.nudge || nudgeText;
-          acknowledgment = parsed.acknowledgment || "";
-        }
-      } catch {
-        const nudgeMatch = nudgeText.match(/"nudge"\s*:\s*"([^"]+)"/);
-        const ackMatch = nudgeText.match(/"acknowledgment"\s*:\s*"([^"]+)"/);
-        if (nudgeMatch) nudgeText = nudgeMatch[1];
-        if (ackMatch) acknowledgment = ackMatch[1];
-      }
-
-      logUsage({
-        endpoint: "tools/lotus-diagram/nudge",
-        model: "claude-haiku-4-5-20251001",
-        inputTokens: result.inputTokens,
-        outputTokens: result.outputTokens,
-        metadata: { sessionId, petalIndex, effortLevel, action: "nudge" },
-      });
-
-      return NextResponse.json({
-        nudge: nudgeText,
-        acknowledgment,
+      return Response.json({
+        nudge: parsed.nudge || result.text.trim(),
+        acknowledgment: parsed.acknowledgment || "",
         effortLevel,
       });
     }
 
-    /* ─── INSIGHTS ─── */
+    /* ─── Action: Summary insights ─── */
     if (action === "insights") {
-      const { petals = [], allIdeas = [] } = body;
+      const petals = (body.petals || []) as string[];
+      const allIdeas = (body.allIdeas || []) as string[][];
+      const theme = (body.theme as string) ?? "";
+
       if (!Array.isArray(allIdeas) || allIdeas.length === 0) {
-        return NextResponse.json({ insights: "" });
+        return Response.json({ insights: "" });
       }
 
       const systemPrompt = buildInsightsSystemPrompt();
@@ -311,24 +219,17 @@ Help the student see patterns and connections across their ideas.`;
 
       const result = await callHaiku(systemPrompt, userPrompt, 300);
 
-      logUsage({
-        endpoint: "tools/lotus-diagram/insights",
-        model: "claude-haiku-4-5-20251001",
-        inputTokens: result.inputTokens,
-        outputTokens: result.outputTokens,
-        metadata: { sessionId, totalIdeas: allIdeas.reduce((sum, arr) => sum + arr.length, 0), action: "insights" },
+      logToolkitUsage("tools/lotus-diagram/insights", result, {
+        sessionId,
+        totalIdeas: allIdeas.reduce((sum, arr) => sum + arr.length, 0),
+        action: "insights",
       });
 
-      return NextResponse.json({ insights: result.text.trim() });
+      return Response.json({ insights: result.text.trim() });
     }
 
-    return NextResponse.json({ error: "Unknown action" }, { status: 400 });
+    return Response.json({ error: "Unknown action" }, { status: 400 });
   } catch (err) {
-    console.error("[lotus-diagram] Error:", err);
-    const errorMessage = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json(
-      { error: `Lotus Diagram tool error: ${errorMessage}` },
-      { status: 500 }
-    );
+    return toolkitErrorResponse("lotus-diagram", err);
   }
 }

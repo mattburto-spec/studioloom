@@ -4,19 +4,22 @@
  * 3 steps: Elements, Connections, Feedback Loops
  * Maps the ecosystem and identifies systemic leverage points.
  *
- * Three interaction modes:
+ * Two interaction modes:
  *   1. "nudge"    — Step-specific prompts
  *   2. "insights" — Identifies key leverage points
+ *
+ * Uses shared toolkit helpers — see src/lib/toolkit/shared-api.ts
  */
 
-import { NextRequest, NextResponse } from "next/server";
-import { rateLimit } from "@/lib/rate-limit";
-import { logUsage } from "@/lib/usage-tracking";
+import { NextRequest } from "next/server";
+import {
+  callHaiku,
+  validateToolkitRequest,
+  logToolkitUsage,
+  toolkitErrorResponse,
+} from "@/lib/toolkit";
 
-const TOOLKIT_LIMITS = [
-  { maxRequests: 50, windowMs: 60 * 1000 },
-  { maxRequests: 500, windowMs: 60 * 60 * 1000 },
-];
+// ─── Tool-specific config ───
 
 const STEPS = [
   { name: "Elements", focus: "parts, actors, rules, infrastructure" },
@@ -24,20 +27,7 @@ const STEPS = [
   { name: "Feedback Loops", focus: "circular patterns, reinforcing loops, leverage points" },
 ];
 
-type ActionType = "nudge" | "insights";
-
-interface RequestBody {
-  action: ActionType;
-  challenge: string;
-  sessionId: string;
-  stepIndex?: number;
-  idea?: string;
-  existingIdeas?: string[];
-  step?: string;
-  allIdeas?: string[][];
-}
-
-// ─── Step-Specific Nudge ───
+// ─── Tool-specific prompt builders ───
 
 function buildNudgeSystemPrompt(stepIndex: number): string {
   const step = STEPS[stepIndex];
@@ -66,154 +56,96 @@ function buildNudgeUserPrompt(
 
 In the "${step.name}" step, they've written: "${allText}"
 
-Existing ${step.name.toLowerCase()} in this map: ${existingIdeas.length > 0 ? existingIdeas.map((i) => `"${i}"`).join(", ") : "none yet"}
+Existing ${step.name.toLowerCase()} in this map: ${existingIdeas.length > 0 ? existingIdeas.map((i: string) => `"${i}"`).join(", ") : "none yet"}
 
 Give a 1-sentence nudge that probes deeper into systems thinking.`;
 }
 
-async function generateNudge(
-  stepIndex: number,
-  currentText: string,
-  existingIdeas: string[],
-  challenge: string
-): Promise<string> {
-  const anthropic = require("@anthropic-ai/sdk");
-  const client = new anthropic.default({
-    apiKey: process.env.ANTHROPIC_API_KEY,
-  });
-
-  const systemPrompt = buildNudgeSystemPrompt(stepIndex);
-  const userPrompt = buildNudgeUserPrompt(stepIndex, currentText, existingIdeas, challenge);
-
-  try {
-    const msg = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 150,
-      system: systemPrompt,
-      messages: [{ role: "user", content: userPrompt }],
-    });
-
-    const content = msg.content[0];
-    if (content.type === "text") {
-      return content.text.trim();
-    }
-    return "Think about what else is part of this system.";
-  } catch {
-    return "Tell me more about this part of the system.";
-  }
-}
-
-// ─── Insights Synthesis ───
-
 function buildInsightsSystemPrompt(): string {
-  return `You are a systems analyst identifying leverage points in a mapped ecosystem.
+  return `You are a systems thinking mentor synthesizing a systems map into strategic insights.
 
-You have 3 steps of a systems map:
-1. Elements — all the parts and actors
-2. Connections — relationships between them
-3. Feedback Loops — circular patterns
+The student has mapped a system across 3 steps: Elements, Connections, and Feedback Loops.
 
-Your job: identify the most influential element and the strongest feedback loop.
+YOUR ROLE: Help them see leverage points — where small changes create big effects.
 
-Write 3-4 short sentences. Be specific. Reference actual elements and connections from the map.`;
+RULES:
+- Identify the most important elements (the few actors/factors that matter most)
+- Trace the key connections and influences (what drives what?)
+- Identify leverage points (where a small change could create systemic shift)
+- Ask 1-2 questions about which leverage point has the most potential
+- Keep the response under 150 words
+- Use simple, clear language for ages 11-18
+- Reference specific elements and connections from their map
+
+RESPONSE FORMAT: 2-3 short paragraphs of plain text. No headers, no bullets, no markdown.`;
 }
 
-function buildInsightsUserPrompt(challenge: string, allIdeas: string[][]): string {
-  const steps = ["Elements", "Connections", "Feedback Loops"];
-  const stepTexts = steps
-    .map((name, idx) => {
-      const ideas = allIdeas[idx] || [];
-      return `${name}: ${ideas.length > 0 ? ideas.join(" | ") : "(empty)"}`;
-    })
-    .join("\n");
+// ─── POST handler ───
 
-  return `System being mapped: "${challenge}"
-
-Map so far:
-${stepTexts}
-
-Identify:
-1. The most influential element in this system
-2. The strongest feedback loop (where change cascades)
-3. Where you could intervene to shift the whole system`;
-}
-
-async function generateInsights(challenge: string, allIdeas: string[][]): Promise<string> {
-  const anthropic = require("@anthropic-ai/sdk");
-  const client = new anthropic.default({
-    apiKey: process.env.ANTHROPIC_API_KEY,
-  });
-
-  const systemPrompt = buildInsightsSystemPrompt();
-  const userPrompt = buildInsightsUserPrompt(challenge, allIdeas);
+export async function POST(request: NextRequest) {
+  const validated = await validateToolkitRequest(request, "systems-map", ["nudge", "insights"]);
+  if (validated.error) return validated.error;
+  const { body } = validated;
+  const { action, challenge, sessionId } = body;
 
   try {
-    const msg = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 300,
-      system: systemPrompt,
-      messages: [{ role: "user", content: userPrompt }],
-    });
-
-    const content = msg.content[0];
-    if (content.type === "text") {
-      return content.text.trim();
-    }
-    return "Review your systems map for leverage points.";
-  } catch {
-    return "Review your systems map for leverage points.";
-  }
-}
-
-// ─── Main Handler ───
-
-export async function POST(req: NextRequest) {
-  try {
-    const body: RequestBody = await req.json();
-    const { action, challenge, sessionId, stepIndex = 0, idea = "", existingIdeas = [], allIdeas = [], step = "" } = body;
-
-    const limitStatus = rateLimit(`tool:systems-map:${sessionId}`, TOOLKIT_LIMITS);
-    if (!limitStatus.allowed) {
-      return NextResponse.json({ error: "Rate limited" }, { status: 429 });
-    }
-
+    /* ─── Action: Step-specific nudge ─── */
     if (action === "nudge") {
-      const nudgeText = await generateNudge(stepIndex, idea, existingIdeas, challenge);
+      const { stepIndex = 0, currentText = "", existingIdeas = [] } = body;
+      if (stepIndex < 0 || stepIndex >= STEPS.length) {
+        return Response.json({ error: "Invalid step index" }, { status: 400 });
+      }
 
-      logUsage({
-        endpoint: "tools/systems-map/nudge",
-        model: "claude-haiku-4-5-20251001",
-        inputTokens: 100,
-        outputTokens: 50,
-        metadata: { sessionId, action: "nudge" },
+      const userPrompt = buildNudgeUserPrompt(
+        stepIndex as number,
+        currentText as string,
+        existingIdeas as string[],
+        challenge
+      );
+
+      const result = await callHaiku(buildNudgeSystemPrompt(stepIndex as number), userPrompt, 150);
+
+      logToolkitUsage("tools/systems-map/nudge", result, {
+        sessionId,
+        stepIndex,
+        action: "nudge",
       });
 
-      return NextResponse.json({
-        success: true,
-        nudge: nudgeText,
-      });
+      return Response.json({ nudge: result.text.trim() });
     }
 
+    /* ─── Action: Insights synthesis ─── */
     if (action === "insights") {
-      const insightsText = await generateInsights(challenge, allIdeas);
+      const { allIdeas = [] } = body;
+      const hasIdeas = (allIdeas as string[][]).some((arr) => Array.isArray(arr) && arr.length > 0);
+      if (!hasIdeas) {
+        return Response.json({ insights: "" });
+      }
 
-      logUsage({
-        endpoint: "tools/systems-map/insights",
-        model: "claude-haiku-4-5-20251001",
-        inputTokens: 300,
-        outputTokens: 150,
-        metadata: { sessionId, action: "insights" },
+      const ideaSummary = STEPS.map((step, i) => {
+        const ideas = (allIdeas as string[][])[i] || [];
+        return `${step.name}: ${ideas.length > 0 ? ideas.map((idea) => `"${idea}"`).join(", ") : "(empty)"}`;
+      }).join("\n");
+
+      const userPrompt = `System: "${challenge}"
+
+Systems Map Across All Steps:
+${ideaSummary}
+
+Analyze this systems map for leverage points and strategic insights.`;
+
+      const result = await callHaiku(buildInsightsSystemPrompt(), userPrompt, 300);
+
+      logToolkitUsage("tools/systems-map/insights", result, {
+        sessionId,
+        action: "insights",
       });
 
-      return NextResponse.json({
-        success: true,
-        insights: insightsText,
-      });
+      return Response.json({ insights: result.text.trim() });
     }
 
-    return NextResponse.json({ error: "Invalid action" }, { status: 400 });
-  } catch (error) {
-    console.error("Systems Map API error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return Response.json({ error: "Invalid action" }, { status: 400 });
+  } catch (err) {
+    return toolkitErrorResponse("systems-map", err);
   }
 }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireTeacherAuth, verifyTeacherOwnsClass } from "@/lib/auth/verify-teacher-unit";
 
 /**
  * Teacher Open Studio Status API
@@ -17,41 +17,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
  *   Body: { statusId, action: "revoke" | "update", reason?, carryForward? }
  */
 
-/** Auth-only client — used solely to verify teacher identity via cookies */
-function getAuthClient(request: NextRequest) {
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll() {},
-      },
-    }
-  );
-}
-
-/** Verify teacher auth, return user or error response */
-async function verifyTeacher(request: NextRequest) {
-  const supabase = getAuthClient(request);
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return { user: null, error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
-  }
-  return { user, error: null };
-}
-
 export async function GET(request: NextRequest) {
-  const { user, error: authErr } = await verifyTeacher(request);
-  if (authErr) return authErr;
-
-  const db = createAdminClient();
+  const auth = await requireTeacherAuth(request);
+  if (auth.error) return auth.error;
+  const teacherId = auth.teacherId;
 
   const { searchParams } = new URL(request.url);
   const unitId = searchParams.get("unitId");
@@ -65,16 +34,12 @@ export async function GET(request: NextRequest) {
   }
 
   // Verify teacher owns this class
-  const { data: classData } = await db
-    .from("classes")
-    .select("id")
-    .eq("id", classId)
-    .eq("teacher_id", user!.id)
-    .single();
-
-  if (!classData) {
+  const ownsClass = await verifyTeacherOwnsClass(teacherId, classId);
+  if (!ownsClass) {
     return NextResponse.json({ error: "Class not found" }, { status: 404 });
   }
+
+  const db = createAdminClient();
 
   // Get all students in the class with their Open Studio status
   const { data: students } = await db
@@ -102,10 +67,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const { user, error: authErr } = await verifyTeacher(request);
-  if (authErr) return authErr;
-
-  const db = createAdminClient();
+  const auth = await requireTeacherAuth(request);
+  if (auth.error) return auth.error;
+  const teacherId = auth.teacherId;
 
   const body = await request.json();
   const {
@@ -130,17 +94,13 @@ export async function POST(request: NextRequest) {
   }
 
   // Verify teacher owns this class
-  const { data: classData } = await db
-    .from("classes")
-    .select("id")
-    .eq("id", classId)
-    .eq("teacher_id", user!.id)
-    .single();
-
-  if (!classData) {
-    console.error("[open-studio] Class not found for teacher:", user!.id, "class:", classId);
+  const ownsClass = await verifyTeacherOwnsClass(teacherId, classId);
+  if (!ownsClass) {
+    console.error("[open-studio] Class not found for teacher:", teacherId, "class:", classId);
     return NextResponse.json({ error: "Class not found" }, { status: 404 });
   }
+
+  const db = createAdminClient();
 
   // Verify student belongs to this class
   const { data: student } = await db
@@ -190,8 +150,9 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const { user, error: authErr } = await verifyTeacher(request);
-  if (authErr) return authErr;
+  const auth = await requireTeacherAuth(request);
+  if (auth.error) return auth.error;
+  const teacherId = auth.teacherId;
 
   const db = createAdminClient();
 
@@ -228,7 +189,7 @@ export async function PATCH(request: NextRequest) {
 
   // Verify the authenticated teacher owns this class
   const classInfo = (existing as Record<string, unknown>).classes as { teacher_id: string } | null;
-  if (!classInfo || classInfo.teacher_id !== user!.id) {
+  if (!classInfo || classInfo.teacher_id !== teacherId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 

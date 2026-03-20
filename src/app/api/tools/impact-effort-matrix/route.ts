@@ -9,30 +9,19 @@
  *   1. "nudge"          — Effort-gated feedback on scoring reasoning
  *   2. "recommendations" — Cross-idea synthesis + top 3 recommendation
  *
- * Uses Haiku 4.5 for speed. Focuses on decision-making clarity.
+ * Uses shared toolkit helpers — see src/lib/toolkit/shared-api.ts
  */
 
-import { NextRequest, NextResponse } from "next/server";
-import { rateLimit } from "@/lib/rate-limit";
-import { logUsage } from "@/lib/usage-tracking";
+import { NextRequest } from "next/server";
+import {
+  callHaiku,
+  validateToolkitRequest,
+  parseToolkitJSON,
+  logToolkitUsage,
+  toolkitErrorResponse,
+} from "@/lib/toolkit";
 
-const TOOLKIT_LIMITS = [
-  { maxRequests: 50, windowMs: 60 * 1000 },
-  { maxRequests: 500, windowMs: 60 * 60 * 1000 },
-];
-
-type ActionType = "nudge" | "recommendations";
-
-interface RequestBody {
-  action: ActionType;
-  challenge: string;
-  sessionId: string;
-  idea?: string;
-  effortLevel?: "low" | "medium" | "high";
-  ideas?: Array<{ text: string; impact?: number; effort?: number; impactReasoning?: string; effortReasoning?: string }>;
-}
-
-// ─── Nudge Generation ───
+// ─── Tool-specific prompt builders ───
 
 function buildNudgeSystemPrompt(effortLevel: "low" | "medium" | "high"): string {
   const effortStrategy: Record<string, string> = {
@@ -67,8 +56,6 @@ RESPONSE FORMAT: Return JSON with exactly these fields:
 }`;
 }
 
-// ─── Recommendations Generation ───
-
 function buildRecommendationsSystemPrompt(): string {
   return `You are a strategic prioritization advisor. A student has just plotted ideas on a 2×2 Impact/Effort matrix.
 
@@ -87,151 +74,92 @@ RESPONSE FORMAT: Return JSON with:
 }`;
 }
 
-// ─── Main Handler ───
+// ─── POST handler ───
 
-export async function POST(req: NextRequest) {
+export async function POST(request: NextRequest) {
+  const validated = await validateToolkitRequest(request, "impact-effort-matrix", ["nudge", "recommendations"]);
+  if (validated.error) return validated.error;
+  const { body } = validated;
+  const { action, challenge, sessionId } = body;
+
   try {
-    const body: RequestBody = await req.json();
-    const { action, challenge, sessionId, idea, effortLevel, ideas } = body;
+    /* ─── Action: Nudge feedback ─── */
+    if (action === "nudge") {
+      const { effortLevel = "medium", impactReasoning = "", effortReasoning = "" } = body;
 
-    // Rate limiting
-    const rateLimitResult = rateLimit(sessionId, TOOLKIT_LIMITS);
-    if (!rateLimitResult.allowed) {
-      return NextResponse.json(
-        { error: "Rate limit exceeded" },
-        { status: 429, headers: { "Retry-After": String(Math.ceil((rateLimitResult.retryAfterMs || 60000) / 1000)) } }
+      const userPrompt = `Challenge: "${challenge}"
+
+Impact Reasoning: "${impactReasoning}"
+Effort Reasoning: "${effortReasoning}"
+
+Provide feedback on the quality and clarity of this reasoning.`;
+
+      const result = await callHaiku(
+        buildNudgeSystemPrompt(effortLevel as "low" | "medium" | "high"),
+        userPrompt,
+        120
       );
+      const parsed = parseToolkitJSON(result.text, { acknowledgment: "", nudge: result.text.trim() });
+
+      logToolkitUsage("tools/impact-effort-matrix/nudge", result, {
+        sessionId,
+        effortLevel,
+        action: "nudge",
+      });
+
+      return Response.json({
+        acknowledgment: parsed.acknowledgment || "",
+        nudge: parsed.nudge || result.text.trim(),
+        effortLevel,
+      });
     }
 
-    let responseData: Record<string, unknown> = {};
-
-    if (action === "nudge") {
-      if (!idea || !effortLevel) {
-        return NextResponse.json({ error: "Missing idea or effortLevel" }, { status: 400 });
+    /* ─── Action: Recommendations synthesis ─── */
+    if (action === "recommendations") {
+      const { ideas = [] } = body;
+      if (!Array.isArray(ideas) || ideas.length === 0) {
+        return Response.json({ recommendations: "" });
       }
 
-      const systemPrompt = buildNudgeSystemPrompt(effortLevel);
-      const userPrompt = `The student is scoring this idea: "${idea}"
-
-Challenge: ${challenge}
-
-They rated it with provided impact and effort scores. Now they need to clarify their reasoning. Push them to think deeper about WHAT specifically impacts their goal and WHAT specifically requires effort.`;
-
-      const aiResponse = await fetch("https://api.anthropic.com/v1/messages/create", {
-        method: "POST",
-        headers: {
-          "x-api-key": process.env.ANTHROPIC_API_KEY || "",
-          "anthropic-version": "2023-06-01",
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "claude-haiku-4-5-20251001",
-          max_tokens: 300,
-          system: systemPrompt,
-          messages: [{ role: "user", content: userPrompt }],
-        }),
-      });
-
-      if (!aiResponse.ok) {
-        console.error("[impact-effort] AI API error:", await aiResponse.text());
-        return NextResponse.json({ nudge: "" }, { status: 200 });
-      }
-
-      const aiData = await aiResponse.json() as Record<string, unknown>;
-      const aiContent = (aiData.content as Array<{ type: string; text?: string }>)?.[0]?.text || "";
-
-      // Parse JSON from AI response
-      const jsonMatch = aiContent.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        try {
-          const parsed = JSON.parse(jsonMatch[0]);
-          responseData.nudge = parsed.nudge || "";
-        } catch {
-          responseData.nudge = "";
-        }
-      } else {
-        responseData.nudge = "";
-      }
-
-      // Log usage
-      logUsage({
-        endpoint: "tools/impact-effort-matrix/nudge",
-        model: "claude-haiku-4-5-20251001",
-        inputTokens: 300,
-        outputTokens: 150,
-        metadata: { sessionId, action: "nudge" },
-      });
-    } else if (action === "recommendations") {
-      if (!ideas || ideas.length === 0) {
-        return NextResponse.json({ error: "Missing ideas" }, { status: 400 });
-      }
-
-      const systemPrompt = buildRecommendationsSystemPrompt();
-      const ideasSummary = ideas
-        .map((i, idx) => `${idx + 1}. "${i.text}" (Impact: ${i.impact}/5, Effort: ${i.effort}/5)`)
+      const ideaList = (ideas as Array<{ text: string; impact?: number; effort?: number }>)
+        .map((idea) => {
+          const impact = idea.impact || 0;
+          const effort = idea.effort || 0;
+          const quadrant =
+            impact >= 3 && effort <= 2
+              ? "Quick Wins"
+              : impact >= 3 && effort > 2
+                ? "Major Projects"
+                : impact < 3 && effort <= 2
+                  ? "Low Priority"
+                  : "Avoid";
+          return `- "${idea.text}" (Impact: ${impact}, Effort: ${effort}) → ${quadrant}`;
+        })
         .join("\n");
 
-      const userPrompt = `Challenge: ${challenge}
+      const userPrompt = `Challenge: "${challenge}"
 
-Ideas plotted on matrix:
-${ideasSummary}
+Ideas plotted on Impact/Effort matrix:
+${ideaList}
 
-Analyze this prioritization and recommend the top 3 ideas to pursue based on impact and effort. Also flag any ideas that might be misplaced.`;
+Analyze this prioritization and recommend the top 3 ideas to pursue.`;
 
-      const aiResponse = await fetch("https://api.anthropic.com/v1/messages/create", {
-        method: "POST",
-        headers: {
-          "x-api-key": process.env.ANTHROPIC_API_KEY || "",
-          "anthropic-version": "2023-06-01",
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "claude-haiku-4-5-20251001",
-          max_tokens: 400,
-          system: systemPrompt,
-          messages: [{ role: "user", content: userPrompt }],
-        }),
+      const result = await callHaiku(buildRecommendationsSystemPrompt(), userPrompt, 200);
+      const parsed = parseToolkitJSON(result.text, { recommendations: result.text.trim() });
+
+      logToolkitUsage("tools/impact-effort-matrix/recommendations", result, {
+        sessionId,
+        ideaCount: ideas.length,
+        action: "recommendations",
       });
 
-      if (!aiResponse.ok) {
-        console.error("[impact-effort] AI API error:", await aiResponse.text());
-        return NextResponse.json({ recommendations: "" }, { status: 200 });
-      }
-
-      const aiData = await aiResponse.json() as Record<string, unknown>;
-      const aiContent = (aiData.content as Array<{ type: string; text?: string }>)?.[0]?.text || "";
-
-      // Parse JSON from AI response
-      const jsonMatch = aiContent.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        try {
-          const parsed = JSON.parse(jsonMatch[0]);
-          responseData.recommendations = parsed.recommendations || "";
-        } catch {
-          responseData.recommendations = "";
-        }
-      } else {
-        responseData.recommendations = "";
-      }
-
-      // Log usage
-      logUsage({
-        endpoint: "tools/impact-effort-matrix/recommendations",
-        model: "claude-haiku-4-5-20251001",
-        inputTokens: 400,
-        outputTokens: 200,
-        metadata: { sessionId, action: "recommendations" },
+      return Response.json({
+        recommendations: parsed.recommendations || result.text.trim(),
       });
-    } else {
-      return NextResponse.json({ error: "Invalid action" }, { status: 400 });
     }
 
-    return NextResponse.json(responseData);
-  } catch (error) {
-    console.error("[impact-effort] Error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return Response.json({ error: "Invalid action" }, { status: 400 });
+  } catch (err) {
+    return toolkitErrorResponse("impact-effort-matrix", err);
   }
 }

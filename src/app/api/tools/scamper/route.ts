@@ -6,24 +6,20 @@
  *   2. "nudge"    — Effort-gated Socratic feedback after a student adds an idea
  *   3. "insights" — At the summary stage, find connections and themes across all ideas
  *
- * Education AI patterns (better than Khanmigo/Duolingo):
- *   - Effort-gating: assess response quality before choosing feedback strategy
- *   - Socratic feedback: acknowledge → ask a question targeting the gap
- *   - Staged cognitive load: adapt prompt difficulty to student progress
- *   - Micro-feedback: immediate specific acknowledgment + progress indicators
- *
- * Uses Haiku 4.5 for speed (student-facing). Short responses only — the student does the thinking.
+ * Uses shared toolkit helpers — see src/lib/toolkit/shared-api.ts
  */
 
-import { NextRequest, NextResponse } from "next/server";
-import { rateLimit } from "@/lib/rate-limit";
-import { logUsage } from "@/lib/usage-tracking";
+import { NextRequest } from "next/server";
+import {
+  callHaiku,
+  validateToolkitRequest,
+  parseToolkitJSON,
+  parseToolkitJSONArray,
+  logToolkitUsage,
+  toolkitErrorResponse,
+} from "@/lib/toolkit";
 
-// Rate limit: generous for toolkit (50/min per session, 500/hour)
-const TOOLKIT_LIMITS = [
-  { maxRequests: 50, windowMs: 60 * 1000 },
-  { maxRequests: 500, windowMs: 60 * 60 * 1000 },
-];
+// ─── Tool-specific config ───
 
 const SCAMPER_STEPS = [
   { letter: "S", word: "Substitute", verb: "substituting components, materials, people, or processes" },
@@ -35,25 +31,9 @@ const SCAMPER_STEPS = [
   { letter: "R", word: "Reverse", verb: "reversing, inverting, or doing the opposite" },
 ];
 
-type ActionType = "prompts" | "nudge" | "insights";
-
-interface RequestBody {
-  action: ActionType;
-  challenge: string;
-  sessionId: string;
-  // For "prompts": which step index (0-6)
-  stepIndex?: number;
-  // For "nudge": the idea just added + existing ideas for this step
-  idea?: string;
-  existingIdeas?: string[];
-  // For "nudge": client-assessed effort level (enables effort-gated feedback)
-  effortLevel?: "low" | "medium" | "high";
-  // For "insights": all ideas grouped by step
-  allIdeas?: string[][];
-}
+// ─── Tool-specific prompt builders (unique pedagogical rules) ───
 
 function buildPromptsSystemPrompt(ideaCount: number): string {
-  // Staged cognitive load: adapt prompt difficulty to student progress
   let difficultyInstruction: string;
   if (ideaCount === 0) {
     difficultyInstruction = `DIFFICULTY: INTRODUCTORY — The student hasn't written any ideas yet for this step.
@@ -92,9 +72,6 @@ Example: ["What if you replaced the main material with something from nature?", 
 }
 
 function buildNudgeSystemPrompt(effortLevel: "low" | "medium" | "high"): string {
-  // IDEATION PHASE: encourage divergent thinking, NOT critical evaluation.
-  // Save "what could go wrong?" and "who does this fail for?" for evaluation tools.
-  // Here we want FLOW — more ideas, wilder ideas, building on momentum.
   const effortStrategy: Record<string, string> = {
     low: `EFFORT LEVEL: LOW — The student's response is brief or vague. Encourage them to flesh it out.
 - Do NOT praise a vague idea — but stay warm and encouraging
@@ -155,86 +132,20 @@ RULES:
 RESPONSE FORMAT: 2-3 short paragraphs of plain text. Use no headers, no bullets, no markdown.`;
 }
 
-async function callHaiku(
-  systemPrompt: string,
-  userPrompt: string,
-  maxTokens: number
-): Promise<{ text: string; inputTokens: number; outputTokens: number }> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error("AI service not configured");
-
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: maxTokens,
-      temperature: 0.8,
-      system: systemPrompt,
-      messages: [{ role: "user", content: userPrompt }],
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`AI call failed: ${response.status} ${errorText}`);
-  }
-
-  const data = await response.json();
-  const textBlock = data.content?.find((b: { type: string }) => b.type === "text");
-
-  return {
-    text: textBlock?.text || "",
-    inputTokens: data.usage?.input_tokens || 0,
-    outputTokens: data.usage?.output_tokens || 0,
-  };
-}
+// ─── POST handler ───
 
 export async function POST(request: NextRequest) {
+  const validated = await validateToolkitRequest(request, "scamper", ["prompts", "nudge", "insights"]);
+  if (validated.error) return validated.error;
+  const { body } = validated;
+  const { action, challenge, sessionId } = body;
+
   try {
-    const body = (await request.json()) as RequestBody;
-    const { action, challenge, sessionId } = body;
-
-    // Validate
-    if (!action || !challenge?.trim() || !sessionId) {
-      return NextResponse.json(
-        { error: "Missing required fields: action, challenge, sessionId" },
-        { status: 400 }
-      );
-    }
-
-    if (!["prompts", "nudge", "insights"].includes(action)) {
-      return NextResponse.json(
-        { error: "Invalid action. Must be: prompts, nudge, or insights" },
-        { status: 400 }
-      );
-    }
-
-    // Rate limit by session
-    const { allowed, retryAfterMs } = rateLimit(
-      `scamper:${sessionId}`,
-      TOOLKIT_LIMITS
-    );
-    if (!allowed) {
-      return NextResponse.json(
-        { error: "Too many requests. Take a breath and try again shortly." },
-        { status: 429, headers: { "Retry-After": String(Math.ceil((retryAfterMs || 1000) / 1000)) } }
-      );
-    }
-
     /* ─── Action: Generate contextual prompts ─── */
     if (action === "prompts") {
       const stepIndex = body.stepIndex ?? 0;
-      if (stepIndex < 0 || stepIndex > 6) {
-        return NextResponse.json({ error: "stepIndex must be 0-6" }, { status: 400 });
-      }
-
-      const step = SCAMPER_STEPS[stepIndex];
-      const existingIdeas = body.existingIdeas || [];
+      const step = SCAMPER_STEPS[Math.min(Math.max(stepIndex, 0), 6)];
+      const existingIdeas = (body.existingIdeas || []) as string[];
 
       let userPrompt = `DESIGN CHALLENGE: "${challenge.trim()}"
 
@@ -250,104 +161,57 @@ Generate 4 NEW questions that push the student in DIFFERENT directions from thei
 
       const result = await callHaiku(buildPromptsSystemPrompt(existingIdeas.length), userPrompt, 400);
 
-      // Parse JSON array from response
-      let prompts: string[];
-      try {
-        prompts = JSON.parse(result.text);
-        if (!Array.isArray(prompts)) throw new Error("Not an array");
-        prompts = prompts.slice(0, 4).map(p => String(p).trim());
-      } catch {
-        // Fallback: try to extract from text
-        const matches = result.text.match(/"([^"]+)"/g);
-        if (matches && matches.length >= 2) {
-          prompts = matches.slice(0, 4).map(m => m.replace(/"/g, "").trim());
-        } else {
-          prompts = [
-            `What would happen if you changed the most obvious part of your ${step.word.toLowerCase()} approach?`,
-            `Think about who uses this — how might ${step.verb} change their experience?`,
-            `What assumption are you making that might not be true?`,
-            `If a student from a completely different country faced this challenge, what would they ${step.word.toLowerCase()}?`,
-          ];
-        }
-      }
+      const prompts = parseToolkitJSONArray(result.text) || [
+        `What would happen if you changed the most obvious part of your ${step.word.toLowerCase()} approach?`,
+        `Think about who uses this — how might ${step.verb} change their experience?`,
+        `What assumption are you making that might not be true?`,
+        `If a student from a completely different country faced this challenge, what would they ${step.word.toLowerCase()}?`,
+      ];
 
-      logUsage({
-        endpoint: "tools/scamper/prompts",
-        model: "claude-haiku-4-5-20251001",
-        inputTokens: result.inputTokens,
-        outputTokens: result.outputTokens,
-        metadata: { sessionId, stepIndex, action: "prompts" },
-      });
-
-      return NextResponse.json({ prompts });
+      logToolkitUsage("tools/scamper/prompts", result, { sessionId, stepIndex, action: "prompts" });
+      return Response.json({ prompts: prompts.slice(0, 4) });
     }
 
     /* ─── Action: Effort-gated Socratic nudge ─── */
     if (action === "nudge") {
       const { idea, stepIndex, effortLevel: clientEffort } = body;
-      if (!idea?.trim()) {
-        return NextResponse.json({ error: "Missing idea" }, { status: 400 });
+      if (!(idea as string)?.trim()) {
+        return Response.json({ error: "Missing idea" }, { status: 400 });
       }
 
-      const step = SCAMPER_STEPS[stepIndex ?? 0];
-      const existingIdeas = body.existingIdeas || [];
-      const effort = clientEffort || "medium";
+      const step = SCAMPER_STEPS[(stepIndex as number) ?? 0];
+      const existingIdeas = (body.existingIdeas || []) as string[];
+      const effort = (clientEffort as "low" | "medium" | "high") || "medium";
 
       let userPrompt = `DESIGN CHALLENGE: "${challenge.trim()}"
 SCAMPER STEP: ${step.letter} — ${step.word}
-IDEA JUST ADDED: "${idea.trim()}"`;
+IDEA JUST ADDED: "${(idea as string).trim()}"`;
 
       if (existingIdeas.length > 1) {
-        userPrompt += `\nOTHER IDEAS IN THIS STEP: ${existingIdeas.filter(i => i !== idea.trim()).join("; ")}`;
+        userPrompt += `\nOTHER IDEAS IN THIS STEP: ${existingIdeas.filter(i => i !== (idea as string).trim()).join("; ")}`;
       }
 
       userPrompt += `\n\nReturn a JSON object with your acknowledgment and follow-up question.`;
 
       const result = await callHaiku(buildNudgeSystemPrompt(effort), userPrompt, 120);
+      const parsed = parseToolkitJSON(result.text, { acknowledgment: "", nudge: result.text.trim() });
 
-      // Parse structured JSON response (with fallback for plain text)
-      let nudgeText = result.text.trim();
-      let acknowledgment = "";
+      logToolkitUsage("tools/scamper/nudge", result, { sessionId, stepIndex, action: "nudge", effortLevel: effort });
 
-      try {
-        // Try to extract JSON from the response (may be wrapped in markdown)
-        const jsonMatch = nudgeText.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          const parsed = JSON.parse(jsonMatch[0]);
-          nudgeText = parsed.nudge || nudgeText;
-          acknowledgment = parsed.acknowledgment || "";
-        }
-      } catch {
-        // Fallback: try regex extraction from malformed JSON
-        const nudgeMatch = nudgeText.match(/"nudge"\s*:\s*"([^"]+)"/);
-        const ackMatch = nudgeText.match(/"acknowledgment"\s*:\s*"([^"]+)"/);
-        if (nudgeMatch) nudgeText = nudgeMatch[1];
-        if (ackMatch) acknowledgment = ackMatch[1];
-      }
-
-      logUsage({
-        endpoint: "tools/scamper/nudge",
-        model: "claude-haiku-4-5-20251001",
-        inputTokens: result.inputTokens,
-        outputTokens: result.outputTokens,
-        metadata: { sessionId, stepIndex, action: "nudge", effortLevel: effort },
-      });
-
-      return NextResponse.json({
-        nudge: nudgeText,
-        acknowledgment,
+      return Response.json({
+        nudge: parsed.nudge || result.text.trim(),
+        acknowledgment: parsed.acknowledgment || "",
         effortLevel: effort,
       });
     }
 
     /* ─── Action: Summary insights ─── */
     if (action === "insights") {
-      const { allIdeas } = body;
+      const allIdeas = body.allIdeas as string[][] | undefined;
       if (!allIdeas || !Array.isArray(allIdeas)) {
-        return NextResponse.json({ error: "Missing allIdeas" }, { status: 400 });
+        return Response.json({ error: "Missing allIdeas" }, { status: 400 });
       }
 
-      // Build a readable summary of all ideas
       const ideaSummary = SCAMPER_STEPS.map((step, i) => {
         const ideas = allIdeas[i] || [];
         if (ideas.length === 0) return `${step.letter} (${step.word}): No ideas`;
@@ -365,24 +229,12 @@ Help the student see patterns and connections across their ideas. What themes em
 
       const result = await callHaiku(buildInsightsSystemPrompt(), userPrompt, 300);
 
-      logUsage({
-        endpoint: "tools/scamper/insights",
-        model: "claude-haiku-4-5-20251001",
-        inputTokens: result.inputTokens,
-        outputTokens: result.outputTokens,
-        metadata: { sessionId, totalIdeas, action: "insights" },
-      });
-
-      return NextResponse.json({ insights: result.text.trim() });
+      logToolkitUsage("tools/scamper/insights", result, { sessionId, totalIdeas, action: "insights" });
+      return Response.json({ insights: result.text.trim() });
     }
 
-    return NextResponse.json({ error: "Unknown action" }, { status: 400 });
+    return Response.json({ error: "Unknown action" }, { status: 400 });
   } catch (err) {
-    console.error("[scamper] Error:", err);
-    const errorMessage = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json(
-      { error: `SCAMPER tool error: ${errorMessage}` },
-      { status: 500 }
-    );
+    return toolkitErrorResponse("scamper", err);
   }
 }

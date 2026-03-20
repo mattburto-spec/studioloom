@@ -12,28 +12,17 @@
  * Uses Haiku 4.5 for speed. Short responses only — the student does the thinking.
  */
 
-import { NextRequest, NextResponse } from "next/server";
-import { rateLimit } from "@/lib/rate-limit";
-import { logUsage } from "@/lib/usage-tracking";
+import { NextRequest } from "next/server";
+import {
+  callHaiku,
+  validateToolkitRequest,
+  parseToolkitJSON,
+  parseToolkitJSONArray,
+  logToolkitUsage,
+  toolkitErrorResponse,
+} from "@/lib/toolkit";
 
-const TOOLKIT_LIMITS = [
-  { maxRequests: 50, windowMs: 60 * 1000 },
-  { maxRequests: 500, windowMs: 60 * 60 * 1000 },
-];
-
-type ActionType = "prompts" | "nudge" | "insights";
-
-interface RequestBody {
-  action: ActionType;
-  challenge: string;
-  sessionId: string;
-  stepIndex?: number;
-  idea?: string;
-  existingIdeas?: string[];
-  effortLevel?: "low" | "medium" | "high";
-  badIdeas?: string[];
-  flips?: { bad: string; good: string }[];
-}
+// ─── Tool-specific prompt builders (unique pedagogical rules) ───
 
 function buildPromptsSystemPrompt(stepIndex: number, ideaCount: number): string {
   let difficultyInstruction: string;
@@ -157,85 +146,23 @@ RULES:
 RESPONSE FORMAT: 2-3 short paragraphs of plain text. No headers, no bullets, no markdown.`;
 }
 
-async function callHaiku(
-  systemPrompt: string,
-  userPrompt: string,
-  maxTokens: number
-): Promise<{ text: string; inputTokens: number; outputTokens: number }> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error("AI service not configured");
-
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: maxTokens,
-      temperature: 0.8,
-      system: systemPrompt,
-      messages: [{ role: "user", content: userPrompt }],
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`AI call failed: ${response.status} ${errorText}`);
-  }
-
-  const data = await response.json();
-  const textBlock = data.content?.find((b: { type: string }) => b.type === "text");
-
-  return {
-    text: textBlock?.text || "",
-    inputTokens: data.usage?.input_tokens || 0,
-    outputTokens: data.usage?.output_tokens || 0,
-  };
-}
+// ─── POST handler ───
 
 export async function POST(request: NextRequest) {
+  const validated = await validateToolkitRequest(request, "reverse-brainstorm", ["prompts", "nudge", "insights"]);
+  if (validated.error) return validated.error;
+  const { body } = validated;
+  const { action, challenge, sessionId } = body;
+
   try {
-    const body = (await request.json()) as RequestBody;
-    const { action, challenge, sessionId } = body;
-
-    if (!action || !challenge?.trim() || !sessionId) {
-      return NextResponse.json(
-        { error: "Missing required fields: action, challenge, sessionId" },
-        { status: 400 }
-      );
-    }
-
-    if (!["prompts", "nudge", "insights"].includes(action)) {
-      return NextResponse.json(
-        { error: "Invalid action. Must be: prompts, nudge, or insights" },
-        { status: 400 }
-      );
-    }
-
-    const { allowed, retryAfterMs } = rateLimit(
-      `reverse-brainstorm:${sessionId}`,
-      TOOLKIT_LIMITS
-    );
-    if (!allowed) {
-      return NextResponse.json(
-        { error: "Too many requests. Take a breath and try again shortly." },
-        { status: 429, headers: { "Retry-After": String(Math.ceil((retryAfterMs || 1000) / 1000)) } }
-      );
-    }
-
     /* ─── Action: Generate contextual prompts ─── */
     if (action === "prompts") {
-      const stepIndex = body.stepIndex ?? 0;
-      const existingIdeas = body.existingIdeas || [];
+      const stepIndex = (body.stepIndex as number) ?? 0;
+      const existingIdeas = (body.existingIdeas || []) as string[];
 
       if (stepIndex < 0 || stepIndex > 1) {
-        return NextResponse.json({ error: "stepIndex must be 0-1" }, { status: 400 });
+        return Response.json({ error: "stepIndex must be 0-1" }, { status: 400 });
       }
-
-      const systemPrompt = buildPromptsSystemPrompt(stepIndex, existingIdeas.length);
 
       let userPrompt = `DESIGN CHALLENGE: "${challenge.trim()}"
 
@@ -251,56 +178,38 @@ Generate 4 NEW questions that push the student in DIFFERENT directions from thei
         userPrompt += `\n\nGenerate 4 thought-provoking questions specific to this challenge and this step.`;
       }
 
-      const result = await callHaiku(systemPrompt, userPrompt, 400);
+      const result = await callHaiku(buildPromptsSystemPrompt(stepIndex, existingIdeas.length), userPrompt, 400);
 
-      let prompts: string[];
-      try {
-        prompts = JSON.parse(result.text);
-        if (!Array.isArray(prompts)) throw new Error("Not an array");
-        prompts = prompts.slice(0, 4).map((p) => String(p).trim());
-      } catch {
-        const matches = result.text.match(/"([^"]+)"/g);
-        if (matches && matches.length >= 2) {
-          prompts = matches.slice(0, 4).map((m) => m.replace(/"/g, "").trim());
-        } else {
-          prompts = [
-            stepIndex === 0
-              ? "What would someone do to deliberately make this problem worse?"
-              : "What's the opposite of that bad idea, and how does it solve the problem?",
-            stepIndex === 0
-              ? "If your goal was sabotage, what would you change?"
-              : "What would reversing that action look like in practice?",
-            stepIndex === 0
-              ? "What if you made the problem 10x more severe?"
-              : "How does flipping that idea lead to a better solution?",
-            stepIndex === 0
-              ? "What would an enemy of the solution deliberately do?"
-              : "What's the logical opposite of what would cause the problem?",
-          ];
-        }
-      }
+      const prompts = parseToolkitJSONArray(result.text) || [
+        stepIndex === 0
+          ? "What would someone do to deliberately make this problem worse?"
+          : "What's the opposite of that bad idea, and how does it solve the problem?",
+        stepIndex === 0
+          ? "If your goal was sabotage, what would you change?"
+          : "What would reversing that action look like in practice?",
+        stepIndex === 0
+          ? "What if you made the problem 10x more severe?"
+          : "How does flipping that idea lead to a better solution?",
+        stepIndex === 0
+          ? "What would an enemy of the solution deliberately do?"
+          : "What's the logical opposite of what would cause the problem?",
+      ];
 
-      logUsage({
-        endpoint: "tools/reverse-brainstorm/prompts",
-        model: "claude-haiku-4-5-20251001",
-        inputTokens: result.inputTokens,
-        outputTokens: result.outputTokens,
-        metadata: { sessionId, stepIndex, action: "prompts" },
-      });
+      logToolkitUsage("tools/reverse-brainstorm/prompts", result, { sessionId, stepIndex, action: "prompts" });
 
-      return NextResponse.json({ prompts });
+      return Response.json({ prompts: prompts.slice(0, 4) });
     }
 
     /* ─── Action: Effort-gated Socratic nudge ─── */
     if (action === "nudge") {
-      const { idea, stepIndex = 0, effortLevel: clientEffort, existingIdeas = [] } = body;
+      const stepIndex = (body.stepIndex as number) ?? 0;
+      const idea = body.idea as string;
+      const effortLevel = (body.effortLevel as "low" | "medium" | "high") || "medium";
+      const existingIdeas = (body.existingIdeas || []) as string[];
+
       if (!idea?.trim()) {
-        return NextResponse.json({ error: "Missing idea" }, { status: 400 });
+        return Response.json({ error: "Missing idea" }, { status: 400 });
       }
-
-      const effort = clientEffort || "medium";
-
-      const systemPrompt = buildNudgeSystemPrompt(stepIndex as number, effort);
 
       let userPrompt = `DESIGN CHALLENGE: "${challenge.trim()}"
 CURRENT STEP: ${stepIndex === 0 ? "1 - How to CAUSE the Problem" : "2 - Flip It"}
@@ -312,46 +221,25 @@ IDEA JUST ADDED: "${idea.trim()}"`;
 
       userPrompt += `\n\nReturn a JSON object with your acknowledgment and follow-up question.`;
 
-      const result = await callHaiku(systemPrompt, userPrompt, 120);
+      const result = await callHaiku(buildNudgeSystemPrompt(stepIndex, effortLevel), userPrompt, 120);
+      const parsed = parseToolkitJSON(result.text, { acknowledgment: "", nudge: result.text.trim() });
 
-      let nudgeText = result.text.trim();
-      let acknowledgment = "";
+      logToolkitUsage("tools/reverse-brainstorm/nudge", result, { sessionId, stepIndex, action: "nudge", effortLevel });
 
-      try {
-        const jsonMatch = nudgeText.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          const parsed = JSON.parse(jsonMatch[0]);
-          nudgeText = parsed.nudge || nudgeText;
-          acknowledgment = parsed.acknowledgment || "";
-        }
-      } catch {
-        const nudgeMatch = nudgeText.match(/"nudge"\s*:\s*"([^"]+)"/);
-        const ackMatch = nudgeText.match(/"acknowledgment"\s*:\s*"([^"]*)"/);
-        if (nudgeMatch) nudgeText = nudgeMatch[1];
-        if (ackMatch) acknowledgment = ackMatch[1];
-      }
-
-      logUsage({
-        endpoint: "tools/reverse-brainstorm/nudge",
-        model: "claude-haiku-4-5-20251001",
-        inputTokens: result.inputTokens,
-        outputTokens: result.outputTokens,
-        metadata: { sessionId, stepIndex, action: "nudge", effortLevel: effort },
-      });
-
-      return NextResponse.json({
-        nudge: nudgeText,
-        acknowledgment,
-        effortLevel: effort,
+      return Response.json({
+        nudge: parsed.nudge || result.text.trim(),
+        acknowledgment: parsed.acknowledgment || "",
+        effortLevel,
       });
     }
 
     /* ─── Action: Summary insights ─── */
     if (action === "insights") {
-      const { badIdeas = [], flips = [] } = body;
+      const badIdeas = (body.badIdeas || []) as string[];
+      const flips = (body.flips || []) as { bad: string; good: string }[];
 
       if (badIdeas.length === 0 && flips.length === 0) {
-        return NextResponse.json({ insights: "" });
+        return Response.json({ insights: "" });
       }
 
       const ideaSummary = `BAD IDEAS (Ways to Cause the Problem):
@@ -367,27 +255,15 @@ ${ideaSummary}
 
 Help them see patterns and connections in their thinking. What themes emerge? Which flips are strongest? What should they build on next?`;
 
-      const systemPrompt = buildInsightsSystemPrompt();
-      const result = await callHaiku(systemPrompt, userPrompt, 300);
+      const result = await callHaiku(buildInsightsSystemPrompt(), userPrompt, 300);
 
-      logUsage({
-        endpoint: "tools/reverse-brainstorm/insights",
-        model: "claude-haiku-4-5-20251001",
-        inputTokens: result.inputTokens,
-        outputTokens: result.outputTokens,
-        metadata: { sessionId, totalIdeas: badIdeas.length + flips.length, action: "insights" },
-      });
+      logToolkitUsage("tools/reverse-brainstorm/insights", result, { sessionId, totalIdeas: badIdeas.length + flips.length, action: "insights" });
 
-      return NextResponse.json({ insights: result.text.trim() });
+      return Response.json({ insights: result.text.trim() });
     }
 
-    return NextResponse.json({ error: "Unknown action" }, { status: 400 });
+    return Response.json({ error: "Unknown action" }, { status: 400 });
   } catch (err) {
-    console.error("[reverse-brainstorm] Error:", err);
-    const errorMessage = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json(
-      { error: `Reverse Brainstorm tool error: ${errorMessage}` },
-      { status: 500 }
-    );
+    return toolkitErrorResponse("reverse-brainstorm", err);
   }
 }

@@ -4,19 +4,22 @@
  * 5 phases: Before, Arrival, During, After, Emotions
  * Each phase maps a user's experience through time.
  *
- * Three interaction modes:
+ * Two interaction modes:
  *   1. "nudge"    — Context-aware prompts per phase
  *   2. "insights" — Pain points and opportunities synthesis
+ *
+ * Uses shared toolkit helpers — see src/lib/toolkit/shared-api.ts
  */
 
-import { NextRequest, NextResponse } from "next/server";
-import { rateLimit } from "@/lib/rate-limit";
-import { logUsage } from "@/lib/usage-tracking";
+import { NextRequest } from "next/server";
+import {
+  callHaiku,
+  validateToolkitRequest,
+  logToolkitUsage,
+  toolkitErrorResponse,
+} from "@/lib/toolkit";
 
-const TOOLKIT_LIMITS = [
-  { maxRequests: 50, windowMs: 60 * 1000 },
-  { maxRequests: 500, windowMs: 60 * 60 * 1000 },
-];
+// ─── Tool-specific config ───
 
 const PHASES = [
   { name: "Before", focus: "discovery, awareness, triggers" },
@@ -26,21 +29,7 @@ const PHASES = [
   { name: "Emotions", focus: "emotional peaks and valleys" },
 ];
 
-type ActionType = "nudge" | "insights";
-
-interface RequestBody {
-  action: ActionType;
-  challenge: string;
-  sessionId: string;
-  stepIndex?: number;
-  idea?: string;
-  existingIdeas?: string[];
-  phase?: string;
-  allIdeas?: string[][];
-  persona?: string;
-}
-
-// ─── Phase-Specific Nudge ───
+// ─── Tool-specific prompt builders ───
 
 function buildNudgeSystemPrompt(phaseIndex: number): string {
   const phase = PHASES[phaseIndex];
@@ -73,157 +62,96 @@ For persona: "${persona}"
 
 In the "${phase.name}" phase, they've written: "${allText}"
 
-Existing ideas in this phase: ${existingIdeas.length > 0 ? existingIdeas.map((i) => `"${i}"`).join(", ") : "none yet"}
+Existing ideas in this phase: ${existingIdeas.length > 0 ? existingIdeas.map((i: string) => `"${i}"`).join(", ") : "none yet"}
 
 Give a 1-sentence nudge that probes deeper into what they've written.`;
 }
 
-async function generateNudge(
-  phaseIndex: number,
-  currentText: string,
-  existingIdeas: string[],
-  challenge: string,
-  persona: string
-): Promise<string> {
-  const anthropic = require("@anthropic-ai/sdk");
-  const client = new anthropic.default({
-    apiKey: process.env.ANTHROPIC_API_KEY,
-  });
-
-  const systemPrompt = buildNudgeSystemPrompt(phaseIndex);
-  const userPrompt = buildNudgeUserPrompt(phaseIndex, currentText, existingIdeas, challenge, persona);
-
-  try {
-    const msg = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 150,
-      system: systemPrompt,
-      messages: [{ role: "user", content: userPrompt }],
-    });
-
-    const content = msg.content[0];
-    if (content.type === "text") {
-      return content.text.trim();
-    }
-    return "What else can you add?";
-  } catch {
-    return "Tell me more about this phase.";
-  }
-}
-
-// ─── Insights Synthesis ───
-
 function buildInsightsSystemPrompt(): string {
-  return `You are a UX researcher synthesizing a user journey map into actionable insights.
+  return `You are a UX research mentor synthesizing a journey map into insights.
 
-You have 5 phases of a journey map (Before, Arrival, During, After, Emotions) filled with user observations.
+The student has mapped a user's experience across 5 phases: Before, Arrival, During, After, Emotions.
 
-Synthesize these into:
-1. **Key pain points** — where is the user stuck, frustrated, or losing motivation?
-2. **Emotional peaks and valleys** — where are the high-energy moments vs drains?
-3. **Opportunities** — where could you intervene to add delight or remove friction?
+YOUR ROLE: Help them see patterns and identify the biggest pain points and opportunities.
 
-Write 2-3 short sentences per category (max 5 sentences total). Be specific, reference the details.`;
+RULES:
+- Identify 2-3 key pain points (where does the user struggle or feel frustrated?)
+- Identify 2-3 opportunities (where could the design improve the experience?)
+- Reference specific phases and touchpoints from their map
+- Ask 1-2 questions about which pain point has the most impact
+- Keep the response under 150 words
+- Use simple, clear language for ages 11-18
+
+RESPONSE FORMAT: 2-3 short paragraphs of plain text. No headers, no bullets, no markdown.`;
 }
 
-function buildInsightsUserPrompt(challenge: string, allIdeas: string[][], persona: string): string {
-  const phases = ["Before", "Arrival", "During", "After", "Emotions"];
-  const phaseTexts = phases
-    .map((name, idx) => {
-      const ideas = allIdeas[idx] || [];
-      return `${name}: ${ideas.length > 0 ? ideas.join(" | ") : "(empty)"}`;
-    })
-    .join("\n");
+// ─── POST handler ───
 
-  return `Journey being mapped: "${challenge}"
-Persona: "${persona}"
-
-Journey phases:
-${phaseTexts}
-
-Synthesize the pain points, emotional arc, and top 3 design opportunities.`;
-}
-
-async function generateInsights(
-  challenge: string,
-  allIdeas: string[][],
-  persona: string
-): Promise<string> {
-  const anthropic = require("@anthropic-ai/sdk");
-  const client = new anthropic.default({
-    apiKey: process.env.ANTHROPIC_API_KEY,
-  });
-
-  const systemPrompt = buildInsightsSystemPrompt();
-  const userPrompt = buildInsightsUserPrompt(challenge, allIdeas, persona);
+export async function POST(request: NextRequest) {
+  const validated = await validateToolkitRequest(request, "journey-map", ["nudge", "insights"]);
+  if (validated.error) return validated.error;
+  const { body } = validated;
+  const { action, challenge, sessionId } = body;
 
   try {
-    const msg = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 300,
-      system: systemPrompt,
-      messages: [{ role: "user", content: userPrompt }],
-    });
-
-    const content = msg.content[0];
-    if (content.type === "text") {
-      return content.text.trim();
-    }
-    return "Review your journey map for patterns and opportunities.";
-  } catch {
-    return "Review your journey map for patterns and opportunities.";
-  }
-}
-
-// ─── Main Handler ───
-
-export async function POST(req: NextRequest) {
-  try {
-    const body: RequestBody = await req.json();
-    const { action, challenge, sessionId, stepIndex = 0, idea = "", existingIdeas = [], allIdeas = [], phase = "", persona = "" } = body;
-
-    const limitStatus = rateLimit(`tool:journey-map:${sessionId}`, TOOLKIT_LIMITS);
-    if (!limitStatus.allowed) {
-      return NextResponse.json({ error: "Rate limited" }, { status: 429 });
-    }
-
+    /* ─── Action: Phase-specific nudge ─── */
     if (action === "nudge") {
-      const nudgeText = await generateNudge(stepIndex, idea, existingIdeas, challenge, persona);
+      const { stepIndex = 0, currentText = "", existingIdeas = [], persona = "User" } = body;
+      if (stepIndex < 0 || stepIndex >= PHASES.length) {
+        return Response.json({ error: "Invalid phase index" }, { status: 400 });
+      }
 
-      logUsage({
-        endpoint: "tools/journey-map/nudge",
-        model: "claude-haiku-4-5-20251001",
-        inputTokens: 100,
-        outputTokens: 50,
-        metadata: { sessionId, action: "nudge" },
+      const userPrompt = buildNudgeUserPrompt(
+        stepIndex as number,
+        currentText as string,
+        existingIdeas as string[],
+        challenge,
+        persona as string
+      );
+
+      const result = await callHaiku(buildNudgeSystemPrompt(stepIndex as number), userPrompt, 150);
+
+      logToolkitUsage("tools/journey-map/nudge", result, {
+        sessionId,
+        stepIndex,
+        action: "nudge",
       });
 
-      return NextResponse.json({
-        success: true,
-        nudge: nudgeText,
-      });
+      return Response.json({ nudge: result.text.trim() });
     }
 
+    /* ─── Action: Insights synthesis ─── */
     if (action === "insights") {
-      const insightsText = await generateInsights(challenge, allIdeas, persona);
+      const { allIdeas = [] } = body;
+      const hasIdeas = (allIdeas as string[][]).some((arr) => Array.isArray(arr) && arr.length > 0);
+      if (!hasIdeas) {
+        return Response.json({ insights: "" });
+      }
 
-      logUsage({
-        endpoint: "tools/journey-map/insights",
-        model: "claude-haiku-4-5-20251001",
-        inputTokens: 300,
-        outputTokens: 150,
-        metadata: { sessionId, action: "insights" },
+      const ideaSummary = PHASES.map((phase, i) => {
+        const ideas = (allIdeas as string[][])[i] || [];
+        return `${phase.name}: ${ideas.length > 0 ? ideas.map((idea) => `"${idea}"`).join(", ") : "(empty)"}`;
+      }).join("\n");
+
+      const userPrompt = `User Journey: "${challenge}"
+
+Journey Map Across All Phases:
+${ideaSummary}
+
+Analyze this journey map for pain points and opportunities.`;
+
+      const result = await callHaiku(buildInsightsSystemPrompt(), userPrompt, 300);
+
+      logToolkitUsage("tools/journey-map/insights", result, {
+        sessionId,
+        action: "insights",
       });
 
-      return NextResponse.json({
-        success: true,
-        insights: insightsText,
-      });
+      return Response.json({ insights: result.text.trim() });
     }
 
-    return NextResponse.json({ error: "Invalid action" }, { status: 400 });
-  } catch (error) {
-    console.error("Journey Map API error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return Response.json({ error: "Invalid action" }, { status: 400 });
+  } catch (err) {
+    return toolkitErrorResponse("journey-map", err);
   }
 }

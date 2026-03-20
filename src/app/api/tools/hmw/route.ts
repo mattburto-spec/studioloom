@@ -24,35 +24,17 @@
  * Uses Haiku 4.5 for speed (student-facing). Short responses only — the student does the thinking.
  */
 
-import { NextRequest, NextResponse } from "next/server";
-import { rateLimit } from "@/lib/rate-limit";
-import { logUsage } from "@/lib/usage-tracking";
+import { NextRequest } from "next/server";
+import {
+  callHaiku,
+  validateToolkitRequest,
+  parseToolkitJSON,
+  parseToolkitJSONArray,
+  logToolkitUsage,
+  toolkitErrorResponse,
+} from "@/lib/toolkit";
 
-// Rate limit: generous for toolkit (50/min per session, 500/hour)
-const TOOLKIT_LIMITS = [
-  { maxRequests: 50, windowMs: 60 * 1000 },
-  { maxRequests: 500, windowMs: 60 * 60 * 1000 },
-];
-
-type ActionType = "coach" | "suggest" | "synthesize";
-
-interface RequestBody {
-  action: ActionType;
-  challenge: string;
-  sessionId: string;
-  // For "coach": the HMW statement just written
-  statement?: string;
-  // For "coach": client-assessed effort level
-  effortLevel?: "low" | "medium" | "high";
-  // For "coach": all existing statements (for variety detection)
-  existingStatements?: string[];
-  // For "suggest": how many statements already written (for staged cognitive load)
-  statementCount?: number;
-  // For "synthesize": all statements for summary analysis
-  allStatements?: string[];
-}
-
-/* ─── System Prompt Builders ─── */
+// ─── Tool-specific prompt builders (unique pedagogical rules) ───
 
 function buildCoachSystemPrompt(effortLevel: "low" | "medium" | "high"): string {
   // DEFINE phase: analytical, problem-reframing tone (not ideation divergence, not evaluation critique)
@@ -174,196 +156,82 @@ ANALYSIS:
 RESPONSE FORMAT: 2-3 short paragraphs of plain text. Use no headers, no bullets, no markdown.`;
 }
 
-/* ─── Haiku API Call ─── */
-
-async function callHaiku(
-  systemPrompt: string,
-  userPrompt: string,
-  maxTokens: number
-): Promise<{ text: string; inputTokens: number; outputTokens: number }> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error("AI service not configured");
-
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: maxTokens,
-      temperature: 0.8,
-      system: systemPrompt,
-      messages: [{ role: "user", content: userPrompt }],
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`AI call failed: ${response.status} ${errorText}`);
-  }
-
-  const data = await response.json();
-  const textBlock = data.content?.find((b: { type: string }) => b.type === "text");
-
-  return {
-    text: textBlock?.text || "",
-    inputTokens: data.usage?.input_tokens || 0,
-    outputTokens: data.usage?.output_tokens || 0,
-  };
-}
-
-/* ─── Main Handler ─── */
+// ─── POST handler ───
 
 export async function POST(request: NextRequest) {
+  const validated = await validateToolkitRequest(request, "hmw", ["coach", "suggest", "synthesize"]);
+  if (validated.error) return validated.error;
+  const { body } = validated;
+  const { action, challenge, sessionId } = body;
+
   try {
-    const body = (await request.json()) as RequestBody;
-    const { action, challenge, sessionId } = body;
-
-    // Validate
-    if (!action || !challenge?.trim() || !sessionId) {
-      return NextResponse.json(
-        { error: "Missing required fields: action, challenge, sessionId" },
-        { status: 400 }
-      );
-    }
-
-    if (!["coach", "suggest", "synthesize"].includes(action)) {
-      return NextResponse.json(
-        { error: "Invalid action. Must be: coach, suggest, or synthesize" },
-        { status: 400 }
-      );
-    }
-
-    // Rate limit by session
-    const { allowed, retryAfterMs } = rateLimit(
-      `hmw:${sessionId}`,
-      TOOLKIT_LIMITS
-    );
-    if (!allowed) {
-      return NextResponse.json(
-        { error: "Too many requests. Take a breath and try again shortly." },
-        { status: 429, headers: { "Retry-After": String(Math.ceil((retryAfterMs || 1000) / 1000)) } }
-      );
-    }
-
     /* ─── Action: Coach on a single statement ─── */
     if (action === "coach") {
-      const { statement, effortLevel: clientEffort, existingStatements } = body;
-      if (!statement?.trim()) {
-        return NextResponse.json({ error: "Missing statement" }, { status: 400 });
-      }
+      const statement = body.statement as string;
+      const effortLevel = (body.effortLevel as "low" | "medium" | "high") || "medium";
+      const existingStatements = (body.existingStatements || []) as string[];
 
-      const effort = clientEffort || "medium";
-      const existing = existingStatements || [];
+      if (!statement?.trim()) {
+        return Response.json({ error: "Missing statement" }, { status: 400 });
+      }
 
       let userPrompt = `DESIGN CHALLENGE: "${challenge.trim()}"
 STATEMENT JUST WRITTEN: "How might we ${statement.trim()}?"`;
 
-      if (existing.length > 0) {
-        userPrompt += `\n\nOTHER HMW STATEMENTS ALREADY WRITTEN:\n${existing.map((s, i) => `${i + 1}. How might we ${s}?`).join("\n")}
+      if (existingStatements.length > 0) {
+        userPrompt += `\n\nOTHER HMW STATEMENTS ALREADY WRITTEN:\n${existingStatements.map((s, i) => `${i + 1}. How might we ${s}?`).join("\n")}
 
 Check whether this new statement explores a DIFFERENT ANGLE or perspective from the ones above. If it's too similar, nudge them toward a fresh angle.`;
       }
 
       userPrompt += `\n\nReturn a JSON object with your feedback.`;
 
-      const result = await callHaiku(buildCoachSystemPrompt(effort), userPrompt, 120);
+      const result = await callHaiku(buildCoachSystemPrompt(effortLevel), userPrompt, 120);
+      const parsed = parseToolkitJSON(result.text, { acknowledgment: "", nudge: result.text.trim() });
 
-      // Parse structured JSON response (with fallback for plain text)
-      let coachText = result.text.trim();
-      let acknowledgment = "";
+      logToolkitUsage("tools/hmw/coach", result, { sessionId, action: "coach", effortLevel, statementCount: existingStatements.length + 1 });
 
-      try {
-        // Try to extract JSON from the response (may be wrapped in markdown)
-        const jsonMatch = coachText.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          const parsed = JSON.parse(jsonMatch[0]);
-          coachText = parsed.nudge || coachText;
-          acknowledgment = parsed.acknowledgment || "";
-        }
-      } catch {
-        // Fallback: try regex extraction from malformed JSON
-        const nudgeMatch = coachText.match(/"nudge"\s*:\s*"([^"]+)"/);
-        const ackMatch = coachText.match(/"acknowledgment"\s*:\s*"([^"]+)"/);
-        if (nudgeMatch) coachText = nudgeMatch[1];
-        if (ackMatch) acknowledgment = ackMatch[1];
-      }
-
-      logUsage({
-        endpoint: "tools/hmw/coach",
-        model: "claude-haiku-4-5-20251001",
-        inputTokens: result.inputTokens,
-        outputTokens: result.outputTokens,
-        metadata: { sessionId, action: "coach", effortLevel: effort, statementCount: existing.length + 1 },
-      });
-
-      return NextResponse.json({
-        coach: coachText,
-        acknowledgment,
-        effortLevel: effort,
+      return Response.json({
+        coach: parsed.nudge || result.text.trim(),
+        acknowledgment: parsed.acknowledgment || "",
+        effortLevel,
       });
     }
 
     /* ─── Action: Suggest coaching prompts for different angles ─── */
     if (action === "suggest") {
-      const { statementCount } = body;
-      const count = statementCount ?? 0;
+      const statementCount = (body.statementCount as number) ?? 0;
+      const existingStatements = (body.existingStatements || []) as string[];
 
       let userPrompt = `DESIGN CHALLENGE: "${challenge.trim()}"
-STATEMENTS ALREADY WRITTEN: ${count}`;
+STATEMENTS ALREADY WRITTEN: ${statementCount}`;
 
-      if (count > 0) {
-        const existing = body.existingStatements || [];
-        if (existing.length > 0) {
-          userPrompt += `\n\nEXISTING STATEMENTS:\n${existing.map((s, i) => `${i + 1}. How might we ${s}?`).join("\n")}`;
-        }
+      if (statementCount > 0 && existingStatements.length > 0) {
+        userPrompt += `\n\nEXISTING STATEMENTS:\n${existingStatements.map((s, i) => `${i + 1}. How might we ${s}?`).join("\n")}`;
         userPrompt += `\n\nSuggest 4 NEW angles that approach the challenge from DIFFERENT PERSPECTIVES.`;
       } else {
         userPrompt += `\n\nSuggest 4 initial angles that represent different perspectives on the challenge.`;
       }
 
-      const result = await callHaiku(buildSuggestSystemPrompt(count), userPrompt, 400);
+      const result = await callHaiku(buildSuggestSystemPrompt(statementCount), userPrompt, 400);
 
-      // Parse JSON array from response
-      let suggestions: string[];
-      try {
-        suggestions = JSON.parse(result.text);
-        if (!Array.isArray(suggestions)) throw new Error("Not an array");
-        suggestions = suggestions.slice(0, 4).map(s => String(s).trim());
-      } catch {
-        // Fallback: try to extract from text
-        const matches = result.text.match(/"([^"]{20,})"/g);
-        if (matches && matches.length >= 2) {
-          suggestions = matches.slice(0, 4).map(m => m.replace(/"/g, "").trim());
-        } else {
-          suggestions = [
-            `What if you approached this from a student's perspective instead of a teacher's?`,
-            `How would your thinking change if you zoomed out to the whole school system?`,
-            `What if you focused on the emotional experience rather than the logistics?`,
-            `How might this challenge look different in 5 years, when the context has shifted?`,
-          ];
-        }
-      }
+      const suggestions = parseToolkitJSONArray(result.text) || [
+        `What if you approached this from a student's perspective instead of a teacher's?`,
+        `How would your thinking change if you zoomed out to the whole school system?`,
+        `What if you focused on the emotional experience rather than the logistics?`,
+        `How might this challenge look different in 5 years, when the context has shifted?`,
+      ];
 
-      logUsage({
-        endpoint: "tools/hmw/suggest",
-        model: "claude-haiku-4-5-20251001",
-        inputTokens: result.inputTokens,
-        outputTokens: result.outputTokens,
-        metadata: { sessionId, action: "suggest", statementCount: count },
-      });
+      logToolkitUsage("tools/hmw/suggest", result, { sessionId, action: "suggest", statementCount });
 
-      return NextResponse.json({ suggestions });
+      return Response.json({ suggestions: suggestions.slice(0, 4) });
     }
 
     /* ─── Action: Synthesis at summary ─── */
     if (action === "synthesize") {
-      const { allStatements } = body;
+      const allStatements = body.allStatements as string[] | undefined;
       if (!allStatements || !Array.isArray(allStatements)) {
-        return NextResponse.json({ error: "Missing allStatements" }, { status: 400 });
+        return Response.json({ error: "Missing allStatements" }, { status: 400 });
       }
 
       const statementList = allStatements
@@ -379,24 +247,13 @@ Review these reframings. Which are the strongest and why? What patterns do you s
 
       const result = await callHaiku(buildSynthesizeSystemPrompt(), userPrompt, 300);
 
-      logUsage({
-        endpoint: "tools/hmw/synthesize",
-        model: "claude-haiku-4-5-20251001",
-        inputTokens: result.inputTokens,
-        outputTokens: result.outputTokens,
-        metadata: { sessionId, action: "synthesize", statementCount: allStatements.length },
-      });
+      logToolkitUsage("tools/hmw/synthesize", result, { sessionId, action: "synthesize", statementCount: allStatements.length });
 
-      return NextResponse.json({ synthesis: result.text.trim() });
+      return Response.json({ synthesis: result.text.trim() });
     }
 
-    return NextResponse.json({ error: "Unknown action" }, { status: 400 });
+    return Response.json({ error: "Unknown action" }, { status: 400 });
   } catch (err) {
-    console.error("[hmw] Error:", err);
-    const errorMessage = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json(
-      { error: `How Might We tool error: ${errorMessage}` },
-      { status: 500 }
-    );
+    return toolkitErrorResponse("hmw", err);
   }
 }

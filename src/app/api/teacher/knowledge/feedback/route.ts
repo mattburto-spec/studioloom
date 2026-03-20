@@ -1,26 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireTeacherAuth } from "@/lib/auth/verify-teacher-unit";
 import { updateQualityFromFeedback } from "@/lib/knowledge/feedback";
-
-async function getUser(request: NextRequest): Promise<{ id: string; role?: string } | null> {
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll() {},
-      },
-    }
-  );
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user ? { id: user.id } : null;
-}
 
 /**
  * POST: Submit post-lesson feedback.
@@ -39,10 +20,9 @@ async function getUser(request: NextRequest): Promise<{ id: string; role?: strin
  * }
  */
 export async function POST(request: NextRequest) {
-  const user = await getUser(request);
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireTeacherAuth(request);
+  if (auth.error) return auth.error;
+  const teacherId = auth.teacherId;
 
   const body = await request.json();
   const {
@@ -98,7 +78,7 @@ export async function POST(request: NextRequest) {
     .from("lesson_feedback")
     .insert({
       lesson_profile_id: lesson_profile_id || null,
-      teacher_id: user.id,
+      teacher_id: teacherId,
       unit_id: unit_id || null,
       page_id: page_id || null,
       class_id: class_id || null,
@@ -137,10 +117,8 @@ export async function POST(request: NextRequest) {
  * - feedback_type (optional: "teacher" | "student")
  */
 export async function GET(request: NextRequest) {
-  const user = await getUser(request);
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireTeacherAuth(request);
+  if (auth.error) return auth.error;
 
   const { searchParams } = new URL(request.url);
   const lessonProfileId = searchParams.get("lesson_profile_id");

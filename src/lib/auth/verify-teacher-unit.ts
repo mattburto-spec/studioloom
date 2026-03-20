@@ -1,15 +1,62 @@
 /**
- * Teacher ↔ Unit authorization helpers
+ * Teacher authorization helpers.
  *
- * These replace the old pattern of checking `units.author_teacher_id`
- * which blocked teachers from managing units they assigned but didn't author.
- *
- * New pattern: a teacher has access to a unit if they:
- * 1. Authored it (units.author_teacher_id = teacherId), OR
- * 2. Have it assigned to one of their classes (class_units via classes.teacher_id)
+ * - requireTeacherAuth() — extract authenticated teacher from Supabase session
+ * - verifyTeacherHasUnit() — check teacher ↔ unit access (authored OR assigned)
+ * - getNmConfigForClassUnit() — NM config with class→unit fallback
+ * - verifyTeacherOwnsClass() — check teacher ↔ class ownership
  */
 
+import { NextRequest, NextResponse } from "next/server";
+import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
+
+// ---------------------------------------------------------------------------
+// Teacher authentication
+// ---------------------------------------------------------------------------
+
+/**
+ * Extract authenticated teacher from the Supabase session cookie.
+ *
+ * Returns the teacher's user ID or an error response.
+ * Replaces the 35+ inline `createServerClient` + `getUser()` patterns.
+ */
+export async function requireTeacherAuth(
+  request: NextRequest
+): Promise<
+  { teacherId: string; error?: never } | { teacherId?: never; error: NextResponse }
+> {
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll() {
+          // Server components can't set cookies — no-op
+        },
+      },
+    }
+  );
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return {
+      error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
+    };
+  }
+
+  return { teacherId: user.id };
+}
+
+// ---------------------------------------------------------------------------
+// Teacher ↔ Unit / Class authorization
+// ---------------------------------------------------------------------------
 
 /**
  * Check if a teacher has access to a unit (authored OR assigned).

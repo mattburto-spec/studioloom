@@ -13,14 +13,17 @@
  * Uses Haiku 4.5 for speed. Short responses only.
  */
 
-import { NextRequest, NextResponse } from "next/server";
-import { rateLimit } from "@/lib/rate-limit";
-import { logUsage } from "@/lib/usage-tracking";
+import { NextRequest } from "next/server";
+import {
+  callHaiku,
+  validateToolkitRequest,
+  parseToolkitJSON,
+  parseToolkitJSONArray,
+  logToolkitUsage,
+  toolkitErrorResponse,
+} from "@/lib/toolkit";
 
-const TOOLKIT_LIMITS = [
-  { maxRequests: 50, windowMs: 60 * 1000 },
-  { maxRequests: 500, windowMs: 60 * 60 * 1000 },
-];
+// ─── Tool-specific config ───
 
 const STEPS = [
   { label: "Why #1", emoji: "1️⃣", instruction: "Why does this problem exist? What's the first-level cause?" },
@@ -30,21 +33,7 @@ const STEPS = [
   { label: "Why #5", emoji: "5️⃣", instruction: "Why does that fourth cause happen? This should reveal the root cause." },
 ];
 
-type ActionType = "prompts" | "nudge" | "insights";
-
-interface RequestBody {
-  action: ActionType;
-  challenge: string;
-  sessionId: string;
-  stepIndex?: number;
-  idea?: string;
-  existingIdeas?: string[];
-  effortLevel?: "low" | "medium" | "high";
-  allIdeas?: string[][];
-  previousAnswers?: string[];
-}
-
-// ─── Prompt Generation ───
+// ─── Tool-specific prompt builders (unique pedagogical rules) ───
 
 function buildPromptsSystemPrompt(stepIndex: number, ideaCount: number, previousAnswers: string[]): string {
   const step = STEPS[stepIndex];
@@ -165,130 +154,57 @@ RULES:
 RESPONSE FORMAT: 2-3 short paragraphs of plain text. No headers, no bullets, no markdown.`;
 }
 
-// ─── AI Call ───
-
-async function callHaiku(
-  systemPrompt: string,
-  userPrompt: string,
-  maxTokens: number
-): Promise<{ text: string; inputTokens: number; outputTokens: number }> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error("AI service not configured");
-
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: maxTokens,
-      temperature: 0.8,
-      system: systemPrompt,
-      messages: [{ role: "user", content: userPrompt }],
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`AI call failed: ${response.status} ${errorText}`);
-  }
-
-  const data = await response.json();
-  const textBlock = data.content?.find((b: { type: string }) => b.type === "text");
-
-  return {
-    text: textBlock?.text || "",
-    inputTokens: data.usage?.input_tokens || 0,
-    outputTokens: data.usage?.output_tokens || 0,
-  };
-}
-
-// ─── Route Handler ───
+// ─── POST handler ───
 
 export async function POST(request: NextRequest) {
+  const validated = await validateToolkitRequest(request, "five-whys", ["prompts", "nudge", "insights"]);
+  if (validated.error) return validated.error;
+  const { body } = validated;
+  const { action, challenge, sessionId } = body;
+
   try {
-    const body = (await request.json()) as RequestBody;
-    const { action, challenge, sessionId } = body;
-
-    if (!action || !challenge?.trim() || !sessionId) {
-      return NextResponse.json(
-        { error: "Missing required fields: action, challenge, sessionId" },
-        { status: 400 }
-      );
-    }
-
-    const { allowed, retryAfterMs } = rateLimit(
-      `five-whys:${sessionId}`,
-      TOOLKIT_LIMITS
-    );
-    if (!allowed) {
-      return NextResponse.json(
-        { error: "Too many requests. Take a moment to think, then try again." },
-        { status: 429, headers: { "Retry-After": String(Math.ceil((retryAfterMs || 1000) / 1000)) } }
-      );
-    }
-
-    // ─── PROMPTS ───
+    /* ─── Action: Generate contextual prompts ─── */
     if (action === "prompts") {
-      const stepIndex = body.stepIndex ?? 0;
-      const existingIdeas = body.existingIdeas || [];
-      const previousAnswers = body.previousAnswers || [];
-      const step = STEPS[stepIndex];
-      if (!step) {
-        return NextResponse.json({ error: "Invalid step index" }, { status: 400 });
-      }
+      const stepIndex = (body.stepIndex as number) ?? 0;
+      const existingIdeas = (body.existingIdeas || []) as string[];
+      const previousAnswers = (body.previousAnswers || []) as string[];
+      const step = STEPS[Math.min(Math.max(stepIndex, 0), 4)];
 
-      const systemPrompt = buildPromptsSystemPrompt(stepIndex, existingIdeas.length, previousAnswers);
-      const userPrompt = `Problem being analyzed: "${challenge}"
+      let userPrompt = `Problem being analyzed: "${challenge}"
 Current step: ${step.emoji} ${step.label}
 ${previousAnswers.length > 0 ? `Previous answers in the chain:\n${previousAnswers.map((a, i) => `  Why #${i + 1}: ${a}`).join("\n")}` : "This is the first Why."}
 ${existingIdeas.length > 0 ? `Student's current answers for this Why:\n${existingIdeas.map((t, i) => `${i + 1}. ${t}`).join("\n")}` : "No answers yet for this Why."}
 
 Generate 4 probing questions for ${step.label}.`;
 
-      const result = await callHaiku(systemPrompt, userPrompt, 300);
+      const result = await callHaiku(buildPromptsSystemPrompt(stepIndex, existingIdeas.length, previousAnswers), userPrompt, 300);
 
-      logUsage({
-        endpoint: "tools/five-whys/prompts",
-        model: "claude-haiku-4-5-20251001",
-        inputTokens: result.inputTokens,
-        outputTokens: result.outputTokens,
-        metadata: { sessionId, stepIndex, action: "prompts" },
-      });
+      const prompts = parseToolkitJSONArray(result.text) || [
+        `What exactly causes that?`,
+        `Why does that happen?`,
+        `What's the underlying reason for that?`,
+        `Who or what is responsible for that?`,
+      ];
 
-      try {
-        const prompts = JSON.parse(result.text);
-        if (Array.isArray(prompts) && prompts.length > 0) {
-          return NextResponse.json({ prompts });
-        }
-      } catch {
-        const match = result.text.match(/\[[\s\S]*\]/);
-        if (match) {
-          try {
-            const prompts = JSON.parse(match[0]);
-            if (Array.isArray(prompts)) return NextResponse.json({ prompts });
-          } catch { /* fall through */ }
-        }
-      }
-      return NextResponse.json({ prompts: null });
+      logToolkitUsage("tools/five-whys/prompts", result, { sessionId, stepIndex, action: "prompts" });
+      return Response.json({ prompts: prompts.slice(0, 4) });
     }
 
-    // ─── NUDGE ───
+    /* ─── Action: Depth-aware effort-gated nudge ─── */
     if (action === "nudge") {
-      const { idea, stepIndex = 0, existingIdeas = [], effortLevel = "medium", previousAnswers = [] } = body;
+      const stepIndex = (body.stepIndex as number) ?? 0;
+      const idea = body.idea as string;
+      const effortLevel = (body.effortLevel as "low" | "medium" | "high") || "medium";
+      const existingIdeas = (body.existingIdeas || []) as string[];
+      const previousAnswers = (body.previousAnswers || []) as string[];
+
       if (!idea?.trim()) {
-        return NextResponse.json({ error: "Missing idea" }, { status: 400 });
-      }
-      const step = STEPS[stepIndex];
-      if (!step) {
-        return NextResponse.json({ error: "Invalid step index" }, { status: 400 });
+        return Response.json({ error: "Missing idea" }, { status: 400 });
       }
 
-      const systemPrompt = buildNudgeSystemPrompt(stepIndex, effortLevel, previousAnswers);
-      const userPrompt = `Problem: "${challenge}"
+      const step = STEPS[Math.min(Math.max(stepIndex, 0), 4)];
+
+      let userPrompt = `Problem: "${challenge}"
 Step: ${step.emoji} ${step.label}
 ${previousAnswers.length > 0 ? `Previous chain:\n${previousAnswers.map((a, i) => `  Why #${i + 1}: ${a}`).join("\n")}` : "First Why."}
 Student's new answer: "${idea}"
@@ -296,71 +212,45 @@ ${existingIdeas.length > 0 ? `Their other answers for this Why:\n${existingIdeas
 
 Respond with JSON feedback.`;
 
-      const result = await callHaiku(systemPrompt, userPrompt, 120);
+      const result = await callHaiku(buildNudgeSystemPrompt(stepIndex, effortLevel, previousAnswers), userPrompt, 120);
+      const parsed = parseToolkitJSON(result.text, { acknowledgment: "", nudge: result.text.trim() });
 
-      logUsage({
-        endpoint: "tools/five-whys/nudge",
-        model: "claude-haiku-4-5-20251001",
-        inputTokens: result.inputTokens,
-        outputTokens: result.outputTokens,
-        metadata: { sessionId, stepIndex, effortLevel, action: "nudge" },
+      logToolkitUsage("tools/five-whys/nudge", result, { sessionId, stepIndex, action: "nudge", effortLevel });
+
+      return Response.json({
+        nudge: parsed.nudge || result.text.trim(),
+        acknowledgment: parsed.acknowledgment || "",
+        effortLevel,
       });
-
-      try {
-        const parsed = JSON.parse(result.text);
-        return NextResponse.json({
-          nudge: parsed.nudge || result.text,
-          acknowledgment: parsed.acknowledgment || "",
-          effortLevel,
-        });
-      } catch {
-        const nudgeMatch = result.text.match(/"nudge"\s*:\s*"([^"]+)"/);
-        const ackMatch = result.text.match(/"acknowledgment"\s*:\s*"([^"]*)"/);
-        return NextResponse.json({
-          nudge: nudgeMatch?.[1] || result.text.replace(/[{}"\n]/g, "").trim(),
-          acknowledgment: ackMatch?.[1] || "",
-          effortLevel,
-        });
-      }
     }
 
-    // ─── INSIGHTS ───
+    /* ─── Action: Root cause synthesis ─── */
     if (action === "insights") {
-      const { allIdeas = [] } = body;
-      if (allIdeas.every((arr) => arr.length === 0)) {
-        return NextResponse.json({ insights: "" });
+      const allIdeas = body.allIdeas as string[][] | undefined;
+      if (!allIdeas || !Array.isArray(allIdeas)) {
+        return Response.json({ error: "Missing allIdeas" }, { status: 400 });
       }
 
-      const systemPrompt = buildInsightsSystemPrompt();
+      const ideaSummary = STEPS.map((step, i) => {
+        const answers = allIdeas[i] || [];
+        return `${step.emoji} ${step.label}:\n${answers.length > 0 ? answers.map((t, j) => `  ${j + 1}. ${t}`).join("\n") : "  (no answer)"}`;
+      }).join("\n\n");
+
       const userPrompt = `Problem: "${challenge}"
 
 The student's Five Whys chain:
-${STEPS.map((step, i) => {
-  const answers = allIdeas[i] || [];
-  return `${step.emoji} ${step.label}:\n${answers.length > 0 ? answers.map((t, j) => `  ${j + 1}. ${t}`).join("\n") : "  (no answer)"}`;
-}).join("\n\n")}
+${ideaSummary}
 
 Analyze their causal chain and whether they reached a true root cause.`;
 
-      const result = await callHaiku(systemPrompt, userPrompt, 350);
+      const result = await callHaiku(buildInsightsSystemPrompt(), userPrompt, 350);
 
-      logUsage({
-        endpoint: "tools/five-whys/insights",
-        model: "claude-haiku-4-5-20251001",
-        inputTokens: result.inputTokens,
-        outputTokens: result.outputTokens,
-        metadata: { sessionId, action: "insights" },
-      });
-
-      return NextResponse.json({ insights: result.text });
+      logToolkitUsage("tools/five-whys/insights", result, { sessionId, action: "insights" });
+      return Response.json({ insights: result.text.trim() });
     }
 
-    return NextResponse.json({ error: "Invalid action" }, { status: 400 });
-  } catch (error) {
-    console.error("[five-whys] API error:", error);
-    return NextResponse.json(
-      { error: "Something went wrong. Please try again." },
-      { status: 500 }
-    );
+    return Response.json({ error: "Unknown action" }, { status: 400 });
+  } catch (err) {
+    return toolkitErrorResponse("five-whys", err);
   }
 }

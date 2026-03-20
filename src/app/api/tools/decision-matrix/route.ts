@@ -11,26 +11,19 @@
  *   - Socratic feedback: challenge scoring consistency and reasoning depth
  *   - Phase-aware tone: convergent analysis (evaluation phase)
  *
- * Uses Haiku 4.5 for speed. Short responses only.
+ * Uses shared toolkit helpers — see src/lib/toolkit/shared-api.ts
  */
 
-import { NextRequest, NextResponse } from "next/server";
-import { rateLimit } from "@/lib/rate-limit";
-import { logUsage } from "@/lib/usage-tracking";
+import { NextRequest } from "next/server";
+import {
+  callHaiku,
+  validateToolkitRequest,
+  parseToolkitJSON,
+  logToolkitUsage,
+  toolkitErrorResponse,
+} from "@/lib/toolkit";
 
-const TOOLKIT_LIMITS = [
-  { maxRequests: 50, windowMs: 60 * 1000 },
-  { maxRequests: 500, windowMs: 60 * 60 * 1000 },
-];
-
-type ActionType = "suggest-criteria" | "challenge" | "insights";
-
-interface Score {
-  optionId: string;
-  criterionId: string;
-  score: number;
-  reasoning: string;
-}
+// ─── Tool-specific types ───
 
 interface Criterion {
   name: string;
@@ -44,23 +37,7 @@ interface RankedOption {
   rank: number;
 }
 
-interface RequestBody {
-  action: ActionType;
-  challenge: string;
-  sessionId: string;
-  // For "suggest-criteria"
-  existingCriteria?: string[];
-  // For "challenge"
-  criterion?: string;
-  reasoning?: string;
-  option?: string;
-  effortLevel?: string;
-  // For "insights"
-  options?: string[];
-  criteria?: Criterion[];
-  scores?: Score[];
-  rankedOptions?: RankedOption[];
-}
+// ─── Tool-specific prompt builders ───
 
 function buildSuggestCriteriaPrompt(): string {
   return `You are a design thinking mentor helping a student build a rigorous Decision Matrix.
@@ -102,7 +79,7 @@ function buildChallengePrompt(effortLevel: string): string {
 THIS IS EVALUATION — your job is to push for rigorous thinking, not to praise or criticize.
 Challenge assumptions. Ask about evidence. Push for trade-offs.
 
-${effortStrategy[effortLevel]}
+${effortStrategy[effortLevel] || effortStrategy.medium}
 
 YOUR ROLE: Return a JSON object with your feedback. Keep the tone constructive and intellectually rigorous.
 
@@ -142,75 +119,18 @@ RULES:
 RESPONSE FORMAT: 2-3 short paragraphs of plain text. Use no headers, no bullets, no markdown.`;
 }
 
-async function callHaiku(
-  systemPrompt: string,
-  userPrompt: string,
-  maxTokens: number
-): Promise<{ text: string; inputTokens: number; outputTokens: number }> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error("AI service not configured");
-
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: maxTokens,
-      temperature: 0.8,
-      system: systemPrompt,
-      messages: [{ role: "user", content: userPrompt }],
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`AI call failed: ${response.status} ${errorText}`);
-  }
-
-  const data = await response.json();
-  const textBlock = data.content?.find((b: { type: string }) => b.type === "text");
-
-  return {
-    text: textBlock?.text || "",
-    inputTokens: data.usage?.input_tokens || 0,
-    outputTokens: data.usage?.output_tokens || 0,
-  };
-}
-
-function parseJSON<T>(text: string, fallback: T): T {
-  try {
-    return JSON.parse(text);
-  } catch {
-    // Try regex extraction
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      try {
-        return JSON.parse(jsonMatch[0]);
-      } catch {
-        return fallback;
-      }
-    }
-    return fallback;
-  }
-}
+// ─── POST handler ───
 
 export async function POST(request: NextRequest) {
+  const validated = await validateToolkitRequest(request, "decision-matrix", ["suggest-criteria", "challenge", "insights"]);
+  if (validated.error) return validated.error;
+  const { body } = validated;
+  const { action, challenge, sessionId } = body;
+
   try {
-    const body = (await request.json()) as RequestBody;
-    const { action, challenge, sessionId } = body;
-
-    // Rate limit
-    if (!rateLimit(sessionId, TOOLKIT_LIMITS)) {
-      return NextResponse.json({ error: "Rate limited" }, { status: 429 });
-    }
-
-    // ─────────────────────────── suggest-criteria ───────────────────────────
+    /* ─── Action: Suggest criteria ─── */
     if (action === "suggest-criteria") {
-      const { existingCriteria = [] } = body;
+      const existingCriteria = (body.existingCriteria || []) as string[];
 
       const userPrompt = `The student is trying to make this decision: "${challenge}"
 
@@ -218,29 +138,20 @@ Their existing criteria are: ${existingCriteria.length > 0 ? existingCriteria.jo
 
 What important criteria might they have overlooked?`;
 
-      const { text, inputTokens, outputTokens } = await callHaiku(
-        buildSuggestCriteriaPrompt(),
-        userPrompt,
-        200
-      );
+      const result = await callHaiku(buildSuggestCriteriaPrompt(), userPrompt, 200);
+      const suggestions = parseToolkitJSON(result.text, { suggestions: [] });
 
-      const suggestions = parseJSON(text, { suggestions: [] });
+      logToolkitUsage("tools/decision-matrix/suggest-criteria", result, { sessionId, action: "suggest-criteria" });
 
-      // Log usage
-      logUsage({
-        endpoint: "tools/decision-matrix/suggest-criteria",
-        model: "claude-haiku-4-5-20251001",
-        inputTokens,
-        outputTokens,
-        metadata: { sessionId, action: "suggest-criteria" },
-      });
-
-      return NextResponse.json(suggestions);
+      return Response.json(suggestions);
     }
 
-    // ─────────────────────────── challenge ───────────────────────────
+    /* ─── Action: Challenge reasoning ─── */
     if (action === "challenge") {
-      const { criterion, reasoning, option, effortLevel = "medium" } = body;
+      const criterion = (body.criterion as string) ?? "";
+      const reasoning = (body.reasoning as string) ?? "";
+      const option = (body.option as string) ?? "";
+      const effortLevel = (body.effortLevel as string) || "medium";
 
       const userPrompt = `The student is scoring the option "${option}" on the criterion "${criterion}".
 
@@ -248,33 +159,23 @@ Their reasoning: "${reasoning}"
 
 Challenge the quality of their reasoning. Push for more specificity, evidence, or deeper thinking.`;
 
-      const { text, inputTokens, outputTokens } = await callHaiku(
-        buildChallengePrompt(effortLevel),
-        userPrompt,
-        150
-      );
-
-      const nudgeResponse = parseJSON(text, {
+      const result = await callHaiku(buildChallengePrompt(effortLevel), userPrompt, 150);
+      const nudgeResponse = parseToolkitJSON(result.text, {
         acknowledgment: "",
         nudge: "Can you add more specific reasoning or evidence?",
         effortLevel,
       });
 
-      // Log usage
-      logUsage({
-        endpoint: "tools/decision-matrix/challenge",
-        model: "claude-haiku-4-5-20251001",
-        inputTokens,
-        outputTokens,
-        metadata: { sessionId, action: "challenge" },
-      });
+      logToolkitUsage("tools/decision-matrix/challenge", result, { sessionId, action: "challenge" });
 
-      return NextResponse.json(nudgeResponse);
+      return Response.json(nudgeResponse);
     }
 
-    // ─────────────────────────── insights ───────────────────────────
+    /* ─── Action: Analyze patterns ─── */
     if (action === "insights") {
-      const { options: optionNames = [], criteria: criteriaList = [], rankedOptions = [] } = body;
+      const optionNames = (body.options || []) as string[];
+      const criteriaList = (body.criteria || []) as Criterion[];
+      const rankedOptions = (body.rankedOptions || []) as RankedOption[];
 
       const winner = rankedOptions[0];
       const topThree = rankedOptions.slice(0, 3);
@@ -289,33 +190,15 @@ ${topThree.map(r => `${r.rank}. ${r.name}: ${r.weighted.toFixed(2)}/5`).join("\n
 
 Analyze the patterns in their decision and what this matrix reveals about their priorities.`;
 
-      const { text, inputTokens, outputTokens } = await callHaiku(
-        buildInsightsPrompt(),
-        userPrompt,
-        350
-      );
+      const result = await callHaiku(buildInsightsPrompt(), userPrompt, 350);
 
-      // Log usage
-      logUsage({
-        endpoint: "tools/decision-matrix/insights",
-        model: "claude-haiku-4-5-20251001",
-        inputTokens,
-        outputTokens,
-        metadata: { sessionId, action: "insights" },
-      });
+      logToolkitUsage("tools/decision-matrix/insights", result, { sessionId, action: "insights" });
 
-      return NextResponse.json({ insights: text });
+      return Response.json({ insights: result.text.trim() });
     }
 
-    return NextResponse.json(
-      { error: "Unknown action" },
-      { status: 400 }
-    );
-  } catch (error) {
-    console.error("Error in decision-matrix API:", error);
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Unknown error" },
-      { status: 500 }
-    );
+    return Response.json({ error: "Unknown action" }, { status: 400 });
+  } catch (err) {
+    return toolkitErrorResponse("decision-matrix", err);
   }
 }

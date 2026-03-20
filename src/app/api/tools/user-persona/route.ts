@@ -7,16 +7,20 @@
  * Two interaction modes:
  *   1. "nudge"        — Section-specific writing coach
  *   2. "implications" — Design implications synthesis
+ *
+ * Uses shared toolkit helpers — see src/lib/toolkit/shared-api.ts
  */
 
-import { NextRequest, NextResponse } from "next/server";
-import { rateLimit } from "@/lib/rate-limit";
-import { logUsage } from "@/lib/usage-tracking";
+import { NextRequest } from "next/server";
+import {
+  callHaiku,
+  validateToolkitRequest,
+  parseToolkitJSON,
+  logToolkitUsage,
+  toolkitErrorResponse,
+} from "@/lib/toolkit";
 
-const TOOLKIT_LIMITS = [
-  { maxRequests: 50, windowMs: 60 * 1000 },
-  { maxRequests: 500, windowMs: 60 * 60 * 1000 },
-];
+// ─── Tool-specific config ───
 
 const SECTIONS = [
   { key: "demographics", name: "Demographics", focus: "age, job, location, family, specifics" },
@@ -26,18 +30,7 @@ const SECTIONS = [
   { key: "quote", name: "Quote", focus: "one sentence capturing essence" },
 ];
 
-type ActionType = "nudge" | "implications";
-
-interface RequestBody {
-  action: ActionType;
-  challenge: string;
-  sessionId: string;
-  section?: string;
-  currentText?: string;
-  allSections?: Record<string, string>;
-}
-
-// ─── Section-Specific Nudge ───
+// ─── Tool-specific prompt builders ───
 
 function buildNudgeSystemPrompt(sectionName: string): string {
   return `You are a UX researcher and writing coach helping someone create a realistic user persona.
@@ -65,138 +58,92 @@ In the "${sectionName}" section, they've written: "${allText}"
 Give a 1-sentence nudge that pushes for more specificity, authenticity, or depth.`;
 }
 
-async function generateNudge(sectionName: string, currentText: string, challenge: string): Promise<string> {
-  const anthropic = require("@anthropic-ai/sdk");
-  const client = new anthropic.default({
-    apiKey: process.env.ANTHROPIC_API_KEY,
-  });
-
-  const systemPrompt = buildNudgeSystemPrompt(sectionName);
-  const userPrompt = buildNudgeUserPrompt(sectionName, currentText, challenge);
-
-  try {
-    const msg = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 150,
-      system: systemPrompt,
-      messages: [{ role: "user", content: userPrompt }],
-    });
-
-    const content = msg.content[0];
-    if (content.type === "text") {
-      return content.text.trim();
-    }
-    return "Tell me more about this person.";
-  } catch {
-    return "Tell me more about this person.";
-  }
-}
-
-// ─── Design Implications ───
-
 function buildImplicationsSystemPrompt(): string {
   return `You are a product designer synthesizing a user persona into design implications.
 
 You have a complete persona (Demographics, Goals, Frustrations, Day in Life, Quote).
 
-Your job: identify 3 concrete design implications.
+YOUR ROLE: Identify the top 3 design implications — specific, actionable insights about what to build.
 
-Write 3 short sentences. Each should start with:
-- "This person needs..."
-- "They'll get stuck if..."
-- "Success means..."
+RULES:
+- Each implication should flow from a specific persona insight
+- Implications should be about FEATURES or EXPERIENCES, not abstract principles
+- Reference specific persona details to justify each implication
+- Prioritize by impact (what would matter most to this person?)
+- Keep each implication to 1-2 sentences max
+- Use clear, accessible language for ages 11-18
 
-Be specific and reference actual details from the persona.`;
+RESPONSE FORMAT: Return JSON with:
+{
+  "implications": "1. [First implication based on specific persona detail]\n2. [Second implication]\n3. [Third implication]"
+}`;
 }
 
-function buildImplicationsUserPrompt(challenge: string, allSections: Record<string, string>): string {
-  const sectionTexts = SECTIONS.map((s) => `**${s.name}:** ${allSections[s.key] || "(empty)"}`)
-    .join("\n\n");
+// ─── POST handler ───
 
-  return `Designing for: "${challenge}"
-
-Persona:
-${sectionTexts}
-
-What are 3 concrete design implications for this persona?`;
-}
-
-async function generateImplications(challenge: string, allSections: Record<string, string>): Promise<string> {
-  const anthropic = require("@anthropic-ai/sdk");
-  const client = new anthropic.default({
-    apiKey: process.env.ANTHROPIC_API_KEY,
-  });
-
-  const systemPrompt = buildImplicationsSystemPrompt();
-  const userPrompt = buildImplicationsUserPrompt(challenge, allSections);
+export async function POST(request: NextRequest) {
+  const validated = await validateToolkitRequest(request, "user-persona", ["nudge", "implications"]);
+  if (validated.error) return validated.error;
+  const { body } = validated;
+  const { action, challenge, sessionId } = body;
 
   try {
-    const msg = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 300,
-      system: systemPrompt,
-      messages: [{ role: "user", content: userPrompt }],
-    });
-
-    const content = msg.content[0];
-    if (content.type === "text") {
-      return content.text.trim();
-    }
-    return "Review your persona and consider its design implications.";
-  } catch {
-    return "Review your persona and consider its design implications.";
-  }
-}
-
-// ─── Main Handler ───
-
-export async function POST(req: NextRequest) {
-  try {
-    const body: RequestBody = await req.json();
-    const { action, challenge, sessionId, section = "", currentText = "", allSections = {} } = body;
-
-    const limitStatus = rateLimit(`tool:user-persona:${sessionId}`, TOOLKIT_LIMITS);
-    if (!limitStatus.allowed) {
-      return NextResponse.json({ error: "Rate limited" }, { status: 429 });
-    }
-
+    /* ─── Action: Section-specific nudge ─── */
     if (action === "nudge") {
-      const nudgeText = await generateNudge(section, currentText, challenge);
+      const { section = "", currentText = "" } = body;
+      if (!section) {
+        return Response.json({ error: "Missing section" }, { status: 400 });
+      }
 
-      logUsage({
-        endpoint: "tools/user-persona/nudge",
-        model: "claude-haiku-4-5-20251001",
-        inputTokens: 100,
-        outputTokens: 50,
-        metadata: { sessionId, action: "nudge" },
+      const userPrompt = buildNudgeUserPrompt(section as string, currentText as string, challenge);
+
+      const result = await callHaiku(buildNudgeSystemPrompt(section as string), userPrompt, 150);
+
+      logToolkitUsage("tools/user-persona/nudge", result, {
+        sessionId,
+        section,
+        action: "nudge",
       });
 
-      return NextResponse.json({
-        success: true,
-        nudge: nudgeText,
-      });
+      return Response.json({ nudge: result.text.trim() });
     }
 
+    /* ─── Action: Design implications synthesis ─── */
     if (action === "implications") {
-      const implicationsText = await generateImplications(challenge, allSections);
+      const allSections = (body.allSections || {}) as Record<string, string>;
+      const hasContent = Object.values(allSections).some(
+        (section) => typeof section === "string" && section.trim().length > 0
+      );
+      if (!hasContent) {
+        return Response.json({ implications: "" });
+      }
 
-      logUsage({
-        endpoint: "tools/user-persona/implications",
-        model: "claude-haiku-4-5-20251001",
-        inputTokens: 300,
-        outputTokens: 150,
-        metadata: { sessionId, action: "implications" },
+      const sectionSummary = SECTIONS.map((section) => {
+        const content = allSections[section.key] || "(not filled)";
+        return `${section.name}: ${content}`;
+      }).join("\n\n");
+
+      const userPrompt = `Persona for: "${challenge}"
+
+${sectionSummary}
+
+What are the top 3 design implications based on this persona?`;
+
+      const result = await callHaiku(buildImplicationsSystemPrompt(), userPrompt, 300);
+      const parsed = parseToolkitJSON(result.text, { implications: result.text.trim() });
+
+      logToolkitUsage("tools/user-persona/implications", result, {
+        sessionId,
+        action: "implications",
       });
 
-      return NextResponse.json({
-        success: true,
-        implications: implicationsText,
+      return Response.json({
+        implications: parsed.implications || result.text.trim(),
       });
     }
 
-    return NextResponse.json({ error: "Invalid action" }, { status: 400 });
-  } catch (error) {
-    console.error("User Persona API error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return Response.json({ error: "Invalid action" }, { status: 400 });
+  } catch (err) {
+    return toolkitErrorResponse("user-persona", err);
   }
 }

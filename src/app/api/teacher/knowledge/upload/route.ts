@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireTeacherAuth } from "@/lib/auth/verify-teacher-unit";
 import { extractDocument } from "@/lib/knowledge/extract";
 import { chunkDocument, chunkDocumentWithProfile, type ChunkMetadata } from "@/lib/knowledge/chunk";
 import { embedAll, embedText } from "@/lib/ai/embeddings";
@@ -19,25 +19,6 @@ const ALLOWED_TYPES = [
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "application/vnd.openxmlformats-officedocument.presentationml.presentation",
 ];
-
-async function getTeacherId(request: NextRequest): Promise<string | null> {
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll() {},
-      },
-    }
-  );
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user?.id || null;
-}
 
 /**
  * Build a searchable text summary for profile-level embedding.
@@ -72,10 +53,9 @@ function buildProfileEmbeddingText(profile: LessonProfile): string {
  * a rich review screen immediately after upload.
  */
 export async function POST(request: NextRequest) {
-  const teacherId = await getTeacherId(request);
-  if (!teacherId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireTeacherAuth(request);
+  if (auth.error) return auth.error;
+  const teacherId = auth.teacherId;
 
   const formData = await request.formData();
   const file = formData.get("file") as File | null;
@@ -695,10 +675,9 @@ export async function POST(request: NextRequest) {
  * GET: List teacher's uploads (with linked profile IDs)
  */
 export async function GET(request: NextRequest) {
-  const teacherId = await getTeacherId(request);
-  if (!teacherId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireTeacherAuth(request);
+  if (auth.error) return auth.error;
+  const teacherId = auth.teacherId;
 
   const supabaseAdmin = createAdminClient();
 
@@ -751,10 +730,9 @@ export async function GET(request: NextRequest) {
  * DELETE: Remove an upload, its chunks, and its lesson profile
  */
 export async function DELETE(request: NextRequest) {
-  const teacherId = await getTeacherId(request);
-  if (!teacherId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireTeacherAuth(request);
+  if (auth.error) return auth.error;
+  const teacherId = auth.teacherId;
 
   const { searchParams } = new URL(request.url);
   const uploadId = searchParams.get("id");

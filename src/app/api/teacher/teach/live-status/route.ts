@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { requireTeacherAuth, verifyTeacherOwnsClass } from "@/lib/auth/verify-teacher-unit";
 
 /**
  * GET /api/teacher/teach/live-status?classId=X&unitId=Y&pageId=Z
@@ -12,6 +13,10 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
  * - summary: { total, notStarted, inProgress, complete, avgTimeSpent }
  */
 export async function GET(request: NextRequest) {
+  const auth = await requireTeacherAuth(request);
+  if (auth.error) return auth.error;
+  const teacherId = auth.teacherId;
+
   const { searchParams } = new URL(request.url);
   const classId = searchParams.get("classId");
   const unitId = searchParams.get("unitId");
@@ -21,27 +26,23 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "classId and unitId required" }, { status: 400 });
   }
 
-  const supabase = await createServerSupabaseClient();
-
-  // Verify teacher auth
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   // Verify teacher owns this class
-  const { data: classData } = await supabase
-    .from("classes")
-    .select("id, teacher_id, name")
-    .eq("id", classId)
-    .single();
-
-  if (!classData || classData.teacher_id !== user.id) {
+  const ownsClass = await verifyTeacherOwnsClass(teacherId, classId);
+  if (!ownsClass) {
     return NextResponse.json({ error: "Class not found" }, { status: 404 });
   }
 
+  const db = createAdminClient();
+
+  // Get class name
+  const { data: classData } = await db
+    .from("classes")
+    .select("id, name")
+    .eq("id", classId)
+    .single();
+
   // Get students in class
-  const { data: students } = await supabase
+  const { data: students } = await db
     .from("students")
     .select("id, username, display_name, avatar_url, ell_level")
     .eq("class_id", classId)
@@ -51,14 +52,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       students: [],
       summary: { total: 0, notStarted: 0, inProgress: 0, complete: 0, avgTimeSpent: 0 },
-      className: classData.name,
+      className: classData?.name || "",
     });
   }
 
   const studentIds = students.map((s) => s.id);
 
   // Get progress — either for one page or all pages in unit
-  let progressQuery = supabase
+  let progressQuery = db
     .from("student_progress")
     .select("student_id, page_id, status, time_spent, responses, updated_at")
     .eq("unit_id", unitId)
@@ -71,7 +72,7 @@ export async function GET(request: NextRequest) {
   const { data: progressRows } = await progressQuery;
 
   // Get active sessions (students currently logged in — check student_sessions)
-  const { data: activeSessions } = await supabase
+  const { data: activeSessions } = await db
     .from("student_sessions")
     .select("student_id, created_at")
     .in("student_id", studentIds)
@@ -194,6 +195,6 @@ export async function GET(request: NextRequest) {
       needsHelpCount,
       onlineCount,
     },
-    className: classData.name,
+    className: classData?.name || "",
   });
 }

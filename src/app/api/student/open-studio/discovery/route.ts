@@ -18,7 +18,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { SESSION_COOKIE_NAME } from "@/lib/constants";
+import { requireStudentAuth } from "@/lib/auth/student";
 import { logUsage } from "@/lib/usage-tracking";
 import { rateLimit } from "@/lib/rate-limit";
 
@@ -329,24 +329,11 @@ function extractStructuredData(
 // ─────────────────────────────────────────────────
 
 export async function GET(request: NextRequest) {
-  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-  if (!token) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireStudentAuth(request);
+  if (auth.error) return auth.error;
+  const studentId = auth.studentId;
 
   const supabase = createAdminClient();
-
-  // Validate session
-  const { data: session } = await supabase
-    .from("student_sessions")
-    .select("student_id")
-    .eq("token", token)
-    .gt("expires_at", new Date().toISOString())
-    .single();
-
-  if (!session) {
-    return NextResponse.json({ error: "Invalid session" }, { status: 401 });
-  }
 
   const { searchParams } = new URL(request.url);
   const unitId = searchParams.get("unitId");
@@ -359,7 +346,7 @@ export async function GET(request: NextRequest) {
   let { data: profile, error: profileError } = await supabase
     .from("open_studio_profiles")
     .select("*")
-    .eq("student_id", session.student_id)
+    .eq("student_id", studentId)
     .eq("unit_id", unitId)
     .single();
 
@@ -406,7 +393,7 @@ export async function GET(request: NextRequest) {
     const { data: newProfile, error } = await supabase
       .from("open_studio_profiles")
       .insert({
-        student_id: session.student_id,
+        student_id: studentId,
         unit_id: unitId,
         discovery_step: "strengths",
         discovery_conversation: [initialGreeting],
@@ -434,26 +421,11 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-  if (!token) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireStudentAuth(request);
+  if (auth.error) return auth.error;
+  const studentId = auth.studentId;
 
   const supabase = createAdminClient();
-
-  // Validate session
-  const { data: session } = await supabase
-    .from("student_sessions")
-    .select("student_id")
-    .eq("token", token)
-    .gt("expires_at", new Date().toISOString())
-    .single();
-
-  if (!session) {
-    return NextResponse.json({ error: "Invalid session" }, { status: 401 });
-  }
-
-  const studentId = session.student_id;
 
   // Rate limit
   const { allowed } = rateLimit(`discovery:${studentId}`, DISCOVERY_LIMITS);

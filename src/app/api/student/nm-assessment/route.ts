@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { SESSION_COOKIE_NAME } from "@/lib/constants";
+import { requireStudentAuth } from "@/lib/auth/student";
 import { v4 as uuid } from "uuid";
 
 /**
@@ -41,32 +41,19 @@ function checkRateLimit(studentId: string): boolean {
 }
 
 export async function POST(request: NextRequest) {
-  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-  if (!token) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const supabase = createAdminClient();
-
-  // Validate session
-  const { data: session } = await supabase
-    .from("student_sessions")
-    .select("student_id")
-    .eq("token", token)
-    .gt("expires_at", new Date().toISOString())
-    .single();
-
-  if (!session) {
-    return NextResponse.json({ error: "Invalid session" }, { status: 401 });
-  }
+  const auth = await requireStudentAuth(request);
+  if (auth.error) return auth.error;
+  const studentId = auth.studentId;
 
   // Check rate limit
-  if (!checkRateLimit(session.student_id)) {
+  if (!checkRateLimit(studentId)) {
     return NextResponse.json(
       { error: "Rate limit exceeded (10 per minute)" },
       { status: 429 }
     );
   }
+
+  const supabase = createAdminClient();
 
   const body = await request.json();
   const {
@@ -100,7 +87,7 @@ export async function POST(request: NextRequest) {
   const { data: student } = await supabase
     .from("students")
     .select("class_id")
-    .eq("id", session.student_id)
+    .eq("id", studentId)
     .single();
 
   const classId = student?.class_id || null;
@@ -148,7 +135,7 @@ export async function POST(request: NextRequest) {
   // Insert rows into competency_assessments (now includes class_id)
   const rows = assessments.map((a) => ({
     id: uuid(),
-    student_id: session.student_id,
+    student_id: studentId,
     unit_id: unitId,
     class_id: classId,
     page_id: pageId,

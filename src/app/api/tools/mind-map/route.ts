@@ -6,18 +6,20 @@
  *   2. "nudge"    — Effort-gated Socratic feedback after a student adds an idea
  *   3. "insights" — At the summary stage, find patterns and connections across all ideas
  *
- * Uses Haiku 4.5 for speed (student-facing).
+ * Uses shared toolkit helpers — see src/lib/toolkit/shared-api.ts
  */
 
-import { NextRequest, NextResponse } from "next/server";
-import { rateLimit } from "@/lib/rate-limit";
-import { logUsage } from "@/lib/usage-tracking";
+import { NextRequest } from "next/server";
+import {
+  callHaiku,
+  validateToolkitRequest,
+  parseToolkitJSON,
+  parseToolkitJSONArray,
+  logToolkitUsage,
+  toolkitErrorResponse,
+} from "@/lib/toolkit";
 
-// Rate limit: generous for toolkit (50/min per session, 500/hour)
-const TOOLKIT_LIMITS = [
-  { maxRequests: 50, windowMs: 60 * 1000 },
-  { maxRequests: 500, windowMs: 60 * 60 * 1000 },
-];
+// ─── Tool-specific config ───
 
 const MINDMAP_STEPS = [
   { step: 1, title: "Main Branches", desc: "brainstorming main topics or themes from the central concept" },
@@ -25,18 +27,7 @@ const MINDMAP_STEPS = [
   { step: 3, title: "Connections", desc: "finding unexpected links and patterns between branches" },
 ];
 
-type ActionType = "prompts" | "nudge" | "insights";
-
-interface RequestBody {
-  action: ActionType;
-  challenge: string;
-  sessionId: string;
-  stepIndex?: number;
-  idea?: string;
-  existingIdeas?: string[];
-  effortLevel?: "low" | "medium" | "high";
-  allIdeas?: string[][];
-}
+// ─── Tool-specific prompt builders (unique pedagogical rules) ───
 
 function buildPromptsSystemPrompt(ideaCount: number): string {
   let difficultyInstruction: string;
@@ -77,7 +68,6 @@ Example: ["What are the major themes that come up repeatedly?", "Who would care 
 }
 
 function buildNudgeSystemPrompt(effortLevel: "low" | "medium" | "high"): string {
-  // For Mind Map: encourage DIVERGENT thinking and exploration
   const effortStrategy: Record<string, string> = {
     low: `EFFORT LEVEL: LOW — The student's response is brief or vague. Encourage them to flesh it out.
 - Do NOT praise a vague idea — but stay warm and encouraging
@@ -138,86 +128,24 @@ RULES:
 RESPONSE FORMAT: 2-3 short paragraphs of plain text. Use no headers, no bullets, no markdown.`;
 }
 
-async function callHaiku(
-  systemPrompt: string,
-  userPrompt: string,
-  maxTokens: number
-): Promise<{ text: string; inputTokens: number; outputTokens: number }> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error("AI service not configured");
-
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: maxTokens,
-      temperature: 0.8,
-      system: systemPrompt,
-      messages: [{ role: "user", content: userPrompt }],
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`AI call failed: ${response.status} ${errorText}`);
-  }
-
-  const data = await response.json();
-  const textBlock = data.content?.find((b: { type: string }) => b.type === "text");
-
-  return {
-    text: textBlock?.text || "",
-    inputTokens: data.usage?.input_tokens || 0,
-    outputTokens: data.usage?.output_tokens || 0,
-  };
-}
+// ─── POST handler ───
 
 export async function POST(request: NextRequest) {
+  const validated = await validateToolkitRequest(request, "mind-map", ["prompts", "nudge", "insights"]);
+  if (validated.error) return validated.error;
+  const { body } = validated;
+  const { action, challenge, sessionId } = body;
+
   try {
-    const body = (await request.json()) as RequestBody;
-    const { action, challenge, sessionId } = body;
-
-    // Validate
-    if (!action || !challenge?.trim() || !sessionId) {
-      return NextResponse.json(
-        { error: "Missing required fields: action, challenge, sessionId" },
-        { status: 400 }
-      );
-    }
-
-    if (!["prompts", "nudge", "insights"].includes(action)) {
-      return NextResponse.json(
-        { error: "Invalid action. Must be: prompts, nudge, or insights" },
-        { status: 400 }
-      );
-    }
-
-    // Rate limit by session
-    const { allowed, retryAfterMs } = rateLimit(
-      `mind-map:${sessionId}`,
-      TOOLKIT_LIMITS
-    );
-    if (!allowed) {
-      return NextResponse.json(
-        { error: "Too many requests. Take a breath and try again shortly." },
-        { status: 429, headers: { "Retry-After": String(Math.ceil((retryAfterMs || 1000) / 1000)) } }
-      );
-    }
-
     /* ─── Action: Generate contextual prompts ─── */
     if (action === "prompts") {
       const stepIndex = body.stepIndex ?? 0;
       if (stepIndex < 0 || stepIndex > 2) {
-        return NextResponse.json({ error: "stepIndex must be 0-2" }, { status: 400 });
+        return Response.json({ error: "stepIndex must be 0-2" }, { status: 400 });
       }
 
       const step = MINDMAP_STEPS[stepIndex];
-      const existingIdeas = body.existingIdeas || [];
+      const existingIdeas = (body.existingIdeas || []) as string[];
 
       let userPrompt = `DESIGN CHALLENGE: "${challenge.trim()}"
 
@@ -233,101 +161,57 @@ Generate 4 NEW questions that push the student in DIFFERENT directions from thei
 
       const result = await callHaiku(buildPromptsSystemPrompt(existingIdeas.length), userPrompt, 400);
 
-      // Parse JSON array from response
-      let prompts: string[];
-      try {
-        prompts = JSON.parse(result.text);
-        if (!Array.isArray(prompts)) throw new Error("Not an array");
-        prompts = prompts.slice(0, 4).map(p => String(p).trim());
-      } catch {
-        const matches = result.text.match(/"([^"]+)"/g);
-        if (matches && matches.length >= 2) {
-          prompts = matches.slice(0, 4).map(m => m.replace(/"/g, "").trim());
-        } else {
-          prompts = [
-            `What are the main themes or categories related to "${challenge.trim()}"?`,
-            `Who are the key people, groups, or systems involved?`,
-            `What different perspectives or viewpoints exist on this topic?`,
-            `What larger patterns or connections can you find?`,
-          ];
-        }
-      }
+      const prompts = parseToolkitJSONArray(result.text) || [
+        `What are the main themes or categories related to "${challenge.trim()}"?`,
+        `Who are the key people, groups, or systems involved?`,
+        `What different perspectives or viewpoints exist on this topic?`,
+        `What larger patterns or connections can you find?`,
+      ];
 
-      logUsage({
-        endpoint: "tools/mind-map/prompts",
-        model: "claude-haiku-4-5-20251001",
-        inputTokens: result.inputTokens,
-        outputTokens: result.outputTokens,
-        metadata: { sessionId, stepIndex, action: "prompts" },
-      });
-
-      return NextResponse.json({ prompts });
+      logToolkitUsage("tools/mind-map/prompts", result, { sessionId, stepIndex, action: "prompts" });
+      return Response.json({ prompts: prompts.slice(0, 4) });
     }
 
     /* ─── Action: Effort-gated Socratic nudge ─── */
     if (action === "nudge") {
       const { idea, stepIndex, effortLevel: clientEffort } = body;
-      if (!idea?.trim()) {
-        return NextResponse.json({ error: "Missing idea" }, { status: 400 });
+      if (!(idea as string)?.trim()) {
+        return Response.json({ error: "Missing idea" }, { status: 400 });
       }
 
       const step = MINDMAP_STEPS[stepIndex ?? 0];
-      const existingIdeas = body.existingIdeas || [];
-      const effort = clientEffort || "medium";
+      const existingIdeas = (body.existingIdeas || []) as string[];
+      const effort = (clientEffort as "low" | "medium" | "high") || "medium";
 
       let userPrompt = `DESIGN CHALLENGE: "${challenge.trim()}"
 MIND MAP STEP: Step ${step.step} — ${step.title}
-IDEA JUST ADDED: "${idea.trim()}"`;
+IDEA JUST ADDED: "${(idea as string).trim()}"`;
 
       if (existingIdeas.length > 1) {
-        userPrompt += `\nOTHER IDEAS IN THIS STEP: ${existingIdeas.filter(i => i !== idea.trim()).join("; ")}`;
+        userPrompt += `\nOTHER IDEAS IN THIS STEP: ${existingIdeas.filter(i => i !== (idea as string).trim()).join("; ")}`;
       }
 
       userPrompt += `\n\nReturn a JSON object with your acknowledgment and follow-up question.`;
 
       const result = await callHaiku(buildNudgeSystemPrompt(effort), userPrompt, 120);
+      const parsed = parseToolkitJSON(result.text, { acknowledgment: "", nudge: result.text.trim() });
 
-      // Parse structured JSON response
-      let nudgeText = result.text.trim();
-      let acknowledgment = "";
+      logToolkitUsage("tools/mind-map/nudge", result, { sessionId, stepIndex, action: "nudge", effortLevel: effort });
 
-      try {
-        const jsonMatch = nudgeText.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          const parsed = JSON.parse(jsonMatch[0]);
-          nudgeText = parsed.nudge || nudgeText;
-          acknowledgment = parsed.acknowledgment || "";
-        }
-      } catch {
-        const nudgeMatch = nudgeText.match(/"nudge"\s*:\s*"([^"]+)"/);
-        const ackMatch = nudgeText.match(/"acknowledgment"\s*:\s*"([^"]+)"/);
-        if (nudgeMatch) nudgeText = nudgeMatch[1];
-        if (ackMatch) acknowledgment = ackMatch[1];
-      }
-
-      logUsage({
-        endpoint: "tools/mind-map/nudge",
-        model: "claude-haiku-4-5-20251001",
-        inputTokens: result.inputTokens,
-        outputTokens: result.outputTokens,
-        metadata: { sessionId, stepIndex, action: "nudge", effortLevel: effort },
-      });
-
-      return NextResponse.json({
-        nudge: nudgeText,
-        acknowledgment,
+      return Response.json({
+        nudge: parsed.nudge || result.text.trim(),
+        acknowledgment: parsed.acknowledgment || "",
         effortLevel: effort,
       });
     }
 
     /* ─── Action: Summary insights ─── */
     if (action === "insights") {
-      const { allIdeas } = body;
+      const allIdeas = body.allIdeas as string[][] | undefined;
       if (!allIdeas || !Array.isArray(allIdeas)) {
-        return NextResponse.json({ error: "Missing allIdeas" }, { status: 400 });
+        return Response.json({ error: "Missing allIdeas" }, { status: 400 });
       }
 
-      // Build a readable summary of all ideas
       const ideaSummary = MINDMAP_STEPS.map((step, i) => {
         const ideas = allIdeas[i] || [];
         if (ideas.length === 0) return `Step ${step.step} (${step.title}): No ideas`;
@@ -345,24 +229,12 @@ Help the student see patterns, themes, and unexpected connections across their b
 
       const result = await callHaiku(buildInsightsSystemPrompt(), userPrompt, 300);
 
-      logUsage({
-        endpoint: "tools/mind-map/insights",
-        model: "claude-haiku-4-5-20251001",
-        inputTokens: result.inputTokens,
-        outputTokens: result.outputTokens,
-        metadata: { sessionId, totalIdeas, action: "insights" },
-      });
-
-      return NextResponse.json({ insights: result.text.trim() });
+      logToolkitUsage("tools/mind-map/insights", result, { sessionId, totalIdeas, action: "insights" });
+      return Response.json({ insights: result.text.trim() });
     }
 
-    return NextResponse.json({ error: "Unknown action" }, { status: 400 });
+    return Response.json({ error: "Unknown action" }, { status: 400 });
   } catch (err) {
-    console.error("[mind-map] Error:", err);
-    const errorMessage = err instanceof Error ? err.message : "Unknown error";
-    return NextResponse.json(
-      { error: `Mind Map tool error: ${errorMessage}` },
-      { status: 500 }
-    );
+    return toolkitErrorResponse("mind-map", err);
   }
 }

@@ -11,17 +11,19 @@
  *   1. "nudge"    — Per-step effort-gated feedback
  *   2. "insights" — Synthesis of nature pipeline into design solutions
  *
- * Uses Haiku 4.5 for speed. Short responses only.
+ * Uses shared toolkit helpers — see src/lib/toolkit/shared-api.ts
  */
 
-import { NextRequest, NextResponse } from "next/server";
-import { rateLimit } from "@/lib/rate-limit";
-import { logUsage } from "@/lib/usage-tracking";
+import { NextRequest } from "next/server";
+import {
+  callHaiku,
+  validateToolkitRequest,
+  parseToolkitJSON,
+  logToolkitUsage,
+  toolkitErrorResponse,
+} from "@/lib/toolkit";
 
-const TOOLKIT_LIMITS = [
-  { maxRequests: 50, windowMs: 60 * 1000 },
-  { maxRequests: 500, windowMs: 60 * 60 * 1000 },
-];
+// ─── Tool-specific config ───
 
 const STEPS = [
   {
@@ -42,20 +44,7 @@ const STEPS = [
   },
 ];
 
-type ActionType = "nudge" | "insights";
-
-interface RequestBody {
-  action: ActionType;
-  challenge: string;
-  sessionId: string;
-  stepIndex?: number;
-  idea?: string;
-  natureSolutions?: string[];
-  effortLevel?: "low" | "medium" | "high";
-  allIdeas?: (string | null)[][];
-}
-
-// ─── Nudge Generation ───
+// ─── Tool-specific prompt builders (unique pedagogical rules) ───
 
 function buildNudgeSystemPrompt(
   stepIndex: number,
@@ -104,8 +93,6 @@ For low effort:
 {"acknowledgment": "", "nudge": "What specifically about this organism or system solves your problem?"}`;
 }
 
-// ─── Root Cause Insights ───
-
 function buildInsightsSystemPrompt(): string {
   return `You are a design thinking mentor reviewing a student's complete biomimicry card journey.
 
@@ -126,131 +113,67 @@ RULES:
 RESPONSE FORMAT: 2-3 short paragraphs of plain text. No headers, no bullets, no markdown.`;
 }
 
-// ─── AI Call ───
-
-async function callHaiku(
-  systemPrompt: string,
-  userPrompt: string,
-  maxTokens: number
-): Promise<{ text: string; inputTokens: number; outputTokens: number }> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error("AI service not configured");
-
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: maxTokens,
-      temperature: 0.8,
-      system: systemPrompt,
-      messages: [{ role: "user", content: userPrompt }],
-    }),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`AI call failed: ${response.status} ${errorText}`);
-  }
-
-  const data = await response.json();
-  const textBlock = data.content?.find((b: { type: string }) => b.type === "text");
-
-  return {
-    text: textBlock?.text || "",
-    inputTokens: data.usage?.input_tokens || 0,
-    outputTokens: data.usage?.output_tokens || 0,
-  };
-}
-
-// ─── Route Handler ───
+// ─── POST handler ───
 
 export async function POST(request: NextRequest) {
+  const validated = await validateToolkitRequest(request, "biomimicry", ["nudge", "insights"]);
+  if (validated.error) return validated.error;
+  const { body } = validated;
+  const { action, challenge, sessionId } = body;
+
   try {
-    const body = (await request.json()) as RequestBody;
-    const { action, challenge, sessionId } = body;
-
-    if (!action || !challenge?.trim() || !sessionId) {
-      return NextResponse.json(
-        { error: "Missing required fields: action, challenge, sessionId" },
-        { status: 400 }
-      );
-    }
-
-    const { allowed, retryAfterMs } = rateLimit(
-      `biomimicry:${sessionId}`,
-      TOOLKIT_LIMITS
-    );
-    if (!allowed) {
-      return NextResponse.json(
-        { error: "Too many requests. Take a moment to think, then try again." },
-        { status: 429, headers: { "Retry-After": String(Math.ceil((retryAfterMs || 1000) / 1000)) } }
-      );
-    }
-
-    // ─── NUDGE ───
+    /* ─── Action: Nudge feedback ─── */
     if (action === "nudge") {
       const { stepIndex = 0, idea, natureSolutions = [], effortLevel = "medium" } = body;
-      if (!idea?.trim()) {
-        return NextResponse.json({ error: "Missing idea" }, { status: 400 });
+      if (!(idea as string)?.trim()) {
+        return Response.json({ error: "Missing idea" }, { status: 400 });
       }
 
-      const step = STEPS[stepIndex];
+      const step = STEPS[stepIndex as number];
       if (!step) {
-        return NextResponse.json({ error: "Invalid step index" }, { status: 400 });
+        return Response.json({ error: "Invalid step index" }, { status: 400 });
       }
 
-      const systemPrompt = buildNudgeSystemPrompt(stepIndex, effortLevel);
       const userPrompt = `Challenge: "${challenge}"
-Step ${stepIndex + 1}: ${step.label}
-${natureSolutions.length > 0 ? `Previous nature observations:\n${natureSolutions.map((n, i) => `  ${i + 1}. ${n}`).join("\n")}` : ""}
-Student's answer: "${idea}"
+Step ${(stepIndex as number) + 1}: ${step.label}
+${(natureSolutions as string[]).length > 0 ? `Previous nature observations:\n${(natureSolutions as string[]).map((n, i) => `  ${i + 1}. ${n}`).join("\n")}` : ""}
+Student's answer: "${(idea as string).trim()}"
 
 Respond with JSON feedback.`;
 
-      const result = await callHaiku(systemPrompt, userPrompt, 120);
+      const result = await callHaiku(
+        buildNudgeSystemPrompt(stepIndex as number, effortLevel as "low" | "medium" | "high"),
+        userPrompt,
+        120
+      );
+      const parsed = parseToolkitJSON(result.text, { acknowledgment: "", nudge: result.text.trim() });
 
-      logUsage({
-        endpoint: "tools/biomimicry/nudge",
-        model: "claude-haiku-4-5-20251001",
-        inputTokens: result.inputTokens,
-        outputTokens: result.outputTokens,
-        metadata: { sessionId, stepIndex, effortLevel, action: "nudge" },
+      logToolkitUsage("tools/biomimicry/nudge", result, {
+        sessionId,
+        stepIndex,
+        effortLevel,
+        action: "nudge",
       });
 
-      try {
-        const parsed = JSON.parse(result.text);
-        return NextResponse.json({
-          nudge: parsed.nudge || result.text,
-          acknowledgment: parsed.acknowledgment || "",
-          effortLevel,
-        });
-      } catch {
-        const nudgeMatch = result.text.match(/"nudge"\s*:\s*"([^"]+)"/);
-        const ackMatch = result.text.match(/"acknowledgment"\s*:\s*"([^"]*)"/);
-        return NextResponse.json({
-          nudge: nudgeMatch?.[1] || result.text.replace(/[{}"\n]/g, "").trim(),
-          acknowledgment: ackMatch?.[1] || "",
-          effortLevel,
-        });
-      }
+      return Response.json({
+        nudge: parsed.nudge || result.text,
+        acknowledgment: parsed.acknowledgment || "",
+        effortLevel,
+      });
     }
 
-    // ─── INSIGHTS ───
+    /* ─── Action: Insights synthesis ─── */
     if (action === "insights") {
       const { allIdeas = [] } = body;
-      const hasIdeas = allIdeas.some((arr) => Array.isArray(arr) && arr.length > 0 && arr[0]);
+      const hasIdeas = (allIdeas as (string | null)[][]).some(
+        (arr) => Array.isArray(arr) && arr.length > 0 && arr[0]
+      );
       if (!hasIdeas) {
-        return NextResponse.json({ insights: "" });
+        return Response.json({ insights: "" });
       }
 
-      const systemPrompt = buildInsightsSystemPrompt();
       const ideaSummary = STEPS.map((step, i) => {
-        const stepIdeas = allIdeas[i] || [];
+        const stepIdeas = (allIdeas as (string | null)[][])[i] || [];
         const idea = stepIdeas.length > 0 && stepIdeas[0] ? stepIdeas[0] : null;
         return `${step.label}: ${idea || "(not completed)"}`;
       }).join("\n");
@@ -262,25 +185,15 @@ ${ideaSummary}
 
 Analyze how the student translated their observation from nature into a design solution.`;
 
-      const result = await callHaiku(systemPrompt, userPrompt, 350);
+      const result = await callHaiku(buildInsightsSystemPrompt(), userPrompt, 350);
 
-      logUsage({
-        endpoint: "tools/biomimicry/insights",
-        model: "claude-haiku-4-5-20251001",
-        inputTokens: result.inputTokens,
-        outputTokens: result.outputTokens,
-        metadata: { sessionId, action: "insights" },
-      });
+      logToolkitUsage("tools/biomimicry/insights", result, { sessionId, action: "insights" });
 
-      return NextResponse.json({ insights: result.text });
+      return Response.json({ insights: result.text });
     }
 
-    return NextResponse.json({ error: "Invalid action" }, { status: 400 });
-  } catch (error) {
-    console.error("[biomimicry] API error:", error);
-    return NextResponse.json(
-      { error: "Something went wrong. Please try again." },
-      { status: 500 }
-    );
+    return Response.json({ error: "Invalid action" }, { status: 400 });
+  } catch (err) {
+    return toolkitErrorResponse("biomimicry", err);
   }
 }

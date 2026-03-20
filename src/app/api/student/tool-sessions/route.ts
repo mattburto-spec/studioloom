@@ -24,34 +24,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import * as Sentry from "@sentry/nextjs";
-import { SESSION_COOKIE_NAME } from "@/lib/constants";
-
-/**
- * Extract and validate student ID from session cookie.
- */
-async function getStudentId(request: NextRequest): Promise<string | null> {
-  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-  if (!token) return null;
-
-  const supabase = createAdminClient();
-  const { data: session } = await supabase
-    .from("student_sessions")
-    .select("student_id")
-    .eq("token", token)
-    .gt("expires_at", new Date().toISOString())
-    .single();
-
-  return session?.student_id || null;
-}
+import { requireStudentAuth } from "@/lib/auth/student";
 
 /**
  * POST: Create a new tool session (lazy creation).
  */
 export async function POST(request: NextRequest) {
-  const studentId = await getStudentId(request);
-  if (!studentId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireStudentAuth(request);
+  if (auth.error) return auth.error;
+  const studentId = auth.studentId;
 
   try {
     const body = await request.json();
@@ -161,10 +142,9 @@ export async function POST(request: NextRequest) {
  * GET: Find an existing in_progress session for this tool+student+page.
  */
 export async function GET(request: NextRequest) {
-  const studentId = await getStudentId(request);
-  if (!studentId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireStudentAuth(request);
+  if (auth.error) return auth.error;
+  const studentId = auth.studentId;
 
   try {
     const { searchParams } = new URL(request.url);

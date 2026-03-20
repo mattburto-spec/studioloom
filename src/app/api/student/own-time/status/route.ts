@@ -6,7 +6,10 @@ import { NextResponse } from "next/server";
  */
 export async function GET() {
   return NextResponse.json(
-    { error: "Own Time has been replaced by Open Studio. Use /api/student/open-studio/status instead." },
+    {
+      error:
+        "Own Time has been replaced by Open Studio. Use /api/student/open-studio/status instead.",
+    },
     { status: 410 }
   );
 }

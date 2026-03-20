@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { SESSION_COOKIE_NAME } from "@/lib/constants";
+import { requireStudentAuth } from "@/lib/auth/student";
 
 // Reverse mapping for pre-migration-011 fallback
 const PAGE_ID_TO_NUMBER: Record<string, number> = {
@@ -10,27 +10,11 @@ const PAGE_ID_TO_NUMBER: Record<string, number> = {
   D1: 13, D2: 14, D3: 15, D4: 16,
 };
 
-async function getStudentId(request: NextRequest): Promise<string | null> {
-  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-  if (!token) return null;
-
-  const supabase = createAdminClient();
-  const { data: session } = await supabase
-    .from("student_sessions")
-    .select("student_id")
-    .eq("token", token)
-    .gt("expires_at", new Date().toISOString())
-    .single();
-
-  return session?.student_id || null;
-}
-
 // GET: Load planning tasks for a unit
 export async function GET(request: NextRequest) {
-  const studentId = await getStudentId(request);
-  if (!studentId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireStudentAuth(request);
+  if (auth.error) return auth.error;
+  const studentId = auth.studentId;
 
   const unitId = request.nextUrl.searchParams.get("unitId");
   if (!unitId) {
@@ -64,10 +48,9 @@ export async function GET(request: NextRequest) {
 
 // POST: Create a new planning task
 export async function POST(request: NextRequest) {
-  const studentId = await getStudentId(request);
-  if (!studentId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireStudentAuth(request);
+  if (auth.error) return auth.error;
+  const studentId = auth.studentId;
 
   const body = await request.json();
   const { unitId, title, pageId, startDate, targetDate } = body;
@@ -164,10 +147,9 @@ export async function POST(request: NextRequest) {
 
 // PATCH: Update a task (status, title, etc.)
 export async function PATCH(request: NextRequest) {
-  const studentId = await getStudentId(request);
-  if (!studentId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireStudentAuth(request);
+  if (auth.error) return auth.error;
+  const studentId = auth.studentId;
 
   const body = await request.json();
   const { taskId, status, title, startDate, targetDate } = body;
@@ -199,10 +181,9 @@ export async function PATCH(request: NextRequest) {
 
 // DELETE: Remove a task
 export async function DELETE(request: NextRequest) {
-  const studentId = await getStudentId(request);
-  if (!studentId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireStudentAuth(request);
+  if (auth.error) return auth.error;
+  const studentId = auth.studentId;
 
   const taskId = request.nextUrl.searchParams.get("taskId");
   if (!taskId) {

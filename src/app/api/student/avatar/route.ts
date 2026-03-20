@@ -1,31 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { SESSION_COOKIE_NAME } from "@/lib/constants";
-
-async function getStudentId(request: NextRequest): Promise<string | null> {
-  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-  if (!token) return null;
-
-  const supabase = createAdminClient();
-  const { data: session } = await supabase
-    .from("student_sessions")
-    .select("student_id")
-    .eq("token", token)
-    .gt("expires_at", new Date().toISOString())
-    .single();
-
-  return session?.student_id || null;
-}
+import { requireStudentAuth } from "@/lib/auth/student";
 
 /**
  * POST /api/student/avatar
  * Upload a new avatar image. Replaces any existing avatar.
  */
 export async function POST(request: NextRequest) {
-  const studentId = await getStudentId(request);
-  if (!studentId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireStudentAuth(request);
+  if (auth.error) return auth.error;
+  const studentId = auth.studentId;
 
   const formData = await request.formData();
   const file = formData.get("file") as File | null;
@@ -104,10 +88,9 @@ export async function POST(request: NextRequest) {
  * Remove the avatar and revert to initials.
  */
 export async function DELETE(request: NextRequest) {
-  const studentId = await getStudentId(request);
-  if (!studentId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireStudentAuth(request);
+  if (auth.error) return auth.error;
+  const studentId = auth.studentId;
 
   const supabase = createAdminClient();
 

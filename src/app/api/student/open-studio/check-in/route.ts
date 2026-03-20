@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { SESSION_COOKIE_NAME } from "@/lib/constants";
+import { requireStudentAuth } from "@/lib/auth/student";
 import { buildOpenStudioSystemPrompt } from "@/lib/ai/open-studio-prompt";
 import type { OpenStudioInteraction } from "@/lib/ai/open-studio-prompt";
 import { logUsage } from "@/lib/usage-tracking";
@@ -34,26 +34,11 @@ const CHECK_IN_LIMITS = [
 ];
 
 export async function POST(request: NextRequest) {
-  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-  if (!token) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireStudentAuth(request);
+  if (auth.error) return auth.error;
+  const studentId = auth.studentId;
 
   const supabase = createAdminClient();
-
-  // Validate student session
-  const { data: studentSession } = await supabase
-    .from("student_sessions")
-    .select("student_id")
-    .eq("token", token)
-    .gt("expires_at", new Date().toISOString())
-    .single();
-
-  if (!studentSession) {
-    return NextResponse.json({ error: "Invalid session" }, { status: 401 });
-  }
-
-  const studentId = studentSession.student_id;
 
   // Rate limit
   const { allowed } = rateLimit(`os-checkin:${studentId}`, CHECK_IN_LIMITS);
