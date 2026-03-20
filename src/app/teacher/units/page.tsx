@@ -579,21 +579,23 @@ export default function TeacherUnitsPage() {
                     className="bg-white rounded-xl overflow-hidden hover:shadow-md transition-shadow flex flex-col"
                   >
                     <Link href={`/teacher/units/${unit.id}`} className="block flex-1">
-                      <UnitThumbnail
-                        thumbnailUrl={unit.thumbnail_url}
-                        title={unit.title}
-                        className="w-full h-36"
-                      />
-                      <div className="px-4 pt-3 pb-2">
-                        <p className="font-medium text-text-primary text-sm leading-snug line-clamp-2">
+                      <div className="w-full h-40 overflow-hidden">
+                        <UnitThumbnail
+                          thumbnailUrl={unit.thumbnail_url}
+                          title={unit.title}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <div className="px-4 pt-3 pb-3">
+                        <p className="font-semibold text-text-primary text-sm leading-snug line-clamp-2 mb-1">
                           {unit.title}
                         </p>
                         {unit.description && (
-                          <p className="text-xs text-text-secondary mt-1 line-clamp-2">
+                          <p className="text-xs text-text-secondary mt-1 line-clamp-2 leading-relaxed">
                             {unit.description}
                           </p>
                         )}
-                        <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                        <div className="flex items-center gap-1.5 mt-3 flex-wrap">
                           <span className="text-[10px] text-text-secondary bg-surface-alt px-2 py-0.5 rounded">
                             {countLabel}
                           </span>
@@ -615,7 +617,7 @@ export default function TeacherUnitsPage() {
                         </div>
                       </div>
                     </Link>
-                    <div className="px-4 pb-3 pt-1 flex items-center gap-2 border-t border-border-default mt-auto">
+                    <div className="px-4 pb-3 pt-2 flex items-center gap-2 border-t border-border-default mt-auto">
                       <button
                         onClick={() => togglePublish(unit)}
                         disabled={publishing === unit.id}

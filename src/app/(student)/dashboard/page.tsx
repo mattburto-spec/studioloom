@@ -111,18 +111,6 @@ export default function StudentDashboard() {
     return units.find((u) => u.id === unitId)?.title || "Unknown Unit";
   }
 
-  // Motivational messages that rotate
-  const motivationalMessages = [
-    "Keep up the great work!",
-    "You're making progress!",
-    "What will you create today?",
-    "You've got this!",
-    "Great things are happening!",
-    "Keep pushing forward!",
-  ];
-  const motivationIndex = Math.floor((Date.now() / 5000) % motivationalMessages.length);
-  const motivation = motivationalMessages[motivationIndex];
-
   // Find the most recent in-progress unit (progress > 0 && < 100%)
   const inProgressUnit = units.find((u) => {
     const percent = getCompletionPercent(u, u.progress);
@@ -147,11 +135,8 @@ export default function StudentDashboard() {
             <h1 className="text-4xl md:text-5xl font-bold text-text-primary mb-2 bg-gradient-to-r from-purple-600 via-blue-600 to-indigo-600 bg-clip-text text-transparent">
               {student?.display_name || student?.username}
             </h1>
-            <p className="text-lg text-text-secondary mb-4">
+            <p className="text-lg text-text-secondary">
               {classInfo?.name || "Your class"}
-            </p>
-            <p className="text-base font-medium text-purple-700 italic">
-              "{motivation}"
             </p>
           </div>
         </div>

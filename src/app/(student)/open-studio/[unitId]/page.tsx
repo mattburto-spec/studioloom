@@ -406,25 +406,36 @@ export default function OpenStudioPage({
         </div>
       </motion.header>
 
-      {/* Journey Map */}
-      <motion.div
+      {/* Journey Map — always visible, sticky */}
+      <div
         ref={journeyMapRef}
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
         style={{
-          maxWidth: "1200px",
-          margin: "0 auto",
-          padding: "24px",
-          paddingBottom: "32px",
+          position: "sticky",
+          top: isCompact ? "0" : "0",
+          zIndex: 30,
+          background: "rgba(15, 10, 40, 0.98)",
+          backdropFilter: "blur(12px)",
+          borderBottom: "1px solid rgba(124, 58, 237, 0.15)",
         }}
       >
-        <JourneyMap
-          currentPhase={currentPhase}
-          completedPhases={completedPhases}
-          compact={isCompact}
-        />
-      </motion.div>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          style={{
+            maxWidth: "1200px",
+            margin: "0 auto",
+            padding: isCompact ? "12px 24px" : "20px 24px",
+            transition: "padding 0.3s ease",
+          }}
+        >
+          <JourneyMap
+            currentPhase={currentPhase}
+            completedPhases={completedPhases}
+            compact={isCompact}
+          />
+        </motion.div>
+      </div>
 
       {/* Phase Content */}
       <motion.div
