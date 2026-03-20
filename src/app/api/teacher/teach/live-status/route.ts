@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { withErrorHandler } from "@/lib/api/error-handler";
 import { requireTeacherAuth, verifyTeacherOwnsClass } from "@/lib/auth/verify-teacher-unit";
 
 /**
@@ -12,7 +13,7 @@ import { requireTeacherAuth, verifyTeacherOwnsClass } from "@/lib/auth/verify-te
  * - students: array of { id, name, avatar, status, timeSpent, lastActive, responseCount }
  * - summary: { total, notStarted, inProgress, complete, avgTimeSpent }
  */
-export async function GET(request: NextRequest) {
+export const GET = withErrorHandler("teacher/teach/live-status:GET", async (request: NextRequest) => {
   const auth = await requireTeacherAuth(request);
   if (auth.error) return auth.error;
   const teacherId = auth.teacherId;
@@ -197,4 +198,4 @@ export async function GET(request: NextRequest) {
     },
     className: classData?.name || "",
   });
-}
+});

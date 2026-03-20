@@ -206,3 +206,45 @@ Based on Hattie HITS, Richard Paul, Bloom's taxonomy. Not learning styles pseudo
 ### F5. Service Role Bypass for RLS (Pre-Launch)
 API routes authenticate students server-side (session cookie → student_id lookup), then query Supabase using the service role key which bypasses RLS. RLS policies exist as a safety net for direct DB access but are not the primary auth layer. When paying customers arrive and a security audit demands it, migrate to proper RLS with auth context (pass student_id as a Supabase session variable). Decision made 19 Mar 2026.
 **Source:** Migration 026 discussion | **Status:** Documented
+
+## Engineering Discipline (added 21 Mar 2026 — Engine Overhaul)
+
+### G1. Extract Before You Multiply
+If you're about to copy-paste a function into a second file, extract it into a shared module first. The toolkit had `callHaiku()` copied 17 times across 25 routes (~3,000 wasted lines) before the Phase 2 overhaul created `src/lib/toolkit/shared-api.ts`. Same with student auth — 17 routes each implementing the same session-cookie-to-student-id lookup. The cost of extraction is 30 minutes; the cost of deduplication later is a full day.
+**Source:** Engine overhaul audit, 21 Mar 2026 | **Status:** In code
+
+### G2. Shared Auth Helpers Are Mandatory for New Routes
+Every new student route MUST use `requireStudentAuth()` from `src/lib/auth/student.ts`. Every new teacher route MUST use `requireTeacherAuth()` from `src/lib/auth/verify-teacher-unit.ts`. No inline `createServerClient` + `getUser()`. No file-local `getTeacherId()` helpers. One pattern, one place.
+**Source:** Engine overhaul Phase 2 | **Status:** In code
+
+### G3. Shared Toolkit Helpers Are Mandatory for New Tools
+Every new toolkit API route MUST use `validateToolkitRequest()`, `callHaiku()`, `parseToolkitJSON()`, `logToolkitUsage()`, and `toolkitErrorResponse()` from `src/lib/toolkit/`. The only unique code per route should be the prompt builders and action-specific logic. Reference implementation: `src/app/api/tools/scamper/route.ts`.
+**Source:** Engine overhaul Phase 2 | **Status:** In code
+
+### G4. Index Signatures Make Everything `unknown`
+When a TypeScript interface uses `[key: string]: unknown` (like `ToolkitRequestBody`), ALL properties — even explicitly typed ones — return `unknown` at access time. You must use `as` type casts: `body.context as string`, `body.allCauses as Record<string, string[]>`. This is a TypeScript design decision, not a bug. Plan for it when designing shared request types.
+**Source:** 17 TS errors after Phase 2 route rewrites | **Status:** Documented
+
+### G5. NEVER Batch-Modify JSX Structure with Regex
+Regex/sed/perl cannot safely modify JSX tag nesting. Adding `<motion.div>` by replacing `<div>` in opening tags puts closing `</motion.div>` on inner divs instead of outermost containers. Attempting to fix with more regex deletes lines containing animation attributes. This cascades into orphaned tags across ALL files. The Framer Motion disaster (18-19 Mar 2026) destroyed 23 components. Use the Edit tool for surgical, verified changes — or rewrite the full component.
+**Source:** CLAUDE.md Lessons Learned #1 | **Status:** Documented
+
+### G6. Use `tsc --noEmit` Not `createSourceFile` for Validation
+`ts.createSourceFile()` only checks syntax. It misses unclosed JSX elements, mismatched opening/closing tags, and invalid attributes. Always run `npx tsc --noEmit --jsx react-jsx --skipLibCheck` for real validation. This catches what syntax-level parsing cannot.
+**Source:** CLAUDE.md Lessons Learned #2 | **Status:** Documented
+
+### G7. Client Components Cannot Import Server-Only Modules
+`createAdminClient()` reads `SUPABASE_SERVICE_ROLE_KEY` — a server-only env var. Importing it in a `"use client"` component breaks the build. Keep all admin client usage in API routes and server components. This is a Next.js App Router fundamental.
+**Source:** CLAUDE.md Lessons Learned #3 | **Status:** Documented
+
+### G8. OWASP Security Headers on All Routes
+`next.config.ts` must include: `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` (restrict camera, mic, geolocation). These are zero-cost hardening that prevent clickjacking, MIME sniffing, and unnecessary API exposure.
+**Source:** Engine overhaul Phase 1 | **Status:** In code
+
+### G9. Rate-Limit Auth Endpoints
+Student login (`/api/auth/student-login`) must be rate-limited (10/min, 50/hour per IP). Auth endpoints are the #1 target for credential stuffing. This was missing until the Phase 1 overhaul.
+**Source:** Engine overhaul Phase 1 | **Status:** In code
+
+### G10. TypeScript Must Compile Clean Before Committing
+Run `npx tsc --noEmit` before every commit. Zero tolerance for TS errors. The codebase had 50 errors accumulating silently before the Phase 1 overhaul — each one a potential runtime crash. CI should enforce this too.
+**Source:** Engine overhaul Phase 1 (50 errors fixed) | **Status:** In code

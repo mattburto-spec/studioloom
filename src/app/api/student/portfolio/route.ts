@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { withErrorHandler } from "@/lib/api/error-handler";
 import { requireStudentAuth } from "@/lib/auth/student";
 
 // GET: List portfolio entries
-export async function GET(request: NextRequest) {
+export const GET = withErrorHandler("student/portfolio:GET", async (request: NextRequest) => {
   const auth = await requireStudentAuth(request);
   if (auth.error) return auth.error;
   const studentId = auth.studentId;
@@ -30,10 +31,10 @@ export async function GET(request: NextRequest) {
   }
 
   return NextResponse.json({ entries: data || [] });
-}
+});
 
 // POST: Create a new portfolio entry
-export async function POST(request: NextRequest) {
+export const POST = withErrorHandler("student/portfolio:POST", async (request: NextRequest) => {
   const auth = await requireStudentAuth(request);
   if (auth.error) return auth.error;
   const studentId = auth.studentId;
@@ -132,10 +133,10 @@ export async function POST(request: NextRequest) {
   }
 
   return NextResponse.json({ entry: data });
-}
+});
 
 // DELETE: Remove own entry
-export async function DELETE(request: NextRequest) {
+export const DELETE = withErrorHandler("student/portfolio:DELETE", async (request: NextRequest) => {
   const auth = await requireStudentAuth(request);
   if (auth.error) return auth.error;
   const studentId = auth.studentId;
@@ -157,4 +158,4 @@ export async function DELETE(request: NextRequest) {
   }
 
   return NextResponse.json({ ok: true });
-}
+});

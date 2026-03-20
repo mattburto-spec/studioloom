@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { withErrorHandler } from "@/lib/api/error-handler";
 import { requireTeacherAuth, verifyTeacherOwnsClass } from "@/lib/auth/verify-teacher-unit";
 
 /**
@@ -17,7 +18,7 @@ import { requireTeacherAuth, verifyTeacherOwnsClass } from "@/lib/auth/verify-te
  *   Body: { statusId, action: "revoke" | "update", reason?, carryForward? }
  */
 
-export async function GET(request: NextRequest) {
+export const GET = withErrorHandler("teacher/open-studio/status:GET", async (request: NextRequest) => {
   const auth = await requireTeacherAuth(request);
   if (auth.error) return auth.error;
   const teacherId = auth.teacherId;
@@ -64,9 +65,9 @@ export async function GET(request: NextRequest) {
   }));
 
   return NextResponse.json({ students: result });
-}
+});
 
-export async function POST(request: NextRequest) {
+export const POST = withErrorHandler("teacher/open-studio/status:POST", async (request: NextRequest) => {
   const auth = await requireTeacherAuth(request);
   if (auth.error) return auth.error;
   const teacherId = auth.teacherId;
@@ -147,9 +148,9 @@ export async function POST(request: NextRequest) {
 
   console.log("[open-studio] Granted Open Studio:", status.id, "student:", studentId, "unit:", unitId);
   return NextResponse.json({ status });
-}
+});
 
-export async function PATCH(request: NextRequest) {
+export const PATCH = withErrorHandler("teacher/open-studio/status:PATCH", async (request: NextRequest) => {
   const auth = await requireTeacherAuth(request);
   if (auth.error) return auth.error;
   const teacherId = auth.teacherId;
@@ -233,4 +234,4 @@ export async function PATCH(request: NextRequest) {
   }
 
   return NextResponse.json({ error: "Invalid action" }, { status: 400 });
-}
+});

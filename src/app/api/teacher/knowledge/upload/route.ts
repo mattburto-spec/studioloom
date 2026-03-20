@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { withErrorHandler } from "@/lib/api/error-handler";
 import { requireTeacherAuth } from "@/lib/auth/verify-teacher-unit";
 import { extractDocument } from "@/lib/knowledge/extract";
 import { chunkDocument, chunkDocumentWithProfile, type ChunkMetadata } from "@/lib/knowledge/chunk";
@@ -52,7 +53,7 @@ function buildProfileEmbeddingText(profile: LessonProfile): string {
  * The response includes the profile so the UI can show
  * a rich review screen immediately after upload.
  */
-export async function POST(request: NextRequest) {
+export const POST = withErrorHandler("teacher/knowledge/upload:POST", async (request: NextRequest) => {
   const auth = await requireTeacherAuth(request);
   if (auth.error) return auth.error;
   const teacherId = auth.teacherId;
@@ -669,12 +670,12 @@ export async function POST(request: NextRequest) {
       Connection: "keep-alive",
     },
   });
-}
+});
 
 /**
  * GET: List teacher's uploads (with linked profile IDs)
  */
-export async function GET(request: NextRequest) {
+export const GET = withErrorHandler("teacher/knowledge/upload:GET", async (request: NextRequest) => {
   const auth = await requireTeacherAuth(request);
   if (auth.error) return auth.error;
   const teacherId = auth.teacherId;
@@ -724,12 +725,12 @@ export async function GET(request: NextRequest) {
     totalChunks: count || 0,
     totalProfiles: profileCount || 0,
   });
-}
+});
 
 /**
  * DELETE: Remove an upload, its chunks, and its lesson profile
  */
-export async function DELETE(request: NextRequest) {
+export const DELETE = withErrorHandler("teacher/knowledge/upload:DELETE", async (request: NextRequest) => {
   const auth = await requireTeacherAuth(request);
   if (auth.error) return auth.error;
   const teacherId = auth.teacherId;
@@ -787,4 +788,4 @@ export async function DELETE(request: NextRequest) {
     .eq("teacher_id", teacherId);
 
   return NextResponse.json({ success: true });
-}
+});

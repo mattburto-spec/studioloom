@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { withErrorHandler } from "@/lib/api/error-handler";
 import { requireTeacherAuth } from "@/lib/auth/verify-teacher-unit";
 
 /**
  * GET: Fetch the teacher's profile (school context + preferences)
  */
-export async function GET(request: NextRequest) {
+export const GET = withErrorHandler("teacher/profile:GET", async (request: NextRequest) => {
   const auth = await requireTeacherAuth(request);
   if (auth.error) return auth.error;
   const teacherId = auth.teacherId;
@@ -24,12 +25,12 @@ export async function GET(request: NextRequest) {
   }
 
   return NextResponse.json({ profile: data || null });
-}
+});
 
 /**
  * POST: Create or update the teacher's profile
  */
-export async function POST(request: NextRequest) {
+export const POST = withErrorHandler("teacher/profile:POST", async (request: NextRequest) => {
   const auth = await requireTeacherAuth(request);
   if (auth.error) return auth.error;
   const teacherId = auth.teacherId;
@@ -64,4 +65,4 @@ export async function POST(request: NextRequest) {
   }
 
   return NextResponse.json({ profile: data });
-}
+});

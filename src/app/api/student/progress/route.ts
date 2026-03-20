@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { withErrorHandler } from "@/lib/api/error-handler";
 import { requireStudentAuth } from "@/lib/auth/student";
 
 // Mappings for pre-migration-011 fallback
@@ -17,7 +18,7 @@ const NUMBER_TO_PAGE_ID: Record<number, string> = {
 };
 
 // GET: Load progress for a specific unit
-export async function GET(request: NextRequest) {
+export const GET = withErrorHandler("student/progress:GET", async (request: NextRequest) => {
   const auth = await requireStudentAuth(request);
   if (auth.error) return auth.error;
   const studentId = auth.studentId;
@@ -45,10 +46,10 @@ export async function GET(request: NextRequest) {
   });
 
   return NextResponse.json({ progress: normalized });
-}
+});
 
 // POST: Save/update progress for a specific page
-export async function POST(request: NextRequest) {
+export const POST = withErrorHandler("student/progress:POST", async (request: NextRequest) => {
   const auth = await requireStudentAuth(request);
   if (auth.error) return auth.error;
   const studentId = auth.studentId;
@@ -127,4 +128,4 @@ export async function POST(request: NextRequest) {
   }
 
   return NextResponse.json({ progress: data });
-}
+});

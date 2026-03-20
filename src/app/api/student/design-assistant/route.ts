@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import * as Sentry from "@sentry/nextjs";
+import { withErrorHandler } from "@/lib/api/error-handler";
 import {
   createConversation,
   loadConversation,
@@ -28,7 +29,7 @@ import { requireStudentAuth } from "@/lib/auth/student";
  *   effortScore: number;
  * }
  */
-export async function POST(request: NextRequest) {
+export const POST = withErrorHandler("student/design-assistant:POST", async (request: NextRequest) => {
   // Student auth via session token cookie (not Supabase Auth)
   const auth = await requireStudentAuth(request);
   if (auth.error) return auth.error;
@@ -109,7 +110,7 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 /**
  * GET /api/student/design-assistant?conversationId={id}
@@ -122,7 +123,7 @@ export async function POST(request: NextRequest) {
  *   turns: ConversationTurn[];
  * }
  */
-export async function GET(request: NextRequest) {
+export const GET = withErrorHandler("student/design-assistant:GET", async (request: NextRequest) => {
   // Student auth via session token cookie
   const auth = await requireStudentAuth(request);
   if (auth.error) return auth.error;
@@ -181,4 +182,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

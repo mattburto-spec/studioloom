@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { withErrorHandler } from "@/lib/api/error-handler";
 import { getPageList } from "@/lib/unit-adapter";
 import type {
   DashboardData,
@@ -65,7 +66,7 @@ interface ProgressRow {
 /**
  * GET: Aggregated dashboard data for the teacher
  */
-export async function GET(request: NextRequest) {
+export const GET = withErrorHandler("teacher/dashboard:GET", async (request: NextRequest) => {
   const { supabase, user } = await getAuthenticatedClient(request);
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -327,4 +328,4 @@ export async function GET(request: NextRequest) {
   };
 
   return NextResponse.json(data);
-}
+});

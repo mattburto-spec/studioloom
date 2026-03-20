@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { withErrorHandler } from "@/lib/api/error-handler";
 import { NMUnitConfig, DEFAULT_NM_CONFIG } from "@/lib/nm/constants";
 import { verifyTeacherHasUnit, getNmConfigForClassUnit } from "@/lib/auth/verify-teacher-unit";
 
@@ -28,7 +29,7 @@ function getAuthClient(request: NextRequest) {
  *     Writes to class_units.nm_config (per-class).
  */
 
-export async function GET(request: NextRequest) {
+export const GET = withErrorHandler("teacher/nm-config:GET", async (request: NextRequest) => {
   const supabase = getAuthClient(request);
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
@@ -64,9 +65,9 @@ export async function GET(request: NextRequest) {
     .single();
 
   return NextResponse.json({ config: unit?.nm_config || DEFAULT_NM_CONFIG });
-}
+});
 
-export async function POST(request: NextRequest) {
+export const POST = withErrorHandler("teacher/nm-config:POST", async (request: NextRequest) => {
   const supabase = getAuthClient(request);
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
@@ -123,4 +124,4 @@ export async function POST(request: NextRequest) {
   }
 
   return NextResponse.json({ config: updated?.nm_config || config });
-}
+});

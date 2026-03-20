@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { withErrorHandler } from "@/lib/api/error-handler";
 import { resolveCredentials } from "@/lib/ai/resolve-credentials";
 import { createAIProvider } from "@/lib/ai";
 import { UNIT_SYSTEM_PROMPT, buildRAGCriterionPrompt, getGradeTimingProfile, buildTimingContext, calculateUsableTime, maxInstructionMinutes } from "@/lib/ai/prompts";
@@ -35,7 +36,7 @@ const VALID_CRITERIA: CriterionKey[] = ["A", "B", "C", "D"];
  *
  * When `stream=false` (default), returns the full JSON response.
  */
-export async function POST(request: NextRequest) {
+export const POST = withErrorHandler("teacher/generate-unit:POST", async (request: NextRequest) => {
   const supabase = createSupabaseServer(request);
   const {
     data: { user },
@@ -212,4 +213,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

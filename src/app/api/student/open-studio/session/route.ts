@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { withErrorHandler } from "@/lib/api/error-handler";
 import { requireStudentAuth } from "@/lib/auth/student";
 
 /**
@@ -14,7 +15,7 @@ import { requireStudentAuth } from "@/lib/auth/student";
  *   Body: { sessionId, focusArea?, activityEntry?, reflection?, end? }
  */
 
-export async function POST(request: NextRequest) {
+export const POST = withErrorHandler("student/open-studio/session:POST", async (request: NextRequest) => {
   const auth = await requireStudentAuth(request);
   if (auth.error) return auth.error;
   const studentId = auth.studentId;
@@ -87,9 +88,9 @@ export async function POST(request: NextRequest) {
   }
 
   return NextResponse.json({ session });
-}
+});
 
-export async function PATCH(request: NextRequest) {
+export const PATCH = withErrorHandler("student/open-studio/session:PATCH", async (request: NextRequest) => {
   const auth = await requireStudentAuth(request);
   if (auth.error) return auth.error;
   const studentId = auth.studentId;
@@ -172,4 +173,4 @@ export async function PATCH(request: NextRequest) {
   }
 
   return NextResponse.json({ session: updated });
-}
+});

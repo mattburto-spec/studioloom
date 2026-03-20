@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { withErrorHandler } from "@/lib/api/error-handler";
 import { resolveCredentials } from "@/lib/ai/resolve-credentials";
 import { createAIProvider } from "@/lib/ai";
 import { JOURNEY_SYSTEM_PROMPT, buildRAGJourneyPrompt } from "@/lib/ai/prompts";
@@ -38,7 +39,7 @@ function createSupabaseServer(request: NextRequest) {
  *   stream?: boolean
  * }
  */
-export async function POST(request: NextRequest) {
+export const POST = withErrorHandler("teacher/generate-journey:POST", async (request: NextRequest) => {
   const supabase = createSupabaseServer(request);
   const {
     data: { user },
@@ -237,4 +238,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
