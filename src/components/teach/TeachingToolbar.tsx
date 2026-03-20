@@ -155,8 +155,7 @@ export default function TeachingToolbar({
           color: isActive ? C.white : C.text,
           cursor: "pointer",
           transition: "all 0.15s ease",
-          fontSize: "18px",
-          minWidth: "48px",
+          minWidth: "52px",
         }}
         onMouseEnter={(e) => {
           if (!isActive) e.currentTarget.style.background = "rgba(255,255,255,0.04)";
@@ -166,7 +165,7 @@ export default function TeachingToolbar({
         }}
       >
         <span>{icon}</span>
-        <span style={{ fontSize: "9px", fontWeight: 600, letterSpacing: "0.02em", opacity: 0.7 }}>
+        <span style={{ fontSize: "10px", fontWeight: 600, letterSpacing: "0.02em", opacity: 0.7 }}>
           {label}
         </span>
         {badge && (
@@ -323,7 +322,7 @@ export default function TeachingToolbar({
         return (
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
             <div style={{ fontSize: "13px", fontWeight: 600, color: C.white, marginBottom: "4px" }}>
-              📺 Projector
+              Projector
             </div>
             <button
               onClick={() => {
@@ -490,14 +489,14 @@ export default function TeachingToolbar({
         <div style={{ width: "1px", height: "28px", background: C.border, margin: "0 4px" }} />
 
         {/* Tool buttons */}
-        <Btn icon="✏️" label="Edit" panel="edit" />
-        <Btn icon="⚡" label="Activity" panel="activity" badge={studentCount > 0 ? undefined : undefined} />
+        <Btn icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>} label="Edit" panel="edit" />
+        <Btn icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>} label="Activity" panel="activity" badge={studentCount > 0 ? undefined : undefined} />
         <Btn
-          icon="🎲"
+          icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="3" /><circle cx="8" cy="8" r="1.5" fill="currentColor" stroke="none" /><circle cx="16" cy="8" r="1.5" fill="currentColor" stroke="none" /><circle cx="8" cy="16" r="1.5" fill="currentColor" stroke="none" /><circle cx="16" cy="16" r="1.5" fill="currentColor" stroke="none" /><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" /></svg>}
           label="Tools"
           panel={isToolActive ? activePanel : ("timer" as ToolPanel)}
         />
-        <Btn icon="📺" label="Project" panel="project" />
+        <Btn icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" /></svg>} label="Project" panel="project" />
       </div>
 
       {/* Animations */}
