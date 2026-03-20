@@ -934,7 +934,7 @@ Units are now content templates assignable to multiple classes with per-class co
 - **Dashboard** — Filters archived classes, resolves NM enabled per class-unit not per unit.
 - **Teaching Mode** — Loads class-specific NM config when class selected.
 
-**Pending:** Migration 032 (page_id fix) + 033 must be applied in Supabase. Archive UI (button to set is_archived) not built yet.
+**Pending:** ~~Migration 032 (page_id fix) + 033 must be applied in Supabase.~~ ✅ Migrations 032 + 033 APPLIED 21 Mar 2026. Archive UI (button to set is_archived) not built yet.
 
 ### Phase 2 (Future)
 - **Progression tracking over time** — show student growth across units on a progression level timeline
@@ -1245,19 +1245,29 @@ These deliver the most value for the least effort and fill the biggest gaps:
 12. **School Entity + Student Registry** (Phase 3.5) — prerequisite for parent portal, data compliance, multi-teacher schools
 
 ### Differentiators (What Makes StudioLoom World-Class)
-13. **Wizard RAG Enhancement** (Phase 2) — lesson-level retrieval makes AI generation dramatically better
-14. **Cross-Encoder Re-Ranking** (Phase 2, from audit) — retrieve top 15-20, re-rank with Cohere/Voyage reranker, return top 5. ~1 week. Matters when KB exceeds ~1000 chunks.
-15. **Safety Certification Tracking UI** (Phase 3) — elevated to USP, builds trust with schools and insurance
-16. **Multi-Modal Student Work Analysis** (from audit) — Claude vision on student prototype photos/sketches against design specs. Natural extension of existing vision extraction pipeline. ~2 weeks.
-17. **Offline/Service Worker** (Cross-cutting) — workshop WiFi is terrible, this is a differentiator
-18. **Peer Inspiration Gallery** (Phase 5) — social learning for teens, lightweight but high-engagement
+13. **Teaching Mode Quick-Access Toolbar** — Floating toolbar at bottom of Teaching Mode with 6 tool groups: Clock/Time (elapsed + period remaining + quick countdown presets), Phase Timer (compact controls), Quick Edit (inline-edit lesson content from teaching view — no other tool does this), On-the-Fly Activities (push instant polls/exit tickets/show-me/collaborate boards to student screens), Classroom Tools (random picker, group maker, stopwatch, noise meter), Projection Controls. Based on Nearpod "On the Fly" + ClassPoint toolbar patterns. Noise meter is the "wow" differentiator (no competitor has it built in). ~11-13 days across 4 phases. Full spec at `docs/specs/teaching-mode-quick-access.md`.
+14. **Wizard RAG Enhancement** (Phase 2) — lesson-level retrieval makes AI generation dramatically better
+15. **Cross-Encoder Re-Ranking** (Phase 2, from audit) — retrieve top 15-20, re-rank with Cohere/Voyage reranker, return top 5. ~1 week. Matters when KB exceeds ~1000 chunks.
+16. **Safety Certification Tracking UI** (Phase 3) — elevated to USP, builds trust with schools and insurance
+17. **Multi-Modal Student Work Analysis** (from audit) — Claude vision on student prototype photos/sketches against design specs. Natural extension of existing vision extraction pipeline. ~2 weeks.
+18. **Offline/Service Worker** (Cross-cutting) — workshop WiFi is terrible, this is a differentiator
+19. **Peer Inspiration Gallery** (Phase 5) — social learning for teens, lightweight but high-engagement
 
 ### Trust Builders (Required for School Sales)
-19. **Data Privacy/Compliance UI** (Phase 3.5) — schools won't adopt without seeing compliance tools
-20. **Report Generation** (Phase 4) — end-of-term reports are a basic expectation
-21. **Parent Portal** (Phase 5.5) — read-only access for parents, required by many school policies
-22. **Product Analytics** (Cross-cutting) — Plausible for page analytics (cookie-free, COPPA-safe), PostHog for product funnels if needed. Essential for Phase 7 freemium conversion tracking. Never track students individually.
+20. **Data Privacy/Compliance UI** (Phase 3.5) — schools won't adopt without seeing compliance tools
+21. **Report Generation** (Phase 4) — end-of-term reports are a basic expectation
+22. **Parent Portal** (Phase 5.5) — read-only access for parents, required by many school policies
+23. **Product Analytics** (Cross-cutting) — Plausible for page analytics (cookie-free, COPPA-safe), PostHog for product funnels if needed. Essential for Phase 7 freemium conversion tracking. Never track students individually.
 
 ---
 
-*Last updated: 2026-03-19 (timing validation wired into pipeline, academic integrity system built, student toolkit persistence layer built — see CLAUDE.md for session details)*
+## Someday / Maybe
+
+Ideas parked for future consideration. Not prioritised, not committed — just captured so they don't get lost.
+
+### Student Screen Skins / Themes
+Let students choose a visual skin for their entire student experience — different color palettes, card styles, gradients, and vibes. Inspired by [Scape student living](https://www.scape.com.au/) (bold pops of color, quirky/playful aesthetic, exposed textures contrasted with vibrant graphics). Implementation would involve a ThemeProvider context wrapping the student layout, 5-6 curated skins (e.g. Default purple, Bold/Scape-style neon pops, Dark Mode, Pastel/Soft, Ocean, Retro), CSS variable swapping for colors + gradients + card border-radius + font weight, skin selector on student dashboard or profile area, preference stored in `students` table or localStorage. Medium effort (~2-3 days). Nice personalization touch for the 11-16 age group — teens love customizing their space. Not urgent because it's cosmetic, but could boost engagement and "this is MY space" ownership feeling.
+
+---
+
+*Last updated: 2026-03-21 (student skins idea parked in Someday/Maybe)*

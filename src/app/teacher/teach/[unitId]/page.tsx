@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { getPageList, normalizeContentData, isV3, isV4 } from "@/lib/unit-adapter";
 import { computeLessonBoundaries } from "@/lib/timeline";
 import PhaseTimer from "@/components/teach/PhaseTimer";
+import TeachingToolbar from "@/components/teach/TeachingToolbar";
 import { ObservationSnap } from "@/components/nm";
 import { AGENCY_ELEMENT_MAP } from "@/lib/nm/constants";
 import type { NMUnitConfig } from "@/lib/nm/constants";
@@ -49,9 +50,16 @@ type PhaseId = "opening" | "miniLesson" | "workTime" | "debrief";
 // =========================================================================
 
 const STATUS_CONFIG = {
-  not_started: { label: "Not Started", color: "#9CA3AF", bg: "#F3F4F6", ring: "#D1D5DB" },
-  in_progress: { label: "Working", color: "#2563EB", bg: "#DBEAFE", ring: "#93C5FD" },
-  complete: { label: "Done", color: "#16A34A", bg: "#DCFCE7", ring: "#86EFAC" },
+  not_started: { label: "Not Started", color: "#9CA3AF", bg: "#1F1F2E", ring: "#2A2A3E" },
+  in_progress: { label: "Working", color: "#3B82F6", bg: "#1E293B", ring: "#334155" },
+  complete: { label: "Done", color: "#10B981", bg: "#1E3A2F", ring: "#2D5447" },
+};
+
+const PHASE_COLORS: Record<PhaseId, string> = {
+  opening: "#7C3AED",
+  miniLesson: "#2563EB",
+  workTime: "#10B981",
+  debrief: "#F59E0B",
 };
 
 function timeSince(dateStr: string | null): string {
@@ -85,6 +93,7 @@ export default function TeachingDashboard({
   const [classes, setClasses] = useState<Array<{ id: string; name: string; code: string }>>([]);
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
   const [currentPhase, setCurrentPhase] = useState<PhaseId>("opening");
+  const [phaseTimeRemaining, setPhaseTimeRemaining] = useState<number>(0);
 
   // Live status (polled)
   const [students, setStudents] = useState<StudentLiveStatus[]>([]);
@@ -199,10 +208,15 @@ export default function TeachingDashboard({
   // -----------------------------------------------------------------------
   if (loading) {
     return (
-      <main className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center space-y-3">
-          <div className="w-12 h-12 border-4 border-purple-200 border-t-purple-600 rounded-full animate-spin mx-auto" />
-          <p className="text-sm text-gray-500 font-medium">Loading lesson...</p>
+      <main style={{ minHeight: "100vh", background: "#0D0D17", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ textAlign: "center" }}>
+          <div style={{
+            width: "48px", height: "48px", border: "4px solid rgba(139, 92, 246, 0.2)",
+            borderTop: "4px solid #8B5CF6", borderRadius: "50%", margin: "0 auto",
+            animation: "spin 1s linear infinite"
+          }} />
+          <p style={{ fontSize: "14px", color: "#9CA3AF", fontWeight: 500, marginTop: "12px" }}>Loading lesson...</p>
+          <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
         </div>
       </main>
     );
@@ -210,10 +224,12 @@ export default function TeachingDashboard({
 
   if (!unit) {
     return (
-      <main className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-gray-500">Unit not found.</p>
-          <Link href="/teacher/units" className="text-blue-600 text-sm mt-2 inline-block">← Back to units</Link>
+      <main style={{ minHeight: "100vh", background: "#0D0D17", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ textAlign: "center" }}>
+          <p style={{ color: "#9CA3AF" }}>Unit not found.</p>
+          <Link href="/teacher/units" style={{ color: "#3B82F6", fontSize: "14px", marginTop: "8px", display: "inline-block" }}>
+            ← Back to units
+          </Link>
         </div>
       </main>
     );
@@ -270,85 +286,141 @@ export default function TeachingDashboard({
   // Render
   // -----------------------------------------------------------------------
   return (
-    <main className="min-h-screen bg-gray-50">
+    <main style={{ minHeight: "100vh", background: "#0D0D17" }}>
       {/* ================================================================= */}
-      {/* TOP BAR — lesson title, class selector, projector button          */}
+      {/* TOP BAR — Dark frosted glass header with unit title + controls     */}
       {/* ================================================================= */}
-      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-gray-200 px-4 py-3">
-        <div className="max-w-[1600px] mx-auto flex items-center gap-4">
-          {/* Back */}
+      <header
+        style={{
+          position: "sticky", top: 0, zIndex: 50,
+          background: "rgba(13, 13, 23, 0.8)",
+          backdropFilter: "blur(12px)",
+          borderBottom: "1px solid rgba(255, 255, 255, 0.05)",
+          padding: "16px",
+        }}
+      >
+        <div style={{ maxWidth: "1600px", margin: "0 auto", display: "flex", alignItems: "center", gap: "16px" }}>
+          {/* Back button */}
           <Link
             href={`/teacher/units/${unitId}`}
-            className="text-gray-400 hover:text-gray-600 transition"
+            style={{
+              color: "#6B7280", transition: "color 0.2s",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              width: "24px", height: "24px",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = "#9CA3AF")}
+            onMouseLeave={(e) => (e.currentTarget.style.color = "#6B7280")}
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M19 12H5M12 19l-7-7 7-7" />
             </svg>
           </Link>
 
-          {/* Title */}
-          <div className="flex-1 min-w-0">
-            <h1 className="text-sm font-bold text-gray-900 truncate">
+          {/* Title section */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <h1 style={{ fontSize: "16px", fontWeight: 700, color: "#F3F4F6", margin: 0, marginBottom: "4px" }}>
               {unit.title}
             </h1>
-            <p className="text-[10px] text-gray-400 font-medium">
+            <p style={{ fontSize: "11px", color: "#6B7280", fontWeight: 500, margin: 0 }}>
               Teaching Mode {currentPage ? `— ${currentPage.title}` : ""}
             </p>
           </div>
 
-          {/* Class selector */}
+          {/* Class selector — dark glass dropdown */}
           {classes.length > 0 && (
             <select
               value={selectedClassId || ""}
               onChange={(e) => setSelectedClassId(e.target.value)}
-              className="text-xs font-medium bg-gray-100 border-0 rounded-lg px-3 py-2 text-gray-700"
+              style={{
+                fontSize: "13px", fontWeight: 600, color: "#F3F4F6",
+                background: "rgba(255, 255, 255, 0.05)", border: "1px solid rgba(255, 255, 255, 0.08)",
+                borderRadius: "8px", padding: "8px 12px",
+                cursor: "pointer", transition: "all 0.2s",
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.background = "rgba(255, 255, 255, 0.08)";
+                e.currentTarget.style.borderColor = "rgba(139, 92, 246, 0.3)";
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.background = "rgba(255, 255, 255, 0.05)";
+                e.currentTarget.style.borderColor = "rgba(255, 255, 255, 0.08)";
+              }}
             >
               {classes.map((c) => (
-                <option key={c.id} value={c.id}>
+                <option key={c.id} value={c.id} style={{ background: "#1F1F2E", color: "#F3F4F6" }}>
                   {c.name} ({c.code})
                 </option>
               ))}
             </select>
           )}
 
-          {/* Live indicator */}
+          {/* Live indicator pulse */}
           {summary && (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-50 border border-green-200">
-              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-              <span className="text-[10px] font-bold text-green-700">
+            <div style={{
+              display: "flex", alignItems: "center", gap: "8px",
+              padding: "6px 12px", borderRadius: "20px",
+              background: "rgba(16, 185, 129, 0.1)", border: "1px solid rgba(16, 185, 129, 0.2)",
+            }}>
+              <span style={{
+                width: "8px", height: "8px", borderRadius: "50%",
+                background: "#10B981", animation: "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite"
+              }} />
+              <span style={{ fontSize: "11px", fontWeight: 700, color: "#10B981" }}>
                 {summary.onlineCount} online
               </span>
+              <style>{`@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }`}</style>
             </div>
           )}
 
-          {/* Projector view button */}
+          {/* Projector button */}
           <button
             onClick={() => {
               const url = `/teacher/teach/${unitId}/projector${selectedPageId ? `?pageId=${selectedPageId}` : ""}`;
               window.open(url, "studioloom-projector", "width=1280,height=720");
             }}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-900 text-white text-xs font-bold hover:bg-gray-800 transition shadow-sm"
+            style={{
+              display: "flex", alignItems: "center", gap: "8px",
+              padding: "8px 16px", borderRadius: "8px",
+              background: "rgba(139, 92, 246, 0.15)", border: "1px solid rgba(139, 92, 246, 0.3)",
+              color: "#C4B5FD", fontSize: "12px", fontWeight: 700,
+              cursor: "pointer", transition: "all 0.2s",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "rgba(139, 92, 246, 0.25)";
+              e.currentTarget.style.borderColor = "rgba(139, 92, 246, 0.5)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "rgba(139, 92, 246, 0.15)";
+              e.currentTarget.style.borderColor = "rgba(139, 92, 246, 0.3)";
+            }}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
               <line x1="8" y1="21" x2="16" y2="21" />
               <line x1="12" y1="17" x2="12" y2="21" />
             </svg>
-            Open Projector
+            Projector
           </button>
         </div>
       </header>
 
       {/* ================================================================= */}
-      {/* MAIN CONTENT — 3-column layout                                    */}
+      {/* MAIN CONTENT — 3-column dark glass layout                         */}
       {/* ================================================================= */}
-      <div className="max-w-[1600px] mx-auto px-4 py-4 grid grid-cols-[240px_1fr_320px] gap-4 min-h-[calc(100vh-64px)]">
+      <div style={{
+        maxWidth: "1600px", margin: "0 auto", padding: "16px",
+        display: "grid", gridTemplateColumns: "240px 1fr 320px", gap: "16px",
+        minHeight: "calc(100vh - 80px)", paddingBottom: "80px",
+      }}>
 
         {/* ============================================================= */}
-        {/* LEFT SIDEBAR — Lesson navigator                                */}
+        {/* LEFT SIDEBAR — Dark glass lesson navigator with glow borders  */}
         {/* ============================================================= */}
-        <aside className="space-y-3 overflow-y-auto max-h-[calc(100vh-96px)] pr-1">
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-1">
+        <aside style={{
+          display: "flex", flexDirection: "column", gap: "12px",
+          overflowY: "auto", maxHeight: "calc(100vh - 112px)", paddingRight: "8px",
+        }}>
+          <p style={{ fontSize: "9px", fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.05em", margin: "0", padding: "0 8px" }}>
             Lessons
           </p>
           {pages.map((page, i) => {
@@ -358,34 +430,47 @@ export default function TeachingDashboard({
               <button
                 key={page.id}
                 onClick={() => setSelectedPageId(page.id)}
-                className={`w-full text-left px-3 py-2.5 rounded-xl text-xs transition-all ${
-                  isActive
-                    ? "bg-white border border-purple-200 shadow-sm text-gray-900 font-bold"
-                    : "text-gray-600 hover:bg-white hover:shadow-sm border border-transparent"
-                }`}
+                style={{
+                  width: "100%", textAlign: "left", padding: "12px",
+                  borderRadius: "10px", fontSize: "12px", transition: "all 0.2s",
+                  border: isActive ? "1px solid rgba(139, 92, 246, 0.4)" : "1px solid rgba(255, 255, 255, 0.05)",
+                  background: isActive ? "rgba(139, 92, 246, 0.1)" : "rgba(255, 255, 255, 0.02)",
+                  color: isActive ? "#F3F4F6" : "#9CA3AF",
+                  fontWeight: isActive ? 700 : 500,
+                  boxShadow: isActive ? "inset 0 0 16px rgba(139, 92, 246, 0.1)" : "none",
+                  cursor: "pointer",
+                }}
+                onMouseEnter={(e) => {
+                  if (!isActive) {
+                    e.currentTarget.style.background = "rgba(255, 255, 255, 0.05)";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!isActive) {
+                    e.currentTarget.style.background = "rgba(255, 255, 255, 0.02)";
+                  }
+                }}
               >
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-gray-400 font-mono w-5">
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span style={{ fontSize: "9px", color: "#4B5563", fontFamily: "'Monaco', 'Courier New', monospace", width: "20px" }}>
                     {(i + 1).toString().padStart(2, "0")}
                   </span>
-                  <span className="truncate flex-1">{page.title}</span>
+                  <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {page.title}
+                  </span>
                 </div>
                 {hasPhases && (
-                  <div className="flex gap-0.5 mt-1.5 ml-7">
+                  <div style={{ display: "flex", gap: "2px", marginTop: "8px", marginLeft: "28px" }}>
                     {(["opening", "miniLesson", "workTime", "debrief"] as const).map((phase) => {
                       const dur = page.content?.workshopPhases?.[phase]?.durationMinutes || 0;
-                      const colors: Record<string, string> = {
-                        opening: "#7C3AED", miniLesson: "#2563EB",
-                        workTime: "#16A34A", debrief: "#D97706",
-                      };
                       return (
                         <div
                           key={phase}
-                          className="h-1 rounded-full"
                           style={{
+                            height: "3px", borderRadius: "2px",
                             flex: dur,
-                            background: colors[phase],
-                            opacity: 0.4,
+                            background: PHASE_COLORS[phase],
+                            opacity: 0.5,
                           }}
                         />
                       );
@@ -398,63 +483,82 @@ export default function TeachingDashboard({
         </aside>
 
         {/* ============================================================= */}
-        {/* CENTER — Timer + Student grid                                   */}
+        {/* CENTER — Phase Timer + Student monitoring grid                */}
         {/* ============================================================= */}
-        <div className="space-y-4 overflow-y-auto max-h-[calc(100vh-96px)]">
+        <div style={{
+          display: "flex", flexDirection: "column", gap: "16px",
+          overflowY: "auto", maxHeight: "calc(100vh - 112px)",
+        }}>
 
-          {/* Phase Timer */}
+          {/* Phase Timer — dark glass with gradient border */}
           {workshopPhases ? (
-            <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm">
+            <div style={{
+              borderRadius: "16px", padding: "20px",
+              background: "rgba(255, 255, 255, 0.03)", border: "1px solid rgba(139, 92, 246, 0.2)",
+              boxShadow: "0 0 32px rgba(139, 92, 246, 0.1), inset 0 1px 2px rgba(255, 255, 255, 0.05)",
+            }}>
               <PhaseTimer
                 workshopPhases={workshopPhases}
                 onPhaseChange={(phase) => setCurrentPhase(phase)}
               />
             </div>
           ) : (
-            <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm text-center">
-              <p className="text-sm text-gray-400">
+            <div style={{
+              borderRadius: "16px", padding: "20px", textAlign: "center",
+              background: "rgba(255, 255, 255, 0.02)", border: "1px solid rgba(255, 255, 255, 0.05)",
+            }}>
+              <p style={{ fontSize: "13px", color: "#9CA3AF", margin: 0 }}>
                 No Workshop Model timing for this lesson.
               </p>
-              <p className="text-xs text-gray-300 mt-1">
+              <p style={{ fontSize: "11px", color: "#6B7280", marginTop: "8px", margin: 0 }}>
                 Regenerate this lesson to add timing phases.
               </p>
             </div>
           )}
 
-          {/* Needs Help Alert */}
+          {/* Needs Help Alert — amber glow */}
           {needsHelpStudents.length > 0 && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center gap-3">
-              <span className="text-lg">🖐</span>
-              <div className="flex-1">
-                <p className="text-xs font-bold text-amber-800">
+            <div style={{
+              borderRadius: "12px", padding: "12px", display: "flex", gap: "12px",
+              background: "rgba(245, 158, 11, 0.08)", border: "1px solid rgba(245, 158, 11, 0.2)",
+            }}>
+              <span style={{ fontSize: "18px", flexShrink: 0 }}>🖐</span>
+              <div style={{ flex: 1 }}>
+                <p style={{ fontSize: "12px", fontWeight: 700, color: "#F59E0B", margin: 0, marginBottom: "4px" }}>
                   {needsHelpStudents.length} student{needsHelpStudents.length > 1 ? "s" : ""} may need help
                 </p>
-                <p className="text-[10px] text-amber-600">
-                  No activity for 3+ minutes while marked as working:
-                  {" "}{needsHelpStudents.map((s) => s.name).join(", ")}
+                <p style={{ fontSize: "11px", color: "#D97706", margin: 0 }}>
+                  No activity for 3+ minutes: {needsHelpStudents.map((s) => s.name).join(", ")}
                 </p>
               </div>
             </div>
           )}
 
-          {/* Summary bar */}
+          {/* KPI Summary — elegant dark pills */}
           {summary && (
-            <div className="grid grid-cols-4 gap-2">
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px" }}>
               {[
-                { label: "Not Started", value: summary.notStarted, color: "#9CA3AF", bg: "#F3F4F6" },
-                { label: "Working", value: summary.inProgress, color: "#2563EB", bg: "#DBEAFE" },
-                { label: "Complete", value: summary.complete, color: "#16A34A", bg: "#DCFCE7" },
-                { label: "Need Help", value: summary.needsHelpCount, color: "#D97706", bg: "#FEF3C7" },
+                { label: "Not Started", value: summary.notStarted, color: "#9CA3AF", bgColor: "rgba(156, 163, 175, 0.08)" },
+                { label: "Working", value: summary.inProgress, color: "#3B82F6", bgColor: "rgba(59, 130, 246, 0.08)" },
+                { label: "Complete", value: summary.complete, color: "#10B981", bgColor: "rgba(16, 185, 129, 0.08)" },
+                { label: "Need Help", value: summary.needsHelpCount, color: "#F59E0B", bgColor: "rgba(245, 158, 11, 0.08)" },
               ].map((item) => (
                 <div
                   key={item.label}
-                  className="rounded-xl p-3 text-center"
-                  style={{ background: item.bg }}
+                  style={{
+                    borderRadius: "12px", padding: "12px", textAlign: "center",
+                    background: item.bgColor, border: `1px solid rgba(${
+                      item.label === "Working" ? "59, 130, 246" :
+                      item.label === "Complete" ? "16, 185, 129" :
+                      item.label === "Need Help" ? "245, 158, 11" :
+                      "156, 163, 175"
+                    }, 0.2)`,
+                  }}
                 >
-                  <div className="text-2xl font-black" style={{ color: item.color }}>
+                  <div style={{ fontSize: "24px", fontWeight: 900, color: item.color }}>
                     {item.value}
                   </div>
-                  <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: item.color, opacity: 0.7 }}>
+                  <div style={{ fontSize: "9px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: item.color, opacity: 0.7, marginTop: "4px" }}>
                     {item.label}
                   </div>
                 </div>
@@ -462,23 +566,37 @@ export default function TeachingDashboard({
             </div>
           )}
 
-          {/* Student grid */}
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-            {/* Sort bar */}
-            <div className="flex items-center gap-2 px-4 py-2.5 border-b border-gray-100 bg-gray-50/50">
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex-1">
+          {/* Student Grid — dark glass cards */}
+          <div style={{
+            borderRadius: "16px", overflow: "hidden",
+            background: "rgba(255, 255, 255, 0.02)", border: "1px solid rgba(255, 255, 255, 0.05)",
+          }}>
+            {/* Header bar */}
+            <div style={{
+              display: "flex", alignItems: "center", gap: "12px",
+              padding: "12px 16px", borderBottom: "1px solid rgba(255, 255, 255, 0.05)",
+              background: "rgba(255, 255, 255, 0.02)",
+            }}>
+              <p style={{ fontSize: "9px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "#6B7280", flex: 1, margin: 0 }}>
                 Students ({students.length})
               </p>
-              <div className="flex gap-1">
+              <div style={{ display: "flex", gap: "6px" }}>
                 {(["help", "status", "name"] as const).map((sort) => (
                   <button
                     key={sort}
                     onClick={() => setStudentSort(sort)}
-                    className={`px-2 py-1 rounded text-[10px] font-bold transition ${
-                      studentSort === sort
-                        ? "bg-purple-100 text-purple-700"
-                        : "text-gray-400 hover:text-gray-600"
-                    }`}
+                    style={{
+                      padding: "4px 10px", borderRadius: "6px", fontSize: "10px", fontWeight: 700,
+                      transition: "all 0.2s", border: "none", cursor: "pointer",
+                      background: studentSort === sort ? "rgba(139, 92, 246, 0.2)" : "transparent",
+                      color: studentSort === sort ? "#C4B5FD" : "#6B7280",
+                    }}
+                    onMouseEnter={(e) => {
+                      if (studentSort !== sort) e.currentTarget.style.color = "#9CA3AF";
+                    }}
+                    onMouseLeave={(e) => {
+                      if (studentSort !== sort) e.currentTarget.style.color = "#6B7280";
+                    }}
                   >
                     {sort === "help" ? "Needs Help" : sort === "status" ? "Status" : "Name"}
                   </button>
@@ -487,12 +605,10 @@ export default function TeachingDashboard({
             </div>
 
             {/* Student rows */}
-            <div className="divide-y divide-gray-50">
+            <div style={{ borderTop: "1px solid rgba(255, 255, 255, 0.05)" }}>
               {sortedStudents.length === 0 ? (
-                <div className="px-4 py-8 text-center text-gray-400 text-sm">
-                  {selectedClassId
-                    ? "No students in this class yet."
-                    : "Select a class to see students."}
+                <div style={{ padding: "32px 16px", textAlign: "center", color: "#6B7280", fontSize: "13px" }}>
+                  {selectedClassId ? "No students in this class yet." : "Select a class to see students."}
                 </div>
               ) : (
                 sortedStudents.map((s) => {
@@ -500,69 +616,96 @@ export default function TeachingDashboard({
                   return (
                     <div
                       key={s.id}
-                      className={`flex items-center gap-3 px-4 py-3 transition ${
-                        s.needsHelp ? "bg-amber-50/50" : "hover:bg-gray-50/50"
-                      }`}
+                      style={{
+                        display: "flex", alignItems: "center", gap: "12px", padding: "12px 16px",
+                        borderBottom: "1px solid rgba(255, 255, 255, 0.03)",
+                        background: s.needsHelp ? "rgba(245, 158, 11, 0.05)" : "transparent",
+                        transition: "background 0.2s",
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!s.needsHelp) e.currentTarget.style.background = "rgba(255, 255, 255, 0.02)";
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!s.needsHelp) e.currentTarget.style.background = "transparent";
+                      }}
                     >
                       {/* Avatar */}
-                      <div className="relative">
+                      <div style={{ position: "relative", flexShrink: 0 }}>
                         <div
-                          className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white"
-                          style={{ background: config.color }}
+                          style={{
+                            width: "32px", height: "32px", borderRadius: "50%",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            fontSize: "11px", fontWeight: 700, color: "#FFF",
+                            background: config.color,
+                            border: `2px solid ${config.ring}`,
+                          }}
                         >
                           {s.avatar ? (
-                            <img src={s.avatar} alt="" className="w-8 h-8 rounded-full object-cover" />
+                            <img src={s.avatar} alt="" style={{ width: "32px", height: "32px", borderRadius: "50%", objectFit: "cover" }} />
                           ) : (
                             s.name.charAt(0).toUpperCase()
                           )}
                         </div>
-                        {/* Online dot */}
                         {s.isOnline && (
-                          <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-green-500 border-2 border-white" />
+                          <span style={{
+                            position: "absolute", bottom: "-2px", right: "-2px",
+                            width: "12px", height: "12px", borderRadius: "50%",
+                            background: "#10B981", border: "2px solid #0D0D17"
+                          }} />
                         )}
                       </div>
 
-                      {/* Name + ELL badge */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs font-semibold text-gray-900 truncate">
+                      {/* Name + badges */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+                          <span style={{ fontSize: "12px", fontWeight: 600, color: "#F3F4F6", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                             {s.name}
                           </span>
                           {s.needsHelp && (
-                            <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-amber-100 text-amber-700">
+                            <span style={{
+                              padding: "2px 8px", borderRadius: "4px",
+                              fontSize: "7px", fontWeight: 700, color: "#F59E0B",
+                              background: "rgba(245, 158, 11, 0.15)", border: "1px solid rgba(245, 158, 11, 0.3)"
+                            }}>
                               HELP?
                             </span>
                           )}
                           {s.ellLevel && s.ellLevel !== "none" && (
-                            <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-blue-50 text-blue-500">
+                            <span style={{
+                              padding: "2px 8px", borderRadius: "4px",
+                              fontSize: "7px", fontWeight: 700, color: "#3B82F6",
+                              background: "rgba(59, 130, 246, 0.15)", border: "1px solid rgba(59, 130, 246, 0.3)"
+                            }}>
                               ELL{String(s.ellLevel).replace(/ell/i, "")}
                             </span>
                           )}
                         </div>
-                        <p className="text-[10px] text-gray-400">
+                        <p style={{ fontSize: "10px", color: "#6B7280", margin: 0 }}>
                           {s.responseCount > 0 ? `${s.responseCount} responses` : "No responses yet"}
                           {s.lastActive ? ` · ${timeSince(s.lastActive)}` : ""}
                         </p>
                       </div>
 
-                      {/* Status pill */}
-                      <span
-                        className="px-2.5 py-1 rounded-full text-[10px] font-bold"
-                        style={{ background: config.bg, color: config.color }}
-                      >
+                      {/* Status badge */}
+                      <span style={{
+                        padding: "4px 12px", borderRadius: "12px",
+                        fontSize: "10px", fontWeight: 700,
+                        background: config.bg, color: config.color,
+                        whiteSpace: "nowrap",
+                      }}>
                         {config.label}
                       </span>
 
-                      {/* NM Observation button */}
+                      {/* NM button */}
                       {resolvedNmConfig?.enabled && (
                         <button
                           onClick={() => setNmObsStudent({ id: s.id, name: s.name })}
                           title={`NM Observation for ${s.name}`}
                           style={{
-                            width: "26px", height: "26px", borderRadius: "6px",
+                            width: "28px", height: "28px", borderRadius: "6px",
                             border: "2px solid #1a1a1a", background: "#FF2D78",
                             display: "flex", alignItems: "center", justifyContent: "center",
-                            cursor: "pointer", boxShadow: "1px 1px 0 #1a1a1a",
+                            cursor: "pointer", boxShadow: "2px 2px 0 #1a1a1a",
                             fontSize: "8px", fontWeight: 900, color: "#fff",
                             fontFamily: "'Arial Black', sans-serif",
                             flexShrink: 0, transition: "transform 0.1s",
@@ -582,141 +725,157 @@ export default function TeachingDashboard({
         </div>
 
         {/* ============================================================= */}
-        {/* RIGHT SIDEBAR — Notes, extensions, lesson content              */}
+        {/* RIGHT SIDEBAR — Dark glass panels (Notes, Extensions, Content) */}
         {/* ============================================================= */}
-        <aside className="space-y-3 overflow-y-auto max-h-[calc(100vh-96px)]">
+        <aside style={{
+          display: "flex", flexDirection: "column", gap: "12px",
+          overflowY: "auto", maxHeight: "calc(100vh - 112px)",
+        }}>
 
-          {/* Teacher Notes */}
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+          {/* Teaching Notes */}
+          <div style={{
+            borderRadius: "16px", overflow: "hidden",
+            background: "rgba(255, 255, 255, 0.02)", border: "1px solid rgba(255, 255, 255, 0.05)",
+          }}>
             <button
               onClick={() => setShowNotes(!showNotes)}
-              className="w-full flex items-center justify-between px-4 py-3 text-left"
+              style={{
+                width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+                padding: "12px 16px", textAlign: "left",
+                background: "transparent", border: "none",
+                color: "#F3F4F6", fontSize: "12px", fontWeight: 700,
+                cursor: "pointer", transition: "background 0.2s",
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255, 255, 255, 0.02)")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
             >
-              <span className="text-xs font-bold text-gray-700">📋 Teaching Notes</span>
+              <span>📋 Teaching Notes</span>
               <svg
-                width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                strokeWidth="2" className={`transition ${showNotes ? "rotate-180" : ""}`}
+                width: "12", height: "12", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor",
+                strokeWidth: "2.5", style={{ transition: "transform 0.2s", transform: showNotes ? "rotate(180deg)" : "rotate(0deg)" }}
               >
                 <path d="M6 9l6 6 6-6" />
               </svg>
             </button>
             {showNotes && (
-              <div className="px-4 pb-4 space-y-2">
-                {/* Learning goal */}
+              <div style={{ padding: "0 16px 16px", borderTop: "1px solid rgba(255, 255, 255, 0.05)", display: "flex", flexDirection: "column", gap: "12px" }}>
                 {currentContent?.learningGoal && (
-                  <div className="bg-purple-50 rounded-lg p-2.5">
-                    <p className="text-[10px] font-bold text-purple-600 uppercase tracking-wider mb-0.5">
+                  <div style={{ borderRadius: "8px", padding: "10px", background: "rgba(139, 92, 246, 0.1)", border: "1px solid rgba(139, 92, 246, 0.2)" }}>
+                    <p style={{ fontSize: "9px", fontWeight: 700, color: "#A78BFA", textTransform: "uppercase", letterSpacing: "0.05em", margin: "0 0 4px", marginBottom: "4px" }}>
                       Learning Goal
                     </p>
-                    <p className="text-xs text-purple-800 leading-relaxed">
+                    <p style={{ fontSize: "11px", color: "#E9D5FF", lineHeight: 1.4, margin: 0 }}>
                       {currentContent.learningGoal}
                     </p>
                   </div>
                 )}
 
-                {/* Opening hook */}
                 {workshopPhases?.opening?.hook && (
-                  <div className="bg-violet-50 rounded-lg p-2.5">
-                    <p className="text-[10px] font-bold text-violet-600 uppercase tracking-wider mb-0.5">
+                  <div style={{ borderLeft: "3px solid #7C3AED", borderRadius: "8px", padding: "10px", background: "rgba(139, 92, 246, 0.05)" }}>
+                    <p style={{ fontSize: "9px", fontWeight: 700, color: "#A78BFA", textTransform: "uppercase", letterSpacing: "0.05em", margin: "0 0 4px" }}>
                       Opening Hook
                     </p>
-                    <p className="text-xs text-violet-800 leading-relaxed">
+                    <p style={{ fontSize: "11px", color: "#D1C7F4", lineHeight: 1.4, margin: 0 }}>
                       {workshopPhases.opening.hook}
                     </p>
                   </div>
                 )}
 
-                {/* Mini-lesson focus */}
                 {workshopPhases?.miniLesson?.focus && (
-                  <div className="bg-blue-50 rounded-lg p-2.5">
-                    <p className="text-[10px] font-bold text-blue-600 uppercase tracking-wider mb-0.5">
+                  <div style={{ borderLeft: "3px solid #2563EB", borderRadius: "8px", padding: "10px", background: "rgba(37, 99, 235, 0.05)" }}>
+                    <p style={{ fontSize: "9px", fontWeight: 700, color: "#93C5FD", textTransform: "uppercase", letterSpacing: "0.05em", margin: "0 0 4px" }}>
                       Mini-Lesson Focus
                     </p>
-                    <p className="text-xs text-blue-800 leading-relaxed">
+                    <p style={{ fontSize: "11px", color: "#BFDBFE", lineHeight: 1.4, margin: 0 }}>
                       {workshopPhases.miniLesson.focus}
                     </p>
                   </div>
                 )}
 
-                {/* Debrief protocol */}
                 {(workshopPhases?.debrief?.protocol || workshopPhases?.debrief?.prompt) && (
-                  <div className="bg-amber-50 rounded-lg p-2.5">
-                    <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider mb-0.5">
+                  <div style={{ borderLeft: "3px solid #F59E0B", borderRadius: "8px", padding: "10px", background: "rgba(245, 158, 11, 0.05)" }}>
+                    <p style={{ fontSize: "9px", fontWeight: 700, color: "#FCD34D", textTransform: "uppercase", letterSpacing: "0.05em", margin: "0 0 4px" }}>
                       Debrief Protocol
                     </p>
-                    <p className="text-xs text-amber-800 leading-relaxed">
+                    <p style={{ fontSize: "11px", color: "#FDE68A", lineHeight: 1.4, margin: 0 }}>
                       {workshopPhases.debrief.protocol || workshopPhases.debrief.prompt}
                     </p>
                   </div>
                 )}
 
-                {/* Activity-level teacher notes (v4) */}
                 {teacherNotes.length > 0 && (
-                  <div className="space-y-1.5">
-                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+                  <div>
+                    <p style={{ fontSize: "9px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "#6B7280", margin: "0 0 8px" }}>
                       Activity Notes
                     </p>
                     {teacherNotes.map((note, i) => (
-                      <div key={i} className="bg-gray-50 rounded-lg p-2.5">
-                        <p className="text-xs text-gray-700 leading-relaxed">{note}</p>
+                      <div key={i} style={{ borderRadius: "8px", padding: "8px", background: "rgba(255, 255, 255, 0.02)", marginBottom: "6px", borderLeft: "2px solid #4B5563" }}>
+                        <p style={{ fontSize: "11px", color: "#D1D5DB", lineHeight: 1.4, margin: 0 }}>{note}</p>
                       </div>
                     ))}
                   </div>
                 )}
 
-                {/* Key vocab */}
                 {currentContent?.vocabWarmup?.terms && currentContent.vocabWarmup.terms.length > 0 && (
-                  <div className="space-y-1">
-                    <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+                  <div>
+                    <p style={{ fontSize: "9px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", color: "#6B7280", margin: "0 0 8px" }}>
                       Key Vocabulary
                     </p>
                     {currentContent.vocabWarmup.terms.map((term, i) => (
-                      <div key={i} className="flex gap-2 text-xs">
-                        <span className="font-semibold text-gray-800">{term.term}:</span>
-                        <span className="text-gray-600">{term.definition}</span>
+                      <div key={i} style={{ display: "flex", gap: "8px", fontSize: "11px", marginBottom: "4px" }}>
+                        <span style={{ fontWeight: 600, color: "#F3F4F6", whiteSpace: "nowrap" }}>{term.term}:</span>
+                        <span style={{ color: "#D1D5DB" }}>{term.definition}</span>
                       </div>
                     ))}
                   </div>
                 )}
 
-                {/* Empty state */}
                 {!currentContent?.learningGoal && !workshopPhases && teacherNotes.length === 0 && (
-                  <p className="text-xs text-gray-400 py-2">
-                    No teaching notes for this lesson. Notes are generated when lessons include Workshop Model timing.
+                  <p style={{ fontSize: "11px", color: "#6B7280", margin: 0 }}>
+                    No teaching notes. Notes are generated when lessons include Workshop Model timing.
                   </p>
                 )}
               </div>
             )}
           </div>
 
-          {/* Extensions (for early finishers) */}
+          {/* Extensions */}
           {extensions.length > 0 && (
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+            <div style={{
+              borderRadius: "16px", overflow: "hidden",
+              background: "rgba(255, 255, 255, 0.02)", border: "1px solid rgba(255, 255, 255, 0.05)",
+            }}>
               <button
                 onClick={() => setShowExtensions(!showExtensions)}
-                className="w-full flex items-center justify-between px-4 py-3 text-left"
+                style={{
+                  width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
+                  padding: "12px 16px", textAlign: "left",
+                  background: "transparent", border: "none",
+                  color: "#F3F4F6", fontSize: "12px", fontWeight: 700,
+                  cursor: "pointer", transition: "background 0.2s",
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255, 255, 255, 0.02)")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
               >
-                <span className="text-xs font-bold text-gray-700">
-                  🚀 Extensions ({extensions.length})
-                </span>
+                <span>🚀 Extensions ({extensions.length})</span>
                 <svg
-                  width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                  strokeWidth="2" className={`transition ${showExtensions ? "rotate-180" : ""}`}
+                  width: "12", height: "12", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor",
+                  strokeWidth: "2.5", style={{ transition: "transform 0.2s", transform: showExtensions ? "rotate(180deg)" : "rotate(0deg)" }}
                 >
                   <path d="M6 9l6 6 6-6" />
                 </svg>
               </button>
               {showExtensions && (
-                <div className="px-4 pb-4 space-y-2">
+                <div style={{ padding: "0 16px 16px", borderTop: "1px solid rgba(255, 255, 255, 0.05)", display: "flex", flexDirection: "column", gap: "10px" }}>
                   {extensions.map((ext, i) => (
-                    <div key={i} className="bg-emerald-50 rounded-lg p-2.5">
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <span className="text-xs font-bold text-emerald-800">{ext.title}</span>
-                        <span className="text-[10px] text-emerald-600 font-mono">
+                    <div key={i} style={{ borderRadius: "8px", padding: "10px", background: "rgba(16, 185, 129, 0.05)", border: "1px solid rgba(16, 185, 129, 0.2)", borderLeft: "3px solid #10B981" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+                        <span style={{ fontSize: "11px", fontWeight: 700, color: "#D1FAE5" }}>{ext.title}</span>
+                        <span style={{ fontSize: "9px", color: "#6EE7B7", fontFamily: "'Monaco', 'Courier New', monospace" }}>
                           ~{ext.durationMinutes}m
                         </span>
                       </div>
-                      <p className="text-xs text-emerald-700 leading-relaxed">
+                      <p style={{ fontSize: "10px", color: "#A7F3D0", lineHeight: 1.4, margin: 0 }}>
                         {ext.description}
                       </p>
                     </div>
@@ -726,28 +885,41 @@ export default function TeachingDashboard({
             </div>
           )}
 
-          {/* Lesson sections preview */}
+          {/* Lesson Activities */}
           {currentContent?.sections && currentContent.sections.length > 0 && (
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="px-4 py-3">
-                <span className="text-xs font-bold text-gray-700">📝 Lesson Activities</span>
+            <div style={{
+              borderRadius: "16px", overflow: "hidden",
+              background: "rgba(255, 255, 255, 0.02)", border: "1px solid rgba(255, 255, 255, 0.05)",
+            }}>
+              <div style={{ padding: "12px 16px", borderBottom: "1px solid rgba(255, 255, 255, 0.05)" }}>
+                <span style={{ fontSize: "12px", fontWeight: 700, color: "#F3F4F6" }}>📝 Lesson Activities</span>
               </div>
-              <div className="px-4 pb-4 space-y-1.5">
+              <div style={{ padding: "0 16px 16px", display: "flex", flexDirection: "column", gap: "10px" }}>
                 {currentContent.sections.map((section, i) => (
-                  <div key={i} className="flex items-start gap-2 text-xs">
-                    <span className="text-gray-300 font-mono mt-0.5 w-4 text-right">{i + 1}</span>
-                    <div className="flex-1">
-                      <p className="text-gray-700 leading-relaxed line-clamp-2">
+                  <div key={i} style={{ display: "flex", gap: "10px", fontSize: "11px" }}>
+                    <span style={{ color: "#4B5563", fontFamily: "'Monaco', 'Courier New', monospace", width: "18px", textAlign: "right", flexShrink: 0, marginTop: "2px" }}>
+                      {i + 1}
+                    </span>
+                    <div style={{ flex: 1 }}>
+                      <p style={{ color: "#D1D5DB", lineHeight: 1.4, margin: "0 0 4px", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
                         {section.prompt}
                       </p>
-                      <div className="flex gap-1.5 mt-0.5">
+                      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
                         {section.responseType && (
-                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 font-medium">
+                          <span style={{
+                            fontSize: "8px", padding: "2px 8px", borderRadius: "4px",
+                            background: "rgba(255, 255, 255, 0.05)", color: "#9CA3AF",
+                            fontWeight: 500, border: "1px solid rgba(255, 255, 255, 0.08)"
+                          }}>
                             {section.responseType}
                           </span>
                         )}
                         {section.durationMinutes && (
-                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 font-medium">
+                          <span style={{
+                            fontSize: "8px", padding: "2px 8px", borderRadius: "4px",
+                            background: "rgba(255, 255, 255, 0.05)", color: "#9CA3AF",
+                            fontWeight: 500, border: "1px solid rgba(255, 255, 255, 0.08)"
+                          }}>
                             ~{section.durationMinutes}m
                           </span>
                         )}
@@ -761,7 +933,7 @@ export default function TeachingDashboard({
         </aside>
       </div>
 
-      {/* NM Observation Snap Modal */}
+      {/* NM Observation Modal — dark overlay */}
       {nmObsStudent && resolvedNmConfig?.enabled && (() => {
         const nmCfg = resolvedNmConfig;
         const nmElements = (nmCfg.elements || [])
@@ -772,8 +944,8 @@ export default function TeachingDashboard({
           <div
             style={{
               position: "fixed", inset: 0, zIndex: 50,
-              background: "rgba(0,0,0,0.5)", display: "flex",
-              alignItems: "center", justifyContent: "center",
+              background: "rgba(0, 0, 0, 0.6)", backdropFilter: "blur(4px)",
+              display: "flex", alignItems: "center", justifyContent: "center",
               padding: "20px",
             }}
             onClick={(e) => { if (e.target === e.currentTarget) setNmObsStudent(null); }}
@@ -792,6 +964,33 @@ export default function TeachingDashboard({
           </div>
         );
       })()}
+      {/* ─── Floating Teaching Toolbar ─── */}
+      <TeachingToolbar
+        unitId={unitId}
+        pageId={selectedPageId || ""}
+        classId={selectedClassId || ""}
+        studentCount={students.length}
+        students={students.map((s) => ({ id: s.id, name: s.name }))}
+        currentPhase={currentPhase}
+        phaseTimeRemaining={phaseTimeRemaining}
+        lessonContent={currentContent}
+        onPhaseSkip={() => {
+          const phases: PhaseId[] = ["opening", "miniLesson", "workTime", "debrief"];
+          const idx = phases.indexOf(currentPhase);
+          if (idx < phases.length - 1) {
+            setCurrentPhase(phases[idx + 1]);
+          }
+        }}
+        onProjectToScreen={(data) => {
+          // postMessage to projector window
+          const msg = { type: "toolbar-action", ...data };
+          window.postMessage(msg, "*");
+        }}
+        onLessonEdited={() => {
+          // Refetch unit data on edit
+          window.location.reload();
+        }}
+      />
     </main>
   );
 }
