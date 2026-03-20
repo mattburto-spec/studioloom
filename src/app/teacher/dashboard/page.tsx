@@ -98,17 +98,14 @@ export default function TeacherDashboard() {
   if (loading) {
     return (
       <main className="max-w-7xl mx-auto px-6 py-8">
-        <div className="animate-pulse space-y-6">
+        <div className="animate-pulse space-y-4">
           <div className="h-8 w-48 bg-gray-200 rounded-lg" />
-          <div className="grid grid-cols-3 gap-4">
-            <div className="h-24 bg-gray-100 rounded-2xl" />
-            <div className="h-24 bg-gray-100 rounded-2xl" />
-            <div className="h-24 bg-gray-100 rounded-2xl" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="h-20 bg-gray-100 rounded-xl" />
+            <div className="h-20 bg-gray-100 rounded-xl" />
+            <div className="h-20 bg-gray-100 rounded-xl" />
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="h-64 bg-gray-100 rounded-2xl" />
-            <div className="h-64 bg-gray-100 rounded-2xl" />
-          </div>
+          <div className="h-48 bg-gray-100 rounded-xl" />
         </div>
       </main>
     );
@@ -131,24 +128,22 @@ export default function TeacherDashboard() {
   }
 
   const hasClasses = data && data.classes.length > 0;
-  const totalStudents = data?.classes.reduce((sum, c) => sum + c.studentCount, 0) || 0;
-  const totalUnits = data?.classes.reduce((sum, c) => sum + c.units.length, 0) || 0;
 
   return (
     <main className="max-w-7xl mx-auto px-6 py-8">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      {/* ================================================================= */}
+      {/* Row 1 — Header strip: welcome + refresh + New Class button        */}
+      {/* ================================================================= */}
+      <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-text-primary tracking-tight">
             Welcome back{teacher?.name ? `, ${teacher.name.split(" ")[0]}` : ""}
           </h1>
-          <p className="text-text-secondary text-sm mt-1 flex items-center gap-2">
-            <span className="flex items-center gap-1.5">
-              {refreshing && (
-                <span className="w-1.5 h-1.5 rounded-full bg-brand-purple animate-pulse" />
-              )}
-              Updated {timeAgo(lastRefresh.toISOString())}
-            </span>
+          <p className="text-text-secondary text-sm mt-0.5 flex items-center gap-2">
+            {refreshing && (
+              <span className="w-1.5 h-1.5 rounded-full bg-brand-purple animate-pulse" />
+            )}
+            Updated {timeAgo(lastRefresh.toISOString())}
           </p>
         </div>
         <button
@@ -160,20 +155,18 @@ export default function TeacherDashboard() {
         </button>
       </div>
 
-      {/* KPI Cards */}
+      {/* ================================================================= */}
+      {/* Row 2 — Needs Attention bar (compact, single-line alerts)         */}
+      {/* Replaces the old 50%-width panel. Scannable in <2 seconds.        */}
+      {/* ================================================================= */}
       {hasClasses && (
-        <div className="grid grid-cols-3 gap-4 mb-8">
-          <KPICard label="Classes" value={data!.classes.length} color="#7B2FF2" />
-          <KPICard label="Students" value={totalStudents} color="#2E86AB" />
-          <KPICard label="Active Units" value={totalUnits} color="#2DA05E" />
-        </div>
+        <AttentionBar stuckStudents={data!.stuckStudents} />
       )}
 
-      {/* ============================================================= */}
-      {/* TEACH NOW — quick-launch row for active units                  */}
-      {/* ============================================================= */}
+      {/* ================================================================= */}
+      {/* Row 3 — Teach Now cards                                            */}
+      {/* ================================================================= */}
       {hasClasses && (() => {
-        // Collect all unique units across classes with class info
         const teachableUnits: Array<{
           unitId: string; unitTitle: string; classId: string;
           className: string; classCode: string; completionPct: number;
@@ -200,8 +193,8 @@ export default function TeacherDashboard() {
         }
         if (teachableUnits.length === 0) return null;
         return (
-          <div className="mb-8">
-            <div className="flex items-center gap-2 mb-3">
+          <div className="mb-6">
+            <div className="flex items-center gap-2 mb-2">
               <span className="text-sm font-bold text-text-primary">Teach Now</span>
               <span className="text-xs text-text-secondary">One click to start</span>
             </div>
@@ -210,11 +203,10 @@ export default function TeacherDashboard() {
                 <Link
                   key={`${u.unitId}-${u.classId}`}
                   href={`/teacher/teach/${u.unitId}?classId=${u.classId}`}
-                  className="group bg-white rounded-xl border border-border p-4 hover:border-purple-300 hover:shadow-md transition-all flex items-center gap-3"
+                  className="group bg-white rounded-xl border border-border p-3.5 hover:border-purple-300 hover:shadow-md transition-all flex items-center gap-3"
                 >
-                  {/* Play icon */}
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="white" stroke="none">
+                  <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="white" stroke="none">
                       <polygon points="6 3 20 12 6 21 6 3" />
                     </svg>
                   </div>
@@ -230,8 +222,8 @@ export default function TeacherDashboard() {
                     </p>
                   </div>
                   {/* Mini progress ring */}
-                  <div className="relative w-9 h-9 flex-shrink-0">
-                    <svg viewBox="0 0 36 36" className="w-9 h-9 -rotate-90">
+                  <div className="relative w-8 h-8 flex-shrink-0">
+                    <svg viewBox="0 0 36 36" className="w-8 h-8 -rotate-90">
                       <circle cx="18" cy="18" r="15" fill="none" stroke="#f3f4f6" strokeWidth="3" />
                       <circle
                         cx="18" cy="18" r="15" fill="none" stroke="#7C3AED" strokeWidth="3"
@@ -264,21 +256,36 @@ export default function TeacherDashboard() {
         </div>
       ) : (
         <>
-          {/* Top row: Needs Attention + Recent Activity */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-            <NeedsAttentionPanel stuckStudents={data!.stuckStudents} />
-            <RecentActivityFeed events={data!.recentActivity} />
-          </div>
-
-          {/* Class Overview */}
+          {/* ============================================================= */}
+          {/* Row 4 — Class Overview (main content)                         */}
+          {/* ============================================================= */}
           <ClassOverviewSection classes={data!.classes} />
 
-          {/* Teaching DNA */}
-          {styleProfile && (
-            <div className="mt-8">
-              <TeachingDNA profile={styleProfile} />
-            </div>
-          )}
+          {/* ============================================================= */}
+          {/* Row 5 — Secondary panels: Activity + Teaching DNA (compact)   */}
+          {/* Collapsed by default. Teachers expand if they need them.      */}
+          {/* ============================================================= */}
+          <div className="mt-6 space-y-3">
+            <CollapsibleSection
+              title="Recent Activity"
+              icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2E86AB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>}
+              count={data!.recentActivity.length}
+              defaultOpen={false}
+            >
+              <CompactActivityFeed events={data!.recentActivity} />
+            </CollapsibleSection>
+
+            {styleProfile && (
+              <CollapsibleSection
+                title="Your Teaching DNA"
+                icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7B2FF2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" /><path d="M2 12h20" /></svg>}
+                subtitle={getArchetypeSummary(styleProfile)}
+                defaultOpen={false}
+              >
+                <TeachingDNA profile={styleProfile} />
+              </CollapsibleSection>
+            )}
+          </div>
         </>
       )}
 
@@ -321,93 +328,83 @@ export default function TeacherDashboard() {
 }
 
 // ---------------------------------------------------------------------------
-// KPI Card
+// Attention Bar — compact horizontal strip replacing the big panel
+// Shows actionable alerts as clickable pills. Collapses to "All clear" when empty.
 // ---------------------------------------------------------------------------
 
-function KPICard({ label, value, color }: { label: string; value: number; color: string }) {
-  return (
-    <div
-      className="bg-white rounded-2xl p-5 border border-border shadow-sm"
-      style={{ borderBottom: `3px solid ${color}` }}
-    >
-      <p className="text-text-secondary text-xs font-medium uppercase tracking-wider">{label}</p>
-      <p className="text-3xl font-bold mt-1" style={{ color }}>{value}</p>
-    </div>
-  );
-}
+function AttentionBar({ stuckStudents }: { stuckStudents: StuckStudent[] }) {
+  const [expanded, setExpanded] = useState(false);
 
-// ---------------------------------------------------------------------------
-// Needs Attention Panel
-// ---------------------------------------------------------------------------
+  // Group by type of attention needed
+  const stuckCount = stuckStudents.length;
 
-function NeedsAttentionPanel({ stuckStudents }: { stuckStudents: StuckStudent[] }) {
-  const [showAll, setShowAll] = useState(false);
-  const displayed = showAll ? stuckStudents : stuckStudents.slice(0, 5);
-
-  return (
-    <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
-      <div className="px-5 py-4 border-b border-border flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-              <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
-            </svg>
-          </div>
-          <h2 className="text-sm font-semibold text-text-primary">Needs Attention</h2>
-          {stuckStudents.length > 0 && (
-            <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[11px] font-bold">
-              {stuckStudents.length}
-            </span>
-          )}
-        </div>
+  if (stuckCount === 0) {
+    return (
+      <div className="mb-5 flex items-center gap-2 px-3.5 py-2 rounded-xl bg-emerald-50 border border-emerald-100">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2DA05E" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+        <span className="text-sm text-emerald-700 font-medium">All students on track</span>
       </div>
+    );
+  }
 
-      <div className="px-5 py-3">
-        {stuckStudents.length === 0 ? (
-          <div className="flex items-center gap-2.5 py-6 justify-center text-sm text-text-secondary">
-            <div className="w-8 h-8 rounded-full bg-accent-green/10 flex items-center justify-center">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2DA05E" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-            </div>
-            All students active
-          </div>
-        ) : (
-          <div className="space-y-1">
-            {displayed.map((s) => (
+  return (
+    <div className="mb-5">
+      {/* Compact pill row */}
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-amber-50 border border-amber-200 hover:bg-amber-100/60 transition text-left"
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+          <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+          <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
+        </svg>
+        <span className="text-sm text-amber-800 font-medium flex-1">
+          {stuckCount} student{stuckCount !== 1 ? "s" : ""} stuck
+          <span className="text-amber-600 font-normal"> · click to view</span>
+        </span>
+        <svg
+          width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2"
+          className="shrink-0 transition-transform duration-200"
+          style={{ transform: expanded ? "rotate(180deg)" : "rotate(0)" }}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {/* Expandable student list */}
+      {expanded && (
+        <div className="mt-2 bg-white rounded-xl border border-border shadow-sm overflow-hidden">
+          <div className="divide-y divide-border/50">
+            {stuckStudents.slice(0, 8).map((s) => (
               <Link
                 key={`${s.studentId}-${s.unitId}-${s.lastPageId}`}
                 href={`/teacher/classes/${s.classId}/progress/${s.unitId}`}
-                className="flex items-center gap-3 px-3 py-2.5 -mx-1 rounded-xl hover:bg-surface-alt transition group"
+                className="flex items-center gap-3 px-4 py-2.5 hover:bg-surface-alt transition group"
               >
-                <div className="w-8 h-8 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-xs font-bold shrink-0">
+                <div className="w-7 h-7 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-xs font-bold shrink-0">
                   {(s.studentName[0] || "?").toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-text-primary truncate">
                     {s.studentName}
-                  </p>
-                  <p className="text-xs text-text-secondary truncate">
-                    {s.className} · {s.unitTitle}
+                    <span className="text-text-secondary font-normal"> · {s.className}</span>
                   </p>
                 </div>
-                <span className="text-xs text-amber-600 font-semibold whitespace-nowrap bg-amber-50 px-2 py-1 rounded-lg">
+                <span className="text-xs text-amber-600 font-semibold whitespace-nowrap bg-amber-50 px-2 py-0.5 rounded-md">
                   {formatStuckTime(s.hoursSinceUpdate)}
                 </span>
               </Link>
             ))}
-            {stuckStudents.length > 5 && (
-              <button
-                onClick={() => setShowAll(!showAll)}
-                className="w-full text-xs text-brand-purple hover:underline py-2 font-medium"
-              >
-                {showAll ? "Show less" : `Show ${stuckStudents.length - 5} more`}
-              </button>
+            {stuckStudents.length > 8 && (
+              <div className="px-4 py-2 text-xs text-text-secondary text-center">
+                +{stuckStudents.length - 8} more
+              </div>
             )}
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -419,64 +416,104 @@ function formatStuckTime(hours: number): string {
 }
 
 // ---------------------------------------------------------------------------
-// Recent Activity Feed
+// Collapsible Section — reusable wrapper for secondary content
 // ---------------------------------------------------------------------------
 
-function RecentActivityFeed({ events }: { events: ActivityEvent[] }) {
-  return (
-    <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
-      <div className="px-5 py-4 border-b border-border">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-accent-blue/10 flex items-center justify-center">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2E86AB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-            </svg>
-          </div>
-          <h2 className="text-sm font-semibold text-text-primary">Recent Activity</h2>
-        </div>
-      </div>
+function CollapsibleSection({
+  title,
+  icon,
+  count,
+  subtitle,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  icon: React.ReactNode;
+  count?: number;
+  subtitle?: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
 
-      <div className="max-h-[320px] overflow-y-auto">
-        {events.length === 0 ? (
-          <div className="px-5 py-10 text-center text-sm text-text-secondary">
-            No activity yet
-          </div>
-        ) : (
-          <div className="divide-y divide-border/50">
-            {events.map((e, i) => (
-              <div
-                key={`${e.studentId}-${e.pageId}-${i}`}
-                className="px-5 py-3 flex items-center gap-3 hover:bg-surface-alt/50 transition"
-              >
-                <span
-                  className="w-2 h-2 rounded-full shrink-0"
-                  style={{
-                    background: e.status === "complete" ? "#2DA05E" : "#F59E0B",
-                    boxShadow: e.status === "complete"
-                      ? "0 0 0 3px rgba(45,160,94,0.15)"
-                      : "0 0 0 3px rgba(245,158,11,0.15)",
-                  }}
-                />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-text-primary truncate">
-                    <span className="font-medium">{e.studentName}</span>
-                    <span className="text-text-secondary">
-                      {" "}{e.status === "complete" ? "completed" : "saved"}{" "}
-                    </span>
-                    <PageBadge pageId={e.pageId} />
-                  </p>
-                  <p className="text-xs text-text-secondary truncate">
-                    {e.className} · {e.unitTitle}
-                  </p>
-                </div>
-                <span className="text-xs text-text-secondary whitespace-nowrap">
-                  {timeAgo(e.updatedAt)}
-                </span>
-              </div>
-            ))}
-          </div>
+  return (
+    <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full px-4 py-3 flex items-center gap-2.5 hover:bg-surface-alt/50 transition text-left"
+      >
+        <div className="w-6 h-6 rounded-md bg-surface-alt flex items-center justify-center shrink-0">
+          {icon}
+        </div>
+        <span className="text-sm font-semibold text-text-primary">{title}</span>
+        {count !== undefined && count > 0 && (
+          <span className="text-[11px] font-bold text-text-secondary bg-surface-alt px-1.5 py-0.5 rounded-md">
+            {count}
+          </span>
         )}
+        {subtitle && (
+          <span className="text-xs text-text-secondary ml-1 truncate">{subtitle}</span>
+        )}
+        <svg
+          width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+          className="ml-auto text-text-secondary shrink-0 transition-transform duration-200"
+          style={{ transform: open ? "rotate(180deg)" : "rotate(0)" }}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {open && (
+        <div className="border-t border-border">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Compact Activity Feed — for inside the collapsible section
+// ---------------------------------------------------------------------------
+
+function CompactActivityFeed({ events }: { events: ActivityEvent[] }) {
+  if (events.length === 0) {
+    return (
+      <div className="px-4 py-6 text-center text-sm text-text-secondary">
+        No activity yet
       </div>
+    );
+  }
+
+  return (
+    <div className="max-h-[280px] overflow-y-auto divide-y divide-border/50">
+      {events.map((e, i) => (
+        <div
+          key={`${e.studentId}-${e.pageId}-${i}`}
+          className="px-4 py-2.5 flex items-center gap-3 hover:bg-surface-alt/50 transition"
+        >
+          <span
+            className="w-1.5 h-1.5 rounded-full shrink-0"
+            style={{
+              background: e.status === "complete" ? "#2DA05E" : "#F59E0B",
+            }}
+          />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-text-primary truncate">
+              <span className="font-medium">{e.studentName}</span>
+              <span className="text-text-secondary">
+                {" "}{e.status === "complete" ? "completed" : "saved"}{" "}
+              </span>
+              <PageBadge pageId={e.pageId} />
+            </p>
+            <p className="text-xs text-text-secondary truncate">
+              {e.className} · {e.unitTitle}
+            </p>
+          </div>
+          <span className="text-xs text-text-secondary whitespace-nowrap">
+            {timeAgo(e.updatedAt)}
+          </span>
+        </div>
+      ))}
     </div>
   );
 }
@@ -501,12 +538,28 @@ function PageBadge({ pageId }: { pageId: string }) {
 }
 
 // ---------------------------------------------------------------------------
+// Helper: get archetype summary from style profile
+// ---------------------------------------------------------------------------
+
+function getArchetypeSummary(profile: TeacherStyleProfile): string {
+  const level = profile.confidenceLevel || "cold_start";
+  const units = profile.totalUnitsCreated || 0;
+  if (level === "cold_start" && units === 0) return "Getting to know you…";
+  const levelLabels: Record<string, string> = {
+    cold_start: "Learning your style",
+    learning: "Building your profile",
+    established: "Profile established",
+  };
+  return `${levelLabels[level] || level} · ${units} unit${units !== 1 ? "s" : ""} created`;
+}
+
+// ---------------------------------------------------------------------------
 // Class Overview Section
 // ---------------------------------------------------------------------------
 
 function ClassOverviewSection({ classes }: { classes: DashboardClass[] }) {
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <h2 className="text-sm font-semibold text-text-primary tracking-tight">Your Classes</h2>
       {classes.map((cls) => (
         <ClassCard key={cls.id} cls={cls} />
@@ -527,14 +580,14 @@ function ClassCard({ cls }: { cls: DashboardClass }) {
     totalCells > 0 ? Math.round((totalCompleted / totalCells) * 100) : 0;
 
   return (
-    <div className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden">
-      <div className="w-full px-5 py-4 flex items-center justify-between">
+    <div className="bg-white rounded-xl border border-border shadow-sm overflow-hidden">
+      <div className="w-full px-4 py-3.5 flex items-center justify-between">
         <Link
           href={`/teacher/classes/${cls.id}`}
           className="flex items-center gap-3 flex-1 min-w-0 group"
         >
           <div
-            className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm shrink-0"
+            className="w-9 h-9 rounded-lg flex items-center justify-center text-white font-bold text-sm shrink-0"
             style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)" }}
           >
             {cls.name.charAt(0).toUpperCase()}
@@ -551,12 +604,12 @@ function ClassCard({ cls }: { cls: DashboardClass }) {
             </div>
           </div>
         </Link>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           {cls.units.length > 0 && (
             <div className="flex items-center gap-2">
-              <div className="w-20 h-2 rounded-full bg-gray-100 overflow-hidden">
+              <div className="w-16 h-1.5 rounded-full bg-gray-100 overflow-hidden">
                 <div
-                  className="h-2 rounded-full transition-all duration-700"
+                  className="h-1.5 rounded-full transition-all duration-700"
                   style={{
                     width: `${overallPct}%`,
                     background: overallPct === 100
@@ -572,12 +625,12 @@ function ClassCard({ cls }: { cls: DashboardClass }) {
           )}
           <button
             onClick={() => setExpanded(!expanded)}
-            className="w-8 h-8 rounded-lg hover:bg-surface-alt flex items-center justify-center transition"
+            className="w-7 h-7 rounded-lg hover:bg-surface-alt flex items-center justify-center transition"
           >
             <svg
               className="text-text-secondary transition-transform duration-200"
               style={{ transform: expanded ? "rotate(180deg)" : "rotate(0)" }}
-              width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+              width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
             >
               <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
             </svg>
@@ -588,7 +641,7 @@ function ClassCard({ cls }: { cls: DashboardClass }) {
       {expanded && (
         <div className="border-t border-border">
           {cls.units.length === 0 ? (
-            <div className="px-5 py-8 text-center text-sm text-text-secondary">
+            <div className="px-4 py-6 text-center text-sm text-text-secondary">
               No active units.{" "}
               <Link
                 href={`/teacher/classes/${cls.id}`}
@@ -628,14 +681,14 @@ function UnitProgressRow({
   const nmEnabled = unit.nmEnabled ?? false;
 
   return (
-    <div className="px-5 py-3.5 flex items-center gap-4">
-      <div className="w-44 shrink-0">
+    <div className="px-4 py-3 flex items-center gap-3">
+      <div className="w-40 shrink-0">
         <p className="text-sm font-medium text-text-primary truncate">{unit.unitTitle}</p>
         <p className="text-xs text-text-secondary mt-0.5">{unit.totalPages} pages</p>
       </div>
 
       <div className="flex-1 min-w-0">
-        <div className="h-2.5 rounded-full bg-gray-100 overflow-hidden flex">
+        <div className="h-2 rounded-full bg-gray-100 overflow-hidden flex">
           {completePct > 0 && (
             <div
               className="transition-all duration-500 rounded-l-full"
@@ -652,7 +705,7 @@ function UnitProgressRow({
       </div>
 
       <span
-        className="text-sm font-bold w-12 text-right"
+        className="text-sm font-bold w-10 text-right"
         style={{
           color: unit.completionPct === 100 ? "#2DA05E" : unit.completionPct > 0 ? "#1A1A2E" : "#9CA3AF",
         }}
@@ -662,14 +715,14 @@ function UnitProgressRow({
 
       <Link
         href={`/teacher/classes/${classId}/progress/${unit.unitId}`}
-        className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg transition whitespace-nowrap ${
+        className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2 py-1 rounded-lg transition whitespace-nowrap ${
           studioCount > 0
             ? "text-purple-700 bg-purple-100 hover:bg-purple-200"
             : "text-gray-500 bg-gray-50 hover:bg-gray-100"
         }`}
         title={studioCount > 0 ? `${studioCount} student${studioCount !== 1 ? "s" : ""} in Open Studio` : "Manage Open Studio"}
       >
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <circle cx="12" cy="12" r="10" />
           {studioCount > 0 ? (
             <path d="M8 12l2 2 4-4" strokeWidth="2.5" />
@@ -677,13 +730,13 @@ function UnitProgressRow({
             <path d="M12 8v4m0 4h.01" />
           )}
         </svg>
-        {studioCount > 0 ? `${studioCount} in Studio` : "Studio"}
+        {studioCount > 0 ? `${studioCount} Studio` : "Studio"}
       </Link>
 
       {nmEnabled && (
         <Link
           href={`/teacher/units/${unit.unitId}`}
-          className="inline-flex items-center gap-1 text-xs font-black px-2.5 py-1.5 rounded-lg transition whitespace-nowrap"
+          className="inline-flex items-center gap-1 text-xs font-black px-2 py-1 rounded-lg transition whitespace-nowrap"
           style={{
             background: "#FF2D78",
             color: "#fff",

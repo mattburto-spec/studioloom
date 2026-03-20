@@ -328,23 +328,40 @@ export class AnthropicProvider implements AIProvider {
   ): Promise<TimelineSkeleton> {
     const tool = buildSkeletonGenerationTool(totalLessons);
 
-    // Scale max_tokens based on lesson count — each lesson needs ~200-300 tokens
-    const estimatedTokens = Math.max(4096, totalLessons * 350 + 500);
-    const maxTokens = Math.min(estimatedTokens, 8192);
+    // Always use generous max_tokens — skeleton JSON is large.
+    // Each lesson needs ~300-400 tokens of output. Add 2000 for narrativeArc + overhead.
+    // Use 16384 as ceiling to handle even 30+ lesson units safely.
+    const maxTokens = Math.min(Math.max(8192, totalLessons * 400 + 2000), 16384);
 
-    const response = await this.client.messages.create({
-      model: this.config.modelName || "claude-sonnet-4-6",
-      system: systemPrompt,
-      messages: [{ role: "user", content: userPrompt }],
-      max_tokens: maxTokens,
-      temperature: 0.7,
-      tools: [tool],
-      tool_choice: { type: "tool", name: tool.name },
-    });
+    const callAPI = async (tokens: number) => {
+      return this.client.messages.create({
+        model: this.config.modelName || "claude-sonnet-4-6",
+        system: systemPrompt,
+        messages: [{ role: "user", content: userPrompt }],
+        max_tokens: tokens,
+        temperature: 0.7,
+        tools: [tool],
+        tool_choice: { type: "tool", name: tool.name },
+      });
+    };
+
+    let response = await callAPI(maxTokens);
 
     // Log stop reason for debugging truncation issues
-    const stopReason = response.stop_reason;
-    console.log(`[generateSkeleton] stop_reason=${stopReason}, content_blocks=${response.content.length}, model=${response.model}, usage=${JSON.stringify(response.usage)}`);
+    let stopReason = response.stop_reason;
+    console.log(`[generateSkeleton] stop_reason=${stopReason}, content_blocks=${response.content.length}, model=${response.model}, usage=${JSON.stringify(response.usage)}, max_tokens=${maxTokens}`);
+
+    // Auto-retry on truncation: if stop_reason is max_tokens or end_turn with empty input,
+    // retry once with maximum tokens
+    const toolUseBlockFirst = response.content.find((block) => block.type === "tool_use");
+    const firstInputEmpty = toolUseBlockFirst?.type === "tool_use" && Object.keys(toolUseBlockFirst.input as Record<string, unknown>).length === 0;
+
+    if ((stopReason === "max_tokens" || firstInputEmpty) && maxTokens < 16384) {
+      console.warn(`[generateSkeleton] Truncation detected (stop_reason=${stopReason}, emptyInput=${firstInputEmpty}). Retrying with max_tokens=16384...`);
+      response = await callAPI(16384);
+      stopReason = response.stop_reason;
+      console.log(`[generateSkeleton] RETRY: stop_reason=${stopReason}, content_blocks=${response.content.length}, model=${response.model}, usage=${JSON.stringify(response.usage)}, max_tokens=16384`);
+    }
 
     const toolUseBlock = response.content.find(
       (block) => block.type === "tool_use"
@@ -362,7 +379,17 @@ export class AnthropicProvider implements AIProvider {
 
     // Log what we got for debugging
     if (rawKeys.length === 0) {
-      console.error("[generateSkeleton] Empty tool input. Stop reason:", stopReason, "Full response:", JSON.stringify(response.content).slice(0, 500));
+      console.error("[generateSkeleton] Empty tool input after all attempts.", {
+        stopReason,
+        usage: response.usage,
+        contentBlockTypes: response.content.map(b => b.type),
+        fullResponse: JSON.stringify(response.content).slice(0, 1000),
+      });
+      throw new Error(
+        `Skeleton generation failed: AI returned empty tool input (likely truncated). ` +
+        `Stop reason: ${stopReason}. Lessons requested: ${totalLessons}. ` +
+        `Try reducing the number of lessons or regenerating.`
+      );
     }
 
     // The AI sometimes nests the data differently — try to find lessons

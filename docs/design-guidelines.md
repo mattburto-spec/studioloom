@@ -135,6 +135,18 @@ Don't just prompt the AI — validate the output afterward. 8 rules checked: wor
 Teachers know their class better than the AI. Provide a horizontal drag-to-resize timeline bar with colored phase blocks. Lock/unlock individual phases. One-click presets: Balanced, Hands-On Heavy, Instruction Heavy, Critique Session. Post-lesson feedback (per-phase Too Short/About Right/Too Long) feeds the learned timing profile.
 **Source:** PhaseTimelineBar.tsx, TimingFeedbackPrompt.tsx | **Status:** In code
 
+### C13. Unit-as-Template Architecture (Canvas Blueprint Pattern)
+Units are content templates assignable to multiple classes. Per-class configuration lives in `class_units` junction table (NM config, future: timing overrides, Open Studio settings). Inheritance chain: `class_units.config` → `units.config` → system defaults. Inspired by Canvas LMS Blueprint Courses.
+**Source:** Migration 033, CLAUDE.md | **Status:** In code
+
+### C14. NM Config at Class Level, Not Unit Level
+NM (Melbourne Metrics) is a per-class pedagogical decision, not a per-unit content decision. Unit page shows WHAT classes use it. Class-unit settings page controls HOW (NM on/off, element selection, checkpoint mapping). Teacher feedback drove this — "I don't want to control it at this high level."
+**Source:** User feedback 20 Mar 2026 | **Status:** In code
+
+### C15. Assigned Classes Visibility on Unit Detail
+Unit detail page shows which classes are assigned with student count, class code, NM badge, and archived state. Each card links to per-class settings. Makes unit→class relationship visible and navigable. Previously only visible via dashboard.
+**Source:** User feedback 20 Mar 2026 | **Status:** In code
+
 ## Technical Patterns
 
 ### D1. Tool Use for Structured Output
@@ -161,6 +173,18 @@ nanoid(48) with 7-day TTL. No passwords for students. HttpOnly, Secure, SameSite
 Teacher API keys encrypted at rest. Proper IV randomisation, authenticated encryption.
 **Source:** CLAUDE.md | **Status:** Documented
 
+### D7. Auth Helper Pattern for Teacher Routes
+Centralise common auth checks in `src/lib/auth/verify-teacher-unit.ts`: teacher owns unit, teacher owns class, get config with fallback chain. Pattern: `createServerClient` for auth only, `createAdminClient` for DB operations (bypasses RLS). Prevents auth+query duplication across routes.
+**Source:** verify-teacher-unit.ts | **Status:** In code
+
+### D8. Additive-Only Migrations
+Database migrations should only add columns/tables, never modify or drop existing ones. New columns default to NULL. This allows code to be reverted independently of the migration. Migration 033 follows this pattern.
+**Source:** Migration 033 design | **Status:** Documented
+
+### D9. Student Routes Need Explicit Sub-Paths
+Student unit route has no index page at `/unit/[unitId]`. Only `/narrative` and `/[pageId]` sub-routes exist. Links must always include a sub-path. Bare `/unit/${id}` causes Next.js prefetch 404s.
+**Source:** Open Studio 404 bug fix | **Status:** In code
+
 ## Security & Privacy
 
 ### F1. COPPA Compliance (Ages 11-16)
@@ -171,9 +195,9 @@ No behavioural tracking via GA4. Plausible or PostHog only. Minimal telemetry. T
 Supabase Row-Level Security: students read/write own data only. Enforced at database level, not application level. Defence in depth.
 **Source:** CLAUDE.md | **Status:** Documented
 
-### F3. No Plagiarism Detection Yet
-System relies on process documentation and portfolio capture. No automated plagiarism/AI-detection. MonitoredTextarea planned for Phase 6.
-**Source:** CLAUDE.md | **Status:** Gap
+### F3. Silent Academic Integrity Monitoring
+MonitoredTextarea captures writing behaviour silently (paste events, keystroke patterns, focus time, text snapshots). 6-rule deterministic scoring engine produces Human Confidence Score (0-100). Teachers see IntegrityReport on grading view. Students see a normal textarea — no surveillance indicators. Built 19 Mar 2026.
+**Source:** MonitoredTextarea, analyze-integrity.ts, IntegrityReport | **Status:** In code (needs wiring into submission flow)
 
 ### F4. Evidence-Based Pedagogy Only
 Based on Hattie HITS, Richard Paul, Bloom's taxonomy. Not learning styles pseudoscience. System grounded in research, not fads.

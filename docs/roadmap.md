@@ -914,13 +914,27 @@ University of Melbourne competency assessment framework. 7 competencies (startin
 ### What's Built (Phase 1)
 - **Constants & data model** — 7 competencies, 12 elements for Agency in Learning, 5-level progression scales (Year 5-8 and 9-12), Student 3-point scale, Teacher 4-point scale
 - **Database** — `competency_assessments` table (migration 030), `nm_config` JSONB on `units` table, RLS policies. Migration 032 fixes page_id type (UUID→TEXT)
-- **Teacher NM Config** — 3-step wizard on unit detail page: select competency → pick elements → assign to checkpoint pages. Pop art styled header.
+- **Teacher NM Config** — 3-step wizard on per-class settings page (`/teacher/units/[unitId]/class/[classId]`): select competency → pick elements → assign to checkpoint pages. Pop art styled header. Moved from unit-level to class-level 20 Mar 2026.
 - **Student Competency Pulse** — 3-point self-assessment card ("This was hard for me" / "I'm getting there" / "I did this well") with reflection textarea. Positioned above Complete & Continue button in student lesson view. Pop art identity with "POW!" success animation.
 - **Teacher Observation Snap** — 4-point modal (Emerging/Developing/Applying/Extending) for quick in-class observations. Accessible from Teaching Mode via per-student NM button.
-- **NM Results Panel** — Collapsible panel on teacher unit detail page. Two views: By Student (per-student element ratings + avg) and By Element (class distribution bars).
+- **NM Results Panel** — Collapsible panel on per-class settings page (moved from unit detail 20 Mar 2026). Two views: By Student (per-student element ratings + avg) and By Element (class distribution bars).
 - **Dashboard integration** — Pop art "NM Results" button on unit rows when NM enabled.
 - **Teaching Mode integration** — Per-student NM observation button on student cards in teaching cockpit.
 - **Pop art visual identity** — hot pink (#FF2D78), electric yellow (#FFE135), cyan (#00D4FF), bold black borders, halftone dots, box shadows, Arial Black font. Distinct from main StudioLoom theme.
+
+### Unit-as-Template Architecture ✅ BUILT (20 Mar 2026)
+Units are now content templates assignable to multiple classes with per-class configuration. This supports NM being enabled for some classes but not others, and future per-class overrides (timing, Open Studio settings).
+
+**What's built:**
+- **Migration 033** — Adds `class_units.nm_config` (JSONB), `classes.is_archived` + `academic_year` + `grade_level` + `subject`, `competency_assessments.class_id` (TEXT). Additive only.
+- **Auth helper** — `src/lib/auth/verify-teacher-unit.ts` with `verifyTeacherHasUnit()`, `getNmConfigForClassUnit()` (inheritance: class_units → units → default), `verifyTeacherOwnsClass()`
+- **All NM routes rewritten** — Teacher routes (nm-config, nm-observation, nm-results) accept classId. Student routes (nm-assessment, nm-checkpoint) look up student's class_id and read config from class_units with fallback.
+- **Unit detail page redesigned** — NM config/results removed. "Assigned Classes" section shows clickable cards with student count, code, NM badge, archived state.
+- **New class-unit settings page** — `/teacher/units/[unitId]/class/[classId]` with NM config wizard + results panel scoped to class. Placeholder for future per-class settings.
+- **Dashboard** — Filters archived classes, resolves NM enabled per class-unit not per unit.
+- **Teaching Mode** — Loads class-specific NM config when class selected.
+
+**Pending:** Migration 032 (page_id fix) + 033 must be applied in Supabase. Archive UI (button to set is_archived) not built yet.
 
 ### Phase 2 (Future)
 - **Progression tracking over time** — show student growth across units on a progression level timeline
