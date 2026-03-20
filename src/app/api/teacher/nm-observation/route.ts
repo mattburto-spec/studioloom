@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
     .from("classes")
     .select("id")
     .eq("id", classId)
-    .eq("teacher_id", user.id)
+    .eq("author_teacher_id", user.id)
     .single();
 
   if (!classData) {
@@ -131,7 +131,7 @@ export async function POST(request: NextRequest) {
     .from("units")
     .select("id, nm_config")
     .eq("id", unitId)
-    .eq("teacher_id", user.id)
+    .eq("author_teacher_id", user.id)
     .single();
 
   if (!unit) {
