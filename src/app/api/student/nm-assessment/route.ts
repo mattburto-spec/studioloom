@@ -135,9 +135,9 @@ export async function POST(request: NextRequest) {
   const { error } = await supabase.from("competency_assessments").insert(rows);
 
   if (error) {
-    console.error("[nm-assessment] Insert error:", error);
+    console.error("[nm-assessment] Insert error:", error.message, error.details, error.hint, { unitId, pageId, competency, elementCount: rows.length });
     return NextResponse.json(
-      { error: "Failed to save assessment" },
+      { error: "Failed to save assessment", detail: error.message },
       { status: 500 }
     );
   }
