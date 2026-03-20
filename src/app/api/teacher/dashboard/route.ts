@@ -223,6 +223,24 @@ export async function GET(request: NextRequest) {
       };
     });
 
+  // --- Open Studio counts ---
+  // Query all unlocked Open Studio statuses for students in teacher's classes
+  let openStudioByUnit = new Map<string, Set<string>>(); // unitId -> set of student IDs
+  if (studentIds.length > 0) {
+    const { data: osData } = await supabase
+      .from("open_studio_status")
+      .select("student_id, unit_id")
+      .in("student_id", studentIds)
+      .eq("status", "unlocked");
+    if (osData) {
+      for (const row of osData) {
+        const set = openStudioByUnit.get(row.unit_id) || new Set();
+        set.add(row.student_id);
+        openStudioByUnit.set(row.unit_id, set);
+      }
+    }
+  }
+
   // --- Class overview ---
   // Group class_units by class
   const cuByClass = new Map<string, ClassUnitRow[]>();
@@ -264,6 +282,15 @@ export async function GET(request: NextRequest) {
       const completionPct =
         totalCells > 0 ? Math.round((completedCount / totalCells) * 100) : 0;
 
+      // Count Open Studio unlocks for this unit's students in this class
+      const osSet = openStudioByUnit.get(cu.unit_id);
+      let osCount = 0;
+      if (osSet) {
+        for (const sid of osSet) {
+          if (classStudentIds.has(sid)) osCount++;
+        }
+      }
+
       return {
         unitId: cu.unit_id,
         unitTitle: info.title,
@@ -272,6 +299,7 @@ export async function GET(request: NextRequest) {
         inProgressCount,
         notStartedCount: Math.max(0, notStartedCount),
         completionPct,
+        openStudioCount: osCount,
       };
     });
 

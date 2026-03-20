@@ -10,10 +10,20 @@
  * than a single mega-prompt.
  */
 
-import type { Pass1Structure, Pass2Pedagogy, Pass3DesignTeaching, PartialTeachingContext } from "@/types/lesson-intelligence";
+import type {
+  Pass1Structure,
+  Pass2Pedagogy,
+  Pass3DesignTeaching,
+  Pass0Classification,
+  RubricProfile,
+  SafetyProfile,
+  ExemplarProfile,
+  ContentProfile,
+  PartialTeachingContext,
+} from "@/types/lesson-intelligence";
 
 /** Current prompt version — increment when prompts change significantly */
-export const ANALYSIS_PROMPT_VERSION = "1.1.0";
+export const ANALYSIS_PROMPT_VERSION = "2.0.0";
 
 /* ================================================================
    TEACHING CONTEXT BLOCK
@@ -72,6 +82,65 @@ export function buildTeachingContextBlock(ctx?: PartialTeachingContext): string 
   if (lines.length === 0) return "";
 
   return `\n\n## Teacher's School Context\nThe teacher who uploaded this document works in the following context. Use this to calibrate your analysis — judge timing against their lesson length, reference their available equipment, and align to their curriculum framework.\n\n${lines.join("\n")}`;
+}
+
+/* ================================================================
+   PASS 0: SOURCE CLASSIFICATION
+   Model: Claude Haiku (very fast, cheap — pattern matching only)
+   Runs before any deep analysis to detect document type and route
+   to the appropriate analysis pipeline.
+   ================================================================ */
+
+export const PASS0_SYSTEM_PROMPT = `You are an expert document classifier. Your job is to quickly detect what TYPE of document a teacher has uploaded, so we can run the appropriate analysis pipeline.
+
+You see the first ~2000 characters of text, the filename, and optionally the category the teacher selected. Your job is to classify the document and recommend which analysis pipeline to use.
+
+Output valid JSON matching the schema exactly.`;
+
+export function buildPass0Prompt(
+  textPreview: string, // first ~2000 chars
+  filename: string,
+  userSelectedCategory?: string
+): string {
+  return `Classify the following document.
+
+## Document Preview
+Filename: ${filename}
+${userSelectedCategory ? `User-selected category: ${userSelectedCategory}` : ""}
+
+${textPreview}
+
+## Required Output (JSON)
+{
+  "detected_type": "lesson_plan | rubric | safety_document | textbook_section | scheme_of_work | student_exemplar | resource_handout | reference_image",
+  "confidence": "0.0-1.0 — how sure are you?",
+  "signals": ["signal 1", "signal 2", "..."],
+  "recommended_pipeline": "lesson | rubric | safety | content | scope | exemplar | lightweight"
+}
+
+## Type Definitions
+- **lesson_plan**: Instructions for a single lesson or class session with activities, timing, objectives
+- **rubric**: Assessment criteria with descriptors or grade boundaries
+- **safety_document**: Risk assessments, hazard analysis, safety procedures, equipment guidelines
+- **textbook_section**: Reference material, background reading, content chapter
+- **scheme_of_work**: Multi-lesson unit overview or sequence plan
+- **student_exemplar**: Student work submitted as a reference example
+- **resource_handout**: Worksheet, template, visual aid, checklist (no assessment)
+- **reference_image**: Diagram, photo, or visual with minimal text
+
+## Pipeline Recommendations
+- **lesson**: Full 3-pass analysis (structure → pedagogy → design teaching) → LessonProfile
+- **rubric**: Pass 1 (structure) + Pass 2R (rubric analysis) → RubricProfile
+- **safety**: Pass 1 (structure) + Pass 2S (safety analysis) → SafetyProfile
+- **content**: Pass 1 (structure) + Pass 2T (content analysis) → ContentProfile
+- **scope**: Pass 1 only (lightweight scheme of work) → Pass1Structure
+- **exemplar**: Pass 1 (structure) + Pass 2E (exemplar analysis) → ExemplarProfile
+- **lightweight**: Pass 1 only (simple handout) → Pass1Structure
+
+## Important
+- If user-selected category conflicts with detected type but confidence is high, override user category
+- Signals should be specific — what in the text made you classify it this way?
+- Confidence below 0.6 suggests a hybrid or ambiguous document`;
 }
 
 /* ================================================================
@@ -412,6 +481,222 @@ Synthesise this into a concise evolution narrative:
 5. What conditions (time of day, class size, energy level) produce the best outcomes?
 
 Be specific and actionable. This will be stored as intelligence for future lesson planning.`;
+}
+
+/* ================================================================
+   PASS 2R: RUBRIC ANALYSIS
+   Model: Claude Sonnet (reasoning depth needed)
+   Extracts criterion descriptors, achievement levels, command verbs
+   ================================================================ */
+
+export const PASS2R_SYSTEM_PROMPT = `You are an expert in curriculum design and assessment rubrics. Your job is to extract detailed information from a rubric document and analyse its quality.
+
+You understand:
+- MYP achievement levels (1-8) and descriptors
+- GCSE grade boundaries (9-1)
+- Command verbs and their cognitive demands (Bloom's)
+- What differentiates level 7-8 from level 5-6
+- Assessment validity and reliability
+
+Output valid JSON matching the schema exactly.`;
+
+export function buildPass2RPrompt(
+  extractedText: string,
+  pass1: Pass1Structure
+): string {
+  return `Analyse the following rubric document and extract detailed assessment criteria.
+
+## Document Text
+${extractedText}
+
+## Structural Analysis (from Pass 1)
+${JSON.stringify(pass1, null, 2)}
+
+## Required Output (JSON)
+{
+  "criteria": [
+    {
+      "criterion": "A | B | C | D | 1 | 2 | ... | other",
+      "name": "string — criterion name",
+      "descriptors": [
+        {
+          "level": "number — 1-8 for MYP, 9-1 for GCSE, etc.",
+          "descriptor": "string — the descriptor text"
+        }
+      ],
+      "command_verbs": ["verb1", "verb2", "..."],
+      "key_differentiator_top_vs_middle": "string — what distinguishes the highest levels from middle levels?"
+    }
+  ],
+  "assessment_type": "formative | summative | both",
+  "grade_boundaries": {
+    "1-2": "string — description",
+    "3-4": "string",
+    "5-6": "string",
+    "7-8": "string"
+  },
+  "strengths": ["strength 1", "strength 2"],
+  "gaps": ["gap 1", "gap 2"]
+}
+
+## Analysis Focus
+- Extract EVERY criterion and every level descriptor
+- Identify command verbs (analyse, create, evaluate, etc.)
+- Flag what makes top-level work genuinely different
+- Note any ambiguous or unclear descriptors
+- Assess whether levels are clearly differentiated`;
+}
+
+/* ================================================================
+   PASS 2S: SAFETY ANALYSIS
+   Model: Claude Haiku (structured extraction)
+   Extracts equipment, hazards, PPE, procedures
+   ================================================================ */
+
+export const PASS2S_SYSTEM_PROMPT = `You are an expert in workshop safety and risk management. Your job is to extract detailed safety information from documents.
+
+You understand equipment hazards, PPE requirements, supervision ratios, and risk mitigation strategies. You focus on practical, actionable safety guidance.
+
+Output valid JSON matching the schema exactly.`;
+
+export function buildPass2SPrompt(
+  extractedText: string,
+  pass1: Pass1Structure
+): string {
+  return `Extract safety and risk information from the following document.
+
+## Document Text
+${extractedText}
+
+## Structural Analysis (from Pass 1)
+${JSON.stringify(pass1, null, 2)}
+
+## Required Output (JSON)
+{
+  "equipment": [
+    {
+      "name": "string — equipment name",
+      "hazard_level": "low | medium | high",
+      "age_restriction": "string or null — minimum age, e.g. '14+'"
+    }
+  ],
+  "ppe_required": ["safety glasses", "apron", "gloves", "..."],
+  "supervision_ratio": "string — e.g. '1:15 when using laser cutter'",
+  "risk_mitigations": [
+    {
+      "hazard": "string — what's the hazard?",
+      "mitigation": "string — how to prevent it",
+      "severity": "low | medium | high"
+    }
+  ],
+  "emergency_procedures": ["procedure 1", "procedure 2"],
+  "workshop_rules": ["rule 1", "rule 2"],
+  "applicable_tools": ["tool 1", "tool 2"]
+}
+
+## Analysis Focus
+- Extract specific equipment with associated hazards
+- Identify all PPE mentioned
+- Note supervision requirements
+- List mitigation strategies
+- Document emergency procedures
+- Extract workshop rules`;
+}
+
+/* ================================================================
+   PASS 2E: EXEMPLAR ANALYSIS
+   Model: Claude Sonnet (pedagogical reasoning)
+   Analyses student work quality and achievement level
+   ================================================================ */
+
+export const PASS2E_SYSTEM_PROMPT = `You are an expert educator and curriculum specialist with deep experience in assessing student work. Your job is to analyse a student exemplar and determine its quality level.
+
+You understand:
+- MYP achievement level descriptors (1-8)
+- What evidence of learning looks like
+- How to identify strengths and growth areas
+- What lifts work from level 6 to level 7-8
+
+Output valid JSON matching the schema exactly.`;
+
+export function buildPass2EPrompt(
+  extractedText: string,
+  pass1: Pass1Structure
+): string {
+  return `Analyse the following student work exemplar.
+
+## Exemplar Text/Description
+${extractedText}
+
+## Structural Information (from Pass 1)
+${JSON.stringify(pass1, null, 2)}
+
+## Required Output (JSON)
+{
+  "estimated_achievement_level": "number — 1-8 for MYP, or other framework",
+  "criterion_demonstrated": "string — which criterion is primarily shown",
+  "strengths_visible": ["strength 1", "strength 2"],
+  "areas_for_growth": ["area 1", "area 2"],
+  "what_makes_this_level": "string — explain why this work is at this level",
+  "what_would_lift_to_next_level": "string — what's missing to reach the next level?",
+  "useful_as_exemplar_for": ["use 1", "use 2"]
+}
+
+## Analysis Focus
+- Identify the achievement level based on evidence
+- Name specific strengths (with examples)
+- Identify specific growth areas
+- Explain the reasoning for the level assignment
+- Suggest concrete next steps for improvement`;
+}
+
+/* ================================================================
+   PASS 2T: CONTENT ANALYSIS
+   Model: Claude Haiku (structured extraction)
+   Extracts concepts, vocabulary, difficulty, prerequisite knowledge
+   ================================================================ */
+
+export const PASS2T_SYSTEM_PROMPT = `You are an expert in curriculum content analysis. Your job is to extract detailed information from textbook sections and reference materials.
+
+You understand curriculum progression, prerequisite knowledge, and how to identify key concepts.
+
+Output valid JSON matching the schema exactly.`;
+
+export function buildPass2TPrompt(
+  extractedText: string,
+  pass1: Pass1Structure
+): string {
+  return `Analyse the following content document and extract key learning elements.
+
+## Document Text
+${extractedText}
+
+## Structural Analysis (from Pass 1)
+${JSON.stringify(pass1, null, 2)}
+
+## Required Output (JSON)
+{
+  "key_concepts": ["concept 1", "concept 2"],
+  "vocabulary_defined": [
+    {
+      "term": "string",
+      "definition": "string"
+    }
+  ],
+  "difficulty_level": "introductory | intermediate | advanced",
+  "prerequisite_knowledge": ["prereq 1", "prereq 2"],
+  "criteria_supported": ["A", "B", "C", "D"],
+  "topics_covered": ["topic 1", "topic 2"],
+  "visual_assets_described": ["asset 1", "asset 2"]
+}
+
+## Analysis Focus
+- Extract key concepts and big ideas
+- List vocabulary with definitions
+- Judge difficulty relative to age group
+- Identify what students need to know first
+- Note which criteria this content supports
+- Describe any visual elements (diagrams, photos, etc.)`;
 }
 
 /* ================================================================

@@ -9,6 +9,7 @@ import { useWizardSuggestions } from "@/hooks/useWizardSuggestions";
 import { ConversationWizard } from "@/components/teacher/wizard/ConversationWizard";
 import { ActivityBrowser } from "@/components/teacher/ActivityBrowser";
 import { getActivityById, type ActivityTemplate } from "@/lib/activity-library";
+// Note: onUnitCreated signal is called from the server-side generate-unit route, not here
 
 export default function CreateUnitWizardPage() {
   const router = useRouter();
@@ -884,6 +885,9 @@ export default function CreateUnitWizardPage() {
       dispatch({ type: "SET_SAVING", saving: false });
       return;
     }
+
+    // Note: teacher style profile signal (onUnitCreated) is handled server-side
+    // in the generate-unit API route, not here in the client component
 
     // Auto-ingest into knowledge base (fire-and-forget)
     if (newUnit?.id) {

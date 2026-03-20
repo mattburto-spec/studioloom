@@ -232,6 +232,10 @@ export default function Home() {
             <span className="text-xl md:text-2xl font-bold tracking-tight text-white">StudioLoom</span>
           </div>
           <div className="flex items-center gap-2 md:gap-3">
+            <Link href="/toolkit" className="hidden sm:inline-flex items-center gap-1.5 px-4 py-2 text-sm text-white/70 hover:text-white transition">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg>
+              Free Toolkit
+            </Link>
             <Link href="/login" className="hidden sm:inline-block px-4 py-2 text-sm text-white/70 hover:text-white transition">
               Student Login
             </Link>
@@ -372,6 +376,80 @@ export default function Home() {
             <p className="text-text-secondary max-w-lg mx-auto">Due dates, portfolio export, LMS sync, academic integrity, safety badges — the full toolkit for running a design classroom.</p>
           </div>
           <FeaturesCarousel />
+        </div>
+      </section>
+
+      {/* ======== FREE DESIGN TOOLKIT SHOWCASE ======== */}
+      <section className="relative overflow-hidden" style={{ background: "linear-gradient(135deg, #06060f 0%, #0d0d2a 50%, #0f0620 100%)" }}>
+        {/* Aurora glow */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          <div className="absolute top-0 left-1/4 w-[500px] h-[300px] rounded-full blur-[120px]" style={{ background: "rgba(99,102,241,0.08)" }} />
+          <div className="absolute bottom-0 right-1/4 w-[400px] h-[250px] rounded-full blur-[100px]" style={{ background: "rgba(168,85,247,0.06)" }} />
+          <div className="absolute top-1/2 right-0 w-[300px] h-[300px] rounded-full blur-[100px]" style={{ background: "rgba(236,72,153,0.04)" }} />
+        </div>
+
+        <div className="relative z-10 max-w-6xl mx-auto px-6 py-24">
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
+            {/* Left: Copy */}
+            <div>
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold mb-6" style={{ background: "rgba(129,140,248,0.1)", border: "1px solid rgba(129,140,248,0.2)", color: "#818cf8" }}>
+                <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                Free for All Teachers
+              </div>
+              <h2 className="text-3xl md:text-4xl font-bold mb-5 text-white leading-tight">
+                42 Design Thinking Tools.{" "}
+                <span style={{ background: "linear-gradient(135deg, #818cf8 0%, #e879f9 50%, #fb923c 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+                  Beautifully Organised.
+                </span>
+              </h2>
+              <p className="text-base mb-6 leading-relaxed" style={{ color: "rgba(255,255,255,0.45)" }}>
+                Browse the world&apos;s best collection of visual thinking tools — from Mind Maps to Morphological Charts. Filter by design process phase, deploy as a presentation, printable worksheet, group activity, or solo task. One click.
+              </p>
+
+              {/* Framework badges */}
+              <div className="flex flex-wrap gap-2 mb-8">
+                {["IB MYP", "GCSE DT", "A-Level", "ACARA", "PLTW", "d.school", "IDEO", "Double Diamond"].map((fw) => (
+                  <span key={fw} className="text-[10px] font-semibold px-2.5 py-1 rounded-full" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.4)" }}>
+                    {fw}
+                  </span>
+                ))}
+              </div>
+
+              <Link href="/toolkit" className="group inline-flex items-center gap-2.5 px-7 py-3.5 rounded-full font-semibold text-white text-base transition-all hover:scale-[1.02] shadow-lg" style={{ background: "linear-gradient(135deg, #6366f1, #a855f7)", boxShadow: "0 8px 32px rgba(99,102,241,0.3)" }}>
+                Browse the Design Toolkit
+                <svg className="w-4 h-4 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                </svg>
+              </Link>
+            </div>
+
+            {/* Right: Preview cards */}
+            <div className="hidden lg:block relative">
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { name: "Mind Map", color: "#818cf8", svg: '<circle cx="50" cy="50" r="12" fill="#818cf8" opacity="0.8"/><g stroke="#818cf8" stroke-width="1.5" opacity="0.3"><line x1="60" y1="50" x2="85" y2="30"/><line x1="60" y1="50" x2="85" y2="70"/><line x1="40" y1="50" x2="15" y2="30"/><line x1="40" y1="50" x2="15" y2="70"/></g><circle cx="85" cy="30" r="6" fill="#818cf8" opacity="0.4"/><circle cx="85" cy="70" r="5" fill="#818cf8" opacity="0.3"/><circle cx="15" cy="30" r="6" fill="#818cf8" opacity="0.4"/><circle cx="15" cy="70" r="5" fill="#818cf8" opacity="0.3"/>' },
+                  { name: "Crazy 8s", color: "#fb923c", svg: '<g stroke="#fb923c" stroke-width="1" opacity="0.2" fill="none"><rect x="5" y="5" width="40" height="40" rx="4"/><rect x="55" y="5" width="40" height="40" rx="4"/><rect x="5" y="55" width="40" height="40" rx="4"/><rect x="55" y="55" width="40" height="40" rx="4"/></g><text x="50" y="100" text-anchor="middle" font-family="monospace" font-size="8" fill="#fb923c" opacity="0.3">8:00</text>' },
+                  { name: "Empathy Map", color: "#ec4899", svg: '<circle cx="50" cy="35" r="22" fill="#ec4899" opacity="0.08" stroke="#ec4899" stroke-width="0.8" opacity="0.15"/><line x1="50" y1="57" x2="50" y2="95" stroke="#ec4899" stroke-width="0.5" opacity="0.12"/><line x1="10" y1="75" x2="90" y2="75" stroke="#ec4899" stroke-width="0.5" opacity="0.12"/><text x="30" y="70" font-size="7" fill="#ec4899" opacity="0.3" font-family="sans-serif">Say</text><text x="60" y="70" font-size="7" fill="#ec4899" opacity="0.3" font-family="sans-serif">Think</text><text x="30" y="90" font-size="7" fill="#ec4899" opacity="0.25" font-family="sans-serif">Do</text><text x="60" y="90" font-size="7" fill="#ec4899" opacity="0.25" font-family="sans-serif">Feel</text>' },
+                  { name: "SCAMPER", color: "#e879f9", svg: '<g font-family="sans-serif" font-weight="800" font-size="16"><text x="8" y="35" fill="#e879f9" opacity="0.7">S</text><text x="28" y="35" fill="#e879f9" opacity="0.55">C</text><text x="48" y="35" fill="#e879f9" opacity="0.4">A</text><text x="68" y="35" fill="#e879f9" opacity="0.3">M</text></g><g opacity="0.2"><rect x="8" y="48" width="80" height="6" rx="3" fill="#e879f9"/><rect x="8" y="60" width="60" height="6" rx="3" fill="#e879f9"/><rect x="8" y="72" width="70" height="6" rx="3" fill="#e879f9"/></g>' },
+                  { name: "SWOT", color: "#06b6d4", svg: '<rect x="8" y="8" width="38" height="38" rx="6" fill="#06b6d4" opacity="0.1"/><rect x="54" y="8" width="38" height="38" rx="6" fill="#06b6d4" opacity="0.14"/><rect x="8" y="54" width="38" height="38" rx="6" fill="#06b6d4" opacity="0.07"/><rect x="54" y="54" width="38" height="38" rx="6" fill="#06b6d4" opacity="0.11"/><text x="27" y="32" text-anchor="middle" font-family="sans-serif" font-weight="800" font-size="14" fill="#06b6d4" opacity="0.4">S</text><text x="73" y="32" text-anchor="middle" font-family="sans-serif" font-weight="800" font-size="14" fill="#06b6d4" opacity="0.35">W</text>' },
+                  { name: "Decision Matrix", color: "#059669", svg: '<g opacity="0.3"><rect x="30" y="10" width="20" height="8" rx="2" fill="#059669"/><rect x="55" y="10" width="20" height="8" rx="2" fill="#059669"/><rect x="80" y="10" width="15" height="8" rx="2" fill="#059669"/></g><g fill="#059669" opacity="0.5"><circle cx="40" cy="35" r="5" opacity="0.6"/><circle cx="65" cy="35" r="4" opacity="0.4"/><circle cx="87" cy="35" r="6" opacity="0.8"/><circle cx="40" cy="55" r="6" opacity="0.8"/><circle cx="65" cy="55" r="5" opacity="0.6"/><circle cx="87" cy="55" r="3" opacity="0.3"/></g>' },
+                ].map((tool) => (
+                  <div key={tool.name} className="rounded-xl overflow-hidden transition-transform hover:scale-105" style={{ background: "rgba(13,13,26,0.8)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                    <div className="h-20 flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${tool.color}08, ${tool.color}03)` }}>
+                      <svg viewBox="0 0 100 100" className="w-16 h-16" dangerouslySetInnerHTML={{ __html: tool.svg }} />
+                    </div>
+                    <div className="px-3 py-2">
+                      <div className="text-[11px] font-semibold text-white/80">{tool.name}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {/* Floating count badge */}
+              <div className="absolute -bottom-3 -right-3 px-4 py-2 rounded-full text-xs font-bold" style={{ background: "linear-gradient(135deg, #6366f1, #a855f7)", color: "white", boxShadow: "0 4px 20px rgba(99,102,241,0.4)" }}>
+                +36 more tools
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -572,6 +650,7 @@ export default function Home() {
             </div>
             <p className="text-xs text-white/30">Design Process Platform — Built for international educators. Works with ManageBac, Canvas, Schoology &amp; more.</p>
             <div className="flex items-center gap-4">
+              <Link href="/toolkit" className="text-xs text-white/40 hover:text-white/70 transition">Design Toolkit</Link>
               <Link href="/login" className="text-xs text-white/40 hover:text-white/70 transition">Students</Link>
               <Link href="/teacher/login" className="text-xs text-white/40 hover:text-white/70 transition">Teachers</Link>
             </div>

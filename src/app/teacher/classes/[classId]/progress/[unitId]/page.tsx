@@ -7,6 +7,7 @@ import { getPageColor } from "@/lib/constants";
 import { getPageList } from "@/lib/unit-adapter";
 import type { Student, StudentProgress, Unit, UnitPage } from "@/types";
 import type { AssessmentRecordRow } from "@/types/assessment";
+import { OpenStudioUnlock, OpenStudioClassView } from "@/components/open-studio";
 
 interface ProgressCell {
   status: "not_started" | "in_progress" | "complete";
@@ -34,6 +35,7 @@ export default function ProgressTrackingPage({
   const [selectedPage, setSelectedPage] = useState<string | null>(null);
   const [detailResponses, setDetailResponses] = useState<Record<string, string> | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [openStudioStatuses, setOpenStudioStatuses] = useState<Record<string, { unlocked_at: string | null }>>({});
 
   useEffect(() => {
     loadData();
@@ -109,6 +111,23 @@ export default function ProgressTrackingPage({
       }
     } catch {
       // grading status is non-critical — silently skip
+    }
+
+    // Load Open Studio statuses for this unit+class
+    try {
+      const osRes = await fetch(`/api/teacher/open-studio/status?unitId=${unitId}&classId=${classId}`);
+      if (osRes.ok) {
+        const data = await osRes.json();
+        const statusMap: Record<string, { unlocked_at: string | null }> = {};
+        for (const row of data.students || []) {
+          if (row.openStudio?.status === "unlocked") {
+            statusMap[row.student.id] = { unlocked_at: row.openStudio.unlocked_at };
+          }
+        }
+        setOpenStudioStatuses(statusMap);
+      }
+    } catch {
+      // Open Studio status is non-critical
     }
 
     setLoading(false);
@@ -303,6 +322,24 @@ export default function ProgressTrackingPage({
                             </span>
                           )}
                         </div>
+                        <div className="mt-1">
+                          <OpenStudioUnlock
+                            studentId={student.id}
+                            studentName={student.display_name || student.username}
+                            classId={classId}
+                            unitId={unitId}
+                            unlocked={!!openStudioStatuses[student.id]}
+                            unlockedAt={openStudioStatuses[student.id]?.unlocked_at}
+                            onUnlocked={() => {
+                              setOpenStudioStatuses(prev => ({
+                                ...prev,
+                                [student.id]: {
+                                  unlocked_at: new Date().toISOString(),
+                                },
+                              }));
+                            }}
+                          />
+                        </div>
                       </td>
                       {unitPages.map((page) => {
                         const cell =
@@ -465,6 +502,11 @@ export default function ProgressTrackingPage({
           </div>
         </div>
       )}
+
+      {/* Open Studio Management */}
+      <div className="mt-8">
+        <OpenStudioClassView unitId={unitId} classId={classId} />
+      </div>
     </main>
   );
 }

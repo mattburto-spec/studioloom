@@ -1,0 +1,1090 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Own Time — Live AI Prototype</title>
+<style>
+  :root {
+    --bg-deep: #0a0e1a;
+    --bg-card: rgba(255,255,255,0.04);
+    --bg-card-hover: rgba(255,255,255,0.07);
+    --bg-input: rgba(255,255,255,0.06);
+    --glass: rgba(255,255,255,0.05);
+    --glass-border: rgba(255,255,255,0.08);
+    --text-primary: #e8eaf0;
+    --text-secondary: rgba(255,255,255,0.55);
+    --text-dim: rgba(255,255,255,0.35);
+    --accent: #38bdf8;
+    --accent-glow: rgba(56,189,248,0.15);
+    --teal: #2dd4bf;
+    --teal-glow: rgba(45,212,191,0.12);
+    --amber: #fbbf24;
+    --amber-soft: rgba(251,191,36,0.15);
+    --green: #4ade80;
+    --green-soft: rgba(74,222,128,0.12);
+    --red: #f87171;
+    --red-soft: rgba(248,113,113,0.12);
+    --purple: #a78bfa;
+    --purple-glow: rgba(167,139,250,0.15);
+    --border: rgba(255,255,255,0.06);
+    --radius: 16px;
+    --radius-sm: 10px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg-deep); color: var(--text-primary);
+    line-height: 1.6; min-height: 100vh;
+  }
+  .bg-glow {
+    position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background:
+      radial-gradient(ellipse 600px 400px at 20% 20%, rgba(56,189,248,0.06), transparent),
+      radial-gradient(ellipse 500px 500px at 80% 80%, rgba(167,139,250,0.04), transparent),
+      radial-gradient(ellipse 400px 300px at 50% 50%, rgba(45,212,191,0.03), transparent);
+  }
+  .app { position: relative; z-index: 1; min-height: 100vh; display: flex; flex-direction: column; }
+
+  /* Top Bar */
+  .top-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 32px; border-bottom: 1px solid var(--border);
+    backdrop-filter: blur(20px); position: sticky; top: 0; z-index: 100;
+    background: rgba(10,14,26,0.85);
+  }
+  .logo { display: flex; align-items: center; gap: 12px; }
+  .logo-icon {
+    width: 36px; height: 36px; border-radius: 10px;
+    background: linear-gradient(135deg, var(--accent), var(--teal));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; font-weight: 700; color: #0a0e1a;
+  }
+  .logo-text { font-size: 18px; font-weight: 600; letter-spacing: -0.3px; }
+  .logo-text span { color: var(--text-dim); font-weight: 400; margin-left: 6px; font-size: 13px; }
+  .live-badge { font-size: 10px; padding: 3px 8px; border-radius: 4px; background: var(--green-soft); color: var(--green); font-weight: 600; letter-spacing: 0.5px; margin-left: 8px; }
+  .top-right { display: flex; align-items: center; gap: 12px; }
+  .api-status { font-size: 12px; color: var(--text-dim); display: flex; align-items: center; gap: 6px; }
+  .api-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .api-dot.connected { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .api-dot.disconnected { background: var(--red); }
+
+  .view-toggle { display: flex; gap: 4px; padding: 4px; background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border); }
+  .view-btn { padding: 8px 20px; border-radius: 9px; border: none; background: transparent; color: var(--text-secondary); font-size: 13px; font-weight: 500; cursor: pointer; transition: 0.3s ease; }
+  .view-btn.active { background: rgba(56,189,248,0.12); color: var(--accent); }
+  .view-btn:hover:not(.active) { color: var(--text-primary); }
+
+  .main-content { flex: 1; padding: 32px; max-width: 1200px; margin: 0 auto; width: 100%; }
+  .screen { display: none; animation: fadeIn 0.4s ease; }
+  .screen.active { display: block; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* API Key Modal */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 500; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(6px); }
+  .modal-overlay.hidden { display: none; }
+  .modal {
+    width: 480px; padding: 36px; background: var(--bg-deep);
+    border: 1px solid var(--glass-border); border-radius: var(--radius);
+    box-shadow: 0 24px 64px rgba(0,0,0,0.5);
+  }
+  .modal h2 { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+  .modal p { color: var(--text-secondary); font-size: 14px; margin-bottom: 20px; }
+  .modal input {
+    width: 100%; padding: 14px 16px; background: var(--bg-input);
+    border: 1px solid var(--border); border-radius: 12px;
+    color: var(--text-primary); font-size: 14px; font-family: monospace;
+    outline: none; margin-bottom: 16px;
+  }
+  .modal input:focus { border-color: var(--accent); }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+  .modal .error { color: var(--red); font-size: 13px; margin-bottom: 12px; display: none; }
+
+  /* Welcome */
+  .welcome { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 70vh; text-align: center; }
+  .welcome-badge { display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 20px; background: var(--green-soft); color: var(--green); font-size: 13px; font-weight: 500; margin-bottom: 24px; }
+  .welcome h1 { font-size: 48px; font-weight: 700; letter-spacing: -1.5px; margin-bottom: 16px; background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent) 50%, var(--teal) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+  .welcome p { color: var(--text-secondary); font-size: 17px; max-width: 540px; margin-bottom: 12px; }
+  .teacher-note { margin: 32px 0; padding: 20px 28px; background: var(--bg-card); border: 1px solid var(--glass-border); border-left: 3px solid var(--accent); border-radius: var(--radius-sm); max-width: 480px; text-align: left; }
+  .teacher-note-header { font-size: 12px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+  .teacher-note-body { color: var(--text-secondary); font-size: 15px; font-style: italic; }
+
+  .btn-primary { padding: 14px 36px; border-radius: 12px; border: none; background: linear-gradient(135deg, var(--accent), var(--teal)); color: #0a0e1a; font-size: 15px; font-weight: 600; cursor: pointer; transition: 0.3s ease; }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(56,189,248,0.25); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+  .btn-secondary { padding: 10px 24px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-secondary); font-size: 13px; font-weight: 500; cursor: pointer; transition: 0.3s ease; }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Student Nav */
+  .student-nav { display: flex; gap: 4px; margin-bottom: 28px; padding: 4px; background: var(--bg-card); border-radius: 12px; border: 1px solid var(--border); width: fit-content; }
+  .student-nav.hidden { display: none; }
+  .snav-btn { padding: 8px 20px; border-radius: 9px; border: none; background: transparent; color: var(--text-secondary); font-size: 13px; font-weight: 500; cursor: pointer; transition: 0.3s ease; }
+  .snav-btn.active { background: var(--accent-glow); color: var(--accent); }
+
+  /* Goal Setting */
+  .goal-container { display: flex; gap: 24px; }
+  .goal-conversation-wrap { flex: 1; max-width: 680px; }
+  .goal-header { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; }
+  .goal-header h2 { font-size: 22px; font-weight: 600; }
+  .goal-steps { display: flex; gap: 8px; }
+  .goal-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--border); transition: 0.3s ease; }
+  .goal-dot.done { background: var(--teal); }
+  .goal-dot.current { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+
+  .conversation { display: flex; flex-direction: column; gap: 16px; max-height: 65vh; overflow-y: auto; padding-right: 8px; }
+
+  .msg { max-width: 88%; padding: 16px 20px; border-radius: 18px; font-size: 15px; line-height: 1.65; animation: msgIn 0.35s ease; }
+  @keyframes msgIn { from { opacity: 0; transform: translateY(12px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+  .msg-ai { align-self: flex-start; background: var(--bg-card); border: 1px solid var(--glass-border); }
+  .msg-ai .msg-label { font-size: 11px; color: var(--accent); font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 8px; }
+  .msg-student { align-self: flex-end; background: linear-gradient(135deg, rgba(56,189,248,0.12), rgba(45,212,191,0.08)); border: 1px solid rgba(56,189,248,0.15); }
+
+  .typing { display: inline-flex; gap: 5px; padding: 16px 24px; background: var(--bg-card); border: 1px solid var(--glass-border); border-radius: 18px; align-self: flex-start; }
+  .typing-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-dim); animation: bounce 1.4s infinite ease-in-out; }
+  .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(-6px)} }
+
+  .goal-input-area { margin-top: 16px; display: flex; gap: 12px; }
+  .goal-input { flex: 1; padding: 14px 16px; border-radius: 14px; background: var(--bg-input); border: 1px solid var(--border); color: var(--text-primary); font-size: 14px; outline: none; transition: 0.3s ease; }
+  .goal-input:focus { border-color: var(--accent); }
+  .goal-input::placeholder { color: var(--text-dim); }
+  .send-btn { padding: 14px 24px; border-radius: 12px; border: none; background: linear-gradient(135deg, var(--accent), var(--teal)); color: #0a0e1a; font-weight: 600; font-size: 13px; cursor: pointer; }
+  .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Plan Builder */
+  .plan-builder {
+    width: 280px; padding: 24px; position: sticky; top: 100px;
+    background: rgba(10,14,26,0.92); backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border); border-radius: var(--radius);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3); transition: 0.5s ease;
+    align-self: flex-start;
+  }
+  .plan-builder h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-dim); margin-bottom: 16px; }
+  .plan-field { margin-bottom: 14px; }
+  .plan-field-label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 4px; }
+  .plan-field-value { font-size: 14px; color: var(--text-primary); min-height: 20px; }
+  .plan-field-value.empty { color: var(--text-dim); font-style: italic; font-size: 13px; }
+  .plan-field-value.filled { animation: fillIn 0.5s ease; }
+  @keyframes fillIn { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; transform: translateX(0); } }
+
+  /* Workspace */
+  .workspace { display: grid; grid-template-columns: 300px 1fr; gap: 24px; min-height: 75vh; }
+  .workspace-sidebar { display: flex; flex-direction: column; gap: 16px; }
+  .plan-card { padding: 24px; background: var(--bg-card); border: 1px solid var(--glass-border); border-radius: var(--radius); }
+  .plan-card h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: var(--teal); margin-bottom: 16px; }
+  .plan-item { margin-bottom: 12px; }
+  .plan-item-label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
+  .plan-item-value { font-size: 14px; color: var(--text-primary); margin-top: 2px; }
+
+  .workspace-chat { display: flex; flex-direction: column; background: var(--bg-card); border: 1px solid var(--glass-border); border-radius: var(--radius); overflow: hidden; }
+  .chat-header { padding: 16px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .chat-header h3 { font-size: 14px; font-weight: 500; }
+  .session-badge { font-size: 11px; padding: 4px 10px; border-radius: 6px; background: var(--accent-glow); color: var(--accent); }
+
+  .chat-messages { flex: 1; padding: 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; max-height: 520px; }
+  .chat-msg { max-width: 80%; font-size: 14px; line-height: 1.6; }
+  .chat-msg-ai { align-self: flex-start; padding: 14px 18px; background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 16px 16px 16px 4px; }
+  .chat-msg-student { align-self: flex-end; padding: 14px 18px; background: linear-gradient(135deg, rgba(56,189,248,0.1), rgba(45,212,191,0.06)); border: 1px solid rgba(56,189,248,0.1); border-radius: 16px 16px 4px 16px; }
+  .chat-msg-checkin { align-self: center; text-align: center; padding: 12px 20px; border-radius: 12px; background: var(--amber-soft); border: 1px solid rgba(251,191,36,0.15); color: var(--amber); font-size: 13px; max-width: 90%; }
+
+  .chat-input-area { padding: 16px 24px; border-top: 1px solid var(--border); display: flex; gap: 12px; }
+  .chat-input { flex: 1; padding: 12px 16px; border-radius: 12px; background: var(--bg-input); border: 1px solid var(--border); color: var(--text-primary); font-size: 14px; outline: none; }
+  .chat-input:focus { border-color: var(--accent); }
+  .chat-input::placeholder { color: var(--text-dim); }
+  .chat-send { padding: 12px 20px; border-radius: 12px; border: none; background: linear-gradient(135deg, var(--accent), var(--teal)); color: #0a0e1a; font-weight: 600; font-size: 13px; cursor: pointer; }
+  .chat-send:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Teacher Dashboard */
+  .teacher-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; }
+  .teacher-header h2 { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
+  .teacher-summary { display: flex; gap: 24px; margin-bottom: 32px; }
+  .summary-stat { display: flex; align-items: center; gap: 10px; padding: 14px 20px; background: var(--bg-card); border: 1px solid var(--glass-border); border-radius: var(--radius-sm); font-size: 13px; }
+  .summary-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .summary-dot.green { background: var(--green); }
+  .summary-dot.amber { background: var(--amber); }
+  .summary-dot.purple { background: var(--purple); }
+  .summary-count { font-weight: 700; color: var(--text-primary); }
+
+  .filter-bar { display: flex; gap: 8px; margin-bottom: 24px; }
+  .filter-btn { padding: 8px 16px; border-radius: 8px; border: 1px solid var(--border); background: transparent; color: var(--text-secondary); font-size: 13px; cursor: pointer; transition: 0.3s ease; }
+  .filter-btn.active { background: var(--accent-glow); border-color: var(--accent); color: var(--accent); }
+
+  .student-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
+  .student-card { padding: 20px; background: var(--bg-card); border: 1px solid var(--glass-border); border-radius: var(--radius); cursor: pointer; transition: 0.3s ease; }
+  .student-card:hover { border-color: rgba(255,255,255,0.12); transform: translateY(-2px); box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+  .student-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .student-name { font-size: 16px; font-weight: 600; }
+  .status-dot { width: 10px; height: 10px; border-radius: 50%; animation: pulse 2.5s ease infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+  .status-green { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .status-amber { background: var(--amber); box-shadow: 0 0 6px var(--amber); }
+  .status-purple { background: var(--purple); box-shadow: 0 0 6px var(--purple); }
+  .student-project { font-size: 13px; color: var(--text-secondary); margin-bottom: 10px; }
+  .student-meta { display: flex; gap: 16px; font-size: 12px; color: var(--text-dim); }
+  .student-progress { margin-top: 12px; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+  .student-progress-bar { height: 100%; border-radius: 2px; transition: width 0.6s ease; }
+
+  /* Detail Panel */
+  .detail-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; display: none; }
+  .detail-overlay.active { display: block; }
+  .detail-panel { position: fixed; top: 0; right: 0; bottom: 0; width: 560px; background: var(--bg-deep); border-left: 1px solid var(--border); z-index: 201; overflow-y: auto; padding: 32px; transform: translateX(100%); transition: transform 0.35s cubic-bezier(0.4,0,0.2,1); }
+  .detail-panel.active { transform: translateX(0); }
+  .detail-close { position: absolute; top: 20px; right: 20px; width: 36px; height: 36px; border-radius: 10px; background: var(--bg-card); border: 1px solid var(--border); color: var(--text-secondary); font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  .detail-header { margin-bottom: 24px; }
+  .detail-header h2 { font-size: 24px; font-weight: 700; margin-bottom: 4px; }
+  .detail-header p { color: var(--text-secondary); font-size: 14px; }
+  .detail-status { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 500; margin-bottom: 24px; }
+  .detail-status.on-track { background: var(--green-soft); color: var(--green); }
+  .detail-status.needs-checkin { background: var(--amber-soft); color: var(--amber); }
+  .detail-status.exceptional { background: var(--purple-glow); color: var(--purple); }
+
+  .digest-card { padding: 24px; background: var(--bg-card); border: 1px solid var(--glass-border); border-radius: var(--radius); margin-bottom: 20px; }
+  .digest-card h4 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-dim); margin-bottom: 12px; }
+  .digest-body { font-size: 14px; line-height: 1.7; color: var(--text-secondary); }
+  .digest-body strong { color: var(--text-primary); font-weight: 500; }
+
+  .skill-assessment { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
+  .skill-item { padding: 14px; background: rgba(255,255,255,0.02); border-radius: var(--radius-sm); border: 1px solid var(--border); }
+  .skill-item-name { font-size: 12px; color: var(--text-dim); margin-bottom: 6px; }
+  .skill-bar { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .skill-bar-fill { height: 100%; border-radius: 3px; }
+  .skill-label { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+
+  .session-mini { padding: 16px; margin-bottom: 8px; background: rgba(255,255,255,0.02); border-radius: var(--radius-sm); border: 1px solid var(--border); }
+  .session-mini-header { display: flex; justify-content: space-between; margin-bottom: 6px; }
+  .session-mini-date { font-size: 12px; color: var(--text-dim); }
+  .session-mini p { font-size: 13px; color: var(--text-secondary); line-height: 1.55; }
+
+  .teacher-actions { display: flex; gap: 10px; margin-top: 24px; }
+  .action-btn { flex: 1; padding: 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-card); color: var(--text-secondary); font-size: 13px; font-weight: 500; cursor: pointer; transition: 0.3s ease; text-align: center; }
+  .action-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .action-btn.primary-action { background: linear-gradient(135deg, rgba(56,189,248,0.12), rgba(45,212,191,0.08)); border-color: rgba(56,189,248,0.2); color: var(--accent); }
+
+  .generating { display: flex; align-items: center; gap: 10px; padding: 16px; color: var(--accent); font-size: 13px; }
+  .generating .spinner { width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Wrap-up Modal */
+  .wrapup-overlay { position: fixed; inset: 0; background: rgba(10,14,26,0.92); z-index: 300; display: none; align-items: center; justify-content: center; backdrop-filter: blur(8px); }
+  .wrapup-overlay.active { display: flex; }
+  .wrapup-card { width: 520px; padding: 36px; background: var(--bg-deep); border: 1px solid var(--glass-border); border-radius: var(--radius); animation: fadeIn 0.4s ease; }
+  .wrapup-card h2 { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+  .wrapup-card > p { color: var(--text-secondary); font-size: 14px; margin-bottom: 24px; }
+  .wrapup-field { margin-bottom: 20px; }
+  .wrapup-field label { display: block; font-size: 13px; color: var(--text-dim); margin-bottom: 8px; font-weight: 500; }
+  .wrapup-field textarea { width: 100%; min-height: 70px; padding: 14px 16px; background: var(--bg-input); border: 1px solid var(--border); border-radius: 12px; color: var(--text-primary); font-size: 14px; font-family: inherit; resize: vertical; outline: none; }
+  .wrapup-field textarea:focus { border-color: var(--accent); }
+  .wrapup-field textarea::placeholder { color: var(--text-dim); }
+
+  @media (max-width: 900px) {
+    .workspace { grid-template-columns: 1fr; }
+    .goal-container { flex-direction: column-reverse; }
+    .plan-builder { width: 100%; position: static; }
+    .detail-panel { width: 100%; }
+  }
+</style>
+</head>
+<body>
+<div class="bg-glow"></div>
+<div class="app">
+
+  <!-- API Key Modal -->
+  <div class="modal-overlay" id="api-modal">
+    <div class="modal">
+      <h2>Connect to AI</h2>
+      <p>Enter your Anthropic API key to power the AI mentor. The key stays in your browser and is only sent to the Anthropic API via the local server.</p>
+      <input type="password" id="api-key-input" placeholder="sk-ant-..." autocomplete="off">
+      <div class="error" id="api-error"></div>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="skipApiKey()">Use Demo Mode</button>
+        <button class="btn-primary" style="margin-top:0; padding:12px 28px;" onclick="connectApiKey()">Connect</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Top Bar -->
+  <div class="top-bar">
+    <div class="logo">
+      <div class="logo-icon">OT</div>
+      <div class="logo-text">Own Time <span>by StudioLoom</span></div>
+      <div class="live-badge" id="mode-badge">LIVE AI</div>
+    </div>
+    <div class="top-right">
+      <div class="api-status">
+        <div class="api-dot disconnected" id="api-dot"></div>
+        <span id="api-label">Not connected</span>
+      </div>
+      <div class="view-toggle">
+        <button class="view-btn active" onclick="switchView('student', this)">Student</button>
+        <button class="view-btn" onclick="switchView('teacher', this)">Teacher</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="main-content">
+
+    <!-- ===== STUDENT ===== -->
+    <div id="student-views">
+      <div class="student-nav hidden" id="student-nav">
+        <button class="snav-btn active" onclick="showStudentScreen('workspace', this)">Workspace</button>
+        <button class="snav-btn" onclick="showStudentScreen('journey', this)">My Journey</button>
+      </div>
+
+      <!-- Welcome -->
+      <div class="screen active" id="screen-welcome">
+        <div class="welcome">
+          <div class="welcome-badge">
+            <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/></svg>
+            Approved by Ms. Burton
+          </div>
+          <h1>Your Own Time</h1>
+          <p>You've demonstrated mastery of the Sustainable Product Design unit. This time is yours — explore what interests you, with a mentor to help you grow.</p>
+          <p style="font-size:14px; color:var(--text-dim);">No grades. No worksheets. Just genuine learning on your terms.</p>
+          <div class="teacher-note">
+            <div class="teacher-note-header">Note from Ms. Burton</div>
+            <div class="teacher-note-body">"Strong work on Criterion B research, Alex — your source analysis was really thorough. You've earned full autonomy here. If you're stuck for ideas, think about what frustrated you during the ergonomics unit."</div>
+          </div>
+          <button class="btn-primary" onclick="startGoals()">Begin My Journey</button>
+        </div>
+      </div>
+
+      <!-- Goal Setting -->
+      <div class="screen" id="screen-goals">
+        <div class="goal-container">
+          <div class="goal-conversation-wrap">
+            <div class="goal-header">
+              <div>
+                <h2>Setting Your Direction</h2>
+                <p style="font-size:13px; color:var(--text-secondary); margin-top:4px;">A conversation with your mentor to shape your plan</p>
+              </div>
+              <div class="goal-steps" id="goal-dots"></div>
+            </div>
+            <div class="conversation" id="goal-conv"></div>
+            <div class="goal-input-area">
+              <input class="goal-input" id="goal-input" placeholder="Share what's on your mind..." onkeydown="if(event.key==='Enter'&&!event.shiftKey)sendGoalMsg()">
+              <button class="send-btn" id="goal-send" onclick="sendGoalMsg()">Send</button>
+            </div>
+          </div>
+          <div class="plan-builder" id="plan-builder">
+            <h3>Your Plan</h3>
+            <div class="plan-field"><div class="plan-field-label">Project</div><div class="plan-field-value empty" id="pf-project">Forming...</div></div>
+            <div class="plan-field"><div class="plan-field-label">Deliverables</div><div class="plan-field-value empty" id="pf-deliverables">Forming...</div></div>
+            <div class="plan-field"><div class="plan-field-label">Skill Focus</div><div class="plan-field-value empty" id="pf-skill">Forming...</div></div>
+            <div class="plan-field"><div class="plan-field-label">Timeline</div><div class="plan-field-value empty" id="pf-timeline">Forming...</div></div>
+            <div class="plan-field"><div class="plan-field-label">Success Looks Like</div><div class="plan-field-value empty" id="pf-success">Forming...</div></div>
+            <button class="btn-primary" id="plan-ready-btn" style="width:100%;margin-top:16px;display:none;" onclick="enterWorkspace()">Start Working</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Workspace -->
+      <div class="screen" id="screen-workspace">
+        <div class="workspace">
+          <div class="workspace-sidebar">
+            <div class="plan-card">
+              <h3>My Plan</h3>
+              <div class="plan-item"><div class="plan-item-label">Project</div><div class="plan-item-value" id="ws-project">—</div></div>
+              <div class="plan-item"><div class="plan-item-label">Deliverables</div><div class="plan-item-value" id="ws-deliverables">—</div></div>
+              <div class="plan-item"><div class="plan-item-label">Skill Focus</div><div class="plan-item-value" id="ws-skill">—</div></div>
+              <div class="plan-item"><div class="plan-item-label">Timeline</div><div class="plan-item-value" id="ws-timeline">—</div></div>
+            </div>
+            <button class="btn-secondary" onclick="showWrapup()" style="width:100%;">Wrap Up Session</button>
+          </div>
+          <div class="workspace-chat">
+            <div class="chat-header">
+              <h3>Session 1</h3>
+              <div class="session-badge">In Progress</div>
+            </div>
+            <div class="chat-messages" id="ws-messages"></div>
+            <div class="chat-input-area">
+              <input class="chat-input" id="ws-input" placeholder="Share what you're thinking or working on..." onkeydown="if(event.key==='Enter'&&!event.shiftKey)sendWorkspaceMsg()">
+              <button class="chat-send" id="ws-send" onclick="sendWorkspaceMsg()">Send</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Journey (placeholder — populated after real use) -->
+      <div class="screen" id="screen-journey">
+        <div style="text-align:center; padding:80px 0; color:var(--text-dim);">
+          <h2 style="font-size:28px; font-weight:700; color:var(--text-primary); margin-bottom:12px;">My Journey</h2>
+          <p>Your learning timeline will build here as you complete sessions.<br>Each session's reflections, insights, and growth become part of your story.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== TEACHER ===== -->
+    <div id="teacher-views" style="display:none;">
+      <div class="screen active" id="screen-pulse">
+        <div class="teacher-header">
+          <div>
+            <h2>Own Time — 9D Design</h2>
+            <p style="color:var(--text-secondary); font-size:14px; margin-top:4px;">8 of 24 students currently in Own Time</p>
+          </div>
+        </div>
+        <div class="teacher-summary">
+          <div class="summary-stat"><div class="summary-dot green"></div><span><span class="summary-count">5</span> On Track</span></div>
+          <div class="summary-stat"><div class="summary-dot amber"></div><span><span class="summary-count">2</span> Needs Check-in</span></div>
+          <div class="summary-stat"><div class="summary-dot purple"></div><span><span class="summary-count">1</span> Exceptional</span></div>
+        </div>
+        <div class="filter-bar">
+          <button class="filter-btn active" onclick="filterStudents('all',this)">All (8)</button>
+          <button class="filter-btn" onclick="filterStudents('on-track',this)">On Track</button>
+          <button class="filter-btn" onclick="filterStudents('needs-checkin',this)">Needs Check-in</button>
+          <button class="filter-btn" onclick="filterStudents('exceptional',this)">Exceptional</button>
+        </div>
+        <div class="student-grid" id="student-grid"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Detail Panel -->
+<div class="detail-overlay" id="detail-overlay" onclick="closeDetail()"></div>
+<div class="detail-panel" id="detail-panel">
+  <button class="detail-close" onclick="closeDetail()">&times;</button>
+  <div id="detail-content"></div>
+</div>
+
+<!-- Wrap-up Modal -->
+<div class="wrapup-overlay" id="wrapup-overlay">
+  <div class="wrapup-card">
+    <h2>Wrapping Up This Session</h2>
+    <p>Quick reflection before you go — this helps you pick up where you left off.</p>
+    <div class="wrapup-field"><label>What did you accomplish today?</label><textarea id="wu-accomplished" placeholder="I worked on..."></textarea></div>
+    <div class="wrapup-field"><label>What's your plan for next session?</label><textarea id="wu-next" placeholder="Next time I want to..."></textarea></div>
+    <div class="wrapup-field"><label>Anything you're stuck on?</label><textarea id="wu-stuck" placeholder="I'm wondering about... (or leave blank)"></textarea></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px;">
+      <button class="btn-secondary" onclick="hideWrapup()">Not yet</button>
+      <button class="btn-primary" style="margin-top:0;" onclick="submitWrapup()">Save & Finish</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════
+let apiKey = '';
+let isLive = false;
+let plan = { project: '', deliverables: '', skill: '', timeline: '', success: '' };
+let goalMessages = []; // Anthropic format {role, content}
+let goalStep = 1;
+let workspaceMessages = []; // Anthropic format
+let sending = false;
+
+// Demo fallback responses
+const demoGoalResponses = [
+  `Hey Alex! You've earned your Own Time — nice work on that sustainable design unit. Before we plan anything, I'm curious: what's been bouncing around in your head lately? Could be something from the unit that got you thinking, or something completely different.\n\n<!--PLAN:{"step":1,"updates":{}}-->`,
+  `School bags — I get it, mine used to dig into my shoulders too. Let's dig into this: what specifically bugs you about current bags? Is it the straps, the weight distribution, the layout, the look? And when you picture redesigning one, what does that actually mean to you — sketches, a digital model, or building something physical?\n\n<!--PLAN:{"step":2,"updates":{"project":"School bag redesign (exploring...)"}}-->`,
+  `Building a real prototype — I like the ambition. Let's be honest about time though. You've got about 4 sessions, roughly 3.5 hours of actual work. A full bag would take weeks. But what if you focused on the strap system? Research what makes straps ergonomic, sketch 3 different concepts, then build and test ONE prototype of your best design. You'd end up with something real.\n\n<!--PLAN:{"step":3,"updates":{"project":"Ergonomic school bag strap redesign","deliverables":"Research notes, 3 concept sketches, 1 strap prototype","timeline":"4 sessions (~3.5 hrs)"}}-->`,
+  `Good — that's focused with a real output. Now here's the question that helps me mentor you well: beyond the strap itself, what SKILL do you want to develop? Research methods? Sketching technique? Material testing? Understanding ergonomics? This isn't graded — it's about your growth.\n\n<!--PLAN:{"step":4,"updates":{}}-->`,
+  `Here's your plan: research ergonomic straps, sketch 3 concepts, build and test your best one. Your skill focus is material testing, and you'll know you've succeeded when you can justify your material choices with real evidence from testing.\n\nThis is achievable and you'll learn something genuinely useful. I'll be here whenever you need to think through a problem. Ready to start?\n\n<!--PLAN:{"step":5,"updates":{"skill":"Material testing & prototyping","success":"I can test materials systematically and justify choices with evidence"}}-->`
+];
+let demoGoalIndex = 0;
+const demoMentorResponses = [
+  "That's a good starting point. What specifically made you think of that approach? I'm curious what's driving that instinct.",
+  "Interesting direction. Before you commit to that, what's ONE thing that could go wrong? Not to discourage you — to strengthen the idea.",
+  "I like where you're going with this. Try sketching it quickly — even rough. A drawing will help you see whether the mechanism makes sense physically.",
+  "Good thinking about the materials. How would you actually test which one is better? What would you measure, and how would you compare them fairly?",
+  "That's the kind of insight that comes from really looking at how people use things. Can you describe what you observed in more detail?",
+  "You're making real progress. What would someone who disagrees with your approach say? That'll help you anticipate weaknesses before prototyping.",
+];
+let demoMentorIndex = 0;
+
+
+// ═══════════════════════════════════════════════════════
+// API KEY & CONNECTION
+// ═══════════════════════════════════════════════════════
+function connectApiKey() {
+  const key = document.getElementById('api-key-input').value.trim();
+  if (!key.startsWith('sk-ant-')) {
+    const err = document.getElementById('api-error');
+    err.textContent = 'API key should start with sk-ant-...';
+    err.style.display = 'block';
+    return;
+  }
+  apiKey = key;
+  isLive = true;
+  document.getElementById('api-modal').classList.add('hidden');
+  document.getElementById('api-dot').className = 'api-dot connected';
+  document.getElementById('api-label').textContent = 'Live AI';
+  document.getElementById('mode-badge').textContent = 'LIVE AI';
+  document.getElementById('mode-badge').style.background = 'var(--green-soft)';
+  document.getElementById('mode-badge').style.color = 'var(--green)';
+}
+
+function skipApiKey() {
+  isLive = false;
+  document.getElementById('api-modal').classList.add('hidden');
+  document.getElementById('api-dot').className = 'api-dot disconnected';
+  document.getElementById('api-label').textContent = 'Demo mode';
+  document.getElementById('mode-badge').textContent = 'DEMO';
+  document.getElementById('mode-badge').style.background = 'var(--amber-soft)';
+  document.getElementById('mode-badge').style.color = 'var(--amber)';
+}
+
+async function apiCall(endpoint, body) {
+  body.apiKey = apiKey;
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.error || 'API call failed');
+  }
+  return res.json();
+}
+
+
+// ═══════════════════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════════════════
+function switchView(view, btn) {
+  document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('student-views').style.display = view === 'student' ? 'block' : 'none';
+  document.getElementById('teacher-views').style.display = view === 'teacher' ? 'block' : 'none';
+  if (view === 'teacher') renderTeacherGrid();
+}
+
+function showStudentScreen(screen, btn) {
+  document.querySelectorAll('.snav-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  ['workspace', 'journey'].forEach(s => {
+    document.getElementById('screen-' + s).classList.toggle('active', s === screen);
+  });
+}
+
+
+// ═══════════════════════════════════════════════════════
+// GOAL SETTING
+// ═══════════════════════════════════════════════════════
+function startGoals() {
+  document.getElementById('screen-welcome').classList.remove('active');
+  document.getElementById('screen-goals').classList.add('active');
+  updateGoalDots();
+  requestGoalResponse(); // AI sends first message
+}
+
+function updateGoalDots() {
+  const container = document.getElementById('goal-dots');
+  container.innerHTML = '';
+  for (let i = 1; i <= 5; i++) {
+    const dot = document.createElement('div');
+    dot.className = 'goal-dot' + (i < goalStep ? ' done' : i === goalStep ? ' current' : '');
+    container.appendChild(dot);
+  }
+}
+
+function addGoalMsg(role, text) {
+  const conv = document.getElementById('goal-conv');
+  const div = document.createElement('div');
+  if (role === 'ai') {
+    div.className = 'msg msg-ai';
+    div.innerHTML = `<div class="msg-label">Own Time Mentor</div>${text}`;
+  } else {
+    div.className = 'msg msg-student';
+    div.textContent = text;
+  }
+  conv.appendChild(div);
+  conv.scrollTop = conv.scrollHeight;
+}
+
+function showGoalTyping() {
+  const conv = document.getElementById('goal-conv');
+  const t = document.createElement('div');
+  t.className = 'typing';
+  t.id = 'goal-typing';
+  t.innerHTML = '<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>';
+  conv.appendChild(t);
+  conv.scrollTop = conv.scrollHeight;
+}
+
+function hideGoalTyping() {
+  const t = document.getElementById('goal-typing');
+  if (t) t.remove();
+}
+
+function updatePlanFromResponse(planData) {
+  if (!planData) return;
+  if (planData.step) {
+    goalStep = planData.step;
+    updateGoalDots();
+  }
+  if (planData.updates) {
+    Object.entries(planData.updates).forEach(([key, value]) => {
+      if (value) {
+        plan[key] = value;
+        const el = document.getElementById('pf-' + key);
+        if (el) {
+          el.textContent = value;
+          el.className = 'plan-field-value filled';
+        }
+      }
+    });
+  }
+  // Show "Start Working" button when plan is complete (step 5)
+  if (planData.step >= 5) {
+    document.getElementById('plan-ready-btn').style.display = 'block';
+  }
+}
+
+async function requestGoalResponse() {
+  sending = true;
+  document.getElementById('goal-send').disabled = true;
+  showGoalTyping();
+
+  try {
+    if (isLive) {
+      const result = await apiCall('/api/goal-setting', {
+        messages: goalMessages,
+        studentName: 'Alex',
+        availableSessions: 4
+      });
+      hideGoalTyping();
+      addGoalMsg('ai', result.message);
+      goalMessages.push({ role: 'assistant', content: result.message });
+      updatePlanFromResponse(result.plan);
+    } else {
+      // Demo mode
+      await new Promise(r => setTimeout(r, 1000 + Math.random() * 800));
+      hideGoalTyping();
+      const raw = demoGoalResponses[demoGoalIndex % demoGoalResponses.length];
+      demoGoalIndex++;
+
+      // Parse plan data
+      const planMatch = raw.match(/<!--PLAN:(.*?)-->/s);
+      let cleanMsg = raw.replace(/<!--PLAN:.*?-->/s, '').trim();
+      addGoalMsg('ai', cleanMsg);
+      goalMessages.push({ role: 'assistant', content: cleanMsg });
+
+      if (planMatch) {
+        try { updatePlanFromResponse(JSON.parse(planMatch[1])); } catch(e) {}
+      }
+    }
+  } catch (err) {
+    hideGoalTyping();
+    addGoalMsg('ai', `<span style="color:var(--red)">Connection error: ${err.message}. Try again.</span>`);
+  }
+
+  sending = false;
+  document.getElementById('goal-send').disabled = false;
+  document.getElementById('goal-input').focus();
+}
+
+function sendGoalMsg() {
+  if (sending) return;
+  const input = document.getElementById('goal-input');
+  const text = input.value.trim();
+  if (!text) return;
+
+  addGoalMsg('student', text);
+  goalMessages.push({ role: 'user', content: text });
+  input.value = '';
+
+  requestGoalResponse();
+}
+
+
+// ═══════════════════════════════════════════════════════
+// WORKSPACE
+// ═══════════════════════════════════════════════════════
+function enterWorkspace() {
+  document.getElementById('screen-goals').classList.remove('active');
+  document.getElementById('screen-workspace').classList.add('active');
+  document.getElementById('student-nav').classList.remove('hidden');
+
+  // Populate plan in sidebar
+  document.getElementById('ws-project').textContent = plan.project || '—';
+  document.getElementById('ws-deliverables').textContent = plan.deliverables || '—';
+  document.getElementById('ws-skill').textContent = plan.skill || '—';
+  document.getElementById('ws-timeline').textContent = plan.timeline || '—';
+
+  // Send initial check-in
+  requestCheckIn();
+}
+
+async function requestCheckIn() {
+  const msgs = document.getElementById('ws-messages');
+  const checkin = document.createElement('div');
+
+  if (isLive) {
+    checkin.className = 'chat-msg chat-msg-checkin';
+    checkin.innerHTML = '<div class="generating"><div class="spinner"></div> Preparing your session...</div>';
+    msgs.appendChild(checkin);
+
+    try {
+      const result = await apiCall('/api/check-in', {
+        plan,
+        sessionFocus: 'Getting started on your project',
+        previousSummary: null
+      });
+      checkin.textContent = result.message;
+      workspaceMessages.push({ role: 'assistant', content: result.message });
+    } catch (err) {
+      checkin.textContent = `Welcome to your first session! You've got your plan — what would you like to start with?`;
+      workspaceMessages.push({ role: 'assistant', content: checkin.textContent });
+    }
+  } else {
+    checkin.className = 'chat-msg chat-msg-checkin';
+    checkin.textContent = `Welcome to your first Own Time session, Alex! You've got a solid plan: ${plan.project || 'your project'}. Where would you like to start? Research, sketching, or something else?`;
+    msgs.appendChild(checkin);
+    workspaceMessages.push({ role: 'assistant', content: checkin.textContent });
+  }
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function addWsMsg(role, text) {
+  const msgs = document.getElementById('ws-messages');
+  const div = document.createElement('div');
+  div.className = role === 'ai' ? 'chat-msg chat-msg-ai' : 'chat-msg chat-msg-student';
+  div.textContent = text;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function showWsTyping() {
+  const msgs = document.getElementById('ws-messages');
+  const t = document.createElement('div');
+  t.className = 'typing';
+  t.id = 'ws-typing';
+  t.style.alignSelf = 'flex-start';
+  t.innerHTML = '<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>';
+  msgs.appendChild(t);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function hideWsTyping() {
+  const t = document.getElementById('ws-typing');
+  if (t) t.remove();
+}
+
+async function sendWorkspaceMsg() {
+  if (sending) return;
+  const input = document.getElementById('ws-input');
+  const text = input.value.trim();
+  if (!text) return;
+
+  sending = true;
+  document.getElementById('ws-send').disabled = true;
+  addWsMsg('student', text);
+  workspaceMessages.push({ role: 'user', content: text });
+  input.value = '';
+  showWsTyping();
+
+  try {
+    if (isLive) {
+      const result = await apiCall('/api/mentor', {
+        messages: workspaceMessages,
+        plan,
+        sessionNumber: 1,
+        sessionFocus: 'Getting started'
+      });
+      hideWsTyping();
+      addWsMsg('ai', result.message);
+      workspaceMessages.push({ role: 'assistant', content: result.message });
+    } else {
+      await new Promise(r => setTimeout(r, 800 + Math.random() * 600));
+      hideWsTyping();
+      const resp = demoMentorResponses[demoMentorIndex % demoMentorResponses.length];
+      demoMentorIndex++;
+      addWsMsg('ai', resp);
+      workspaceMessages.push({ role: 'assistant', content: resp });
+    }
+  } catch (err) {
+    hideWsTyping();
+    addWsMsg('ai', `Connection issue — try again. (${err.message})`);
+  }
+
+  sending = false;
+  document.getElementById('ws-send').disabled = false;
+  document.getElementById('ws-input').focus();
+}
+
+// Wrap-up
+function showWrapup() { document.getElementById('wrapup-overlay').classList.add('active'); }
+function hideWrapup() { document.getElementById('wrapup-overlay').classList.remove('active'); }
+function submitWrapup() {
+  const accomplished = document.getElementById('wu-accomplished').value;
+  const next = document.getElementById('wu-next').value;
+  hideWrapup();
+  if (accomplished) {
+    addWsMsg('student', `Session reflection: ${accomplished}${next ? ' Next time: ' + next : ''}`);
+    workspaceMessages.push({ role: 'user', content: `Session reflection: ${accomplished}. Next session plan: ${next}` });
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════
+// TEACHER DASHBOARD
+// ═══════════════════════════════════════════════════════
+const teacherStudents = [
+  { id:'alex', name:'Alex K.', project:'Ergonomic school bag strap redesign', sessions:'3/4', status:'on-track', progress:75, lastActive:'Today',
+    conversations: [
+      { messages: [
+        {role:'assistant',content:'Welcome back! Last session you found that hiking backpack article. Ready to start sketching?'},
+        {role:'user',content:'Yeah but my sketches always look bad'},
+        {role:'assistant',content:'Product sketches aren\'t about looking good — they\'re thinking tools. Start rough. Where does the strap connect? How does it sit on the shoulder?'},
+        {role:'user',content:'I drew one with a wider padded section on the shoulder that narrows at the connection. Like hiking packs but thinner.'},
+        {role:'assistant',content:'Smart — widening distributes force. But you said "like hiking packs but thinner." What makes school bags different from hiking packs in how people actually wear them?'},
+        {role:'user',content:'You take school bags on and off constantly. And everyone uses one shoulder even though you\'re not supposed to.'},
+        {role:'assistant',content:'That\'s a real insight. What if your strap design specifically addressed one-shoulder carrying? Not preventing it, but making it less damaging?'},
+        {role:'user',content:'What if the strap could slide to centre when you go one-shoulder? So the weight isn\'t all on the edge.'},
+        {role:'assistant',content:'That\'s your strongest idea — a strap that adapts to how students actually carry bags. Sketch that mechanism in both positions.'}
+      ], reflection: 'The sliding strap idea came from thinking about real behaviour. My first sketches were boring copies.' }
+    ]
+  },
+  { id:'maya', name:'Maya L.', project:'Wearable tech concept for runners', sessions:'4/4', status:'exceptional', progress:100, lastActive:'Today',
+    conversations: [{ messages: [
+      {role:'user',content:'I interviewed 5 runners from the school running club about hydration'},
+      {role:'assistant',content:'That\'s great initiative. What was the most surprising thing they told you?'},
+      {role:'user',content:'Most of them said they know they should drink more but forget during runs. The problem isn\'t access to water, it\'s remembering.'},
+      {role:'assistant',content:'Interesting — so the design problem shifted from "carry water" to "remind to hydrate." How does that change what you\'re designing?'},
+      {role:'user',content:'I\'m pivoting from a smart water bottle to a wristband that tracks hydration and gives gentle vibration reminders based on heart rate and temperature.'},
+    ], reflection: 'The user research completely changed my direction. I\'m glad I talked to real people first.' }]
+  },
+  { id:'jayden', name:'Jayden R.', project:'Gaming controller for accessibility', sessions:'2/4', status:'needs-checkin', progress:40, lastActive:'3 days ago',
+    conversations: [{ messages: [
+      {role:'assistant',content:'How\'s the accessible controller research going?'},
+      {role:'user',content:'fine'},
+      {role:'assistant',content:'What did you find? Anything surprising about how one-handed gamers currently play?'},
+      {role:'user',content:'looked at xbox adaptive controller. its cool'},
+    ], reflection: 'Didn\'t feel like it today.' }]
+  },
+  { id:'priya', name:'Priya M.', project:'Sustainable packaging alternatives', sessions:'2/4', status:'on-track', progress:50, lastActive:'Yesterday',
+    conversations: [{ messages: [
+      {role:'user',content:'I found this amazing research on mycelium-based packaging. It can replace styrofoam and it\'s completely biodegradable.'},
+      {role:'assistant',content:'Mycelium packaging is fascinating. Before you go deeper — you\'ve been researching for two full sessions now. Do you have enough to start sketching a concept?'},
+      {role:'user',content:'I want to read one more paper about the growth conditions...'},
+    ], reflection: 'So much to learn about mycelium. Need to keep researching.' }]
+  },
+  { id:'sofia', name:'Sofia C.', project:'Accessible kitchen tools for elderly', sessions:'3/4', status:'on-track', progress:75, lastActive:'Today',
+    conversations: [{ messages: [
+      {role:'user',content:'I observed my grandmother in the kitchen for 30 minutes. She struggled with 12 different things.'},
+      {role:'assistant',content:'12 pain points from 30 minutes of observation — that\'s thorough. What were the top 3 that seemed most frustrating for her?'},
+      {role:'user',content:'Opening jars, reaching high shelves, and reading small text on packaging. The jar one made her really angry.'},
+    ], reflection: 'Watching grandma struggle made this feel important, not just a school project.' }]
+  },
+  { id:'ethan', name:'Ethan B.', project:'3D printed prosthetic finger', sessions:'1/4', status:'on-track', progress:25, lastActive:'Mon 17 Mar',
+    conversations: [{ messages: [
+      {role:'user',content:'Found e-NABLE open source prosthetic designs. The hinge mechanism is the key part.'},
+      {role:'assistant',content:'Good find. What\'s realistic to achieve in 4 sessions — the full prosthetic or just the hinge mechanism?'},
+      {role:'user',content:'Just the hinge. I want to understand how it flexes and grips.'},
+    ] }]
+  },
+  { id:'lily', name:'Lily T.', project:'Eco-friendly phone case', sessions:'2/4', status:'needs-checkin', progress:35, lastActive:'2 days ago',
+    conversations: [{ messages: [
+      {role:'user',content:'looking at phone cases online for inspiration'},
+      {role:'assistant',content:'What specifically are you looking for? Materials? Form? Aesthetics?'},
+      {role:'user',content:'just seeing whats out there'},
+    ], reflection: 'Browsed some designs.' }]
+  },
+  { id:'tom', name:'Tom W.', project:'Flat-pack furniture for dorm rooms', sessions:'2/4', status:'on-track', progress:50, lastActive:'Yesterday',
+    conversations: [{ messages: [
+      {role:'user',content:'I measured my brother\'s car boot. The shelf needs to pack down to 80cm x 50cm x 15cm to fit.'},
+      {role:'assistant',content:'Starting with the constraint — smart. Now what kind of joints let something fold that flat and still hold weight?'},
+      {role:'user',content:'I\'m thinking interlocking slots, no screws. Like how IKEA does their shelf units but simpler.'},
+    ], reflection: 'Constraints-first approach is working well. Joint design is the hard part.' }]
+  }
+];
+
+function renderTeacherGrid(filter = 'all') {
+  const grid = document.getElementById('student-grid');
+  grid.innerHTML = '';
+  const filtered = filter === 'all' ? teacherStudents : teacherStudents.filter(s => s.status === filter);
+
+  filtered.forEach(s => {
+    const statusClass = s.status === 'on-track' ? 'green' : s.status === 'needs-checkin' ? 'amber' : 'purple';
+    const barColor = s.status === 'exceptional' ? 'var(--purple)' : s.status === 'needs-checkin' ? 'var(--amber)' : 'var(--teal)';
+
+    const card = document.createElement('div');
+    card.className = 'student-card';
+    card.onclick = () => openDetail(s);
+    card.innerHTML = `
+      <div class="student-card-header">
+        <div class="student-name">${s.name}</div>
+        <div class="status-dot status-${statusClass}"></div>
+      </div>
+      <div class="student-project">${s.project}</div>
+      <div class="student-meta">
+        <span>${s.sessions} sessions</span>
+        <span>Active: ${s.lastActive}</span>
+      </div>
+      <div class="student-progress"><div class="student-progress-bar" style="width:${s.progress}%;background:${barColor}"></div></div>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+function filterStudents(filter, btn) {
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderTeacherGrid(filter);
+}
+
+// ═══════════════════════════════════════════════════════
+// STUDENT DETAIL + LIVE DIGEST GENERATION
+// ═══════════════════════════════════════════════════════
+function openDetail(student) {
+  const panel = document.getElementById('detail-panel');
+  const overlay = document.getElementById('detail-overlay');
+  const content = document.getElementById('detail-content');
+
+  const statusClass = student.status === 'exceptional' ? 'exceptional' : student.status === 'needs-checkin' ? 'needs-checkin' : 'on-track';
+  const statusLabel = student.status === 'exceptional' ? 'Exceptional' : student.status === 'needs-checkin' ? 'Needs check-in' : 'On track';
+
+  content.innerHTML = `
+    <div class="detail-header">
+      <h2>${student.name}</h2>
+      <p>${student.project}</p>
+    </div>
+    <div class="detail-status ${statusClass}">
+      <div class="status-dot status-${student.status === 'exceptional' ? 'purple' : student.status === 'needs-checkin' ? 'amber' : 'green'}" style="animation:none;width:8px;height:8px;"></div>
+      ${statusLabel} &middot; ${student.sessions} sessions &middot; Last active: ${student.lastActive}
+    </div>
+
+    <div class="digest-card" id="digest-card-${student.id}">
+      <h4 style="display:flex;align-items:center;justify-content:space-between;">
+        AI Mentor Summary
+        <button class="btn-secondary" style="padding:6px 14px;font-size:11px;" onclick="generateDigest('${student.id}')">
+          ${isLive ? 'Generate with AI' : 'Generate (Demo)'}
+        </button>
+      </h4>
+      <div class="digest-body" id="digest-body-${student.id}">
+        <span style="color:var(--text-dim);font-style:italic;">Click "Generate" to create an AI summary from this student's conversation history.</span>
+      </div>
+      <div class="skill-assessment" id="digest-skills-${student.id}"></div>
+    </div>
+
+    <div class="digest-card">
+      <h4>Conversation Excerpt</h4>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        ${(student.conversations?.[0]?.messages || []).map(m =>
+          `<div class="session-mini" style="padding:10px 14px;margin:0;">
+            <span style="font-size:11px;color:${m.role==='user' ? 'var(--accent)' : 'var(--teal)'};text-transform:uppercase;letter-spacing:0.5px;font-weight:600;">
+              ${m.role === 'user' ? 'Student' : 'Mentor'}
+            </span>
+            <p style="margin-top:4px;">${m.content}</p>
+          </div>`
+        ).join('')}
+        ${student.conversations?.[0]?.reflection ? `
+          <div style="padding:12px 16px;background:rgba(255,255,255,0.02);border-radius:8px;border-left:2px solid var(--teal);font-style:italic;color:var(--text-secondary);font-size:13px;">
+            Reflection: "${student.conversations[0].reflection}"
+          </div>
+        ` : ''}
+      </div>
+    </div>
+
+    <div class="teacher-actions">
+      <button class="action-btn primary-action" onclick="alert('Would open messaging interface')">Send Message</button>
+      <button class="action-btn" onclick="alert('Would showcase work to class')">Showcase</button>
+      <button class="action-btn" onclick="alert('Would adjust learning plan')">Adjust Plan</button>
+    </div>
+  `;
+
+  overlay.classList.add('active');
+  setTimeout(() => panel.classList.add('active'), 50);
+}
+
+function closeDetail() {
+  document.getElementById('detail-panel').classList.remove('active');
+  setTimeout(() => document.getElementById('detail-overlay').classList.remove('active'), 350);
+}
+
+async function generateDigest(studentId) {
+  const student = teacherStudents.find(s => s.id === studentId);
+  if (!student) return;
+
+  const digestBody = document.getElementById('digest-body-' + studentId);
+  const skillsDiv = document.getElementById('digest-skills-' + studentId);
+  digestBody.innerHTML = '<div class="generating"><div class="spinner"></div> Generating summary from conversation data...</div>';
+  skillsDiv.innerHTML = '';
+
+  try {
+    if (isLive) {
+      const result = await apiCall('/api/digest', {
+        studentName: student.name,
+        plan: { project: student.project, deliverables: '', skill: '', timeline: student.sessions },
+        conversations: student.conversations
+      });
+
+      digestBody.innerHTML = result.narrative || 'No summary generated.';
+
+      if (result.skills && result.skills.length > 0) {
+        skillsDiv.innerHTML = '<div style="font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;grid-column:1/-1;">Skill Assessment</div>' +
+          result.skills.map(sk => {
+            const level = typeof sk.level === 'number' ? sk.level : 50;
+            const color = level > 70 ? 'var(--teal)' : level > 40 ? 'var(--accent)' : 'var(--amber)';
+            return `<div class="skill-item">
+              <div class="skill-item-name">${sk.name}</div>
+              <div class="skill-bar"><div class="skill-bar-fill" style="width:${level}%;background:${color};"></div></div>
+              <div class="skill-label">${sk.descriptor || ''}</div>
+            </div>`;
+          }).join('');
+      }
+
+      if (result.teacherAction) {
+        digestBody.innerHTML += `<div style="margin-top:16px;padding:14px 18px;background:var(--accent-glow);border:1px solid rgba(56,189,248,0.15);border-radius:10px;font-size:13px;color:var(--accent);">
+          <strong>Suggested action:</strong> ${result.teacherAction}
+        </div>`;
+      }
+    } else {
+      // Demo digest generation
+      await new Promise(r => setTimeout(r, 1500));
+      const demoDigests = {
+        alex: { narrative: `Alex is pursuing an ergonomic school bag strap redesign, focused on material testing skills. Over 3 sessions he progressed from research through concept sketching. His strongest moment was identifying that school bags face different constraints than hiking packs — constant on/off and one-shoulder carrying. This led to an original concept: a sliding strap mechanism that adapts to one-shoulder carrying instead of fighting it. Research skills are strong; physical prototyping is the next test.`, skills: [{name:'Research',level:85,descriptor:'Strong'},{name:'Design Thinking',level:70,descriptor:'Developing well'},{name:'Sketching',level:45,descriptor:'Emerging'}], teacherAction: 'The sliding strap concept is original — worth asking Alex to show the class his sketches and explain the insight.' },
+        maya: { narrative: `Maya exceeded every goal she set. She conducted user interviews with 5 runners, pivoted her concept based on real data, and self-directed Arduino research for feasibility. The pivot from "smart water bottle" to "hydration reminder wristband" came directly from a user insight: runners forget to drink, not lack access. This is textbook user-centred design.`, skills: [{name:'User Research',level:90,descriptor:'Exceptional'},{name:'Iteration',level:85,descriptor:'Strong'},{name:'Technical Research',level:70,descriptor:'Self-directed'}], teacherAction: 'Showcase Maya\'s process to the class — the research-driven pivot models exactly what self-directed learning should look like. Strong Personal Project foundation.' },
+        jayden: { narrative: `Jayden started strong with accessible gaming controller research but engagement dropped sharply in Session 2. His messages became minimal ("fine", "its cool") and his reflection was one sentence. The topic choice suggests genuine interest, so this is likely a motivation dip rather than disengagement.`, skills: [{name:'Accessibility Awareness',level:60,descriptor:'Developing'},{name:'Self-Direction',level:25,descriptor:'Needs support'}], teacherAction: 'A brief in-person chat might help. "Your controller idea is really cool — what happened in session 2?" Sometimes teacher acknowledgment reignites the spark better than AI nudging.' },
+        priya: { narrative: `Priya is thorough — possibly too thorough. Two full sessions of research with no sketching yet. She keeps finding "one more thing to read" about mycelium packaging. The knowledge is genuine and deep, but she may be using research as avoidance of the less comfortable design work.`, skills: [{name:'Research Depth',level:90,descriptor:'Very strong'},{name:'Scope Management',level:30,descriptor:'Needs work'}], teacherAction: 'Give her a concrete constraint: "Pick ONE packaging concept and sketch it by next session — you have enough research." She needs permission to stop researching.' },
+        sofia: { narrative: `Sofia's empathy observation of her grandmother was exceptional — 12 pain points from 30 minutes of observation shows real attentiveness. She has a personal connection to the problem that drives consistent engagement. Currently sketching solutions for the top 3 pain points.`, skills: [{name:'Empathy & Observation',level:80,descriptor:'Strong'},{name:'Problem Identification',level:75,descriptor:'Strong'}], teacherAction: null },
+        ethan: { narrative: `Just starting. Good research instincts — found e-NABLE open-source prosthetics immediately. Self-scoped to hinge mechanism only, which shows realistic awareness of the timeline. Worth watching to ensure ambition stays within the 4-session window.`, skills: [{name:'Research',level:40,descriptor:'Starting'},{name:'Scope Awareness',level:60,descriptor:'Good'}], teacherAction: null },
+        lily: { narrative: `Lily is drifting. Session 2 was mostly browsing existing designs online without clear purpose. When asked what she was looking for, she said "just seeing what's out there." Reflections are getting shorter. She may have lost interest in the topic or feel overwhelmed by the material science aspect.`, skills: [{name:'Material Research',level:40,descriptor:'Surface-level'},{name:'Self-Direction',level:25,descriptor:'Needs support'}], teacherAction: 'Try giving her a fun constraint: "Design a phone case using ONLY materials from the school recycling bin." Making it tangible and playful might reignite engagement.' },
+        tom: { narrative: `Tom shows unusual engineering thinking for Year 9 — he started with constraints (must fit in a car boot, assemble without tools) rather than aesthetics. His joint design research is methodical. Interlocking slot approach is promising.`, skills: [{name:'Engineering Thinking',level:65,descriptor:'Developing well'},{name:'Constraint-based Design',level:70,descriptor:'Strong for Y9'}], teacherAction: null },
+      };
+      const digest = demoDigests[studentId] || { narrative: 'No demo data available.', skills: [], teacherAction: null };
+      digestBody.innerHTML = digest.narrative;
+      if (digest.skills.length > 0) {
+        skillsDiv.innerHTML = '<div style="font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;grid-column:1/-1;">Skill Assessment</div>' +
+          digest.skills.map(sk => {
+            const color = sk.level > 70 ? 'var(--teal)' : sk.level > 40 ? 'var(--accent)' : 'var(--amber)';
+            return `<div class="skill-item"><div class="skill-item-name">${sk.name}</div><div class="skill-bar"><div class="skill-bar-fill" style="width:${sk.level}%;background:${color};"></div></div><div class="skill-label">${sk.descriptor}</div></div>`;
+          }).join('');
+      }
+      if (digest.teacherAction) {
+        digestBody.innerHTML += `<div style="margin-top:16px;padding:14px 18px;background:var(--accent-glow);border:1px solid rgba(56,189,248,0.15);border-radius:10px;font-size:13px;color:var(--accent);"><strong>Suggested action:</strong> ${digest.teacherAction}</div>`;
+      }
+    }
+  } catch (err) {
+    digestBody.innerHTML = `<span style="color:var(--red)">Error: ${err.message}</span>`;
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════
+renderTeacherGrid();
+
+// Check if server provided API key via env
+fetch('/api/goal-setting', { method: 'POST', headers: {'Content-Type':'application/json'}, body: '{"messages":[],"test":true}' })
+  .then(r => {
+    if (r.ok) {
+      // Server is running and has API key from env
+      apiKey = '__server_key__';
+      isLive = true;
+      document.getElementById('api-modal').classList.add('hidden');
+      document.getElementById('api-dot').className = 'api-dot connected';
+      document.getElementById('api-label').textContent = 'Live AI (server key)';
+    }
+  })
+  .catch(() => {
+    // Server not running — show API key modal
+    // (Already showing by default)
+  });
+</script>
+</body>
+</html>

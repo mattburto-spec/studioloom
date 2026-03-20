@@ -1,25 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
+import { createAdminClient } from "@/lib/supabase/admin";
+import * as Sentry from "@sentry/nextjs";
 import {
   createConversation,
   loadConversation,
   generateResponse,
 } from "@/lib/design-assistant/conversation";
-
-function createSupabaseServer(request: NextRequest) {
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll() {},
-      },
-    }
-  );
-}
+import { rateLimit, DESIGN_ASSISTANT_LIMITS } from "@/lib/rate-limit";
+import { SESSION_COOKIE_NAME } from "@/lib/constants";
 
 /**
  * POST /api/student/design-assistant
@@ -41,14 +29,25 @@ function createSupabaseServer(request: NextRequest) {
  * }
  */
 export async function POST(request: NextRequest) {
-  const supabase = createSupabaseServer(request);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
+  // Student auth via session token cookie (not Supabase Auth)
+  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+  if (!token) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const supabase = createAdminClient();
+  const { data: session } = await supabase
+    .from("student_sessions")
+    .select("student_id")
+    .eq("token", token)
+    .gt("expires_at", new Date().toISOString())
+    .single();
+
+  if (!session) {
+    return NextResponse.json({ error: "Invalid session" }, { status: 401 });
+  }
+
+  const studentId = session.student_id;
 
   const body = await request.json();
   const { conversationId, unitId, pageId, message } = body as {
@@ -67,6 +66,23 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "message is required" }, { status: 400 });
   }
 
+  // Rate limit check
+  const { allowed, retryAfterMs } = rateLimit(
+    `da:${studentId}`,
+    DESIGN_ASSISTANT_LIMITS
+  );
+  if (!allowed) {
+    return NextResponse.json(
+      { error: "Too many requests. Please slow down." },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(Math.ceil((retryAfterMs || 60000) / 1000)),
+        },
+      }
+    );
+  }
+
   // Check for API key
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
@@ -81,7 +97,7 @@ export async function POST(request: NextRequest) {
     let activeConversationId = conversationId;
 
     if (!activeConversationId) {
-      const conversation = await createConversation(user.id, unitId, pageId);
+      const conversation = await createConversation(studentId, unitId, pageId);
       activeConversationId = conversation.id;
     }
 
@@ -100,6 +116,7 @@ export async function POST(request: NextRequest) {
       effortScore: result.effortScore,
     });
   } catch (err) {
+    Sentry.captureException(err);
     console.error("[design-assistant] Error:", err);
     const errorMessage = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json(
@@ -121,14 +138,25 @@ export async function POST(request: NextRequest) {
  * }
  */
 export async function GET(request: NextRequest) {
-  const supabase = createSupabaseServer(request);
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
+  // Student auth via session token cookie
+  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+  if (!token) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const supabase = createAdminClient();
+  const { data: session } = await supabase
+    .from("student_sessions")
+    .select("student_id")
+    .eq("token", token)
+    .gt("expires_at", new Date().toISOString())
+    .single();
+
+  if (!session) {
+    return NextResponse.json({ error: "Invalid session" }, { status: 401 });
+  }
+
+  const getStudentId = session.student_id;
 
   const { searchParams } = new URL(request.url);
   const conversationId = searchParams.get("conversationId");
@@ -137,18 +165,15 @@ export async function GET(request: NextRequest) {
 
   try {
     if (conversationId) {
-      // Load specific conversation
       const result = await loadConversation(conversationId);
       return NextResponse.json(result);
     }
 
     if (unitId) {
-      // Find most recent conversation for this student + unit + page
-      const adminSupabase = (await import("@/lib/supabase/admin")).createAdminClient();
-      let query = adminSupabase
+      let query = supabase
         .from("design_conversations")
         .select("*")
-        .eq("student_id", user.id)
+        .eq("student_id", getStudentId)
         .eq("unit_id", unitId)
         .is("ended_at", null) // only active conversations
         .order("created_at", { ascending: false })
@@ -177,6 +202,7 @@ export async function GET(request: NextRequest) {
       { status: 400 }
     );
   } catch (err) {
+    Sentry.captureException(err);
     console.error("[design-assistant] GET error:", err);
     const errorMessage = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json(

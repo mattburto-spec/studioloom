@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useReducer } from "react";
+import { useState, useEffect, useReducer } from "react";
 import type {
   AIModelConfig,
   ResolvedModelConfig,
@@ -12,6 +12,7 @@ import {
   TIMING_CATEGORY_META,
   DEFAULT_MODEL_CONFIG,
 } from "@/lib/ai/model-config-defaults";
+import { AIControlPanel } from "@/components/admin/AIControlPanel";
 
 // =========================================================================
 // Types
@@ -68,10 +69,10 @@ function configReducer(state: ResolvedModelConfig, action: Action): ResolvedMode
 
     case "RESET_CATEGORY": {
       const cat = action.category as keyof ResolvedModelConfig;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return {
         ...state,
-        [cat]: (DEFAULT_MODEL_CONFIG as any)[cat],
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        [cat]: (DEFAULT_MODEL_CONFIG as unknown as Record<string, any>)[cat],
       };
     }
 
@@ -169,7 +170,7 @@ function SliderRow({
   const pct = ((value - meta.min) / (meta.max - meta.min)) * 100;
 
   return (
-    <div className="group flex items-center gap-4 py-2.5 px-3 rounded-lg hover:bg-gray-50 transition-colors">
+    <div className="group flex items-center gap-4 py-3 px-3 rounded-xl hover:bg-white/60 transition-colors">
       <div className="w-48 shrink-0">
         <div className="flex items-center gap-2">
           <span className="text-sm font-medium text-gray-900">{meta.label}</span>
@@ -393,13 +394,46 @@ const PHASE_COLORS: Record<string, string> = {
 };
 
 const CRITERION_COLORS: Record<string, string> = {
-  A: "#2E86AB", B: "#2DA05E", C: "#E86F2C", D: "#8B2FC9",
+  A: "#6366F1", B: "#10B981", C: "#F59E0B", D: "#8B5CF6",
 };
 
 type ResultTab = "admin" | "student" | "thinking" | "json";
+type TestMode = "skeleton" | "lesson";
+
+const LESSON_TYPES = [
+  { value: "research", label: "Research", icon: "🔍" },
+  { value: "ideation", label: "Ideation", icon: "💡" },
+  { value: "skills-demo", label: "Skills Demo", icon: "🛠" },
+  { value: "making", label: "Making", icon: "🏗" },
+  { value: "testing", label: "Testing", icon: "🧪" },
+  { value: "critique", label: "Critique", icon: "📋" },
+];
+
+const FRAMEWORKS = [
+  { value: "IB_MYP", label: "IB MYP Design", criteria: ["A", "B", "C", "D"] },
+  { value: "GCSE_DT", label: "GCSE Design & Technology", criteria: ["AO1", "AO2", "AO3", "AO4", "AO5"] },
+  { value: "ACARA_DT", label: "Australian Curriculum DT", criteria: ["KU", "P&P"] },
+  { value: "PLTW", label: "Project Lead The Way (US)", criteria: ["IED", "POE", "CEA", "DE"] },
+  { value: "A_LEVEL_DT", label: "A-Level Design & Technology", criteria: ["C1", "C2", "C3"] },
+  { value: "IGCSE_DT", label: "Cambridge IGCSE DT", criteria: ["AO1", "AO2", "AO3"] },
+];
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function TestResultsView({ result, elapsed }: { result: any; elapsed: number }) {
+  const isLessonMode = result?._mode === "lesson";
+
+  if (isLessonMode) {
+    return <LessonResultsView result={result} elapsed={elapsed} />;
+  }
+  return <SkeletonResultsView result={result} elapsed={elapsed} />;
+}
+
+// =========================================================================
+// Skeleton Results View (improved)
+// =========================================================================
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function SkeletonResultsView({ result, elapsed }: { result: any; elapsed: number }) {
   const [activeTab, setActiveTab] = useState<ResultTab>("admin");
   const [selectedLesson, setSelectedLesson] = useState(0);
   const skeleton = result?.skeleton;
@@ -407,6 +441,17 @@ function TestResultsView({ result, elapsed }: { result: any; elapsed: number }) 
   const lessons = skeleton?.lessons || skeleton?.unit?.lessons;
   const tokens = result?.tokensUsed;
   const thinking = result?.thinking;
+
+  // Compute summary stats
+  const totalMinutes = lessons?.reduce((sum: number, l: { estimatedMinutes?: number }) => sum + (l.estimatedMinutes || 0), 0) || 0;
+  const typeCounts: Record<string, number> = {};
+  const criteriaCovered = new Set<string>();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  lessons?.forEach((l: any) => {
+    if (l.lessonType) typeCounts[l.lessonType] = (typeCounts[l.lessonType] || 0) + 1;
+    const criteria = Array.isArray(l.criteriaEmphasis) ? l.criteriaEmphasis : [];
+    criteria.forEach((c: string) => criteriaCovered.add(c));
+  });
 
   const tabs: { key: ResultTab; label: string; icon: string; show: boolean }[] = [
     { key: "admin", label: "Admin", icon: "⚙️", show: true },
@@ -425,12 +470,35 @@ function TestResultsView({ result, elapsed }: { result: any; elapsed: number }) 
         <span className="inline-flex items-center gap-1.5 bg-gray-100 text-gray-600 px-3 py-1.5 rounded-full text-xs font-medium">
           🔤 {tokens ? `${tokens.input_tokens + tokens.output_tokens} tokens` : "—"}
         </span>
-        {lessons?.length && (
-          <span className="inline-flex items-center gap-1.5 bg-gray-100 text-gray-600 px-3 py-1.5 rounded-full text-xs font-medium">
-            📚 {lessons.length} lessons
-          </span>
+        {lessons?.length > 0 && (
+          <>
+            <span className="inline-flex items-center gap-1.5 bg-gray-100 text-gray-600 px-3 py-1.5 rounded-full text-xs font-medium">
+              📚 {lessons.length} lessons
+            </span>
+            <span className="inline-flex items-center gap-1.5 bg-gray-100 text-gray-600 px-3 py-1.5 rounded-full text-xs font-medium">
+              ⏱ {totalMinutes}min total
+            </span>
+            <span className="inline-flex items-center gap-1.5 bg-gray-100 text-gray-600 px-3 py-1.5 rounded-full text-xs font-medium">
+              📊 Criteria: {Array.from(criteriaCovered).sort().join(", ") || "—"}
+            </span>
+          </>
         )}
       </div>
+
+      {/* Lesson Type Distribution */}
+      {Object.keys(typeCounts).length > 0 && (
+        <div className="flex gap-2 mb-3 flex-wrap">
+          {Object.entries(typeCounts).map(([type, count]) => {
+            const tc = LESSON_TYPE_COLORS[type] || { bg: "bg-gray-50", text: "text-gray-700", border: "border-gray-200" };
+            const icon = LESSON_TYPE_ICONS[type] || "📄";
+            return (
+              <span key={type} className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${tc.bg} ${tc.text} border ${tc.border}`}>
+                {icon} {type} x{count}
+              </span>
+            );
+          })}
+        </div>
+      )}
 
       {/* Tab Bar */}
       <div className="flex gap-1 border-b border-gray-200 mb-0">
@@ -450,7 +518,7 @@ function TestResultsView({ result, elapsed }: { result: any; elapsed: number }) 
       </div>
 
       {/* Tab Content */}
-      <div className="border border-t-0 border-gray-200 rounded-b-xl bg-white max-h-[65vh] overflow-y-auto">
+      <div className="border border-t-0 border-gray-200 rounded-b-xl bg-white">
 
         {/* ── ADMIN VIEW ── */}
         {activeTab === "admin" && lessons?.length && (
@@ -462,14 +530,14 @@ function TestResultsView({ result, elapsed }: { result: any; elapsed: number }) 
               </h4>
               <p className="text-purple-200 text-sm mb-3">{unit?.endGoal || ""}</p>
               <div className="flex gap-4 text-xs text-purple-200">
-                <span>{unit?.duration || `${lessons.length} lessons`}</span>
-                <span>•</span>
                 <span>{lessons.length} lessons</span>
+                <span>•</span>
+                <span>{totalMinutes}min total</span>
               </div>
               {unit?.narrativeArc && (
                 <p className="mt-3 text-xs text-purple-100 leading-relaxed border-t border-purple-500 pt-3">
                   <span className="font-semibold text-purple-200">Narrative Arc: </span>
-                  {unit.narrativeArc.length > 200 ? unit.narrativeArc.slice(0, 200) + "..." : unit.narrativeArc}
+                  {unit.narrativeArc}
                 </p>
               )}
             </div>
@@ -544,10 +612,13 @@ function TestResultsView({ result, elapsed }: { result: any; elapsed: number }) 
                     </div>
                     {lesson.activityHints?.length > 0 && (
                       <div>
-                        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Activity Hints</span>
-                        <div className="mt-1 flex gap-2 flex-wrap">
+                        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Activities</span>
+                        <div className="mt-1.5 space-y-1.5">
                           {lesson.activityHints.map((hint: string, j: number) => (
-                            <span key={j} className="bg-gray-50 border border-gray-200 text-gray-600 px-2 py-1 rounded text-xs">{hint}</span>
+                            <div key={j} className="flex items-start gap-2">
+                              <span className="flex-shrink-0 w-5 h-5 rounded-full bg-gray-100 text-gray-500 text-[10px] font-bold flex items-center justify-center mt-0.5">{j + 1}</span>
+                              <span className="text-sm text-gray-700">{hint}</span>
+                            </div>
                           ))}
                         </div>
                       </div>
@@ -757,11 +828,394 @@ function TestResultsView({ result, elapsed }: { result: any; elapsed: number }) 
   );
 }
 
+// =========================================================================
+// Single Lesson Results View (full content)
+// =========================================================================
+
+const RESPONSE_TYPE_LABELS: Record<string, { label: string; icon: string }> = {
+  text: { label: "Written Response", icon: "✏️" },
+  upload: { label: "File Upload", icon: "📎" },
+  voice: { label: "Voice Recording", icon: "🎤" },
+  link: { label: "Link Submission", icon: "🔗" },
+  multi: { label: "Multiple Choice", icon: "☑️" },
+  "decision-matrix": { label: "Decision Matrix", icon: "📊" },
+  pmi: { label: "PMI Framework", icon: "➕" },
+  pairwise: { label: "Pairwise Comparison", icon: "⚖️" },
+  "trade-off-sliders": { label: "Trade-off Sliders", icon: "🎚️" },
+};
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function LessonResultsView({ result, elapsed }: { result: any; elapsed: number }) {
+  const [activeTab, setActiveTab] = useState<ResultTab>("admin");
+  const lesson = result?.lesson;
+  const tokens = result?.tokensUsed;
+  const thinking = result?.thinking;
+
+  const sections = lesson?.sections || [];
+  const sectionCount = sections.length;
+  const responseTypes = sections.map((s: { responseType?: string }) => s.responseType).filter(Boolean);
+  const hasScaffolding = sections.some((s: { scaffolding?: unknown }) => s.scaffolding);
+  const portfolioCount = sections.filter((s: { portfolioCapture?: boolean }) => s.portfolioCapture).length;
+
+  const tabs: { key: ResultTab; label: string; icon: string; show: boolean }[] = [
+    { key: "admin", label: "Content Review", icon: "⚙️", show: true },
+    { key: "student", label: "Student Preview", icon: "👤", show: !!lesson },
+    { key: "thinking", label: "AI Thinking", icon: "💡", show: !!thinking },
+    { key: "json", label: "Raw JSON", icon: "{}", show: true },
+  ];
+
+  return (
+    <div className="mt-4">
+      {/* Stats Bar */}
+      <div className="flex items-center gap-3 mb-3 flex-wrap">
+        <span className="inline-flex items-center gap-1.5 bg-purple-50 text-purple-700 px-3 py-1.5 rounded-full text-xs font-medium">
+          ⏱ {(elapsed / 1000).toFixed(1)}s
+        </span>
+        <span className="inline-flex items-center gap-1.5 bg-gray-100 text-gray-600 px-3 py-1.5 rounded-full text-xs font-medium">
+          🔤 {tokens ? `${tokens.input_tokens + tokens.output_tokens} tokens` : "—"}
+        </span>
+        {lesson && (
+          <>
+            <span className="inline-flex items-center gap-1.5 bg-gray-100 text-gray-600 px-3 py-1.5 rounded-full text-xs font-medium">
+              📝 {sectionCount} sections
+            </span>
+            <span className="inline-flex items-center gap-1.5 bg-gray-100 text-gray-600 px-3 py-1.5 rounded-full text-xs font-medium">
+              🎒 {hasScaffolding ? "ELL scaffolding" : "No scaffolding"}
+            </span>
+            <span className="inline-flex items-center gap-1.5 bg-gray-100 text-gray-600 px-3 py-1.5 rounded-full text-xs font-medium">
+              📸 {portfolioCount} portfolio captures
+            </span>
+          </>
+        )}
+      </div>
+
+      {/* Response Type Distribution */}
+      {responseTypes.length > 0 && (
+        <div className="flex gap-2 mb-3 flex-wrap">
+          {responseTypes.map((rt: string, i: number) => {
+            const info = RESPONSE_TYPE_LABELS[rt] || { label: rt, icon: "📄" };
+            return (
+              <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                {info.icon} {info.label}
+              </span>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Tab Bar */}
+      <div className="flex gap-1 border-b border-gray-200 mb-0">
+        {tabs.filter(t => t.show).map(t => (
+          <button
+            key={t.key}
+            onClick={() => setActiveTab(t.key)}
+            className={`px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors ${
+              activeTab === t.key
+                ? "bg-white text-purple-700 border border-gray-200 border-b-white -mb-px"
+                : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+            }`}
+          >
+            <span className="mr-1.5">{t.icon}</span>{t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab Content */}
+      <div className="border border-t-0 border-gray-200 rounded-b-xl bg-white">
+
+        {/* ── CONTENT REVIEW (Admin) ── */}
+        {activeTab === "admin" && lesson && (
+          <div className="p-4 space-y-4">
+            {/* Lesson Header */}
+            <div className="bg-gradient-to-r from-purple-600 to-purple-800 rounded-xl p-5 text-white">
+              <h4 className="font-bold text-lg mb-1">{lesson.title}</h4>
+              <p className="text-purple-200 text-sm">{lesson.learningGoal}</p>
+            </div>
+
+            {/* Vocab Warmup */}
+            {lesson.vocabWarmup?.terms?.length > 0 && (
+              <div className="border border-gray-200 rounded-lg p-4">
+                <h5 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3">📖 Vocabulary Warmup</h5>
+                <div className="space-y-2">
+                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                  {lesson.vocabWarmup.terms.map((t: any, i: number) => (
+                    <div key={i} className="flex items-start gap-3">
+                      <span className="px-2.5 py-1 bg-purple-50 text-purple-700 rounded-lg text-sm font-semibold border border-purple-100 flex-shrink-0">
+                        {t.term}
+                      </span>
+                      <div className="text-sm text-gray-600">
+                        <span>{t.definition}</span>
+                        {t.example && <span className="text-gray-400 ml-1">— e.g. {t.example}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {lesson.vocabWarmup.activity && (
+                  <div className="mt-3 pt-3 border-t border-gray-100">
+                    <span className="text-xs text-gray-500">Activity: </span>
+                    <span className="text-xs font-medium text-purple-600">{lesson.vocabWarmup.activity.type}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Introduction */}
+            {lesson.introduction?.text && (
+              <div className="bg-gray-50 rounded-lg p-4">
+                <h5 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">Introduction</h5>
+                <p className="text-sm text-gray-700 leading-relaxed">{lesson.introduction.text}</p>
+              </div>
+            )}
+
+            {/* Sections — the main content */}
+            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+            {sections.map((section: any, i: number) => {
+              const rtInfo = RESPONSE_TYPE_LABELS[section.responseType] || { label: section.responseType, icon: "📄" };
+              const criterionTags = section.criterionTags || [];
+              return (
+                <div key={i} className="border border-gray-200 rounded-lg overflow-hidden">
+                  {/* Section Header */}
+                  <div className="bg-gray-50 px-4 py-3 flex items-center gap-2 flex-wrap">
+                    <span className="w-6 h-6 rounded-full bg-purple-600 text-white text-xs font-bold flex items-center justify-center flex-shrink-0">{i + 1}</span>
+                    <span className="text-sm font-semibold text-gray-900 flex-1">Section {i + 1}</span>
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                      {rtInfo.icon} {rtInfo.label}
+                    </span>
+                    {section.durationMinutes && (
+                      <span className="text-xs text-gray-500">{section.durationMinutes}min</span>
+                    )}
+                    {section.portfolioCapture && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                        📸 Portfolio
+                      </span>
+                    )}
+                    {criterionTags.map((c: string) => (
+                      <span key={c} className="inline-flex items-center justify-center w-5 h-5 rounded bg-white border border-gray-200 text-xs font-bold text-purple-600">{c}</span>
+                    ))}
+                  </div>
+
+                  {/* Section Content */}
+                  <div className="px-4 py-3 space-y-3">
+                    {/* Prompt */}
+                    <div>
+                      <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Student Prompt</span>
+                      <p className="text-sm text-gray-800 mt-1 leading-relaxed whitespace-pre-wrap">{section.prompt}</p>
+                    </div>
+
+                    {/* Example Response */}
+                    {section.exampleResponse && (
+                      <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+                        <span className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">Example Response</span>
+                        <p className="text-sm text-emerald-800 mt-1 leading-relaxed">{section.exampleResponse}</p>
+                      </div>
+                    )}
+
+                    {/* ELL Scaffolding */}
+                    {section.scaffolding && (
+                      <div className="grid grid-cols-3 gap-3">
+                        {section.scaffolding.ell1 && (
+                          <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600">ELL 1 — Support</span>
+                            {section.scaffolding.ell1.sentenceStarters?.length > 0 && (
+                              <div className="mt-1.5 space-y-1">
+                                {section.scaffolding.ell1.sentenceStarters.map((s: string, j: number) => (
+                                  <p key={j} className="text-xs text-blue-800 italic">{s}</p>
+                                ))}
+                              </div>
+                            )}
+                            {section.scaffolding.ell1.hints?.length > 0 && (
+                              <div className="mt-1.5 space-y-1">
+                                {section.scaffolding.ell1.hints.map((h: string, j: number) => (
+                                  <p key={j} className="text-xs text-blue-700">💡 {h}</p>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {section.scaffolding.ell2 && (
+                          <div className="bg-amber-50 border border-amber-100 rounded-lg p-3">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600">ELL 2 — Guided</span>
+                            {section.scaffolding.ell2.sentenceStarters?.length > 0 && (
+                              <div className="mt-1.5 space-y-1">
+                                {section.scaffolding.ell2.sentenceStarters.map((s: string, j: number) => (
+                                  <p key={j} className="text-xs text-amber-800 italic">{s}</p>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        {section.scaffolding.ell3 && (
+                          <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-3">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">ELL 3 — Extension</span>
+                            {section.scaffolding.ell3.extensionPrompts?.length > 0 && (
+                              <div className="mt-1.5 space-y-1">
+                                {section.scaffolding.ell3.extensionPrompts.map((p: string, j: number) => (
+                                  <p key={j} className="text-xs text-emerald-800">🚀 {p}</p>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Reflection */}
+            {lesson.reflection && (
+              <div className="border border-gray-200 rounded-lg p-4 bg-indigo-50">
+                <h5 className="text-xs font-bold uppercase tracking-wider text-indigo-600 mb-2">
+                  Reflection ({lesson.reflection.type || "short-response"})
+                </h5>
+                {lesson.reflection.items?.length > 0 && (
+                  <div className="space-y-1.5">
+                    {lesson.reflection.items.map((item: string, i: number) => (
+                      <div key={i} className="flex items-start gap-2">
+                        <span className="text-indigo-400 mt-0.5 text-sm">💭</span>
+                        <span className="text-sm text-indigo-800">{item}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── STUDENT PREVIEW ── */}
+        {activeTab === "student" && lesson && (
+          <div className="max-w-2xl mx-auto">
+            {/* Hero Header */}
+            <div className="px-8 pt-8 pb-6 bg-gradient-to-br from-[#7B2FF2] to-[#5B1FD2]">
+              <h2 className="text-2xl font-extrabold text-white mb-2">{lesson.title}</h2>
+              <p className="text-sm text-purple-200">{lesson.learningGoal}</p>
+            </div>
+
+            <div className="px-8 py-6 space-y-6">
+              {/* Vocab Warmup */}
+              {lesson.vocabWarmup?.terms?.length > 0 && (
+                <div className="border border-gray-200 rounded-2xl p-4">
+                  <p className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3">📖 Vocabulary</p>
+                  <div className="flex gap-2 flex-wrap">
+                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                    {lesson.vocabWarmup.terms.map((t: any) => (
+                      <span key={t.term} className="px-3 py-1.5 bg-purple-50 text-purple-700 rounded-lg text-sm font-medium border border-purple-100">
+                        {t.term}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Introduction */}
+              {lesson.introduction?.text && (
+                <p className="text-sm text-gray-700 leading-relaxed">{lesson.introduction.text}</p>
+              )}
+
+              {/* Sections */}
+              {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+              {sections.map((section: any, i: number) => {
+                const rtInfo = RESPONSE_TYPE_LABELS[section.responseType] || { label: section.responseType, icon: "📄" };
+                return (
+                  <div key={i}>
+                    <div className="flex items-center justify-center my-4">
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold bg-[#7B2FF2]">
+                        {i + 1}
+                      </div>
+                    </div>
+                    <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+                      <p className="text-base font-semibold text-gray-900 mb-2 whitespace-pre-wrap">{section.prompt}</p>
+                      <div className="h-1 w-16 rounded-full mb-3 bg-[#7B2FF2]" />
+
+                      {/* Scaffolding toggle hint */}
+                      {section.scaffolding && (
+                        <p className="text-xs text-purple-500 mb-3">💡 Scaffolding available (ELL 1/2/3)</p>
+                      )}
+
+                      {/* Response area */}
+                      <div className="border-2 border-dashed border-gray-200 rounded-lg p-6 text-center">
+                        <p className="text-xs text-gray-400">{rtInfo.icon} {rtInfo.label}</p>
+                        {section.durationMinutes && (
+                          <p className="text-[10px] text-gray-300 mt-1">~{section.durationMinutes} minutes</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Reflection */}
+              {lesson.reflection?.items?.length > 0 && (
+                <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-5">
+                  <p className="text-xs font-bold uppercase tracking-wider text-indigo-600 mb-3">💭 Reflection</p>
+                  <div className="space-y-3">
+                    {lesson.reflection.items.map((item: string, i: number) => (
+                      <div key={i}>
+                        <p className="text-sm text-indigo-800 mb-2">{item}</p>
+                        <div className="border-2 border-dashed border-indigo-200 rounded-lg p-4 text-center">
+                          <p className="text-xs text-indigo-300">Your reflection</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Complete Button */}
+              <div className="pt-4 pb-2">
+                <button className="w-full py-3 rounded-xl text-sm font-semibold text-white shadow-lg bg-[#7B2FF2]" disabled>
+                  Complete & Continue →
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── AI THINKING ── */}
+        {activeTab === "thinking" && thinking && (
+          <div className="p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-amber-500 text-lg">💡</span>
+              <span className="text-sm font-semibold text-gray-900">AI Reasoning Process</span>
+              <span className="text-xs text-gray-400 ml-auto">
+                {thinking.length > 1000 ? `${(thinking.length / 1000).toFixed(1)}k chars` : `${thinking.length} chars`}
+              </span>
+            </div>
+            <div className="bg-amber-50 border border-amber-100 rounded-xl p-5">
+              <p className="text-sm text-amber-900 whitespace-pre-wrap leading-relaxed">{thinking}</p>
+            </div>
+          </div>
+        )}
+
+        {/* ── RAW JSON ── */}
+        {activeTab === "json" && (
+          <pre className="p-4 text-xs text-gray-700 font-mono whitespace-pre-wrap">
+            {JSON.stringify(result, null, 2)}
+          </pre>
+        )}
+
+        {/* Fallback */}
+        {activeTab === "admin" && !lesson && (
+          <div className="p-4">
+            <p className="text-sm text-gray-500 mb-2">Could not parse lesson content. Showing raw output:</p>
+            <pre className="bg-gray-50 text-gray-700 text-xs p-4 rounded-lg font-mono whitespace-pre-wrap">
+              {JSON.stringify(result, null, 2)}
+            </pre>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function TestSandbox({
   config,
 }: {
   config: ResolvedModelConfig;
 }) {
+  const [testMode, setTestMode] = useState<TestMode>("skeleton");
   const [testInput, setTestInput] = useState<TestInput>({
     topic: "Sustainable Packaging Design",
     gradeLevel: "Year 3 (Grade 8)",
@@ -769,6 +1223,9 @@ function TestSandbox({
     lessonCount: 4,
     lessonLengthMinutes: 50,
   });
+  const [lessonType, setLessonType] = useState("research");
+  const [framework, setFramework] = useState("IB_MYP");
+  const [selectedCriteria, setSelectedCriteria] = useState<string[]>(["A", "B", "C", "D"]);
   const [loading, setLoading] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [result, setResult] = useState<any>(null);
@@ -784,20 +1241,46 @@ function TestSandbox({
 
     try {
       const diff = computeDiff(config);
-      const res = await fetch("/api/admin/ai-model/test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ config: diff, testInput }),
-      });
 
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Test failed");
+      const sharedInput = {
+        ...testInput,
+        curriculumFramework: framework,
+        assessmentCriteria: selectedCriteria,
+      };
+
+      if (testMode === "skeleton") {
+        const res = await fetch("/api/admin/ai-model/test", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ config: diff, testInput: sharedInput }),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || "Test failed");
+        }
+        const data = await res.json();
+        setResult({ ...data, _mode: "skeleton" });
+        setElapsed(data.elapsed || (Date.now() - start));
+      } else {
+        const res = await fetch("/api/admin/ai-model/test-lesson", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            config: diff,
+            testInput: {
+              ...sharedInput,
+              lessonType,
+            },
+          }),
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || "Test failed");
+        }
+        const data = await res.json();
+        setResult({ ...data, _mode: "lesson" });
+        setElapsed(data.elapsed || (Date.now() - start));
       }
-
-      const data = await res.json();
-      setResult(data);
-      setElapsed(data.elapsed || (Date.now() - start));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Test failed");
     } finally {
@@ -806,17 +1289,17 @@ function TestSandbox({
   };
 
   return (
-    <div className="border-t border-gray-200 bg-white">
+    <div className="border-t bg-white" style={{ borderColor: "rgba(0,0,0,0.06)" }}>
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between px-6 py-3 hover:bg-gray-50 transition-colors"
+        className="w-full flex items-center justify-between px-6 py-4 hover:bg-surface-alt/50 transition-colors"
       >
         <div className="flex items-center gap-2">
           <svg className="w-5 h-5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
           </svg>
           <span className="font-semibold text-gray-900">Test Sandbox</span>
-          <span className="text-xs text-gray-500">Generate a test skeleton with current settings</span>
+          <span className="text-xs text-gray-500">Generate test content with current settings</span>
         </div>
         <svg className={`w-4 h-4 text-gray-400 transition-transform ${expanded ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -825,6 +1308,30 @@ function TestSandbox({
 
       {expanded && (
         <div className="px-6 pb-6">
+          {/* Mode Toggle */}
+          <div className="flex gap-1 mb-4 bg-gray-100 p-1 rounded-lg w-fit">
+            <button
+              onClick={() => setTestMode("skeleton")}
+              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                testMode === "skeleton"
+                  ? "bg-white text-purple-700 shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              Unit Skeleton
+            </button>
+            <button
+              onClick={() => setTestMode("lesson")}
+              className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                testMode === "lesson"
+                  ? "bg-white text-purple-700 shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              Single Lesson
+            </button>
+          </div>
+
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Topic</label>
@@ -856,17 +1363,82 @@ function TestSandbox({
                 className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
               />
             </div>
+
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Lessons</label>
-              <input
-                type="number"
-                min={2}
-                max={12}
-                value={testInput.lessonCount}
-                onChange={(e) => setTestInput({ ...testInput, lessonCount: parseInt(e.target.value) || 4 })}
+              <label className="block text-xs font-medium text-gray-600 mb-1">Curriculum Framework</label>
+              <select
+                value={framework}
+                onChange={(e) => {
+                  const fw = e.target.value;
+                  setFramework(fw);
+                  const fwData = FRAMEWORKS.find(f => f.value === fw);
+                  if (fwData) setSelectedCriteria([...fwData.criteria]);
+                }}
                 className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-              />
+              >
+                {FRAMEWORKS.map((fw) => (
+                  <option key={fw.value} value={fw.value}>{fw.label}</option>
+                ))}
+              </select>
             </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Assessment Criteria</label>
+              <div className="flex gap-1.5 flex-wrap pt-1">
+                {FRAMEWORKS.find(f => f.value === framework)?.criteria.map((c) => {
+                  const isSelected = selectedCriteria.includes(c);
+                  return (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => {
+                        if (isSelected) {
+                          if (selectedCriteria.length > 1) {
+                            setSelectedCriteria(selectedCriteria.filter(sc => sc !== c));
+                          }
+                        } else {
+                          setSelectedCriteria([...selectedCriteria, c]);
+                        }
+                      }}
+                      className={`px-2.5 py-1.5 rounded-md text-xs font-semibold border transition-colors ${
+                        isSelected
+                          ? "bg-purple-100 text-purple-700 border-purple-300"
+                          : "bg-gray-50 text-gray-400 border-gray-200 hover:bg-gray-100"
+                      }`}
+                    >
+                      {c}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {testMode === "skeleton" ? (
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Lessons</label>
+                <input
+                  type="number"
+                  min={2}
+                  max={12}
+                  value={testInput.lessonCount}
+                  onChange={(e) => setTestInput({ ...testInput, lessonCount: parseInt(e.target.value) || 4 })}
+                  className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                />
+              </div>
+            ) : (
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Lesson Type</label>
+                <select
+                  value={lessonType}
+                  onChange={(e) => setLessonType(e.target.value)}
+                  className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                >
+                  {LESSON_TYPES.map((lt) => (
+                    <option key={lt.value} value={lt.value}>{lt.icon} {lt.label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Lesson Length (min)</label>
               <input
@@ -892,10 +1464,10 @@ function TestSandbox({
                   <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
                   <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" className="opacity-75" />
                 </svg>
-                Generating...
+                Generating{testMode === "lesson" ? " Full Lesson" : " Skeleton"}...
               </>
             ) : (
-              <>Generate Test Skeleton</>
+              <>{testMode === "skeleton" ? "Generate Unit Skeleton" : "Generate Full Lesson"}</>
             )}
           </button>
 
@@ -919,6 +1491,7 @@ function TestSandbox({
 export default function AIModelAdminPage() {
   const [config, dispatch] = useReducer(configReducer, DEFAULT_MODEL_CONFIG);
   const [activeCategory, setActiveCategory] = useState<CategoryKey>("generationEmphasis");
+  const [viewMode, setViewMode] = useState<"macro" | "micro">("macro");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
@@ -986,7 +1559,7 @@ export default function AIModelAdminPage() {
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h1>
-          <p className="text-gray-500">You don't have permission to access the AI model configuration.</p>
+          <p className="text-gray-500">You don&apos;t have permission to access the AI model configuration.</p>
         </div>
       </div>
     );
@@ -1006,73 +1579,148 @@ export default function AIModelAdminPage() {
   const activeMeta = CATEGORY_META.find((c) => c.key === activeCategory);
 
   return (
-    <div className="flex flex-col h-screen">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-purple-600 flex items-center justify-center">
-            <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-          </div>
-          <div>
-            <h1 className="text-lg font-bold text-gray-900">AI Model Configuration</h1>
-            <p className="text-xs text-gray-500">Platform owner controls for the reasoning engine</p>
+    <div className="flex flex-col" style={{ height: "calc(100vh - 3.5rem)" }}>
+      {/* Action bar */}
+      <div
+        className="px-6 py-3 flex items-center justify-between shrink-0 border-b"
+        style={{ borderColor: "rgba(0,0,0,0.06)", background: "rgba(255,255,255,0.6)", backdropFilter: "blur(8px)" }}
+      >
+        <div className="flex items-center gap-4">
+          <h1 className="text-base font-bold text-gray-900">AI Model Configuration</h1>
+          {/* Macro / Micro toggle */}
+          <div className="flex bg-gray-100 p-0.5 rounded-lg">
+            <button
+              onClick={() => setViewMode("macro")}
+              className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                viewMode === "macro"
+                  ? "bg-white text-brand-purple shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              Macro
+            </button>
+            <button
+              onClick={() => setViewMode("micro")}
+              className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                viewMode === "micro"
+                  ? "bg-white text-brand-purple shadow-sm"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              Micro
+            </button>
           </div>
         </div>
 
         <div className="flex items-center gap-3">
           {saveMsg && (
-            <span className="text-sm text-green-600 font-medium">{saveMsg}</span>
+            <span className="text-xs text-green-600 font-medium bg-green-50 px-2.5 py-1 rounded-lg">{saveMsg}</span>
           )}
           {error && error !== "Not authorized" && (
-            <span className="text-sm text-red-600">{error}</span>
+            <span className="text-xs text-red-600 bg-red-50 px-2.5 py-1 rounded-lg">{error}</span>
           )}
           <button
             onClick={() => dispatch({ type: "RESET_ALL" })}
-            className="text-sm text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50 transition-colors"
+            className="text-xs text-gray-500 hover:text-gray-700 border border-gray-200 rounded-xl px-3 py-2 hover:bg-gray-50 transition-colors font-medium"
           >
             Reset All
           </button>
           <button
             onClick={handleSave}
             disabled={saving || !hasChanges}
-            className="text-sm font-medium bg-purple-600 text-white rounded-lg px-4 py-1.5 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+            className="text-xs font-semibold text-white rounded-xl px-4 py-2 disabled:opacity-40 transition-all flex items-center gap-2"
+            style={{ background: hasChanges ? "linear-gradient(135deg, #7B2FF2, #5C16C5)" : "#D1D5DB" }}
           >
             {saving ? "Saving..." : hasChanges ? "Save Changes" : "No Changes"}
           </button>
         </div>
-      </header>
+      </div>
 
       {/* Main content */}
       <div className="flex flex-1 overflow-hidden">
+
+        {/* ═══ MACRO VIEW ═══ */}
+        {viewMode === "macro" && (
+          <div className="flex-1 overflow-y-auto bg-surface-alt">
+            <div className="max-w-5xl mx-auto px-6 py-8">
+              <AIControlPanel
+                onMacroChange={(macro) => {
+                  // Map macro values → micro sliders in real-time
+                  const s = macro.teachingStyle / 100; // 0=teacher-led, 1=student-led
+                  const t = macro.theoryPracticalBalance / 100; // 0=theory, 1=practical
+                  const sc = macro.scaffoldingLevel / 100; // 0=max support, 1=minimal
+                  const cr = macro.critiqueIntensity / 100; // 0=light, 1=heavy
+
+                  // Generation emphasis dials
+                  dispatch({ type: "SET_SLIDER", category: "generationEmphasis", key: "scaffoldingFade", value: Math.round(3 + s * 7) });
+                  dispatch({ type: "SET_SLIDER", category: "generationEmphasis", key: "selfAssessment", value: Math.round(3 + s * 7) });
+                  dispatch({ type: "SET_SLIDER", category: "generationEmphasis", key: "productiveFailure", value: Math.round(2 + s * 6) });
+                  dispatch({ type: "SET_SLIDER", category: "generationEmphasis", key: "teacherNotes", value: Math.round(8 - s * 5) });
+                  dispatch({ type: "SET_SLIDER", category: "generationEmphasis", key: "ellScaffolding", value: Math.round(8 - sc * 5) });
+                  dispatch({ type: "SET_SLIDER", category: "generationEmphasis", key: "critiqueCulture", value: Math.round(2 + cr * 8) });
+                  dispatch({ type: "SET_SLIDER", category: "generationEmphasis", key: "safetyCulture", value: Math.round(3 + t * 5) });
+                  dispatch({ type: "SET_SLIDER", category: "generationEmphasis", key: "digitalPhysicalBalance", value: Math.round(2 + t * 6) });
+                  dispatch({ type: "SET_SLIDER", category: "generationEmphasis", key: "portfolioCapture", value: Math.round(2 + cr * 4) });
+
+                  // Quality weights
+                  dispatch({ type: "SET_SLIDER", category: "qualityWeights", key: "scaffolding_fade", value: Math.round(3 + sc * 7) });
+                  dispatch({ type: "SET_SLIDER", category: "qualityWeights", key: "critique_culture", value: Math.round(2 + cr * 8) });
+                  dispatch({ type: "SET_SLIDER", category: "qualityWeights", key: "digital_physical_balance", value: Math.round(2 + t * 6) });
+
+                  // Relative emphasis
+                  dispatch({ type: "SET_SLIDER", category: "relativeEmphasis", key: "teacherInput", value: Math.round(45 - s * 20) });
+                  dispatch({ type: "SET_SLIDER", category: "relativeEmphasis", key: "pedagogicalIntelligence", value: Math.round(15 + s * 15) });
+                }}
+                onSave={async () => {
+                  // Save via the existing API
+                  await handleSave();
+                }}
+              />
+            </div>
+
+            {/* Test sandbox still available in macro mode */}
+            <TestSandbox config={config} />
+          </div>
+        )}
+
+        {/* ═══ MICRO VIEW ═══ */}
+        {viewMode === "micro" && <>
         {/* Sidebar */}
-        <nav className="w-56 bg-white border-r border-gray-200 py-4 overflow-y-auto shrink-0">
-          {allCategories.map((cat) => {
-            const isActive = activeCategory === cat.key;
-            return (
-              <button
-                key={cat.key}
-                onClick={() => setActiveCategory(cat.key)}
-                className={`w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors ${
-                  isActive
-                    ? "bg-purple-50 text-purple-700 border-r-2 border-purple-600 font-medium"
-                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                }`}
-              >
-                <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d={cat.icon} />
-                </svg>
-                <span className="truncate">{cat.label}</span>
-              </button>
-            );
-          })}
+        <nav className="w-56 bg-white border-r py-3 overflow-y-auto shrink-0" style={{ borderColor: "rgba(0,0,0,0.06)" }}>
+          <div className="px-3 space-y-0.5">
+            {allCategories.map((cat) => {
+              const isActive = activeCategory === cat.key;
+              return (
+                <button
+                  key={cat.key}
+                  onClick={() => setActiveCategory(cat.key)}
+                  className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left text-sm transition-all duration-150"
+                  style={{
+                    borderRadius: 10,
+                    color: isActive ? "#7B2FF2" : "#6B7280",
+                    background: isActive ? "rgba(123,47,242,0.08)" : "transparent",
+                    fontWeight: isActive ? 600 : 400,
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isActive) e.currentTarget.style.background = "rgba(0,0,0,0.03)";
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isActive) e.currentTarget.style.background = "transparent";
+                  }}
+                >
+                  <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} style={{ opacity: isActive ? 1 : 0.5 }}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d={cat.icon} />
+                  </svg>
+                  <span className="truncate">{cat.label}</span>
+                </button>
+              );
+            })}
+          </div>
         </nav>
 
         {/* Panel content */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto bg-surface-alt">
+          <div className="max-w-3xl mx-auto p-6">
             {activeCategory === "timingProfiles" ? (
               <TimingPanel
                 profiles={config.timingProfiles}
@@ -1094,9 +1742,10 @@ export default function AIModelAdminPage() {
             ) : null}
           </div>
 
-          {/* Test sandbox pinned to bottom */}
+          {/* Test sandbox flows in the same scroll area */}
           <TestSandbox config={config} />
         </div>
+        </>}
       </div>
     </div>
   );

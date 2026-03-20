@@ -15,6 +15,11 @@ import type {
   Pass1Structure,
   Pass2Pedagogy,
   Pass3DesignTeaching,
+  Pass0Classification,
+  RubricProfile,
+  SafetyProfile,
+  ExemplarProfile,
+  ContentProfile,
   AnalysisResult,
   LessonFlowPhase,
   EnergyState,
@@ -24,11 +29,21 @@ import type { PartialTeachingContext } from "@/types/lesson-intelligence";
 
 import {
   ANALYSIS_PROMPT_VERSION,
+  PASS0_SYSTEM_PROMPT,
   PASS1_SYSTEM_PROMPT,
   PASS2_SYSTEM_PROMPT,
+  PASS2R_SYSTEM_PROMPT,
+  PASS2S_SYSTEM_PROMPT,
+  PASS2E_SYSTEM_PROMPT,
+  PASS2T_SYSTEM_PROMPT,
   PASS3_SYSTEM_PROMPT,
+  buildPass0Prompt,
   buildPass1Prompt,
   buildPass2Prompt,
+  buildPass2RPrompt,
+  buildPass2SPrompt,
+  buildPass2EPrompt,
+  buildPass2TPrompt,
   buildPass3Prompt,
   buildTeachingContextBlock,
 } from "./analysis-prompts";
@@ -177,6 +192,87 @@ export async function analysePass3(
   });
 }
 
+/**
+ * Pass 0: Source classification.
+ * Fast pass using Haiku — detects document type and routes to appropriate pipeline.
+ */
+export async function analysePass0(
+  textPreview: string,
+  filename: string,
+  sourceCategory?: string
+): Promise<Pass0Classification> {
+  return callAI<Pass0Classification>({
+    system: PASS0_SYSTEM_PROMPT,
+    prompt: buildPass0Prompt(textPreview, filename, sourceCategory),
+    model: "haiku",
+    maxTokens: 1000,
+  });
+}
+
+/**
+ * Pass 2R: Rubric analysis.
+ * Deep pass using Sonnet — extracts criteria, descriptors, command verbs.
+ */
+export async function analyseRubric(
+  extractedText: string,
+  pass1: Pass1Structure
+): Promise<RubricProfile> {
+  return callAI<RubricProfile>({
+    system: PASS2R_SYSTEM_PROMPT,
+    prompt: buildPass2RPrompt(extractedText, pass1),
+    model: "sonnet",
+    maxTokens: 4000,
+  });
+}
+
+/**
+ * Pass 2S: Safety analysis.
+ * Fast pass using Haiku — extracts equipment, hazards, PPE, procedures.
+ */
+export async function analyseSafety(
+  extractedText: string,
+  pass1: Pass1Structure
+): Promise<SafetyProfile> {
+  return callAI<SafetyProfile>({
+    system: PASS2S_SYSTEM_PROMPT,
+    prompt: buildPass2SPrompt(extractedText, pass1),
+    model: "haiku",
+    maxTokens: 2500,
+  });
+}
+
+/**
+ * Pass 2E: Exemplar analysis.
+ * Deep pass using Sonnet — analyses student work quality.
+ */
+export async function analyseExemplar(
+  extractedText: string,
+  pass1: Pass1Structure
+): Promise<ExemplarProfile> {
+  return callAI<ExemplarProfile>({
+    system: PASS2E_SYSTEM_PROMPT,
+    prompt: buildPass2EPrompt(extractedText, pass1),
+    model: "sonnet",
+    maxTokens: 2500,
+  });
+}
+
+/**
+ * Pass 2T: Content analysis.
+ * Fast pass using Haiku — extracts concepts, vocabulary, difficulty, prerequisites.
+ */
+export async function analyseContent(
+  extractedText: string,
+  pass1: Pass1Structure
+): Promise<ContentProfile> {
+  return callAI<ContentProfile>({
+    system: PASS2T_SYSTEM_PROMPT,
+    prompt: buildPass2TPrompt(extractedText, pass1),
+    model: "haiku",
+    maxTokens: 2000,
+  });
+}
+
 /* ================================================================
    PROFILE MERGER
    Deterministic combination of all 3 passes into LessonProfile
@@ -308,6 +404,87 @@ export function mergeIntoProfile(
 }
 
 /* ================================================================
+   HELPER: Create minimal placeholder profile for type-specific pipelines
+   ================================================================ */
+
+/**
+ * For type-specific pipelines (rubric, safety, exemplar, content, scope, lightweight),
+ * create a minimal LessonProfile as a placeholder to satisfy the interface.
+ * The real analysis is in the type-specific profile objects.
+ */
+function createPlaceholderProfile(
+  pass1: Pass1Structure,
+  analysisType: string
+): LessonProfile {
+  return {
+    // Identity
+    title: pass1.title,
+    subject_area: pass1.subject_area,
+    grade_level: pass1.grade_level,
+    estimated_duration_minutes: pass1.estimated_duration_minutes,
+    lesson_type: pass1.lesson_type,
+
+    // Minimal placeholder data
+    criteria_analysis: [],
+    lesson_flow: pass1.sections.map((section) => ({
+      phase: "independent_work",
+      title: section.title,
+      description: section.content_summary,
+      estimated_minutes: section.estimated_minutes,
+      activity_type: section.activity_type ?? "unknown",
+      pedagogical_purpose: `Part of ${analysisType}`,
+      teacher_role: "facilitating",
+      student_cognitive_level: "understand",
+      scaffolding_present: [],
+      scaffolding_removed: [],
+      energy_state: "calm_focus",
+      materials_needed: section.materials_mentioned,
+      tools_required: section.tools_mentioned,
+    })),
+
+    pedagogical_approach: {
+      primary: analysisType,
+      reasoning: `This is a ${analysisType} document, analysed for type-specific properties.`,
+    },
+    scaffolding_strategy: {
+      model: "none-detected",
+      how_supports_are_introduced: "",
+      how_supports_are_removed: "",
+      reasoning: "",
+    },
+    cognitive_load_curve: {
+      description: "Not assessed for this document type",
+      peak_moment: "",
+      recovery_moment: "",
+    },
+    classroom_management: {
+      noise_level_curve: "",
+      movement_required: false,
+      grouping_progression: "",
+      the_5_and_5: "",
+    },
+
+    strengths: [],
+    gaps: [],
+    complexity_level: pass1.sections.length > 0 ? "proficient" : "introductory",
+
+    prerequisites: [],
+    skills_developed: [],
+    energy_and_sequencing: {
+      starts_as: "calm_focus",
+      ends_as: "calm_focus",
+      ideal_follows: "",
+      avoid_after: "",
+    },
+
+    // Provenance
+    analysis_version: ANALYSIS_PROMPT_VERSION,
+    analysis_model: "claude-haiku-4-5-20251001", // lightweight pipeline uses Haiku
+    analysis_timestamp: new Date().toISOString(),
+  };
+}
+
+/* ================================================================
    MAIN ORCHESTRATOR
    ================================================================ */
 
@@ -320,13 +497,16 @@ export interface AnalyseDocumentOptions {
   deepModel?: "sonnet";
   /** Teacher's school context and preferences — enriches analysis prompts */
   teachingContext?: PartialTeachingContext;
+  /** User-selected category hint for Pass 0 classification */
+  sourceCategory?: string;
   /** Callback for progress updates */
   onProgress?: (stage: AnalysisStage, message: string) => void;
 }
 
 export type AnalysisStage =
-  | "extracting"
+  | "pass0_classify"
   | "pass1_structure"
+  | "pass2_type_specific"
   | "pass2_pedagogy"
   | "pass3_design_teaching"
   | "merging"
@@ -334,14 +514,33 @@ export type AnalysisStage =
   | "error";
 
 /**
- * Run full 3-pass analysis on an extracted document.
+ * Run document analysis with Pass 0 classification and type-specific pipelines.
+ *
+ * Flow:
+ * 1. Pass 0: Classify document type → select pipeline
+ * 2. Pass 1: Extract structure (all pipelines)
+ * 3. Pass 2 variant based on pipeline:
+ *    - lesson: Pass 2 (pedagogy) + Pass 3 (design teaching) → full merge
+ *    - rubric: Pass 2R (rubric analysis) → RubricProfile
+ *    - safety: Pass 2S (safety analysis) → SafetyProfile
+ *    - exemplar: Pass 2E (exemplar analysis) → ExemplarProfile
+ *    - content: Pass 2T (content analysis) → ContentProfile
+ *    - scope: Pass 1 only → Pass1Structure
+ *    - lightweight: Pass 1 only → Pass1Structure
+ *
  * Returns the complete AnalysisResult with all intermediate outputs
- * and the merged LessonProfile.
+ * and the appropriate typed profile.
  */
 export async function analyseDocument(
   options: AnalyseDocumentOptions
 ): Promise<AnalysisResult> {
-  const { extractedText, filename, teachingContext, onProgress } = options;
+  const {
+    extractedText,
+    filename,
+    teachingContext,
+    sourceCategory,
+    onProgress,
+  } = options;
 
   // Truncate very long documents to avoid token limits
   // Keep first 12000 chars (~3000 tokens) — enough for most lesson plans
@@ -350,26 +549,103 @@ export async function analyseDocument(
       ? extractedText.slice(0, 12000) + "\n\n[... document truncated for analysis ...]"
       : extractedText;
 
-  // Pass 1: Structure
-  onProgress?.("pass1_structure", "Extracting lesson structure...");
+  // Preview for Pass 0: first 2000 chars
+  const textPreview =
+    text.length > 2000 ? text.slice(0, 2000) + "\n\n[...]" : text;
+
+  // ─── Pass 0: Classify document type ───
+  onProgress?.("pass0_classify", "Detecting document type...");
+  const pass0 = await analysePass0(textPreview, filename, sourceCategory);
+
+  // ─── Pass 1: Extract structure (all pipelines) ───
+  onProgress?.("pass1_structure", "Extracting document structure...");
   const pass1 = await analysePass1(text, filename, teachingContext);
 
-  // Pass 2: Pedagogy
-  onProgress?.("pass2_pedagogy", "Analysing pedagogical approach...");
-  const pass2 = await analysePass2(text, pass1, teachingContext);
+  // ─── Route to type-specific pipeline ───
+  const pipeline = pass0.recommended_pipeline;
 
-  // Pass 3: Design Teaching
-  onProgress?.("pass3_design_teaching", "Assessing workshop reality...");
-  const pass3 = await analysePass3(text, pass1, pass2, teachingContext);
+  // Declare these to satisfy TypeScript
+  let pass2: Pass2Pedagogy | null = null;
+  let pass3: Pass3DesignTeaching | null = null;
+  let rubricProfile: RubricProfile | undefined;
+  let safetyProfile: SafetyProfile | undefined;
+  let exemplarProfile: ExemplarProfile | undefined;
+  let contentProfile: ContentProfile | undefined;
+  let profile: LessonProfile;
 
-  // Merge
-  onProgress?.("merging", "Building lesson intelligence profile...");
-  const analysisModel = "claude-sonnet-4-20250514";
-  const profile = mergeIntoProfile(pass1, pass2, pass3, analysisModel);
+  if (pipeline === "lesson") {
+    // Full 3-pass lesson analysis
+    onProgress?.(
+      "pass2_pedagogy",
+      "Analysing pedagogical approach..."
+    );
+    pass2 = await analysePass2(text, pass1, teachingContext);
+
+    onProgress?.(
+      "pass3_design_teaching",
+      "Assessing workshop reality..."
+    );
+    pass3 = await analysePass3(
+      text,
+      pass1,
+      pass2,
+      teachingContext
+    );
+
+    onProgress?.("merging", "Building lesson intelligence profile...");
+    const analysisModel = "claude-sonnet-4-20250514";
+    profile = mergeIntoProfile(pass1, pass2, pass3, analysisModel);
+  } else if (pipeline === "rubric") {
+    // Rubric-specific analysis
+    onProgress?.("pass2_type_specific", "Analysing rubric criteria...");
+    rubricProfile = await analyseRubric(text, pass1);
+
+    // Create a minimal LessonProfile as placeholder
+    profile = createPlaceholderProfile(pass1, "rubric analysis");
+  } else if (pipeline === "safety") {
+    // Safety-specific analysis
+    onProgress?.("pass2_type_specific", "Analysing safety procedures...");
+    safetyProfile = await analyseSafety(text, pass1);
+
+    profile = createPlaceholderProfile(pass1, "safety documentation");
+  } else if (pipeline === "exemplar") {
+    // Exemplar analysis
+    onProgress?.("pass2_type_specific", "Analysing student work exemplar...");
+    exemplarProfile = await analyseExemplar(text, pass1);
+
+    profile = createPlaceholderProfile(pass1, "student exemplar");
+  } else if (pipeline === "content") {
+    // Content analysis
+    onProgress?.("pass2_type_specific", "Analysing content and concepts...");
+    contentProfile = await analyseContent(text, pass1);
+
+    profile = createPlaceholderProfile(pass1, "reference content");
+  } else if (pipeline === "scope" || pipeline === "lightweight") {
+    // Pass 1 only
+    onProgress?.("merging", "Preparing analysis results...");
+
+    profile = createPlaceholderProfile(
+      pass1,
+      pipeline === "scope" ? "scheme of work" : "resource handout"
+    );
+  } else {
+    throw new Error(`Unknown pipeline: ${pipeline}`);
+  }
 
   onProgress?.("complete", "Analysis complete");
 
-  return { pass1, pass2, pass3, profile };
+  return {
+    pass0,
+    pipeline,
+    pass1,
+    pass2: pass2!,
+    pass3: pass3!,
+    profile,
+    rubricProfile,
+    safetyProfile,
+    exemplarProfile,
+    contentProfile,
+  };
 }
 
 /* ================================================================
@@ -385,12 +661,14 @@ export async function reanalyseDocument(
   rawText: string,
   filename: string,
   onProgress?: (stage: AnalysisStage, message: string) => void,
-  teachingContext?: PartialTeachingContext
+  teachingContext?: PartialTeachingContext,
+  sourceCategory?: string
 ): Promise<AnalysisResult> {
   return analyseDocument({
     extractedText: rawText,
     filename,
     teachingContext,
+    sourceCategory,
     onProgress,
   });
 }

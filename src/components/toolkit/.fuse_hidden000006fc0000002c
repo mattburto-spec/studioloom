@@ -1,0 +1,886 @@
+'use client';
+
+import { useState, useRef, useEffect, useCallback } from 'react';
+
+import { motion } from 'framer-motion';
+
+/* ─── SWOT Quadrant Data ─── */
+const QUADRANTS = [
+  {
+    index: 0,
+    letter: 'S',
+    name: 'Strengths',
+    emoji: '💪',
+    color: '#10b981',
+    glow: 'rgba(16,185,129,0.15)',
+    focus: 'internal positive',
+    desc: 'What are the strengths? What do you do well? What advantages do you have?',
+  },
+  {
+    index: 1,
+    letter: 'W',
+    name: 'Weaknesses',
+    emoji: '⚠️',
+    color: '#ef4444',
+    glow: 'rgba(239,68,68,0.15)',
+    focus: 'internal negative',
+    desc: 'What are the weaknesses? What could be improved? What are you less good at?',
+  },
+  {
+    index: 2,
+    letter: 'O',
+    name: 'Opportunities',
+    emoji: '🎯',
+    color: '#3b82f6',
+    glow: 'rgba(59,130,246,0.15)',
+    focus: 'external positive',
+    desc: 'What opportunities exist? What trends could you capitalize on? What doors might open?',
+  },
+  {
+    index: 3,
+    letter: 'T',
+    name: 'Threats',
+    emoji: '🚨',
+    color: '#f59e0b',
+    glow: 'rgba(245,158,11,0.15)',
+    focus: 'external negative',
+    desc: 'What threats exist? What could go wrong? What could derail your plans?',
+  },
+] as const;
+
+type QuadrantIndex = 0 | 1 | 2 | 3;
+type EffortLevel = 'low' | 'medium' | 'high';
+
+/* ─── Effort Assessment (client-side, deterministic) ─── */
+function assessEffort(idea: string): EffortLevel {
+  const words = idea.trim().split(/\s+/).length;
+  const hasReasoning = /\b(because|since|so that|in order to|this would|this could|which means|that way)\b/i.test(idea);
+  const hasSpecifics = /\b(for example|such as|like|using|made of|instead of|rather than|compared to)\b/i.test(idea);
+  const hasDetail = words >= 15;
+
+  if (words < 6) return 'low';
+  if ((hasDetail && hasSpecifics) || (hasDetail && hasReasoning) || (hasSpecifics && hasReasoning)) return 'high';
+  if (words >= 10 || hasSpecifics || hasReasoning) return 'medium';
+  return 'low';
+}
+
+function getDepthInfo(effort: EffortLevel): { dots: 1 | 2 | 3; label: string; color: string } {
+  if (effort === 'high') return { dots: 3, label: 'Detailed', color: '#a78bfa' };
+  if (effort === 'medium') return { dots: 2, label: 'Good start', color: '#60a5fa' };
+  return { dots: 1, label: 'Go deeper', color: '#f59e0b' };
+}
+
+const MICRO_FEEDBACK: Record<EffortLevel, { emoji: string; messages: string[] }> = {
+  high: {
+    emoji: '✦',
+    messages: ['Deep thinking!', 'Great detail!', 'Strong analysis!', 'Specific and clear!', 'Well reasoned!'],
+  },
+  medium: {
+    emoji: '→',
+    messages: ['Good — keep building!', 'Nice start!', 'Getting deeper!', 'Building analysis!'],
+  },
+  low: {
+    emoji: '↑',
+    messages: ['Try adding more detail', 'Can you be more specific?', 'What evidence supports this?'],
+  },
+};
+
+/* ─── API helpers ─── */
+async function fetchAI(body: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const res = await fetch('/api/tools/swot', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Request failed' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+/* ─── Main Component ─── */
+export function SwotAnalysisTool(props: { toolId?: string; mode: 'public' | 'embedded' | 'standalone'; challenge?: string; sessionId?: string; onSave?: (state: any) => void; onComplete?: (data: any) => void } = { mode: 'public' }) {
+  const [stage, setStage] = useState<'intro' | 'working' | 'summary'>('intro');
+  const [challenge, setChallenge] = useState('');
+  const [currentQuadrant, setCurrentQuadrant] = useState<QuadrantIndex>(0);
+  const [ideas, setIdeas] = useState<string[][]>(() => QUADRANTS.map(() => []));
+  const [currentIdea, setCurrentIdea] = useState('');
+
+  // Strategic priority state
+  const [strategicChoice, setStrategicChoice] = useState<string | null>(null);
+  const [strategicAction, setStrategicAction] = useState('');
+
+  // AI state
+  const [sessionId] = useState(() => Math.random().toString(36).slice(2) + Date.now().toString(36));
+  const [aiPrompts, setAiPrompts] = useState<Record<number, string[]>>({});
+  const [loadingPrompts, setLoadingPrompts] = useState(false);
+  const [nudge, setNudge] = useState('');
+  const [nudgeVisible, setNudgeVisible] = useState(false);
+  const [loadingNudge, setLoadingNudge] = useState(false);
+  const [insights, setInsights] = useState('');
+  const [loadingInsights, setLoadingInsights] = useState(false);
+
+  // Card dealing state
+  const [dealtCards, setDealtCards] = useState<Record<number, number>>({});
+  const [thinkingTimeLeft, setThinkingTimeLeft] = useState(0);
+  const [dealingAnimation, setDealingAnimation] = useState(false);
+  const thinkingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Effort-gating & micro-feedback
+  const [ideaEfforts, setIdeaEfforts] = useState<Record<number, EffortLevel[]>>({});
+  const [microFeedback, setMicroFeedback] = useState<{ effort: EffortLevel; message: string } | null>(null);
+  const [nudgeAcknowledgment, setNudgeAcknowledgment] = useState('');
+  const [exampleExpanded, setExampleExpanded] = useState(false);
+  const microFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const challengeRef = useRef<HTMLTextAreaElement>(null);
+
+  const quad = QUADRANTS[currentQuadrant];
+  const currentPrompts = aiPrompts[currentQuadrant] || quad.desc ? [quad.desc] : [];
+  const cardsDealt = dealtCards[currentQuadrant] || 0;
+  const currentEfforts = ideaEfforts[currentQuadrant] || [];
+
+  // Fetch AI prompts when quadrant changes
+  const fetchPrompts = useCallback(async (quadIdx: QuadrantIndex, existingIdeas: string[] = []) => {
+    if (!challenge.trim()) return;
+    setLoadingPrompts(true);
+    try {
+      const data = await fetchAI({
+        action: 'prompts',
+        challenge: challenge.trim(),
+        sessionId,
+        quadrantIndex: quadIdx,
+        existingIdeas,
+      });
+      setAiPrompts((prev) => ({ ...prev, [quadIdx]: data.prompts as string[] }));
+    } catch (err) {
+      console.error('Fetch prompts error:', err);
+      // Fallback prompts
+      const fallbacks: Record<number, string[]> = {
+        0: [
+          'What skills or resources do you have that help?',
+          'What do you do well compared to others?',
+          'What advantages does your approach have?',
+          'What existing strengths can you build on?',
+        ],
+        1: [
+          'What areas could be improved or strengthened?',
+          'What do competitors do better?',
+          'What challenges do you struggle with?',
+          'What would make this less effective?',
+        ],
+        2: [
+          'What market trends or changes could help you?',
+          'What new technology or resources could you access?',
+          'What gaps in the market could you fill?',
+          'Who new could you partner with or serve?',
+        ],
+        3: [
+          'What external changes could hurt your plans?',
+          'What competitor actions could threaten you?',
+          'What regulations or constraints exist?',
+          'What uncertainties could derail this?',
+        ],
+      };
+      setAiPrompts((prev) => ({ ...prev, [quadIdx]: fallbacks[quadIdx] }));
+    } finally {
+      setLoadingPrompts(false);
+    }
+  }, [challenge, sessionId]);
+
+  // Start working
+  const handleStart = useCallback(() => {
+    if (!challenge.trim()) return;
+    setStage('working');
+    setCurrentQuadrant(0);
+    fetchPrompts(0, []);
+  }, [challenge, fetchPrompts]);
+
+  // Add idea
+  const handleAddIdea = useCallback(async () => {
+    if (!currentIdea.trim()) return;
+
+    const effort = assessEffort(currentIdea);
+    const newIdea = currentIdea.trim();
+
+    // Update ideas list
+    setIdeas((prev) => {
+      const newIdeas = [...prev];
+      newIdeas[currentQuadrant] = [...(newIdeas[currentQuadrant] || []), newIdea];
+      return newIdeas;
+    });
+
+    // Update efforts
+    setIdeaEfforts((prev) => ({
+      ...prev,
+      [currentQuadrant]: [...(prev[currentQuadrant] || []), effort],
+    }));
+
+    setCurrentIdea('');
+
+    // Micro-feedback
+    const feedback = MICRO_FEEDBACK[effort];
+    const msg = feedback.messages[Math.floor(Math.random() * feedback.messages.length)];
+    setMicroFeedback({ effort, message: `${feedback.emoji} ${msg}` });
+    if (microFeedbackTimerRef.current) clearTimeout(microFeedbackTimerRef.current);
+    microFeedbackTimerRef.current = setTimeout(() => setMicroFeedback(null), 3000);
+
+    // Hide previous nudge
+    setNudgeVisible(false);
+
+    // Fetch nudge
+    setLoadingNudge(true);
+    try {
+      const existingIdeas = ideas[currentQuadrant];
+      const data = await fetchAI({
+        action: 'nudge',
+        challenge: challenge.trim(),
+        sessionId,
+        quadrantIndex: currentQuadrant,
+        idea: newIdea,
+        existingIdeas,
+        effortLevel: effort,
+      });
+      setNudge(data.nudge as string);
+      setNudgeAcknowledgment(data.acknowledgment as string);
+    } catch (err) {
+      console.error('Fetch nudge error:', err);
+    } finally {
+      setLoadingNudge(false);
+    }
+
+    if (cardsDealt === 0) {
+      setTimeout(() => setNudgeVisible(true), 500);
+    }
+
+    if (textareaRef.current) textareaRef.current.focus();
+  }, [currentIdea, currentQuadrant, ideas, challenge, sessionId, cardsDealt]);
+
+  // Deal a card
+  const dealCard = useCallback(() => {
+    const prompts = aiPrompts[currentQuadrant] || [];
+    if (cardsDealt >= prompts.length) return;
+    if (ideas[currentQuadrant].length === 0) {
+      // Soft gate
+      setNudgeVisible(true);
+      return;
+    }
+
+    setDealingAnimation(true);
+    setTimeout(() => {
+      setDealtCards((prev) => ({ ...prev, [currentQuadrant]: (prev[currentQuadrant] || 0) + 1 }));
+      setDealingAnimation(false);
+      setThinkingTimeLeft(10);
+
+      if (thinkingTimerRef.current) clearInterval(thinkingTimerRef.current);
+      thinkingTimerRef.current = setInterval(() => {
+        setThinkingTimeLeft((prev) => {
+          if (prev <= 1) {
+            if (thinkingTimerRef.current) clearInterval(thinkingTimerRef.current);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }, 150);
+  }, [cardsDealt, aiPrompts, currentQuadrant, ideas]);
+
+  // Move to next quadrant
+  const moveToQuadrant = useCallback((idx: QuadrantIndex) => {
+    setCurrentQuadrant(idx);
+    setCurrentIdea('');
+    setNudgeVisible(false);
+    setNudge('');
+    setDealtCards({});
+    setThinkingTimeLeft(0);
+    const prompts = aiPrompts[idx] || [];
+    if (prompts.length === 0) {
+      fetchPrompts(idx, ideas[idx] || []);
+    }
+  }, [aiPrompts, ideas, fetchPrompts]);
+
+  // Move to summary
+  const handleSummary = useCallback(async () => {
+    setStage('summary');
+    setLoadingInsights(true);
+    try {
+      const data = await fetchAI({
+        action: 'insights',
+        challenge: challenge.trim(),
+        sessionId,
+        allIdeas: ideas,
+      });
+      setInsights(data.insights as string);
+    } catch (err) {
+      console.error('Fetch insights error:', err);
+    } finally {
+      setLoadingInsights(false);
+    }
+  }, [challenge, sessionId, ideas]);
+
+  // Render based on stage
+  if (stage === 'intro') {
+    return (
+        style={{ background: '#000000', minHeight: '100vh', color: '#ffffff', padding: '40px 20px' }}>
+        <div style={{ maxWidth: '600px', margin: '0 auto' }}>
+          <div style={{ marginBottom: '40px' }}>
+            <h1 style={{ fontSize: '48px', fontWeight: '900', marginBottom: '16px', color: '#f59e0b' }}>
+              SWOT Analysis
+            </h1>
+            <p style={{ fontSize: '18px', color: '#d1d5db', marginBottom: '24px', lineHeight: '1.6' }}>
+              Evaluate your design idea or business plan from four angles: Strengths, Weaknesses, Opportunities, and Threats. A classic analytical framework.
+            </p>
+          </div>
+
+          <div style={{ marginBottom: '40px' }}>
+            <h2 style={{ fontSize: '14px', fontWeight: '600', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px' }}>
+              What Are You Analyzing?
+            </h2>
+            <textarea
+              ref={challengeRef}
+              value={challenge}
+              onChange={(e) => setChallenge(e.target.value)}
+              placeholder="E.g., Our new eco-friendly backpack design for students"
+              style={{
+                width: '100%',
+                padding: '16px',
+                fontSize: '16px',
+                background: 'rgba(255,255,255,0.05)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: '12px',
+                color: '#ffffff',
+                fontFamily: 'inherit',
+                resize: 'vertical',
+                minHeight: '100px',
+              }}
+            />
+          </div>
+
+          <button
+            onClick={handleStart}
+            disabled={!challenge.trim()}
+            style={{
+              width: '100%',
+              padding: '16px',
+              fontSize: '16px',
+              fontWeight: '600',
+              background: challenge.trim() ? '#f59e0b' : 'rgba(245,158,11,0.3)',
+              color: '#000000',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: challenge.trim() ? 'pointer' : 'not-allowed',
+              transition: 'background 0.3s',
+            }}
+            onMouseEnter={(e) => {
+              if (challenge.trim()) (e.target as HTMLButtonElement).style.background = '#d97706';
+            }}
+            onMouseLeave={(e) => {
+              if (challenge.trim()) (e.target as HTMLButtonElement).style.background = '#f59e0b';
+            }}
+          >
+            Start SWOT Analysis
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (stage === 'working') {
+    const prompts = aiPrompts[currentQuadrant] || [quad.desc];
+
+    return (
+        style={{ background: '#000000', minHeight: '100vh', color: '#ffffff', paddingBottom: '40px' }}>
+        {/* 2x2 Grid Navigation */}
+        <div style={{ background: 'rgba(0,0,0,0.8)', borderBottom: '1px solid rgba(255,255,255,0.1)', padding: '20px', position: 'sticky', top: 0, zIndex: 20 }}>
+          <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+              {QUADRANTS.slice(0, 2).map((q) => (
+                <button
+                  key={q.index}
+                  onClick={() => moveToQuadrant(q.index as QuadrantIndex)}
+                  style={{
+                    padding: '12px',
+                    background: currentQuadrant === q.index ? `${q.color}33` : 'rgba(255,255,255,0.05)',
+                    border: `1px solid ${currentQuadrant === q.index ? q.color : 'rgba(255,255,255,0.1)'}`,
+                    borderRadius: '6px',
+                    color: q.color,
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {q.emoji} {q.name}
+                </button>
+              ))}
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              {QUADRANTS.slice(2, 4).map((q) => (
+                <button
+                  key={q.index}
+                  onClick={() => moveToQuadrant(q.index as QuadrantIndex)}
+                  style={{
+                    padding: '12px',
+                    background: currentQuadrant === q.index ? `${q.color}33` : 'rgba(255,255,255,0.05)',
+                    border: `1px solid ${currentQuadrant === q.index ? q.color : 'rgba(255,255,255,0.1)'}`,
+                    borderRadius: '6px',
+                    color: q.color,
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {q.emoji} {q.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Main content */}
+        <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '40px 20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px' }}>
+          {/* Left: Input & prompts */}
+          <div>
+            <p style={{ fontSize: '14px', color: '#d1d5db', marginBottom: '24px', lineHeight: '1.6' }}>
+              {quad.desc}
+            </p>
+
+            {/* Textarea */}
+            <div style={{ marginBottom: '24px' }}>
+              <label style={{ fontSize: '12px', fontWeight: '600', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: '8px' }}>
+                Add to {quad.name}
+              </label>
+              <textarea
+                ref={textareaRef}
+                value={currentIdea}
+                onChange={(e) => setCurrentIdea(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && e.ctrlKey) handleAddIdea();
+                }}
+                placeholder={`What are the ${quad.name.toLowerCase()}?`}
+                style={{
+                  width: '100%',
+                  padding: '16px',
+                  fontSize: '15px',
+                  background: 'rgba(255,255,255,0.05)',
+                  border: `1px solid rgba(255,255,255,0.1)`,
+                  borderRadius: '8px',
+                  color: '#ffffff',
+                  fontFamily: 'inherit',
+                  resize: 'vertical',
+                  minHeight: '120px',
+                  marginBottom: '16px',
+                }}
+              />
+              <button
+                onClick={handleAddIdea}
+                disabled={!currentIdea.trim() || loadingNudge}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  background: currentIdea.trim() ? quad.color : `${quad.color}55`,
+                  color: '#000000',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: currentIdea.trim() ? 'pointer' : 'not-allowed',
+                }}
+              >
+                {loadingNudge ? 'Getting feedback...' : 'Add'}
+              </button>
+            </div>
+
+            {/* Micro-feedback toast */}
+            {microFeedback && (
+              <div
+                style={{
+                  padding: '12px 16px',
+                  background: microFeedback.effort === 'high' ? 'rgba(167,139,250,0.2)' : 'rgba(96,165,250,0.2)',
+                  border: `1px solid ${microFeedback.effort === 'high' ? 'rgba(167,139,250,0.5)' : 'rgba(96,165,250,0.5)'}`,
+                  borderRadius: '8px',
+                  color: '#ffffff',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  textAlign: 'center',
+                  marginBottom: '16px',
+                }}
+              >
+                {microFeedback.message}
+              </div>
+            )}
+
+            {/* Prompts section */}
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                <h3 style={{ fontSize: '12px', fontWeight: '600', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Guiding Questions
+                </h3>
+                <button
+                  onClick={dealCard}
+                  disabled={cardsDealt >= prompts.length || ideas[currentQuadrant].length === 0}
+                  style={{
+                    padding: '6px 12px',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    background: 'rgba(255,255,255,0.1)',
+                    color: '#ffffff',
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {loadingPrompts ? '...' : `Deal (${cardsDealt}/${prompts.length})`}
+                </button>
+              </div>
+
+              {cardsDealt === 0 && ideas[currentQuadrant].length === 0 && (
+                <div
+                  style={{
+                    padding: '12px',
+                    background: 'rgba(251,146,60,0.1)',
+                    border: '1px solid rgba(251,146,60,0.3)',
+                    borderRadius: '6px',
+                    color: '#fed7aa',
+                    fontSize: '13px',
+                  }}
+                >
+                  ↓ Try writing an idea first — then deal a question to deepen your thinking.
+                </div>
+              )}
+
+              {cardsDealt > 0 && (
+                <div
+                  style={{
+                    padding: '16px',
+                    background: quad.glow,
+                    border: `1px solid ${quad.color}44`,
+                    borderRadius: '8px',
+                    color: '#e5e7eb',
+                    fontSize: '15px',
+                    fontStyle: 'italic',
+                    lineHeight: '1.6',
+                    opacity: dealingAnimation ? 0.5 : 1,
+                    transition: 'opacity 0.2s',
+                  }}
+                >
+                  <span style={{ fontSize: '16px', marginRight: '12px' }}>✦</span>
+                  {prompts[cardsDealt - 1] || 'Keep thinking...'}
+
+                  {thinkingTimeLeft > 0 && (
+                    <div style={{ marginTop: '12px', fontSize: '12px', color: '#d1d5db', fontStyle: 'normal' }}>
+                      Think time: {thinkingTimeLeft}s
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Right: Ideas list */}
+          <div>
+            <h3 style={{ fontSize: '12px', fontWeight: '600', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '16px' }}>
+              {quad.emoji} {quad.name}
+            </h3>
+
+            {/* Depth indicator */}
+            {currentEfforts.length > 0 && (
+              <div style={{ marginBottom: '20px' }}>
+                <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '8px' }}>Analysis depth</div>
+                <div
+                  style={{
+                    height: '4px',
+                    background: 'rgba(255,255,255,0.1)',
+                    borderRadius: '2px',
+                    overflow: 'hidden',
+                  }}
+                >
+                  <div
+                    style={{
+                      height: '100%',
+                      width: `${Math.min(
+                        (currentEfforts.filter((e) => e !== 'low').length / currentEfforts.length) * 100,
+                        100
+                      )}%`,
+                      background: quad.color,
+                      transition: 'width 0.3s',
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Ideas cards */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {ideas[currentQuadrant]?.map((idea, idx) => {
+                const effort = currentEfforts[idx];
+                const depthInfo = getDepthInfo(effort);
+                return (
+                  <div
+                    key={idx}
+                    style={{
+                      padding: '16px',
+                      background: 'rgba(255,255,255,0.05)',
+                      border: `1px solid ${quad.color}33`,
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                      lineHeight: '1.6',
+                      color: '#e5e7eb',
+                    }}
+                  >
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                      <div style={{ fontSize: '18px' }}>{depthInfo.dots === 1 ? '●' : depthInfo.dots === 2 ? '●●' : '●●●'}</div>
+                      <div style={{ flex: 1 }}>
+                        <p>{idea}</p>
+                        <div style={{ fontSize: '11px', color: quad.color, marginTop: '6px', fontWeight: '500' }}>
+                          {depthInfo.label}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+    );
+              })}
+            </div>
+
+            {ideas[currentQuadrant]?.length === 0 && (
+              <div style={{ padding: '40px 20px', textAlign: 'center', color: '#6b7280', fontSize: '14px' }}>
+                Your ideas will appear here.
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Nudge card */}
+        {nudgeVisible && nudge && (
+          <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '0 20px', marginBottom: '40px' }}>
+            <div
+              style={{
+                padding: '20px',
+                background: quad.glow,
+                border: `1px solid ${quad.color}55`,
+                borderRadius: '12px',
+              }}
+            >
+              {nudgeAcknowledgment && (
+                <p style={{ fontSize: '13px', fontWeight: '600', color: quad.color, marginBottom: '8px' }}>
+                  {nudgeAcknowledgment}
+                </p>
+              )}
+              <p style={{ fontSize: '15px', color: '#e0c7ff', fontStyle: 'italic', lineHeight: '1.6' }}>
+                ✦ {nudge}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Button to summary */}
+        <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '0 20px', textAlign: 'center' }}>
+          <button
+            onClick={handleSummary}
+            disabled={ideas.every((arr) => arr.length === 0)}
+            style={{
+              padding: '12px 32px',
+              fontSize: '14px',
+              fontWeight: '600',
+              background: 'rgba(245,158,11,0.2)',
+              color: '#f59e0b',
+              border: '1px solid rgba(245,158,11,0.4)',
+              borderRadius: '6px',
+              cursor: 'pointer',
+            }}
+          >
+            View Summary
+          </button>
+        </div>
+      </div>
+    </div>
+    );
+  }
+
+  if (stage === 'summary') {
+    return (
+        style={{ background: '#000000', minHeight: '100vh', color: '#ffffff', padding: '40px 20px' }}>
+        <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
+          <h1 style={{ fontSize: '40px', fontWeight: '900', marginBottom: '12px', color: '#f59e0b' }}>
+            SWOT Analysis Summary
+          </h1>
+          <p style={{ fontSize: '16px', color: '#d1d5db', marginBottom: '40px' }}>
+            Challenge: <strong>{challenge}</strong>
+          </p>
+
+          {/* 2x2 grid of results */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '40px' }}>
+            {QUADRANTS.map((quad) => (
+              <div
+                key={quad.index}
+                style={{
+                  padding: '24px',
+                  background: quad.glow,
+                  border: `1px solid ${quad.color}55`,
+                  borderRadius: '12px',
+                }}
+              >
+                <h2 style={{ fontSize: '18px', fontWeight: '700', color: quad.color, marginBottom: '16px' }}>
+                  {quad.emoji} {quad.name}
+                </h2>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {ideas[quad.index]?.map((idea, idx) => (
+                    <p key={idx} style={{ fontSize: '13px', color: '#e5e7eb', lineHeight: '1.5' }}>
+                      • {idea}
+                    </p>
+                  ))}
+                  {ideas[quad.index]?.length === 0 && (
+                    <p style={{ fontSize: '13px', color: '#6b7280', fontStyle: 'italic' }}>No points recorded</p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* AI Insights */}
+          {insights && (
+            <div
+              style={{
+                padding: '24px',
+                background: 'rgba(245,158,11,0.1)',
+                border: '1px solid rgba(245,158,11,0.3)',
+                borderRadius: '12px',
+                marginBottom: '40px',
+              }}
+            >
+              <h3 style={{ fontSize: '14px', fontWeight: '600', color: '#fcd34d', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px' }}>
+                ✦ Key Insights
+              </h3>
+              <p style={{ fontSize: '15px', color: '#fef3c7', lineHeight: '1.8', whiteSpace: 'pre-wrap' }}>
+                {insights}
+              </p>
+            </div>
+          )}
+
+          {loadingInsights && (
+            <div style={{ textAlign: 'center', color: '#9ca3af', padding: '40px' }}>
+              Synthesizing your analysis...
+            </div>
+          )}
+
+          {/* So What? Strategic Priority Section */}
+          <div
+            style={{
+              padding: '24px',
+              background: 'rgba(99, 102, 241, 0.1)',
+              border: '2px solid rgba(99, 102, 241, 0.3)',
+              borderRadius: '12px',
+              marginBottom: '40px',
+            }}
+          >
+            <h3 style={{ fontSize: '14px', fontWeight: '600', color: '#6366f1', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '16px' }}>
+              So What? Your Strategic Priority
+            </h3>
+
+            <p style={{ fontSize: '14px', color: '#d1d5db', marginBottom: '16px' }}>
+              Based on your SWOT analysis, what's your #1 strategic priority?
+            </p>
+
+            <select
+              value={strategicChoice || ''}
+              onChange={(e) => {
+                setStrategicChoice(e.target.value || null);
+                setStrategicAction('');
+              }}
+              style={{
+                width: '100%',
+                padding: '12px',
+                fontSize: '14px',
+                background: 'rgba(0,0,0,0.3)',
+                border: '1px solid rgba(99, 102, 241, 0.4)',
+                borderRadius: '6px',
+                color: '#ffffff',
+                marginBottom: '16px',
+                fontFamily: 'inherit',
+                cursor: 'pointer',
+              }}
+            >
+              <option value="">Select a priority type...</option>
+              <option value="strength">Build on a strength</option>
+              <option value="weakness">Address a weakness</option>
+              <option value="opportunity">Seize an opportunity</option>
+              <option value="threat">Mitigate a threat</option>
+            </select>
+
+            {strategicChoice && (
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#9ca3af', marginBottom: '8px' }}>
+                  Describe your priority action in 2-3 sentences
+                </label>
+                <textarea
+                  value={strategicAction}
+                  onChange={(e) => setStrategicAction(e.target.value)}
+                  placeholder="What specific action will you take based on this priority?"
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    fontSize: '14px',
+                    background: 'rgba(0,0,0,0.3)',
+                    border: '1px solid rgba(99, 102, 241, 0.4)',
+                    borderRadius: '6px',
+                    color: '#ffffff',
+                    fontFamily: 'inherit',
+                    resize: 'vertical',
+                    minHeight: '80px',
+                    fontStyle: strategicAction ? 'normal' : 'italic',
+                  }}
+                />
+              </div>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+            <button
+              onClick={() => setStage('working')}
+              style={{
+                padding: '12px 24px',
+                fontSize: '14px',
+                fontWeight: '600',
+                background: '#f59e0b',
+                color: '#000000',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+              }}
+            >
+              Back to Analysis
+            </button>
+            <button
+              onClick={() => {
+                setStage('intro');
+                setChallenge('');
+                setIdeas(QUADRANTS.map(() => []));
+                setCurrentIdea('');
+                setIdeaEfforts({});
+                setDealtCards({});
+                setAiPrompts({});
+                setNudge('');
+                setInsights('');
+                setStrategicChoice(null);
+                setStrategicAction('');
+              }}
+              style={{
+                padding: '12px 24px',
+                fontSize: '14px',
+                fontWeight: '600',
+                background: 'rgba(245,158,11,0.2)',
+                color: '#f59e0b',
+                border: '1px solid rgba(245,158,11,0.4)',
+                borderRadius: '6px',
+                cursor: 'pointer',
+              }}
+            >
+              Start Over
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    );
+  }
+}

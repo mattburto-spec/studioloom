@@ -1,0 +1,509 @@
+'use client';
+
+import { useState, useRef, useEffect, useCallback } from 'react';
+
+
+interface ToolkitToolProps {
+  toolId?: string;
+  mode: 'public' | 'embedded' | 'standalone';
+  challenge?: string;
+  sessionId?: string;
+  onSave?: (state: ToolState) => void;
+  onComplete?: (data: ToolResponse) => void;
+}
+
+interface ToolState {
+  stage: 'intro' | 'working' | 'summary';
+  challenge: string;
+  persona: string;
+  currentStep: number;
+  ideas: string[][];
+  ideaEfforts: Record<number, EffortLevel[]>;
+}
+
+interface ToolResponse {
+  toolId: string;
+  challenge: string;
+  stage: 'intro' | 'working' | 'summary';
+  ideas: string[][];
+  metadata: {
+    totalIdeas: number;
+    timeSpentMs: number;
+  };
+}
+
+type EffortLevel = 'low' | 'medium' | 'high';
+
+const PHASES = [
+  {
+    name: 'Before',
+    emoji: '🔍',
+    color: '#818cf8',
+    glow: 'rgba(129,140,248,0.15)',
+    desc: 'What triggers the need? How do they discover or become aware?',
+    aiRule: 'What triggers the need? How do they find out about it? What are they searching for?',
+  },
+  {
+    name: 'Arrival',
+    emoji: '👋',
+    color: '#06b6d4',
+    glow: 'rgba(6,182,212,0.15)',
+    desc: 'First contact moment. First impressions, initial setup, what they see first.',
+    aiRule: 'What\'s the first thing they see/do? First impressions are critical. Is there confusion or delight?',
+  },
+  {
+    name: 'During',
+    emoji: '🎯',
+    color: '#10b981',
+    glow: 'rgba(16,185,129,0.15)',
+    desc: 'The core experience. Key touchpoints, interactions, moments of joy and frustration.',
+    aiRule: 'Map the key touchpoints. What works smoothly? Where do they get stuck or frustrated?',
+  },
+  {
+    name: 'After',
+    emoji: '💭',
+    color: '#f59e0b',
+    glow: 'rgba(245,158,11,0.15)',
+    desc: 'What happens after. Reflection, follow-up, would they return or recommend?',
+    aiRule: 'What do they remember? Would they come back? Would they tell a friend? What lingers?',
+  },
+  {
+    name: 'Emotions',
+    emoji: '📈',
+    color: '#ec4899',
+    glow: 'rgba(236,72,153,0.15)',
+    desc: 'Go back and add emotional highs and lows to each phase.',
+    aiRule: 'Where are the emotional peaks and valleys? What causes each shift? Find contradictions and surprises.',
+  },
+];
+
+function assessEffort(text: string): EffortLevel {
+  const words = text.trim().split(/\s+/).length;
+  const hasReasoning = /\b(because|since|so that|in order to|this would|this could|which means|that way)\b/i.test(text);
+  const hasSpecifics = /\b(for example|such as|like|using|made of|instead of|rather than|compared to|when|while)\b/i.test(text);
+  const hasDetail = words >= 15;
+
+  if (words < 6) return 'low';
+  if ((hasDetail && hasSpecifics) || (hasDetail && hasReasoning) || (hasSpecifics && hasReasoning)) return 'high';
+  if (words >= 10 || hasSpecifics || hasReasoning) return 'medium';
+  return 'low';
+}
+
+const MICRO_FEEDBACK: Record<EffortLevel, { emoji: string; messages: string[] }> = {
+  high: { emoji: '✦', messages: ['Rich detail!', 'Great specificity!', 'Deep observation!', 'Authentic moment!'] },
+  medium: { emoji: '→', messages: ['Good start!', 'Keep mapping!', 'Building insight!', 'Getting there!'] },
+  low: { emoji: '↑', messages: ['Add more detail?', 'What exactly?', 'Tell me more?', 'Be specific?'] },
+};
+
+export function JourneyMapTool({
+  mode = 'public',
+  challenge: initialChallenge = '',
+  sessionId: initialSessionId,
+  onSave,
+  onComplete,
+}: ToolkitToolProps) {
+  const [stage, setStage] = useState<'intro' | 'working' | 'summary'>(initialChallenge ? 'working' : 'intro');
+  const [challenge, setChallenge] = useState(initialChallenge);
+  const [persona, setPersona] = useState('');
+  const [currentStep, setCurrentStep] = useState(0);
+  const [ideas, setIdeas] = useState<string[][]>([[], [], [], [], []]);
+  const [inputValue, setInputValue] = useState('');
+
+  const [sessionId] = useState(() => initialSessionId || Math.random().toString(36).slice(2) + Date.now().toString(36));
+  const [microFeedback, setMicroFeedback] = useState<{ msg: string; level: EffortLevel } | null>(null);
+  const [ideaEfforts, setIdeaEfforts] = useState<Record<number, EffortLevel[]>>({});
+  const [nudge, setNudge] = useState('');
+  const [nudgeLoading, setNudgeLoading] = useState(false);
+  const [insights, setInsights] = useState('');
+  const [loadingInsights, setLoadingInsights] = useState(false);
+
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const microFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const phase = PHASES[currentStep];
+  const totalIdeas = ideas.reduce((sum, arr) => sum + arr.length, 0);
+
+  useEffect(() => {
+    if (mode !== 'public' && onSave) {
+      const timer = setTimeout(() => {
+        const state: ToolState = { stage, challenge, persona, currentStep, ideas, ideaEfforts };
+        onSave(state);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [stage, challenge, persona, currentStep, ideas, ideaEfforts, mode, onSave]);
+
+  const fetchAI = useCallback(async (body: Record<string, unknown>): Promise<Record<string, unknown>> => {
+    const res = await fetch('/api/tools/journey-map', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`AI fetch failed: ${res.status}`);
+    return res.json();
+  }, []);
+
+  const handleIntroStart = async () => {
+    if (!challenge.trim() || !persona.trim()) return;
+    setStage('working');
+    setCurrentStep(0);
+    setInputValue('');
+  };
+
+  const handleAddIdea = () => {
+    if (!inputValue.trim()) return;
+
+    const effort = assessEffort(inputValue);
+    const feedback = MICRO_FEEDBACK[effort];
+    setMicroFeedback({ msg: feedback.messages[Math.floor(Math.random() * feedback.messages.length)], level: effort });
+
+    const newIdeas = ideas.map(arr => [...arr]);
+    newIdeas[currentStep].push(inputValue);
+    setIdeas(newIdeas);
+
+    const newEfforts = { ...ideaEfforts };
+    if (!newEfforts[currentStep]) newEfforts[currentStep] = [];
+    newEfforts[currentStep].push(effort);
+    setIdeaEfforts(newEfforts);
+
+    setInputValue('');
+
+    if (microFeedbackTimerRef.current) clearTimeout(microFeedbackTimerRef.current);
+    microFeedbackTimerRef.current = setTimeout(() => setMicroFeedback(null), 3000);
+
+    if (inputRef.current) inputRef.current.focus();
+  };
+
+  const handleRequestNudge = async () => {
+    if (nudgeLoading) return;
+    setNudgeLoading(true);
+    try {
+      const res = await fetchAI({
+        action: 'nudge',
+        challenge,
+        sessionId,
+        stepIndex: currentStep,
+        idea: inputValue,
+        existingIdeas: ideas[currentStep],
+        effortLevel: inputValue ? assessEffort(inputValue) : 'low',
+        phase: phase.name,
+        persona,
+      });
+      setNudge(res.nudge as string);
+    } catch (error) {
+      console.error('Nudge error:', error);
+    } finally {
+      setNudgeLoading(false);
+    }
+  };
+
+  const handleNextPhase = () => {
+    if (currentStep < PHASES.length - 1) {
+      setCurrentStep(currentStep + 1);
+      setInputValue('');
+      setNudge('');
+      if (inputRef.current) inputRef.current.focus();
+    } else {
+      generateInsights();
+    }
+  };
+
+  const handlePrevPhase = () => {
+    if (currentStep > 0) {
+      setCurrentStep(currentStep - 1);
+      setInputValue('');
+      setNudge('');
+      if (inputRef.current) inputRef.current.focus();
+    }
+  };
+
+  const generateInsights = async () => {
+    setLoadingInsights(true);
+    try {
+      const res = await fetchAI({
+        action: 'insights',
+        challenge,
+        sessionId,
+        allIdeas: ideas,
+        persona,
+      });
+      setInsights(res.insights as string);
+      setStage('summary');
+    } catch (error) {
+      console.error('Insights error:', error);
+    } finally {
+      setLoadingInsights(false);
+    }
+  };
+
+  const handleRemoveIdea = (phaseIdx: number, ideaIdx: number) => {
+    const newIdeas = ideas.map(arr => [...arr]);
+    newIdeas[phaseIdx].splice(ideaIdx, 1);
+    setIdeas(newIdeas);
+
+    const newEfforts = { ...ideaEfforts };
+    if (newEfforts[phaseIdx]) {
+      newEfforts[phaseIdx].splice(ideaIdx, 1);
+    }
+    setIdeaEfforts(newEfforts);
+  };
+
+  // ─── INTRO SCREEN ───
+  if (stage === 'intro') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-950 p-6 flex items-center justify-center">
+        <div className="w-full max-w-lg">
+          <div className="text-center mb-8">
+            <h1 className="text-4xl font-black text-white mb-2">Journey Map</h1>
+            <p className="text-slate-300 text-lg">Map a user experience through time — before, during, after.</p>
+          </div>
+
+          <div className="bg-slate-900/60 backdrop-blur border border-slate-700 rounded-xl p-8 space-y-6">
+            <div>
+              <label className="block text-sm font-bold text-slate-200 mb-2">What experience are you mapping?</label>
+              <textarea
+                value={challenge}
+                onChange={(e) => setChallenge(e.target.value)}
+                placeholder="e.g., A customer's experience buying a phone online"
+                className="w-full px-4 py-3 rounded-lg bg-slate-800 border border-slate-600 text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none text-sm"
+                rows={3}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-bold text-slate-200 mb-2">Who is the user?</label>
+              <input
+                type="text"
+                value={persona}
+                onChange={(e) => setPersona(e.target.value)}
+                placeholder="e.g., A teenager buying their first phone"
+                className="w-full px-4 py-3 rounded-lg bg-slate-800 border border-slate-600 text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none text-sm"
+              />
+            </div>
+
+            <button
+              onClick={handleIntroStart}
+              disabled={!challenge.trim() || !persona.trim()}
+              className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-bold rounded-lg transition"
+            >
+              Start Mapping
+            </button>
+          </div>
+
+          <div className="mt-8 bg-slate-900/40 border border-slate-700 rounded-lg p-6">
+            <h3 className="font-bold text-slate-200 mb-3">How it works:</h3>
+            <ul className="space-y-2 text-sm text-slate-400">
+              <li>• <strong>Before:</strong> What triggers the need? How do they discover?</li>
+              <li>• <strong>Arrival:</strong> First impression, initial setup</li>
+              <li>• <strong>During:</strong> Core experience, key touchpoints</li>
+              <li>• <strong>After:</strong> Reflection, would they return?</li>
+              <li>• <strong>Emotions:</strong> Add emotional highs and lows</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── WORKING SCREEN ───
+  if (stage === 'working') {
+    const effortLevels = ideaEfforts[currentStep] || [];
+    const avgEffort = effortLevels.length > 0
+      ? (effortLevels.filter(e => e === 'high').length / effortLevels.length) * 100
+      : 0;
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-950 p-6">
+        <div className="max-w-2xl mx-auto">
+          {/* Header */}
+          <div className="mb-8">
+            <button
+              onClick={() => setStage('intro')}
+              className="text-slate-400 hover:text-slate-200 text-sm font-semibold mb-4"
+            >
+              ← Back
+            </button>
+            <h2 className="text-3xl font-black text-white mb-1">{phase.emoji} {phase.name}</h2>
+            <p className="text-slate-300">{phase.desc}</p>
+          </div>
+
+          {/* Input Section */}
+          <div className="bg-slate-900/60 backdrop-blur border border-slate-700 rounded-xl p-6 mb-8">
+            <textarea
+              ref={inputRef}
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && e.ctrlKey) handleAddIdea();
+              }}
+              placeholder="Add a detail about this phase..."
+              className="w-full px-4 py-3 rounded-lg bg-slate-800 border border-slate-600 text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none text-sm mb-3"
+              rows={3}
+            />
+            <button
+              onClick={handleAddIdea}
+              disabled={!inputValue.trim()}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-semibold rounded-lg text-sm transition"
+            >
+              Add Detail
+            </button>
+            <button
+              onClick={handleRequestNudge}
+              disabled={nudgeLoading || !inputValue.trim()}
+              className="ml-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 disabled:bg-slate-800 disabled:cursor-not-allowed text-slate-200 font-semibold rounded-lg text-sm transition"
+            >
+              {nudgeLoading ? '...' : 'Nudge'}
+            </button>
+          </div>
+
+          {/* Micro Feedback */}
+          {microFeedback && (
+            <div className="mb-6 p-4 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-200 text-sm font-medium animate-bounce">
+              {microFeedback.emoji} {microFeedback.msg}
+            </div>
+          )}
+
+          {/* AI Nudge */}
+          {nudge && (
+            <div className="mb-6 p-4 rounded-lg bg-slate-800/60 border border-slate-600 text-slate-200 text-sm">
+              <strong className="text-slate-100">Nudge:</strong> {nudge}
+            </div>
+          )}
+
+          {/* Ideas List */}
+          {ideas[currentStep].length > 0 && (
+            <div className="mb-8">
+              <h3 className="font-bold text-slate-200 mb-3 text-sm">Details in this phase:</h3>
+              <div className="space-y-2">
+                {ideas[currentStep].map((idea, idx) => (
+                  <div
+                    key={idx}
+                    className="p-3 rounded-lg bg-slate-800/50 border border-slate-700 text-slate-200 text-sm flex items-start justify-between group"
+                  >
+                    <span>{idea}</span>
+                    <button
+                      onClick={() => handleRemoveIdea(currentStep, idx)}
+                      className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-400 transition text-xs ml-2"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Phase Navigation */}
+          <div className="flex gap-3 mb-8">
+            <button
+              onClick={handlePrevPhase}
+              disabled={currentStep === 0}
+              className="px-4 py-2 bg-slate-700 hover:bg-slate-600 disabled:bg-slate-800 disabled:cursor-not-allowed text-slate-200 font-semibold rounded-lg text-sm transition"
+            >
+              ← Previous
+            </button>
+            {currentStep < PHASES.length - 1 ? (
+              <button
+                onClick={handleNextPhase}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-sm transition"
+              >
+                Next →
+              </button>
+            ) : (
+              <button
+                onClick={handleNextPhase}
+                disabled={loadingInsights}
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-slate-700 text-white font-semibold rounded-lg text-sm transition"
+              >
+                {loadingInsights ? 'Analyzing...' : 'See Summary'}
+              </button>
+            )}
+          </div>
+
+          {/* Phase Dots */}
+          <div className="flex gap-1 justify-center">
+            {PHASES.map((p, idx) => (
+              <div
+                key={idx}
+                className={`h-2 rounded-full transition ${
+                  idx === currentStep ? 'bg-blue-500 w-8' : 'bg-slate-700 w-2 hover:bg-slate-600'
+                }`}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+    );
+  }
+
+  // ─── SUMMARY SCREEN ───
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-950 p-6">
+      <div className="max-w-2xl mx-auto">
+        <h2 className="text-3xl font-black text-white mb-2">Journey Map Complete</h2>
+        <p className="text-slate-300 mb-8">Here's your complete experience timeline.</p>
+
+        {/* Timeline */}
+        <div className="space-y-6 mb-8">
+          {PHASES.map((p, phaseIdx) => (
+            <div key={phaseIdx} className="bg-slate-900/60 backdrop-blur border border-slate-700 rounded-xl p-6">
+              <h3 className="text-lg font-bold text-white mb-3">{p.emoji} {p.name}</h3>
+              {ideas[phaseIdx].length > 0 ? (
+                <div className="space-y-2">
+                  {ideas[phaseIdx].map((idea, ideaIdx) => (
+                    <div key={ideaIdx} className="text-slate-300 text-sm p-2 rounded bg-slate-800/50 border-l-2" style={{ borderColor: p.color }}>
+                      {idea}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-slate-400 text-sm italic">No details added for this phase.</p>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* AI Synthesis */}
+        {insights && (
+          <div className="bg-gradient-to-br from-blue-900/40 to-slate-900/60 border border-blue-700/50 rounded-xl p-6 mb-8">
+            <h3 className="font-bold text-slate-200 mb-3">AI Synthesis: Opportunities & Pain Points</h3>
+            <p className="text-slate-300 text-sm leading-relaxed">{insights}</p>
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex gap-3">
+          <button
+            onClick={() => {
+              setStage('working');
+              setCurrentStep(0);
+              setInputValue('');
+              setNudge('');
+            }}
+            className="px-6 py-2 bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-lg text-sm transition"
+          >
+            ← Edit Map
+          </button>
+          <button
+            onClick={() => {
+              if (onComplete) {
+                onComplete({
+                  toolId: 'journey-map',
+                  challenge,
+                  stage: 'summary',
+                  ideas,
+                  metadata: { totalIdeas, timeSpentMs: 0 },
+                });
+              }
+            }}
+            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-sm transition"
+          >
+            Save Journey Map
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+    );
+}

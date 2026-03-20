@@ -23,6 +23,8 @@ export interface DashboardUnit {
   notStartedCount: number;
   /** Overall % of all (student × page) cells that are complete */
   completionPct: number;
+  /** Number of students with Open Studio unlocked for this unit */
+  openStudioCount?: number;
 }
 
 export interface StuckStudent {

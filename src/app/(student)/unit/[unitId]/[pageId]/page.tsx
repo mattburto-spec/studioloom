@@ -9,7 +9,7 @@ import { usePageResponses } from "@/hooks/usePageResponses";
 import { ActivityCard } from "@/components/student/ActivityCard";
 import { SectionDivider } from "@/components/student/SectionDivider";
 import { MobileBottomNav } from "@/components/student/MobileBottomNav";
-import { PlanningPanel } from "@/components/planning/PlanningPanel";
+import { PlanningPanelV2 as PlanningPanel } from "@/components/planning/PlanningPanelV2";
 import { GanttPanel } from "@/components/planning/GanttPanel";
 import { QuickCaptureFAB } from "@/components/portfolio/QuickCaptureFAB";
 import { PortfolioPanel } from "@/components/portfolio/PortfolioPanel";
@@ -23,6 +23,8 @@ import { toEmbedUrl } from "@/lib/video-embed";
 import StudentFeedbackPulse from "@/components/teacher/knowledge/StudentFeedbackPulse";
 import DesignAssistantWidget from "@/components/student/DesignAssistantWidget";
 import { useStudent } from "@/app/(student)/student-context";
+import { OpenStudioBanner } from "@/components/open-studio";
+import { useOpenStudio } from "@/hooks/useOpenStudio";
 import type { PageContent } from "@/types";
 
 export default function UnitPageView({
@@ -40,6 +42,7 @@ export default function UnitPageView({
     usePageResponses(unitId, pageId, currentPage, data);
 
   const { student } = useStudent();
+  const openStudio = useOpenStudio(unitId);
   const [planOpen, setPlanOpen] = useState(false);
   const [portfolioOpen, setPortfolioOpen] = useState(false);
   const [ganttOpen, setGanttOpen] = useState(false);
@@ -68,8 +71,8 @@ export default function UnitPageView({
 
   return (
     <div className="min-h-screen bg-white">
-      {/* ── Hero header — full-width colored block ── */}
-      <div className="w-full" style={{ backgroundColor: pageColor }}>
+      {/* ── Hero header — full-width gradient block ── */}
+      <div className="w-full" style={{ background: `linear-gradient(135deg, #1A1A2E 0%, ${pageColor} 100%)` }}>
         <div className="max-w-4xl mx-auto px-6 pt-6 pb-10">
           {/* Top bar: hamburger (mobile) + back to dashboard */}
           <div className="flex items-center justify-between mb-6">
@@ -154,18 +157,35 @@ export default function UnitPageView({
         </div>
       </div>
 
+      {/* ── Open Studio Banner ── */}
+      {openStudio.state && (openStudio.state.unlocked || openStudio.justRevoked) && (
+        <div className="max-w-4xl mx-auto px-6 pt-6">
+          <OpenStudioBanner
+            unlocked={openStudio.state.unlocked}
+            activeSession={openStudio.state.activeSession}
+            teacherNote={openStudio.state.teacherNote}
+            checkInMessage={openStudio.checkInMessage}
+            onDismissCheckIn={openStudio.dismissCheckIn}
+            onStartSession={openStudio.startSession}
+            onEndSession={openStudio.endSession}
+            onUpdateFocusArea={openStudio.updateFocusArea}
+            justRevoked={openStudio.justRevoked}
+          />
+        </div>
+      )}
+
       {/* ── Main scrollable content — white background ── */}
       <main className="max-w-4xl mx-auto px-6 py-10 pb-28">
 
         {/* ── Section 1: Context (Learning Goal + Vocab + Intro) ── */}
         {hasContext && (
           <>
-            {/* Learning goal — SOLID colored block (Makey Makey style) */}
+            {/* Learning goal — gradient colored block */}
             {pageContent?.learningGoal && (
               <ScrollReveal>
                 <div
                   className="full-bleed py-10 mb-8"
-                  style={{ backgroundColor: pageColor }}
+                  style={{ background: `linear-gradient(135deg, #1A1A2E 0%, ${pageColor} 100%)` }}
                 >
                   <div className="max-w-4xl mx-auto px-6">
                     <div className="flex items-center justify-between mb-3">
@@ -544,6 +564,24 @@ export default function UnitPageView({
                 <line x1="16" y1="2" x2="16" y2="6" />
                 <line x1="8" y1="2" x2="8" y2="6" />
                 <line x1="3" y1="10" x2="21" y2="10" />
+              </svg>
+            </button>
+          </div>
+
+          <div className="group flex items-center gap-2 animate-pop-in" style={{ animationDelay: "150ms" }}>
+            <span className="px-2.5 py-1 rounded-lg bg-gray-900/80 text-white text-xs font-medium shadow-lg opacity-0 translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 pointer-events-none whitespace-nowrap">
+              Design Tools
+            </span>
+            <button
+              onClick={() => window.dispatchEvent(new Event('questerra:open-tools'))}
+              className="w-11 h-11 rounded-full text-white shadow-lg hover:scale-110 hover:shadow-xl active:scale-95 transition-all duration-150 flex items-center justify-center"
+              style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)", boxShadow: "0 4px 14px rgba(123, 47, 242, 0.35)" }}
+            >
+              <svg width="16" height="16" viewBox="0 0 32 32" fill="none">
+                <rect x="2" y="8" width="28" height="5" rx="2.5" fill="white" />
+                <rect x="2" y="19" width="28" height="5" rx="2.5" fill="white" />
+                <rect x="8" y="2" width="5" height="28" rx="2.5" fill="white" />
+                <rect x="19" y="2" width="5" height="28" rx="2.5" fill="white" />
               </svg>
             </button>
           </div>

@@ -1,0 +1,384 @@
+/**
+ * Brainstorm Web Toolkit AI API
+ *
+ * Three rounds of rapid brainstorming: initial burst, build & combine, wild ideas.
+ * Encourages quantity and creativity over evaluation.
+ *
+ * Uses Haiku 4.5 for speed (student-facing).
+ */
+
+import { NextRequest, NextResponse } from "next/server";
+import { rateLimit } from "@/lib/rate-limit";
+import { logUsage } from "@/lib/usage-tracking";
+
+// Rate limit: generous for toolkit (50/min per session, 500/hour)
+const TOOLKIT_LIMITS = [
+  { maxRequests: 50, windowMs: 60 * 1000 },
+  { maxRequests: 500, windowMs: 60 * 60 * 1000 },
+];
+
+const BRAINSTORM_ROUNDS = [
+  { round: 1, title: "Initial Burst", desc: "rapid-fire ideas with no filtering, pure divergent thinking" },
+  { round: 2, title: "Build & Combine", desc: "combining, remixing, and building on existing ideas" },
+  { round: 3, title: "Wild Ideas", desc: "pushing for impossible or absurd ideas then finding kernels of possibility" },
+];
+
+type ActionType = "prompts" | "nudge" | "insights";
+
+interface RequestBody {
+  action: ActionType;
+  challenge: string;
+  sessionId: string;
+  roundIndex?: number;
+  idea?: string;
+  existingIdeas?: string[];
+  effortLevel?: "low" | "medium" | "high";
+  allIdeas?: string[][];
+}
+
+function buildPromptsSystemPrompt(ideaCount: number): string {
+  let difficultyInstruction: string;
+  if (ideaCount === 0) {
+    difficultyInstruction = `DIFFICULTY: INTRODUCTORY — This is the first idea the student is writing.
+- Generate the easiest, most accessible prompts possible
+- Focus on "what if" questions that spark immediate ideas
+- Use concrete, everyday language
+- Make it feel like free-flowing brainstorming, not a test`;
+  } else if (ideaCount <= 3) {
+    difficultyInstruction = `DIFFICULTY: BUILDING — The student has ${ideaCount} idea(s). Keep the momentum going.
+- Avoid angles they've already explored
+- Push for QUANTITY: "what else?", "what more?", "what's another approach?"
+- Mix practical and wild ideas
+- Ask questions that spark combinations or new directions`;
+  } else {
+    difficultyInstruction = `DIFFICULTY: ADVANCED — The student has ${ideaCount} ideas. Push into new territory.
+- They've started the brainstorm — now go for wild, unusual directions
+- Push for unexpected combinations or radical angles
+- Ask "what if constraints didn't exist?" or "what would break all the rules?"
+- Generate ideas they haven't considered yet`;
+  }
+
+  return `You are an encouraging brainstorming mentor. Your job is to fuel creative momentum and generate IDEAS, not judge them.
+
+YOUR ROLE: Generate 4 thought-provoking prompts that spark NEW ideas. Never ask evaluative questions.
+
+${difficultyInstruction}
+
+RULES:
+- Questions MUST reference specific aspects of their actual challenge
+- Never suggest solutions or evaluate ideas — only ask questions that spark thinking
+- Each prompt should approach from a different angle
+- Use simple, clear language suitable for ages 11-18
+- Keep each prompt to 1-2 sentences max
+
+RESPONSE FORMAT: Return a JSON array of exactly 4 strings, each a question. Nothing else.
+Example: ["What's the wildest version of this idea?", "Who would this benefit in unexpected ways?", "What if you removed the biggest constraint?", "What would someone from a totally different field suggest?"]`;
+}
+
+function buildNudgeSystemPrompt(effortLevel: "low" | "medium" | "high"): string {
+  // For Brainstorm Web: PURE DIVERGENT THINKING. Never evaluate. Never ask "could this work?"
+  const effortStrategy: Record<string, string> = {
+    low: `EFFORT LEVEL: LOW — The student's response is brief or minimal. Push for expansion.
+- Do NOT praise a vague idea — but stay warm and encouraging
+- Challenge them to paint the picture: what does it look like, how does it work, who uses it?
+- Nudge them to EXPAND the idea (not evaluate it)
+- The "acknowledgment" MUST be an empty string for low effort`,
+    medium: `EFFORT LEVEL: MEDIUM — The student shows decent effort. Build momentum.
+- The "acknowledgment" should note ONE specific detail they included (3-8 words)
+- Push them to EXPAND: "what else could this become?" or "how could you take this further?"
+- Spark adjacent ideas: "what related ideas does this spark?"
+- Keep the energy high and generative`,
+    high: `EFFORT LEVEL: HIGH — The student's response is detailed and creative. Fuel their momentum.
+- The "acknowledgment" should celebrate a SPECIFIC detail from their idea (3-8 words)
+- Encourage them to branch off: "what wild directions could this lead to?"
+- Ask about combinations or mashups: "what would happen if you combined this with another idea?"
+- Push for radical variations: "what's the most extreme version of this?"`,
+  };
+
+  return `You are an encouraging brainstorming mentor. A student just added an idea.
+
+THIS IS PURE IDEATION — your job is to keep creative flow going, NOT to evaluate or critique.
+Never ask about feasibility, flaws, trade-offs, or whether it "would work." That shuts down brainstorming.
+Your questions should spark MORE ideas and EXPAND on existing ones.
+
+${effortStrategy[effortLevel]}
+
+YOUR ROLE: Return a JSON object with your feedback. Keep the energy positive and generative.
+
+RULES:
+- "acknowledgment": 3-8 word note referencing their specific idea (empty string for low effort)
+- "nudge": ONE follow-up question, maximum 25 words
+- The question must ENCOURAGE more ideas or EXPAND thinking
+- Never critique, evaluate, or ask about problems
+- Reference their specific idea — don't be generic
+- Vary your approach — try "what if", "what else", "how about", "imagine if"
+
+RESPONSE FORMAT: Return ONLY a JSON object, nothing else:
+{"acknowledgment": "Love the underwater angle!", "nudge": "What other extreme environments could this work in?"}
+
+For low effort:
+{"acknowledgment": "", "nudge": "What would that idea look like? How would it actually work in practice?"}`;
+}
+
+function buildInsightsSystemPrompt(): string {
+  return `You are a brainstorming mentor reviewing all the ideas from a student's three-round session.
+
+YOUR ROLE: Help the student see PATTERNS, THEMES, and OPPORTUNITIES they might have missed.
+
+RULES:
+- Identify 2-3 themes or clusters in the ideas (what keeps coming up?)
+- Point out unexpected connections or combinations that could work
+- Suggest which ideas have the most potential and why
+- Ask 1-2 questions about how ideas could be combined or developed further
+- Celebrate the quantity and diversity of ideas
+- Keep the whole response under 150 words
+- Use simple, clear language for ages 11-18
+- Never tell them which idea is "best" — help them see the landscape of their thinking
+
+RESPONSE FORMAT: 2-3 short paragraphs of plain text. Use no headers, no bullets, no markdown.`;
+}
+
+async function callHaiku(
+  systemPrompt: string,
+  userPrompt: string,
+  maxTokens: number
+): Promise<{ text: string; inputTokens: number; outputTokens: number }> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error("AI service not configured");
+
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: maxTokens,
+      temperature: 0.8,
+      system: systemPrompt,
+      messages: [{ role: "user", content: userPrompt }],
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`AI call failed: ${response.status} ${errorText}`);
+  }
+
+  const data = await response.json();
+  const textBlock = data.content?.find((b: { type: string }) => b.type === "text");
+
+  return {
+    text: textBlock?.text || "",
+    inputTokens: data.usage?.input_tokens || 0,
+    outputTokens: data.usage?.output_tokens || 0,
+  };
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = (await request.json()) as RequestBody;
+    const { action, challenge, sessionId } = body;
+
+    // Validate
+    if (!action || !challenge?.trim() || !sessionId) {
+      return NextResponse.json(
+        { error: "Missing required fields: action, challenge, sessionId" },
+        { status: 400 }
+      );
+    }
+
+    if (!["prompts", "nudge", "insights"].includes(action)) {
+      return NextResponse.json(
+        { error: "Invalid action. Must be: prompts, nudge, or insights" },
+        { status: 400 }
+      );
+    }
+
+    // Rate limit by session
+    const { allowed, retryAfterMs } = rateLimit(
+      `brainstorm-web:${sessionId}`,
+      TOOLKIT_LIMITS
+    );
+    if (!allowed) {
+      return NextResponse.json(
+        { error: "Too many requests. Take a breath and try again shortly." },
+        { status: 429, headers: { "Retry-After": String(Math.ceil((retryAfterMs || 1000) / 1000)) } }
+      );
+    }
+
+    /* ─── Action: Generate contextual prompts ─── */
+    if (action === "prompts") {
+      const roundIndex = body.roundIndex ?? 0;
+      if (roundIndex < 0 || roundIndex > 2) {
+        return NextResponse.json({ error: "roundIndex must be 0-2" }, { status: 400 });
+      }
+
+      const round = BRAINSTORM_ROUNDS[roundIndex];
+      const existingIdeas = body.existingIdeas || [];
+
+      let userPrompt = `DESIGN CHALLENGE: "${challenge.trim()}"
+
+CURRENT BRAINSTORM ROUND: Round ${round.round} — ${round.title} (${round.desc})`;
+
+      if (existingIdeas.length > 0) {
+        userPrompt += `\n\nIDEAS ALREADY GENERATED FOR THIS ROUND:\n${existingIdeas.map((idea, i) => `${i + 1}. ${idea}`).join("\n")}
+
+Generate 4 NEW prompts that spark DIFFERENT ideas from what they've already written. Don't repeat angles they've already explored.`;
+      } else {
+        userPrompt += `\n\nGenerate 4 thought-provoking prompts to spark initial ideas.`;
+      }
+
+      const result = await callHaiku(buildPromptsSystemPrompt(existingIdeas.length), userPrompt, 400);
+
+      // Parse JSON array from response
+      let prompts: string[];
+      try {
+        prompts = JSON.parse(result.text);
+        if (!Array.isArray(prompts)) throw new Error("Not an array");
+        prompts = prompts.slice(0, 4).map(p => String(p).trim());
+      } catch {
+        const matches = result.text.match(/"([^"]+)"/g);
+        if (matches && matches.length >= 2) {
+          prompts = matches.slice(0, 4).map(m => m.replace(/"/g, "").trim());
+        } else {
+          if (roundIndex === 0) {
+            prompts = [
+              `What's the first idea that comes to mind about "${challenge.trim()}"?`,
+              `What if you had unlimited resources to solve this?`,
+              `Who would benefit most from a solution to this problem?`,
+              `What's something completely different you could try?`,
+            ];
+          } else if (roundIndex === 1) {
+            prompts = [
+              `How could you combine two of your existing ideas?`,
+              `What if you took your best idea and made it bigger or smaller?`,
+              `How could you adapt one of your ideas for a different audience?`,
+              `What if you merged the best parts of two different ideas?`,
+            ];
+          } else {
+            prompts = [
+              `What's the most outrageous, impossible version of this?`,
+              `What would aliens or robots suggest?`,
+              `If failure wasn't a possibility, what would you try?`,
+              `What if you completely reversed your approach?`,
+            ];
+          }
+        }
+      }
+
+      logUsage({
+        endpoint: "tools/brainstorm-web/prompts",
+        model: "claude-haiku-4-5-20251001",
+        inputTokens: result.inputTokens,
+        outputTokens: result.outputTokens,
+        metadata: { sessionId, roundIndex, action: "prompts" },
+      });
+
+      return NextResponse.json({ prompts });
+    }
+
+    /* ─── Action: Effort-gated Socratic nudge ─── */
+    if (action === "nudge") {
+      const { idea, roundIndex, effortLevel: clientEffort } = body;
+      if (!idea?.trim()) {
+        return NextResponse.json({ error: "Missing idea" }, { status: 400 });
+      }
+
+      const round = BRAINSTORM_ROUNDS[roundIndex ?? 0];
+      const existingIdeas = body.existingIdeas || [];
+      const effort = clientEffort || "medium";
+
+      let userPrompt = `DESIGN CHALLENGE: "${challenge.trim()}"
+BRAINSTORM ROUND: Round ${round.round} — ${round.title}
+IDEA JUST ADDED: "${idea.trim()}"`;
+
+      if (existingIdeas.length > 1) {
+        userPrompt += `\nOTHER IDEAS IN THIS ROUND: ${existingIdeas.filter(i => i !== idea.trim()).join("; ")}`;
+      }
+
+      userPrompt += `\n\nReturn a JSON object with your acknowledgment and follow-up question.`;
+
+      const result = await callHaiku(buildNudgeSystemPrompt(effort), userPrompt, 120);
+
+      // Parse structured JSON response
+      let nudgeText = result.text.trim();
+      let acknowledgment = "";
+
+      try {
+        const jsonMatch = nudgeText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          nudgeText = parsed.nudge || nudgeText;
+          acknowledgment = parsed.acknowledgment || "";
+        }
+      } catch {
+        const nudgeMatch = nudgeText.match(/"nudge"\s*:\s*"([^"]+)"/);
+        const ackMatch = nudgeText.match(/"acknowledgment"\s*:\s*"([^"]+)"/);
+        if (nudgeMatch) nudgeText = nudgeMatch[1];
+        if (ackMatch) acknowledgment = ackMatch[1];
+      }
+
+      logUsage({
+        endpoint: "tools/brainstorm-web/nudge",
+        model: "claude-haiku-4-5-20251001",
+        inputTokens: result.inputTokens,
+        outputTokens: result.outputTokens,
+        metadata: { sessionId, roundIndex, action: "nudge", effortLevel: effort },
+      });
+
+      return NextResponse.json({
+        nudge: nudgeText,
+        acknowledgment,
+        effortLevel: effort,
+      });
+    }
+
+    /* ─── Action: Summary insights ─── */
+    if (action === "insights") {
+      const { allIdeas } = body;
+      if (!allIdeas || !Array.isArray(allIdeas)) {
+        return NextResponse.json({ error: "Missing allIdeas" }, { status: 400 });
+      }
+
+      // Build a readable summary of all ideas
+      const ideaSummary = BRAINSTORM_ROUNDS.map((round, i) => {
+        const ideas = allIdeas[i] || [];
+        if (ideas.length === 0) return `Round ${round.round} (${round.title}): No ideas`;
+        return `Round ${round.round} (${round.title}):\n${ideas.map((idea, j) => `  ${j + 1}. ${idea}`).join("\n")}`;
+      }).join("\n\n");
+
+      const totalIdeas = allIdeas.reduce((sum, arr) => sum + arr.length, 0);
+
+      const userPrompt = `DESIGN CHALLENGE: "${challenge.trim()}"
+
+ALL BRAINSTORM IDEAS (${totalIdeas} total across 3 rounds):
+${ideaSummary}
+
+Help the student see patterns, themes, and promising directions across all their ideas. What clusters emerge? What connections exist between rounds? What combinations look most promising?`;
+
+      const result = await callHaiku(buildInsightsSystemPrompt(), userPrompt, 300);
+
+      logUsage({
+        endpoint: "tools/brainstorm-web/insights",
+        model: "claude-haiku-4-5-20251001",
+        inputTokens: result.inputTokens,
+        outputTokens: result.outputTokens,
+        metadata: { sessionId, totalIdeas, action: "insights" },
+      });
+
+      return NextResponse.json({ insights: result.text.trim() });
+    }
+
+    return NextResponse.json({ error: "Unknown action" }, { status: 400 });
+  } catch (err) {
+    console.error("[brainstorm-web] Error:", err);
+    const errorMessage = err instanceof Error ? err.message : "Unknown error";
+    return NextResponse.json(
+      { error: `Brainstorm Web tool error: ${errorMessage}` },
+      { status: 500 }
+    );
+  }
+}

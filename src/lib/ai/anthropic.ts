@@ -328,28 +328,62 @@ export class AnthropicProvider implements AIProvider {
   ): Promise<TimelineSkeleton> {
     const tool = buildSkeletonGenerationTool(totalLessons);
 
+    // Scale max_tokens based on lesson count — each lesson needs ~200-300 tokens
+    const estimatedTokens = Math.max(4096, totalLessons * 350 + 500);
+    const maxTokens = Math.min(estimatedTokens, 8192);
+
     const response = await this.client.messages.create({
       model: this.config.modelName || "claude-sonnet-4-6",
       system: systemPrompt,
       messages: [{ role: "user", content: userPrompt }],
-      max_tokens: 4096,
+      max_tokens: maxTokens,
       temperature: 0.7,
       tools: [tool],
       tool_choice: { type: "tool", name: tool.name },
     });
+
+    // Log stop reason for debugging truncation issues
+    const stopReason = response.stop_reason;
+    console.log(`[generateSkeleton] stop_reason=${stopReason}, content_blocks=${response.content.length}, model=${response.model}, usage=${JSON.stringify(response.usage)}`);
 
     const toolUseBlock = response.content.find(
       (block) => block.type === "tool_use"
     );
 
     if (!toolUseBlock || toolUseBlock.type !== "tool_use") {
-      throw new Error("AI did not return structured skeleton output");
+      // Log full response for debugging
+      console.error("[generateSkeleton] No tool_use block found. Content types:", response.content.map(b => b.type));
+      throw new Error(`AI did not return structured skeleton output. Stop reason: ${stopReason}`);
     }
 
-    const result = toolUseBlock.input as TimelineSkeleton;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const raw = toolUseBlock.input as any;
+    const rawKeys = Object.keys(raw);
 
-    if (!result.lessons || !Array.isArray(result.lessons)) {
-      throw new Error("AI response missing lessons array");
+    // Log what we got for debugging
+    if (rawKeys.length === 0) {
+      console.error("[generateSkeleton] Empty tool input. Stop reason:", stopReason, "Full response:", JSON.stringify(response.content).slice(0, 500));
+    }
+
+    // The AI sometimes nests the data differently — try to find lessons
+    let result: TimelineSkeleton;
+    if (raw.lessons && Array.isArray(raw.lessons)) {
+      result = raw as TimelineSkeleton;
+    } else {
+      // Try common nesting patterns: { skeleton: { lessons: [...] } }, { output: { lessons: [...] } }
+      const nested = raw.skeleton || raw.output || raw.result || raw.data;
+      if (nested?.lessons && Array.isArray(nested.lessons)) {
+        result = nested as TimelineSkeleton;
+      } else {
+        // Last resort: look for any array property that looks like lessons
+        const arrayKeys = rawKeys.filter(k => Array.isArray(raw[k]) && raw[k].length > 0 && raw[k][0]?.title);
+        if (arrayKeys.length > 0) {
+          result = { lessons: raw[arrayKeys[0]], narrativeArc: raw.narrativeArc || "" } as TimelineSkeleton;
+        } else {
+          const keys = rawKeys.join(", ");
+          throw new Error(`AI response missing lessons array. Got keys: [${keys}]. Stop reason: ${stopReason}. Response may have been truncated or malformed — try again.`);
+        }
+      }
     }
 
     // Ensure every lesson has required array fields (defensive against partial AI output)
@@ -359,6 +393,9 @@ export class AnthropicProvider implements AIProvider {
       lessonId: l.lessonId || `L${String(i + 1).padStart(2, "0")}`,
       criterionTags: l.criterionTags || [],
       activityHints: l.activityHints || [],
+      successCriteria: l.successCriteria || [],
+      cumulativeVocab: l.cumulativeVocab || [],
+      cumulativeSkills: l.cumulativeSkills || [],
     }));
 
     return result;

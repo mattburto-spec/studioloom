@@ -1,0 +1,594 @@
+'use client';
+
+import { useState, useRef, useEffect, useCallback } from 'react';
+
+interface ToolkitToolProps {
+  toolId?: string;
+  mode: 'public' | 'embedded' | 'standalone';
+  challenge?: string;
+  sessionId?: string;
+  onSave?: (state: ToolState) => void;
+  onComplete?: (data: ToolResponse) => void;
+}
+
+interface ToolState {
+  stage: 'intro' | 'working' | 'summary';
+  challenge: string;
+  currentStep: number;
+  ideas: string[][];
+  ideaEfforts: Record<number, EffortLevel[]>;
+}
+
+interface ToolResponse {
+  toolId: string;
+  challenge: string;
+  stage: 'intro' | 'working' | 'summary';
+  ideas: string[][];
+  metadata: {
+    totalIdeas: number;
+    timeSpentMs: number;
+  };
+}
+
+type EffortLevel = 'low' | 'medium' | 'high';
+
+const STEPS = [
+  { label: 'Why #1', emoji: '1️⃣', color: '#a78bfa', instruction: 'Why does this problem exist? What\'s the first-level cause?' },
+  { label: 'Why #2', emoji: '2️⃣', color: '#818cf8', instruction: 'Why does that first cause happen? Go one layer deeper.' },
+  { label: 'Why #3', emoji: '3️⃣', color: '#6366f1', instruction: 'Why does that second cause happen? Keep digging.' },
+  { label: 'Why #4', emoji: '4️⃣', color: '#4f46e5', instruction: 'Why does that third cause happen? You\'re getting close to the root.' },
+  { label: 'Why #5', emoji: '5️⃣', color: '#3730a3', instruction: 'Why does that fourth cause happen? This should reveal the root cause.' },
+];
+
+function assessEffort(text: string): EffortLevel {
+  const words = text.trim().split(/\s+/).length;
+  const hasReasoning = /\b(because|since|so that|in order to|this would|this could|which means|that way)\b/i.test(text);
+  const hasSpecifics = /\b(for example|such as|like|using|made of|instead of|rather than|compared to)\b/i.test(text);
+  const hasDetail = words >= 15;
+
+  if (words < 6) return 'low';
+  if ((hasDetail && hasSpecifics) || (hasDetail && hasReasoning) || (hasSpecifics && hasReasoning)) return 'high';
+  if (words >= 10 || hasSpecifics || hasReasoning) return 'medium';
+  return 'low';
+}
+
+const MICRO_FEEDBACK: Record<EffortLevel, { emoji: string; messages: string[] }> = {
+  high: { emoji: '✦', messages: ['Deep analysis!', 'Strong causal reasoning!', 'Great depth!', 'Excellent thinking!'] },
+  medium: { emoji: '→', messages: ['Good start!', 'Keep digging!', 'Building momentum!', 'Going deeper!'] },
+  low: { emoji: '↑', messages: ['Try adding more detail', 'Why does that happen specifically?', 'Can you dig deeper?'] },
+};
+
+export function FiveWhysTool({
+  mode = 'public',
+  challenge: initialChallenge = '',
+  sessionId: initialSessionId,
+  onSave,
+  onComplete,
+}: ToolkitToolProps) {
+  const [stage, setStage] = useState<'intro' | 'working' | 'summary'>(initialChallenge ? 'working' : 'intro');
+  const [challenge, setChallenge] = useState(initialChallenge);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [ideas, setIdeas] = useState<string[][]>([[], [], [], [], []]);
+  const [inputValue, setInputValue] = useState('');
+
+  const [sessionId] = useState(() => initialSessionId || Math.random().toString(36).slice(2) + Date.now().toString(36));
+  const [microFeedback, setMicroFeedback] = useState<{ msg: string; level: EffortLevel } | null>(null);
+  const [ideaEfforts, setIdeaEfforts] = useState<Record<number, EffortLevel[]>>({});
+  const [nudge, setNudge] = useState('');
+  const [nudgeLoading, setNudgeLoading] = useState(false);
+  const [insights, setInsights] = useState('');
+  const [loadingInsights, setLoadingInsights] = useState(false);
+
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const microFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const step = STEPS[currentStep];
+  const totalIdeas = ideas.reduce((sum, arr) => sum + arr.length, 0);
+
+  useEffect(() => {
+    if (mode !== 'public' && onSave) {
+      const timer = setTimeout(() => {
+        const state: ToolState = { stage, challenge, currentStep, ideas, ideaEfforts };
+        onSave(state);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [stage, challenge, currentStep, ideas, ideaEfforts, mode, onSave]);
+
+  const fetchAI = useCallback(async (body: Record<string, unknown>): Promise<Record<string, unknown>> => {
+    const res = await fetch('/api/tools/five-whys', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  }, []);
+
+  const fetchNudge = useCallback(async (idea: string, effort: EffortLevel) => {
+    setNudgeLoading(true);
+    try {
+      const data = await fetchAI({
+        action: 'nudge',
+        challenge: challenge.trim(),
+        sessionId,
+        stepIndex: currentStep,
+        idea,
+        existingIdeas: ideas[currentStep],
+        effortLevel: effort,
+      });
+      if (data.nudge) setNudge(data.nudge as string);
+    } catch (err) {
+      console.warn('[five-whys] Nudge unavailable:', err);
+    } finally {
+      setNudgeLoading(false);
+    }
+  }, [challenge, sessionId, currentStep, ideas, fetchAI]);
+
+  const fetchInsights = useCallback(async () => {
+    if (totalIdeas === 0) return;
+    setLoadingInsights(true);
+    try {
+      const data = await fetchAI({
+        action: 'insights',
+        challenge: challenge.trim(),
+        sessionId,
+        allIdeas: ideas,
+      });
+      if (data.insights) setInsights(data.insights as string);
+    } catch (err) {
+      console.warn('[five-whys] Insights unavailable:', err);
+    } finally {
+      setLoadingInsights(false);
+    }
+  }, [challenge, sessionId, ideas, totalIdeas, fetchAI]);
+
+  useEffect(() => {
+    if (stage === 'working') setTimeout(() => inputRef.current?.focus(), 100);
+  }, [stage, currentStep]);
+
+  useEffect(() => {
+    if (stage === 'summary' && totalIdeas > 0 && !insights) fetchInsights();
+  }, [stage, insights, totalIdeas, fetchInsights]);
+
+  const submitIdea = useCallback(() => {
+    const text = inputValue.trim();
+    if (!text) return;
+
+    const effort = assessEffort(text);
+    setIdeas(prev => {
+      const copy = [...prev];
+      copy[currentStep] = [...copy[currentStep], text];
+      return copy;
+    });
+
+    setIdeaEfforts(prev => ({
+      ...prev,
+      [currentStep]: [...(prev[currentStep] || []), effort],
+    }));
+
+    setInputValue('');
+
+    const feedbackPool = MICRO_FEEDBACK[effort];
+    const message = feedbackPool.messages[Math.floor(Math.random() * feedbackPool.messages.length)];
+    setMicroFeedback({ msg: message, level: effort });
+
+    if (microFeedbackTimerRef.current) clearTimeout(microFeedbackTimerRef.current);
+    microFeedbackTimerRef.current = setTimeout(() => setMicroFeedback(null), 3000);
+
+    fetchNudge(text, effort);
+    inputRef.current?.focus();
+  }, [inputValue, currentStep, ideas, fetchNudge]);
+
+  if (stage === 'intro') {
+    return (
+      <div style={{ minHeight: '100vh', background: '#0a0a0a', color: '#e5e5e5', fontFamily: 'Inter, system-ui, sans-serif', padding: '80px 24px' }}>
+        <div style={{ maxWidth: 640, margin: '0 auto' }}>
+          <h1 style={{
+            fontSize: 40,
+            fontWeight: 800,
+            margin: '0 0 4px',
+            background: 'linear-gradient(135deg, #a78bfa 0%, #4f46e5 50%, #3730a3 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            lineHeight: 1.1,
+          }}>
+            Five Whys
+          </h1>
+          <p style={{ color: '#999', fontSize: 16, marginTop: 12, lineHeight: 1.6 }}>
+            Ask <strong style={{ color: '#a78bfa' }}>"why?"</strong> five times to drill from a surface problem down to its <strong style={{ color: '#6366f1' }}>root cause</strong>.
+          </p>
+
+          <div style={{ marginBottom: 32, marginTop: 32 }}>
+            <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: '#ccc', marginBottom: 8 }}>
+              What problem are you investigating?
+            </label>
+            <textarea
+              value={challenge}
+              onChange={(e) => setChallenge(e.target.value)}
+              placeholder='e.g. "Students are losing motivation halfway through their design projects"'
+              rows={3}
+              style={{
+                width: '100%',
+                background: '#161616',
+                border: '1px solid #333',
+                borderRadius: 12,
+                padding: '14px 16px',
+                color: '#e5e5e5',
+                fontSize: 16,
+                fontFamily: 'inherit',
+                resize: 'vertical',
+                outline: 'none',
+                boxSizing: 'border-box',
+              }}
+            />
+          </div>
+
+          <button
+            onClick={() => setStage('working')}
+            disabled={!challenge.trim()}
+            style={{
+              width: '100%',
+              padding: '16px 24px',
+              borderRadius: 12,
+              border: 'none',
+              background: challenge.trim() ? 'linear-gradient(135deg, #a78bfa, #4f46e5)' : '#333',
+              color: challenge.trim() ? '#fff' : '#666',
+              fontSize: 16,
+              fontWeight: 700,
+              cursor: challenge.trim() ? 'pointer' : 'not-allowed',
+            }}
+          >
+            Start Root Cause Analysis →
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (stage === 'working') {
+    return (
+      <div style={{ minHeight: '100vh', background: '#0a0a0a', color: '#e5e5e5', fontFamily: 'Inter, system-ui, sans-serif', padding: '32px 24px 120px' }}>
+        <div style={{ maxWidth: 700, margin: '0 auto' }}>
+          <div style={{
+            display: 'flex',
+            gap: 4,
+            marginBottom: 20,
+            padding: '8px 12px',
+            background: '#141414',
+            borderRadius: 12,
+            border: '1px solid #222',
+            alignItems: 'center',
+          }}>
+            {STEPS.map((s, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
+                <button
+                  onClick={() => setCurrentStep(i)}
+                  style={{
+                    flex: 1,
+                    padding: '8px 4px',
+                    borderRadius: 8,
+                    border: i === currentStep ? `1px solid ${s.color}44` : '1px solid transparent',
+                    background: i === currentStep ? `rgba(${parseInt(s.color.slice(1,3), 16)}, 0, 0, 0.1)` : 'transparent',
+                    color: i === currentStep ? s.color : '#555',
+                    fontSize: 13,
+                    fontWeight: i === currentStep ? 700 : 500,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <span style={{ fontSize: 14 }}>{s.emoji}</span>
+                </button>
+                {i < 4 && <span style={{ color: '#333', fontSize: 12, margin: '0 2px' }}>→</span>}
+              </div>
+            ))}
+          </div>
+
+          <div style={{ marginBottom: 20 }}>
+            <h2 style={{ margin: 0, fontSize: 28, fontWeight: 800, color: step.color, marginBottom: 6 }}>
+              {step.label}
+            </h2>
+            <p style={{ color: '#999', fontSize: 15, margin: 0, lineHeight: 1.5 }}>
+              {step.instruction}
+            </p>
+          </div>
+
+          <div style={{ marginBottom: 20 }}>
+            <textarea
+              ref={inputRef}
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey && inputValue.trim()) {
+                  e.preventDefault();
+                  submitIdea();
+                }
+              }}
+              placeholder={currentStep === 0 ? 'Why does this problem exist?' : `Why does that happen?`}
+              rows={3}
+              style={{
+                width: '100%',
+                background: '#161616',
+                border: `1px solid #333`,
+                borderRadius: 12,
+                padding: '14px 16px',
+                color: '#e5e5e5',
+                fontSize: 15,
+                fontFamily: 'inherit',
+                resize: 'vertical',
+                outline: 'none',
+                boxSizing: 'border-box',
+              }}
+              onFocus={(e) => (e.target.style.borderColor = step.color)}
+              onBlur={(e) => (e.target.style.borderColor = '#333')}
+            />
+            <button
+              onClick={submitIdea}
+              disabled={!inputValue.trim()}
+              style={{
+                marginTop: 8,
+                padding: '8px 20px',
+                borderRadius: 8,
+                border: 'none',
+                background: inputValue.trim() ? step.color : '#333',
+                color: inputValue.trim() ? '#fff' : '#666',
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: inputValue.trim() ? 'pointer' : 'not-allowed',
+              }}
+            >
+              Add Answer
+            </button>
+          </div>
+
+          {microFeedback && (
+            <div style={{
+              padding: '8px 16px',
+              borderRadius: 20,
+              fontSize: 13,
+              fontWeight: 600,
+              marginBottom: 16,
+              textAlign: 'center',
+              background: microFeedback.level === 'high' ? 'rgba(167, 139, 250, 0.15)' : microFeedback.level === 'medium' ? 'rgba(96, 165, 250, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+              color: microFeedback.level === 'high' ? '#a78bfa' : microFeedback.level === 'medium' ? '#60a5fa' : '#f59e0b',
+            }}>
+              {microFeedback.msg}
+            </div>
+          )}
+
+          {nudge && !nudgeLoading && (
+            <div style={{
+              padding: '14px 16px',
+              borderRadius: 12,
+              background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(139, 92, 246, 0.08))',
+              border: '1px solid rgba(99, 102, 241, 0.15)',
+              marginBottom: 16,
+            }}>
+              <p style={{ margin: 0, fontSize: 14, color: '#c4b5fd', fontStyle: 'italic', lineHeight: 1.5 }}>
+                {nudge}
+              </p>
+            </div>
+          )}
+
+          {ideas[currentStep].length > 0 && (
+            <div style={{ marginBottom: 24 }}>
+              <p style={{ fontSize: 13, color: '#666', marginBottom: 8, fontWeight: 600 }}>
+                Your answers ({ideas[currentStep].length})
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {ideas[currentStep].map((idea, i) => (
+                  <div key={i} style={{
+                    padding: '10px 14px',
+                    borderRadius: 10,
+                    background: '#141414',
+                    border: i === 0 ? `1px solid #333` : '1px solid #222',
+                    display: 'flex',
+                    gap: 10,
+                    alignItems: 'flex-start',
+                  }}>
+                    {i === 0 && (
+                      <span style={{ fontSize: 10, color: step.color, fontWeight: 700, flexShrink: 0, marginTop: 3, textTransform: 'uppercase', letterSpacing: 1 }}>
+                        chain
+                      </span>
+                    )}
+                    <p style={{ margin: 0, fontSize: 14, color: '#ccc', lineHeight: 1.5, flex: 1 }}>{idea}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div style={{
+            position: 'fixed',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            padding: '16px 24px',
+            background: 'linear-gradient(transparent, #0a0a0a 30%)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}>
+            <button
+              onClick={() => currentStep > 0 ? setCurrentStep(currentStep - 1) : setStage('intro')}
+              style={{
+                padding: '10px 20px',
+                borderRadius: 10,
+                border: '1px solid #333',
+                background: 'transparent',
+                color: '#999',
+                fontSize: 14,
+                cursor: 'pointer',
+              }}
+            >
+              ← {currentStep > 0 ? 'Previous' : 'Back'}
+            </button>
+
+            <span style={{ fontSize: 12, color: '#555' }}>
+              {totalIdeas} answer{totalIdeas !== 1 ? 's' : ''} · {ideas.filter(a => a.length > 0).length}/5 whys
+            </span>
+
+            {currentStep < 4 ? (
+              <button
+                onClick={() => setCurrentStep(currentStep + 1)}
+                style={{
+                  padding: '10px 20px',
+                  borderRadius: 10,
+                  border: 'none',
+                  background: step.color,
+                  color: '#fff',
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                Next Why →
+              </button>
+            ) : (
+              <button
+                onClick={() => { setStage('summary'); fetchInsights(); }}
+                disabled={totalIdeas === 0}
+                style={{
+                  padding: '10px 20px',
+                  borderRadius: 10,
+                  border: 'none',
+                  background: totalIdeas > 0 ? 'linear-gradient(135deg, #a78bfa, #3730a3)' : '#333',
+                  color: totalIdeas > 0 ? '#fff' : '#666',
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: totalIdeas > 0 ? 'pointer' : 'not-allowed',
+                }}
+              >
+                View Analysis ✓
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ minHeight: '100vh', background: '#0a0a0a', color: '#e5e5e5', fontFamily: 'Inter, system-ui, sans-serif', padding: '40px 24px 80px' }}>
+      <div style={{ maxWidth: 700, margin: '0 auto' }}>
+        <h1 style={{
+          fontSize: 32,
+          fontWeight: 800,
+          margin: '0 0 8px',
+          background: 'linear-gradient(135deg, #a78bfa 0%, #4f46e5 50%, #3730a3 100%)',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+        }}>
+          Root Cause Analysis
+        </h1>
+        <p style={{ color: '#888', fontSize: 14, margin: 0 }}>{challenge}</p>
+
+        <div style={{
+          position: 'relative',
+          marginTop: 32,
+          marginBottom: 32,
+          paddingLeft: 32,
+        }}>
+          <div style={{
+            position: 'absolute',
+            left: 8,
+            top: 0,
+            bottom: 0,
+            width: 2,
+            background: 'linear-gradient(180deg, #a78bfa 0%, #4f46e5 50%, #3730a3 100%)',
+            borderRadius: 1,
+          }} />
+
+          {STEPS.map((s, i) => (
+            <div key={i} style={{ marginBottom: i < 4 ? 20 : 0 }}>
+              <div style={{
+                padding: '16px 18px',
+                borderRadius: 12,
+                background: ideas[i].length > 0 ? '#0d0d0d' : '#0d0d0d',
+                border: `1px solid ${ideas[i].length > 0 ? `${s.color}44` : '#1a1a1a'}`,
+                borderLeft: `4px solid ${ideas[i].length > 0 ? s.color : '#333'}`,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: ideas[i].length > 0 ? 8 : 0 }}>
+                  <span style={{ fontSize: 16 }}>{s.emoji}</span>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: s.color }}>{s.label}</span>
+                  {ideas[i].length > 0 && <span style={{ fontSize: 12, color: '#555', marginLeft: 'auto' }}>{ideas[i].length}</span>}
+                </div>
+                {ideas[i].length === 0 ? (
+                  <p style={{ color: '#444', fontSize: 13, fontStyle: 'italic', margin: 0 }}>Not answered</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {ideas[i].map((idea, j) => (
+                      <div key={j} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                        {j === 0 && <span style={{ fontSize: 9, color: s.color, fontWeight: 700, marginTop: 4, textTransform: 'uppercase', letterSpacing: 1, flexShrink: 0 }}>chain</span>}
+                        <p style={{ margin: 0, fontSize: 14, color: '#ccc', lineHeight: 1.5, flex: 1 }}>{idea}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {i < 4 && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  height: 20,
+                  fontSize: 12,
+                  color: '#666',
+                  fontWeight: 600,
+                }}>
+                  ↓ Why?
+                </div>
+              )}
+            </div>
+          ))}
+
+          {ideas.every(arr => arr.length > 0) && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              paddingTop: 12,
+              marginTop: 12,
+              borderTop: '2px solid #9333EA',
+              color: '#9333EA',
+              fontWeight: 700,
+              fontSize: 14,
+            }}>
+              🎯 Root Cause Found
+            </div>
+          )}
+        </div>
+
+        {insights && (
+          <div style={{
+            padding: 20,
+            borderRadius: 14,
+            background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.06), rgba(139, 92, 246, 0.06))',
+            border: '1px solid rgba(99, 102, 241, 0.15)',
+            marginBottom: 24,
+          }}>
+            <p style={{ fontSize: 13, fontWeight: 700, color: '#a78bfa', margin: '0 0 10px' }}>✦ AI Root Cause Analysis</p>
+            <p style={{ color: '#ccc', fontSize: 14, lineHeight: 1.7, margin: 0 }}>{insights}</p>
+          </div>
+        )}
+
+        <button
+          onClick={() => setStage('working')}
+          style={{
+            width: '100%',
+            padding: '12px 20px',
+            borderRadius: 10,
+            border: 'none',
+            background: 'linear-gradient(135deg, #a78bfa, #3730a3)',
+            color: '#fff',
+            fontSize: 14,
+            fontWeight: 700,
+            cursor: 'pointer',
+          }}
+        >
+          ← Keep Editing
+        </button>
+      </div>
+    </div>
+  );
+}

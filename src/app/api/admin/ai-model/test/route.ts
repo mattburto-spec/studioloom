@@ -46,10 +46,14 @@ export async function POST(request: NextRequest) {
         endGoal: string;
         lessonCount?: number;
         lessonLengthMinutes?: number;
+        curriculumFramework?: string;
+        assessmentCriteria?: string[];
       };
     };
 
     const resolvedConfig = resolveConfigFromOverrides(config);
+    const criteria = testInput.assessmentCriteria || ["A", "B", "C", "D"];
+    const framework = testInput.curriculumFramework || "IB_MYP";
 
     // Build a minimal input
     const input: LessonJourneyInput = {
@@ -68,8 +72,8 @@ export async function POST(request: NextRequest) {
       specificSkills: [],
       resourceUrls: [],
       specialRequirements: "",
-      assessmentCriteria: ["A", "B", "C", "D"],
-      curriculumFramework: "IB_MYP",
+      assessmentCriteria: criteria,
+      curriculumFramework: framework,
     };
 
     // Simple outline for skeleton generation
@@ -84,7 +88,7 @@ export async function POST(request: NextRequest) {
         summary: `Complete ${testInput.topic} design unit`,
         estimatedLessons: testInput.lessonCount || 4,
         primaryFocus: "Design process",
-        criterionTags: ["A", "B", "C", "D"],
+        criterionTags: criteria,
       }],
     };
 

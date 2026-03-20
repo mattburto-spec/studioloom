@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { decrypt } from "@/lib/encryption";
 import { createAIProvider } from "@/lib/ai";
-import { UNIT_SYSTEM_PROMPT } from "@/lib/ai/prompts";
+import { UNIT_SYSTEM_PROMPT, getGradeTimingProfile, buildTimingContext } from "@/lib/ai/prompts";
 import { validateGeneratedPages } from "@/lib/ai/validation";
+import { validateLessonTiming } from "@/lib/ai/timing-validation";
 import { CRITERIA, DEFAULT_MYP_PAGES, type CriterionKey } from "@/lib/constants";
 import { getPageList } from "@/lib/unit-adapter";
 import { getActivityLibrarySummary } from "@/lib/activity-library";
@@ -174,7 +175,7 @@ Remember to include ELL scaffolding (ell1, ell2, ell3) for every section.`;
     );
 
     const validation = validateGeneratedPages(rawPages);
-    const page = validation.pages[pageId];
+    let page = validation.pages[pageId];
 
     if (!page) {
       return NextResponse.json(
@@ -186,10 +187,32 @@ Remember to include ELL scaffolding (ell1, ell2, ell3) for every section.`;
       );
     }
 
+    // Timing validation — Workshop Model auto-repair
+    let timingValidation: unknown = undefined;
+    try {
+      const gradeLevel = unit.grade_level || "Year 3 (Grade 8)";
+      const profile = getGradeTimingProfile(gradeLevel);
+      const timingCtx = buildTimingContext(profile, 60, false);
+      const result = validateLessonTiming(
+        page as Parameters<typeof validateLessonTiming>[0],
+        profile,
+        timingCtx
+      );
+      if (result.issues.length > 0) {
+        const repairedPage = page as unknown as Record<string, unknown>;
+        repairedPage.workshopPhases = result.repairedLesson.workshopPhases;
+        repairedPage.extensions = result.repairedLesson.extensions;
+        timingValidation = { issues: result.issues, stats: result.stats };
+      }
+    } catch {
+      // Timing validation is enhancement, not requirement
+    }
+
     return NextResponse.json({
       page,
       pageId,
       warnings: validation.errors,
+      timingValidation,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";

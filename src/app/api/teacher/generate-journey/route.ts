@@ -5,6 +5,10 @@ import { createAIProvider } from "@/lib/ai";
 import { JOURNEY_SYSTEM_PROMPT, buildRAGJourneyPrompt } from "@/lib/ai/prompts";
 import { validateGeneratedPages } from "@/lib/ai/validation";
 import { getTeachingContext } from "@/lib/ai/teacher-context";
+import { getGradeTimingProfile } from "@/lib/ai/prompts";
+import type { TimingContext } from "@/lib/ai/prompts";
+import { validateLessonTiming } from "@/lib/ai/timing-validation";
+import type { GeneratedLesson, TimingValidationResult } from "@/lib/ai/timing-validation";
 import type { LessonJourneyInput, JourneyOutlineOption } from "@/types";
 
 function createSupabaseServer(request: NextRequest) {
@@ -191,11 +195,37 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // --- Timing validation + auto-repair on each lesson page ---
+    const timingResults: Record<string, { valid: boolean; issueCount: number; autoFixed: number }> = {};
+    const timingProfile = getGradeTimingProfile(journeyInput.gradeLevel);
+    const lessonMinutes = journeyInput.lessonLengthMinutes || 50;
+    const timingCtx: TimingContext = {
+      lessonType: "theory",
+      periodMinutes: lessonMinutes,
+      transitionMinutes: 3,
+    };
+
+    for (const [pageId, page] of Object.entries(validation.pages)) {
+      // Only validate pages that have workshopPhases (i.e., the AI included timing)
+      const lessonPage = page as unknown as GeneratedLesson;
+      if (lessonPage.workshopPhases) {
+        const result = validateLessonTiming(lessonPage, timingProfile, timingCtx);
+        // Replace with auto-repaired version
+        validation.pages[pageId] = result.repairedLesson as unknown as typeof page;
+        timingResults[pageId] = {
+          valid: result.valid,
+          issueCount: result.issues.length,
+          autoFixed: result.issues.filter(i => i.autoFixed).length,
+        };
+      }
+    }
+
     return NextResponse.json({
       pages: validation.pages,
       warnings: validation.errors,
       lessonIds,
       ragChunkIds: chunkIds,
+      timingValidation: Object.keys(timingResults).length > 0 ? timingResults : undefined,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";

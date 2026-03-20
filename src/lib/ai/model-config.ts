@@ -24,7 +24,7 @@ const CACHE_TTL_MS = 60_000;
  * Deep merge overrides onto defaults.
  * Only non-undefined override values replace defaults.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+/* eslint-disable @typescript-eslint/no-explicit-any */
 function deepMerge<T>(defaults: T, overrides: Partial<T> | undefined): T {
   if (!overrides) return { ...defaults };
 
@@ -51,6 +51,7 @@ function deepMerge<T>(defaults: T, overrides: Partial<T> | undefined): T {
   }
   return result as T;
 }
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 /**
  * Resolve a full config by merging DB overrides onto defaults.
@@ -59,7 +60,7 @@ function resolveConfig(overrides: AIModelConfig): ResolvedModelConfig {
   const d = DEFAULT_MODEL_CONFIG;
 
   // Timing profiles need special handling — merge per-year
-  let timingProfiles = { ...d.timingProfiles };
+  const timingProfiles = { ...d.timingProfiles };
   if (overrides.timingProfiles) {
     for (const yearStr of Object.keys(overrides.timingProfiles)) {
       const year = parseInt(yearStr, 10);

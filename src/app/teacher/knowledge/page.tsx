@@ -580,17 +580,29 @@ export default function KnowledgeLibraryPage() {
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4 mb-8">
         <div className="bg-white rounded-xl border border-border p-4">
-          <div className="text-2xl font-bold text-brand-purple">{items.length}</div>
+          {loading ? (
+            <div className="h-8 w-16 bg-gray-200 rounded animate-pulse" />
+          ) : (
+            <div className="text-2xl font-bold text-brand-purple">{items.length}</div>
+          )}
           <div className="text-xs text-text-secondary mt-1">Library items</div>
         </div>
         <div className="bg-white rounded-xl border border-border p-4">
-          <div className="text-2xl font-bold text-accent-blue">{totalChunks}</div>
+          {loading ? (
+            <div className="h-8 w-16 bg-gray-200 rounded animate-pulse" />
+          ) : (
+            <div className="text-2xl font-bold text-accent-blue">{totalChunks}</div>
+          )}
           <div className="text-xs text-text-secondary mt-1">Knowledge chunks</div>
         </div>
         <div className="bg-white rounded-xl border border-border p-4">
-          <div className="text-2xl font-bold text-accent-green">
-            {uploads.filter((u) => u.status === "complete").length}
-          </div>
+          {loading ? (
+            <div className="h-8 w-16 bg-gray-200 rounded animate-pulse" />
+          ) : (
+            <div className="text-2xl font-bold text-accent-green">
+              {uploads.filter((u) => u.status === "complete").length}
+            </div>
+          )}
           <div className="text-xs text-text-secondary mt-1">Documents uploaded</div>
         </div>
       </div>

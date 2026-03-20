@@ -6,13 +6,19 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
+    "@sentry/nextjs": "^10.43.0",
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.49.4",
     "browser-image-compression": "^2.0.2",
+    "docx": "^9.6.1",
+    "exceljs": "^4.4.0",
+    "framer-motion": "^12.38.0",
     "jspdf": "^4.2.0",
     "jszip": "^3.10.1",
     "mammoth": "^1.11.0",
@@ -36,6 +42,7 @@
     "eslint-config-next": "^15.3.3",
     "postcss": "^8.5.3",
     "tailwindcss": "^4.1.7",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "vitest": "^4.1.0"
   }
 }

@@ -1,0 +1,732 @@
+'use client';
+
+import { useState, useRef, useEffect, useCallback } from 'react';
+
+import { motion } from 'framer-motion';
+
+interface ToolkitToolProps {
+  toolId?: string;
+  mode: 'public' | 'embedded' | 'standalone';
+  challenge?: string;
+  sessionId?: string;
+  onSave?: (state: ToolState) => void;
+  onComplete?: (data: ToolResponse) => void;
+}
+
+interface ToolState {
+  stage: 'intro' | 'working' | 'summary';
+  challenge: string;
+  currentStep: number;
+  ideas: string[][];
+  ideaEfforts: Record<number, EffortLevel[]>;
+}
+
+interface ToolResponse {
+  toolId: string;
+  challenge: string;
+  stage: 'intro' | 'working' | 'summary';
+  ideas: string[][];
+  metadata: {
+    totalIdeas: number;
+    timeSpentMs: number;
+  };
+}
+
+type EffortLevel = 'low' | 'medium' | 'high';
+
+const COLUMNS = [
+  {
+    name: 'Plus',
+    emoji: '➕',
+    color: '#22c55e',
+    bg: 'rgba(34, 197, 94, 0.10)',
+    border: 'rgba(34, 197, 94, 0.25)',
+    description: 'What are the good things about this idea? Benefits, strengths, advantages.',
+    example: 'e.g. "It saves time because students can submit work digitally instead of printing and handing it in."',
+    fallbackPrompts: [
+      'Who benefits most from this idea and why?',
+      'What problem does this solve better than existing solutions?',
+      "What's an unexpected advantage that isn't immediately obvious?",
+      'How might this idea save time, money, or effort?',
+    ],
+  },
+  {
+    name: 'Minus',
+    emoji: '➖',
+    color: '#ef4444',
+    bg: 'rgba(239, 68, 68, 0.10)',
+    border: 'rgba(239, 68, 68, 0.25)',
+    description: 'What are the drawbacks? Risks, weaknesses, potential problems.',
+    example: 'e.g. "Students without reliable internet at home would be disadvantaged — not everyone has equal access."',
+    fallbackPrompts: [
+      'What could go wrong in the first week of using this?',
+      'Who might be negatively affected by this idea?',
+      'What resources or skills would be needed that might be hard to get?',
+      'What unintended consequence could this create?',
+    ],
+  },
+  {
+    name: 'Interesting',
+    emoji: '🤔',
+    color: '#a78bfa',
+    bg: 'rgba(167, 139, 250, 0.10)',
+    border: 'rgba(167, 139, 250, 0.25)',
+    description: 'What\'s intriguing about this idea? Things that are neither clearly good nor bad — observations, surprises, open questions.',
+    example: 'e.g. "It would change how teachers and students communicate — I wonder if that would make relationships more formal or more casual?"',
+    fallbackPrompts: [
+      'What\'s something about this idea that you genuinely can\'t label as good or bad?',
+      'What would change in ways that are hard to predict?',
+      'What assumption does this idea challenge?',
+      'If 1000 people used this, what surprising side effect might emerge?',
+    ],
+  },
+];
+
+function assessEffort(text: string): EffortLevel {
+  const words = text.trim().split(/\s+/).length;
+  const hasReasoning = /\b(because|since|so that|in order to|this would|this could|which means|that way)\b/i.test(text);
+  const hasSpecifics = /\b(for example|such as|like|using|made of|instead of|rather than|compared to)\b/i.test(text);
+  const hasDetail = words >= 15;
+
+  if (words < 6) return 'low';
+  if ((hasDetail && hasSpecifics) || (hasDetail && hasReasoning) || (hasSpecifics && hasReasoning)) return 'high';
+  if (words >= 10 || hasSpecifics || hasReasoning) return 'medium';
+  return 'low';
+}
+
+function getDepthInfo(effort: EffortLevel): { dots: 1 | 2 | 3; label: string; color: string } {
+  if (effort === 'high') return { dots: 3, label: 'Detailed', color: '#a78bfa' };
+  if (effort === 'medium') return { dots: 2, label: 'Good start', color: '#60a5fa' };
+  return { dots: 1, label: 'Go deeper', color: '#f59e0b' };
+}
+
+const MICRO_FEEDBACK: Record<EffortLevel, { emoji: string; messages: string[] }> = {
+  high: { emoji: '✦', messages: ['Deep analysis!', 'Great detail!', 'Strong reasoning!', 'Thorough thinking!'] },
+  medium: { emoji: '→', messages: ['Good — keep pushing!', 'Nice start!', 'Building momentum!', 'Getting there!'] },
+  low: { emoji: '↑', messages: ['Try adding more detail', 'Can you be more specific?', 'Who or what exactly?'] },
+};
+
+export function PmiChartTool({
+  mode = 'public',
+  challenge: initialChallenge = '',
+  sessionId: initialSessionId,
+  onSave,
+  onComplete,
+}: ToolkitToolProps) {
+  const [stage, setStage] = useState<'intro' | 'working' | 'summary'>(initialChallenge ? 'working' : 'intro');
+  const [challenge, setChallenge] = useState(initialChallenge);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [ideas, setIdeas] = useState<string[][]>([[], [], []]);
+  const [inputValue, setInputValue] = useState('');
+
+  const [sessionId] = useState(() => initialSessionId || Math.random().toString(36).slice(2) + Date.now().toString(36));
+  const [microFeedback, setMicroFeedback] = useState<{ msg: string; level: EffortLevel } | null>(null);
+  const [ideaEfforts, setIdeaEfforts] = useState<Record<number, EffortLevel[]>>({});
+  const [nudge, setNudge] = useState('');
+  const [nudgeLoading, setNudgeLoading] = useState(false);
+  const [insights, setInsights] = useState('');
+  const [loadingInsights, setLoadingInsights] = useState(false);
+  const [verdict, setVerdict] = useState<'go' | 'rethink' | null>(null);
+  const [verdictReason, setVerdictReason] = useState('');
+
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const microFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const col = COLUMNS[currentStep];
+  const totalIdeas = ideas.reduce((sum, arr) => sum + arr.length, 0);
+
+  useEffect(() => {
+    if (mode !== 'public' && onSave) {
+      const timer = setTimeout(() => {
+        const state: ToolState = { stage, challenge, currentStep, ideas, ideaEfforts };
+        onSave(state);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [stage, challenge, currentStep, ideas, ideaEfforts, mode, onSave]);
+
+  const fetchAI = useCallback(async (body: Record<string, unknown>): Promise<Record<string, unknown>> => {
+    const res = await fetch('/api/tools/pmi', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  }, []);
+
+  const fetchNudge = useCallback(async (idea: string, effort: EffortLevel) => {
+    setNudgeLoading(true);
+    try {
+      const data = await fetchAI({
+        action: 'nudge',
+        challenge: challenge.trim(),
+        sessionId,
+        stepIndex: currentStep,
+        idea,
+        existingIdeas: ideas[currentStep],
+        effortLevel: effort,
+      });
+      if (data.nudge) setNudge(data.nudge as string);
+    } catch (err) {
+      console.warn('[pmi] Nudge unavailable:', err);
+    } finally {
+      setNudgeLoading(false);
+    }
+  }, [challenge, sessionId, currentStep, ideas, fetchAI]);
+
+  const fetchInsights = useCallback(async () => {
+    if (totalIdeas === 0) return;
+    setLoadingInsights(true);
+    try {
+      const data = await fetchAI({
+        action: 'insights',
+        challenge: challenge.trim(),
+        sessionId,
+        allIdeas: ideas,
+      });
+      if (data.insights) setInsights(data.insights as string);
+    } catch (err) {
+      console.warn('[pmi] Insights unavailable:', err);
+    } finally {
+      setLoadingInsights(false);
+    }
+  }, [challenge, sessionId, ideas, totalIdeas, fetchAI]);
+
+  useEffect(() => {
+    if (stage === 'working') setTimeout(() => inputRef.current?.focus(), 100);
+  }, [stage, currentStep]);
+
+  useEffect(() => {
+    if (stage === 'summary' && totalIdeas > 0 && !insights) fetchInsights();
+  }, [stage, insights, totalIdeas, fetchInsights]);
+
+  const submitIdea = useCallback(() => {
+    const text = inputValue.trim();
+    if (!text) return;
+
+    const effort = assessEffort(text);
+    setIdeas(prev => {
+      const copy = [...prev];
+      copy[currentStep] = [...copy[currentStep], text];
+      return copy;
+    });
+
+    setIdeaEfforts(prev => ({
+      ...prev,
+      [currentStep]: [...(prev[currentStep] || []), effort],
+    }));
+
+    setInputValue('');
+
+    const feedbackPool = MICRO_FEEDBACK[effort];
+    const message = feedbackPool.messages[Math.floor(Math.random() * feedbackPool.messages.length)];
+    setMicroFeedback({ msg: message, level: effort });
+
+    if (microFeedbackTimerRef.current) clearTimeout(microFeedbackTimerRef.current);
+    microFeedbackTimerRef.current = setTimeout(() => setMicroFeedback(null), 3000);
+
+    fetchNudge(text, effort);
+    inputRef.current?.focus();
+  }, [inputValue, currentStep, ideas, fetchNudge]);
+
+  if (stage === 'intro') {
+    return (
+        style={{ minHeight: '100vh', background: '#0a0a0a', color: '#e5e5e5', fontFamily: 'Inter, system-ui, sans-serif', padding: '80px 24px' }}>
+        <div style={{ maxWidth: 640, margin: '0 auto' }}>
+          <div style={{ marginBottom: 32 }}>
+            <h1 style={{
+              fontSize: 40,
+              fontWeight: 800,
+              margin: '0 0 4px',
+              background: 'linear-gradient(135deg, #22c55e 0%, #f59e0b 50%, #a78bfa 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              lineHeight: 1.1,
+            }}>
+              PMI Chart
+            </h1>
+            <p style={{ color: '#999', fontSize: 16, marginTop: 12, lineHeight: 1.6 }}>
+              Evaluate an idea from three angles: what's <strong style={{ color: '#22c55e' }}>good</strong>, what's <strong style={{ color: '#ef4444' }}>risky</strong>, and what's <strong style={{ color: '#a78bfa' }}>intriguing</strong>.
+            </p>
+          </div>
+
+          <div style={{ marginBottom: 32 }}>
+            <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: '#ccc', marginBottom: 8 }}>
+              What idea or solution are you evaluating?
+            </label>
+            <textarea
+              value={challenge}
+              onChange={(e) => setChallenge(e.target.value)}
+              placeholder="e.g. Using tablets instead of textbooks"
+              rows={3}
+              style={{
+                width: '100%',
+                background: '#161616',
+                border: '1px solid #333',
+                borderRadius: 12,
+                padding: '14px 16px',
+                color: '#e5e5e5',
+                fontSize: 16,
+                fontFamily: 'inherit',
+                resize: 'vertical',
+                outline: 'none',
+                boxSizing: 'border-box',
+              }}
+            />
+          </div>
+
+          <button
+            onClick={() => setStage('working')}
+            disabled={!challenge.trim()}
+            style={{
+              width: '100%',
+              padding: '16px 24px',
+              borderRadius: 12,
+              border: 'none',
+              background: challenge.trim() ? 'linear-gradient(135deg, #22c55e, #f59e0b)' : '#333',
+              color: challenge.trim() ? '#000' : '#666',
+              fontSize: 16,
+              fontWeight: 700,
+              cursor: challenge.trim() ? 'pointer' : 'not-allowed',
+            }}
+          >
+            Start PMI Analysis →
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (stage === 'working') {
+    return (
+        style={{ minHeight: '100vh', background: '#0a0a0a', color: '#e5e5e5', fontFamily: 'Inter, system-ui, sans-serif', padding: '32px 24px 120px' }}>
+        <div style={{ maxWidth: 700, margin: '0 auto' }}>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr 1fr',
+            gap: 8,
+            marginBottom: 20,
+            padding: '8px 12px',
+            background: '#141414',
+            borderRadius: 12,
+            border: '1px solid #222',
+          }}>
+            {COLUMNS.map((c, i) => (
+              <button
+                key={i}
+                onClick={() => setCurrentStep(i)}
+                style={{
+                  flex: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  padding: '10px 8px',
+                  borderRadius: 8,
+                  border: i === currentStep ? `1px solid ${c.color}44` : '1px solid transparent',
+                  background: i === currentStep ? c.bg : 'transparent',
+                  color: i === currentStep ? c.color : '#888',
+                  fontSize: 14,
+                  fontWeight: i === currentStep ? 700 : 500,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }}
+              >
+                <span style={{ fontSize: 16 }}>{c.emoji}</span>
+                <span>{c.name}</span>
+              </button>
+            ))}
+          </div>
+
+          <div style={{ marginBottom: 20 }}>
+            <h2 style={{ margin: 0, fontSize: 28, fontWeight: 800, color: col.color, marginBottom: 6 }}>
+              {col.name}
+            </h2>
+            <p style={{ color: '#999', fontSize: 15, margin: 0, lineHeight: 1.5 }}>
+              {col.description}
+            </p>
+          </div>
+
+          <div style={{ marginBottom: 20 }}>
+            <textarea
+              ref={inputRef}
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey && inputValue.trim()) {
+                  e.preventDefault();
+                  submitIdea();
+                }
+              }}
+              placeholder={`What's ${currentStep === 0 ? 'a benefit' : currentStep === 1 ? 'a risk' : 'something intriguing'} about this idea?`}
+              rows={3}
+              style={{
+                width: '100%',
+                background: '#161616',
+                border: `1px solid ${col.border}`,
+                borderRadius: 12,
+                padding: '14px 16px',
+                color: '#e5e5e5',
+                fontSize: 15,
+                fontFamily: 'inherit',
+                resize: 'vertical',
+                outline: 'none',
+                boxSizing: 'border-box',
+                transition: 'border-color 0.2s',
+              }}
+              onFocus={(e) => (e.target.style.borderColor = col.color)}
+              onBlur={(e) => (e.target.style.borderColor = col.border)}
+            />
+            <button
+              onClick={submitIdea}
+              disabled={!inputValue.trim()}
+              style={{
+                marginTop: 8,
+                padding: '8px 20px',
+                borderRadius: 8,
+                border: 'none',
+                background: inputValue.trim() ? col.color : '#333',
+                color: inputValue.trim() ? '#000' : '#666',
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: inputValue.trim() ? 'pointer' : 'not-allowed',
+              }}
+            >
+              Add Point
+            </button>
+          </div>
+
+          {microFeedback && (
+            <div style={{
+              padding: '8px 16px',
+              borderRadius: 20,
+              fontSize: 13,
+              fontWeight: 600,
+              marginBottom: 16,
+              textAlign: 'center',
+              background: microFeedback.level === 'high' ? 'rgba(167, 139, 250, 0.15)' : microFeedback.level === 'medium' ? 'rgba(96, 165, 250, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+              color: microFeedback.level === 'high' ? '#a78bfa' : microFeedback.level === 'medium' ? '#60a5fa' : '#f59e0b',
+            }}>
+              {microFeedback.msg}
+            </div>
+          )}
+
+          {nudge && !nudgeLoading && (
+            <div style={{
+              padding: '14px 16px',
+              borderRadius: 12,
+              background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(139, 92, 246, 0.08))',
+              border: '1px solid rgba(99, 102, 241, 0.15)',
+              marginBottom: 16,
+            }}>
+              <p style={{ margin: 0, fontSize: 14, color: '#c4b5fd', fontStyle: 'italic', lineHeight: 1.5 }}>
+                {nudge}
+              </p>
+            </div>
+          )}
+
+          {ideas[currentStep].length > 0 && (
+            <div style={{ marginBottom: 24 }}>
+              <p style={{ fontSize: 13, color: '#666', marginBottom: 8, fontWeight: 600 }}>
+                Your {col.name} points ({ideas[currentStep].length})
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {ideas[currentStep].map((idea, i) => (
+                  <div key={i} style={{
+                    padding: '10px 14px',
+                    borderRadius: 10,
+                    background: '#141414',
+                    border: '1px solid #222',
+                    display: 'flex',
+                    gap: 10,
+                    alignItems: 'flex-start',
+                  }}>
+                    <span style={{ color: '#555', fontSize: 13, fontWeight: 600, flexShrink: 0, marginTop: 1 }}>{i + 1}</span>
+                    <p style={{ margin: 0, fontSize: 14, color: '#ccc', lineHeight: 1.5, flex: 1 }}>{idea}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div style={{
+            position: 'fixed',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            padding: '16px 24px',
+            background: 'linear-gradient(transparent, #0a0a0a 30%)',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}>
+            <button
+              onClick={() => currentStep > 0 ? setCurrentStep(currentStep - 1) : setStage('intro')}
+              style={{
+                padding: '10px 20px',
+                borderRadius: 10,
+                border: '1px solid #333',
+                background: 'transparent',
+                color: '#999',
+                fontSize: 14,
+                cursor: 'pointer',
+              }}
+            >
+              ← {currentStep > 0 ? 'Previous' : 'Back'}
+            </button>
+
+            <span style={{ fontSize: 12, color: '#555' }}>
+              {totalIdeas} point{totalIdeas !== 1 ? 's' : ''} total
+            </span>
+
+            {currentStep < 2 ? (
+              <button
+                onClick={() => setCurrentStep(currentStep + 1)}
+                style={{
+                  padding: '10px 20px',
+                  borderRadius: 10,
+                  border: 'none',
+                  background: col.color,
+                  color: '#000',
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                Next →
+              </button>
+            ) : (
+              <button
+                onClick={() => { setStage('summary'); fetchInsights(); }}
+                disabled={totalIdeas === 0}
+                style={{
+                  padding: '10px 20px',
+                  borderRadius: 10,
+                  border: 'none',
+                  background: totalIdeas > 0 ? 'linear-gradient(135deg, #22c55e, #a78bfa)' : '#333',
+                  color: totalIdeas > 0 ? '#000' : '#666',
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: totalIdeas > 0 ? 'pointer' : 'not-allowed',
+                }}
+              >
+                View Summary ✓
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+    );
+  }
+
+  return (
+      style={{ minHeight: '100vh', background: '#0a0a0a', color: '#e5e5e5', fontFamily: 'Inter, system-ui, sans-serif', padding: '40px 24px 80px' }}>
+      <div style={{ maxWidth: 700, margin: '0 auto' }}>
+        <h1 style={{ fontSize: 32, fontWeight: 800, margin: '0 0 8px', background: 'linear-gradient(135deg, #22c55e 0%, #f59e0b 50%, #a78bfa 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+          PMI Summary
+        </h1>
+        <p style={{ color: '#888', fontSize: 14, margin: 0 }}>{challenge}</p>
+
+        {COLUMNS.map((col, i) => (
+          <div key={i} style={{
+            marginBottom: 24,
+            padding: 20,
+            borderRadius: 14,
+            background: '#111',
+            border: `1px solid ${col.border}`,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              <span style={{ fontSize: 20 }}>{col.emoji}</span>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: col.color }}>{col.name}</h3>
+              <span style={{ fontSize: 12, color: '#666', marginLeft: 'auto' }}>{ideas[i].length}</span>
+            </div>
+            {ideas[i].length === 0 ? (
+              <p style={{ color: '#555', fontSize: 14, fontStyle: 'italic', margin: 0 }}>No points recorded</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {ideas[i].map((idea, j) => (
+                  <div key={j} style={{
+                    display: 'flex',
+                    gap: 8,
+                    alignItems: 'flex-start',
+                    padding: '6px 0',
+                    borderBottom: j < ideas[i].length - 1 ? '1px solid #1a1a1a' : 'none',
+                  }}>
+                    <span style={{ color: '#555', fontSize: 13, fontWeight: 600, flexShrink: 0 }}>{j + 1}</span>
+                    <p style={{ margin: 0, fontSize: 14, color: '#ccc', lineHeight: 1.5, flex: 1 }}>{idea}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+
+        {insights && (
+          <div style={{
+            padding: 20,
+            borderRadius: 14,
+            background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.06), rgba(139, 92, 246, 0.06))',
+            border: '1px solid rgba(99, 102, 241, 0.15)',
+            marginBottom: 24,
+          }}>
+            <p style={{ fontSize: 13, fontWeight: 700, color: '#a78bfa', margin: '0 0 10px' }}>✦ AI Analysis</p>
+            <p style={{ color: '#ccc', fontSize: 14, lineHeight: 1.7, margin: 0 }}>{insights}</p>
+          </div>
+        )}
+
+        {/* Your Verdict Section */}
+        <div style={{
+          padding: 20,
+          borderRadius: 14,
+          background: '#111',
+          border: '1px solid #222',
+          marginBottom: 24,
+        }}>
+          <h3 style={{ fontSize: 16, fontWeight: 700, color: '#e5e5e5', margin: '0 0 16px' }}>
+            Your Verdict
+          </h3>
+          <p style={{ fontSize: 14, color: '#999', margin: '0 0 16px', lineHeight: 1.5 }}>
+            Based on your analysis, what's your decision?
+          </p>
+
+          {!verdict ? (
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button
+                onClick={() => setVerdict('go')}
+                style={{
+                  flex: 1,
+                  padding: '12px 20px',
+                  borderRadius: 10,
+                  border: 'none',
+                  background: '#22c55e',
+                  color: '#000',
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = '#16a34a')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = '#22c55e')}
+              >
+                ✓ Go Ahead
+              </button>
+              <button
+                onClick={() => setVerdict('rethink')}
+                style={{
+                  flex: 1,
+                  padding: '12px 20px',
+                  borderRadius: 10,
+                  border: 'none',
+                  background: '#eab308',
+                  color: '#000',
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = '#ca8a04')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = '#eab308')}
+              >
+                ⟳ Rethink It
+              </button>
+            </div>
+          ) : (
+            <>
+              <div style={{ marginBottom: 16 }}>
+                <div style={{
+                  padding: '12px 16px',
+                  borderRadius: 10,
+                  background: verdict === 'go' ? 'rgba(34, 197, 94, 0.1)' : 'rgba(234, 179, 8, 0.1)',
+                  border: `1px solid ${verdict === 'go' ? '#22c55e' : '#eab308'}`,
+                  color: verdict === 'go' ? '#22c55e' : '#eab308',
+                  fontWeight: 600,
+                  fontSize: 14,
+                  textAlign: 'center',
+                }}>
+                  {verdict === 'go' ? '✓ Proceeding with this idea' : '⟳ Going back to refine'}
+                </div>
+              </div>
+
+              <label style={{
+                display: 'block',
+                fontSize: 13,
+                fontWeight: 600,
+                color: '#ccc',
+                marginBottom: 8,
+              }}>
+                Explain your reasoning (2-3 sentences)
+              </label>
+              <textarea
+                value={verdictReason}
+                onChange={(e) => setVerdictReason(e.target.value)}
+                placeholder="What factors drove your decision?"
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  borderRadius: 10,
+                  border: '1px solid #222',
+                  background: '#161616',
+                  color: '#e5e5e5',
+                  fontSize: 14,
+                  fontFamily: 'inherit',
+                  resize: 'vertical',
+                  minHeight: 80,
+                  boxSizing: 'border-box',
+                  outline: 'none',
+                  transition: 'border-color 0.2s',
+                }}
+                onFocus={(e) => (e.currentTarget.style.borderColor = verdict === 'go' ? '#22c55e' : '#eab308')}
+                onBlur={(e) => (e.currentTarget.style.borderColor = '#222')}
+              />
+              <p style={{
+                fontSize: 12,
+                color: verdictReason.trim().split(/\.\s+/).filter(s => s.trim()).length >= 2 ? '#22c55e' : '#f59e0b',
+                margin: '6px 0 0',
+              }}>
+                {verdictReason.trim().split(/\.\s+/).filter(s => s.trim()).length} sentence{verdictReason.trim().split(/\.\s+/).filter(s => s.trim()).length !== 1 ? 's' : ''}
+              </p>
+
+              <button
+                onClick={() => { setVerdict(null); setVerdictReason(''); }}
+                style={{
+                  marginTop: 12,
+                  padding: '8px 16px',
+                  borderRadius: 8,
+                  border: '1px solid #333',
+                  background: 'transparent',
+                  color: '#999',
+                  fontSize: 12,
+                  cursor: 'pointer',
+                }}
+              >
+                Change decision
+              </button>
+            </>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', gap: 12 }}>
+          <button
+            onClick={() => setStage('working')}
+            style={{
+              flex: 1,
+              padding: '12px 20px',
+              borderRadius: 10,
+              border: 'none',
+              background: 'linear-gradient(135deg, #22c55e, #a78bfa)',
+              color: '#000',
+              fontSize: 14,
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            ← Keep Editing
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+    );
+}

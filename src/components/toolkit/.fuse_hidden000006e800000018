@@ -1,0 +1,685 @@
+'use client';
+
+import { useState, useRef, useEffect, useCallback } from 'react';
+
+import { motion } from 'framer-motion';
+
+type EffortLevel = 'low' | 'medium' | 'high';
+type StageType = 'intro' | 'dump' | 'cluster' | 'theme' | 'summary';
+
+/* ─── Effort Assessment ─── */
+function assessEffort(text: string): EffortLevel {
+  const words = text.trim().split(/\s+/).length;
+  const hasReasoning = /\b(because|since|so that|in order to|this would|this could|which means|that way)\b/i.test(text);
+  const hasSpecifics = /\b(for example|such as|like|using|made of|instead of|rather than|compared to)\b/i.test(text);
+  const hasDetail = words >= 15;
+
+  if (words < 6) return 'low';
+  if ((hasDetail && hasSpecifics) || (hasDetail && hasReasoning) || (hasSpecifics && hasReasoning)) return 'high';
+  if (words >= 10 || hasSpecifics || hasReasoning) return 'medium';
+  return 'low';
+}
+
+const MICRO_FEEDBACK: Record<EffortLevel, { emoji: string; messages: string[] }> = {
+  high: {
+    emoji: '✦',
+    messages: ['Deep thinking!', 'Great insight!', 'Strong observation!'],
+  },
+  medium: {
+    emoji: '→',
+    messages: ['Good observation!', 'Keep going!', 'Getting there!'],
+  },
+  low: {
+    emoji: '↑',
+    messages: ['Try adding more detail', 'Can you be more specific?'],
+  },
+};
+
+/* ─── Sticky Note Colors ─── */
+const STICKY_COLORS = ['#fef3c7', '#fce7f3', '#dbeafe', '#d1fae5'];
+
+function getStickyColor(idx: number): string {
+  return STICKY_COLORS[idx % STICKY_COLORS.length];
+}
+
+/* ─── API ─── */
+async function fetchAI(body: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const res = await fetch('/api/tools/affinity-diagram', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Request failed' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+/* ─── Main Component ─── */
+export function AffinityDiagramTool(props: { toolId?: string; mode: 'public' | 'embedded' | 'standalone'; challenge?: string; sessionId?: string; onSave?: (state: any) => void; onComplete?: (data: any) => void } = { mode: 'public' }) {
+  const [stage, setStage] = useState<StageType>('intro');
+  const [context, setContext] = useState('');
+  const [observations, setObservations] = useState<string[]>([]);
+  const [currentObs, setCurrentObs] = useState('');
+  const [clusters, setClusters] = useState<{ id: string; name: string; items: number[] }[]>([]);
+  const [clusterNames, setClusterNames] = useState<string[]>([]);
+  const [aiSuggestedClusters, setAiSuggestedClusters] = useState<Array<{ items: number[]; reason: string }>>([]);
+
+  const [sessionId] = useState(() => Math.random().toString(36).slice(2) + Date.now().toString(36));
+  const [nudge, setNudge] = useState('');
+  const [nudgeVisible, setNudgeVisible] = useState(false);
+  const [loadingNudge, setLoadingNudge] = useState(false);
+  const [nudgeAcknowledgment, setNudgeAcknowledgment] = useState('');
+  const [insights, setInsights] = useState('');
+  const [loadingInsights, setLoadingInsights] = useState(false);
+
+  const [microFeedback, setMicroFeedback] = useState<{ effort: EffortLevel; message: string } | null>(null);
+  const microFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const contextRef = useRef<HTMLTextAreaElement>(null);
+
+  /* ─── Fetch nudge on observation ─── */
+  const fetchNudge = useCallback(async (obs: string, allObs: string[], effort: EffortLevel) => {
+    setLoadingNudge(true);
+    setNudgeVisible(true);
+    setNudgeAcknowledgment('');
+    try {
+      const data = await fetchAI({
+        action: 'nudge',
+        context: context.trim(),
+        observation: obs,
+        allObservations: allObs,
+        sessionId,
+        effortLevel: effort,
+      });
+      if (data.nudge) {
+        setNudge(data.nudge as string);
+      }
+      if (data.acknowledgment) {
+        setNudgeAcknowledgment(data.acknowledgment as string);
+      }
+    } catch (err) {
+      console.warn('[affinity] Nudge unavailable:', err);
+      setNudgeVisible(false);
+    } finally {
+      setLoadingNudge(false);
+    }
+  }, [context, sessionId]);
+
+  /* ─── Fetch cluster suggestions ─── */
+  const fetchClusterSuggestions = useCallback(async () => {
+    if (observations.length < 2) return;
+    try {
+      const data = await fetchAI({
+        action: 'clusters',
+        context: context.trim(),
+        observations,
+        sessionId,
+      });
+      if (data.clusters && Array.isArray(data.clusters)) {
+        setAiSuggestedClusters(data.clusters as Array<{ items: number[]; reason: string }>);
+      }
+    } catch (err) {
+      console.warn('[affinity] Cluster suggestions unavailable:', err);
+    }
+  }, [observations, context, sessionId]);
+
+  /* ─── Fetch insights ─── */
+  const fetchInsights = useCallback(async () => {
+    if (clusters.length === 0) return;
+    setLoadingInsights(true);
+    try {
+      const data = await fetchAI({
+        action: 'insights',
+        context: context.trim(),
+        observations,
+        clusters: clusters.map(c => ({
+          name: c.name,
+          items: c.items.map(idx => observations[idx]),
+        })),
+        sessionId,
+      });
+      if (data.insights) {
+        setInsights(data.insights as string);
+      }
+    } catch (err) {
+      console.warn('[affinity] Insights unavailable:', err);
+    } finally {
+      setLoadingInsights(false);
+    }
+  }, [clusters, observations, context, sessionId]);
+
+  /* ─── Micro-feedback auto-dismiss ─── */
+  useEffect(() => {
+    if (microFeedback) {
+      microFeedbackTimerRef.current = setTimeout(() => setMicroFeedback(null), 3000);
+      return () => {
+        if (microFeedbackTimerRef.current) clearTimeout(microFeedbackTimerRef.current);
+      };
+    }
+  }, [microFeedback]);
+
+  /* ─── Event Handlers ─── */
+  const handleAddObservation = () => {
+    if (!currentObs.trim()) return;
+
+    const effort = assessEffort(currentObs);
+    const newObs = [...observations, currentObs];
+    setObservations(newObs);
+
+    const feedback = MICRO_FEEDBACK[effort];
+    setMicroFeedback({
+      effort,
+      message: feedback.messages[Math.floor(Math.random() * feedback.messages.length)],
+    });
+
+    fetchNudge(currentObs, newObs, effort);
+    setCurrentObs('');
+  };
+
+  const handleAdoptCluster = (suggestedCluster: (typeof aiSuggestedClusters)[0]) => {
+    const newCluster = {
+      id: `cluster-${Date.now()}`,
+      name: 'Theme (edit below)',
+      items: suggestedCluster.items,
+    };
+    setClusters([...clusters, newCluster]);
+    setAiSuggestedClusters(aiSuggestedClusters.filter(c => c !== suggestedCluster));
+  };
+
+  const handleRenameCluster = (idx: number, newName: string) => {
+    const newClusters = [...clusters];
+    newClusters[idx].name = newName;
+    setClusters(newClusters);
+  };
+
+  const handleMoveToClustering = () => {
+    if (observations.length < 2) {
+      alert('Please add at least 2 observations.');
+      return;
+    }
+    setStage('cluster');
+    fetchClusterSuggestions();
+  };
+
+  const handleFinish = () => {
+    if (clusters.length === 0) {
+      alert('Please create at least one cluster.');
+      return;
+    }
+    fetchInsights();
+    setStage('summary');
+  };
+
+  /* ─── Intro Stage ─── */
+  if (stage === 'intro') {
+    return (
+      <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #0f0c24 0%, #1a0818 100%)', padding: '2rem', fontFamily: 'Inter, sans-serif', color: '#fff' }}>
+        <div style={{ maxWidth: '600px', margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
+            <div style={{ fontSize: '3.5rem', marginBottom: '1rem' }}>🔀</div>
+            <h1 style={{ fontSize: '2.5rem', fontWeight: '900', margin: '0 0 0.5rem 0' }}>Affinity Diagram</h1>
+            <p style={{ color: '#d4d4d8', fontSize: '1rem', margin: 0, lineHeight: '1.6' }}>
+              Dump all your observations, ideas, or notes. The AI will help you find natural clusters and uncover hidden themes.
+            </p>
+          </div>
+
+          <div style={{ background: 'rgba(236, 72, 153, 0.08)', border: '1px solid rgba(236, 72, 153, 0.3)', borderRadius: '1rem', padding: '1.5rem', marginBottom: '2rem' }}>
+            <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '600', color: '#ec4899', marginBottom: '0.5rem' }}>
+              What's the context? (e.g., research topic, user feedback, design challenge)
+            </label>
+            <textarea
+              ref={contextRef}
+              value={context}
+              onChange={e => setContext(e.target.value)}
+              placeholder="E.g., 'User research on why students abandon online learning courses' or 'Design feedback from classroom testing'"
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                background: 'rgba(0, 0, 0, 0.3)',
+                border: '1px solid rgba(236, 72, 153, 0.4)',
+                borderRadius: '0.5rem',
+                color: '#fff',
+                fontFamily: 'Inter, sans-serif',
+                fontSize: '0.95rem',
+                resize: 'vertical',
+                minHeight: '80px',
+                outline: 'none',
+              }}
+            />
+          </div>
+
+          <button
+            onClick={() => setStage('dump')}
+            disabled={!context.trim()}
+            style={{
+              width: '100%',
+              padding: '0.875rem',
+              background: context.trim() ? 'linear-gradient(135deg, #ec4899 0%, #f472b6 100%)' : 'rgba(236, 72, 153, 0.4)',
+              border: 'none',
+              borderRadius: '0.75rem',
+              color: '#fff',
+              fontWeight: '600',
+              fontSize: '1rem',
+              cursor: context.trim() ? 'pointer' : 'not-allowed',
+              transition: 'all 0.2s',
+            }}
+          >
+            Start: Dump Observations
+          </button>
+        </div>
+      </div>
+      </div>
+    );
+  }
+
+  /* ─── Dump Stage ─── */
+  if (stage === 'dump') {
+    return (
+      <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #0f0c24 0%, #1a0818 100%)', padding: '2rem', fontFamily: 'Inter, sans-serif', color: '#fff' }}>
+        <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+          <div style={{ marginBottom: '2rem' }}>
+            <h1 style={{ fontSize: '2rem', fontWeight: '900', margin: '0 0 0.5rem 0', color: '#ec4899' }}>
+              Dump Observations
+            </h1>
+            <p style={{ color: '#a78bfa', margin: 0, fontSize: '0.9rem' }}>
+              {observations.length} observations collected
+            </p>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 250px', gap: '2rem' }}>
+            {/* Input Area */}
+            <div>
+              <div style={{ background: 'rgba(236, 72, 153, 0.08)', border: '1px solid rgba(236, 72, 153, 0.3)', borderRadius: '0.75rem', padding: '1rem', marginBottom: '1.5rem' }}>
+                <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '600', color: '#ec4899', marginBottom: '0.5rem' }}>
+                  Add an observation, quote, or note
+                </label>
+                <textarea
+                  value={currentObs}
+                  onChange={e => setCurrentObs(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && e.ctrlKey && currentObs.trim()) {
+                      handleAddObservation();
+                    }
+                  }}
+                  placeholder="E.g., 'Students said the interface was confusing' or 'Prototype failed when tested with older users'"
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    background: 'rgba(0, 0, 0, 0.3)',
+                    border: '1px solid rgba(236, 72, 153, 0.4)',
+                    borderRadius: '0.5rem',
+                    color: '#fff',
+                    fontFamily: 'Inter, sans-serif',
+                    fontSize: '0.95rem',
+                    resize: 'vertical',
+                    minHeight: '80px',
+                    outline: 'none',
+                    marginBottom: '0.75rem',
+                  }}
+                />
+
+                {currentObs.trim() && (
+                  <button
+                    onClick={handleAddObservation}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      background: 'linear-gradient(135deg, #ec4899 0%, #f472b6 100%)',
+                      border: 'none',
+                      borderRadius: '0.5rem',
+                      color: '#fff',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      fontSize: '0.9rem',
+                    }}
+                  >
+                    Add Observation
+                  </button>
+                )}
+              </div>
+
+              {/* AI Nudge */}
+              {nudgeVisible && (
+                <div style={{ background: 'rgba(168, 85, 247, 0.15)', border: '1px solid rgba(168, 85, 247, 0.4)', borderRadius: '0.75rem', padding: '1rem', marginBottom: '1.5rem' }}>
+                  {loadingNudge ? (
+                    <p style={{ margin: 0, fontSize: '0.9rem', color: '#d4d4d8' }}>Thinking...</p>
+                  ) : (
+                    <>
+                      {nudgeAcknowledgment && (
+                        <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.85rem', fontWeight: '600', color: '#ec4899' }}>
+                          ✦ {nudgeAcknowledgment}
+                        </p>
+                      )}
+                      <p style={{ margin: 0, fontSize: '0.95rem', lineHeight: '1.5', fontStyle: 'italic', color: '#e0d5ff' }}>
+                        {nudge}
+                      </p>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* Continue */}
+              {observations.length >= 2 && (
+                <button
+                  onClick={handleMoveToClustering}
+                  style={{
+                    width: '100%',
+                    padding: '0.875rem',
+                    background: 'linear-gradient(135deg, #ec4899 0%, #f472b6 100%)',
+                    border: 'none',
+                    borderRadius: '0.75rem',
+                    color: '#fff',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    fontSize: '0.95rem',
+                  }}
+                >
+                  Continue: Find Clusters
+                </button>
+              )}
+            </div>
+
+            {/* Observations List - Sticky Note Style (Right Rail) */}
+            <div style={{ maxHeight: '600px', overflowY: 'auto' }}>
+              <p style={{ fontSize: '0.8rem', fontWeight: '600', color: '#ec4899', textTransform: 'uppercase', marginBottom: '0.75rem', letterSpacing: '0.05em' }}>
+                Your Notes
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {observations.map((obs, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      padding: '0.75rem',
+                      background: getStickyColor(i),
+                      color: '#000',
+                      borderRadius: '0.25rem',
+                      boxShadow: '0 3px 8px rgba(0, 0, 0, 0.2)',
+                      fontSize: '0.8rem',
+                      lineHeight: '1.3',
+                      transform: `rotate(${-3 + (i % 7) * 1}deg)`,
+                      transition: 'transform 0.2s',
+                      fontWeight: '500',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.transform = 'rotate(0deg) scale(1.02)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.transform = `rotate(${-3 + (i % 7) * 1}deg)`)}
+                  >
+                    {obs}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Micro-feedback */}
+          {microFeedback && (
+            <div
+              style={{
+                position: 'fixed',
+                bottom: '2rem',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                background: microFeedback.effort === 'high' ? '#a78bfa' : microFeedback.effort === 'medium' ? '#60a5fa' : '#f59e0b',
+                color: '#000',
+                padding: '0.75rem 1.5rem',
+                borderRadius: '999px',
+                fontWeight: '600',
+                fontSize: '0.9rem',
+              }}
+            >
+              {MICRO_FEEDBACK[microFeedback.effort].emoji} {microFeedback.message}
+            </div>
+          )}
+        </div>
+      </div>
+      </div>
+    );
+  }
+
+  /* ─── Cluster Stage ─── */
+  if (stage === 'cluster') {
+    return (
+      <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #0f0c24 0%, #1a0818 100%)', padding: '2rem', fontFamily: 'Inter, sans-serif', color: '#fff' }}>
+        <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
+          <div style={{ marginBottom: '2rem' }}>
+            <h1 style={{ fontSize: '2rem', fontWeight: '900', margin: '0 0 0.5rem 0', color: '#f472b6' }}>
+              Find Clusters
+            </h1>
+            <p style={{ color: '#a78bfa', margin: 0, fontSize: '0.9rem' }}>
+              {clusters.length} cluster(s) created • AI suggestions: {aiSuggestedClusters.length}
+            </p>
+          </div>
+
+          {/* AI Suggested Clusters */}
+          {aiSuggestedClusters.length > 0 && (
+            <div style={{ marginBottom: '2rem' }}>
+              <p style={{ fontSize: '0.875rem', fontWeight: '600', color: '#ec4899', textTransform: 'uppercase', marginBottom: '1rem', letterSpacing: '0.05em' }}>
+                AI Suggestions
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1rem' }}>
+                {aiSuggestedClusters.map((sugg, i) => (
+                  <div key={i} style={{ background: 'rgba(236, 72, 153, 0.1)', border: '1px solid rgba(236, 72, 153, 0.3)', borderRadius: '0.75rem', padding: '1rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                      <div>
+                        <p style={{ fontSize: '0.8rem', fontWeight: '600', color: '#ec4899', textTransform: 'uppercase', margin: '0 0 0.25rem 0', letterSpacing: '0.05em' }}>
+                          {sugg.items.length} items
+                        </p>
+                        <p style={{ margin: 0, fontSize: '0.85rem', color: '#a78bfa', lineHeight: '1.4' }}>
+                          {sugg.reason}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => handleAdoptCluster(sugg)}
+                        style={{
+                          padding: '0.5rem 1rem',
+                          background: 'rgba(236, 72, 153, 0.5)',
+                          border: 'none',
+                          borderRadius: '0.4rem',
+                          color: '#fff',
+                          fontWeight: '600',
+                          fontSize: '0.8rem',
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        Adopt
+                      </button>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                      {sugg.items.map((idx, j) => (
+                        <p key={j} style={{ margin: 0, fontSize: '0.8rem', color: '#d4d4d8', lineHeight: '1.3', paddingLeft: '0.5rem', borderLeft: '2px solid rgba(236, 72, 153, 0.5)' }}>
+                          {observations[idx]}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Created Clusters */}
+          {clusters.length > 0 && (
+            <div>
+              <p style={{ fontSize: '0.875rem', fontWeight: '600', color: '#ec4899', textTransform: 'uppercase', marginBottom: '1rem', letterSpacing: '0.05em' }}>
+                Your Clusters
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
+                {clusters.map((cluster, i) => (
+                  <div key={cluster.id} style={{ background: 'rgba(244, 114, 182, 0.1)', border: '1px solid rgba(244, 114, 182, 0.3)', borderRadius: '0.75rem', padding: '1rem' }}>
+                    <input
+                      value={cluster.name}
+                      onChange={e => handleRenameCluster(i, e.target.value)}
+                      placeholder="Theme name..."
+                      style={{
+                        width: '100%',
+                        padding: '0.5rem',
+                        background: 'rgba(0, 0, 0, 0.3)',
+                        border: '1px solid rgba(244, 114, 182, 0.4)',
+                        borderRadius: '0.4rem',
+                        color: '#fff',
+                        fontFamily: 'Inter, sans-serif',
+                        fontWeight: '600',
+                        fontSize: '0.9rem',
+                        marginBottom: '0.75rem',
+                        outline: 'none',
+                      }}
+                    />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      {cluster.items.map((idx, j) => (
+                        <div
+                          key={idx}
+                          style={{
+                            padding: '0.6rem',
+                            background: getStickyColor(idx),
+                            color: '#000',
+                            borderRadius: '0.2rem',
+                            fontSize: '0.75rem',
+                            lineHeight: '1.3',
+                            boxShadow: '0 2px 4px rgba(0, 0, 0, 0.15)',
+                            transform: `rotate(${-2 + (j % 5) * 0.8}deg) translateY(${j * 2}px)`,
+                            fontWeight: '500',
+                          }}
+                        >
+                          {observations[idx]}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Actions */}
+          <div style={{ display: 'flex', gap: '0.75rem' }}>
+            <button
+              onClick={() => setStage('dump')}
+              style={{
+                flex: 1,
+                padding: '0.875rem',
+                background: 'rgba(236, 72, 153, 0.3)',
+                border: '1px solid rgba(236, 72, 153, 0.5)',
+                borderRadius: '0.75rem',
+                color: '#fff',
+                fontWeight: '600',
+                cursor: 'pointer',
+                fontSize: '0.95rem',
+              }}
+            >
+              Back
+            </button>
+            <button
+              onClick={handleFinish}
+              disabled={clusters.length === 0}
+              style={{
+                flex: 1,
+                padding: '0.875rem',
+                background: clusters.length > 0 ? 'linear-gradient(135deg, #ec4899 0%, #f472b6 100%)' : 'rgba(236, 72, 153, 0.4)',
+                border: 'none',
+                borderRadius: '0.75rem',
+                color: '#fff',
+                fontWeight: '600',
+                cursor: clusters.length > 0 ? 'pointer' : 'not-allowed',
+                fontSize: '0.95rem',
+              }}
+            >
+              View Summary
+            </button>
+          </div>
+        </div>
+      </div>
+      </div>
+    );
+  }
+
+  /* ─── Summary Stage ─── */
+  return (
+    <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #0f0c24 0%, #1a0818 100%)', padding: '2rem', fontFamily: 'Inter, sans-serif', color: '#fff' }}>
+      <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+        <div style={{ marginBottom: '3rem' }}>
+          <h1 style={{ fontSize: '2.5rem', fontWeight: '900', margin: '0 0 0.5rem 0' }}>Affinity Summary</h1>
+          <p style={{ color: '#a78bfa', margin: 0, fontSize: '0.95rem' }}>
+            {observations.length} observations grouped into {clusters.length} clusters
+          </p>
+        </div>
+
+        {/* Cluster Summary */}
+        <div style={{ background: 'rgba(236, 72, 153, 0.08)', border: '1px solid rgba(236, 72, 153, 0.3)', borderRadius: '1rem', padding: '2rem', marginBottom: '2rem' }}>
+          {clusters.map((cluster, i) => (
+            <div key={cluster.id} style={{ marginBottom: i < clusters.length - 1 ? '2rem' : 0, paddingBottom: i < clusters.length - 1 ? '2rem' : 0, borderBottom: i < clusters.length - 1 ? '1px solid rgba(236, 72, 153, 0.2)' : 'none' }}>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: '700', color: '#ec4899', margin: '0 0 1rem 0' }}>
+                {cluster.name || `Cluster ${i + 1}`}
+              </h3>
+              <ul style={{ margin: 0, paddingLeft: '1.5rem', listStyleType: 'disc' }}>
+                {cluster.items.map((idx, j) => (
+                  <li key={j} style={{ color: '#d4d4d8', marginBottom: '0.5rem', fontSize: '0.9rem', lineHeight: '1.4' }}>
+                    {observations[idx]}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+
+        {/* AI Insights */}
+        {insights && (
+          <div style={{ background: 'rgba(168, 85, 247, 0.15)', border: '1px solid rgba(168, 85, 247, 0.4)', borderRadius: '1rem', padding: '1.5rem', marginBottom: '2rem' }}>
+            <h3 style={{ fontSize: '1rem', fontWeight: '700', color: '#a78bfa', margin: '0 0 1rem 0' }}>
+              Patterns & Insights
+            </h3>
+            <p style={{ margin: 0, fontSize: '0.95rem', lineHeight: '1.6', color: '#e0d5ff', whiteSpace: 'pre-wrap' }}>
+              {insights}
+            </p>
+          </div>
+        )}
+
+        {loadingInsights && (
+          <div style={{ textAlign: 'center', padding: '2rem' }}>
+            <p style={{ color: '#a78bfa', fontSize: '0.95rem' }}>Analyzing themes...</p>
+          </div>
+        )}
+
+        {/* Actions */}
+        <div style={{ display: 'flex', gap: '0.75rem' }}>
+          <button
+            onClick={() => {
+              setStage('cluster');
+              setNudgeVisible(false);
+            }}
+            style={{
+              flex: 1,
+              padding: '0.875rem',
+              background: 'rgba(236, 72, 153, 0.3)',
+              border: '1px solid rgba(236, 72, 153, 0.5)',
+              borderRadius: '0.75rem',
+              color: '#fff',
+              fontWeight: '600',
+              cursor: 'pointer',
+              fontSize: '0.95rem',
+            }}
+          >
+            Edit Clusters
+          </button>
+          <button
+            onClick={() => window.print()}
+            style={{
+              flex: 1,
+              padding: '0.875rem',
+              background: 'linear-gradient(135deg, #ec4899 0%, #f472b6 100%)',
+              border: 'none',
+              borderRadius: '0.75rem',
+              color: '#fff',
+              fontWeight: '600',
+              cursor: 'pointer',
+              fontSize: '0.95rem',
+            }}
+          >
+            Print
+          </button>
+        </div>
+      </div>
+    </div>
+    </div>
+  );
+}

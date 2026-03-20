@@ -344,12 +344,75 @@ export interface Pass3DesignTeaching {
   }>;
 }
 
-/** Complete analysis result from all 3 passes */
+/** Pass 0: Source classification — detects document type before analysis */
+export interface Pass0Classification {
+  detected_type: "lesson_plan" | "rubric" | "safety_document" | "textbook_section" | "scheme_of_work" | "student_exemplar" | "resource_handout" | "reference_image";
+  confidence: number; // 0-1
+  signals: string[]; // evidence used for classification
+  recommended_pipeline: "lesson" | "rubric" | "safety" | "content" | "scope" | "exemplar" | "lightweight";
+}
+
+/** Rubric-specific profile — extracted from rubric documents */
+export interface RubricProfile {
+  criteria: Array<{
+    criterion: string;
+    name: string;
+    descriptors: Array<{ level: number; descriptor: string }>;
+    command_verbs: string[];
+    key_differentiator_top_vs_middle: string;
+  }>;
+  assessment_type: "formative" | "summative" | "both";
+  grade_boundaries?: Record<string, string>;
+  strengths: string[];
+  gaps: string[];
+}
+
+/** Safety-specific profile — extracted from safety/risk documents */
+export interface SafetyProfile {
+  equipment: Array<{ name: string; hazard_level: "low" | "medium" | "high"; age_restriction?: string }>;
+  ppe_required: string[];
+  supervision_ratio?: string;
+  risk_mitigations: Array<{ hazard: string; mitigation: string; severity: "low" | "medium" | "high" }>;
+  emergency_procedures: string[];
+  workshop_rules: string[];
+  applicable_tools: string[];
+}
+
+/** Exemplar-specific profile — analyses student work quality */
+export interface ExemplarProfile {
+  estimated_achievement_level: number; // 1-8 for MYP
+  criterion_demonstrated: string;
+  strengths_visible: string[];
+  areas_for_growth: string[];
+  what_makes_this_level: string;
+  what_would_lift_to_next_level: string;
+  useful_as_exemplar_for: string[];
+}
+
+/** Content-specific profile — extracted from textbooks/reference materials */
+export interface ContentProfile {
+  key_concepts: string[];
+  vocabulary_defined: Array<{ term: string; definition: string }>;
+  difficulty_level: "introductory" | "intermediate" | "advanced";
+  prerequisite_knowledge: string[];
+  criteria_supported: string[];
+  topics_covered: string[];
+  visual_assets_described: string[];
+}
+
+/** Complete analysis result from all passes (0-3 + type-specific) */
 export interface AnalysisResult {
+  pass0?: Pass0Classification;
+  pipeline: string; // which pipeline was used
   pass1: Pass1Structure;
   pass2: Pass2Pedagogy;
   pass3: Pass3DesignTeaching;
   profile: LessonProfile; // merged final profile
+  // Type-specific profiles (only one will be populated based on pipeline)
+  rubricProfile?: RubricProfile;
+  safetyProfile?: SafetyProfile;
+  exemplarProfile?: ExemplarProfile;
+  contentProfile?: ContentProfile;
 }
 
 /* ================================================================

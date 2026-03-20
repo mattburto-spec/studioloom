@@ -159,7 +159,7 @@ export interface EllScaffolding {
   ell3?: { extensionPrompts?: string[] };
 }
 
-export type ResponseType = "text" | "upload" | "voice" | "link" | "multi" | "decision-matrix" | "pmi" | "pairwise" | "trade-off-sliders";
+export type ResponseType = "text" | "upload" | "voice" | "link" | "multi" | "decision-matrix" | "pmi" | "pairwise" | "trade-off-sliders" | "toolkit-tool";
 
 export interface ActivityMedia {
   type: "image" | "video";
@@ -190,11 +190,31 @@ export interface ActivitySection {
   links?: ActivityLink[];
   /** Visual style for content-only blocks (no responseType). */
   contentStyle?: ContentStyle;
+  /** For toolkit-tool responseType: which tool to render (e.g., "scamper", "decision-matrix"). */
+  toolId?: string;
+  /** For toolkit-tool responseType: pre-filled challenge/topic (optional). */
+  toolChallenge?: string;
 }
 
 export interface Reflection {
   type: "confidence-slider" | "checklist" | "short-response";
   items: string[];
+}
+
+/** Workshop Model phase durations for a lesson */
+export interface WorkshopPhases {
+  opening: { durationMinutes: number; hook?: string };
+  miniLesson: { durationMinutes: number; focus?: string };
+  workTime: { durationMinutes: number; focus?: string; checkpoints?: string[] };
+  debrief: { durationMinutes: number; protocol?: string; prompt?: string };
+}
+
+/** Extension activity for early finishers */
+export interface LessonExtension {
+  title: string;
+  description: string;
+  durationMinutes: number;
+  designPhase?: "investigation" | "ideation" | "prototyping" | "evaluation";
 }
 
 export interface PageContent {
@@ -208,6 +228,10 @@ export interface PageContent {
   };
   sections: ActivitySection[];
   reflection?: Reflection;
+  /** Workshop Model phase durations (Opening → Mini-Lesson → Work Time → Debrief) */
+  workshopPhases?: WorkshopPhases;
+  /** Early finisher extensions, indexed by design phase */
+  extensions?: LessonExtension[];
 }
 
 // --- Flexible Page Types (v2) ---
@@ -455,4 +479,80 @@ export interface ConversationTurn {
   questionType?: string;   // Richard Paul's 6 question types
   bloomLevel?: number;
   createdAt: string;
+}
+
+// --- Open Studio Types ---
+
+export type OpenStudioStatusValue = "locked" | "unlocked" | "revoked";
+export type OpenStudioUnlockedBy = "teacher" | "auto" | "criteria";
+export type OpenStudioRevokedReason = "teacher_manual" | "drift_detected" | "recalibrate";
+export type OpenStudioProductivityScore = "low" | "medium" | "high";
+export type OpenStudioDriftLevel = "gentle" | "direct" | "silent";
+
+export interface OpenStudioStatus {
+  id: string;
+  student_id: string;
+  unit_id: string;
+  class_id: string;
+  status: OpenStudioStatusValue;
+  unlocked_by: OpenStudioUnlockedBy;
+  teacher_note: string | null;
+  check_in_interval_min: number;
+  carry_forward: boolean;
+  unlocked_at: string | null;
+  revoked_at: string | null;
+  revoked_reason: OpenStudioRevokedReason | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OpenStudioDriftFlag {
+  level: OpenStudioDriftLevel;
+  message: string;
+  timestamp: string;
+}
+
+export interface OpenStudioActivityEntry {
+  type: "save" | "tool_use" | "response" | "reflection" | "ai_chat";
+  description: string;
+  timestamp: string;
+}
+
+export interface OpenStudioSession {
+  id: string;
+  student_id: string;
+  unit_id: string;
+  status_id: string;
+  session_number: number;
+  focus_area: string | null;
+  started_at: string;
+  ended_at: string | null;
+  activity_log: OpenStudioActivityEntry[];
+  ai_interactions: number;
+  check_in_count: number;
+  drift_flags: OpenStudioDriftFlag[];
+  productivity_score: OpenStudioProductivityScore | null;
+  ai_summary: string | null;
+  reflection: string | null;
+}
+
+// --- Student Toolkit Tool Sessions ---
+
+export interface StudentToolSession {
+  id: string;
+  student_id: string;
+  tool_id: string;
+  challenge: string;
+  mode: "embedded" | "standalone";
+  unit_id: string | null;
+  page_id: string | null;
+  section_index: number | null;
+  state: Record<string, unknown>;
+  summary: Record<string, unknown> | null;
+  version: number;
+  status: "in_progress" | "completed";
+  started_at: string;
+  completed_at: string | null;
+  updated_at: string;
+  portfolio_entry_id: string | null;
 }

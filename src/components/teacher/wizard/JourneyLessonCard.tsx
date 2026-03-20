@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
-import type { PageContent, ResponseType } from "@/types";
+import type { PageContent, ResponseType, WorkshopPhases, LessonExtension } from "@/types";
 import type { WizardDispatch } from "@/hooks/useWizardState";
+import PhaseTimelineBar, { type PhaseConfig, type OverheadConfig, buildDefaultPhases } from "@/components/lesson-timing/PhaseTimelineBar";
 
 interface Props {
   pageId: string;
@@ -12,6 +13,10 @@ interface Props {
   dispatch: WizardDispatch;
   onActivityDrop?: (pageId: string, activityId: string) => void;
   onRegeneratePage?: (pageId: string) => void;
+  /** Period length in minutes for timing bar (default 60) */
+  periodMinutes?: number;
+  /** Max instruction minutes from 1+age rule (default 14) */
+  instructionCap?: number;
 }
 
 const RESPONSE_TYPE_OPTIONS: { value: ResponseType; label: string }[] = [
@@ -137,7 +142,7 @@ function TimeBar({ sections, color }: { sections: PageContent["sections"]; color
   );
 }
 
-export function JourneyLessonCard({ pageId, content, color, isExpanded, dispatch, onActivityDrop, onRegeneratePage }: Props) {
+export function JourneyLessonCard({ pageId, content, color, isExpanded, dispatch, onActivityDrop, onRegeneratePage, periodMinutes = 60, instructionCap = 14 }: Props) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editingSection, setEditingSection] = useState<number | null>(null);
@@ -295,6 +300,54 @@ export function JourneyLessonCard({ pageId, content, color, isExpanded, dispatch
               </>
             )}
           </div>
+        )}
+
+        {/* Workshop Phase Timeline Bar — shows when workshopPhases data exists */}
+        {content.workshopPhases && (() => {
+          const wp = content.workshopPhases!;
+          const overhead: OverheadConfig = { transitionMinutes: 3, setupMinutes: 0, cleanupMinutes: 0, isWorkshop: false };
+          const phases: PhaseConfig[] = [
+            { id: "opening", label: "Opening", shortLabel: "Open", color: "#7C3AED", bgColor: "#F3E8FF", borderColor: "#C4B5FD", durationMinutes: wp.opening.durationMinutes, minMinutes: 3, locked: false },
+            { id: "miniLesson", label: "Mini-Lesson", shortLabel: "Teach", color: "#2563EB", bgColor: "#DBEAFE", borderColor: "#93C5FD", durationMinutes: wp.miniLesson.durationMinutes, minMinutes: 3, locked: false },
+            { id: "workTime", label: "Work Time", shortLabel: "Work", color: "#16A34A", bgColor: "#DCFCE7", borderColor: "#86EFAC", durationMinutes: wp.workTime.durationMinutes, minMinutes: 15, locked: false },
+            { id: "debrief", label: "Debrief", shortLabel: "Debrief", color: "#D97706", bgColor: "#FEF3C7", borderColor: "#FCD34D", durationMinutes: wp.debrief.durationMinutes, minMinutes: 5, locked: false },
+          ];
+          return (
+            <div className="pt-1 pb-2">
+              <PhaseTimelineBar
+                periodMinutes={periodMinutes}
+                phases={phases}
+                overhead={overhead}
+                instructionCap={instructionCap}
+                onPhasesChange={(newPhases) => {
+                  const updated: WorkshopPhases = {
+                    opening: { ...wp.opening, durationMinutes: newPhases.find(p => p.id === "opening")!.durationMinutes },
+                    miniLesson: { ...wp.miniLesson, durationMinutes: newPhases.find(p => p.id === "miniLesson")!.durationMinutes },
+                    workTime: { ...wp.workTime, durationMinutes: newPhases.find(p => p.id === "workTime")!.durationMinutes },
+                    debrief: { ...wp.debrief, durationMinutes: newPhases.find(p => p.id === "debrief")!.durationMinutes },
+                  };
+                  dispatch({ type: "UPDATE_PAGE", pageId, page: { ...content, workshopPhases: updated } });
+                }}
+              />
+            </div>
+          );
+        })()}
+
+        {/* Extensions — collapsible early finisher activities */}
+        {content.extensions && content.extensions.length > 0 && (
+          <details className="text-xs">
+            <summary className="text-text-tertiary cursor-pointer hover:text-brand-purple transition-colors py-1">
+              {content.extensions.length} extension{content.extensions.length > 1 ? "s" : ""} for early finishers
+            </summary>
+            <div className="pl-3 pt-1 space-y-1">
+              {content.extensions.map((ext, i) => (
+                <div key={i} className="flex items-start gap-2 text-text-secondary">
+                  <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-green-50 text-green-700 whitespace-nowrap">{ext.durationMinutes}m</span>
+                  <span>{ext.title}</span>
+                </div>
+              ))}
+            </div>
+          </details>
         )}
 
         {/* Sections — show content with draggable time */}

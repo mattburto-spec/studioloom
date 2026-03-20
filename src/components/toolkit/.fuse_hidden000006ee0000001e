@@ -1,0 +1,537 @@
+'use client';
+
+import { useState, useRef, useEffect, useCallback } from 'react';
+
+import { motion } from 'framer-motion';
+
+interface ToolkitToolProps {
+  toolId?: string;
+  mode: 'public' | 'embedded' | 'standalone';
+  challenge?: string;
+  sessionId?: string;
+  onSave?: (state: ToolState) => void;
+  onComplete?: (data: ToolResponse) => void;
+}
+
+interface ToolState {
+  stage: 'intro' | 'working' | 'summary';
+  challenge: string;
+  currentCategory: number;
+  causes: Record<string, string[]>;
+  causalEfforts: Record<string, EffortLevel[]>;
+}
+
+interface ToolResponse {
+  toolId: string;
+  challenge: string;
+  stage: 'intro' | 'working' | 'summary';
+  causes: Record<string, string[]>;
+  metadata: {
+    totalCauses: number;
+    timeSpentMs: number;
+  };
+}
+
+type EffortLevel = 'low' | 'medium' | 'high';
+
+const CATEGORIES = [
+  {
+    name: 'People',
+    emoji: '👥',
+    color: '#8b5cf6',
+    glow: 'rgba(139,92,246,0.15)',
+    instruction: 'What human factors, skills gaps, or training issues could cause this?',
+    hint: 'Who is involved? What skills might be missing? Are there communication gaps?',
+  },
+  {
+    name: 'Methods',
+    emoji: '⚙️',
+    color: '#6366f1',
+    glow: 'rgba(99,102,241,0.15)',
+    instruction: 'What process steps, procedures, or techniques could fail?',
+    hint: 'What process could break down? Where\'s the bottleneck? Is there a step missing?',
+  },
+  {
+    name: 'Materials',
+    emoji: '📦',
+    color: '#0ea5e9',
+    glow: 'rgba(14,165,233,0.15)',
+    instruction: 'What material properties or quality issues could cause this?',
+    hint: 'Could a material be defective? Are there quality control issues? Wrong component?',
+  },
+  {
+    name: 'Machines',
+    emoji: '⚡',
+    color: '#f59e0b',
+    glow: 'rgba(245,158,11,0.15)',
+    instruction: 'What equipment failures or technology issues could cause this?',
+    hint: 'Is equipment broken? Maintenance gaps? Technology not working as expected?',
+  },
+  {
+    name: 'Measurements',
+    emoji: '📊',
+    color: '#ec4899',
+    glow: 'rgba(236,72,153,0.15)',
+    instruction: 'What data is missing or misleading? What\'s not being measured?',
+    hint: 'Are we measuring the right things? Is data inaccurate? Information gaps?',
+  },
+  {
+    name: 'Environment',
+    emoji: '🌍',
+    color: '#10b981',
+    glow: 'rgba(16,185,129,0.15)',
+    instruction: 'What external factors, culture, or conditions could cause this?',
+    hint: 'Temperature? Workspace? Organizational culture? External market factors?',
+  },
+];
+
+function assessEffort(text: string): EffortLevel {
+  const words = text.trim().split(/\s+/).length;
+  const hasReasoning = /\b(because|since|so that|in order to|this would|this could|which means|that way|due to|caused by)\b/i.test(text);
+  const hasSpecifics = /\b(for example|such as|like|using|made of|instead of|rather than|compared to|missing|broken|failed|gap)\b/i.test(text);
+  const hasDetail = words >= 15;
+
+  if (words < 6) return 'low';
+  if ((hasDetail && hasSpecifics) || (hasDetail && hasReasoning) || (hasSpecifics && hasReasoning)) return 'high';
+  if (words >= 10 || hasSpecifics || hasReasoning) return 'medium';
+  return 'low';
+}
+
+const MICRO_FEEDBACK: Record<EffortLevel, { emoji: string; messages: string[] }> = {
+  high: { emoji: '✦', messages: ['Strong analysis!', 'Specific cause!', 'Good thinking!', 'Excellent detail!'] },
+  medium: { emoji: '→', messages: ['Building momentum!', 'Good start!', 'Getting there!', 'Keep going!'] },
+  low: { emoji: '↑', messages: ['What specifically causes this?', 'Can you be more detailed?', 'Try adding more detail', 'What exactly?'] },
+};
+
+export function FishboneTool({
+  mode = 'public',
+  challenge: initialChallenge = '',
+  sessionId: initialSessionId,
+  onSave,
+  onComplete,
+}: ToolkitToolProps) {
+  const [stage, setStage] = useState<'intro' | 'working' | 'summary'>(initialChallenge ? 'working' : 'intro');
+  const [challenge, setChallenge] = useState(initialChallenge);
+  const [currentCategory, setCurrentCategory] = useState(0);
+  const [causes, setCauses] = useState<Record<string, string[]>>(
+    CATEGORIES.reduce((acc, cat) => ({ ...acc, [cat.name]: [] }), {})
+  );
+  const [inputValue, setInputValue] = useState('');
+
+  const [sessionId] = useState(() => initialSessionId || Math.random().toString(36).slice(2) + Date.now().toString(36));
+  const [microFeedback, setMicroFeedback] = useState<{ msg: string; level: EffortLevel } | null>(null);
+  const [causalEfforts, setCausalEfforts] = useState<Record<string, EffortLevel[]>>({});
+  const [nudge, setNudge] = useState('');
+  const [nudgeLoading, setNudgeLoading] = useState(false);
+  const [insights, setInsights] = useState('');
+  const [loadingInsights, setLoadingInsights] = useState(false);
+
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const microFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const category = CATEGORIES[currentCategory];
+  const totalCauses = Object.values(causes).reduce((sum, arr) => sum + arr.length, 0);
+
+  useEffect(() => {
+    if (mode !== 'public' && onSave) {
+      const timer = setTimeout(() => {
+        const state: ToolState = { stage, challenge, currentCategory, causes, causalEfforts };
+        onSave(state);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [stage, challenge, currentCategory, causes, causalEfforts, mode, onSave]);
+
+  const fetchAI = useCallback(async (body: Record<string, unknown>): Promise<Record<string, unknown>> => {
+    const res = await fetch('/api/tools/fishbone', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`API error: ${res.status}`);
+    return res.json();
+  }, []);
+
+  const handleIntroSubmit = () => {
+    if (!challenge.trim()) return;
+    setStage('working');
+    inputRef.current?.focus();
+  };
+
+  const handleAddCause = async () => {
+    if (!inputValue.trim()) return;
+
+    const effort = assessEffort(inputValue);
+    const feedback = MICRO_FEEDBACK[effort];
+    const feedbackMsg = feedback.messages[Math.floor(Math.random() * feedback.messages.length)];
+    setMicroFeedback({ msg: feedbackMsg, level: effort });
+
+    const newCauses = { ...causes, [category.name]: [...(causes[category.name] || []), inputValue] };
+    setCauses(newCauses);
+    setCausalEfforts({
+      ...causalEfforts,
+      [category.name]: [...(causalEfforts[category.name] || []), effort],
+    });
+    setInputValue('');
+
+    if (microFeedbackTimerRef.current) clearTimeout(microFeedbackTimerRef.current);
+    microFeedbackTimerRef.current = setTimeout(() => setMicroFeedback(null), 3000);
+
+    // Fetch nudge
+    setNudgeLoading(true);
+    try {
+      const result = (await fetchAI({
+        action: 'nudge',
+        challenge,
+        sessionId,
+        category: category.name,
+        cause: inputValue,
+        existingCauses: causes[category.name] || [],
+        effortLevel: effort,
+      })) as { nudge?: string; acknowledgment?: string; effortLevel?: EffortLevel };
+      setNudge(result.nudge || '');
+    } catch (err) {
+      console.error('Nudge fetch error:', err);
+      setNudge('');
+    } finally {
+      setNudgeLoading(false);
+    }
+
+    inputRef.current?.focus();
+  };
+
+  const handleRemoveCause = (idx: number) => {
+    const catCauses = causes[category.name] || [];
+    const newCauses = catCauses.filter((_, i) => i !== idx);
+    setCauses({ ...causes, [category.name]: newCauses });
+
+    const efforts = causalEfforts[category.name] || [];
+    const newEfforts = efforts.filter((_, i) => i !== idx);
+    setCausalEfforts({ ...causalEfforts, [category.name]: newEfforts });
+  };
+
+  const handleGoToSummary = async () => {
+    setLoadingInsights(true);
+    try {
+      const result = (await fetchAI({
+        action: 'insights',
+        challenge,
+        sessionId,
+        allCauses: causes,
+      })) as { insights?: string };
+      setInsights(result.insights || '');
+    } catch (err) {
+      console.error('Insights fetch error:', err);
+      setInsights('');
+    } finally {
+      setLoadingInsights(false);
+    }
+    setStage('summary');
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && e.metaKey) {
+      handleAddCause();
+    }
+  };
+
+  // ─── INTRO SCREEN ───
+  if (stage === 'intro') {
+    return (
+      <div className="min-h-screen w-full flex flex-col items-center justify-center p-4" style={{ background: 'linear-gradient(135deg, rgba(139,92,246,0.05) 0%, rgba(16,185,129,0.05) 100%)' }}>
+      <div className="min-h-screen w-full flex flex-col items-center justify-center p-4" style={{ background: 'linear-gradient(135deg, rgba(139,92,246,0.05) 0%, rgba(16,185,129,0.05) 100%)' }}>
+        <div className="max-w-2xl w-full space-y-8">
+          <div>
+            <h1 className="text-4xl font-bold text-gray-900 mb-2">🐟 Fishbone Diagram</h1>
+            <p className="text-lg text-gray-600">Root cause analysis using six categories. Dig into the WHY.</p>
+          </div>
+
+          <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-200">
+            <label className="block text-sm font-semibold text-gray-700 mb-3">What problem are you investigating?</label>
+            <textarea
+              value={challenge}
+              onChange={(e) => setChallenge(e.target.value)}
+              placeholder="E.g., 'Product defects increased 30% this quarter' or 'Project deadline was missed'"
+              className="w-full h-32 p-4 border border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none resize-none text-gray-700"
+            />
+          </div>
+
+          <div className="flex gap-4">
+            <button
+              onClick={handleIntroSubmit}
+              disabled={!challenge.trim()}
+              className="flex-1 py-3 px-6 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition"
+            >
+              Start Analysis
+            </button>
+          </div>
+
+          <div className="bg-purple-50 border border-purple-200 rounded-lg p-6">
+            <p className="text-sm text-gray-700">
+              <strong>How it works:</strong> The fishbone diagram breaks root causes into 6 categories: People, Methods, Materials, Machines, Measurements, and Environment. For each category, you'll brainstorm specific causes that might contribute to your problem. The AI will help you identify the most likely root cause cluster.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── WORKING SCREEN ───
+  if (stage === 'working') {
+    const catCauses = causes[category.name] || [];
+    const efforts = causalEfforts[category.name] || [];
+
+    return (
+      <div className="min-h-screen w-full p-4" style={{ background: 'linear-gradient(135deg, rgba(139,92,246,0.03) 0%, rgba(16,185,129,0.03) 100%)' }}>
+      <div className="min-h-screen w-full p-4" style={{ background: 'linear-gradient(135deg, rgba(139,92,246,0.03) 0%, rgba(16,185,129,0.03) 100%)' }}>
+        <div className="max-w-4xl mx-auto space-y-6">
+          {/* Header */}
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+            <h2 className="text-2xl font-bold text-gray-900 mb-1">🐟 {challenge}</h2>
+            <p className="text-sm text-gray-600">Analyzing causes across 6 categories</p>
+          </div>
+
+          {/* Category Navigation Rail */}
+          <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+            {CATEGORIES.map((cat, idx) => {
+              const catCauses = causes[cat.name] || [];
+              const isActive = idx === currentCategory;
+              return (
+                <button
+                  key={idx}
+                  onClick={() => setCurrentCategory(idx)}
+                  className={`p-3 rounded-lg font-semibold text-sm transition flex flex-col items-center gap-1 ${
+                    isActive
+                      ? 'text-white shadow-lg'
+                      : 'text-gray-700 bg-white border border-gray-200 hover:border-gray-300'
+                  }`}
+                  style={{
+                    backgroundColor: isActive ? cat.color : undefined,
+                    boxShadow: isActive ? `0 0 12px ${cat.glow}` : undefined,
+                  }}
+                >
+                  <span className="text-lg">{cat.emoji}</span>
+                  <span className="hidden sm:block">{cat.name}</span>
+                  {catCauses.length > 0 && (
+                    <span className={`text-xs font-bold ${isActive ? 'text-white' : 'text-gray-500'}`}>
+                      {catCauses.length}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Working Area */}
+          <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-200">
+            <div className="mb-6">
+              <h3 className="text-2xl font-bold mb-2" style={{ color: category.color }}>
+                {category.emoji} {category.name}
+              </h3>
+              <p className="text-gray-700 font-medium mb-2">{category.instruction}</p>
+              <p className="text-sm text-gray-600">{category.hint}</p>
+            </div>
+
+            {/* Input Area */}
+            <div className="space-y-3 mb-6">
+              <textarea
+                ref={inputRef}
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={`Type a cause specific to ${category.name.toLowerCase()}...`}
+                className="w-full h-24 p-4 border border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none resize-none text-gray-700"
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={handleAddCause}
+                  disabled={!inputValue.trim() || nudgeLoading}
+                  className="flex-1 py-2 px-4 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg font-semibold hover:from-purple-700 hover:to-indigo-700 disabled:from-gray-300 disabled:to-gray-300 disabled:cursor-not-allowed transition"
+                >
+                  {nudgeLoading ? 'Getting feedback...' : 'Add Cause'}
+                </button>
+              </div>
+            </div>
+
+            {/* Micro-feedback */}
+            {microFeedback && (
+              <div
+                className="mb-4 p-3 rounded-lg text-center font-semibold transition-opacity"
+                style={{
+                  backgroundColor: microFeedback.level === 'high' ? '#dbeafe' : microFeedback.level === 'medium' ? '#fef3c7' : '#fecaca',
+                  color: microFeedback.level === 'high' ? '#1e40af' : microFeedback.level === 'medium' ? '#92400e' : '#991b1b',
+                }}
+              >
+                {MICRO_FEEDBACK[microFeedback.level].emoji} {microFeedback.msg}
+              </div>
+            )}
+
+            {/* Nudge */}
+            {nudge && (
+              <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-900">
+                  <strong>💡 Next thought:</strong> {nudge}
+                </p>
+              </div>
+            )}
+
+            {/* Causes List */}
+            {catCauses.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-semibold text-gray-700">
+                  {catCauses.length} cause{catCauses.length !== 1 ? 's' : ''} identified:
+                </p>
+                {catCauses.map((cause, idx) => {
+                  const effort = efforts[idx] || 'medium';
+                  const effortColor =
+                    effort === 'high' ? '#22c55e' : effort === 'medium' ? '#eab308' : '#ef4444';
+                  return (
+                    <div
+                      key={idx}
+                      className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition group"
+                    >
+                      <span
+                        className="text-lg font-bold flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full text-white text-xs"
+                        style={{ backgroundColor: effortColor }}
+                      >
+                        {effort === 'high' ? '●' : effort === 'medium' ? '◐' : '◯'}
+                      </span>
+                      <p className="flex-1 text-gray-700">{cause}</p>
+                      <button
+                        onClick={() => handleRemoveCause(idx)}
+                        className="text-gray-400 hover:text-red-500 transition opacity-0 group-hover:opacity-100"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Summary Button */}
+          {totalCauses > 0 && (
+            <div className="flex gap-4">
+              <button
+                onClick={handleGoToSummary}
+                disabled={loadingInsights}
+                className="flex-1 py-3 px-6 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg font-semibold hover:from-green-700 hover:to-emerald-700 disabled:from-gray-300 disabled:to-gray-300 disabled:cursor-not-allowed transition"
+              >
+                {loadingInsights ? 'Analyzing...' : '→ Analyze Root Causes'}
+              </button>
+            </div>
+          )}
+
+          {/* Progress */}
+          <div className="text-center text-sm text-gray-600">
+            {totalCauses} cause{totalCauses !== 1 ? 's' : ''} identified across all categories
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── SUMMARY SCREEN ───
+  return (
+    <div className="min-h-screen w-full p-4" style={{ background: 'linear-gradient(135deg, rgba(139,92,246,0.03) 0%, rgba(16,185,129,0.03) 100%)' }}>
+    <div className="min-h-screen w-full p-4" style={{ background: 'linear-gradient(135deg, rgba(139,92,246,0.03) 0%, rgba(16,185,129,0.03) 100%)' }}>
+      <div className="max-w-4xl mx-auto space-y-6">
+        {/* Header */}
+        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+          <h2 className="text-2xl font-bold text-gray-900 mb-1">🐟 Analysis Complete</h2>
+          <p className="text-sm text-gray-600">Problem: {challenge}</p>
+        </div>
+
+        {/* Summary Grid */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          {CATEGORIES.map((cat, idx) => {
+            const catCauses = causes[cat.name] || [];
+            return (
+              <div
+                key={idx}
+                className="p-4 rounded-lg text-center border-2 transition"
+                style={{
+                  borderColor: cat.color,
+                  backgroundColor: cat.glow,
+                }}
+              >
+                <p className="text-3xl mb-2">{cat.emoji}</p>
+                <p className="text-sm font-semibold text-gray-700">{cat.name}</p>
+                <p className="text-2xl font-bold" style={{ color: cat.color }}>
+                  {catCauses.length}
+                </p>
+              </div>
+            </div>
+    );
+          })}
+        </div>
+
+        {/* All Causes by Category */}
+        <div className="space-y-4">
+          {CATEGORIES.map((cat, idx) => {
+            const catCauses = causes[cat.name] || [];
+            if (catCauses.length === 0) return null;
+
+            return (
+              <div key={idx} className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+                <h3 className="text-lg font-bold mb-4" style={{ color: cat.color }}>
+                  {cat.emoji} {cat.name} ({catCauses.length})
+                </h3>
+                <ul className="space-y-2">
+                  {catCauses.map((cause, cIdx) => (
+                    <li key={cIdx} className="flex items-start gap-3 text-gray-700">
+                      <span className="text-lg mt-0.5">→</span>
+                      <span>{cause}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+    );
+          })}
+        </div>
+
+        {/* Root Cause Synthesis */}
+        {insights && (
+          <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-xl p-8 border border-purple-200">
+            <h3 className="text-lg font-bold text-gray-900 mb-4">🔍 Root Cause Analysis</h3>
+            <div className="text-gray-700 leading-relaxed whitespace-pre-wrap text-sm">
+              {insights}
+            </div>
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex gap-4">
+          <button
+            onClick={() => {
+              setStage('working');
+              setCurrentCategory(0);
+            }}
+            className="flex-1 py-3 px-6 bg-white text-purple-600 border-2 border-purple-600 rounded-lg font-semibold hover:bg-purple-50 transition"
+          >
+            ← Keep Analyzing
+          </button>
+          <button
+            onClick={() => {
+              if (onComplete) {
+                onComplete({
+                  toolId: 'fishbone',
+                  challenge,
+                  stage: 'summary',
+                  causes,
+                  metadata: { totalCauses, timeSpentMs: 0 },
+                });
+              }
+            }}
+            className="flex-1 py-3 px-6 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg font-semibold hover:from-green-700 hover:to-emerald-700 transition"
+          >
+            Save Analysis
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+    );
+}

@@ -18,6 +18,8 @@ import type {
   UnitContentDataV4,
   TimelineActivity,
   ComputedLesson,
+  PageContent,
+  WorkshopPhases,
 } from "@/types";
 
 // ---------------------------------------------------------------------------
@@ -228,6 +230,16 @@ export default function UnitDetailPage({
 
       {/* Action bar */}
       <div className="flex items-center gap-2 mb-6 flex-wrap">
+        {/* Teach This — primary action */}
+        <Link
+          href={`/teacher/teach/${unitId}`}
+          className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 text-white font-medium text-sm hover:from-purple-700 hover:to-blue-700 transition-all shadow-sm flex items-center gap-2"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polygon points="5 3 19 12 5 21 5 3" />
+          </svg>
+          Teach This
+        </Link>
         {firstPageId && (
           <button
             onClick={() => window.open(`/unit/${unitId}/${firstPageId}`, "_blank")}
@@ -364,6 +376,8 @@ export default function UnitDetailPage({
                         ? CRITERIA[page.criterion as CriterionKey].color
                         : undefined
                     }
+                    workshopPhases={(page.content as PageContent & { workshopPhases?: WorkshopPhases })?.workshopPhases || undefined}
+                    extensionCount={((page.content as PageContent & { extensions?: unknown[] })?.extensions)?.length}
                   />
                 ))}
               </div>
@@ -387,6 +401,28 @@ export default function UnitDetailPage({
 // ---------------------------------------------------------------------------
 // Lesson card — matches SkeletonReview LessonSkeletonCard style
 // ---------------------------------------------------------------------------
+/** Compact phase bar for read-only view of workshop timing */
+function MiniPhaseBar({ phases }: { phases: { opening: number; miniLesson: number; workTime: number; debrief: number } }) {
+  const total = phases.opening + phases.miniLesson + phases.workTime + phases.debrief;
+  if (total === 0) return null;
+  const segments = [
+    { min: phases.opening, color: "#C4B5FD", label: "Open" },
+    { min: phases.miniLesson, color: "#93C5FD", label: "Teach" },
+    { min: phases.workTime, color: "#86EFAC", label: "Work" },
+    { min: phases.debrief, color: "#FCD34D", label: "Debrief" },
+  ];
+  return (
+    <div className="flex items-center gap-1 mt-1.5">
+      <div className="flex rounded-full overflow-hidden h-1.5 flex-1">
+        {segments.map((s, i) => (
+          <div key={i} style={{ width: `${(s.min / total) * 100}%`, backgroundColor: s.color }} title={`${s.label}: ${s.min}m`} />
+        ))}
+      </div>
+      <span className="text-[9px] text-text-tertiary">{total}m</span>
+    </div>
+  );
+}
+
 function LessonCard({
   lessonNumber,
   title,
@@ -396,6 +432,8 @@ function LessonCard({
   activityHints,
   badgeId,
   badgeColor,
+  workshopPhases,
+  extensionCount,
 }: {
   lessonNumber: number;
   title: string;
@@ -405,6 +443,8 @@ function LessonCard({
   activityHints: string[];
   badgeId?: string;
   badgeColor?: string;
+  workshopPhases?: { opening: { durationMinutes: number }; miniLesson: { durationMinutes: number }; workTime: { durationMinutes: number }; debrief: { durationMinutes: number } };
+  extensionCount?: number;
 }) {
   return (
     <div className="flex items-start gap-2 p-3 rounded-lg border border-border hover:border-gray-300 bg-white transition-colors">
@@ -429,9 +469,19 @@ function LessonCard({
           <p className="text-xs text-text-secondary mt-0.5 line-clamp-2">{subtitle}</p>
         )}
 
+        {/* Workshop phase bar — shown when timing data exists */}
+        {workshopPhases && (
+          <MiniPhaseBar phases={{
+            opening: workshopPhases.opening.durationMinutes,
+            miniLesson: workshopPhases.miniLesson.durationMinutes,
+            workTime: workshopPhases.workTime.durationMinutes,
+            debrief: workshopPhases.debrief.durationMinutes,
+          }} />
+        )}
+
         {/* Meta row */}
         <div className="flex items-center gap-2 mt-1.5">
-          {minutes != null && (
+          {minutes != null && !workshopPhases && (
             <span className="text-[10px] text-text-tertiary">{minutes}min</span>
           )}
 
@@ -446,6 +496,13 @@ function LessonCard({
                 />
               ))}
             </div>
+          )}
+
+          {/* Extension indicator */}
+          {extensionCount != null && extensionCount > 0 && (
+            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-green-50 text-green-700">
+              {extensionCount} ext
+            </span>
           )}
 
           {/* Activity hints */}

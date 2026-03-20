@@ -12,7 +12,9 @@ import {
   suggestQuestionType,
   assessEffort,
 } from "@/lib/ai/design-assistant-prompt";
+import { buildOpenStudioSystemPrompt } from "@/lib/ai/open-studio-prompt";
 import { getTeachingContext, getFrameworkFromContext } from "@/lib/ai/teacher-context";
+import { logUsage } from "@/lib/usage-tracking";
 
 // =========================================================================
 // CONVERSATION CRUD
@@ -242,18 +244,37 @@ export async function generateResponse(
   // 6. Get teacher's framework for vocabulary
   const teachingContext = await getTeacherFrameworkForStudent(conversation.unitId);
 
-  // 7. Build system prompt
-  const systemPrompt = buildDesignAssistantSystemPrompt({
-    bloomLevel,
-    effortScore,
-    framework: teachingContext?.framework,
-    activityTitle: activityContext?.title,
-    activityPrompt: activityContext?.prompt,
-    unitTopic: activityContext?.unitTopic,
-    gradeLevel: activityContext?.gradeLevel,
-    criterionTags: activityContext?.criterionTags,
-    previousTurns: turns.length,
-  });
+  // 7. Check Open Studio status — switches entire prompt mode
+  const openStudioMode = await checkOpenStudioStatus(
+    conversation.studentId,
+    conversation.unitId
+  );
+
+  // 8. Build system prompt (guided vs Open Studio)
+  let systemPrompt: string;
+  if (openStudioMode) {
+    systemPrompt = buildOpenStudioSystemPrompt({
+      focusArea: openStudioMode.focusArea || undefined,
+      unitTopic: activityContext?.unitTopic,
+      gradeLevel: activityContext?.gradeLevel,
+      framework: teachingContext?.framework,
+      criterionTags: activityContext?.criterionTags,
+      previousTurns: turns.length,
+      interactionType: "student_message",
+    });
+  } else {
+    systemPrompt = buildDesignAssistantSystemPrompt({
+      bloomLevel,
+      effortScore,
+      framework: teachingContext?.framework,
+      activityTitle: activityContext?.title,
+      activityPrompt: activityContext?.prompt,
+      unitTopic: activityContext?.unitTopic,
+      gradeLevel: activityContext?.gradeLevel,
+      criterionTags: activityContext?.criterionTags,
+      previousTurns: turns.length,
+    });
+  }
 
   // 8. Build conversation messages for AI
   const messages = turns.map((t) => ({
@@ -387,7 +408,7 @@ async function callDesignAssistantAI(
       "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify({
-      model: "claude-haiku-4-5-20250315",
+      model: "claude-haiku-4-5-20251001",
       max_tokens: 300, // Short responses — mentor asks ONE question
       system: systemPrompt,
       messages,
@@ -402,14 +423,75 @@ async function callDesignAssistantAI(
   const data = await response.json();
 
   // Extract text from response
+  const fallback = "I'm having trouble thinking of a question right now. Can you tell me more about what you're working on?";
+  let text = fallback;
   if (data.content && Array.isArray(data.content)) {
     const textBlock = data.content.find(
       (block: { type: string; text?: string }) => block.type === "text"
     );
-    return textBlock?.text || "I'm having trouble thinking of a question right now. Can you tell me more about what you're working on?";
+    text = textBlock?.text || fallback;
   }
 
-  return "I'm having trouble thinking of a question right now. Can you tell me more about what you're working on?";
+  // Log usage (fire-and-forget)
+  logUsage({
+    endpoint: "design-assistant",
+    model: "claude-haiku-4-5-20251001",
+    inputTokens: data.usage?.input_tokens,
+    outputTokens: data.usage?.output_tokens,
+    metadata: {
+      response_length: text.length,
+      ...(text.length > 1200 ? { oversized: true } : {}),
+    },
+  });
+
+  // Response length heuristic — warn on oversized responses
+  if (text.length > 1200) {
+    console.warn(
+      `[design-assistant] Oversized response: ${text.length} chars (expected <1200)`
+    );
+  }
+
+  return text;
+}
+
+// =========================================================================
+// OPEN STUDIO MODE CHECK
+// =========================================================================
+
+/**
+ * Check if a student has Open Studio unlocked for this unit.
+ * If so, return the active session's focus area (if any).
+ * Returns null if not in Open Studio mode.
+ */
+async function checkOpenStudioStatus(
+  studentId: string,
+  unitId: string
+): Promise<{ focusArea: string | null } | null> {
+  const supabase = createAdminClient();
+
+  const { data: status } = await supabase
+    .from("open_studio_status")
+    .select("id, status")
+    .eq("student_id", studentId)
+    .eq("unit_id", unitId)
+    .eq("status", "unlocked")
+    .single();
+
+  if (!status) return null;
+
+  // Try to get active session's focus area
+  const { data: session } = await supabase
+    .from("open_studio_sessions")
+    .select("focus_area")
+    .eq("student_id", studentId)
+    .eq("unit_id", unitId)
+    .eq("status_id", status.id)
+    .is("ended_at", null)
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .single();
+
+  return { focusArea: session?.focus_area || null };
 }
 
 // =========================================================================

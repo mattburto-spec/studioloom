@@ -1,0 +1,883 @@
+'use client';
+
+import { useState, useRef, useCallback } from 'react';
+
+
+/* ─── Stakeholder Map Step Data ─── */
+const STEPS = [
+  {
+    num: 1,
+    title: 'List All Stakeholders',
+    color: '#6366f1',
+    glow: 'rgba(99,102,241,0.15)',
+    desc: 'Who is affected by your design? Think broadly: direct users, indirect users, people who benefit, people who might be blocked, organizations, competitors, etc.',
+    icon: '👥',
+  },
+  {
+    num: 2,
+    title: 'Categorize by Influence & Interest',
+    color: '#4f46e5',
+    glow: 'rgba(79,70,229,0.15)',
+    desc: 'Plot stakeholders in a 2×2 grid: high/low influence (power to affect the outcome) × high/low interest (care about the outcome). This reveals who matters most.',
+    icon: '📊',
+  },
+  {
+    num: 3,
+    title: 'Understand Their Needs',
+    color: '#4338ca',
+    glow: 'rgba(67,56,202,0.15)',
+    desc: 'For each key stakeholder (especially high influence + high interest), what do they need from your solution? What are they worried about?',
+    icon: '💭',
+  },
+] as const;
+
+type StepIndex = 0 | 1 | 2;
+type EffortLevel = 'low' | 'medium' | 'high';
+
+/* ─── Effort Assessment (client-side, deterministic) ─── */
+function assessEffort(idea: string): EffortLevel {
+  const words = idea.trim().split(/\s+/).length;
+  const hasReasoning = /\b(because|since|so that|in order to|this would|this could|which means|that way)\b/i.test(idea);
+  const hasSpecifics = /\b(for example|such as|like|using|made of|instead of|rather than|compared to)\b/i.test(idea);
+  const hasDetail = words >= 15;
+
+  if (words < 6) return 'low';
+  if ((hasDetail && hasSpecifics) || (hasDetail && hasReasoning) || (hasSpecifics && hasReasoning)) return 'high';
+  if (words >= 10 || hasSpecifics || hasReasoning) return 'medium';
+  return 'low';
+}
+
+function getDepthInfo(effort: EffortLevel): { dots: 1 | 2 | 3; label: string; color: string } {
+  if (effort === 'high') return { dots: 3, label: 'Detailed', color: '#a78bfa' };
+  if (effort === 'medium') return { dots: 2, label: 'Good start', color: '#60a5fa' };
+  return { dots: 1, label: 'Go deeper', color: '#f59e0b' };
+}
+
+const MICRO_FEEDBACK: Record<EffortLevel, { emoji: string; messages: string[] }> = {
+  high: {
+    emoji: '✦',
+    messages: ['Great detail!', 'Deep thinking!', 'Strong insight!', 'Specific and clear!', 'Thorough analysis!'],
+  },
+  medium: {
+    emoji: '→',
+    messages: ['Good — keep thinking!', 'Nice start!', 'Getting there!', 'Building understanding!'],
+  },
+  low: {
+    emoji: '↑',
+    messages: ['Try adding more detail', 'Can you be more specific?', 'What would they specifically need?'],
+  },
+};
+
+/* ─── API helpers ─── */
+async function fetchAI(body: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const res = await fetch('/api/tools/stakeholder-map', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Request failed' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+/* ─── Main Component ─── */
+export function StakeholderMapTool(props: { toolId?: string; mode: 'public' | 'embedded' | 'standalone'; challenge?: string; sessionId?: string; onSave?: (state: any) => void; onComplete?: (data: any) => void } = { mode: 'public' }) {
+  const [stage, setStage] = useState<'intro' | 'working' | 'summary'>('intro');
+  const [challenge, setChallenge] = useState('');
+  const [currentStep, setCurrentStep] = useState<StepIndex>(0);
+  const [allStakeholders, setAllStakeholders] = useState<string[]>([]);
+  const [categorized, setCategorized] = useState<{ hi_hi: string[]; hi_lo: string[]; lo_hi: string[]; lo_lo: string[] }>({
+    hi_hi: [],
+    hi_lo: [],
+    lo_hi: [],
+    lo_lo: [],
+  });
+  const [needs, setNeeds] = useState<Record<string, string>>({});
+  const [currentIdea, setCurrentIdea] = useState('');
+
+  // AI state
+  const [sessionId] = useState(() => Math.random().toString(36).slice(2) + Date.now().toString(36));
+  const [aiPrompts, setAiPrompts] = useState<string[]>([]);
+  const [loadingPrompts, setLoadingPrompts] = useState(false);
+  const [nudge, setNudge] = useState('');
+  const [nudgeVisible, setNudgeVisible] = useState(false);
+  const [loadingNudge, setLoadingNudge] = useState(false);
+  const [insights, setInsights] = useState('');
+  const [loadingInsights, setLoadingInsights] = useState(false);
+
+  // Card dealing state
+  const [dealtCards, setDealtCards] = useState(0);
+  const [thinkingTimeLeft, setThinkingTimeLeft] = useState(0);
+  const [dealingAnimation, setDealingAnimation] = useState(false);
+  const thinkingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Effort-gating & micro-feedback
+  const [ideaEfforts, setIdeaEfforts] = useState<EffortLevel[]>([]);
+  const [microFeedback, setMicroFeedback] = useState<{ effort: EffortLevel; message: string } | null>(null);
+  const [nudgeAcknowledgment, setNudgeAcknowledgment] = useState('');
+  const microFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const challengeRef = useRef<HTMLTextAreaElement>(null);
+
+  const step = STEPS[currentStep];
+  const currentCount =
+    currentStep === 0 ? allStakeholders.length : currentStep === 1 ? Object.values(categorized).flat().length : Object.keys(needs).length;
+
+  // Fetch AI prompts when step changes
+  const fetchPrompts = useCallback(
+    async (stepIdx: StepIndex, existingIdeas: string[] = []) => {
+      if (!challenge.trim()) return;
+      setLoadingPrompts(true);
+      try {
+        const data = await fetchAI({
+          action: 'prompts',
+          challenge: challenge.trim(),
+          sessionId,
+          stepIndex: stepIdx,
+          existingIdeas,
+        });
+        setAiPrompts((data.prompts as string[]) || []);
+      } catch (err) {
+        console.error('Fetch prompts error:', err);
+        // Fallback prompts
+        if (stepIdx === 0) {
+          setAiPrompts([
+            'Who directly uses or is affected by this solution?',
+            'Who might be indirectly affected or benefit without knowing?',
+            'Who could block or resist this solution?',
+            'Who profits or loses depending on the outcome?',
+          ]);
+        } else if (stepIdx === 1) {
+          setAiPrompts([
+            'Which stakeholders have the most power to make or break this?',
+            'Which stakeholders care the most about the outcome?',
+            'Who has both power and interest — those are your key players?',
+            'Who do you need to convince first?',
+          ]);
+        } else {
+          setAiPrompts([
+            'What does each stakeholder need to be happy with your solution?',
+            'What are they worried about or what could go wrong for them?',
+            'How will your solution make their life better or worse?',
+            'What would you need to do to earn their trust?',
+          ]);
+        }
+      } finally {
+        setLoadingPrompts(false);
+      }
+    },
+    [challenge, sessionId]
+  );
+
+  // Start working
+  const handleStart = useCallback(() => {
+    if (!challenge.trim()) return;
+    setStage('working');
+    setCurrentStep(0);
+    fetchPrompts(0, []);
+  }, [challenge, fetchPrompts]);
+
+  // Add idea
+  const handleAddIdea = useCallback(async () => {
+    if (!currentIdea.trim()) return;
+
+    const effort = assessEffort(currentIdea);
+    const newIdea = currentIdea.trim();
+
+    // Update appropriate list
+    if (currentStep === 0) {
+      setAllStakeholders((prev) => [...prev, newIdea]);
+    } else if (currentStep === 1) {
+      // Parse categorization (simplified: just add to hi_hi for now, UI will let user drag/recategorize)
+      setCategorized((prev) => ({
+        ...prev,
+        hi_hi: [...prev.hi_hi, newIdea],
+      }));
+    } else {
+      // Step 2: needs
+      setNeeds((prev) => ({ ...prev, [newIdea]: currentIdea }));
+    }
+
+    setIdeaEfforts((prev) => [...prev, effort]);
+    setCurrentIdea('');
+
+    // Micro-feedback
+    const feedback = MICRO_FEEDBACK[effort];
+    const msg = feedback.messages[Math.floor(Math.random() * feedback.messages.length)];
+    setMicroFeedback({ effort, message: `${feedback.emoji} ${msg}` });
+    if (microFeedbackTimerRef.current) clearTimeout(microFeedbackTimerRef.current);
+    microFeedbackTimerRef.current = setTimeout(() => setMicroFeedback(null), 3000);
+
+    // Hide previous nudge
+    setNudgeVisible(false);
+
+    // Fetch nudge
+    setLoadingNudge(true);
+    try {
+      const existingIdeas = currentStep === 0 ? allStakeholders : currentStep === 1 ? Object.values(categorized).flat() : Object.keys(needs);
+      const data = await fetchAI({
+        action: 'nudge',
+        challenge: challenge.trim(),
+        sessionId,
+        stepIndex: currentStep,
+        idea: newIdea,
+        existingIdeas,
+        effortLevel: effort,
+      });
+      setNudge(data.nudge as string);
+      setNudgeAcknowledgment(data.acknowledgment as string);
+    } catch (err) {
+      console.error('Fetch nudge error:', err);
+    } finally {
+      setLoadingNudge(false);
+    }
+
+    if (dealtCards === 0) {
+      setTimeout(() => setNudgeVisible(true), 500);
+    }
+
+    if (textareaRef.current) textareaRef.current.focus();
+  }, [currentIdea, currentStep, allStakeholders, categorized, needs, challenge, sessionId, dealtCards]);
+
+  // Deal a card
+  const dealCard = useCallback(() => {
+    if (dealtCards >= aiPrompts.length) return;
+    if (currentCount === 0) {
+      setNudgeVisible(true);
+      return;
+    }
+
+    setDealingAnimation(true);
+    setTimeout(() => {
+      setDealtCards((prev) => prev + 1);
+      setDealingAnimation(false);
+      setThinkingTimeLeft(10);
+
+      if (thinkingTimerRef.current) clearInterval(thinkingTimerRef.current);
+      thinkingTimerRef.current = setInterval(() => {
+        setThinkingTimeLeft((prev) => {
+          if (prev <= 1) {
+            if (thinkingTimerRef.current) clearInterval(thinkingTimerRef.current);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }, 150);
+  }, [dealtCards, aiPrompts.length, currentCount]);
+
+  // Move to next step
+  const moveToStep = useCallback(
+    (idx: StepIndex) => {
+      setCurrentStep(idx);
+      setCurrentIdea('');
+      setNudgeVisible(false);
+      setNudge('');
+      setDealtCards(0);
+      setThinkingTimeLeft(0);
+      if (aiPrompts.length === 0) {
+        const existingIdeas = idx === 0 ? allStakeholders : idx === 1 ? Object.values(categorized).flat() : Object.keys(needs);
+        fetchPrompts(idx, existingIdeas);
+      }
+    },
+    [aiPrompts.length, allStakeholders, categorized, needs, fetchPrompts]
+  );
+
+  // Move to summary
+  const handleSummary = useCallback(async () => {
+    setStage('summary');
+    setLoadingInsights(true);
+    try {
+      const data = await fetchAI({
+        action: 'insights',
+        challenge: challenge.trim(),
+        sessionId,
+        allStakeholders,
+        categorized,
+        needs,
+      });
+      setInsights(data.insights as string);
+    } catch (err) {
+      console.error('Fetch insights error:', err);
+    } finally {
+      setLoadingInsights(false);
+    }
+  }, [challenge, sessionId, allStakeholders, categorized, needs]);
+
+  // Render based on stage
+  if (stage === 'intro') {
+    return (
+        style={{ background: '#000000', minHeight: '100vh', color: '#ffffff', padding: '40px 20px' }}>
+        <div style={{ maxWidth: '600px', margin: '0 auto' }}>
+          <div style={{ marginBottom: '40px' }}>
+            <h1 style={{ fontSize: '48px', fontWeight: '900', marginBottom: '16px', color: '#6366f1' }}>
+              Stakeholder Map
+            </h1>
+            <p style={{ fontSize: '18px', color: '#d1d5db', marginBottom: '24px', lineHeight: '1.6' }}>
+              Identify everyone affected by your design. Map them by influence and interest. Understand what they need. A research tool to see the full picture.
+            </p>
+          </div>
+
+          <div style={{ marginBottom: '40px' }}>
+            <h2 style={{ fontSize: '14px', fontWeight: '600', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px' }}>
+              Your Design Challenge
+            </h2>
+            <textarea
+              ref={challengeRef}
+              value={challenge}
+              onChange={(e) => setChallenge(e.target.value)}
+              placeholder="E.g., Our new community centre design for the neighborhood"
+              <div
+              style={{
+                width: '100%',
+                padding: '16px',
+                fontSize: '16px',
+                background: 'rgba(255,255,255,0.05)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: '12px',
+                color: '#ffffff',
+                fontFamily: 'inherit',
+                resize: 'vertical',
+                minHeight: '100px',
+              }}
+            />
+          </div>
+
+          <button
+            onClick={handleStart}
+            disabled={!challenge.trim()}
+            <div
+            style={{
+              width: '100%',
+              padding: '16px',
+              fontSize: '16px',
+              fontWeight: '600',
+              background: challenge.trim() ? '#6366f1' : 'rgba(99,102,241,0.3)',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: challenge.trim() ? 'pointer' : 'not-allowed',
+              transition: 'background 0.3s',
+            }}
+            onMouseEnter={(e) => {
+              if (challenge.trim()) (e.target as HTMLButtonElement).style.background = '#4f46e5';
+            }}
+            onMouseLeave={(e) => {
+              if (challenge.trim()) (e.target as HTMLButtonElement).style.background = '#6366f1';
+            }}
+          >
+            Start Stakeholder Mapping
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (stage === 'working') {
+    return (
+        style={{ background: '#000000', minHeight: '100vh', color: '#ffffff', paddingBottom: '40px' }}>
+        {/* Step Navigation */}
+        <div style={{ background: 'rgba(99,102,241,0.1)', borderBottom: '1px solid rgba(99,102,241,0.3)', padding: '20px', position: 'sticky', top: 0, zIndex: 10 }}>
+          <div style={{ maxWidth: '900px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <p style={{ fontSize: '12px', color: '#a3e635', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>
+                Step {currentStep + 1} of {STEPS.length}
+              </p>
+              <h2 style={{ fontSize: '24px', fontWeight: '700', color: '#6366f1' }}>
+                {step.icon} {step.title}
+              </h2>
+            </div>
+            <div style={{ textAlign: 'right', display: 'flex', gap: '12px' }}>
+              <div style={{ fontSize: '14px', color: '#d1d5db', marginBottom: '8px' }}>
+                {currentCount} items
+              </div>
+              <button
+                onClick={() => handleSummary()}
+                disabled={
+                  (currentStep === STEPS.length - 1 && currentCount === 0)
+                }
+                <div
+                style={{
+                  padding: '8px 16px',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  background: 'rgba(99,102,241,0.3)',
+                  color: '#ffffff',
+                  border: '1px solid rgba(99,102,241,0.5)',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                }}
+              >
+                Summary
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Main content */}
+        <div style={{ maxWidth: '900px', margin: '0 auto', padding: '40px 20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px' }}>
+          {/* Left: Input & prompts */}
+          <div>
+            <p style={{ fontSize: '14px', color: '#d1d5db', marginBottom: '24px', lineHeight: '1.6' }}>
+              {step.desc}
+            </p>
+
+            {/* Power/Interest Grid Reference (Step 2) */}
+            {currentStep === 1 && (
+              <div style={{ marginBottom: '24px', padding: '16px', background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)', borderRadius: '8px' }}>
+                <p style={{ fontSize: '11px', fontWeight: '600', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px', margin: '0 0 12px 0' }}>
+                  Mendelow Power/Interest Matrix
+                </p>
+                <svg viewBox="0 0 200 200" style={{ width: '100%', height: '200px' }}>
+                  <rect x="0" y="0" width="100" height="100" fill="rgba(99,102,241,0.05)" stroke="rgba(99,102,241,0.3)" strokeWidth="1" />
+                  <rect x="100" y="0" width="100" height="100" fill="rgba(99,102,241,0.1)" stroke="rgba(99,102,241,0.3)" strokeWidth="1" />
+                  <rect x="0" y="100" width="100" height="100" fill="rgba(99,102,241,0.05)" stroke="rgba(99,102,241,0.3)" strokeWidth="1" />
+                  <rect x="100" y="100" width="100" height="100" fill="rgba(99,102,241,0.15)" stroke="rgba(99,102,241,0.3)" strokeWidth="1" />
+                  <line x1="100" y1="0" x2="100" y2="200" stroke="rgba(99,102,241,0.4)" strokeWidth="1" />
+                  <line x1="0" y1="100" x2="200" y2="100" stroke="rgba(99,102,241,0.4)" strokeWidth="1" />
+                  <text x="50" y="45" textAnchor="middle" fill="#6b7280" fontSize="10" fontWeight="600">Monitor</text>
+                  <text x="150" y="45" textAnchor="middle" fill="#6b7280" fontSize="10" fontWeight="600">Keep Informed</text>
+                  <text x="50" y="155" textAnchor="middle" fill="#6b7280" fontSize="10" fontWeight="600">Keep Satisfied</text>
+                  <text x="150" y="155" textAnchor="middle" fill="#6b7280" fontSize="10" fontWeight="600">Manage Closely</text>
+                  <text x="5" y="195" fill="#9ca3af" fontSize="8">Low</text>
+                  <text x="180" y="195" fill="#9ca3af" fontSize="8">High</text>
+                  <text x="8" y="18" fill="#9ca3af" fontSize="8">High</text>
+                  <text x="8" y="195" fill="#9ca3af" fontSize="8">Low</text>
+                  <text x="90" y="215" textAnchor="middle" fill="#9ca3af" fontSize="8" fontWeight="600">Power →</text>
+                  <text x="-15" y="100" textAnchor="middle" fill="#9ca3af" fontSize="8" fontWeight="600" transform="rotate(-90 -15 100)">Interest ↑</text>
+                </svg>
+              </div>
+            )}
+
+            {/* Textarea */}
+            <div style={{ marginBottom: '24px' }}>
+              <label style={{ fontSize: '12px', fontWeight: '600', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: '8px' }}>
+                Add
+              </label>
+              <textarea
+                ref={textareaRef}
+                value={currentIdea}
+                onChange={(e) => setCurrentIdea(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && e.ctrlKey) handleAddIdea();
+                }}
+                placeholder={
+                  currentStep === 0
+                    ? 'Who would be affected? (e.g., families with kids, elderly residents, parking enforcement)'
+                    : currentStep === 1
+                    ? 'Re-enter stakeholder names to categorize them'
+                    : 'What does this stakeholder need or worry about?'
+                }
+                <div
+                style={{
+                  width: '100%',
+                  padding: '16px',
+                  fontSize: '15px',
+                  background: 'rgba(255,255,255,0.05)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: '8px',
+                  color: '#ffffff',
+                  fontFamily: 'inherit',
+                  resize: 'vertical',
+                  minHeight: '120px',
+                  marginBottom: '16px',
+                }}
+              />
+              <button
+                onClick={handleAddIdea}
+                disabled={!currentIdea.trim() || loadingNudge}
+                <div
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  background: currentIdea.trim() ? '#6366f1' : 'rgba(99,102,241,0.3)',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: currentIdea.trim() ? 'pointer' : 'not-allowed',
+                }}
+              >
+                {loadingNudge ? 'Getting feedback...' : 'Add'}
+              </button>
+            </div>
+
+            {/* Micro-feedback toast */}
+            {microFeedback && (
+              <div
+                style={{
+                  padding: '12px 16px',
+                  background: microFeedback.effort === 'high' ? 'rgba(167,139,250,0.2)' : 'rgba(96,165,250,0.2)',
+                  border: `1px solid ${microFeedback.effort === 'high' ? 'rgba(167,139,250,0.5)' : 'rgba(96,165,250,0.5)'}`,
+                  borderRadius: '8px',
+                  color: '#ffffff',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  textAlign: 'center',
+                  marginBottom: '16px',
+                }}
+              >
+                {microFeedback.message}
+              </div>
+            )}
+
+            {/* Prompts section */}
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                <h3 style={{ fontSize: '12px', fontWeight: '600', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Guiding Questions
+                </h3>
+                <button
+                  onClick={dealCard}
+                  disabled={dealtCards >= aiPrompts.length || currentCount === 0}
+                  <div
+                  style={{
+                    padding: '6px 12px',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    background: 'rgba(99,102,241,0.2)',
+                    color: '#6366f1',
+                    border: '1px solid rgba(99,102,241,0.4)',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {loadingPrompts ? '...' : `Deal (${dealtCards}/${aiPrompts.length})`}
+                </button>
+              </div>
+
+              {dealtCards === 0 && currentCount === 0 && (
+                <div
+                  style={{
+                    padding: '12px',
+                    background: 'rgba(251,146,60,0.1)',
+                    border: '1px solid rgba(251,146,60,0.3)',
+                    borderRadius: '6px',
+                    color: '#fed7aa',
+                    fontSize: '13px',
+                  }}
+                >
+                  ↓ Try adding an item first — then deal a question to deepen your thinking.
+                </div>
+              )}
+
+              {dealtCards > 0 && (
+                <div
+                  style={{
+                    padding: '16px',
+                    background: step.glow,
+                    border: `1px solid ${step.color}44`,
+                    borderRadius: '8px',
+                    color: '#e0c7ff',
+                    fontSize: '15px',
+                    fontStyle: 'italic',
+                    lineHeight: '1.6',
+                    opacity: dealingAnimation ? 0.5 : 1,
+                    transition: 'opacity 0.2s',
+                  }}
+                >
+                  <span style={{ fontSize: '20px', marginRight: '12px' }}>✨</span>
+                  {aiPrompts[dealtCards - 1] || 'Keep thinking...'}
+
+                  {thinkingTimeLeft > 0 && (
+                    <div style={{ marginTop: '12px', fontSize: '12px', color: '#c4b5fd', fontStyle: 'normal' }}>
+                      Think time: {thinkingTimeLeft}s
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Right: List or next step button */}
+          <div>
+            <h3 style={{ fontSize: '12px', fontWeight: '600', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '16px' }}>
+              {currentStep === 0 ? 'Stakeholders' : currentStep === 1 ? 'Categorized' : 'Needs'}
+            </h3>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
+              {currentStep === 0 && allStakeholders.map((s, idx) => (
+                <div
+                  key={idx}
+                  <div
+                  style={{
+                    padding: '12px',
+                    background: 'rgba(99,102,241,0.1)',
+                    border: '1px solid rgba(99,102,241,0.3)',
+                    borderRadius: '6px',
+                    fontSize: '13px',
+                    color: '#e5e7eb',
+                  }}
+                >
+                  {idx + 1}. {s}
+                </div>
+              ))}
+
+              {currentStep === 1 && Object.entries(categorized).map(([cat, items]) => (
+                items.length > 0 && (
+                  <div key={cat}>
+                    <p style={{ fontSize: '11px', color: '#9ca3af', fontWeight: '600', marginBottom: '8px', textTransform: 'uppercase' }}>
+                      {cat === 'hi_hi' ? 'High Influence, High Interest' : cat === 'hi_lo' ? 'High Influence, Low Interest' : cat === 'lo_hi' ? 'Low Influence, High Interest' : 'Low Influence, Low Interest'}
+                    </p>
+                    {items.map((item, idx) => (
+                      <div key={idx} style={{ fontSize: '13px', color: '#d1d5db', marginBottom: '4px' }}>
+                        • {item}
+                      </div>
+                    ))}
+                  </div>
+                )
+              ))}
+
+              {currentStep === 2 && Object.entries(needs).map(([stakeholder, need]) => (
+                <div
+                  key={stakeholder}
+                  <div
+                  style={{
+                    padding: '12px',
+                    background: 'rgba(99,102,241,0.1)',
+                    border: '1px solid rgba(99,102,241,0.3)',
+                    borderRadius: '6px',
+                    fontSize: '13px',
+                    color: '#e5e7eb',
+                  }}
+                >
+                  <strong>{stakeholder}:</strong> {need}
+                </div>
+              ))}
+            </div>
+
+            {currentCount === 0 && (
+              <div style={{ padding: '40px 20px', textAlign: 'center', color: '#6b7280', fontSize: '14px' }}>
+                Your items will appear here.
+              </div>
+            )}
+
+            {currentStep < STEPS.length - 1 && currentCount > 0 && (
+              <button
+                onClick={() => moveToStep((currentStep + 1) as StepIndex)}
+                <div
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  background: '#6366f1',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                }}
+              >
+                Next Step: {STEPS[currentStep + 1].title}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Nudge card */}
+        {nudgeVisible && nudge && (
+          <div style={{ maxWidth: '900px', margin: '0 auto', padding: '0 20px', marginBottom: '40px' }}>
+            <div
+              style={{
+                padding: '20px',
+                background: `linear-gradient(135deg, rgba(99,102,241,0.15) 0%, rgba(79,70,229,0.1) 100%)`,
+                border: '1px solid rgba(99,102,241,0.3)',
+                borderRadius: '12px',
+              }}
+            >
+              {nudgeAcknowledgment && (
+                <p style={{ fontSize: '13px', fontWeight: '600', color: '#c4b5fd', marginBottom: '8px' }}>
+                  {nudgeAcknowledgment}
+                </p>
+              )}
+              <p style={{ fontSize: '15px', color: '#e0c7ff', fontStyle: 'italic', lineHeight: '1.6' }}>
+                ✦ {nudge}
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+    );
+  }
+
+  if (stage === 'summary') {
+    return (
+        style={{ background: '#000000', minHeight: '100vh', color: '#ffffff', padding: '40px 20px' }}>
+        <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+          <h1 style={{ fontSize: '40px', fontWeight: '900', marginBottom: '12px', color: '#6366f1' }}>
+            Stakeholder Map Summary
+          </h1>
+          <p style={{ fontSize: '16px', color: '#d1d5db', marginBottom: '40px' }}>
+            Challenge: <strong>{challenge}</strong>
+          </p>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '40px' }}>
+            {/* Left: Stakeholders list */}
+            <div>
+              <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#6366f1', marginBottom: '16px' }}>
+                👥 All Stakeholders
+              </h2>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {allStakeholders.map((s, idx) => (
+                  <div
+                    key={idx}
+                    <div
+                    style={{
+                      padding: '8px',
+                      background: 'rgba(99,102,241,0.1)',
+                      border: '1px solid rgba(99,102,241,0.3)',
+                      borderRadius: '4px',
+                      fontSize: '13px',
+                      color: '#e5e7eb',
+                    }}
+                  >
+                    {idx + 1}. {s}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Right: Influence/Interest grid */}
+            <div>
+              <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#6366f1', marginBottom: '16px' }}>
+                📊 Categorized
+              </h2>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                {Object.entries(categorized).map(([cat, items]) => (
+                  <div
+                    key={cat}
+                    <div
+                    style={{
+                      padding: '12px',
+                      background: 'rgba(99,102,241,0.1)',
+                      border: '1px solid rgba(99,102,241,0.3)',
+                      borderRadius: '6px',
+                      fontSize: '11px',
+                    }}
+                  >
+                    <p style={{ fontWeight: '600', marginBottom: '8px', color: '#c4b5fd' }}>
+                      {cat === 'hi_hi' ? 'High Inf\nHigh Int' : cat === 'hi_lo' ? 'High Inf\nLow Int' : cat === 'lo_hi' ? 'Low Inf\nHigh Int' : 'Low Inf\nLow Int'}
+                    </p>
+                    {items.map((item, idx) => (
+                      <p key={idx} style={{ color: '#e5e7eb', marginBottom: '4px' }}>
+                        • {item}
+                      </p>
+                    ))}
+                    {items.length === 0 && <p style={{ color: '#6b7280', fontStyle: 'italic' }}>—</p>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Needs section */}
+          <div style={{ marginBottom: '40px' }}>
+            <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#6366f1', marginBottom: '16px' }}>
+              💭 Stakeholder Needs
+            </h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {Object.entries(needs).map(([stakeholder, need]) => (
+                <div
+                  key={stakeholder}
+                  <div
+                  style={{
+                    padding: '12px',
+                    background: 'rgba(99,102,241,0.1)',
+                    border: '1px solid rgba(99,102,241,0.3)',
+                    borderRadius: '6px',
+                    fontSize: '13px',
+                    color: '#e5e7eb',
+                  }}
+                >
+                  <strong>{stakeholder}:</strong> {need}
+                </div>
+              ))}
+              {Object.keys(needs).length === 0 && (
+                <div style={{ color: '#6b7280', fontStyle: 'italic' }}>No needs recorded</div>
+              )}
+            </div>
+          </div>
+
+          {/* AI Insights */}
+          {insights && (
+            <div
+              style={{
+                padding: '24px',
+                background: 'rgba(99,102,241,0.1)',
+                border: '1px solid rgba(99,102,241,0.3)',
+                borderRadius: '12px',
+                marginBottom: '40px',
+              }}
+            >
+              <h3 style={{ fontSize: '14px', fontWeight: '600', color: '#c4b5fd', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px' }}>
+                ✦ Key Insights
+              </h3>
+              <p style={{ fontSize: '15px', color: '#e0c7ff', lineHeight: '1.8', whiteSpace: 'pre-wrap' }}>
+                {insights}
+              </p>
+            </div>
+          )}
+
+          {loadingInsights && (
+            <div style={{ textAlign: 'center', color: '#9ca3af', padding: '40px' }}>
+              Synthesizing your map...
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+            <button
+              onClick={() => setStage('working')}
+              <div
+              style={{
+                padding: '12px 24px',
+                fontSize: '14px',
+                fontWeight: '600',
+                background: '#6366f1',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+              }}
+            >
+              Back to Mapping
+            </button>
+            <button
+              onClick={() => {
+                setStage('intro');
+                setChallenge('');
+                setAllStakeholders([]);
+                setCategorized({ hi_hi: [], hi_lo: [], lo_hi: [], lo_lo: [] });
+                setNeeds({});
+                setCurrentIdea('');
+                setIdeaEfforts([]);
+                setDealtCards(0);
+                setAiPrompts([]);
+                setNudge('');
+                setInsights('');
+              }}
+              <div
+              style={{
+                padding: '12px 24px',
+                fontSize: '14px',
+                fontWeight: '600',
+                background: 'rgba(99,102,241,0.2)',
+                color: '#6366f1',
+                border: '1px solid rgba(99,102,241,0.4)',
+                borderRadius: '6px',
+                cursor: 'pointer',
+              }}
+            >
+              Start Over
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    );
+  }
+}

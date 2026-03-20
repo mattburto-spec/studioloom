@@ -2,28 +2,28 @@ export const CRITERIA = {
   A: {
     key: "A",
     name: "Inquiring & Analysing",
-    color: "#2E86AB",
+    color: "#6366F1",       // indigo — richer, more brand-aligned
     bgClass: "bg-accent-blue",
     textClass: "text-accent-blue",
   },
   B: {
     key: "B",
     name: "Developing Ideas",
-    color: "#2DA05E",
+    color: "#10B981",       // emerald — fresher green
     bgClass: "bg-accent-green",
     textClass: "text-accent-green",
   },
   C: {
     key: "C",
     name: "Creating the Solution",
-    color: "#E86F2C",
+    color: "#F59E0B",       // amber — warmer, more legible
     bgClass: "bg-accent-orange",
     textClass: "text-accent-orange",
   },
   D: {
     key: "D",
     name: "Evaluating",
-    color: "#8B2FC9",
+    color: "#8B5CF6",       // violet — closer to brand purple
     bgClass: "bg-accent-purple",
     textClass: "text-accent-purple",
   },
@@ -96,7 +96,7 @@ export function buildPageDefinitions(
 import type { PageType } from "@/types";
 
 export const PAGE_TYPE_COLORS: Record<PageType, string> = {
-  strand: "#2E86AB",     // default, overridden by criterion color
+  strand: "#6366F1",     // default indigo, overridden by criterion color
   lesson: "#7B2FF2",     // brand purple — journey-mode lesson blocks
   context: "#6366F1",    // indigo
   skill: "#F59E0B",      // amber

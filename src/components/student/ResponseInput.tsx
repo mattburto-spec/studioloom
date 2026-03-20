@@ -1,12 +1,30 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, Suspense } from "react";
+import dynamic from "next/dynamic";
 import type { ResponseType } from "@/types";
 import { compressImage } from "@/lib/compress-image";
+import { MonitoredTextarea } from "./MonitoredTextarea";
+import type { IntegrityMetadata } from "./MonitoredTextarea";
 import { DecisionMatrix } from "./DecisionMatrix";
 import { PMIFramework } from "./PMIFramework";
 import { PairwiseComparison } from "./PairwiseComparison";
 import { TradeOffSliders } from "./TradeOffSliders";
+import { ScamperTool } from "@/components/toolkit/ScamperTool";
+
+// Dynamic imports for toolkit tools (to avoid loading all at once)
+const SixHatsTool = dynamic(() => import("@/components/toolkit/SixHatsTool").then(m => ({ default: m.SixHatsTool })), { ssr: false });
+const PmiChartTool = dynamic(() => import("@/components/toolkit/PmiChartTool").then(m => ({ default: m.PmiChartTool })), { ssr: false });
+const FiveWhysTool = dynamic(() => import("@/components/toolkit/FiveWhysTool").then(m => ({ default: m.FiveWhysTool })), { ssr: false });
+const EmpathyMapTool = dynamic(() => import("@/components/toolkit/EmpathyMapTool").then(m => ({ default: m.EmpathyMapTool })), { ssr: false });
+const DecisionMatrixToolComponent = dynamic(() => import("@/components/toolkit/DecisionMatrixTool").then(m => ({ default: m.DecisionMatrixTool })), { ssr: false });
+const HowMightWeTool = dynamic(() => import("@/components/toolkit/HowMightWeTool").then(m => ({ default: m.HowMightWeTool })), { ssr: false });
+const ReverseBrainstormToolComponent = dynamic(() => import("@/components/toolkit/ReverseBrainstormTool").then(m => ({ default: m.ReverseBrainstormTool })), { ssr: false });
+const SwotAnalysisToolComponent = dynamic(() => import("@/components/toolkit/SwotAnalysisTool").then(m => ({ default: m.SwotAnalysisTool })), { ssr: false });
+const StakeholderMapToolComponent = dynamic(() => import("@/components/toolkit/StakeholderMapTool").then(m => ({ default: m.StakeholderMapTool })), { ssr: false });
+const LotusDiagramToolComponent = dynamic(() => import("@/components/toolkit/LotusDiagramTool").then(m => ({ default: m.LotusDiagramTool })), { ssr: false });
+const AffinityDiagramToolComponent = dynamic(() => import("@/components/toolkit/AffinityDiagramTool").then(m => ({ default: m.AffinityDiagramTool })), { ssr: false });
+const MorphologicalChartToolComponent = dynamic(() => import("@/components/toolkit/MorphologicalChartTool").then(m => ({ default: m.MorphologicalChartTool })), { ssr: false });
 
 interface ResponseInputProps {
   sectionIndex: number;
@@ -18,6 +36,12 @@ interface ResponseInputProps {
   unitId?: string;
   pageId?: string;
   allowedTypes?: ("text" | "upload" | "voice" | "link")[];
+  toolId?: string;
+  toolChallenge?: string;
+  /** Enable integrity monitoring on text input (for academic integrity tracking) */
+  enableIntegrityMonitoring?: boolean;
+  /** Callback to receive integrity metadata from MonitoredTextarea */
+  onIntegrityUpdate?: (metadata: IntegrityMetadata) => void;
 }
 
 export function ResponseInput({
@@ -30,6 +54,10 @@ export function ResponseInput({
   unitId,
   pageId,
   allowedTypes,
+  toolId,
+  toolChallenge,
+  enableIntegrityMonitoring = false,
+  onIntegrityUpdate,
 }: ResponseInputProps) {
   const allTypeOptions: { type: ResponseType; label: string; icon: string }[] = [
     { type: "text", label: "Text", icon: "✏️" },
@@ -93,16 +121,27 @@ export function ResponseInput({
         </div>
       )}
 
-      {/* Text input */}
+      {/* Text input — uses MonitoredTextarea when integrity monitoring is enabled */}
       {(activeType === "text" || (responseType === "text" && (responseType as string) !== "multi")) && (
-        <textarea
-          id={`response-${sectionIndex}`}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          rows={4}
-          className="w-full px-4 py-3 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-blue focus:border-transparent resize-y text-sm"
-        />
+        enableIntegrityMonitoring ? (
+          <MonitoredTextarea
+            id={`response-${sectionIndex}`}
+            value={value}
+            onChange={onChange}
+            onIntegrityUpdate={onIntegrityUpdate}
+            placeholder={placeholder}
+            rows={4}
+          />
+        ) : (
+          <textarea
+            id={`response-${sectionIndex}`}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={placeholder}
+            rows={4}
+            className="w-full px-4 py-3 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-blue focus:border-transparent resize-y text-sm"
+          />
+        )
       )}
 
       {/* Upload */}
@@ -150,6 +189,213 @@ export function ResponseInput({
       {/* Trade-Off Sliders */}
       {activeType === "trade-off-sliders" && (
         <TradeOffSliders value={value} onChange={onChange} />
+      )}
+
+      {/* Toolkit Tools */}
+      {responseType === "toolkit-tool" && toolId === "scamper" && (
+        <ScamperTool
+          toolId={toolId}
+          mode="embedded"
+          challenge={toolChallenge}
+          onSave={(state) => {
+            onChange(JSON.stringify({ type: "toolkit-tool", toolId, state }));
+          }}
+          onComplete={(data) => {
+            onChange(JSON.stringify({ type: "toolkit-tool", toolId, data }));
+          }}
+        />
+      )}
+
+      {responseType === "toolkit-tool" && toolId === "six-thinking-hats" && (
+        <Suspense fallback={<div>Loading...</div>}>
+          <SixHatsTool
+            toolId={toolId}
+            mode="embedded"
+            challenge={toolChallenge}
+            onSave={(state) => {
+              onChange(JSON.stringify({ type: "toolkit-tool", toolId, state }));
+            }}
+            onComplete={(data) => {
+              onChange(JSON.stringify({ type: "toolkit-tool", toolId, data }));
+            }}
+          />
+        </Suspense>
+      )}
+
+      {responseType === "toolkit-tool" && toolId === "pmi-chart" && (
+        <Suspense fallback={<div>Loading...</div>}>
+          <PmiChartTool
+            toolId={toolId}
+            mode="embedded"
+            challenge={toolChallenge}
+            onSave={(state) => {
+              onChange(JSON.stringify({ type: "toolkit-tool", toolId, state }));
+            }}
+            onComplete={(data) => {
+              onChange(JSON.stringify({ type: "toolkit-tool", toolId, data }));
+            }}
+          />
+        </Suspense>
+      )}
+
+      {responseType === "toolkit-tool" && toolId === "five-whys" && (
+        <Suspense fallback={<div>Loading...</div>}>
+          <FiveWhysTool
+            toolId={toolId}
+            mode="embedded"
+            challenge={toolChallenge}
+            onSave={(state) => {
+              onChange(JSON.stringify({ type: "toolkit-tool", toolId, state }));
+            }}
+            onComplete={(data) => {
+              onChange(JSON.stringify({ type: "toolkit-tool", toolId, data }));
+            }}
+          />
+        </Suspense>
+      )}
+
+      {responseType === "toolkit-tool" && toolId === "empathy-map" && (
+        <Suspense fallback={<div>Loading...</div>}>
+          <EmpathyMapTool
+            toolId={toolId}
+            mode="embedded"
+            challenge={toolChallenge}
+            onSave={(state) => {
+              onChange(JSON.stringify({ type: "toolkit-tool", toolId, state }));
+            }}
+            onComplete={(data) => {
+              onChange(JSON.stringify({ type: "toolkit-tool", toolId, data }));
+            }}
+          />
+        </Suspense>
+      )}
+
+      {responseType === "toolkit-tool" && toolId === "decision-matrix" && (
+        <Suspense fallback={<div>Loading...</div>}>
+          <DecisionMatrixToolComponent
+            toolId={toolId}
+            mode="embedded"
+            challenge={toolChallenge}
+            onSave={(state) => {
+              onChange(JSON.stringify({ type: "toolkit-tool", toolId, state }));
+            }}
+            onComplete={(data) => {
+              onChange(JSON.stringify({ type: "toolkit-tool", toolId, data }));
+            }}
+          />
+        </Suspense>
+      )}
+
+      {responseType === "toolkit-tool" && toolId === "how-might-we" && (
+        <Suspense fallback={<div>Loading...</div>}>
+          <HowMightWeTool
+            toolId={toolId}
+            mode="embedded"
+            challenge={toolChallenge}
+            onSave={(state) => {
+              onChange(JSON.stringify({ type: "toolkit-tool", toolId, state }));
+            }}
+            onComplete={(data) => {
+              onChange(JSON.stringify({ type: "toolkit-tool", toolId, data }));
+            }}
+          />
+        </Suspense>
+      )}
+
+      {responseType === "toolkit-tool" && toolId === "reverse-brainstorm" && (
+        <Suspense fallback={<div>Loading...</div>}>
+          <ReverseBrainstormToolComponent
+            toolId={toolId}
+            mode="embedded"
+            challenge={toolChallenge}
+            onSave={(state) => {
+              onChange(JSON.stringify({ type: "toolkit-tool", toolId, state }));
+            }}
+            onComplete={(data) => {
+              onChange(JSON.stringify({ type: "toolkit-tool", toolId, data }));
+            }}
+          />
+        </Suspense>
+      )}
+
+      {responseType === "toolkit-tool" && toolId === "swot-analysis" && (
+        <Suspense fallback={<div>Loading...</div>}>
+          <SwotAnalysisToolComponent
+            toolId={toolId}
+            mode="embedded"
+            challenge={toolChallenge}
+            onSave={(state) => {
+              onChange(JSON.stringify({ type: "toolkit-tool", toolId, state }));
+            }}
+            onComplete={(data) => {
+              onChange(JSON.stringify({ type: "toolkit-tool", toolId, data }));
+            }}
+          />
+        </Suspense>
+      )}
+
+      {responseType === "toolkit-tool" && toolId === "stakeholder-map" && (
+        <Suspense fallback={<div>Loading...</div>}>
+          <StakeholderMapToolComponent
+            toolId={toolId}
+            mode="embedded"
+            challenge={toolChallenge}
+            onSave={(state) => {
+              onChange(JSON.stringify({ type: "toolkit-tool", toolId, state }));
+            }}
+            onComplete={(data) => {
+              onChange(JSON.stringify({ type: "toolkit-tool", toolId, data }));
+            }}
+          />
+        </Suspense>
+      )}
+
+      {responseType === "toolkit-tool" && toolId === "lotus-diagram" && (
+        <Suspense fallback={<div>Loading...</div>}>
+          <LotusDiagramToolComponent
+            toolId={toolId}
+            mode="embedded"
+            challenge={toolChallenge}
+            onSave={(state) => {
+              onChange(JSON.stringify({ type: "toolkit-tool", toolId, state }));
+            }}
+            onComplete={(data) => {
+              onChange(JSON.stringify({ type: "toolkit-tool", toolId, data }));
+            }}
+          />
+        </Suspense>
+      )}
+
+      {responseType === "toolkit-tool" && toolId === "affinity-diagram" && (
+        <Suspense fallback={<div>Loading...</div>}>
+          <AffinityDiagramToolComponent
+            toolId={toolId}
+            mode="embedded"
+            challenge={toolChallenge}
+            onSave={(state) => {
+              onChange(JSON.stringify({ type: "toolkit-tool", toolId, state }));
+            }}
+            onComplete={(data) => {
+              onChange(JSON.stringify({ type: "toolkit-tool", toolId, data }));
+            }}
+          />
+        </Suspense>
+      )}
+
+      {responseType === "toolkit-tool" && toolId === "morphological-chart" && (
+        <Suspense fallback={<div>Loading...</div>}>
+          <MorphologicalChartToolComponent
+            toolId={toolId}
+            mode="embedded"
+            challenge={toolChallenge}
+            onSave={(state) => {
+              onChange(JSON.stringify({ type: "toolkit-tool", toolId, state }));
+            }}
+            onComplete={(data) => {
+              onChange(JSON.stringify({ type: "toolkit-tool", toolId, data }));
+            }}
+          />
+        </Suspense>
       )}
     </div>
   );

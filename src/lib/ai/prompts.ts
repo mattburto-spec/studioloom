@@ -17,6 +17,8 @@ import { buildTeachingContextBlock } from "@/lib/knowledge/analysis-prompts";
 import { buildFrameworkPromptBlock } from "@/lib/ai/framework-vocabulary";
 import type { PartialTeachingContext } from "@/types/lesson-intelligence";
 import { getFrameworkFromContext } from "@/lib/ai/teacher-context";
+import type { TeacherStyleProfile } from "@/types/teacher-style";
+import { buildTeacherStyleBlock } from "@/lib/teacher-style/profile-service";
 
 // =========================================================================
 // Grade-Aware Timing Profiles
@@ -24,6 +26,8 @@ import { getFrameworkFromContext } from "@/lib/ai/teacher-context";
 
 export interface GradeTimingProfile {
   mypYear: number;
+  /** Average student age for this year group (used in 1+age instruction cap rule) */
+  avgStudentAge: number;
   warmupMinutes: number;
   introMinutes: number;
   reflectionMinutes: number;
@@ -39,31 +43,98 @@ export interface GradeTimingProfile {
   pacingNote: string;
 }
 
+/**
+ * The "1 + age" rule: maximum direct instruction = 1 + student's average age.
+ * Backed by research from PBLWorks, Cult of Pedagogy, and cognitive science.
+ */
+export function maxInstructionMinutes(profile: GradeTimingProfile): number {
+  return 1 + profile.avgStudentAge;
+}
+
+/**
+ * Minimum work time as a percentage of usable time.
+ * Research consensus: at least 45%, ideally 60%+.
+ */
+export const MIN_WORK_TIME_PERCENT = 0.45;
+export const IDEAL_WORK_TIME_PERCENT = 0.60;
+
+/**
+ * Context-aware timing model — replaces hard limits with school/lesson-aware calculations.
+ * See docs/timing-reference.md for the full data.
+ */
+export interface TimingContext {
+  /** Raw period length in minutes (before any deductions) */
+  periodMinutes: number;
+  /** Is this a workshop/practical lesson? Affects setup/cleanup deductions */
+  isWorkshop: boolean;
+  /** Transition overhead: settling, attendance, device login */
+  transitionMinutes: number;
+  /** Workshop setup time (material distribution, safety brief). 0 for theory. */
+  setupMinutes: number;
+  /** Workshop cleanup time (tools away, benches, safety check). 0 for theory. */
+  cleanupMinutes: number;
+  /** The grade timing profile for cognitive load limits */
+  gradeProfile: GradeTimingProfile;
+}
+
+/**
+ * Calculate usable time from a TimingContext.
+ */
+export function calculateUsableTime(ctx: TimingContext): number {
+  return Math.max(0,
+    ctx.periodMinutes - ctx.transitionMinutes - ctx.setupMinutes - ctx.cleanupMinutes
+  );
+}
+
+/**
+ * Build default TimingContext from a grade profile and lesson metadata.
+ * Uses sensible defaults for overhead; teachers can override via settings.
+ */
+export function buildTimingContext(
+  gradeProfile: GradeTimingProfile,
+  periodMinutes: number,
+  isWorkshop: boolean,
+  overrides?: {
+    transitionMinutes?: number;
+    setupMinutes?: number;
+    cleanupMinutes?: number;
+  }
+): TimingContext {
+  return {
+    periodMinutes,
+    isWorkshop,
+    transitionMinutes: overrides?.transitionMinutes ?? 3,
+    setupMinutes: isWorkshop ? (overrides?.setupMinutes ?? 8) : 0,
+    cleanupMinutes: isWorkshop ? (overrides?.cleanupMinutes ?? 8) : 0,
+    gradeProfile,
+  };
+}
+
 const TIMING_PROFILES: Record<number, GradeTimingProfile> = {
   1: {
-    mypYear: 1, warmupMinutes: 5, introMinutes: 5, reflectionMinutes: 5,
+    mypYear: 1, avgStudentAge: 11, warmupMinutes: 5, introMinutes: 5, reflectionMinutes: 5,
     maxHighCognitiveMinutes: 12, maxHandsOnMinutes: 40, maxCollaborativeMinutes: 15, maxDigitalMinutes: 15,
     pacingNote: "MYP Year 1 (age 11): Students sustain cognitive focus for ~10-12 minutes but can engage in hands-on making for much longer. Reading, writing, and analysis tasks must be SHORT (≤12 min) and heavily scaffolded with checklists, sentence starters, and worked examples. Hands-on/making activities can run 20-40 min as long as they have clear checkpoints. Break reading-heavy tasks into small chunks with partner discussion between them.",
   },
   2: {
-    mypYear: 2, warmupMinutes: 5, introMinutes: 5, reflectionMinutes: 5,
-    maxHighCognitiveMinutes: 15, maxHandsOnMinutes: 40, maxCollaborativeMinutes: 15, maxDigitalMinutes: 20,
-    pacingNote: "MYP Year 2 (age 12): Cognitive focus extends to ~12-15 minutes. Still scaffold reading/analysis tasks with sentence starters and templates, but allow some choice in how students respond. Hands-on making activities can run 20-40 min. Mix active and passive tasks — avoid back-to-back reading/writing activities.",
+    mypYear: 2, avgStudentAge: 12, warmupMinutes: 5, introMinutes: 5, reflectionMinutes: 5,
+    maxHighCognitiveMinutes: 13, maxHandsOnMinutes: 40, maxCollaborativeMinutes: 15, maxDigitalMinutes: 20,
+    pacingNote: "MYP Year 2 (age 12): Cognitive focus extends to ~12-13 minutes (1+age rule). Still scaffold reading/analysis tasks with sentence starters and templates, but allow some choice in how students respond. Hands-on making activities can run 20-40 min. Mix active and passive tasks — avoid back-to-back reading/writing activities.",
   },
   3: {
-    mypYear: 3, warmupMinutes: 5, introMinutes: 5, reflectionMinutes: 5,
-    maxHighCognitiveMinutes: 20, maxHandsOnMinutes: 45, maxCollaborativeMinutes: 20, maxDigitalMinutes: 25,
-    pacingNote: "MYP Year 3 (age 13): Cognitive focus ~15-20 minutes. Balance structured guidance with growing autonomy. Provide reference materials and exemplars but reduce step-by-step scaffolding. Students can handle longer research tasks and sustained making sessions.",
+    mypYear: 3, avgStudentAge: 13, warmupMinutes: 5, introMinutes: 5, reflectionMinutes: 5,
+    maxHighCognitiveMinutes: 14, maxHandsOnMinutes: 45, maxCollaborativeMinutes: 20, maxDigitalMinutes: 25,
+    pacingNote: "MYP Year 3 (age 13): Cognitive focus ~14 minutes (1+age rule). Balance structured guidance with growing autonomy. Provide reference materials and exemplars but reduce step-by-step scaffolding. Students can handle longer research tasks and sustained making sessions.",
   },
   4: {
-    mypYear: 4, warmupMinutes: 5, introMinutes: 5, reflectionMinutes: 5,
-    maxHighCognitiveMinutes: 25, maxHandsOnMinutes: 45, maxCollaborativeMinutes: 25, maxDigitalMinutes: 30,
-    pacingNote: "MYP Year 4 (age 15): Cognitive focus ~25 minutes. Support extended independent work with clear success criteria. Scaffold through exemplars and peer critique rather than templates. Students can manage longer analysis and documentation tasks.",
+    mypYear: 4, avgStudentAge: 15, warmupMinutes: 5, introMinutes: 5, reflectionMinutes: 5,
+    maxHighCognitiveMinutes: 16, maxHandsOnMinutes: 45, maxCollaborativeMinutes: 25, maxDigitalMinutes: 30,
+    pacingNote: "MYP Year 4 (age 15): Cognitive focus ~16 minutes (1+age rule). Support extended independent work with clear success criteria. Scaffold through exemplars and peer critique rather than templates. Students can manage longer analysis and documentation tasks.",
   },
   5: {
-    mypYear: 5, warmupMinutes: 5, introMinutes: 3, reflectionMinutes: 5,
-    maxHighCognitiveMinutes: 30, maxHandsOnMinutes: 45, maxCollaborativeMinutes: 25, maxDigitalMinutes: 35,
-    pacingNote: "MYP Year 5 (age 16): Cognitive focus ~30 minutes. Minimise unnecessary transitions to allow flow state during deep work. Scaffold through prompts and peer critique. Students can sustain extended analysis, documentation, and independent making sessions.",
+    mypYear: 5, avgStudentAge: 16, warmupMinutes: 5, introMinutes: 3, reflectionMinutes: 5,
+    maxHighCognitiveMinutes: 17, maxHandsOnMinutes: 45, maxCollaborativeMinutes: 25, maxDigitalMinutes: 35,
+    pacingNote: "MYP Year 5 (age 16): Cognitive focus ~17 minutes (1+age rule). Minimise unnecessary transitions to allow flow state during deep work. Scaffold through prompts and peer critique. Students can sustain extended analysis, documentation, and independent making sessions.",
   },
 };
 
@@ -80,23 +151,120 @@ export function getGradeTimingProfile(gradeLevel: string, configProfiles?: Recor
 
 /**
  * Build a timing constraints block for injection into generation prompts.
- * Uses activity-type-aware durations rather than hard caps.
+ * ALWAYS calculates usable time — never generates for raw period length.
+ * If no TimingContext is provided, constructs a default (theory lesson, 3-min transition).
  */
-export function buildTimingBlock(profile: GradeTimingProfile, lessonLengthMinutes: number): string {
-  const coreTime = lessonLengthMinutes - profile.warmupMinutes - profile.introMinutes - profile.reflectionMinutes;
-  return `## Age-Appropriate Pacing (${profile.pacingNote})
+export function buildTimingBlock(
+  profile: GradeTimingProfile,
+  lessonLengthMinutes: number,
+  timingCtx?: TimingContext
+): string {
+  // Always use usable time — construct default TimingContext if none provided
+  const ctx: TimingContext = timingCtx || buildTimingContext(profile, lessonLengthMinutes, false);
+  const usable = calculateUsableTime(ctx);
+  const lessonType = ctx.isWorkshop ? "WORKSHOP" : "THEORY";
+  const instructionCap = maxInstructionMinutes(profile);
+  const minWorkTime = Math.round(usable * MIN_WORK_TIME_PERCENT);
+  const idealWorkTime = Math.round(usable * IDEAL_WORK_TIME_PERCENT);
 
-Timing by activity type — duration depends on COGNITIVE DEMAND, not just the clock:
-- Reading, writing, analysis, documentation (HIGH cognitive): ≤${profile.maxHighCognitiveMinutes} min per activity
-- Making, experimenting, building, testing (HANDS-ON): ≤${profile.maxHandsOnMinutes} min per activity
-- Discussion, peer review, group critique (COLLABORATIVE): ≤${profile.maxCollaborativeMinutes} min per activity
-- Online research, digital tools, CAD work (DIGITAL): ≤${profile.maxDigitalMinutes} min per activity
+  return `## Timing Context
+Schedule: ${ctx.periodMinutes}-minute period | Lesson type: ${lessonType} | MYP Year ${profile.mypYear} (avg age ${profile.avgStudentAge})
+Usable time: **${usable} minutes** (after ${ctx.transitionMinutes} min transition${ctx.isWorkshop ? `, ${ctx.setupMinutes} min setup, ${ctx.cleanupMinutes} min cleanup` : ""})
 
-Lesson structure:
-- Warmup: ~${profile.warmupMinutes} min | Introduction: ~${profile.introMinutes} min | Reflection: ~${profile.reflectionMinutes} min
-- Core work: ~${coreTime} min available (2-4 core activities per lesson)
-- All sections should sum to approximately ${lessonLengthMinutes} minutes
-- Avoid placing two high-cognitive activities back-to-back — alternate with hands-on or collaborative tasks`;
+CRITICAL: Generate activities that sum to ${usable} minutes. Do NOT generate ${ctx.periodMinutes} minutes of content.
+${ctx.isWorkshop ? `Include setup (${ctx.setupMinutes} min) and cleanup (${ctx.cleanupMinutes} min) as explicit lesson phases.` : ""}
+
+## LESSON STRUCTURE — MANDATORY WORKSHOP MODEL
+Every lesson MUST follow the 4-Phase Workshop Model. This is non-negotiable.
+
+### Phase 1: OPENING (5-10 min)
+Hook, context, connect to prior learning. Set expectations for the session.
+Activate curiosity — a compelling question, image, or problem.
+
+### Phase 2: MINI-LESSON (max ${instructionCap} min — the "1 + age" rule)
+Teach ONE skill or concept. Demonstrate a technique. Short and focused.
+Maximum ${instructionCap} minutes of direct instruction (1 + avg student age of ${profile.avgStudentAge}).
+After ${instructionCap} minutes, student attention drops sharply. Stop teaching and start working.
+
+### Phase 3: WORK TIME (minimum ${minWorkTime} min, ideally ${idealWorkTime}+ min — at least 45% of usable time)
+THE MAIN EVENT. Students create, research, prototype, test, build.
+This is ONE sustained block — do NOT fragment it into multiple small activities.
+Teacher circulates: 1-on-1 conferences, formative assessment, just-in-time teaching.
+${usable >= 80 ? `For this long period, include a check-in at ~${Math.round(idealWorkTime * 0.5)} min ("Where are you up to? What's your next step?").` : ""}
+${usable >= 80 ? `Consider a 5-min refocus break at the midpoint.` : ""}
+
+### Phase 4: DEBRIEF (5-10 min — NON-NEGOTIABLE, never skip)
+Structured reflection using a protocol. Options:
+- **5-min Quick Debrief:** 2-3 students share (1 min each), teacher synthesises ("I noticed..."), bridge to next lesson
+- **10-min Pair Feedback:** I Like / I Wish / I Wonder protocol — presenters frame their work, partners give structured feedback
+- **Exit Ticket:** Students write 1 thing they learned + 1 question they still have
+
+## Age-Appropriate Pacing
+${profile.pacingNote}
+
+Activity duration limits for MYP Year ${profile.mypYear}:
+- Direct instruction / demonstration: max ${instructionCap} min (1+age rule, then switch to student work)
+- Independent making / prototyping: max ${profile.maxHandsOnMinutes} min (with checkpoints every ${Math.min(15, instructionCap)} min)
+- Digital work / CAD / research: max ${profile.maxDigitalMinutes} min
+- Critique / gallery walk / peer review: max ${profile.maxCollaborativeMinutes} min
+- Debrief / reflection: 5-10 min (non-negotiable, always at end)
+- Opening / hook: 5-10 min (always at start)
+
+Usable time budget: Opening (5-10) + Mini-Lesson (max ${instructionCap}) + Work Time (${minWorkTime}-${idealWorkTime}+) + Debrief (5-10) = ${usable} min
+
+Energy sequencing rules:
+- Never place two high-cognitive activities back-to-back
+- Workshop making can follow theory (welcome shift)
+- Theory should NOT follow long workshop (students are physically tired)
+- Critique/gallery walk works best mid-lesson after students have work to show
+- Always end with debrief — it's the last thing students do before leaving
+
+## EXTENSIONS (REQUIRED)
+For EVERY lesson, generate 2-3 extension activities for students who finish early.
+Extensions must match the current design phase:
+- Investigation phase: deepen research (more interviews, competitor analysis, accessibility audit)
+- Ideation phase: push creativity (SCAMPER on top concept, constraint variation, rapid prototype 3 versions)
+- Prototyping phase: explore alternatives (different materials, scale variation, user testing with different demographic)
+- Evaluation phase: increase rigor (edge-case testing, cross-cohort comparison, sustainability analysis)
+Extensions are NOT extra work. They are productive deepening of the same design challenge.
+Format: Include an "extensions" array on each lesson with 2-3 items: { "title": "...", "description": "...", "durationMinutes": N }`;
+}
+
+// =========================================================================
+// DESIGN TEACHING CORPUS + TEACHER STYLE — injected into generation prompts
+// See docs/design-teaching-corpus.md for the full reference.
+// See docs/ai-intelligence-architecture.md §4 for teacher style profiles.
+// =========================================================================
+
+/**
+ * Build a concise design teaching context block for injection into generation prompts.
+ * Includes the Design Teaching Corpus (Layer 1) principles, the Workshop Model requirement,
+ * and the teacher's learned style profile (Layer 4) if available.
+ */
+export function buildDesignTeachingContext(teacherProfile?: TeacherStyleProfile | null): string {
+  const styleBlock = teacherProfile ? buildTeacherStyleBlock(teacherProfile) : "";
+  return `## Design Teaching Principles
+You are generating content for design & technology education. Follow these principles:
+
+1. WORKSHOP MODEL (HIGHEST PRIORITY): Every lesson follows 4 phases — Opening (5-10 min) → Mini-Lesson (max 1+age minutes) → Work Time (at least 45% of period, ideally 60%+) → Debrief (5-10 min). Work Time is THE MAIN EVENT. Everything else exists to support it. Never fragment Work Time into small activities — it is one sustained block where students create, research, build, and test. The debrief is non-negotiable and uses a structured protocol (I Like/I Wish/I Wonder, Two Stars & a Wish, exit ticket).
+
+2. NON-LINEAR DESIGN CYCLE: The design cycle is NOT a linear sequence. Students jump between phases (research → ideate → test → back to research). Plan for iteration and decision points, not rigid step-by-step sequences.
+
+3. GRADUAL RELEASE: Use "I do → We do → You do" scaffolding. Teacher demonstrates → students practice with guidance → students work independently. Progressively remove scaffolding (checklists, templates, sentence starters) as students gain confidence.
+
+4. WHOLE GAME: Every activity should connect to the broader design challenge. Students should always know WHY they're doing something. Avoid isolated skill drills disconnected from the project.
+
+5. CRITIQUE PROTOCOLS: Include structured critique activities (Warm/Cool feedback, I Like/I Wish/What If, TAG, silent gallery walk). Feedback must be Kind, Specific, and Helpful. "I like it" is not feedback. "I like how the handle curves to fit the palm" is feedback.
+
+6. WORKSHOP AWARENESS: Design lessons have physical realities — setup time, cleanup time, material distribution, safety briefs, noise curves. Account for these. Don't pretend a workshop lesson is the same as a theory lesson.
+
+7. STUDIO CULTURE: Work is always visible, critique is normal, iteration is expected, the teacher is a design mentor (not a lecturer), students make real decisions about materials/methods/aesthetics.
+
+8. PROCESS OVER PRODUCT: A portfolio showing iterative improvement is more valuable than a perfect final product. Document the journey — wrong turns and pivots demonstrate learning.
+
+9. ENERGY SEQUENCING: Don't put two high-cognitive activities back-to-back. Making can follow theory. Theory should NOT follow long workshop sessions. Always end with debrief.
+
+10. DIFFERENTIATION & EXTENSIONS: Design naturally differentiates (different paces, multiple valid solutions). Plan scaffolding for ELL students, extension activities for fast finishers (indexed to the current design phase — not busywork), and adapted tools for students with physical needs.${styleBlock}`;
 }
 
 // =========================================================================
@@ -616,16 +784,25 @@ Each lesson's introduction should reference what was achieved in the previous le
 Each lesson should end by previewing what comes next.
 The final lesson should circle back to the original goal.
 
-## Timing
-Each lesson is exactly [X] minutes. The prompt below provides age-appropriate timing constraints based on the students' grade level — follow them precisely. Activity durations MUST respect the maximum core activity length for the grade.
+## Timing — Workshop Model (MANDATORY)
+Each lesson follows the 4-Phase Workshop Model. The prompt below provides usable time and age-appropriate constraints — follow them precisely.
 
-IMPORTANT: Include "durationMinutes" on EVERY section. All section durations within a lesson should sum to the lesson length.
+IMPORTANT: Include "durationMinutes" on EVERY section AND on each workshop phase. All section durations within a lesson should sum to the USABLE time (not the raw period length).
+
+The lesson structure MUST be: Opening → Mini-Lesson → Work Time → Debrief.
+Work Time is ONE sustained block (minimum 45% of usable time). Do NOT split it into small activities.
 
 ## JSON Schema (for each lesson page)
 {
   "[LessonId]": {
     "title": "Short descriptive lesson title",
     "learningGoal": "Clear learning objective for this lesson",
+    "workshopPhases": {
+      "opening": { "durationMinutes": 5, "hook": "Brief description of the opening hook/question" },
+      "miniLesson": { "durationMinutes": 12, "focus": "The ONE skill or concept being taught" },
+      "workTime": { "durationMinutes": 38, "focus": "What students are doing during sustained work", "checkpoints": ["Check-in prompt at midpoint"] },
+      "debrief": { "durationMinutes": 5, "protocol": "i-like-i-wish|two-stars-a-wish|exit-ticket|gallery-walk|quick-share", "prompt": "Structured debrief prompt" }
+    },
     "vocabWarmup": {
       "terms": [
         { "term": "Word", "definition": "Clear definition", "example": "Usage example" }
@@ -656,7 +833,15 @@ IMPORTANT: Include "durationMinutes" on EVERY section. All section durations wit
     "reflection": {
       "type": "confidence-slider|checklist|short-response",
       "items": ["I understand the task", "I can explain my reasoning"]
-    }
+    },
+    "extensions": [
+      {
+        "title": "Short descriptive title",
+        "description": "What the student does and why it deepens their work",
+        "durationMinutes": 20,
+        "designPhase": "investigation|ideation|prototyping|evaluation"
+      }
+    ]
   }
 }
 
@@ -664,19 +849,22 @@ IMPORTANT: Include "durationMinutes" on EVERY section. All section durations wit
 1. ALWAYS include ELL scaffolding (ell1, ell2, ell3) for EVERY section
 2. ALWAYS include criterionTags on EVERY section — at least one criterion per section
 3. ALWAYS include durationMinutes on EVERY section — realistic time estimate in minutes
-4. Include 3-5 vocab terms per lesson, relevant to the lesson's focus
-5. Include 2-4 activity sections per lesson (adjust based on lesson length)
-6. Vary responseType across sections: "text", "upload", "link", "multi", and for decision tasks use "decision-matrix", "pmi", "pairwise", or "trade-off-sliders"
-6. Make content age-appropriate for the specified grade level
-7. Connect content to the specified global context and key concept
-8. Include practical, hands-on activities where relevant
-9. Vocab activity type can be: "matching", "fill-blank", or "drag-sort"
-10. Reflection type can be: "confidence-slider", "checklist", or "short-response"
-11. When appropriate, incorporate design thinking frameworks (SCAMPER, Six Thinking Hats, PMI, Empathy Map, Decision Matrix, etc.) — adapt them to the specific topic
-12. Set "portfolioCapture": true on 1-2 sections per lesson that represent substantive design work (analysis, sketches, justifications, creation evidence, evaluations)
-13. Each lesson should be SELF-CONTAINED enough to work as a single class period, but CONNECTED enough that the unit tells a coherent story
-14. The first lesson should hook students with the end goal and build excitement
-15. The final lesson should include completion, presentation, or celebration of the end product
+4. ALWAYS include workshopPhases with realistic durations that match the timing constraints
+5. ALWAYS include 2-3 extensions per lesson matching the current design phase
+6. Include 3-5 vocab terms per lesson, relevant to the lesson's focus
+7. Include 1-3 activity sections per lesson that fit within the Work Time phase (do not fragment into many small tasks)
+8. Vary responseType across sections: "text", "upload", "link", "multi", and for decision tasks use "decision-matrix", "pmi", "pairwise", or "trade-off-sliders"
+9. Make content age-appropriate for the specified grade level
+10. Connect content to the specified global context and key concept
+11. Include practical, hands-on activities where relevant
+12. Vocab activity type can be: "matching", "fill-blank", or "drag-sort"
+13. Reflection type can be: "confidence-slider", "checklist", or "short-response"
+14. When appropriate, incorporate design thinking frameworks (SCAMPER, Six Thinking Hats, PMI, Empathy Map, Decision Matrix, etc.) — adapt them to the specific topic
+15. Set "portfolioCapture": true on 1-2 sections per lesson that represent substantive design work (analysis, sketches, justifications, creation evidence, evaluations)
+16. Each lesson should be SELF-CONTAINED enough to work as a single class period, but CONNECTED enough that the unit tells a coherent story
+17. The first lesson should hook students with the end goal and build excitement
+18. The final lesson should include completion, presentation, or celebration of the end product
+19. Workshop model: section durations should fit WITHIN the Work Time phase. Opening/vocabWarmup/introduction = Opening + Mini-Lesson phases. Sections = Work Time phase. Reflection = Debrief phase.
 
 ## Evidence-Based Teaching Strategies (MUST follow)
 Based on Hattie's Visible Learning research and Victorian HITS:
@@ -735,6 +923,7 @@ export function buildJourneyPrompt(
     batchIndex?: number;
     previousLessonSummary?: string;
     teachingContextBlock?: string;
+    teacherStyleProfile?: TeacherStyleProfile | null;
   }
 ): string {
   const totalLessons = options?.totalLessons || input.durationWeeks * input.lessonsPerWeek;
@@ -796,6 +985,8 @@ ${activitySuggestions}
 - Statement of Inquiry: ${input.statementOfInquiry}
 - ATL Skills: ${(input.atlSkills || []).join(", ")}${skillsSection}${resourceSection}${requirementsSection}
 - Assessment Criteria: ${(input.assessmentCriteria || []).join(", ")} (tag each section with the relevant criteria)
+
+${buildDesignTeachingContext(options?.teacherStyleProfile)}
 
 ${buildTimingBlock(getGradeTimingProfile(input.gradeLevel), input.lessonLengthMinutes)}
 
@@ -896,6 +1087,15 @@ export async function buildRAGJourneyPrompt(
   const teachingContextBlock = buildTeachingContextBlock(teachingContext || undefined);
   const frameworkBlock = buildFrameworkPromptBlock(getFrameworkFromContext(teachingContext));
 
+  // Load teacher style profile for personalized generation
+  let teacherStyle: TeacherStyleProfile | null = null;
+  if (teacherId) {
+    try {
+      const { loadStyleProfile } = await import("@/lib/teacher-style/profile-service");
+      teacherStyle = await loadStyleProfile(teacherId);
+    } catch { /* non-fatal */ }
+  }
+
   const prompt = buildJourneyPrompt(lessonIds, input, {
     selectedOutline,
     activitySummary,
@@ -904,6 +1104,7 @@ export async function buildRAGJourneyPrompt(
     totalLessons,
     previousLessonSummary,
     teachingContextBlock: (frameworkBlock + teachingContextBlock) || undefined,
+    teacherStyleProfile: teacherStyle || undefined,
   });
 
   return { prompt, chunkIds };
@@ -1121,11 +1322,15 @@ Group activities into phases using "phaseLabel" (e.g., "Research", "Ideation", "
 ## Assessment Criteria as Tags
 Tag every CORE activity with criterionTags (e.g. ["A"], ["B","C"]). Warmup/intro/reflection activities can omit tags.
 
-## Timing
+## Timing — Workshop Model Awareness
 - Total duration of ALL activities ≈ totalLessons × lessonLengthMinutes
 - Each activity has a realistic durationMinutes
+- The prompt below provides USABLE time (after transition/setup/cleanup overhead) — never generate for the raw period length
 - The prompt below provides age-appropriate timing constraints based on the students' grade level — core activity durations MUST respect the maximum for the grade
 - Place warmup+intro+reflection bookends at approximately every [lessonLength] minutes of cumulative core time
+- Within each lesson-length chunk, follow the Workshop Model: opening (5-10 min) → instruction (max 1+age min) → sustained work (≥45% of usable time) → debrief (5-10 min)
+- Work Time is ONE sustained block — do NOT fragment it into many small 5-10 minute activities. Group related tasks into one long work block
+- ALWAYS include 2-3 extension activities per lesson-length chunk for early finishers, indexed to the current design phase
 
 ## Sequencing
 ### Bloom's Progression
@@ -1205,6 +1410,7 @@ export function buildTimelinePrompt(
     previousActivitiesSummary?: string;
     activitiesGeneratedSoFar?: number;
     teachingContextBlock?: string;
+    teacherStyleProfile?: TeacherStyleProfile | null;
   }
 ): string {
   const totalLessons = options?.totalLessons || input.durationWeeks * input.lessonsPerWeek;
@@ -1276,6 +1482,8 @@ ${activitySuggestions}
 - Statement of Inquiry: ${input.statementOfInquiry}
 - ATL Skills: ${(input.atlSkills || []).join(", ")}${skillsSection}${resourceSection}${requirementsSection}
 - Assessment Criteria: ${(input.assessmentCriteria || []).join(", ")} (tag each core activity)
+
+${buildDesignTeachingContext(options?.teacherStyleProfile)}
 
 ${buildTimingBlock(getGradeTimingProfile(input.gradeLevel), input.lessonLengthMinutes)}
 
@@ -1514,6 +1722,15 @@ export async function buildRAGTimelinePrompt(
   const teachingContextBlock = buildTeachingContextBlock(teachingContext || undefined);
   const frameworkBlock = buildFrameworkPromptBlock(getFrameworkFromContext(teachingContext));
 
+  // Load teacher style profile
+  let teacherStyle: TeacherStyleProfile | null = null;
+  if (teacherId) {
+    try {
+      const { loadStyleProfile } = await import("@/lib/teacher-style/profile-service");
+      teacherStyle = await loadStyleProfile(teacherId);
+    } catch { /* non-fatal */ }
+  }
+
   const prompt = buildTimelinePrompt(input, {
     selectedOutline,
     phaseToGenerate,
@@ -1524,6 +1741,7 @@ export async function buildRAGTimelinePrompt(
     previousActivitiesSummary,
     activitiesGeneratedSoFar,
     teachingContextBlock: (frameworkBlock + teachingContextBlock) || undefined,
+    teacherStyleProfile: teacherStyle || undefined,
   });
 
   return { prompt, chunkIds };
@@ -1776,6 +1994,7 @@ export function buildPerLessonTimelinePrompt(
     ragContext?: string;
     lessonContext?: string;
     activitySummary?: string;
+    teacherStyleProfile?: TeacherStyleProfile | null;
   }
 ): string {
   const totalLessons = skeleton.lessons.length;
@@ -1884,6 +2103,8 @@ ${activitySuggestions}
 - Key Concept: ${input.keyConcept}
 - Assessment Criteria: ${(input.assessmentCriteria || []).join(", ")}
 
+${buildDesignTeachingContext(options?.teacherStyleProfile)}
+
 ${buildTimingBlock(getGradeTimingProfile(input.gradeLevel), input.lessonLengthMinutes)}
 
 ## Generation Target
@@ -1910,7 +2131,8 @@ export async function buildRAGPerLessonPrompt(
   lesson: TimelineLessonSkeleton,
   skeleton: TimelineSkeleton,
   teacherId?: string,
-  teachingContext?: PartialTeachingContext | null
+  teachingContext?: PartialTeachingContext | null,
+  teacherStyleProfile?: TeacherStyleProfile | null
 ): Promise<{ prompt: string; chunkIds: string[] }> {
   let activitySummary: string | undefined;
   try {
@@ -1985,6 +2207,7 @@ export async function buildRAGPerLessonPrompt(
     ragContext: ragContext || undefined,
     lessonContext: enrichedLessonContext,
     activitySummary,
+    teacherStyleProfile,
   });
 
   return { prompt, chunkIds };

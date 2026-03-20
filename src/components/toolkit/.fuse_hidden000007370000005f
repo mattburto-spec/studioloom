@@ -1,0 +1,471 @@
+'use client';
+
+import { useState, useRef, useEffect, useCallback } from 'react';
+
+
+interface ToolkitToolProps {
+  toolId?: string;
+  mode: 'public' | 'embedded' | 'standalone';
+  challenge?: string;
+  sessionId?: string;
+  onSave?: (state: ToolState) => void;
+  onComplete?: (data: ToolResponse) => void;
+}
+
+interface ToolState {
+  stage: 'intro' | 'working' | 'summary';
+  challenge: string;
+  currentStep: number;
+  ideas: string[][];
+  ideaEfforts: Record<number, EffortLevel[]>;
+}
+
+interface ToolResponse {
+  toolId: string;
+  challenge: string;
+  stage: 'intro' | 'working' | 'summary';
+  ideas: string[][];
+  metadata: {
+    totalIdeas: number;
+    timeSpentMs: number;
+  };
+}
+
+type EffortLevel = 'low' | 'medium' | 'high';
+
+const STEPS = [
+  {
+    name: 'Elements',
+    emoji: '🔹',
+    color: '#f59e0b',
+    glow: 'rgba(245,158,11,0.15)',
+    desc: 'List all the parts, actors, and things in this system.',
+    aiRule: 'What else is part of this system? Think about hidden actors — regulations, social norms, supply chains, infrastructure.',
+  },
+  {
+    name: 'Connections',
+    emoji: '🔗',
+    color: '#06b6d4',
+    glow: 'rgba(6,182,212,0.15)',
+    desc: 'Map relationships. Who affects whom? How do they influence each other?',
+    aiRule: 'How does this element affect that one? Is the relationship positive, negative, or complex? What flows between them?',
+  },
+  {
+    name: 'Feedback Loops',
+    emoji: '🔄',
+    color: '#10b981',
+    glow: 'rgba(16,185,129,0.15)',
+    desc: 'Find circular patterns where A leads to B leads back to A. These create systemic change.',
+    aiRule: 'Where does A lead to B lead back to A? These are leverage points for systemic change. Find the reinforcing and balancing loops.',
+  },
+];
+
+function assessEffort(text: string): EffortLevel {
+  const words = text.trim().split(/\s+/).length;
+  const hasReasoning = /\b(because|since|so that|this leads to|causes|affects|influences|impacts)\b/i.test(text);
+  const hasSpecifics = /\b(for example|such as|like|including|including|between|from|to)\b/i.test(text);
+  const hasDetail = words >= 15;
+
+  if (words < 6) return 'low';
+  if ((hasDetail && hasSpecifics) || (hasDetail && hasReasoning) || (hasSpecifics && hasReasoning)) return 'high';
+  if (words >= 10 || hasSpecifics || hasReasoning) return 'medium';
+  return 'low';
+}
+
+const MICRO_FEEDBACK: Record<EffortLevel, { emoji: string; messages: string[] }> = {
+  high: { emoji: '✦', messages: ['Systemic thinking!', 'Great complexity!', 'Deep connection!', 'Clear relationship!'] },
+  medium: { emoji: '→', messages: ['Good element!', 'Keep mapping!', 'Building system!', 'Getting there!'] },
+  low: { emoji: '↑', messages: ['Add more?', 'What specifically?', 'Tell me more?', 'Be clearer?'] },
+};
+
+export function SystemsMapTool({
+  mode = 'public',
+  challenge: initialChallenge = '',
+  sessionId: initialSessionId,
+  onSave,
+  onComplete,
+}: ToolkitToolProps) {
+  const [stage, setStage] = useState<'intro' | 'working' | 'summary'>(initialChallenge ? 'working' : 'intro');
+  const [challenge, setChallenge] = useState(initialChallenge);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [ideas, setIdeas] = useState<string[][]>([[], [], []]);
+  const [inputValue, setInputValue] = useState('');
+
+  const [sessionId] = useState(() => initialSessionId || Math.random().toString(36).slice(2) + Date.now().toString(36));
+  const [microFeedback, setMicroFeedback] = useState<{ msg: string; level: EffortLevel } | null>(null);
+  const [ideaEfforts, setIdeaEfforts] = useState<Record<number, EffortLevel[]>>({});
+  const [nudge, setNudge] = useState('');
+  const [nudgeLoading, setNudgeLoading] = useState(false);
+  const [insights, setInsights] = useState('');
+  const [loadingInsights, setLoadingInsights] = useState(false);
+
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const microFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const step = STEPS[currentStep];
+  const totalIdeas = ideas.reduce((sum, arr) => sum + arr.length, 0);
+
+  useEffect(() => {
+    if (mode !== 'public' && onSave) {
+      const timer = setTimeout(() => {
+        const state: ToolState = { stage, challenge, currentStep, ideas, ideaEfforts };
+        onSave(state);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [stage, challenge, currentStep, ideas, ideaEfforts, mode, onSave]);
+
+  const fetchAI = useCallback(async (body: Record<string, unknown>): Promise<Record<string, unknown>> => {
+    const res = await fetch('/api/tools/systems-map', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`AI fetch failed: ${res.status}`);
+    return res.json();
+  }, []);
+
+  const handleIntroStart = async () => {
+    if (!challenge.trim()) return;
+    setStage('working');
+    setCurrentStep(0);
+    setInputValue('');
+  };
+
+  const handleAddIdea = () => {
+    if (!inputValue.trim()) return;
+
+    const effort = assessEffort(inputValue);
+    const feedback = MICRO_FEEDBACK[effort];
+    setMicroFeedback({ msg: feedback.messages[Math.floor(Math.random() * feedback.messages.length)], level: effort });
+
+    const newIdeas = ideas.map(arr => [...arr]);
+    newIdeas[currentStep].push(inputValue);
+    setIdeas(newIdeas);
+
+    const newEfforts = { ...ideaEfforts };
+    if (!newEfforts[currentStep]) newEfforts[currentStep] = [];
+    newEfforts[currentStep].push(effort);
+    setIdeaEfforts(newEfforts);
+
+    setInputValue('');
+
+    if (microFeedbackTimerRef.current) clearTimeout(microFeedbackTimerRef.current);
+    microFeedbackTimerRef.current = setTimeout(() => setMicroFeedback(null), 3000);
+
+    if (inputRef.current) inputRef.current.focus();
+  };
+
+  const handleRequestNudge = async () => {
+    if (nudgeLoading) return;
+    setNudgeLoading(true);
+    try {
+      const res = await fetchAI({
+        action: 'nudge',
+        challenge,
+        sessionId,
+        stepIndex: currentStep,
+        idea: inputValue,
+        existingIdeas: ideas[currentStep],
+        effortLevel: inputValue ? assessEffort(inputValue) : 'low',
+        step: step.name,
+      });
+      setNudge(res.nudge as string);
+    } catch (error) {
+      console.error('Nudge error:', error);
+    } finally {
+      setNudgeLoading(false);
+    }
+  };
+
+  const handleNextStep = () => {
+    if (currentStep < STEPS.length - 1) {
+      setCurrentStep(currentStep + 1);
+      setInputValue('');
+      setNudge('');
+      if (inputRef.current) inputRef.current.focus();
+    } else {
+      generateInsights();
+    }
+  };
+
+  const handlePrevStep = () => {
+    if (currentStep > 0) {
+      setCurrentStep(currentStep - 1);
+      setInputValue('');
+      setNudge('');
+      if (inputRef.current) inputRef.current.focus();
+    }
+  };
+
+  const generateInsights = async () => {
+    setLoadingInsights(true);
+    try {
+      const res = await fetchAI({
+        action: 'insights',
+        challenge,
+        sessionId,
+        allIdeas: ideas,
+      });
+      setInsights(res.insights as string);
+      setStage('summary');
+    } catch (error) {
+      console.error('Insights error:', error);
+    } finally {
+      setLoadingInsights(false);
+    }
+  };
+
+  const handleRemoveIdea = (stepIdx: number, ideaIdx: number) => {
+    const newIdeas = ideas.map(arr => [...arr]);
+    newIdeas[stepIdx].splice(ideaIdx, 1);
+    setIdeas(newIdeas);
+
+    const newEfforts = { ...ideaEfforts };
+    if (newEfforts[stepIdx]) {
+      newEfforts[stepIdx].splice(ideaIdx, 1);
+    }
+    setIdeaEfforts(newEfforts);
+  };
+
+  // ─── INTRO SCREEN ───
+  if (stage === 'intro') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-amber-950 to-slate-950 p-6 flex items-center justify-center">
+        <div className="w-full max-w-lg">
+          <div className="text-center mb-8">
+            <h1 className="text-4xl font-black text-white mb-2">Systems Map</h1>
+            <p className="text-slate-300 text-lg">Map the ecosystem of your design. Show inputs, flows, and feedback loops.</p>
+          </div>
+
+          <div className="bg-slate-900/60 backdrop-blur border border-slate-700 rounded-xl p-8 space-y-6">
+            <div>
+              <label className="block text-sm font-bold text-slate-200 mb-2">What system are you analysing?</label>
+              <textarea
+                value={challenge}
+                onChange={(e) => setChallenge(e.target.value)}
+                placeholder="e.g., A school's grading system or a city's public transportation network"
+                className="w-full px-4 py-3 rounded-lg bg-slate-800 border border-slate-600 text-white placeholder-slate-500 focus:border-amber-500 focus:outline-none text-sm"
+                rows={3}
+              />
+            </div>
+
+            <button
+              onClick={handleIntroStart}
+              disabled={!challenge.trim()}
+              className="w-full px-6 py-3 bg-amber-600 hover:bg-amber-700 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-bold rounded-lg transition"
+            >
+              Start Mapping
+            </button>
+          </div>
+
+          <div className="mt-8 bg-slate-900/40 border border-slate-700 rounded-lg p-6">
+            <h3 className="font-bold text-slate-200 mb-3">How it works:</h3>
+            <ul className="space-y-2 text-sm text-slate-400">
+              <li>• <strong>Elements:</strong> All the parts and actors (people, tools, rules)</li>
+              <li>• <strong>Connections:</strong> How do they influence each other?</li>
+              <li>• <strong>Feedback Loops:</strong> Where does A→B→C→A? (Systemic leverage)</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── WORKING SCREEN ───
+  if (stage === 'working') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-amber-950 to-slate-950 p-6">
+        <div className="max-w-2xl mx-auto">
+          {/* Header */}
+          <div className="mb-8">
+            <button
+              onClick={() => setStage('intro')}
+              className="text-slate-400 hover:text-slate-200 text-sm font-semibold mb-4"
+            >
+              ← Back
+            </button>
+            <h2 className="text-3xl font-black text-white mb-1">{step.emoji} {step.name}</h2>
+            <p className="text-slate-300">{step.desc}</p>
+          </div>
+
+          {/* Input Section */}
+          <div className="bg-slate-900/60 backdrop-blur border border-slate-700 rounded-xl p-6 mb-8">
+            <textarea
+              ref={inputRef}
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && e.ctrlKey) handleAddIdea();
+              }}
+              placeholder="Add an element, connection, or loop..."
+              className="w-full px-4 py-3 rounded-lg bg-slate-800 border border-slate-600 text-white placeholder-slate-500 focus:border-amber-500 focus:outline-none text-sm mb-3"
+              rows={3}
+            />
+            <button
+              onClick={handleAddIdea}
+              disabled={!inputValue.trim()}
+              className="px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:bg-slate-700 disabled:cursor-not-allowed text-white font-semibold rounded-lg text-sm transition"
+            >
+              Add Item
+            </button>
+            <button
+              onClick={handleRequestNudge}
+              disabled={nudgeLoading || !inputValue.trim()}
+              className="ml-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 disabled:bg-slate-800 disabled:cursor-not-allowed text-slate-200 font-semibold rounded-lg text-sm transition"
+            >
+              {nudgeLoading ? '...' : 'Nudge'}
+            </button>
+          </div>
+
+          {/* Micro Feedback */}
+          {microFeedback && (
+            <div className="mb-6 p-4 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-200 text-sm font-medium animate-bounce">
+              {microFeedback.emoji} {microFeedback.msg}
+            </div>
+          )}
+
+          {/* AI Nudge */}
+          {nudge && (
+            <div className="mb-6 p-4 rounded-lg bg-slate-800/60 border border-slate-600 text-slate-200 text-sm">
+              <strong className="text-slate-100">Nudge:</strong> {nudge}
+            </div>
+          )}
+
+          {/* Ideas List */}
+          {ideas[currentStep].length > 0 && (
+            <div className="mb-8">
+              <h3 className="font-bold text-slate-200 mb-3 text-sm">Your {step.name.toLowerCase()}:</h3>
+              <div className="space-y-2">
+                {ideas[currentStep].map((idea, idx) => (
+                  <div
+                    key={idx}
+                    className="p-3 rounded-lg bg-slate-800/50 border border-slate-700 text-slate-200 text-sm flex items-start justify-between group"
+                  >
+                    <span>{idea}</span>
+                    <button
+                      onClick={() => handleRemoveIdea(currentStep, idx)}
+                      className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-400 transition text-xs ml-2"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Step Navigation */}
+          <div className="flex gap-3 mb-8">
+            <button
+              onClick={handlePrevStep}
+              disabled={currentStep === 0}
+              className="px-4 py-2 bg-slate-700 hover:bg-slate-600 disabled:bg-slate-800 disabled:cursor-not-allowed text-slate-200 font-semibold rounded-lg text-sm transition"
+            >
+              ← Previous
+            </button>
+            {currentStep < STEPS.length - 1 ? (
+              <button
+                onClick={handleNextStep}
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-lg text-sm transition"
+              >
+                Next →
+              </button>
+            ) : (
+              <button
+                onClick={handleNextStep}
+                disabled={loadingInsights}
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-slate-700 text-white font-semibold rounded-lg text-sm transition"
+              >
+                {loadingInsights ? 'Analyzing...' : 'See Summary'}
+              </button>
+            )}
+          </div>
+
+          {/* Step Dots */}
+          <div className="flex gap-1 justify-center">
+            {STEPS.map((s, idx) => (
+              <div
+                key={idx}
+                className={`h-2 rounded-full transition ${
+                  idx === currentStep ? 'bg-amber-500 w-8' : 'bg-slate-700 w-2 hover:bg-slate-600'
+                }`}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+    );
+  }
+
+  // ─── SUMMARY SCREEN ───
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-amber-950 to-slate-950 p-6">
+      <div className="max-w-2xl mx-auto">
+        <h2 className="text-3xl font-black text-white mb-2">Systems Map Complete</h2>
+        <p className="text-slate-300 mb-8">Here's your complete system analysis.</p>
+
+        {/* System Overview */}
+        <div className="space-y-6 mb-8">
+          {STEPS.map((s, stepIdx) => (
+            <div key={stepIdx} className="bg-slate-900/60 backdrop-blur border border-slate-700 rounded-xl p-6">
+              <h3 className="text-lg font-bold text-white mb-3">{s.emoji} {s.name}</h3>
+              {ideas[stepIdx].length > 0 ? (
+                <div className="space-y-2">
+                  {ideas[stepIdx].map((idea, ideaIdx) => (
+                    <div key={ideaIdx} className="text-slate-300 text-sm p-2 rounded bg-slate-800/50 border-l-2" style={{ borderColor: s.color }}>
+                      {idea}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-slate-400 text-sm italic">No items added.</p>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* AI Synthesis */}
+        {insights && (
+          <div className="bg-gradient-to-br from-amber-900/40 to-slate-900/60 border border-amber-700/50 rounded-xl p-6 mb-8">
+            <h3 className="font-bold text-slate-200 mb-3">AI Synthesis: Key Leverage Points</h3>
+            <p className="text-slate-300 text-sm leading-relaxed">{insights}</p>
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex gap-3">
+          <button
+            onClick={() => {
+              setStage('working');
+              setCurrentStep(0);
+              setInputValue('');
+              setNudge('');
+            }}
+            className="px-6 py-2 bg-slate-700 hover:bg-slate-600 text-white font-semibold rounded-lg text-sm transition"
+          >
+            ← Edit Map
+          </button>
+          <button
+            onClick={() => {
+              if (onComplete) {
+                onComplete({
+                  toolId: 'systems-map',
+                  challenge,
+                  stage: 'summary',
+                  ideas,
+                  metadata: { totalIdeas, timeSpentMs: 0 },
+                });
+              }
+            }}
+            className="px-6 py-2 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-lg text-sm transition"
+          >
+            Save Systems Map
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+    );
+}

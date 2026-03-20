@@ -1,0 +1,530 @@
+'use client';
+
+import { useState, useRef, useEffect, useCallback } from 'react';
+
+import { motion } from 'framer-motion';
+
+type StepIndex = 0 | 1;
+type EffortLevel = 'low' | 'medium' | 'high';
+
+interface ReverseBrainstormToolProps {
+  toolId?: string;
+  mode: 'public' | 'embedded' | 'standalone';
+  challenge?: string;
+  sessionId?: string;
+  onSave?: (state: ToolState) => void;
+  onComplete?: (data: ToolResponse) => void;
+}
+
+interface ToolState {
+  stage: 'intro' | 'working' | 'summary';
+  challenge: string;
+  currentStep: StepIndex;
+  badIdeas: string[];
+  flips: { bad: string; good: string }[];
+  ideaEfforts: EffortLevel[];
+  dealtCards: number;
+}
+
+interface ToolResponse {
+  toolId: string;
+  challenge: string;
+  stage: 'intro' | 'working' | 'summary';
+  badIdeas: string[];
+  flips: { bad: string; good: string }[];
+  metadata: {
+    totalIdeas: number;
+    timeSpentMs: number;
+  };
+}
+
+const STEPS = [
+  { num: 1, title: 'How to CAUSE the Problem', color: '#a855f7', desc: 'Instead of solving the problem, brainstorm ways to CAUSE or WORSEN it.' },
+  { num: 2, title: 'Flip It', color: '#7c3aed', desc: 'Take each "bad idea" and flip it upside down. How does reversing that bad idea give you a good solution?' },
+] as const;
+
+function assessEffort(idea: string): EffortLevel {
+  const words = idea.trim().split(/\s+/).length;
+  const hasReasoning = /\b(because|since|so that|in order to|this would|this could|which means|that way)\b/i.test(idea);
+  const hasSpecifics = /\b(for example|such as|like|using|made of|instead of|rather than|compared to)\b/i.test(idea);
+  const hasDetail = words >= 15;
+  if (words < 6) return 'low';
+  if ((hasDetail && hasSpecifics) || (hasDetail && hasReasoning) || (hasSpecifics && hasReasoning)) return 'high';
+  if (words >= 10 || hasSpecifics || hasReasoning) return 'medium';
+  return 'low';
+}
+
+function getDepthInfo(effort: EffortLevel) {
+  if (effort === 'high') return { dots: 3, label: 'Detailed', color: '#a78bfa' };
+  if (effort === 'medium') return { dots: 2, label: 'Good start', color: '#60a5fa' };
+  return { dots: 1, label: 'Go deeper', color: '#f59e0b' };
+}
+
+function calculateFlipCreativity(badIdea: string, goodSolution: string): { score: 'creative' | 'moderate' | 'lazy'; uniquePercent: number } {
+  const badWords = badIdea.toLowerCase().split(/\s+/).filter(w => w.length > 2 && !['not', 'dont', 'stop', 'never', 'no'].includes(w));
+  const goodWords = goodSolution.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+  const uniqueInGood = goodWords.filter(w => !badWords.includes(w)).length;
+  const uniquePercent = goodWords.length > 0 ? (uniqueInGood / goodWords.length) * 100 : 0;
+
+  if (uniquePercent >= 60) return { score: 'creative', uniquePercent: Math.round(uniquePercent) };
+  if (uniquePercent >= 30) return { score: 'moderate', uniquePercent: Math.round(uniquePercent) };
+  return { score: 'lazy', uniquePercent: Math.round(uniquePercent) };
+}
+
+const MICRO_FEEDBACK: Record<EffortLevel, { emoji: string; messages: string[] }> = {
+  high: { emoji: '✦', messages: ['Deep thinking!', 'Great detail!', 'Strong reasoning!', 'Specific and clear!', 'Well thought out!'] },
+  medium: { emoji: '→', messages: ['Good — keep pushing!', 'Nice start!', 'Getting there!', 'Building momentum!'] },
+  low: { emoji: '↑', messages: ['Try adding more detail', 'Can you be more specific?', 'What exactly would that look like?'] },
+};
+
+async function fetchAI(body: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const res = await fetch('/api/tools/reverse-brainstorm', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Request failed' }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+export function ReverseBrainstormTool({
+  mode = 'public',
+  challenge: initialChallenge = '',
+  sessionId: initialSessionId,
+  onSave,
+  onComplete,
+}: ReverseBrainstormToolProps) {
+  const [stage, setStage] = useState<'intro' | 'working' | 'summary'>(initialChallenge ? 'working' : 'intro');
+  const [challenge, setChallenge] = useState(initialChallenge);
+  const [currentStep, setCurrentStep] = useState<StepIndex>(0);
+  const [badIdeas, setBadIdeas] = useState<string[]>([]);
+  const [flips, setFlips] = useState<{ bad: string; good: string }[]>([]);
+  const [currentIdea, setCurrentIdea] = useState('');
+  const [sessionId] = useState(() => initialSessionId || Math.random().toString(36).slice(2) + Date.now().toString(36));
+  const [aiPrompts, setAiPrompts] = useState<string[]>([]);
+  const [loadingPrompts, setLoadingPrompts] = useState(false);
+  const [nudge, setNudge] = useState('');
+  const [nudgeVisible, setNudgeVisible] = useState(false);
+  const [loadingNudge, setLoadingNudge] = useState(false);
+  const [insights, setInsights] = useState('');
+  const [loadingInsights, setLoadingInsights] = useState(false);
+  const [dealtCards, setDealtCards] = useState(0);
+  const [thinkingTimeLeft, setThinkingTimeLeft] = useState(0);
+  const [dealingAnimation, setDealingAnimation] = useState(false);
+  const [ideaEfforts, setIdeaEfforts] = useState<EffortLevel[]>([]);
+  const [microFeedback, setMicroFeedback] = useState<{ effort: EffortLevel; message: string } | null>(null);
+  const [nudgeAcknowledgment, setNudgeAcknowledgment] = useState('');
+  const thinkingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const microFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const challengeRef = useRef<HTMLTextAreaElement>(null);
+
+  const step = STEPS[currentStep];
+  const totalIdeas = currentStep === 0 ? badIdeas.length : flips.length;
+  const currentPrompts = aiPrompts;
+
+  // Auto-save
+  useEffect(() => {
+    if (mode !== 'public' && onSave) {
+      const timer = setTimeout(() => {
+        onSave({ stage, challenge, currentStep, badIdeas, flips, ideaEfforts, dealtCards });
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [stage, challenge, currentStep, badIdeas, flips, ideaEfforts, dealtCards, mode, onSave]);
+
+  const fetchPrompts = useCallback(async (stepIdx: StepIndex, existingIdeas: string[] = []) => {
+    if (!challenge.trim()) return;
+    setLoadingPrompts(true);
+    try {
+      const data = await fetchAI({
+        action: 'prompts',
+        challenge: challenge.trim(),
+        sessionId,
+        stepIndex: stepIdx,
+        existingIdeas,
+      });
+      setAiPrompts((data.prompts as string[]) || []);
+    } catch (err) {
+      console.warn('[reverse-brainstorm] Prompts unavailable:', err);
+      setAiPrompts(stepIdx === 0
+        ? ['What if you made the problem happen intentionally?', 'What would someone DELIBERATELY do to cause this exact problem?']
+        : ['Take your first bad idea and flip every action to its opposite.', 'If causing the problem means doing X, then solving it means doing the opposite.']
+      );
+    } finally {
+      setLoadingPrompts(false);
+    }
+  }, [challenge, sessionId]);
+
+  const handleStart = useCallback(() => {
+    if (!challenge.trim()) return;
+    setStage('working');
+    setCurrentStep(0);
+    fetchPrompts(0, []);
+  }, [challenge, fetchPrompts]);
+
+  const handleAddIdea = useCallback(async () => {
+    if (!currentIdea.trim()) return;
+    const effort = assessEffort(currentIdea);
+    const newIdea = currentIdea.trim();
+
+    if (currentStep === 0) {
+      setBadIdeas(prev => [...prev, newIdea]);
+      setIdeaEfforts(prev => [...prev, effort]);
+    } else {
+      setFlips(prev => [...prev, { bad: badIdeas[flips.length] || '', good: newIdea }]);
+      setIdeaEfforts(prev => [...prev, effort]);
+    }
+
+    setCurrentIdea('');
+    const feedback = MICRO_FEEDBACK[effort];
+    const msg = feedback.messages[Math.floor(Math.random() * feedback.messages.length)];
+    setMicroFeedback({ effort, message: `${feedback.emoji} ${msg}` });
+    if (microFeedbackTimerRef.current) clearTimeout(microFeedbackTimerRef.current);
+    microFeedbackTimerRef.current = setTimeout(() => setMicroFeedback(null), 3000);
+
+    setNudgeVisible(false);
+    setLoadingNudge(true);
+    try {
+      const existingIdeas = currentStep === 0 ? badIdeas : flips.map((f) => f.good);
+      const data = await fetchAI({
+        action: 'nudge',
+        challenge: challenge.trim(),
+        sessionId,
+        stepIndex: currentStep,
+        idea: newIdea,
+        existingIdeas,
+        effortLevel: effort,
+      });
+      setNudge(data.nudge as string);
+      setNudgeAcknowledgment(data.acknowledgment as string);
+    } catch (err) {
+      console.warn('[reverse-brainstorm] Nudge unavailable:', err);
+    } finally {
+      setLoadingNudge(false);
+    }
+
+    if (textareaRef.current) textareaRef.current.focus();
+  }, [currentIdea, currentStep, badIdeas, flips, challenge, sessionId]);
+
+  const dealCard = useCallback(() => {
+    if (dealtCards >= currentPrompts.length) return;
+    if (badIdeas.length === 0 && currentStep === 0) return;
+
+    setDealingAnimation(true);
+    setTimeout(() => {
+      setDealtCards((prev) => prev + 1);
+      setDealingAnimation(false);
+      setThinkingTimeLeft(10);
+
+      if (thinkingTimerRef.current) clearInterval(thinkingTimerRef.current);
+      thinkingTimerRef.current = setInterval(() => {
+        setThinkingTimeLeft((prev) => {
+          if (prev <= 1) {
+            if (thinkingTimerRef.current) clearInterval(thinkingTimerRef.current);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }, 150);
+  }, [dealtCards, currentPrompts.length, badIdeas.length, currentStep]);
+
+  const handleSummary = useCallback(async () => {
+    setStage('summary');
+    setLoadingInsights(true);
+    try {
+      const data = await fetchAI({
+        action: 'insights',
+        challenge: challenge.trim(),
+        sessionId,
+        badIdeas,
+        flips,
+      });
+      setInsights(data.insights as string);
+    } catch (err) {
+      console.warn('[reverse-brainstorm] Insights unavailable:', err);
+    } finally {
+      setLoadingInsights(false);
+    }
+
+    if (onComplete) {
+      onComplete({
+        toolId: 'reverse-brainstorm',
+        challenge,
+        stage: 'summary',
+        badIdeas,
+        flips,
+        metadata: { totalIdeas, timeSpentMs: 0 },
+      });
+    }
+  }, [challenge, sessionId, badIdeas, flips, totalIdeas, onComplete]);
+
+  useEffect(() => {
+    if (stage === 'working' && textareaRef.current) {
+      setTimeout(() => textareaRef.current?.focus(), 350);
+    }
+  }, [currentStep, stage]);
+
+  useEffect(() => {
+    if (stage === 'intro' && challengeRef.current) {
+      setTimeout(() => challengeRef.current?.focus(), 500);
+    }
+  }, [stage]);
+
+  if (stage === 'intro') {
+    return (
+        style={{ background: '#000000', minHeight: '100vh', color: '#ffffff', padding: '40px 20px' }}>
+        <div style={{ maxWidth: '600px', margin: '0 auto' }}>
+          <h1 style={{ fontSize: '48px', fontWeight: '900', marginBottom: '16px', color: '#a855f7' }}>Reverse Brainstorm</h1>
+          <p style={{ fontSize: '18px', color: '#d1d5db', marginBottom: '24px', lineHeight: '1.6' }}>
+            Flip your thinking upside down. Instead of solving the problem, first brainstorm ways to CAUSE it. Then flip each bad idea into a solution.
+          </p>
+          <textarea
+            ref={challengeRef}
+            value={challenge}
+            onChange={(e) => setChallenge(e.target.value)}
+            placeholder="E.g., How might we make backpacks more comfortable for students?"
+            style={{ width: '100%', padding: '16px', fontSize: '16px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#ffffff', fontFamily: 'inherit', resize: 'vertical', minHeight: '100px', marginBottom: '32px' }}
+          />
+          <button
+            onClick={handleStart}
+            disabled={!challenge.trim()}
+            style={{ width: '100%', padding: '16px', fontSize: '16px', fontWeight: '600', background: challenge.trim() ? '#a855f7' : 'rgba(168,85,247,0.3)', color: '#ffffff', border: 'none', borderRadius: '8px', cursor: challenge.trim() ? 'pointer' : 'not-allowed' }}
+          >
+            Start Reverse Brainstorming
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (stage === 'working') {
+    const avgEffort = ideaEfforts.length > 0 ? ideaEfforts.filter((e) => e !== 'low').length / ideaEfforts.length : 0;
+    const depthColor = avgEffort > 0.6 ? '#a78bfa' : avgEffort > 0.3 ? '#60a5fa' : '#f59e0b';
+
+    return (
+        style={{ background: '#000000', minHeight: '100vh', color: '#ffffff', paddingBottom: '40px' }}>
+        <div style={{ background: 'rgba(168,85,247,0.1)', borderBottom: '1px solid rgba(168,85,247,0.3)', padding: '20px', position: 'sticky', top: 0, zIndex: 10 }}>
+          <div style={{ maxWidth: '900px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <p style={{ fontSize: '12px', color: '#a3e635', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>
+                Step {currentStep + 1} of {STEPS.length}
+              </p>
+              <h2 style={{ fontSize: '24px', fontWeight: '700', color: '#a855f7', margin: 0 }}>{step.title}</h2>
+            </div>
+            <button
+              onClick={() => handleSummary()}
+              disabled={(currentStep === 0 && badIdeas.length === 0) || (currentStep === 1 && flips.length === 0)}
+              style={{ padding: '8px 16px', fontSize: '14px', fontWeight: '600', background: 'rgba(168,85,247,0.3)', color: '#ffffff', border: '1px solid rgba(168,85,247,0.5)', borderRadius: '6px', cursor: 'pointer' }}
+            >
+              Summary
+            </button>
+          </div>
+        </div>
+
+        <div style={{ maxWidth: '900px', margin: '0 auto', padding: '40px 20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px' }}>
+          <div>
+            <p style={{ fontSize: '14px', color: '#d1d5db', marginBottom: '24px', lineHeight: '1.6' }}>{step.desc}</p>
+            <textarea
+              ref={textareaRef}
+              value={currentIdea}
+              onChange={(e) => setCurrentIdea(e.target.value)}
+              placeholder={currentStep === 0 ? 'What would make this problem happen?' : 'How does flipping that idea into a solution work?'}
+              style={{ width: '100%', padding: '16px', fontSize: '15px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#ffffff', fontFamily: 'inherit', resize: 'vertical', minHeight: '120px', marginBottom: '16px' }}
+            />
+            <button
+              onClick={handleAddIdea}
+              disabled={!currentIdea.trim() || loadingNudge}
+              style={{ width: '100%', padding: '12px', fontSize: '14px', fontWeight: '600', background: currentIdea.trim() ? '#a855f7' : 'rgba(168,85,247,0.3)', color: '#ffffff', border: 'none', borderRadius: '6px', cursor: currentIdea.trim() ? 'pointer' : 'not-allowed' }}
+            >
+              {loadingNudge ? 'Getting feedback...' : 'Add Idea'}
+            </button>
+            {microFeedback && (
+              <div style={{ padding: '12px 16px', background: microFeedback.effort === 'high' ? 'rgba(167,139,250,0.2)' : 'rgba(96,165,250,0.2)', border: `1px solid ${microFeedback.effort === 'high' ? 'rgba(167,139,250,0.5)' : 'rgba(96,165,250,0.5)'}`, borderRadius: '8px', color: '#ffffff', fontSize: '14px', fontWeight: '500', textAlign: 'center', marginTop: '16px' }}>
+                {microFeedback.message}
+              </div>
+            )}
+            <div style={{ marginTop: '24px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                <h3 style={{ fontSize: '12px', fontWeight: '600', color: '#9ca3af', textTransform: 'uppercase', margin: 0 }}>Prompts to Spark Ideas</h3>
+                <button
+                  onClick={dealCard}
+                  disabled={dealtCards >= currentPrompts.length || (badIdeas.length === 0 && currentStep === 0)}
+                  style={{ padding: '6px 12px', fontSize: '12px', fontWeight: '600', background: 'rgba(168,85,247,0.2)', color: '#a855f7', border: '1px solid rgba(168,85,247,0.4)', borderRadius: '4px', cursor: 'pointer' }}
+                >
+                  {loadingPrompts ? '...' : `Deal (${dealtCards}/${currentPrompts.length})`}
+                </button>
+              </div>
+              {dealtCards > 0 && (
+                <div style={{ padding: '16px', background: 'rgba(168,85,247,0.1)', border: '1px solid rgba(168,85,247,0.3)', borderRadius: '8px', color: '#e0c7ff', fontSize: '15px', fontStyle: 'italic', lineHeight: '1.6' }}>
+                  <span style={{ fontSize: '20px', marginRight: '12px' }}>✨</span>
+                  {currentPrompts[dealtCards - 1] || 'Keep thinking creatively!'}
+                  {thinkingTimeLeft > 0 && <div style={{ marginTop: '12px', fontSize: '12px', color: '#c4b5fd', fontStyle: 'normal' }}>Think time: {thinkingTimeLeft}s</div>}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <h3 style={{ fontSize: '12px', fontWeight: '600', color: '#9ca3af', textTransform: 'uppercase', marginBottom: '16px' }}>
+              {currentStep === 0 ? 'Bad Ideas' : 'Solutions'}
+            </h3>
+            {ideaEfforts.length > 0 && (
+              <div style={{ marginBottom: '20px' }}>
+                <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '8px' }}>Thinking depth</div>
+                <div style={{ height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px', overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${Math.min(avgEffort * 100, 100)}%`, background: depthColor, transition: 'width 0.3s' }} />
+                </div>
+              </div>
+            )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {(currentStep === 0 ? badIdeas : flips.map((f) => f.good)).map((idea, idx) => {
+                const effort = ideaEfforts[idx];
+                const depthInfo = getDepthInfo(effort);
+                return (
+                  <div key={idx} style={{ padding: '16px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: '14px', lineHeight: '1.6', color: '#e5e7eb' }}>
+                  <div key={idx} style={{ padding: '16px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', fontSize: '14px', lineHeight: '1.6', color: '#e5e7eb' }}>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                      <div style={{ fontSize: '18px' }}>{depthInfo.dots === 1 ? '●' : depthInfo.dots === 2 ? '●●' : '●●●'}</div>
+                      <div style={{ flex: 1 }}>
+                        <p style={{ margin: 0 }}>{idea}</p>
+                        <div style={{ fontSize: '11px', color: depthInfo.color, marginTop: '6px', fontWeight: '500' }}>{depthInfo.label}</div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {ideaEfforts.length === 0 && <div style={{ padding: '40px 20px', textAlign: 'center', color: '#6b7280', fontSize: '14px' }}>Your ideas will appear here.</div>}
+          </div>
+        </div>
+
+        {nudgeVisible && nudge && (
+          <div style={{ maxWidth: '900px', margin: '0 auto', padding: '0 20px', marginBottom: '40px' }}>
+            <div style={{ padding: '20px', background: 'linear-gradient(135deg, rgba(168,85,247,0.15) 0%, rgba(124,58,237,0.1) 100%)', border: '1px solid rgba(168,85,247,0.3)', borderRadius: '12px' }}>
+              {nudgeAcknowledgment && <p style={{ fontSize: '13px', fontWeight: '600', color: '#d8b4fe', marginBottom: '8px' }}>{nudgeAcknowledgment}</p>}
+              <p style={{ fontSize: '15px', color: '#e0c7ff', fontStyle: 'italic', lineHeight: '1.6', margin: 0 }}>✦ {nudge}</p>
+            </div>
+          </div>
+        )}
+
+        <div style={{ maxWidth: '900px', margin: '0 auto', padding: '0 20px', display: 'flex', gap: '12px', justifyContent: 'center' }}>
+          <button
+            onClick={() => {
+              if (currentStep > 0) setCurrentStep(0);
+              else setStage('intro');
+            }}
+            style={{ padding: '12px 24px', fontSize: '14px', fontWeight: '600', background: '#2a2d3a', color: '#e8eaf0', border: 'none', borderRadius: '8px', cursor: 'pointer' }}
+          >
+            ← Back
+          </button>
+          <button
+            onClick={() => {
+              if (currentStep === 0) setCurrentStep(1);
+              else handleSummary();
+            }}
+            style={{ padding: '12px 24px', fontSize: '14px', fontWeight: '600', background: step.color, color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer' }}
+          >
+            {currentStep === 0 ? 'Next →' : 'Finish →'}
+          </button>
+        </div>
+      </div>
+    </div>
+    );
+  }
+
+  return (
+      style={{ background: '#000000', minHeight: '100vh', color: '#ffffff', padding: '40px 20px' }}>
+      <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+        <h1 style={{ fontSize: '40px', fontWeight: '900', marginBottom: '12px', color: '#a855f7' }}>Your Reverse Brainstorm Results</h1>
+        <p style={{ fontSize: '16px', color: '#d1d5db', marginBottom: '40px' }}>
+          Challenge: <strong style={{ color: '#e8eaf0' }}>{challenge}</strong>
+        </p>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px', marginBottom: '40px' }}>
+          <div>
+            <h2 style={{ fontSize: '20px', fontWeight: '700', color: '#ef4444', marginBottom: '16px' }}>💥 Ways to Cause the Problem</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {badIdeas.map((idea, idx) => (
+                <div key={idx} style={{ padding: '12px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '6px', fontSize: '13px', color: '#fecaca' }}>
+                  {idx + 1}. {idea}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <h2 style={{ fontSize: '20px', fontWeight: '700', color: '#22c55e', marginBottom: '16px' }}>🔄 Solutions (Flipped)</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {flips.map((flip, idx) => {
+                const { score, uniquePercent } = calculateFlipCreativity(flip.bad, flip.good);
+                const dotColor = score === 'creative' ? '🟢' : score === 'moderate' ? '🟡' : '🔴';
+                return (
+                  <div key={idx} style={{ padding: '12px', background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: '6px', fontSize: '13px', color: '#bbf7d0' }}>
+                  <div key={idx} style={{ padding: '12px', background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: '6px', fontSize: '13px', color: '#bbf7d0' }}>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                      <span style={{ fontSize: '16px', flexShrink: 0 }}>{dotColor}</span>
+                      <div style={{ flex: 1 }}>
+                        <div>{idx + 1}. {flip.good}</div>
+                        <div style={{ fontSize: '11px', color: '#86efac', marginTop: '4px', fontStyle: 'italic' }}>{uniquePercent}% unique words</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+    );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {flips.length > 0 && (
+          <div style={{ padding: '16px', background: 'rgba(22,163,74,0.1)', border: '1px solid rgba(22,163,74,0.3)', borderRadius: '8px', marginBottom: '40px' }}>
+            <div style={{ fontSize: '13px', color: '#bbf7d0' }}>
+              <strong>Flip Quality:</strong> {flips.filter(f => calculateFlipCreativity(f.bad, f.good).score === 'creative').length} of {flips.length} flips were creative
+            </div>
+          </div>
+        )}
+
+        {insights && (
+          <div style={{ padding: '24px', background: 'rgba(168,85,247,0.1)', border: '1px solid rgba(168,85,247,0.3)', borderRadius: '12px', marginBottom: '40px' }}>
+            <h3 style={{ fontSize: '14px', fontWeight: '600', color: '#c4b5fd', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px' }}>✦ Key Insights</h3>
+            <p style={{ fontSize: '15px', color: '#e0c7ff', lineHeight: '1.8', whiteSpace: 'pre-wrap', margin: 0 }}>{insights}</p>
+          </div>
+        )}
+
+        {loadingInsights && <p style={{ color: '#9ca3af', textAlign: 'center', padding: '40px' }}>Synthesizing your thinking...</p>}
+
+        <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
+          <button
+            onClick={() => setStage('working')}
+            style={{ padding: '12px 24px', fontSize: '14px', fontWeight: '600', background: '#a855f7', color: '#ffffff', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
+          >
+            Back to Working
+          </button>
+          <button
+            onClick={() => {
+              setStage('intro');
+              setChallenge('');
+              setBadIdeas([]);
+              setFlips([]);
+              setCurrentIdea('');
+              setIdeaEfforts([]);
+              setDealtCards(0);
+              setAiPrompts([]);
+              setNudge('');
+              setInsights('');
+            }}
+            style={{ padding: '12px 24px', fontSize: '14px', fontWeight: '600', background: 'rgba(168,85,247,0.2)', color: '#a855f7', border: '1px solid rgba(168,85,247,0.4)', borderRadius: '6px', cursor: 'pointer' }}
+          >
+            Start Over
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+    );
+}

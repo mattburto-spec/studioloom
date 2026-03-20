@@ -543,6 +543,152 @@ export default function LessonProfileReview({
             )}
           </div>
         </SectionToggle>
+
+        {/* ─── F2. 3-PASS RAW DATA ─── */}
+        <SectionToggle
+          title="3-Pass Analysis Data"
+          subtitle="Structure → Pedagogy → Design Teaching"
+          isOpen={expandedSections.has("passes")}
+          onToggle={() => toggleSection("passes")}
+        >
+          <div className="space-y-4">
+            {/* Pass 1: Structure */}
+            <div className="rounded-xl border border-indigo-200 overflow-hidden">
+              <div className="px-4 py-2.5 bg-indigo-50 flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-indigo-500 text-white text-xs font-bold flex items-center justify-center">1</span>
+                <span className="text-sm font-semibold text-indigo-900">Structure</span>
+                <span className="text-xs text-indigo-500 ml-auto">Haiku · fast extraction</span>
+              </div>
+              <div className="px-4 py-3 space-y-2 text-sm">
+                <DataRow label="Title" value={profile.title} />
+                <DataRow label="Subject" value={profile.subject_area} />
+                <DataRow label="Grade" value={profile.grade_level} />
+                <DataRow label="Duration" value={profile.estimated_duration_minutes ? `${profile.estimated_duration_minutes} min` : undefined} />
+                <DataRow label="Type" value={profile.lesson_type} />
+                <DataRow label="Sections" value={profile.lesson_flow?.length ? `${profile.lesson_flow.length} phases detected` : undefined} />
+                {profile.lesson_flow && profile.lesson_flow.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {profile.lesson_flow.map((phase, i) => (
+                      <span key={i} className="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-xs font-medium">
+                        {PHASE_LABELS[phase.phase] || phase.phase} ({phase.estimated_minutes}m)
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Pass 2: Pedagogy */}
+            <div className="rounded-xl border border-purple-200 overflow-hidden">
+              <div className="px-4 py-2.5 bg-purple-50 flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-purple-500 text-white text-xs font-bold flex items-center justify-center">2</span>
+                <span className="text-sm font-semibold text-purple-900">Pedagogy</span>
+                <span className="text-xs text-purple-500 ml-auto">Sonnet · deep reasoning</span>
+              </div>
+              <div className="px-4 py-3 space-y-2 text-sm">
+                <DataRow label="Primary approach" value={profile.pedagogical_approach?.primary} />
+                {profile.pedagogical_approach?.secondary && (
+                  <DataRow label="Secondary" value={profile.pedagogical_approach.secondary} />
+                )}
+                {profile.pedagogical_approach?.reasoning && (
+                  <p className="text-xs text-text-secondary italic leading-relaxed pl-2 border-l-2 border-purple-200">
+                    {profile.pedagogical_approach.reasoning}
+                  </p>
+                )}
+                <DataRow label="Scaffolding" value={profile.scaffolding_strategy?.model} />
+                {profile.cognitive_load_curve && (
+                  <DataRow label="Cognitive load" value={profile.cognitive_load_curve.description} />
+                )}
+                <DataRow label="Complexity" value={profile.complexity_level} />
+                {profile.strengths && profile.strengths.length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-xs font-semibold text-purple-700 mb-1">Strengths ({profile.strengths.length})</p>
+                    <div className="space-y-1">
+                      {profile.strengths.map((s, i) => (
+                        <p key={i} className="text-xs text-text-secondary">
+                          <span className="text-purple-500 mr-1">+</span>
+                          <span className="font-medium text-text-primary">{s.what}</span>
+                          {s.why_it_works && <span className="text-text-secondary"> — {s.why_it_works}</span>}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {profile.gaps && profile.gaps.length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-xs font-semibold text-amber-600 mb-1">Gaps ({profile.gaps.length})</p>
+                    <div className="space-y-1">
+                      {profile.gaps.map((g, i) => (
+                        <p key={i} className="text-xs text-text-secondary">
+                          <span className="text-amber-500 mr-1">!</span>
+                          <span className="font-medium text-text-primary">{g.what}</span>
+                          {g.suggestion && <span className="text-text-secondary"> — {g.suggestion}</span>}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Pass 3: Design Teaching */}
+            <div className="rounded-xl border border-emerald-200 overflow-hidden">
+              <div className="px-4 py-2.5 bg-emerald-50 flex items-center gap-2">
+                <span className="w-6 h-6 rounded-full bg-emerald-500 text-white text-xs font-bold flex items-center justify-center">3</span>
+                <span className="text-sm font-semibold text-emerald-900">Design Teaching</span>
+                <span className="text-xs text-emerald-500 ml-auto">Sonnet · specialist analysis</span>
+              </div>
+              <div className="px-4 py-3 space-y-2 text-sm">
+                {profile.classroom_management && (
+                  <>
+                    <DataRow label="Noise curve" value={profile.classroom_management.noise_level_curve} />
+                    <DataRow label="Movement" value={profile.classroom_management.movement_required ? "Yes" : "No"} />
+                    <DataRow label="Grouping" value={profile.classroom_management.grouping_progression} />
+                    {profile.classroom_management.behaviour_hotspots && (
+                      <DataRow label="Behaviour hotspots" value={profile.classroom_management.behaviour_hotspots} />
+                    )}
+                  </>
+                )}
+                {/* Workshop-specific data is extracted from lesson_flow phases */}
+                {profile.prerequisites && profile.prerequisites.length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-xs font-semibold text-emerald-700 mb-1">Prerequisites</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {profile.prerequisites.map((p, i) => (
+                        <span key={i} className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-xs" title={p.why_needed}>
+                          {p.skill_or_knowledge}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {profile.skills_developed && profile.skills_developed.length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-xs font-semibold text-emerald-700 mb-1">Skills developed</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {profile.skills_developed.map((s, i) => (
+                        <span key={i} className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-xs">
+                          {s.skill} <span className="opacity-60">({s.to_what_level})</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {profile.energy_and_sequencing && (
+                  <>
+                    <DataRow label="Starts as" value={profile.energy_and_sequencing.starts_as} />
+                    <DataRow label="Ends as" value={profile.energy_and_sequencing.ends_as} />
+                    <DataRow label="Ideal follows" value={profile.energy_and_sequencing.ideal_follows} />
+                    <DataRow label="Avoid after" value={profile.energy_and_sequencing.avoid_after} />
+                  </>
+                )}
+                {profile.narrative_role && (
+                  <DataRow label="Narrative role" value={profile.narrative_role} />
+                )}
+              </div>
+            </div>
+          </div>
+        </SectionToggle>
       </div>
 
       {/* ─── G. VERIFICATION FOOTER ─── */}
@@ -864,6 +1010,17 @@ function EnergyBadge({ state, label }: { state: EnergyState; label: string }) {
       <span className="text-xs font-medium" style={{ color }}>
         {text}
       </span>
+    </div>
+  );
+}
+
+/** Simple key-value row for the 3-pass data view */
+function DataRow({ label, value }: { label: string; value?: string | null }) {
+  if (!value) return null;
+  return (
+    <div className="flex items-start gap-3">
+      <span className="text-xs text-text-secondary w-28 shrink-0 text-right pt-0.5">{label}</span>
+      <span className="text-sm text-text-primary">{value}</span>
     </div>
   );
 }

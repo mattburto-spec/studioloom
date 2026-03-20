@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs";
 
 const nextConfig: NextConfig = {
   // Keep heavy server-only packages out of the webpack bundle
@@ -28,4 +29,13 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withSentryConfig(nextConfig, {
+  // Only upload source maps if SENTRY_AUTH_TOKEN is set
+  silent: true,
+  // Use webpack treeshaking to remove debug logging (replaces deprecated disableLogger)
+  bundleSizeOptimizations: {
+    excludeDebugStatements: true,
+    excludeReplayIframe: true,
+    excludeReplayShadowDom: true,
+  },
+});

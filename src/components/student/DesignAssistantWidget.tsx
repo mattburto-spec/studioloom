@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { getToolMetadata } from "@/lib/tools/toolkit-metadata";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -151,6 +152,33 @@ export default function DesignAssistantWidget({
   // Bloom's level labels
   const bloomLabels = ["Remember", "Understand", "Apply", "Analyse", "Evaluate", "Create"];
 
+  // Parse markdown-style tool links in assistant messages
+  // Pattern: [Tool Name](/toolkit/slug)
+  function parseToolLinks(text: string): (string | { type: 'toolLink'; name: string; slug: string })[] {
+    const pattern = /\[([^\]]+)\]\(\/toolkit\/([a-z-]+)\)/g;
+    const parts: (string | { type: 'toolLink'; name: string; slug: string })[] = [];
+    let lastIndex = 0;
+
+    let match;
+    while ((match = pattern.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(text.substring(lastIndex, match.index));
+      }
+      parts.push({
+        type: 'toolLink',
+        name: match[1],
+        slug: match[2],
+      });
+      lastIndex = match.index + match[0].length;
+    }
+
+    if (lastIndex < text.length) {
+      parts.push(text.substring(lastIndex));
+    }
+
+    return parts.length === 0 ? [text] : parts;
+  }
+
   // ── Collapsed state: just the FAB ──
   if (!open) {
     return (
@@ -230,7 +258,52 @@ export default function DesignAssistantWidget({
                   : "bg-gray-100 text-gray-800 rounded-bl-md"
               }`}
             >
-              {msg.content}
+              {msg.role === "assistant" ? (
+                <div className="space-y-2">
+                  {(() => {
+                    // Split message into paragraphs for better readability
+                    const paragraphs = msg.content.split('\n\n');
+                    return paragraphs.map((para, idx) => {
+                      const parts = parseToolLinks(para);
+                      return (
+                        <p key={idx}>
+                          {parts.map((part, i) => {
+                            if (typeof part === 'string') {
+                              return part;
+                            }
+                            // Render tool link as a styled chip/button with metadata color
+                            const toolMeta = getToolMetadata(part.slug);
+                            return (
+                              <a
+                                key={i}
+                                href={`/toolkit/${part.slug}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 ml-1 px-3 py-1.5 rounded-full text-xs font-medium transition-all hover:scale-105 hover:shadow-md"
+                                style={{
+                                  backgroundColor: toolMeta ? `${toolMeta.color}20` : '#d8b4fe',
+                                  color: toolMeta?.color || '#a855f7',
+                                  border: `1px solid ${toolMeta ? `${toolMeta.color}40` : '#d8b4fe'}`,
+                                }}
+                                title={`Try using ${part.name} for this`}
+                              >
+                                <span>{part.name}</span>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                                  <polyline points="15 3 21 3 21 9" />
+                                  <line x1="10" y1="14" x2="21" y2="3" />
+                                </svg>
+                              </a>
+                            );
+                          })}
+                        </p>
+                      );
+                    });
+                  })()}
+                </div>
+              ) : (
+                msg.content
+              )}
             </div>
           </div>
         ))}

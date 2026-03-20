@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AU-CN Trade Intelligence Map — Proof of Concept</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0a0e1a; color: #e0e6f0; overflow-x: hidden; }
+
+  .header { text-align: center; padding: 40px 20px 20px; }
+  .header h1 { font-size: 28px; font-weight: 700; color: #fff; margin-bottom: 8px; }
+  .header .subtitle { font-size: 14px; color: #7a8ba8; max-width: 700px; margin: 0 auto; line-height: 1.5; }
+  .header .tag { display: inline-block; background: rgba(59,130,246,0.15); color: #60a5fa; font-size: 11px; font-weight: 600; padding: 4px 12px; border-radius: 20px; margin-top: 12px; letter-spacing: 0.5px; }
+
+  .legend { display: flex; justify-content: center; gap: 24px; padding: 16px 20px; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #7a8ba8; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+  .controls { display: flex; justify-content: center; gap: 10px; padding: 10px 20px 20px; flex-wrap: wrap; }
+  .filter-btn { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: #a0aec0; padding: 6px 16px; border-radius: 20px; font-size: 12px; cursor: pointer; transition: all 0.2s; }
+  .filter-btn:hover, .filter-btn.active { background: rgba(59,130,246,0.2); border-color: #3b82f6; color: #60a5fa; }
+
+  .map-container { position: relative; max-width: 1200px; margin: 0 auto; padding: 0 20px 40px; }
+
+  svg { width: 100%; height: auto; }
+
+  .node-au { cursor: pointer; }
+  .node-cn { cursor: pointer; }
+
+  .node-rect { rx: 8; ry: 8; transition: all 0.3s; }
+  .node-au .node-rect { fill: rgba(16,185,129,0.12); stroke: rgba(16,185,129,0.4); stroke-width: 1.5; }
+  .node-cn .node-rect { fill: rgba(239,68,68,0.12); stroke: rgba(239,68,68,0.4); stroke-width: 1.5; }
+  .node-au:hover .node-rect { fill: rgba(16,185,129,0.25); stroke: rgba(16,185,129,0.8); }
+  .node-cn:hover .node-rect { fill: rgba(239,68,68,0.25); stroke: rgba(239,68,68,0.8); }
+
+  .node-label { font-size: 12px; font-weight: 600; fill: #e0e6f0; pointer-events: none; }
+  .node-sublabel { font-size: 9.5px; fill: #7a8ba8; pointer-events: none; }
+  .node-value { font-size: 10px; font-weight: 700; fill: #fbbf24; pointer-events: none; }
+
+  .connection { stroke-width: 2; fill: none; opacity: 0.3; transition: opacity 0.3s; }
+  .connection.highlight { opacity: 0.9; stroke-width: 3; }
+  .connection.dim { opacity: 0.05; }
+
+  .signal-badge { font-size: 9px; font-weight: 700; pointer-events: none; }
+
+  .center-col { text-anchor: middle; }
+  .center-label { font-size: 10px; fill: #4a5568; font-weight: 600; letter-spacing: 1px; }
+
+  .tooltip { position: fixed; background: #1a2035; border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; padding: 16px; max-width: 340px; font-size: 12px; line-height: 1.6; z-index: 100; pointer-events: none; display: none; box-shadow: 0 8px 32px rgba(0,0,0,0.5); }
+  .tooltip h3 { font-size: 14px; color: #fff; margin-bottom: 6px; }
+  .tooltip .tt-signal { color: #fbbf24; font-weight: 600; font-size: 11px; margin-bottom: 8px; }
+  .tooltip .tt-body { color: #a0aec0; }
+  .tooltip .tt-action { color: #60a5fa; font-weight: 600; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1); }
+
+  .stats-bar { display: flex; justify-content: center; gap: 40px; padding: 20px; flex-wrap: wrap; }
+  .stat { text-align: center; }
+  .stat-num { font-size: 28px; font-weight: 800; background: linear-gradient(135deg, #60a5fa, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .stat-label { font-size: 11px; color: #7a8ba8; margin-top: 2px; }
+
+  .insight-panel { max-width: 800px; margin: 20px auto 40px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 24px; }
+  .insight-panel h2 { font-size: 16px; color: #fff; margin-bottom: 16px; }
+  .insight { padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.06); }
+  .insight:last-child { border-bottom: none; }
+  .insight-tag { display: inline-block; font-size: 9px; font-weight: 700; padding: 2px 8px; border-radius: 4px; margin-right: 8px; vertical-align: middle; }
+  .tag-hot { background: rgba(239,68,68,0.2); color: #f87171; }
+  .tag-new { background: rgba(59,130,246,0.2); color: #60a5fa; }
+  .tag-gap { background: rgba(251,191,36,0.2); color: #fbbf24; }
+  .tag-deadline { background: rgba(168,85,247,0.2); color: #c084fc; }
+  .insight-text { font-size: 13px; color: #c0c8d8; line-height: 1.5; }
+
+  .source-note { text-align: center; padding: 20px; font-size: 11px; color: #4a5568; }
+  .source-note a { color: #60a5fa; text-decoration: none; }
+
+  @media (max-width: 768px) {
+    .header h1 { font-size: 22px; }
+    .stats-bar { gap: 20px; }
+    .stat-num { font-size: 22px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>AU ↔ CN Trade Intelligence Map</h1>
+  <p class="subtitle">Cross-referencing 5 public data sources to surface matchmaking opportunities between Australian exporters and Chinese demand signals. This is what the "boring lists" look like when someone reads both sides.</p>
+  <span class="tag">PROOF OF CONCEPT — 17 MARCH 2026</span>
+</div>
+
+<div class="stats-bar">
+  <div class="stat"><div class="stat-num">11</div><div class="stat-label">Data Sources Scanned</div></div>
+  <div class="stat"><div class="stat-num">8</div><div class="stat-label">AU Supply Nodes</div></div>
+  <div class="stat"><div class="stat-num">8</div><div class="stat-label">CN Demand Nodes</div></div>
+  <div class="stat"><div class="stat-num">14</div><div class="stat-label">Connections Found</div></div>
+</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#10b981"></div> Australian Supply</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#ef4444"></div> Chinese Demand</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#fbbf24"></div> Signal Strength (data source count)</div>
+  <div class="legend-item"><svg width="30" height="10"><line x1="0" y1="5" x2="30" y2="5" stroke="#3b82f6" stroke-width="2" stroke-dasharray="4,3"/></svg> Tariff connection</div>
+  <div class="legend-item"><svg width="30" height="10"><line x1="0" y1="5" x2="30" y2="5" stroke="#a78bfa" stroke-width="2"/></svg> Demand connection</div>
+  <div class="legend-item"><svg width="30" height="10"><line x1="0" y1="5" x2="30" y2="5" stroke="#fbbf24" stroke-width="2"/></svg> Regulatory connection</div>
+</div>
+
+<div class="controls">
+  <button class="filter-btn active" data-filter="all">All Connections</button>
+  <button class="filter-btn" data-filter="tariff">Tariff Opportunities</button>
+  <button class="filter-btn" data-filter="demand">Demand Signals</button>
+  <button class="filter-btn" data-filter="regulatory">Regulatory Gaps</button>
+  <button class="filter-btn" data-filter="hot">Hottest Matches</button>
+</div>
+
+<div class="map-container">
+<svg viewBox="0 0 1100 700" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background grid -->
+  <defs>
+    <linearGradient id="grad-au" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#10b981;stop-opacity:0.08"/>
+      <stop offset="100%" style="stop-color:#10b981;stop-opacity:0"/>
+    </linearGradient>
+    <linearGradient id="grad-cn" x1="100%" y1="0%" x2="0%" y2="0%">
+      <stop offset="0%" style="stop-color:#ef4444;stop-opacity:0.08"/>
+      <stop offset="100%" style="stop-color:#ef4444;stop-opacity:0"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Side labels -->
+  <text x="140" y="30" class="center-label" text-anchor="middle" fill="#10b981" font-size="13" font-weight="700" letter-spacing="2">AUSTRALIA (SUPPLY)</text>
+  <text x="960" y="30" class="center-label" text-anchor="middle" fill="#ef4444" font-size="13" font-weight="700" letter-spacing="2">CHINA (DEMAND)</text>
+  <text x="550" y="30" class="center-label" text-anchor="middle" fill="#4a5568" font-size="11" font-weight="600" letter-spacing="1">CONNECTIONS</text>
+
+  <!-- Background zones -->
+  <rect x="10" y="42" width="280" height="648" rx="12" fill="url(#grad-au)"/>
+  <rect x="810" y="42" width="280" height="648" rx="12" fill="url(#grad-cn)"/>
+
+  <!-- === CONNECTIONS (drawn first, behind nodes) === -->
+
+  <!-- Dairy Powder → Infant Formula (tariff + demand) -->
+  <path class="connection" data-type="tariff,demand,hot" data-au="dairy" data-cn="infant"
+        d="M 280 95 C 450 95, 650 75, 810 75" stroke="#3b82f6" stroke-dasharray="6,4"/>
+  <path class="connection" data-type="demand,hot" data-au="dairy" data-cn="infant"
+        d="M 280 95 C 450 100, 650 80, 810 80" stroke="#a78bfa"/>
+
+  <!-- Dairy Powder → Health Supplements -->
+  <path class="connection" data-type="demand" data-au="dairy" data-cn="health"
+        d="M 280 100 C 480 120, 680 150, 810 155" stroke="#a78bfa"/>
+
+  <!-- Beef → Premium Protein (demand) -->
+  <path class="connection" data-type="demand,hot" data-au="beef" data-cn="protein"
+        d="M 280 175 C 450 175, 650 235, 810 235" stroke="#a78bfa"/>
+
+  <!-- Beef → Cold Chain (regulatory) -->
+  <path class="connection" data-type="regulatory" data-au="beef" data-cn="coldchain"
+        d="M 280 180 C 500 210, 700 535, 810 540" stroke="#fbbf24"/>
+
+  <!-- Wine → Premium Wine Market (tariff + demand) -->
+  <path class="connection" data-type="tariff,demand,hot" data-au="wine" data-cn="winemkt"
+        d="M 280 255 C 450 255, 650 315, 810 315" stroke="#3b82f6" stroke-dasharray="6,4"/>
+  <path class="connection" data-type="demand" data-au="wine" data-cn="winemkt"
+        d="M 280 260 C 450 260, 650 320, 810 320" stroke="#a78bfa"/>
+
+  <!-- Seafood → Premium Seafood (tariff) -->
+  <path class="connection" data-type="tariff,hot" data-au="seafood" data-cn="seafoodmkt"
+        d="M 280 335 C 450 335, 650 395, 810 395" stroke="#3b82f6" stroke-dasharray="6,4"/>
+
+  <!-- Barley → Brewing/Feed (tariff + demand) -->
+  <path class="connection" data-type="tariff,demand,hot" data-au="barley" data-cn="brewing"
+        d="M 280 415 C 450 415, 650 475, 810 475" stroke="#3b82f6" stroke-dasharray="6,4"/>
+
+  <!-- Honey → Health Supplements (demand) -->
+  <path class="connection" data-type="demand" data-au="honey" data-cn="health"
+        d="M 280 495 C 500 450, 700 160, 810 160" stroke="#a78bfa"/>
+
+  <!-- Macadamia → Premium Snacks (tariff) -->
+  <path class="connection" data-type="tariff,demand" data-au="macadamia" data-cn="snacks"
+        d="M 280 575 C 450 575, 650 620, 810 620" stroke="#3b82f6" stroke-dasharray="6,4"/>
+
+  <!-- Cross connections (non-obvious matches) -->
+  <!-- Barley → Brewing connects to MOFCOM encouraged (beer raw materials) -->
+  <path class="connection" data-type="regulatory" data-au="barley" data-cn="brewing"
+        d="M 280 420 C 450 430, 650 480, 810 480" stroke="#fbbf24"/>
+
+  <!-- Dairy → Cold Chain infrastructure -->
+  <path class="connection" data-type="regulatory" data-au="dairy" data-cn="coldchain"
+        d="M 280 105 C 500 200, 700 500, 810 535" stroke="#fbbf24"/>
+
+  <!-- Honey → Premium Snacks (cross-category opportunity) -->
+  <path class="connection" data-type="demand" data-au="honey" data-cn="snacks"
+        d="M 280 500 C 500 520, 700 615, 810 615" stroke="#a78bfa" opacity="0.2"/>
+
+  <!-- Macadamia → Health Supplements -->
+  <path class="connection" data-type="demand" data-au="macadamia" data-cn="health"
+        d="M 280 570 C 500 500, 700 170, 810 165" stroke="#a78bfa" opacity="0.2"/>
+
+  <!-- === AUSTRALIAN NODES (LEFT) === -->
+
+  <g class="node-au" data-id="dairy" data-tooltip="dairy">
+    <rect class="node-rect" x="20" y="65" width="250" height="55"/>
+    <text class="node-label" x="35" y="86">Dairy (Milk Powders, WPC, Cheese)</text>
+    <text class="node-sublabel" x="35" y="100">~A$1B to China FY2024 · 400+ registered facilities</text>
+    <text class="node-value" x="35" y="113">🔥 10% tariff → 0% as of Jan 2026</text>
+  </g>
+
+  <g class="node-au" data-id="beef" data-tooltip="beef">
+    <rect class="node-rect" x="20" y="145" width="250" height="55"/>
+    <text class="node-label" x="35" y="166">Beef (Chilled & Frozen)</text>
+    <text class="node-sublabel" x="35" y="180">Exports up 90% through July 2025</text>
+    <text class="node-value" x="35" y="193">GACC-registered abattoirs required</text>
+  </g>
+
+  <g class="node-au" data-id="wine" data-tooltip="wine">
+    <rect class="node-rect" x="20" y="225" width="250" height="55"/>
+    <text class="node-label" x="35" y="246">Wine (Bottled & Bulk)</text>
+    <text class="node-sublabel" x="35" y="260">A$893M in 12mo to Jun 2025 · Rebounding</text>
+    <text class="node-value" x="35" y="273">Tariffs removed 2024 after 4yr freeze</text>
+  </g>
+
+  <g class="node-au" data-id="seafood" data-tooltip="seafood">
+    <rect class="node-rect" x="20" y="305" width="250" height="55"/>
+    <text class="node-label" x="35" y="326">Seafood (Rock Lobster, Abalone, Tuna)</text>
+    <text class="node-sublabel" x="35" y="340">All tariffs eliminated Jan 2019 under ChAFTA</text>
+    <text class="node-value" x="35" y="353">0% duty · Premium positioning</text>
+  </g>
+
+  <g class="node-au" data-id="barley" data-tooltip="barley">
+    <rect class="node-rect" x="20" y="385" width="250" height="55"/>
+    <text class="node-label" x="35" y="406">Barley (Feed & Malting)</text>
+    <text class="node-sublabel" x="35" y="420">US$1.22B to China in 2024 · Tariffs lifted</text>
+    <text class="node-value" x="35" y="433">Anti-dumping duties removed Aug 2023</text>
+  </g>
+
+  <g class="node-au" data-id="honey" data-tooltip="honey">
+    <rect class="node-rect" x="20" y="465" width="250" height="55"/>
+    <text class="node-label" x="35" y="486">Honey (Manuka & Eucalyptus)</text>
+    <text class="node-sublabel" x="35" y="500">15% tariff eliminated Jan 2019</text>
+    <text class="node-value" x="35" y="513">Premium positioning · Health halo</text>
+  </g>
+
+  <g class="node-au" data-id="macadamia" data-tooltip="macadamia">
+    <rect class="node-rect" x="20" y="545" width="250" height="55"/>
+    <text class="node-label" x="35" y="566">Macadamia Nuts</text>
+    <text class="node-sublabel" x="35" y="580">AU is world's #3 producer · ChAFTA tariff cuts</text>
+    <text class="node-value" x="35" y="593">Growing demand in CN premium snack market</text>
+  </g>
+
+  <g class="node-au" data-id="supplements" data-tooltip="supplements">
+    <rect class="node-rect" x="20" y="625" width="250" height="55"/>
+    <text class="node-label" x="35" y="646">Health Supplements & Nutraceuticals</text>
+    <text class="node-sublabel" x="35" y="660">Blackmores, Swisse — CN consumers trust AU brands</text>
+    <text class="node-value" x="35" y="673">NMPA registration required · Complex pathway</text>
+  </g>
+
+  <!-- === CHINESE DEMAND NODES (RIGHT) === -->
+
+  <g class="node-cn" data-id="infant" data-tooltip="infant">
+    <rect class="node-rect" x="820" y="55" width="260" height="55"/>
+    <text class="node-label" x="835" y="76">Infant Formula & Baby Food</text>
+    <text class="node-sublabel" x="835" y="90">US$19.6B → $36.2B by 2034 · Premium surge</text>
+    <text class="node-value" x="835" y="103">MOFCOM encouraged · GACC Decree 280</text>
+  </g>
+
+  <g class="node-cn" data-id="health" data-tooltip="health">
+    <rect class="node-rect" x="820" y="135" width="260" height="55"/>
+    <text class="node-label" x="835" y="156">Health Foods & Supplements</text>
+    <text class="node-sublabel" x="835" y="170">Imports up 7.2% in 2025 · Premium demand</text>
+    <text class="node-value" x="835" y="183">Fish oil, vitamins, functional foods</text>
+  </g>
+
+  <g class="node-cn" data-id="protein" data-tooltip="protein">
+    <rect class="node-rect" x="820" y="215" width="260" height="55"/>
+    <text class="node-label" x="835" y="236">Premium Protein (Beef, Lamb)</text>
+    <text class="node-sublabel" x="835" y="250">Middle class growth · Food safety anxiety</text>
+    <text class="node-value" x="835" y="263">Imported = "safer" perception persists</text>
+  </g>
+
+  <g class="node-cn" data-id="winemkt" data-tooltip="winemkt">
+    <rect class="node-rect" x="820" y="295" width="260" height="55"/>
+    <text class="node-label" x="835" y="316">Wine Market (Rebounding)</text>
+    <text class="node-sublabel" x="835" y="330">Market 1/3 of 2019 peak · But AU back in game</text>
+    <text class="node-value" x="835" y="343">Post-tariff restocking phase underway</text>
+  </g>
+
+  <g class="node-cn" data-id="seafoodmkt" data-tooltip="seafoodmkt">
+    <rect class="node-rect" x="820" y="375" width="260" height="55"/>
+    <text class="node-label" x="835" y="396">Premium Seafood (Gifting + Luxury)</text>
+    <text class="node-sublabel" x="835" y="410">Rock lobster = status gift · CNY demand spikes</text>
+    <text class="node-value" x="835" y="423">Cross-border e-commerce channel growing</text>
+  </g>
+
+  <g class="node-cn" data-id="brewing" data-tooltip="brewing">
+    <rect class="node-rect" x="820" y="455" width="260" height="55"/>
+    <text class="node-label" x="835" y="476">Craft Brewing & Feed Grain</text>
+    <text class="node-sublabel" x="835" y="490">MOFCOM 2025: beer raw materials encouraged</text>
+    <text class="node-value" x="835" y="503">🔥 Catalogue match + tariff = double signal</text>
+  </g>
+
+  <g class="node-cn" data-id="coldchain" data-tooltip="coldchain">
+    <rect class="node-rect" x="820" y="520" width="260" height="55"/>
+    <text class="node-label" x="835" y="541">Cold Chain & Logistics Gap</text>
+    <text class="node-sublabel" x="835" y="555">30% food loss rate · Infra investment surge</text>
+    <text class="node-value" x="835" y="568">Not a product — a service opportunity</text>
+  </g>
+
+  <g class="node-cn" data-id="snacks" data-tooltip="snacks">
+    <rect class="node-rect" x="820" y="600" width="260" height="55"/>
+    <text class="node-label" x="835" y="621">Premium Snacks & Nuts</text>
+    <text class="node-sublabel" x="835" y="635">三只松鼠, 良品铺子 — huge domestic brands</text>
+    <text class="node-value" x="835" y="648">AU origin = premium tier in CN retail</text>
+  </g>
+
+  <!-- Center column — data source icons -->
+  <g transform="translate(490, 680)">
+    <text x="60" y="0" text-anchor="middle" fill="#4a5568" font-size="9" font-weight="600" letter-spacing="0.5">DATA SOURCES: GACC · ChAFTA · MOFCOM · DAFF · CNIPA</text>
+  </g>
+
+</svg>
+</div>
+
+<!-- Insight panel -->
+<div class="insight-panel">
+  <h2>Connections the "Boring Lists" Reveal</h2>
+
+  <div class="insight">
+    <span class="insight-tag tag-hot">HOTTEST MATCH</span>
+    <span class="insight-text"><strong>Dairy Powder → Infant Formula.</strong> ChAFTA just eliminated the 10% tariff on milk powders (Jan 2026). MOFCOM's 2025 catalogue encourages foreign investment in dairy processing. China's infant formula market is growing from US$19.6B to $36.2B. GACC Decree 280 (June 1) creates a new registration barrier — exporters who comply early get a moat. Three signals from three different "boring lists" all pointing at the same opportunity.</span>
+  </div>
+
+  <div class="insight">
+    <span class="insight-tag tag-hot">HOTTEST MATCH</span>
+    <span class="insight-text"><strong>Barley → Craft Brewing.</strong> Anti-dumping duties removed Aug 2023. MOFCOM 2025 catalogue explicitly encourages "raw materials for beer brewing" as a foreign investment category. Australian barley exports already hit US$1.22B in 2024. But here's the non-obvious bit: Chinese craft breweries are booming and they want premium malting barley — not just feed grade. An Australian maltster connected to a Nanjing craft brewery = a deal nobody's making because nobody reads both lists.</span>
+  </div>
+
+  <div class="insight">
+    <span class="insight-tag tag-deadline">DEADLINE</span>
+    <span class="insight-text"><strong>GACC Decree 280 — June 1, 2026.</strong> Every Australian food facility exporting to China needs to re-register under new rules. Many don't know yet. This is a compliance bottleneck that creates consulting revenue for anyone who can explain it clearly. The DAFF list of registered establishments cross-referenced with the GACC approved facility register will show exactly which Australian exporters are at risk of losing market access.</span>
+  </div>
+
+  <div class="insight">
+    <span class="insight-tag tag-new">NEW SIGNAL</span>
+    <span class="insight-text"><strong>Health Supplements — AU brands trusted, CN demand surging.</strong> China's health food imports up 7.2% in 2025. Australian brands (Blackmores, Swisse) already have trust. But NMPA registration is complex and most smaller AU supplement makers don't attempt it. Cross-reference NMPA approved products with Australian supplement manufacturers → find who's NOT registered but could be. That gap = a consulting opportunity.</span>
+  </div>
+
+  <div class="insight">
+    <span class="insight-tag tag-gap">GAP</span>
+    <span class="insight-text"><strong>Wine — back in the game but market has changed.</strong> Tariffs removed in 2024 after 4 years. AU wine flooding back (A$893M). But the Chinese wine market is now 1/3 of its 2019 peak. The opportunity isn't just "export more wine" — it's helping wineries understand that the market has fundamentally changed. Different channels (Douyin live-streaming vs. traditional distributors), different price points, different consumer. Someone who knows both sides could charge for market re-entry strategy.</span>
+  </div>
+
+  <div class="insight">
+    <span class="insight-tag tag-gap">GAP</span>
+    <span class="insight-text"><strong>Cold Chain — the infrastructure opportunity nobody talks about.</strong> China loses ~30% of perishable food in transit. Massive government investment in cold chain infrastructure. This isn't a product match — it's a service match. Australian cold chain technology and expertise could be sold to Chinese logistics companies. Cross-reference AusTender cold chain projects with Chinese provincial procurement portals → find where the infrastructure money is flowing.</span>
+  </div>
+</div>
+
+<div class="source-note">
+  Data sourced from: <a href="https://www.agriculture.gov.au/biosecurity-trade/export/export-registration-with-china">DAFF</a> ·
+  <a href="https://www.dfat.gov.au/trade/agreements/in-force/chafta/fact-sheets/Pages/chafta-outcomes-at-a-glance">ChAFTA/DFAT</a> ·
+  <a href="https://www.china-briefing.com/news/2025-encouraged-catalogue-for-foreign-investment-china/">MOFCOM 2025 Catalogue</a> ·
+  <a href="https://www.nutraingredients.com/Article/2026/03/04/chinas-health-foods-import-and-export-value-up-72-in-2025/">NutraIngredients</a> ·
+  <a href="https://tradingeconomics.com/australia/exports/china/barley">Trading Economics</a>
+  <br/>Built 17 March 2026 as a proof of concept for the AU-CN Trade Intelligence Platform.
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+const tooltipData = {
+  dairy: {
+    title: "Australian Dairy → China",
+    signal: "TRIPLE SIGNAL: ChAFTA tariff elimination + MOFCOM encouraged + GACC Decree 280 deadline",
+    body: "Milk powder tariffs hit 0% in January 2026. China's infant formula market projected to nearly double by 2034. But Decree 280 (June 1) means facilities must re-register. Cross-reference DAFF registered establishments with GACC CIFER database to find exporters at risk.",
+    action: "→ Newsletter angle: 'Which AU dairy exporters aren't ready for June 1?'"
+  },
+  beef: {
+    title: "Australian Beef → China",
+    signal: "DEMAND SURGE: Exports up 90% through July 2025",
+    body: "Chinese middle-class growth + food safety concerns = imported beef perceived as premium/safer. All abattoirs need GACC registration. Safeguard tariffs creating urgency to ship now.",
+    action: "→ Matchmaking: Connect smaller AU beef producers with CN distributors before safeguard triggers"
+  },
+  wine: {
+    title: "Australian Wine → China (Rebounding)",
+    signal: "MARKET CHANGED: Tariffs removed 2024, but market is 1/3 of 2019 peak",
+    body: "A$893M in exports (12mo to Jun 2025). Restocking phase may be ending. The market now favours Douyin live-streaming sales over traditional distributor models. Wineries re-entering need new market intelligence, not just tariff relief.",
+    action: "→ Consulting angle: Market re-entry strategy for AU wineries. Channels, pricing, consumer shifts."
+  },
+  seafood: {
+    title: "Australian Premium Seafood → China",
+    signal: "ZERO TARIFF since 2019 · Premium gifting culture",
+    body: "Rock lobster, abalone, southern bluefin tuna — all 0% duty. Chinese gifting culture (CNY, Mid-Autumn) drives seasonal demand spikes. Cross-border e-commerce (Tmall Global) opening direct-to-consumer channels.",
+    action: "→ E-commerce opportunity: Help AU seafood brands set up Tmall/JD storefronts"
+  },
+  barley: {
+    title: "Australian Barley → China",
+    signal: "DOUBLE SIGNAL: Anti-dumping removed + MOFCOM encourages beer raw materials",
+    body: "US$1.22B in 2024. Anti-dumping duties lifted Aug 2023. MOFCOM 2025 catalogue explicitly lists 'raw materials for beer brewing' as encouraged foreign investment. Chinese craft beer scene is booming — they want premium malting barley, not just feed grade.",
+    action: "→ Non-obvious match: Connect AU maltsters directly with CN craft breweries"
+  },
+  honey: {
+    title: "Australian Honey (Manuka + Eucalyptus)",
+    signal: "PREMIUM POSITIONING: Health halo + zero tariff since 2019",
+    body: "15% tariff eliminated under ChAFTA. Australian honey positioned as premium health product in CN market. Manuka honey commands significant premiums. Cross-reference with health supplements demand.",
+    action: "→ Bundling opportunity: AU honey as ingredient in CN health food products"
+  },
+  macadamia: {
+    title: "Australian Macadamia Nuts",
+    signal: "TARIFF CUTS + Premium snack market growth",
+    body: "Australia is world's #3 macadamia producer. ChAFTA tariff reductions ongoing. Chinese premium snack brands (三只松鼠, 良品铺子) are massive — AU origin = premium tier positioning.",
+    action: "→ B2B matchmaking: Connect AU macadamia growers with CN snack brands for ingredient supply"
+  },
+  supplements: {
+    title: "AU Health Supplements → China",
+    signal: "TRUST ADVANTAGE: AU brands are premium in CN consumer minds",
+    body: "Blackmores and Swisse built massive brand awareness. China health food imports up 7.2% in 2025. But NMPA registration is the barrier — complex, expensive, and most smaller AU brands don't attempt it.",
+    action: "→ Compliance consulting: Help AU supplement brands navigate NMPA registration"
+  },
+  infant: {
+    title: "China: Infant Formula Demand",
+    signal: "MARKET: US$19.6B → $36.2B by 2034",
+    body: "Premium and ultra-premium segments growing fastest. Parents increasingly informed and willing to pay for imported, fortified, organic products. Australian dairy has the raw materials + trust + tariff advantage.",
+    action: "→ Signal from MOFCOM + GACC + market data all pointing same direction"
+  },
+  health: {
+    title: "China: Health Supplements Demand",
+    signal: "IMPORTS UP 7.2% in 2025 — quality over quantity shift",
+    body: "Chinese consumers transitioning from mass-market supplements to professional, segmented health foods. Fish oil, vitamins, functional foods. AU brands already trusted. Gap: smaller AU brands not NMPA registered.",
+    action: "→ The NMPA registration gap is a consulting goldmine"
+  },
+  protein: {
+    title: "China: Premium Protein Demand",
+    signal: "FOOD SAFETY ANXIETY drives imported meat preference",
+    body: "Chinese middle class growing. Domestic meat scandals create persistent preference for imported = 'safer'. AU beef exports up 90%. This demand is structural, not cyclical.",
+    action: "→ Long-term supply contracts between AU producers and CN distributors"
+  },
+  winemkt: {
+    title: "China: Wine Market (Changed Landscape)",
+    signal: "MARKET RESET: 1/3 of 2019 peak, new channels dominant",
+    body: "Tariffs removed, AU wine flooding back. But market has fundamentally changed — Douyin live-streaming now a major sales channel. Traditional distributor model less relevant. Wineries need market intelligence, not just tariff relief.",
+    action: "→ Market intelligence as a service for re-entering wineries"
+  },
+  seafoodmkt: {
+    title: "China: Premium Seafood (Gifting + Luxury)",
+    signal: "SEASONAL + CULTURAL: CNY and festival demand drives spikes",
+    body: "Rock lobster = status gift. Cross-border e-commerce channel growing for direct-to-consumer. Cold chain improvements enabling more fresh (vs. frozen) product.",
+    action: "→ Help AU seafood brands with Tmall Global storefront + CNY marketing"
+  },
+  brewing: {
+    title: "China: Craft Brewing & Feed Grain Demand",
+    signal: "🔥 MOFCOM CATALOGUE MATCH: 'beer raw materials' explicitly encouraged",
+    body: "This is the textbook 'boring list' find. MOFCOM encourages foreign investment in beer raw material production. AU barley tariffs just removed. Chinese craft beer scene booming. Three signals, three different lists, one obvious connection that nobody's making.",
+    action: "→ THE example connection for the newsletter's first issue"
+  },
+  coldchain: {
+    title: "China: Cold Chain Infrastructure Gap",
+    signal: "SERVICE OPPORTUNITY: 30% perishable food loss, massive investment",
+    body: "Not a product-to-product match. China's cold chain infrastructure is being built out rapidly with government support. AU cold chain expertise and technology could be exported as a service.",
+    action: "→ Cross-reference AusTender + CN provincial procurement for infrastructure deals"
+  },
+  snacks: {
+    title: "China: Premium Snack Market",
+    signal: "MASSIVE domestic brands seeking premium AU ingredients",
+    body: "三只松鼠 (Three Squirrels), 良品铺子 (Bestore) — billion-dollar snack brands. They want premium imported ingredients for differentiation. Australian origin = instant premium positioning.",
+    action: "→ B2B ingredient supply deals — macadamias, honey, dried fruits"
+  }
+};
+
+// Tooltip handling
+const tooltip = document.getElementById('tooltip');
+const nodes = document.querySelectorAll('.node-au, .node-cn');
+
+nodes.forEach(node => {
+  node.addEventListener('mouseenter', (e) => {
+    const id = node.dataset.id;
+    const data = tooltipData[id];
+    if (!data) return;
+
+    tooltip.innerHTML = `
+      <h3>${data.title}</h3>
+      <div class="tt-signal">${data.signal}</div>
+      <div class="tt-body">${data.body}</div>
+      <div class="tt-action">${data.action}</div>
+    `;
+    tooltip.style.display = 'block';
+
+    // Highlight connections
+    document.querySelectorAll('.connection').forEach(c => {
+      if (c.dataset.au === id || c.dataset.cn === id) {
+        c.classList.add('highlight');
+      } else {
+        c.classList.add('dim');
+      }
+    });
+  });
+
+  node.addEventListener('mousemove', (e) => {
+    const x = e.clientX + 15;
+    const y = e.clientY - 10;
+    const rect = tooltip.getBoundingClientRect();
+    tooltip.style.left = (x + rect.width > window.innerWidth ? e.clientX - rect.width - 15 : x) + 'px';
+    tooltip.style.top = (y + rect.height > window.innerHeight ? window.innerHeight - rect.height - 10 : y) + 'px';
+  });
+
+  node.addEventListener('mouseleave', () => {
+    tooltip.style.display = 'none';
+    document.querySelectorAll('.connection').forEach(c => {
+      c.classList.remove('highlight', 'dim');
+    });
+  });
+});
+
+// Filter buttons
+const filterBtns = document.querySelectorAll('.filter-btn');
+filterBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    filterBtns.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const filter = btn.dataset.filter;
+
+    document.querySelectorAll('.connection').forEach(c => {
+      const types = c.dataset.type || '';
+      if (filter === 'all') {
+        c.style.opacity = '';
+        c.classList.remove('dim');
+      } else if (types.includes(filter)) {
+        c.style.opacity = '0.7';
+        c.classList.remove('dim');
+      } else {
+        c.style.opacity = '0.03';
+      }
+    });
+  });
+});
+</script>
+
+</body>
+</html>

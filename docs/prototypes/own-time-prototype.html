@@ -1,0 +1,1516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Own Time — Self-Directed Learning</title>
+<style>
+  :root {
+    --bg-deep: #0a0e1a;
+    --bg-card: rgba(255,255,255,0.04);
+    --bg-card-hover: rgba(255,255,255,0.07);
+    --bg-input: rgba(255,255,255,0.06);
+    --glass: rgba(255,255,255,0.05);
+    --glass-border: rgba(255,255,255,0.08);
+    --text-primary: #e8eaf0;
+    --text-secondary: rgba(255,255,255,0.55);
+    --text-dim: rgba(255,255,255,0.35);
+    --accent: #38bdf8;
+    --accent-glow: rgba(56,189,248,0.15);
+    --teal: #2dd4bf;
+    --teal-glow: rgba(45,212,191,0.12);
+    --amber: #fbbf24;
+    --amber-soft: rgba(251,191,36,0.15);
+    --green: #4ade80;
+    --green-soft: rgba(74,222,128,0.12);
+    --red: #f87171;
+    --red-soft: rgba(248,113,113,0.12);
+    --purple: #a78bfa;
+    --purple-glow: rgba(167,139,250,0.15);
+    --border: rgba(255,255,255,0.06);
+    --radius: 16px;
+    --radius-sm: 10px;
+    --radius-xs: 6px;
+    --shadow: 0 8px 32px rgba(0,0,0,0.3);
+    --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg-deep);
+    color: var(--text-primary);
+    line-height: 1.6;
+    overflow-x: hidden;
+    min-height: 100vh;
+  }
+
+  /* === Background === */
+  .bg-glow {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none; z-index: 0;
+    background:
+      radial-gradient(ellipse 600px 400px at 20% 20%, rgba(56,189,248,0.06), transparent),
+      radial-gradient(ellipse 500px 500px at 80% 80%, rgba(167,139,250,0.04), transparent),
+      radial-gradient(ellipse 400px 300px at 50% 50%, rgba(45,212,191,0.03), transparent);
+  }
+
+  /* === App Shell === */
+  .app { position: relative; z-index: 1; min-height: 100vh; display: flex; flex-direction: column; }
+
+  .top-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 32px;
+    border-bottom: 1px solid var(--border);
+    backdrop-filter: blur(20px);
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(10,14,26,0.85);
+  }
+
+  .logo { display: flex; align-items: center; gap: 12px; }
+  .logo-icon {
+    width: 36px; height: 36px; border-radius: 10px;
+    background: linear-gradient(135deg, var(--accent), var(--teal));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; font-weight: 700; color: #0a0e1a;
+  }
+  .logo-text { font-size: 18px; font-weight: 600; letter-spacing: -0.3px; }
+  .logo-text span { color: var(--text-dim); font-weight: 400; margin-left: 6px; font-size: 13px; }
+
+  .view-toggle {
+    display: flex; gap: 4px; padding: 4px;
+    background: var(--bg-card); border-radius: 12px;
+    border: 1px solid var(--border);
+  }
+  .view-btn {
+    padding: 8px 20px; border-radius: 9px; border: none;
+    background: transparent; color: var(--text-secondary);
+    font-size: 13px; font-weight: 500; cursor: pointer;
+    transition: var(--transition);
+  }
+  .view-btn.active {
+    background: rgba(56,189,248,0.12); color: var(--accent);
+  }
+  .view-btn:hover:not(.active) { color: var(--text-primary); }
+
+  .main-content { flex: 1; padding: 32px; max-width: 1200px; margin: 0 auto; width: 100%; }
+
+  /* === Screen Management === */
+  .screen { display: none; animation: fadeIn 0.4s ease; }
+  .screen.active { display: block; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* === Welcome Screen === */
+  .welcome {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; min-height: 70vh; text-align: center;
+  }
+  .welcome-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 8px 16px; border-radius: 20px;
+    background: var(--green-soft); color: var(--green);
+    font-size: 13px; font-weight: 500; margin-bottom: 24px;
+  }
+  .welcome h1 {
+    font-size: 48px; font-weight: 700; letter-spacing: -1.5px;
+    margin-bottom: 16px;
+    background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent) 50%, var(--teal) 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .welcome p { color: var(--text-secondary); font-size: 17px; max-width: 540px; margin-bottom: 12px; }
+
+  .teacher-note {
+    margin: 32px 0;
+    padding: 20px 28px;
+    background: var(--bg-card);
+    border: 1px solid var(--glass-border);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius-sm);
+    max-width: 480px; text-align: left;
+  }
+  .teacher-note-header { font-size: 12px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+  .teacher-note-body { color: var(--text-secondary); font-size: 15px; font-style: italic; }
+
+  .btn-primary {
+    padding: 14px 36px; border-radius: 12px; border: none;
+    background: linear-gradient(135deg, var(--accent), var(--teal));
+    color: #0a0e1a; font-size: 15px; font-weight: 600;
+    cursor: pointer; transition: var(--transition);
+    margin-top: 16px;
+  }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(56,189,248,0.25); }
+
+  .btn-secondary {
+    padding: 10px 24px; border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--bg-card); color: var(--text-secondary);
+    font-size: 13px; font-weight: 500; cursor: pointer;
+    transition: var(--transition);
+  }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* === Goal Setting === */
+  .goal-setting { max-width: 720px; margin: 0 auto; }
+  .goal-header {
+    display: flex; align-items: center; gap: 16px; margin-bottom: 32px;
+  }
+  .goal-steps {
+    display: flex; gap: 8px;
+  }
+  .goal-step-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--border); transition: var(--transition);
+  }
+  .goal-step-dot.done { background: var(--teal); }
+  .goal-step-dot.current { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+
+  .conversation { display: flex; flex-direction: column; gap: 16px; }
+
+  .msg {
+    max-width: 85%; padding: 16px 20px;
+    border-radius: 18px; font-size: 15px; line-height: 1.65;
+    animation: msgIn 0.35s ease;
+  }
+  @keyframes msgIn { from { opacity: 0; transform: translateY(12px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+
+  .msg-ai {
+    align-self: flex-start;
+    background: var(--bg-card); border: 1px solid var(--glass-border);
+    color: var(--text-primary);
+  }
+  .msg-ai .msg-name { font-size: 11px; color: var(--accent); font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 8px; }
+  .msg-student {
+    align-self: flex-end;
+    background: linear-gradient(135deg, rgba(56,189,248,0.12), rgba(45,212,191,0.08));
+    border: 1px solid rgba(56,189,248,0.15);
+    color: var(--text-primary);
+  }
+
+  .typing-indicator {
+    display: inline-flex; gap: 5px; padding: 16px 24px;
+    background: var(--bg-card); border: 1px solid var(--glass-border);
+    border-radius: 18px; align-self: flex-start;
+  }
+  .typing-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--text-dim);
+    animation: typingBounce 1.4s infinite ease-in-out;
+  }
+  .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes typingBounce {
+    0%, 80%, 100% { transform: translateY(0); }
+    40% { transform: translateY(-6px); }
+  }
+
+  .response-options {
+    display: flex; flex-direction: column; gap: 8px;
+    margin-top: 8px; align-self: flex-end; max-width: 85%;
+    animation: msgIn 0.35s ease;
+  }
+  .response-option {
+    padding: 12px 20px; border-radius: 14px;
+    border: 1px solid var(--border);
+    background: var(--bg-card); color: var(--text-primary);
+    font-size: 14px; cursor: pointer; transition: var(--transition);
+    text-align: left;
+  }
+  .response-option:hover {
+    border-color: var(--accent); background: rgba(56,189,248,0.06);
+    transform: translateX(-4px);
+  }
+
+  /* Plan builder card */
+  .plan-builder {
+    position: fixed; right: 32px; top: 80px;
+    width: 300px; padding: 24px;
+    background: rgba(10,14,26,0.92); backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border); border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    transition: var(--transition);
+    z-index: 50;
+  }
+  .plan-builder h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-dim); margin-bottom: 16px; }
+  .plan-field { margin-bottom: 14px; }
+  .plan-field-label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 4px; }
+  .plan-field-value { font-size: 14px; color: var(--text-primary); min-height: 20px; }
+  .plan-field-value.empty { color: var(--text-dim); font-style: italic; font-size: 13px; }
+  .plan-field-value.filled { animation: planFill 0.5s ease; }
+  @keyframes planFill { from { opacity: 0; transform: translateX(8px); } to { opacity: 1; transform: translateX(0); } }
+
+  /* === Workspace === */
+  .workspace { display: grid; grid-template-columns: 320px 1fr; gap: 24px; min-height: 75vh; }
+
+  .workspace-sidebar {
+    display: flex; flex-direction: column; gap: 16px;
+  }
+
+  .plan-card {
+    padding: 24px;
+    background: var(--bg-card); border: 1px solid var(--glass-border);
+    border-radius: var(--radius);
+  }
+  .plan-card h3 {
+    font-size: 13px; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--teal); margin-bottom: 16px; display: flex; align-items: center; gap: 8px;
+  }
+  .plan-card .plan-item { margin-bottom: 12px; }
+  .plan-card .plan-item-label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
+  .plan-card .plan-item-value { font-size: 14px; color: var(--text-primary); margin-top: 2px; }
+
+  .session-nav { display: flex; flex-direction: column; gap: 6px; }
+  .session-tab {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 16px; border-radius: var(--radius-sm);
+    background: var(--bg-card); border: 1px solid transparent;
+    cursor: pointer; transition: var(--transition);
+    font-size: 13px; color: var(--text-secondary);
+  }
+  .session-tab.active { border-color: var(--accent); color: var(--accent); background: var(--accent-glow); }
+  .session-tab.completed .session-dot { background: var(--teal); }
+  .session-tab.current .session-dot { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+  .session-tab.upcoming .session-dot { background: var(--border); }
+  .session-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+  .workspace-chat {
+    display: flex; flex-direction: column;
+    background: var(--bg-card); border: 1px solid var(--glass-border);
+    border-radius: var(--radius); overflow: hidden;
+  }
+
+  .chat-header {
+    padding: 16px 24px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .chat-header h3 { font-size: 14px; font-weight: 500; }
+  .session-badge {
+    font-size: 11px; padding: 4px 10px; border-radius: 6px;
+    background: var(--accent-glow); color: var(--accent);
+  }
+
+  .chat-messages {
+    flex: 1; padding: 24px; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 14px;
+    max-height: 520px;
+  }
+
+  .chat-msg { max-width: 80%; font-size: 14px; line-height: 1.6; }
+  .chat-msg-ai {
+    align-self: flex-start; padding: 14px 18px;
+    background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+    border-radius: 16px 16px 16px 4px;
+  }
+  .chat-msg-student {
+    align-self: flex-end; padding: 14px 18px;
+    background: linear-gradient(135deg, rgba(56,189,248,0.1), rgba(45,212,191,0.06));
+    border: 1px solid rgba(56,189,248,0.1);
+    border-radius: 16px 16px 4px 16px;
+  }
+  .chat-msg-checkin {
+    align-self: center; text-align: center;
+    padding: 12px 20px; border-radius: 12px;
+    background: var(--amber-soft); border: 1px solid rgba(251,191,36,0.15);
+    color: var(--amber); font-size: 13px; max-width: 90%;
+  }
+
+  .chat-input-area {
+    padding: 16px 24px; border-top: 1px solid var(--border);
+    display: flex; gap: 12px;
+  }
+  .chat-input {
+    flex: 1; padding: 12px 16px; border-radius: 12px;
+    background: var(--bg-input); border: 1px solid var(--border);
+    color: var(--text-primary); font-size: 14px; outline: none;
+    transition: var(--transition);
+  }
+  .chat-input:focus { border-color: var(--accent); }
+  .chat-input::placeholder { color: var(--text-dim); }
+  .chat-send {
+    padding: 12px 20px; border-radius: 12px; border: none;
+    background: linear-gradient(135deg, var(--accent), var(--teal));
+    color: #0a0e1a; font-weight: 600; font-size: 13px;
+    cursor: pointer; transition: var(--transition);
+  }
+  .chat-send:hover { transform: scale(1.03); }
+
+  /* === Journey View === */
+  .journey-header { margin-bottom: 32px; }
+  .journey-header h2 { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 8px; }
+  .journey-header p { color: var(--text-secondary); }
+
+  .journey-stats {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 40px;
+  }
+  .stat-card {
+    padding: 20px; background: var(--bg-card);
+    border: 1px solid var(--glass-border); border-radius: var(--radius-sm);
+    text-align: center;
+  }
+  .stat-value { font-size: 32px; font-weight: 700; }
+  .stat-value.teal { color: var(--teal); }
+  .stat-value.accent { color: var(--accent); }
+  .stat-value.purple { color: var(--purple); }
+  .stat-value.amber { color: var(--amber); }
+  .stat-label { font-size: 12px; color: var(--text-dim); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  .timeline { position: relative; padding-left: 32px; }
+  .timeline::before {
+    content: ''; position: absolute; left: 11px; top: 8px; bottom: 8px;
+    width: 2px; background: linear-gradient(to bottom, var(--teal), var(--accent), var(--border));
+  }
+
+  .timeline-entry { position: relative; margin-bottom: 32px; padding-left: 24px; }
+  .timeline-dot {
+    position: absolute; left: -26px; top: 6px;
+    width: 14px; height: 14px; border-radius: 50%;
+    border: 3px solid var(--bg-deep);
+  }
+  .timeline-dot.completed { background: var(--teal); box-shadow: 0 0 8px var(--teal-glow); }
+  .timeline-dot.current { background: var(--accent); box-shadow: 0 0 8px var(--accent-glow); }
+  .timeline-dot.upcoming { background: var(--border); }
+
+  .timeline-card {
+    padding: 20px 24px; background: var(--bg-card);
+    border: 1px solid var(--glass-border); border-radius: var(--radius-sm);
+  }
+  .timeline-date { font-size: 12px; color: var(--text-dim); margin-bottom: 8px; }
+  .timeline-title { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+  .timeline-body { font-size: 14px; color: var(--text-secondary); line-height: 1.65; }
+  .timeline-skills { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .skill-tag {
+    font-size: 11px; padding: 4px 10px; border-radius: 6px;
+    background: var(--purple-glow); color: var(--purple);
+  }
+  .timeline-reflection {
+    margin-top: 12px; padding: 12px 16px;
+    background: rgba(255,255,255,0.02); border-radius: 8px;
+    border-left: 2px solid var(--teal);
+    font-size: 13px; color: var(--text-secondary); font-style: italic;
+  }
+
+  /* === Teacher Dashboard === */
+  .teacher-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 28px;
+  }
+  .teacher-header h2 { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
+
+  .teacher-summary {
+    display: flex; gap: 24px; margin-bottom: 32px;
+  }
+  .summary-stat {
+    display: flex; align-items: center; gap: 10px;
+    padding: 14px 20px; background: var(--bg-card);
+    border: 1px solid var(--glass-border); border-radius: var(--radius-sm);
+    font-size: 13px;
+  }
+  .summary-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .summary-dot.green { background: var(--green); }
+  .summary-dot.amber { background: var(--amber); }
+  .summary-dot.red { background: var(--red); }
+  .summary-dot.purple { background: var(--purple); }
+  .summary-count { font-weight: 700; color: var(--text-primary); }
+
+  .filter-bar {
+    display: flex; gap: 8px; margin-bottom: 24px;
+  }
+  .filter-btn {
+    padding: 8px 16px; border-radius: 8px; border: 1px solid var(--border);
+    background: transparent; color: var(--text-secondary); font-size: 13px;
+    cursor: pointer; transition: var(--transition);
+  }
+  .filter-btn.active { background: var(--accent-glow); border-color: var(--accent); color: var(--accent); }
+  .filter-btn:hover:not(.active) { border-color: var(--text-dim); }
+
+  .student-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px;
+  }
+
+  .student-card {
+    padding: 20px;
+    background: var(--bg-card); border: 1px solid var(--glass-border);
+    border-radius: var(--radius); cursor: pointer;
+    transition: var(--transition);
+  }
+  .student-card:hover { border-color: rgba(255,255,255,0.12); transform: translateY(-2px); box-shadow: var(--shadow); }
+
+  .student-card-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .student-name { font-size: 16px; font-weight: 600; }
+  .status-indicator {
+    width: 10px; height: 10px; border-radius: 50%;
+    animation: pulse 2.5s ease infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; } 50% { opacity: 0.5; }
+  }
+  .status-green { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .status-amber { background: var(--amber); box-shadow: 0 0 6px var(--amber); }
+  .status-red { background: var(--red); box-shadow: 0 0 6px var(--red); }
+  .status-purple { background: var(--purple); box-shadow: 0 0 6px var(--purple); }
+
+  .student-project { font-size: 13px; color: var(--text-secondary); margin-bottom: 10px; }
+  .student-meta {
+    display: flex; gap: 16px; font-size: 12px; color: var(--text-dim);
+  }
+  .student-progress {
+    margin-top: 12px; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden;
+  }
+  .student-progress-bar { height: 100%; border-radius: 2px; transition: width 0.6s ease; }
+
+  /* === Student Detail Panel === */
+  .detail-overlay {
+    position: fixed; top: 0; right: 0; bottom: 0; left: 0;
+    background: rgba(0,0,0,0.5); z-index: 200;
+    display: none; animation: fadeOverlay 0.3s ease;
+  }
+  .detail-overlay.active { display: block; }
+  @keyframes fadeOverlay { from { opacity: 0; } to { opacity: 1; } }
+
+  .detail-panel {
+    position: fixed; top: 0; right: 0; bottom: 0; width: 560px;
+    background: var(--bg-deep); border-left: 1px solid var(--border);
+    z-index: 201; overflow-y: auto; padding: 32px;
+    transform: translateX(100%); transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .detail-panel.active { transform: translateX(0); }
+
+  .detail-close {
+    position: absolute; top: 20px; right: 20px;
+    width: 36px; height: 36px; border-radius: 10px;
+    background: var(--bg-card); border: 1px solid var(--border);
+    color: var(--text-secondary); font-size: 18px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: var(--transition);
+  }
+  .detail-close:hover { color: var(--text-primary); border-color: var(--text-dim); }
+
+  .detail-header { margin-bottom: 28px; }
+  .detail-header h2 { font-size: 24px; font-weight: 700; margin-bottom: 4px; }
+  .detail-header p { color: var(--text-secondary); font-size: 14px; }
+
+  .detail-status {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 500;
+    margin-bottom: 24px;
+  }
+  .detail-status.on-track { background: var(--green-soft); color: var(--green); }
+  .detail-status.needs-checkin { background: var(--amber-soft); color: var(--amber); }
+  .detail-status.not-started { background: var(--red-soft); color: var(--red); }
+  .detail-status.exceptional { background: var(--purple-glow); color: var(--purple); }
+
+  .digest-card {
+    padding: 24px; background: var(--bg-card);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius); margin-bottom: 20px;
+  }
+  .digest-card h4 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-dim); margin-bottom: 12px; }
+  .digest-body { font-size: 14px; line-height: 1.7; color: var(--text-secondary); }
+  .digest-body strong { color: var(--text-primary); font-weight: 500; }
+
+  .skill-assessment {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 20px;
+  }
+  .skill-item {
+    padding: 14px; background: rgba(255,255,255,0.02);
+    border-radius: var(--radius-sm); border: 1px solid var(--border);
+  }
+  .skill-item-name { font-size: 12px; color: var(--text-dim); margin-bottom: 6px; }
+  .skill-bar { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .skill-bar-fill { height: 100%; border-radius: 3px; }
+  .skill-label { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+
+  .session-timeline-mini { margin-top: 24px; }
+  .session-mini {
+    padding: 16px; margin-bottom: 8px;
+    background: rgba(255,255,255,0.02);
+    border-radius: var(--radius-sm); border: 1px solid var(--border);
+  }
+  .session-mini-header { display: flex; justify-content: space-between; margin-bottom: 6px; }
+  .session-mini-date { font-size: 12px; color: var(--text-dim); }
+  .session-mini-engagement { font-size: 11px; padding: 2px 8px; border-radius: 4px; }
+  .session-mini p { font-size: 13px; color: var(--text-secondary); line-height: 1.55; }
+
+  .teacher-actions {
+    display: flex; gap: 10px; margin-top: 24px;
+  }
+  .action-btn {
+    flex: 1; padding: 12px; border-radius: 10px; border: 1px solid var(--border);
+    background: var(--bg-card); color: var(--text-secondary);
+    font-size: 13px; font-weight: 500; cursor: pointer;
+    transition: var(--transition); text-align: center;
+  }
+  .action-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .action-btn.primary-action {
+    background: linear-gradient(135deg, rgba(56,189,248,0.12), rgba(45,212,191,0.08));
+    border-color: rgba(56,189,248,0.2); color: var(--accent);
+  }
+
+  /* === Nav sub-tabs for student === */
+  .student-nav {
+    display: flex; gap: 4px; margin-bottom: 28px;
+    padding: 4px; background: var(--bg-card);
+    border-radius: 12px; border: 1px solid var(--border);
+    width: fit-content;
+  }
+  .student-nav-btn {
+    padding: 8px 20px; border-radius: 9px; border: none;
+    background: transparent; color: var(--text-secondary);
+    font-size: 13px; font-weight: 500; cursor: pointer;
+    transition: var(--transition);
+  }
+  .student-nav-btn.active { background: var(--accent-glow); color: var(--accent); }
+  .student-nav-btn:hover:not(.active) { color: var(--text-primary); }
+
+  /* === Wrap-up === */
+  .wrapup-overlay {
+    position: fixed; inset: 0; background: rgba(10,14,26,0.92);
+    z-index: 300; display: none; align-items: center; justify-content: center;
+    backdrop-filter: blur(8px);
+  }
+  .wrapup-overlay.active { display: flex; }
+  .wrapup-card {
+    width: 520px; padding: 36px;
+    background: var(--bg-deep); border: 1px solid var(--glass-border);
+    border-radius: var(--radius); box-shadow: var(--shadow);
+    animation: fadeIn 0.4s ease;
+  }
+  .wrapup-card h2 { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+  .wrapup-card p { color: var(--text-secondary); font-size: 14px; margin-bottom: 24px; }
+  .wrapup-field { margin-bottom: 20px; }
+  .wrapup-field label {
+    display: block; font-size: 13px; color: var(--text-dim);
+    margin-bottom: 8px; font-weight: 500;
+  }
+  .wrapup-field textarea {
+    width: 100%; min-height: 80px; padding: 14px 16px;
+    background: var(--bg-input); border: 1px solid var(--border);
+    border-radius: 12px; color: var(--text-primary); font-size: 14px;
+    font-family: inherit; resize: vertical; outline: none;
+    transition: var(--transition);
+  }
+  .wrapup-field textarea:focus { border-color: var(--accent); }
+  .wrapup-field textarea::placeholder { color: var(--text-dim); }
+
+  /* Confetti animation for plan completion */
+  .plan-complete-anim {
+    position: fixed; inset: 0; pointer-events: none; z-index: 500;
+    display: none;
+  }
+  .plan-complete-anim.active { display: block; }
+
+  /* Responsive */
+  @media (max-width: 900px) {
+    .workspace { grid-template-columns: 1fr; }
+    .plan-builder { position: static; width: 100%; margin-bottom: 20px; }
+    .detail-panel { width: 100%; }
+    .journey-stats { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="bg-glow"></div>
+<div class="app">
+  <!-- Top Bar -->
+  <div class="top-bar">
+    <div class="logo">
+      <div class="logo-icon">OT</div>
+      <div class="logo-text">Own Time <span>by StudioLoom</span></div>
+    </div>
+    <div class="view-toggle">
+      <button class="view-btn active" onclick="switchView('student')">Student View</button>
+      <button class="view-btn" onclick="switchView('teacher')">Teacher View</button>
+    </div>
+  </div>
+
+  <div class="main-content">
+
+    <!-- ============ STUDENT VIEWS ============ -->
+    <div id="student-views">
+
+      <!-- Student Nav (hidden on welcome) -->
+      <div class="student-nav" id="student-nav" style="display:none;">
+        <button class="student-nav-btn active" onclick="showStudentScreen('workspace')">Workspace</button>
+        <button class="student-nav-btn" onclick="showStudentScreen('journey')">My Journey</button>
+      </div>
+
+      <!-- WELCOME SCREEN -->
+      <div class="screen active" id="screen-welcome">
+        <div class="welcome">
+          <div class="welcome-badge">
+            <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2"/></svg>
+            Approved by Ms. Burton
+          </div>
+          <h1>Your Own Time</h1>
+          <p>You've demonstrated mastery of the Sustainable Product Design unit. This time is yours — explore what interests you, with a mentor to help you grow.</p>
+          <p style="font-size:14px; color: var(--text-dim);">No grades. No worksheets. Just genuine learning on your terms.</p>
+          <div class="teacher-note">
+            <div class="teacher-note-header">Note from Ms. Burton</div>
+            <div class="teacher-note-body">"Strong work on Criterion B research, Alex — your source analysis was really thorough. You've earned full autonomy here. If you're stuck for ideas, think about what frustrated you during the ergonomics unit. Sometimes the best projects come from real problems you've experienced."</div>
+          </div>
+          <button class="btn-primary" onclick="startGoalSetting()">Begin My Journey</button>
+        </div>
+      </div>
+
+      <!-- GOAL SETTING SCREEN -->
+      <div class="screen" id="screen-goals">
+        <div class="goal-setting">
+          <div class="goal-header">
+            <div>
+              <h2 style="font-size:22px; font-weight:600;">Setting Your Direction</h2>
+              <p style="font-size:13px; color: var(--text-secondary); margin-top:4px;">A short conversation to shape your plan</p>
+            </div>
+            <div class="goal-steps">
+              <div class="goal-step-dot current" id="gd-0"></div>
+              <div class="goal-step-dot" id="gd-1"></div>
+              <div class="goal-step-dot" id="gd-2"></div>
+              <div class="goal-step-dot" id="gd-3"></div>
+              <div class="goal-step-dot" id="gd-4"></div>
+            </div>
+          </div>
+          <div class="conversation" id="goal-conversation"></div>
+        </div>
+
+        <!-- Plan builder sidebar -->
+        <div class="plan-builder" id="plan-builder" style="opacity:0;">
+          <h3>Your Plan</h3>
+          <div class="plan-field">
+            <div class="plan-field-label">Project</div>
+            <div class="plan-field-value empty" id="plan-project">Forming...</div>
+          </div>
+          <div class="plan-field">
+            <div class="plan-field-label">Deliverables</div>
+            <div class="plan-field-value empty" id="plan-deliverables">Forming...</div>
+          </div>
+          <div class="plan-field">
+            <div class="plan-field-label">Skill Focus</div>
+            <div class="plan-field-value empty" id="plan-skill">Forming...</div>
+          </div>
+          <div class="plan-field">
+            <div class="plan-field-label">Timeline</div>
+            <div class="plan-field-value empty" id="plan-timeline">Forming...</div>
+          </div>
+          <div class="plan-field">
+            <div class="plan-field-label">Success Looks Like</div>
+            <div class="plan-field-value empty" id="plan-success">Forming...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- WORKSPACE SCREEN -->
+      <div class="screen" id="screen-workspace">
+        <div class="workspace">
+          <div class="workspace-sidebar">
+            <div class="plan-card">
+              <h3>
+                <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z" stroke="currentColor" stroke-width="2"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5" stroke="currentColor" stroke-width="2"/></svg>
+                My Plan
+              </h3>
+              <div class="plan-item">
+                <div class="plan-item-label">Project</div>
+                <div class="plan-item-value">Ergonomic school bag strap redesign</div>
+              </div>
+              <div class="plan-item">
+                <div class="plan-item-label">Deliverables</div>
+                <div class="plan-item-value">Research notes, 3 concept sketches, 1 strap prototype</div>
+              </div>
+              <div class="plan-item">
+                <div class="plan-item-label">Skill Focus</div>
+                <div class="plan-item-value">Material testing & prototyping</div>
+              </div>
+              <div class="plan-item">
+                <div class="plan-item-label">Timeline</div>
+                <div class="plan-item-value">4 sessions (~3.5 hrs)</div>
+              </div>
+            </div>
+
+            <div style="font-size:13px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom:-8px;">Sessions</div>
+            <div class="session-nav">
+              <div class="session-tab completed" onclick="showSession(1)">
+                <div class="session-dot"></div>
+                <div>
+                  <div style="font-weight:500; color: var(--text-primary);">Session 1 — Research</div>
+                  <div style="font-size:11px; color: var(--text-dim);">Mon 17 Mar</div>
+                </div>
+              </div>
+              <div class="session-tab active current" onclick="showSession(2)">
+                <div class="session-dot"></div>
+                <div>
+                  <div style="font-weight:500; color: var(--text-primary);">Session 2 — Sketching</div>
+                  <div style="font-size:11px; color: var(--text-dim);">Today</div>
+                </div>
+              </div>
+              <div class="session-tab upcoming" onclick="showSession(3)">
+                <div class="session-dot"></div>
+                <div>
+                  <div style="font-weight:500; color: var(--text-primary);">Session 3 — Prototype</div>
+                  <div style="font-size:11px; color: var(--text-dim);">Thu 20 Mar</div>
+                </div>
+              </div>
+              <div class="session-tab upcoming" onclick="showSession(4)">
+                <div class="session-dot"></div>
+                <div>
+                  <div style="font-weight:500; color: var(--text-primary);">Session 4 — Test & Refine</div>
+                  <div style="font-size:11px; color: var(--text-dim);">Mon 24 Mar</div>
+                </div>
+              </div>
+            </div>
+
+            <button class="btn-secondary" onclick="showWrapup()" style="width:100%; margin-top:4px;">Wrap up session</button>
+          </div>
+
+          <!-- Chat Area -->
+          <div class="workspace-chat">
+            <div class="chat-header">
+              <h3>Session 2 — Sketching</h3>
+              <div class="session-badge">In Progress</div>
+            </div>
+            <div class="chat-messages" id="chat-messages">
+              <div class="chat-msg chat-msg-checkin">
+                Welcome back, Alex! Last session you found that hiking backpack article about load distribution — great find. You said you'd start sketching today. Ready to get into it?
+              </div>
+              <div class="chat-msg chat-msg-student">
+                Yeah, I've got some ideas in my head but I'm not sure how to get them on paper. My sketches always look rubbish.
+              </div>
+              <div class="chat-msg chat-msg-ai">
+                That's completely normal — every designer feels that way at first. Here's the thing: these aren't presentation drawings. They're thinking tools. A rough sketch that captures your idea is more useful than a beautiful drawing with no substance. Start with this: draw your strap from the side view. Where does it connect to the bag? Where does it sit on the shoulder? How wide is it? Don't worry about straight lines — focus on the key decisions.
+              </div>
+              <div class="chat-msg chat-msg-student">
+                Ok I drew one. It's got a wider padded section where it sits on the shoulder and then it narrows where it connects to the bag. Kind of like how hiking backpacks do it but thinner.
+              </div>
+              <div class="chat-msg chat-msg-ai">
+                Smart starting point — widening at the shoulder distributes force over a larger area, which is exactly what your research showed. Now here's the question that'll push your design further: you said "kind of like hiking backpacks but thinner." What makes a school bag different from a hiking backpack in terms of how people actually wear it? That difference should change your design.
+              </div>
+              <div class="chat-msg chat-msg-student">
+                Hmm. I guess with school bags you're constantly taking it on and off. Like every class. And you usually only use one shoulder half the time even though you're not supposed to.
+              </div>
+              <div class="chat-msg chat-msg-ai">
+                Now THAT is a real insight. The on/off frequency and the one-shoulder problem are constraints that hiking packs don't have. What if your strap design specifically addressed one-shoulder carrying? Not by preventing it — students will always do it — but by making it less damaging when they do?
+              </div>
+              <div class="chat-msg chat-msg-student">
+                That's actually a cool idea. Like what if the strap could slide to centre when you go one-shoulder? So the weight isn't all on the edge of your shoulder.
+              </div>
+              <div class="chat-msg chat-msg-ai">
+                That's your best idea so far — a strap that adapts to how students actually carry bags rather than how they're "supposed to." Sketch that. Show the strap in both positions: two-shoulder and one-shoulder with the slide mechanism. What would the sliding part look like physically?
+              </div>
+            </div>
+            <div class="chat-input-area">
+              <input type="text" class="chat-input" placeholder="Share what you're thinking or working on..." id="chat-input" onkeydown="if(event.key==='Enter')sendChat()">
+              <button class="chat-send" onclick="sendChat()">Send</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- JOURNEY SCREEN -->
+      <div class="screen" id="screen-journey">
+        <div class="journey-header">
+          <h2>My Journey</h2>
+          <p>Ergonomic school bag strap redesign — 3 of 4 sessions complete</p>
+        </div>
+
+        <div class="journey-stats">
+          <div class="stat-card">
+            <div class="stat-value teal">3</div>
+            <div class="stat-label">Sessions</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value accent">~2.5h</div>
+            <div class="stat-label">Time Invested</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value purple">4</div>
+            <div class="stat-label">Skills Growing</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value amber">1</div>
+            <div class="stat-label">Session Left</div>
+          </div>
+        </div>
+
+        <div class="timeline">
+          <div class="timeline-entry">
+            <div class="timeline-dot completed"></div>
+            <div class="timeline-card">
+              <div class="timeline-date">Session 1 — Mon 17 Mar</div>
+              <div class="timeline-title">Research & Discovery</div>
+              <div class="timeline-body">
+                Researched ergonomic backpack design principles. Found a key article on hiking backpack engineering that explained load distribution through wide, contoured straps. Noted that school bags face a different problem — constant on/off and one-shoulder carrying that hiking packs don't have to solve for.
+              </div>
+              <div class="timeline-skills">
+                <span class="skill-tag">Research synthesis</span>
+                <span class="skill-tag">Source evaluation</span>
+              </div>
+              <div class="timeline-reflection">
+                "I learned that most school bags are designed wrong — they assume you'll always use both straps, but nobody does. I want to design for how students actually carry bags."
+              </div>
+            </div>
+          </div>
+
+          <div class="timeline-entry">
+            <div class="timeline-dot completed"></div>
+            <div class="timeline-card">
+              <div class="timeline-date">Session 2 — Wed 19 Mar (Today)</div>
+              <div class="timeline-title">Concept Sketching</div>
+              <div class="timeline-body">
+                Developed 3 concept sketches for strap designs. Initial sketches were direct copies of hiking backpack straps. Through mentor discussion, identified the key insight: school bag straps should adapt to one-shoulder carrying rather than fighting it. Concept 3 features a sliding mechanism that recentres the strap when carried on one shoulder.
+              </div>
+              <div class="timeline-skills">
+                <span class="skill-tag">Concept development</span>
+                <span class="skill-tag">Design thinking</span>
+                <span class="skill-tag">Sketching</span>
+              </div>
+              <div class="timeline-reflection">
+                "My first two sketches were boring — just copies of what already exists. The sliding strap idea came when the mentor asked me to think about how students ACTUALLY carry bags. That's the concept I want to prototype."
+              </div>
+            </div>
+          </div>
+
+          <div class="timeline-entry">
+            <div class="timeline-dot upcoming"></div>
+            <div class="timeline-card" style="opacity:0.5;">
+              <div class="timeline-date">Session 3 — Thu 20 Mar (Planned)</div>
+              <div class="timeline-title">Strap Prototype</div>
+              <div class="timeline-body" style="font-style:italic;">
+                Build a physical prototype of the sliding strap mechanism. Test with 3 materials: nylon webbing, padded neoprene, and recycled PET fabric.
+              </div>
+            </div>
+          </div>
+
+          <div class="timeline-entry">
+            <div class="timeline-dot upcoming"></div>
+            <div class="timeline-card" style="opacity:0.35;">
+              <div class="timeline-date">Session 4 — Mon 24 Mar (Planned)</div>
+              <div class="timeline-title">Test & Refine</div>
+              <div class="timeline-body" style="font-style:italic;">
+                Test prototype for comfort and durability. Document material choices with evidence. Refine design based on testing.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- AI Growth Narrative -->
+        <div style="margin-top:40px; padding:28px; background: linear-gradient(135deg, rgba(56,189,248,0.06), rgba(167,139,250,0.04)); border: 1px solid rgba(56,189,248,0.1); border-radius: var(--radius);">
+          <div style="font-size:12px; color: var(--accent); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
+            <svg width="14" height="14" fill="none" viewBox="0 0 24 24"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            Growth Snapshot
+          </div>
+          <div style="font-size:15px; line-height:1.7; color: var(--text-secondary);">
+            Over two sessions, Alex has moved from broad interest in "better school bags" to a specific, insightful design direction: straps that adapt to one-shoulder carrying rather than fighting it. His <strong style="color:var(--text-primary)">research skills</strong> are strong — he found relevant engineering literature without prompting. His <strong style="color:var(--text-primary)">design thinking</strong> is developing rapidly — the shift from copying existing solutions to identifying a genuine user behaviour insight happened naturally through guided questioning. His growth edge is <strong style="color:var(--text-primary)">translating ideas into physical form</strong> — next session's prototype will be a good test of this. He's showing real self-direction and doesn't need much pushing.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ TEACHER VIEWS ============ -->
+    <div id="teacher-views" style="display:none;">
+
+      <!-- PULSE DASHBOARD -->
+      <div class="screen active" id="screen-teacher-pulse">
+        <div class="teacher-header">
+          <div>
+            <h2>Own Time — 9D Design</h2>
+            <p style="color: var(--text-secondary); font-size:14px; margin-top:4px;">8 of 24 students currently in Own Time</p>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button class="btn-secondary" onclick="alert('Would show weekly digest email preview')">Weekly Digest</button>
+          </div>
+        </div>
+
+        <div class="teacher-summary">
+          <div class="summary-stat">
+            <div class="summary-dot green"></div>
+            <span><span class="summary-count">5</span> On Track</span>
+          </div>
+          <div class="summary-stat">
+            <div class="summary-dot amber"></div>
+            <span><span class="summary-count">2</span> Needs Check-in</span>
+          </div>
+          <div class="summary-stat">
+            <div class="summary-dot red"></div>
+            <span><span class="summary-count">0</span> Not Started</span>
+          </div>
+          <div class="summary-stat">
+            <div class="summary-dot purple"></div>
+            <span><span class="summary-count">1</span> Exceptional</span>
+          </div>
+        </div>
+
+        <div class="filter-bar">
+          <button class="filter-btn active" onclick="filterStudents('all', this)">All (8)</button>
+          <button class="filter-btn" onclick="filterStudents('on-track', this)">On Track</button>
+          <button class="filter-btn" onclick="filterStudents('needs-checkin', this)">Needs Check-in</button>
+          <button class="filter-btn" onclick="filterStudents('exceptional', this)">Exceptional</button>
+        </div>
+
+        <div class="student-grid" id="student-grid">
+          <!-- Student cards rendered by JS -->
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Detail Panel -->
+<div class="detail-overlay" id="detail-overlay" onclick="closeDetail()"></div>
+<div class="detail-panel" id="detail-panel">
+  <button class="detail-close" onclick="closeDetail()">&times;</button>
+  <div id="detail-content"></div>
+</div>
+
+<!-- Session Wrap-up Modal -->
+<div class="wrapup-overlay" id="wrapup-overlay">
+  <div class="wrapup-card">
+    <h2>Wrapping Up Session 2</h2>
+    <p>Quick reflection before you go — this helps you (and your mentor) pick up where you left off.</p>
+    <div class="wrapup-field">
+      <label>What did you accomplish today?</label>
+      <textarea placeholder="I worked on..."></textarea>
+    </div>
+    <div class="wrapup-field">
+      <label>What's your plan for next session?</label>
+      <textarea placeholder="Next time I want to..."></textarea>
+    </div>
+    <div class="wrapup-field">
+      <label>Anything you're stuck on?</label>
+      <textarea placeholder="I'm wondering about... (or leave blank if you're good)"></textarea>
+    </div>
+    <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:8px;">
+      <button class="btn-secondary" onclick="hideWrapup()">Not yet</button>
+      <button class="btn-primary" onclick="submitWrapup()" style="margin-top:0;">Save & Finish Session</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// === DATA ===
+const students = [
+  {
+    id: 'alex', name: 'Alex K.', project: 'Ergonomic school bag strap redesign',
+    sessions: '3/4', status: 'on-track', statusLabel: 'On track', progress: 75,
+    color: 'var(--green)', bgColor: 'var(--green-soft)',
+    lastActive: 'Today',
+    digest: `Alex is pursuing an ergonomic school bag strap redesign, focused on developing material testing skills. Over 3 sessions he's progressed from research through to concept sketching and is ready to begin prototyping.\n\n<strong>Session 1</strong> showed strong research instincts — he found and annotated a hiking backpack engineering article without prompting, then identified that school bags face fundamentally different constraints (constant on/off, one-shoulder carrying).\n\n<strong>Session 2</strong> started slow — initial sketches were derivative copies of existing designs. After guided questioning about how students actually carry bags, he had a genuine breakthrough: a sliding strap mechanism that adapts to one-shoulder carrying instead of fighting it. This is original thinking.\n\nHis strongest skill so far is <strong>research synthesis</strong>. His growth edge is <strong>physical prototyping</strong> — next session will be the real test. Engagement is consistently high and he doesn't need much pushing.`,
+    skills: [
+      { name: 'Research', level: 85, label: 'Strong', color: 'var(--teal)' },
+      { name: 'Design Thinking', level: 70, label: 'Developing well', color: 'var(--accent)' },
+      { name: 'Sketching', level: 45, label: 'Emerging', color: 'var(--amber)' },
+      { name: 'Prototyping', level: 20, label: 'Not yet tested', color: 'var(--text-dim)' }
+    ],
+    sessionHistory: [
+      { date: 'Mon 17 Mar', title: 'Research', engagement: 'High', engColor: 'var(--green-soft)', engText: 'var(--green)', summary: 'Found ergonomic literature independently. Strong source evaluation. Identified key constraint differences between hiking and school bags.' },
+      { date: 'Wed 19 Mar', title: 'Sketching', engagement: 'High', engColor: 'var(--green-soft)', engText: 'var(--green)', summary: 'Started with derivative sketches, then breakthrough on adaptive strap concept through guided questioning. Shows strong iterative thinking.' },
+    ]
+  },
+  {
+    id: 'priya', name: 'Priya M.', project: 'Sustainable packaging alternatives',
+    sessions: '2/4', status: 'on-track', statusLabel: 'On track', progress: 50,
+    color: 'var(--green)', bgColor: 'var(--green-soft)',
+    lastActive: 'Yesterday',
+    digest: `Priya is researching sustainable packaging alternatives, with a skill focus on environmental impact analysis. She's methodical and thorough — maybe too thorough. She spent most of Session 2 going down a rabbit hole on mushroom-based packaging (mycelium), which is fascinating but may be too complex to prototype in the remaining time.\n\n<strong>Recommendation:</strong> She might benefit from a nudge to narrow her scope. She has strong research skills but tends to stay in research mode rather than moving to action. I've gently pushed her toward selecting one packaging concept to sketch, but she keeps finding "one more thing to read."`,
+    skills: [
+      { name: 'Research', level: 90, label: 'Very strong', color: 'var(--teal)' },
+      { name: 'Environmental Analysis', level: 65, label: 'Developing', color: 'var(--accent)' },
+      { name: 'Scope Management', level: 30, label: 'Needs work', color: 'var(--amber)' },
+    ],
+    sessionHistory: [
+      { date: 'Mon 17 Mar', title: 'Research', engagement: 'High', engColor: 'var(--green-soft)', engText: 'var(--green)', summary: 'Thorough initial research across 5 sustainable materials. Strong note-taking.' },
+      { date: 'Tue 18 Mar', title: 'Deep Dive', engagement: 'Medium', engColor: 'var(--amber-soft)', engText: 'var(--amber)', summary: 'Extensive mycelium research. Fascinating but may need scoping help.' },
+    ]
+  },
+  {
+    id: 'maya', name: 'Maya L.', project: 'Wearable tech concept for runners',
+    sessions: '4/4', status: 'exceptional', statusLabel: 'Exceptional', progress: 100,
+    color: 'var(--purple)', bgColor: 'var(--purple-glow)',
+    lastActive: 'Today',
+    digest: `Maya has exceeded every goal she set. Her wearable tech concept for runners started as a simple "smart water bottle reminder" and evolved into a sophisticated hydration monitoring wristband with gesture-based interaction.\n\nWhat makes her exceptional isn't just the output — it's the <strong>process</strong>. She conducted informal user interviews with the school running club (5 runners, asked great questions), iterated her designs based on their feedback, and taught herself basic Arduino concepts to understand sensor feasibility.\n\n<strong>Portfolio recommendation:</strong> Her session reflections are unusually thoughtful. The iteration story (from water bottle to wristband) would make an excellent Personal Project foundation. Consider showcasing her process to the class — it models exactly what self-directed learning should look like.`,
+    skills: [
+      { name: 'User Research', level: 90, label: 'Exceptional', color: 'var(--purple)' },
+      { name: 'Iteration', level: 85, label: 'Strong', color: 'var(--teal)' },
+      { name: 'Technical Research', level: 70, label: 'Self-directed', color: 'var(--accent)' },
+      { name: 'Design Communication', level: 80, label: 'Strong', color: 'var(--teal)' }
+    ],
+    sessionHistory: [
+      { date: 'Mon 10 Mar', title: 'Ideation', engagement: 'High', engColor: 'var(--green-soft)', engText: 'var(--green)', summary: 'Started with smart water bottle. Quickly pivoted after identifying hydration as the core problem.' },
+      { date: 'Wed 12 Mar', title: 'User Research', engagement: 'High', engColor: 'var(--green-soft)', engText: 'var(--green)', summary: 'Interviewed 5 runners. Excellent questions about when/how they hydrate during runs.' },
+      { date: 'Mon 17 Mar', title: 'Design & Iterate', engagement: 'High', engColor: 'var(--green-soft)', engText: 'var(--green)', summary: 'Three concept iterations based on runner feedback. Chose wristband form factor.' },
+      { date: 'Wed 19 Mar', title: 'Technical Feasibility', engagement: 'High', engColor: 'var(--green-soft)', engText: 'var(--green)', summary: 'Self-directed Arduino research. Understood sensor limitations. Refined design to be realistic.' },
+    ]
+  },
+  {
+    id: 'jayden', name: 'Jayden R.', project: 'Gaming controller for accessibility',
+    sessions: '2/4', status: 'needs-checkin', statusLabel: 'Needs check-in', progress: 40,
+    color: 'var(--amber)', bgColor: 'var(--amber-soft)',
+    lastActive: '3 days ago',
+    digest: `Jayden started strong with an accessible gaming controller concept — great topic with real passion behind it. Session 1 was productive: he researched the Xbox Adaptive Controller and identified gaps for one-handed gamers.\n\nHowever, <strong>Session 2 was brief</strong> — he logged in, browsed some gaming sites (not research-related), typed two short messages, and left after 15 minutes. His reflection was one sentence: "Didn't feel like it today."\n\nThis could be a motivation dip (common at session 2) or something else going on. The topic choice suggests genuine interest, so this is likely a temporary slump rather than disengagement.\n\n<strong>Suggestion:</strong> A brief in-person chat might help — sometimes hearing "I think your controller idea is really cool" from a teacher reignites the spark better than an AI nudge can.`,
+    skills: [
+      { name: 'Accessibility Awareness', level: 60, label: 'Developing', color: 'var(--accent)' },
+      { name: 'Product Research', level: 50, label: 'Moderate', color: 'var(--accent)' },
+    ],
+    sessionHistory: [
+      { date: 'Mon 10 Mar', title: 'Research', engagement: 'High', engColor: 'var(--green-soft)', engText: 'var(--green)', summary: 'Strong start. Researched Xbox Adaptive Controller. Good problem identification for one-handed gamers.' },
+      { date: 'Wed 12 Mar', title: 'Stalled', engagement: 'Low', engColor: 'var(--red-soft)', engText: 'var(--red)', summary: 'Brief session. Minimal engagement. Reflection: "Didn\'t feel like it today."' },
+    ]
+  },
+  {
+    id: 'sofia', name: 'Sofia C.', project: 'Accessible kitchen tools for elderly',
+    sessions: '3/4', status: 'on-track', statusLabel: 'On track', progress: 75,
+    color: 'var(--green)', bgColor: 'var(--green-soft)',
+    lastActive: 'Today',
+    digest: `Sofia is designing accessible kitchen tools for elderly users, inspired by watching her grandmother struggle with jar openers. She has a clear personal connection to the problem which drives consistent engagement.\n\nHer empathy mapping was exceptional — she spent a full session observing her grandmother's kitchen routine (with permission) and documented 12 specific pain points. She's now sketching solutions for the top 3.\n\nSolid, steady progress. No concerns.`,
+    skills: [
+      { name: 'Empathy & Observation', level: 80, label: 'Strong', color: 'var(--teal)' },
+      { name: 'Problem Identification', level: 75, label: 'Strong', color: 'var(--teal)' },
+      { name: 'Concept Sketching', level: 55, label: 'Developing', color: 'var(--accent)' },
+    ],
+    sessionHistory: [
+      { date: 'Mon 10 Mar', title: 'Observation', engagement: 'High', engColor: 'var(--green-soft)', engText: 'var(--green)', summary: 'Observed grandmother in kitchen. Documented 12 pain points. Excellent empathy work.' },
+      { date: 'Wed 12 Mar', title: 'Analysis', engagement: 'High', engColor: 'var(--green-soft)', engText: 'var(--green)', summary: 'Prioritised top 3 problems. Researched existing solutions for each.' },
+      { date: 'Mon 17 Mar', title: 'Sketching', engagement: 'Medium', engColor: 'var(--amber-soft)', engText: 'var(--amber)', summary: 'Started concept sketches. Good ideas but struggling with ergonomic hand-grip sketching.' },
+    ]
+  },
+  {
+    id: 'ethan', name: 'Ethan B.', project: '3D printed prosthetic finger',
+    sessions: '1/4', status: 'on-track', statusLabel: 'On track', progress: 25,
+    color: 'var(--green)', bgColor: 'var(--green-soft)',
+    lastActive: 'Mon 17 Mar',
+    digest: `Ethan just started his Own Time journey, focused on designing a 3D-printable prosthetic finger. Ambitious scope but he's aware of the constraints.\n\nSession 1 was solid research — he found open-source prosthetic designs on e-NABLE and is studying their hinge mechanisms. He's realistic about what he can achieve in 4 sessions (a basic hinge mechanism model, not a full prosthetic).\n\nGood self-awareness about scope. Worth watching to make sure ambition doesn't outpace timeline.`,
+    skills: [
+      { name: '3D Design Research', level: 40, label: 'Starting', color: 'var(--amber)' },
+      { name: 'Scope Management', level: 60, label: 'Good awareness', color: 'var(--accent)' },
+    ],
+    sessionHistory: [
+      { date: 'Mon 17 Mar', title: 'Research', engagement: 'High', engColor: 'var(--green-soft)', engText: 'var(--green)', summary: 'Researched e-NABLE open-source prosthetics. Good scope awareness — targeting hinge mechanism only.' },
+    ]
+  },
+  {
+    id: 'lily', name: 'Lily T.', project: 'Eco-friendly phone case',
+    sessions: '2/4', status: 'needs-checkin', statusLabel: 'Drifting', progress: 35,
+    color: 'var(--amber)', bgColor: 'var(--amber-soft)',
+    lastActive: '2 days ago',
+    digest: `Lily's eco-friendly phone case project started well but she's losing direction. Session 1 had good research into biodegradable materials. Session 2 she said she wanted to sketch but spent most of the time looking at existing phone case designs online — more browsing than designing.\n\nHer reflections are getting shorter and less specific. She might be losing interest in the topic or feeling overwhelmed by the material science aspect.\n\n<strong>Suggestion:</strong> She might benefit from a design constraint to work within — "design a phone case using ONLY materials you can find in the school recycling bin" could reignite creative energy by making it tangible and fun.`,
+    skills: [
+      { name: 'Material Research', level: 50, label: 'Moderate', color: 'var(--accent)' },
+      { name: 'Self-Direction', level: 30, label: 'Needs support', color: 'var(--amber)' },
+    ],
+    sessionHistory: [
+      { date: 'Mon 10 Mar', title: 'Research', engagement: 'Medium', engColor: 'var(--amber-soft)', engText: 'var(--amber)', summary: 'Researched biodegradable phone case materials. Decent notes but surface-level.' },
+      { date: 'Wed 12 Mar', title: 'Browsing', engagement: 'Low', engColor: 'var(--red-soft)', engText: 'var(--red)', summary: 'Mostly browsed existing designs. Minimal original work. Short reflection.' },
+    ]
+  },
+  {
+    id: 'tom', name: 'Tom W.', project: 'Flat-pack furniture for dorm rooms',
+    sessions: '2/4', status: 'on-track', statusLabel: 'On track', progress: 50,
+    color: 'var(--green)', bgColor: 'var(--green-soft)',
+    lastActive: 'Yesterday',
+    digest: `Tom is designing flat-pack furniture for university dorm rooms — motivated by his older sibling's experience. He's taking an interesting approach: rather than starting with aesthetics, he started with the constraint (must fit in a car boot, assemble without tools).\n\nGood engineering mindset. His sketches are rough but functional — he's thinking in terms of joints and connections rather than appearance, which is unusual for Year 9 and worth encouraging.\n\nSteady progress, no concerns.`,
+    skills: [
+      { name: 'Engineering Thinking', level: 65, label: 'Developing well', color: 'var(--accent)' },
+      { name: 'Constraint-based Design', level: 70, label: 'Strong for Y9', color: 'var(--teal)' },
+      { name: 'Sketching', level: 35, label: 'Functional but rough', color: 'var(--amber)' },
+    ],
+    sessionHistory: [
+      { date: 'Mon 17 Mar', title: 'Constraints & Research', engagement: 'High', engColor: 'var(--green-soft)', engText: 'var(--green)', summary: 'Defined constraints (car boot size, tool-free assembly). Researched IKEA flat-pack engineering.' },
+      { date: 'Wed 19 Mar', title: 'Joint Design', engagement: 'High', engColor: 'var(--green-soft)', engText: 'var(--green)', summary: 'Focused on joint mechanisms. Interesting approach — engineering before aesthetics.' },
+    ]
+  }
+];
+
+// === GOAL SETTING CONVERSATION ===
+const goalSteps = [
+  {
+    ai: `Hey Alex! Ms. Burton just approved you for Own Time — nice work on that sustainable design unit. Before we plan anything, I'm genuinely curious: what's been on your mind lately? Could be related to what you just studied, could be something completely different. What's something you wish you could fix, or something you want to make?`,
+    options: [
+      "I want to redesign school bags — mine is terrible and my shoulders are killing me",
+      "I'm interested in sustainable packaging — like what we studied but going deeper",
+      "I want to learn 3D modelling and make something I can actually print"
+    ],
+    selectedIndex: 0,
+    planUpdates: { project: 'School bag redesign (exploring...)' }
+  },
+  {
+    ai: `School bags — yes! I've noticed students rubbing their shoulders after lugging those things around all day. What specifically bothers you about your current bag? Is it the weight, the straps digging in, the way everything falls to the bottom, the look? And when you picture "redesigning" one — are you thinking sketches on paper, a digital model, or do you want to actually build something physical?`,
+    options: [
+      "The straps are the worst — they dig in and my back aches. I want to actually build a prototype of a better strap",
+      "Everything falls to the bottom and I can never find anything. I want to redesign the internal layout",
+      "Honestly I just want to make one that looks good and isn't embarrassing to carry"
+    ],
+    selectedIndex: 0,
+    planUpdates: { project: 'Ergonomic school bag strap redesign' }
+  },
+  {
+    ai: `Building a real strap prototype — ambitious, I like it. Let's be honest about time though. You've got about 4 class periods of Own Time, roughly 3.5 hours of actual work. A full bag would take weeks. But a strap system? That's actually achievable. What if you aimed for: research what makes straps ergonomic, sketch 3 different strap concepts, then build and test ONE prototype of your best design? You'd end up with something real in your hands.`,
+    options: [
+      "Yeah — research, sketches, and one real strap prototype. That sounds doable.",
+      "Could I do 2 prototypes? I want to compare different materials.",
+      "I'd rather go deep on research and sketches and skip the prototype for now."
+    ],
+    selectedIndex: 0,
+    planUpdates: {
+      deliverables: 'Research notes, 3 concept sketches, 1 strap prototype',
+      timeline: '4 sessions (~3.5 hrs)'
+    }
+  },
+  {
+    ai: `Good — that's a focused plan with a real output. Now here's the question that'll help me mentor you well: beyond the bag strap itself, what SKILL are you trying to develop during this? This isn't graded — it's about your growth. Are you wanting to get better at researching how things work? Sketching product concepts? Testing and comparing materials? Understanding how bodies interact with objects?`,
+    options: [
+      "Material testing — I've never properly tested materials before and I want to learn how",
+      "Sketching — I want my concepts to actually look professional",
+      "Ergonomics research — I want to understand how bodies and products interact"
+    ],
+    selectedIndex: 0,
+    planUpdates: {
+      skill: 'Material testing & prototyping',
+      success: '"I can test materials systematically and justify my choices with evidence"'
+    }
+  },
+  {
+    ai: null, // Final step is special
+    planComplete: true
+  }
+];
+
+let currentGoalStep = 0;
+
+// === VIEW SWITCHING ===
+function switchView(view) {
+  document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  document.getElementById('student-views').style.display = view === 'student' ? 'block' : 'none';
+  document.getElementById('teacher-views').style.display = view === 'teacher' ? 'block' : 'none';
+
+  if (view === 'teacher') renderStudentGrid();
+}
+
+function showStudentScreen(screen) {
+  document.querySelectorAll('.student-nav-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  ['workspace', 'journey'].forEach(s => {
+    document.getElementById('screen-' + s).classList.toggle('active', s === screen);
+  });
+}
+
+// === GOAL SETTING ===
+function startGoalSetting() {
+  document.getElementById('screen-welcome').classList.remove('active');
+  document.getElementById('screen-goals').classList.add('active');
+  setTimeout(() => {
+    document.getElementById('plan-builder').style.opacity = '1';
+  }, 400);
+  showGoalStep(0);
+}
+
+function showGoalStep(step) {
+  currentGoalStep = step;
+  const conv = document.getElementById('goal-conversation');
+  const stepData = goalSteps[step];
+
+  // Update dots
+  for (let i = 0; i <= 4; i++) {
+    const dot = document.getElementById('gd-' + i);
+    dot.className = 'goal-step-dot';
+    if (i < step) dot.classList.add('done');
+    if (i === step) dot.classList.add('current');
+  }
+
+  if (stepData.planComplete) {
+    showGoalComplete(conv);
+    return;
+  }
+
+  // Show typing indicator
+  const typing = document.createElement('div');
+  typing.className = 'typing-indicator';
+  typing.innerHTML = '<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>';
+  conv.appendChild(typing);
+  conv.scrollTop = conv.scrollHeight;
+
+  // Show AI message after delay
+  setTimeout(() => {
+    typing.remove();
+    const aiMsg = document.createElement('div');
+    aiMsg.className = 'msg msg-ai';
+    aiMsg.innerHTML = `<div class="msg-name">Own Time Mentor</div>${stepData.ai}`;
+    conv.appendChild(aiMsg);
+
+    // Show options
+    setTimeout(() => {
+      const optionsDiv = document.createElement('div');
+      optionsDiv.className = 'response-options';
+      stepData.options.forEach((opt, i) => {
+        const btn = document.createElement('button');
+        btn.className = 'response-option';
+        btn.textContent = opt;
+        btn.onclick = () => selectGoalResponse(step, i, opt, optionsDiv);
+        optionsDiv.appendChild(btn);
+      });
+      conv.appendChild(optionsDiv);
+      conv.scrollTop = conv.scrollHeight;
+    }, 400);
+  }, 1200 + Math.random() * 600);
+}
+
+function selectGoalResponse(step, index, text, optionsDiv) {
+  // Remove options
+  optionsDiv.remove();
+
+  // Show student message
+  const conv = document.getElementById('goal-conversation');
+  const studentMsg = document.createElement('div');
+  studentMsg.className = 'msg msg-student';
+  studentMsg.textContent = text;
+  conv.appendChild(studentMsg);
+  conv.scrollTop = conv.scrollHeight;
+
+  // Update plan builder
+  const updates = goalSteps[step].planUpdates;
+  if (updates) {
+    setTimeout(() => {
+      Object.entries(updates).forEach(([key, value]) => {
+        const el = document.getElementById('plan-' + key);
+        if (el) {
+          el.textContent = value;
+          el.className = 'plan-field-value filled';
+        }
+      });
+    }, 300);
+  }
+
+  // Next step
+  setTimeout(() => showGoalStep(step + 1), 800);
+}
+
+function showGoalComplete(conv) {
+  // Show typing then final message
+  const typing = document.createElement('div');
+  typing.className = 'typing-indicator';
+  typing.innerHTML = '<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>';
+  conv.appendChild(typing);
+
+  setTimeout(() => {
+    typing.remove();
+
+    const aiMsg = document.createElement('div');
+    aiMsg.className = 'msg msg-ai';
+    aiMsg.innerHTML = `<div class="msg-name">Own Time Mentor</div>
+      Here's your plan — take a look at the card on the right. Research ergonomic straps, sketch 3 concepts, then build and test your best one. Your skill focus is material testing, and you'll know you've succeeded when you can justify your material choices with real evidence.<br><br>
+      This feels achievable and you'll learn something genuinely useful. I'll be here whenever you need to think through a problem, and I'll check in at the start of each session to help you pick up where you left off.<br><br>
+      Ready to start your first session?`;
+    conv.appendChild(aiMsg);
+
+    // Update all plan dots to done
+    for (let i = 0; i <= 4; i++) {
+      document.getElementById('gd-' + i).className = 'goal-step-dot done';
+    }
+
+    // Show CTA
+    setTimeout(() => {
+      const cta = document.createElement('div');
+      cta.style.cssText = 'display:flex; justify-content:center; margin-top:20px;';
+      cta.innerHTML = '<button class="btn-primary" onclick="enterWorkspace()">Let\'s Go</button>';
+      conv.appendChild(cta);
+      conv.scrollTop = conv.scrollHeight;
+    }, 600);
+  }, 1400);
+}
+
+function enterWorkspace() {
+  document.getElementById('screen-goals').classList.remove('active');
+  document.getElementById('screen-workspace').classList.add('active');
+  document.getElementById('plan-builder').style.display = 'none';
+  document.getElementById('student-nav').style.display = 'flex';
+  document.querySelector('.student-nav-btn').classList.add('active');
+}
+
+// === CHAT SIMULATION ===
+const chatResponses = [
+  "That's a great question to be asking at this stage. What have you tried so far?",
+  "Interesting direction! How does this connect back to what you found in your research about load distribution?",
+  "I like where you're going with that. What would you need to test to know if it actually works?",
+  "Good thinking. Before you commit to that material, what's ONE thing that could go wrong with it?",
+  "You're making real progress here. Try sketching that idea quickly — even a rough drawing will help you see if the mechanism makes sense physically.",
+  "That's the kind of insight that comes from actually looking at how people use things. Can you describe what you observed in more detail?",
+];
+let chatResponseIndex = 0;
+
+function sendChat() {
+  const input = document.getElementById('chat-input');
+  const text = input.value.trim();
+  if (!text) return;
+
+  const messages = document.getElementById('chat-messages');
+
+  // Add student message
+  const studentMsg = document.createElement('div');
+  studentMsg.className = 'chat-msg chat-msg-student';
+  studentMsg.textContent = text;
+  messages.appendChild(studentMsg);
+  input.value = '';
+  messages.scrollTop = messages.scrollHeight;
+
+  // Show typing then AI response
+  const typing = document.createElement('div');
+  typing.className = 'typing-indicator';
+  typing.style.cssText = 'align-self:flex-start; padding:12px 20px;';
+  typing.innerHTML = '<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>';
+  messages.appendChild(typing);
+  messages.scrollTop = messages.scrollHeight;
+
+  setTimeout(() => {
+    typing.remove();
+    const aiMsg = document.createElement('div');
+    aiMsg.className = 'chat-msg chat-msg-ai';
+    aiMsg.textContent = chatResponses[chatResponseIndex % chatResponses.length];
+    chatResponseIndex++;
+    messages.appendChild(aiMsg);
+    messages.scrollTop = messages.scrollHeight;
+  }, 1000 + Math.random() * 800);
+}
+
+function showSession(num) {
+  // Visual feedback only in prototype
+  document.querySelectorAll('.session-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.session-tab')[num - 1]?.classList.add('active');
+}
+
+// === WRAP-UP ===
+function showWrapup() { document.getElementById('wrapup-overlay').classList.add('active'); }
+function hideWrapup() { document.getElementById('wrapup-overlay').classList.remove('active'); }
+function submitWrapup() {
+  hideWrapup();
+  // In real app: save reflection, trigger AI summary, update session
+  const messages = document.getElementById('chat-messages');
+  const aiMsg = document.createElement('div');
+  aiMsg.className = 'chat-msg chat-msg-ai';
+  aiMsg.textContent = "Great session today, Alex. Your adaptive strap concept is really strong — that idea about the sliding mechanism for one-shoulder carrying is original thinking. Next session, you're planning to prototype with actual materials. Think about what three materials you want to test before you come in, so you can hit the ground running. See you Thursday!";
+  messages.appendChild(aiMsg);
+  messages.scrollTop = messages.scrollHeight;
+}
+
+// === TEACHER DASHBOARD ===
+function renderStudentGrid(filter = 'all') {
+  const grid = document.getElementById('student-grid');
+  grid.innerHTML = '';
+
+  const filtered = filter === 'all' ? students : students.filter(s => s.status === filter);
+
+  filtered.forEach(s => {
+    const card = document.createElement('div');
+    card.className = 'student-card';
+    card.setAttribute('data-status', s.status);
+    card.onclick = () => openDetail(s);
+
+    const progressColor = s.status === 'exceptional' ? 'var(--purple)' :
+                          s.status === 'needs-checkin' ? 'var(--amber)' : 'var(--teal)';
+
+    card.innerHTML = `
+      <div class="student-card-header">
+        <div class="student-name">${s.name}</div>
+        <div class="status-indicator status-${s.status === 'on-track' ? 'green' : s.status === 'needs-checkin' ? 'amber' : s.status === 'exceptional' ? 'purple' : 'red'}"></div>
+      </div>
+      <div class="student-project">${s.project}</div>
+      <div class="student-meta">
+        <span>${s.sessions} sessions</span>
+        <span>Active: ${s.lastActive}</span>
+      </div>
+      <div class="student-progress">
+        <div class="student-progress-bar" style="width:${s.progress}%; background:${progressColor};"></div>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+function filterStudents(filter, btn) {
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderStudentGrid(filter);
+}
+
+// === DETAIL PANEL ===
+function openDetail(student) {
+  const panel = document.getElementById('detail-panel');
+  const overlay = document.getElementById('detail-overlay');
+  const content = document.getElementById('detail-content');
+
+  const statusClass = student.status === 'on-track' ? 'on-track' :
+                      student.status === 'needs-checkin' ? 'needs-checkin' :
+                      student.status === 'exceptional' ? 'exceptional' : 'not-started';
+
+  let skillsHtml = student.skills.map(sk => `
+    <div class="skill-item">
+      <div class="skill-item-name">${sk.name}</div>
+      <div class="skill-bar"><div class="skill-bar-fill" style="width:${sk.level}%;background:${sk.color};"></div></div>
+      <div class="skill-label">${sk.label}</div>
+    </div>
+  `).join('');
+
+  let sessionsHtml = student.sessionHistory.map(sh => `
+    <div class="session-mini">
+      <div class="session-mini-header">
+        <span class="session-mini-date">${sh.date} — ${sh.title}</span>
+        <span class="session-mini-engagement" style="background:${sh.engColor};color:${sh.engText};">${sh.engagement}</span>
+      </div>
+      <p>${sh.summary}</p>
+    </div>
+  `).join('');
+
+  content.innerHTML = `
+    <div class="detail-header">
+      <h2>${student.name}</h2>
+      <p>${student.project}</p>
+    </div>
+    <div class="detail-status ${statusClass}">
+      <div class="status-indicator status-${student.status === 'on-track' ? 'green' : student.status === 'needs-checkin' ? 'amber' : student.status === 'exceptional' ? 'purple' : 'red'}" style="animation:none;width:8px;height:8px;"></div>
+      ${student.statusLabel} &middot; ${student.sessions} sessions &middot; Last active: ${student.lastActive}
+    </div>
+
+    <div class="digest-card">
+      <h4>AI Mentor Summary</h4>
+      <div class="digest-body">${student.digest}</div>
+    </div>
+
+    <div class="digest-card">
+      <h4>Skill Development</h4>
+      <div class="skill-assessment">${skillsHtml}</div>
+    </div>
+
+    <div class="digest-card">
+      <h4>Session History</h4>
+      <div class="session-timeline-mini">${sessionsHtml}</div>
+    </div>
+
+    <div class="teacher-actions">
+      <button class="action-btn primary-action" onclick="alert('Would open messaging interface')">
+        Send a Message
+      </button>
+      <button class="action-btn" onclick="alert('Would add to portfolio showcase')">
+        Showcase Work
+      </button>
+      <button class="action-btn" onclick="alert('Would adjust learning plan')">
+        Adjust Plan
+      </button>
+    </div>
+  `;
+
+  overlay.classList.add('active');
+  setTimeout(() => panel.classList.add('active'), 50);
+}
+
+function closeDetail() {
+  document.getElementById('detail-panel').classList.remove('active');
+  setTimeout(() => {
+    document.getElementById('detail-overlay').classList.remove('active');
+  }, 350);
+}
+
+// === INIT ===
+renderStudentGrid();
+</script>
+</body>
+</html>

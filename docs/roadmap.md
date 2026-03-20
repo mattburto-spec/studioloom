@@ -102,9 +102,64 @@ Transform the daily student interaction from structured unit pages to a living p
 - Replace sketch response type with "Add Link" to external work
 - StudioLoom orchestrates learning, doesn't replace creation tools
 
-### Gantt / Timeline View
-- Visual progress tracker: where student is in design cycle vs. time remaining
-- Links to planning tasks already in the system
+### Student Project Management View (Gantt / Timeline / Board)
+Visual progress tracker: where student is in design cycle vs. time remaining. Links to planning tasks already in the system.
+
+**UX Research — PM Tools to Study (decided 17 March 2026):**
+The goal is to replicate the best interaction patterns from web PM tools but strip out enterprise complexity that schools don't need. Study these tools and steal specific patterns:
+
+- **Linear** — PRIMARY REFERENCE. Clean, fast, keyboard-driven, minimal chrome. Study: status transitions (backlog → in progress → done) via single click/drag, cycle/sprint view, the speed of interaction. Students should move a task from "researching" to "done" in one tap.
+- **Notion** — Study: database-as-views pattern (same data shown as kanban board, timeline, calendar, or list). For Questerra, pre-configure views so students just use them rather than building their own. Notion already has school adoption so students may know it.
+- **Height** — Study: AI-assisted task management (auto-categorisation, suggested next steps). Relevant because Questerra already has AI mentoring — the pattern of "AI suggests, human confirms" maps directly.
+- **Monday.com** — Study: onboarding flow (best first-board walkthrough of any PM tool), colour-coded status columns for instant readability. Teachers glancing at a class dashboard should see red/amber/green instantly.
+
+**What to steal:**
+- Linear: speed, keyboard shortcuts, minimal chrome, effortless status transitions
+- Notion: multiple views on same data (kanban for daily work, timeline for planning, checklist for teacher review)
+- Monday: colour-coded visual progress — satisfying visual fill, not a percentage number
+- Height: AI suggesting next steps based on where student is in design cycle
+
+**What to throw away (enterprise features schools don't need):**
+- Dependencies and critical path analysis
+- Resource allocation and capacity planning
+- Time estimation in hours
+- Sprint velocity and burndown charts
+- Integrations/webhooks/API access
+- Role-based permissions beyond teacher/student
+- Anything requiring configuration before it's useful
+
+**The MYP-specific differentiation:**
+Progress tied to design cycle phases (Inquiring, Developing, Creating, Evaluating) rather than generic "to do / doing / done." Kanban columns should BE the design cycle, not a generic workflow. No other PM tool does this — it's the core reason to build our own rather than embedding Notion.
+
+**Implementation approach:**
+- Kanban board as default view: columns = design cycle phases, cards = tasks/activities
+- Timeline view as secondary: Gantt-style with phase blocks, deadline markers
+- Checklist view for teacher: simple completion tracking per student per page
+- All three views read from the same underlying task data
+- Mobile-first: students will use this on phones/tablets in class
+
+**PM Tools to Build (decided 17 March 2026):**
+All tools below should match the Design Thinking Toolkit quality bar — world-class UX with beautiful, interactive interfaces that are a pleasure to use. Dark/light theme consistency, smooth animations, glassmorphism where appropriate, mobile-first.
+
+1. **Design Phase Columns** — Replace generic to-do/doing/done kanban with columns mapped to the actual design cycle (Inquiring & Analysing → Developing Ideas → Creating the Solution → Evaluating). Cards drag between phases. Each column has a phase-specific colour and icon. This is THE core differentiator — no other PM tool does this. Teachers see the class progressing through the design cycle at a glance, not through an abstract workflow.
+
+2. **Interim Milestones / Checkpoints** — Teacher-defined checkpoint markers within each design phase (e.g., "Research notes complete", "3 initial concepts sketched", "Prototype v1 tested"). Students see upcoming milestones as a mini-roadmap. When a milestone is hit, a brief celebration animation fires. Teachers can set soft deadlines per milestone. This replaces the vague "you should be about here by now" with concrete, visible progress markers that students can self-check against.
+
+3. **Structured Peer Feedback** — Built-in peer review rounds triggered by teachers at key moments (e.g., after ideation, after first prototype). Students are randomly or intentionally paired. Feedback uses guided prompts tied to the current design phase — not open-ended "what do you think?" but structured like "Identify one strength in their research method" or "Suggest one way to improve their prototype's usability." Responses are visible to the recipient and the teacher. This replaces the chaos of verbal peer feedback with documented, traceable, curriculum-aligned critique.
+
+4. **Decision Log / Design Rationale** — A persistent sidebar or card stack where students record key decisions: "I chose material X because…", "I changed my target user from A to B because…". Each entry is timestamped and optionally linked to a design phase. Teachers can see the decision trail during grading. This is pure gold for MYP Criterion B (Developing Ideas) where students must justify choices. Currently this documentation is scattered across text responses — a dedicated log makes it visible and reviewable.
+
+5. **Phase-Specific Reflection Prompts** — Auto-triggered reflection questions when a student moves between design phases. Not generic "how did it go?" but phase-aware: transitioning out of Research might ask "What was the most surprising thing you discovered about your users?"; leaving Prototyping might ask "What would you change if you had another week?". Responses feed directly into the portfolio timeline. Teachers can customise prompts per unit. This turns phase transitions from silent checkboxes into meaningful metacognitive moments.
+
+6. **Multi-View Toggle** — Same underlying task/progress data rendered as four views: Kanban (default, design phase columns), Gantt/Timeline (horizontal bars showing time spent per phase vs. plan), Calendar (tasks mapped to dates, syncs with school calendar), and Gallery (visual grid of work-in-progress photos/uploads). One-click toggle between views. Teachers default to Checklist view (student × task completion matrix). Inspired by Notion's database-as-views pattern but pre-configured — students pick a view, not build one.
+
+7. **Teacher Early Warning System** — Smarter traffic-light signals on the teacher dashboard. Goes beyond simple red/amber/green completion percentages. Factors in: days since last activity, current phase vs. expected phase (based on timeline), submission quality signals from AI (effort-gating scores), missed milestones. Surfaces a ranked list of "students who need attention" with specific reasons ("hasn't started Phase 3, 4 days behind schedule" or "submitting minimal-effort responses in Criterion B"). Replaces the teacher's gut feel with data-driven early intervention.
+
+8. **Resource / Materials Tracker** — A checklist-style tool for tracking physical materials, tools, and resources needed for the Creating phase. Students list what they need, mark what they've sourced, flag what's missing. Teachers see a class-wide materials summary (e.g., "12 students need access to the laser cutter in Week 5"). Integrates with the planning view. This is unique to Design & Technology — no generic PM tool handles the physical-world logistics of a workshop classroom.
+
+9. **Time-Boxing / Sprint Timer** — A visible countdown timer for focused work sessions during class. Teacher sets duration (e.g., "15 minutes: sketch 3 concepts"). Timer appears on all student screens. Optional: students log what they accomplished when the timer ends (micro-reflection). Inspired by pomodoro technique but adapted for classroom use. Helps teachers pace lessons and helps students develop time management skills. Timer history shows patterns ("this student consistently needs more time for research phases").
+
+10. **QR Code Quick Capture** — Teacher generates a QR code for any unit/phase/activity. Students scan with their phone camera, and it opens a streamlined capture interface: snap a photo of their physical work (sketch, prototype, workshop setup), add a one-line caption, and it's instantly filed in the right place in their portfolio timeline. No login friction, no navigation — scan, snap, done. This is critical for Design & Technology where the most important evidence is physical work happening in the workshop, not text typed at a computer.
 
 ---
 
@@ -121,9 +176,36 @@ The teacher superpower — guided unit creation with AI.
 
 ### RAG-Informed Generation (Knowledge Base → Lesson Quality) ✅ Partially
 - **Built**: pgvector knowledge base, hybrid search (vector 70% + BM25 30%), document upload + extraction (PDF/DOCX/PPTX), structure-aware chunking, quality signals, auto-ingest on save/fork
-- **Problem**: Current AI-generated lessons are too basic/generic (e.g., "design a 3D model in CAD" with no scaffolding, no tool links, no progression)
-- **Solution**: AI must reference existing high-quality units in the knowledge base when generating new content
-- **Still needed**: Wiring lesson-level retrieval into generation prompts (see Lesson Intelligence below)
+- **Built**: Dual retrieval — text chunks via `retrieveContext()` + structured lesson profiles via `retrieveLessonProfiles()` — both injected into generation prompts with source attribution
+- **Built**: Quality feedback loop — chunks accumulate `times_retrieved`, `times_used`, `fork_count`, `teacher_rating` signals that influence future retrieval ranking
+- **Audit finding (2026-03)**: Retrieval ranking happens entirely in SQL RPC (`match_knowledge_chunks`). No application-level re-ranking (cross-encoder, MMR for diversity). Acceptable at current scale (5-8 chunks), but will degrade past ~1000 chunks.
+- **Still needed**: Cross-encoder re-ranking stage (e.g., Cohere `rerank-v3.5` or Voyage AI reranker) — retrieve top 15-20, re-rank, return top 5. ~1 week effort, medium priority until KB grows.
+
+### Lesson Timing Engine ✅ (19 Mar 2026)
+Research-backed timing system enforcing the Workshop Model across all AI-generated lessons. Based on 25+ source research synthesis (d.school, IDEO, PBLWorks, Project Zero, ASCD, cognitive science).
+
+**Built:**
+- Workshop Model enforced in all generation prompts: 4-phase structure (Opening → Mini-Lesson → Work Time → Debrief), 1+age instruction cap formula, usable time always calculated (never raw period), extension generation required
+- `src/lib/ai/prompts.ts` — `buildDesignTeachingContext()` with Workshop Model as principle #1, `buildTimingBlock()` always uses usable time, `maxInstructionMinutes()` 1+age formula, grade profiles with `avgStudentAge`
+- `src/lib/ai/timing-validation.ts` — Server-side validation with 8 rules + auto-repair: workshop conformance, instruction cap, work time floor (45%), debrief presence, total time match, cognitive load, extensions, checkpoints. 4 timing presets (Balanced, Hands-On Heavy, Instruction Heavy, Critique Session)
+- `src/components/lesson-timing/PhaseTimelineBar.tsx` — Teacher modification UI: drag-to-resize timeline bar with colored phase blocks, lock/unlock phases, one-click presets, live rule violation warnings
+- `src/components/lesson-timing/TimingFeedbackPrompt.tsx` — Post-lesson feedback: per-phase ratings, actual duration logging, extension completion tracking
+- JSON schema updated with `workshopPhases` and `extensions` fields
+- Research docs: `docs/lesson-timing-research-report.md`, `docs/research/` folder with raw synthesis, data tables, integration roadmap, quick-reference card
+
+**Wiring status (19 Mar 2026):**
+- ✅ `validateLessonTiming()` wired into `generate-journey`, `admin/test-lesson`, `generate-unit`, `regenerate-page`
+- ✅ `WorkshopPhases` + `LessonExtension` types added to `PageContent` in `src/types/index.ts`
+- ✅ PhaseTimelineBar mounted in `JourneyLessonCard` (interactive drag-resize, lock, presets)
+- ✅ MiniPhaseBar (read-only compact bar) + extension count badge on unit detail `LessonCard`
+- ✅ `timing-validation.test.ts` fixed for current `TimingContext` shape
+- ✅ **Live browser tested (19 Mar):** Admin sandbox generation produces correct workshopPhases (Opening 8m, Mini-Lesson 12m under 14m cap, Work Time 32m at 56%, Debrief 5m with protocol), 3 phase-indexed extensions, validation passes with 0 issues. Backward compatibility confirmed — old units render without errors. Zero console errors across all pages. Full test checklist: `docs/timing-engine-test-checklist.md`
+
+**Still needed (priority order):**
+1. **Wire timing validation into generate-timeline** — Timeline activities are flat (not lesson objects), need different approach: validate computed lessons after activity grouping.
+2. **Mount PhaseTimelineBar in TimelineLessonCard / TimelineBuilder** — timeline mode lesson editing.
+3. **Wire TimingFeedbackPrompt into post-lesson flow** — needs trigger (after lesson date or "I taught this" button), storage, and feedback → profile pipeline.
+4. **Multi-lesson pacing intelligence** — Milestone markers, flex points, progress gates for multi-week units. Research done, not yet built.
 
 ### Lesson Intelligence System (NEW — In Progress)
 Deep AI analysis of uploaded lesson plans to build structured pedagogical blueprints that inform future generation. This is the key unlock for lesson quality — the AI learns *how good teachers teach*, not just what they teach.
@@ -139,10 +221,11 @@ Deep AI analysis of uploaded lesson plans to build structured pedagogical bluepr
 1. **Teacher Review UI** — Rich analysis display after upload. Shows lesson flow table, criteria analysis, strengths/gaps, sequencing, star rating. Teacher can verify, correct, and rate. Design wireframe in `docs/design/ai-lesson-analysis.md`.
 2. **Batch Upload UI** — Multi-file drag-and-drop with per-file progress (extracting → analysing → ready for review). Currently single-file only.
 3. **Wizard RAG Enhancement** — The big payoff. Lesson-level retrieval via `match_lesson_profiles()` + pattern synthesis + unit narrative arc generation. Wizard generates units informed by structured pedagogical blueprints, not just text snippets.
-4. **Analysis-Informed Chunking** — Replace heuristic `chunk.ts` with chunker that aligns boundaries to lesson phases from the AI analysis.
+4. ~~**Analysis-Informed Chunking**~~ ✅ Built — `chunkDocumentWithProfile()` aligns chunk boundaries to lesson phases from AI analysis, with rich pedagogical metadata per chunk (phase type, cognitive level, scaffolding strategies, materials, tools, safety). Confirmed in 2026-03 audit.
 5. **Quick-Modify UI** — On-the-fly lesson adaptation ("it's Friday afternoon, students are tired, make it more hands-on"). Prompts + types already built.
 6. **Feedback Capture UI + API** — Teacher 60-second post-lesson pulse + student 30-second pulse, stored in `lesson_feedback` table.
 7. **Re-Analysis Tooling** — Button to re-run analysis on all uploads when prompts improve (raw text always preserved for this purpose).
+8. **Semantic Chunking Upgrade** (from 2026-03 audit) — Use embedding model to detect topic boundaries, prepend each chunk with document-level context header (title + section path + surrounding chunk summaries). Anthropic's "contextual retrieval" pattern, typically improves retrieval 20-35%. ~1 week, medium priority.
 
 ### Activity Cards System ✅
 - **Implemented**: Database-backed evolution of hardcoded activity templates (migration 015)
@@ -503,17 +586,81 @@ The current teacher landing page needs to prioritize the two things teachers mos
 - **Quick lesson generation ("Emergency mode")**: Teachers running late or calling in sick need to fire off a quick, tailored lesson to a colleague or substitute. Should support: pick a topic/subject, pick a grade level, generate a ready-to-go lesson in ~30 seconds. Doesn't need to be a full unit — just a structured single-lesson plan (warm-up, main activity, wrap-up) that's generic enough for a substitute but tailored to the right age and topic.
 - **Menu item audit**: Review all teacher navigation items for intuitiveness and priority ordering.
 
+### Teaching DNA Profile (Phase 3 — after enough data)
+A "Spotify Wrapped for teaching style" feature. As teachers use StudioLoom (uploading lessons, editing AI output, grading, providing feedback), the system builds a visual profile of their teaching identity.
+
+**What it would show:**
+- **Radar/fingerprint chart** of their teaching dimensions (theory vs practical, scaffolding level, critique intensity, assessment focus, lesson pace, autonomy level) — derived from the 5 macro dials + learned data
+- **Named archetype**: "Workshop Mentor", "Structured Guide", "Discovery Facilitator", "Assessment Architect" — computed from their data pattern
+- **Stats with context**: "Your average demo is 11 min (most teachers: 15 min)", "You favour Criterion B activities 2:1 over A"
+- **Confidence/familiarity meter**: Shows how well the AI knows them. "🟡 Learning — 8 uploads, 3 edits" → "🟢 Established — 23 uploads, 15 edits"
+- **Evolution timeline**: "When you started, your lessons were 70% theory. Now they're 55:45 theory:practical"
+- **Teaching insights**: "You rarely include gallery walks — consider adding critique moments mid-lesson"
+
+**Depends on:**
+- TeacherStyleProfile (BUILT — `src/lib/teacher-style/profile-service.ts`)
+- Passive signal collection wired into upload + edit + grading routes (PARTIALLY WIRED)
+- Minimum data threshold: 10+ uploaded lessons + 5+ AI-generated units edited before meaningful
+
+**Build effort:** ~1 week (radar chart with Recharts/D3, archetype algorithm, confidence ring, evolution timeline)
+
+**Why hold off:** Needs real data from real teachers to validate that the clusters/archetypes are meaningful. Building it now would show empty profiles for everyone. Wait until 10+ active teachers with 10+ uploads each.
+
+### Presentation-Ready Lesson Output (NEW — 20 March 2026)
+The Teaching Mode cockpit (built 20 Mar) provides the frame — timer, student tracking, projector view — but it can only display what the wizard generates. Currently, lesson content is flat JSONB (sections with text and response types). For the teaching dashboard and projector view to shine, the wizard needs to output **structured, phase-specific display content** that maps to the Workshop Model:
+
+- **Opening phase**: Hook prompt (question, image, or provocation), key vocabulary list, success criteria for the lesson
+- **Mini-Lesson phase**: Key concepts with visual aids, worked examples, demonstration steps, teacher talk points
+- **Work Time phase**: Activity instructions with checkpoint questions, timer-friendly milestones, extension cards for early finishers (already in `extensions` schema — need richer content)
+- **Debrief phase**: Discussion protocol (e.g., gallery walk, think-pair-share), reflection prompt, exit ticket question
+
+**What changes:** Extend the `workshopPhases` schema so each phase carries its own displayable assets (not just a duration). The projector view then renders phase-appropriate content automatically as the teacher advances through the timer. Teachers see rich, projectable content without needing to prepare separate slides.
+
+**Depends on:** Workshop Model timing engine (BUILT), Teaching Mode cockpit (BUILT), `workshopPhases` schema in `types/index.ts` (BUILT — needs extending).
+
+**Build effort:** ~3-4 days (schema extension + prompt engineering + projector view rendering).
+
+### Projector View Classroom Tools (NEW — 20 March 2026)
+The projector view (`/teacher/teach/[unitId]/projector`) currently shows phase content, but teachers constantly tab away to separate apps for basic classroom tools. Building these into the projector view keeps teachers inside StudioLoom during the entire lesson.
+
+**Build (high-value, teachers use these every lesson):**
+- **Random student picker** — spinning wheel or card flip animation using the class roster. "No repeats until everyone's gone" mode so every student gets called. Optional weighting so quieter students surface more often.
+- **Ad-hoc countdown timer** — separate from the phase timer. Big visible countdown for "you have 3 minutes" moments. Presets (1/2/3/5/10 min), optional alarm sound. Teachers need this dozens of times per lesson.
+- **Group maker** — randomly sort class into groups of 2/3/4/5. Uses student list already loaded from live-status API. Teachers do this weekly.
+- **Noise meter** — microphone-based volume indicator (green → amber → red). Students self-regulate when they can see it on screen. The "wow" feature that makes teachers show colleagues.
+
+**Maybe (only if quick):**
+- **Red pen / annotation overlay** — lightweight canvas overlay for marking up projected student work during critique. Draw, clear all. Skip if it takes more than a day.
+
+**Skip:**
+- Stopwatch (timer covers it), traffic light behaviour tracking (ClassDojo's territory), seating chart (complex, rarely needed mid-lesson)
+
+**Depends on:** Teaching Mode projector view (BUILT), live-status API with student roster (BUILT).
+
+**Build effort:** ~2-3 days for picker + timer + group maker + noise meter. Annotation overlay adds ~1 day.
+
+### AI Insights Dashboard (from 2026-03 audit — High Priority)
+The data model already captures the signals needed — this is primarily a UI build:
+- Which knowledge base items are most/least retrieved (via `times_retrieved`, `times_used`)
+- Common student misconceptions (aggregated from design assistant conversations stored in `design_conversations`)
+- Quality score trends across chunks
+- Cost per student per unit (requires `ai_usage_log` table — see Operational Infrastructure below)
+- Bloom's level progression per student across conversations (already tracked per turn)
+- Pairs naturally with the Real-time Teacher Dashboard below
+
 ### Real-time Teacher Dashboard (NEW — World-Class Gap)
 The single most impactful teacher-facing feature missing. Teachers need to see at a glance:
 - **Who's working, who's stuck, who's done** — live status per student per page
 - **Response activity feed** — real-time stream of student submissions (like a notification centre)
-- **Progress heatmap** — class grid showing completion by page, color-coded (not started / in progress / submitted / reviewed)
+- **Progress heatmap** — class grid showing completion by page, color-coded (not started / in progress / submitted / reviewed). Study Monday.com's colour-coded status columns for inspiration — instant readability at a glance.
 - **At-risk alerts** — students who haven't submitted anything in X days, students stuck on same page for too long
 - **Quick actions** — from the dashboard, jump directly to a student's work, send a nudge, or leave feedback
 - Uses Supabase Realtime subscriptions for live updates
 - Inspired by Google Classroom's stream + Clever's analytics dashboard
 
 ### Teacher Marking & Grading Assistance (World-Class Gap — No Way to Record Grades Currently)
+**2026-03 audit note**: This is the highest-value feature gap. An agentic assessment workflow would transform the platform from content generation to formative assessment: retrieve rubric strand descriptors → analyse student submission against each strand → generate strand-level feedback with specific evidence → suggest targeted improvements with exemplar references → track feedback patterns across submissions. ~2-3 weeks effort, very high impact. Claude's vision capabilities could also analyse student prototype photos against design specifications (Criterion C evidence is almost always photographic).
+
 World-leading approach to guiding teacher marking against criteria:
 - **Marking criteria integration**: MYP criterion descriptors (from `CurriculumFramework` type) surfaced alongside student work during marking — not a separate lookup
 - **AI-assisted criterion-level marking**: Teacher views student response alongside the relevant criterion descriptor band. AI suggests a level (1-8) with highlighted evidence from the student's work mapped to specific descriptor phrases
@@ -523,6 +670,39 @@ World-leading approach to guiding teacher marking against criteria:
 - **Marking criteria as first-class data**: Criterion descriptors stored/accessible via `CriterionDefinition` type (already built in `curriculum.ts`). Enables: rubric display during marking, auto-mapping student work to descriptor phrases, export of marked work with criterion evidence
 - Assessment records stored using `AssessmentRecord` type from `assessment.ts` — per-student per-unit, with criterion scores, qualitative feedback, targets
 - `ClassPerformanceSummary` auto-generated after marking — feeds into next unit's AI generation
+
+### Exemplar-Aware Grading & AI Learning from Student Work (NEW — 17 March 2026)
+The knowledge base already supports "Student Exemplar" uploads (`student_exemplar` source category in the upload UI), but they're processed identically to lesson plans with no special handling. This section builds exemplars into a first-class assessment tool.
+
+**Current state (as of March 2026):**
+- UI has "Student Exemplars" upload category (star icon) — works but no special metadata
+- Uploaded exemplars go through the standard 3-pass analysis and embedding pipeline
+- No achievement level tagging on exemplars
+- No exemplar retrieval during grading — grading is 100% manual
+- Design assistant has zero access to student submissions (past or present)
+- Student learning profiles exist in type system (`CriterionHistory`, `CriterionTrend`) but are not wired into any UI
+
+**Phase A — Exemplar upload with achievement metadata (quick win):**
+- When uploading to "Student Exemplars," prompt teacher for: criterion (A/B/C/D), achievement level (1-8), year/grade, brief annotation ("strong analysis but weak evaluation")
+- Store metadata on knowledge chunks so retrieval can filter by criterion + level
+- During grading, retrieve exemplars at adjacent levels: "Here's what a Level 5 looks like for Criterion B"
+- Matt has previous student work he can upload to seed this immediately
+
+**Phase B — AI learns from graded submissions over time:**
+- As teachers grade student work through the platform, scored responses accumulate
+- After sufficient data (~50+ graded responses per criterion per grade level), the AI can:
+  - Suggest a score range with evidence mapped to descriptor phrases
+  - Flag responses that look anomalous vs. the teacher's past grading pattern
+  - Show "students who scored similarly" as comparison points
+- This is the agentic assessment workflow — retrieves rubric descriptors → analyses submission → generates strand-level feedback with exemplar references
+- **Privacy consideration:** student work used for AI calibration must be anonymised or opt-in
+
+**Phase C — Cross-teacher marking moderation (longer term):**
+- **Quick moderation mode:** Multiple teachers upload the same sample work, each scores independently. System highlights score disagreements and facilitates discussion. "Teacher A scored this Criterion B at 5, Teacher B scored at 7 — here's where they diverge."
+- **Calibration workshops:** AI presents work samples at boundary levels (e.g., Level 4 vs Level 5 for Criterion A) and asks teachers to score. Tracks inter-rater reliability over time.
+- **School-wide consistency:** Dashboard showing grade distribution by teacher per criterion — flags if one teacher consistently scores higher/lower than department average.
+- **IB requirement:** MYP internal moderation and standardisation is a mandatory school process. This feature turns a tedious requirement into a genuine tool. Differentiates Questerra from every competitor.
+- **Implementation note:** This requires the School Identity & Multi-tenancy work from Phase 3.5 (multiple teachers in one school seeing shared data).
 
 ### Report Generation (NEW — World-Class Gap)
 End-of-term and end-of-year reports that write themselves:
@@ -610,35 +790,120 @@ Automatically generate thumbnail images and visual assets based on content:
 
 ## Phase 6: Academic Integrity
 
-### MonitoredTextarea — Integrity-Aware Input
-Replace standard textarea with a component that silently tracks writing behavior:
+**2026-03 audit note**: Current mitigations are Socratic-only mentor (won't give answers) + process documentation + portfolio capture. No plagiarism detection or AI-content detection integrated. Quick win: add a response length/complexity heuristic that flags suspiciously long or vocabulary-advanced responses for teacher review (~30 min effort). Longer term: Turnitin/Copyscape integration.
 
-**Frontend metrics (captured in `integrityMetadata` object):**
-- `pasteEvents`: Array of `{ timestamp, length, content }` — every paste event logged
-- `totalTimeActive`: Seconds the textarea was focused
-- `keystrokeCount`: Total keys pressed
-- `focusLossCount`: Tab switches / focus loss events
-- `characterCount`: Final text length
-- `snapshots`: Every 30 seconds (if text changed), capture `{ text, timestamp }` — enables playback
+### MonitoredTextarea — Integrity-Aware Input ✅ BUILT (19 Mar 2026)
+Silent writing behavior tracking component with analysis engine and teacher viewer.
 
-**Backend analysis (`analyzeIntegrity(metadata)` → Human Confidence Score 0-100):**
-- If `pastedChars / totalChars > 0.5` → lower score significantly
-- If typing speed > 150 WPM equivalent → flag
-- If text appeared in 1-2 massive chunks (via snapshots) → flag as "Likely AI/Copied"
-- Store `integrityMetadata` alongside `student_progress.responses`
+**Built:**
+- `src/components/student/MonitoredTextarea.tsx` — drop-in textarea replacement. Captures: paste events (content + length), keystroke count, deletion count, focus time, tab switches, 30-second text snapshots (for playback), 10-second word count history. Zero student-facing indicators.
+- `src/lib/integrity/analyze-integrity.ts` — 6-rule scoring engine: paste ratio, bulk entry detection (from snapshots), typing speed anomaly (>150 WPM), low editing rate (<2%), focus loss (>10/20 events), minimal time with large content. Produces Human Confidence Score 0-100, level (high/medium/low), flags with severity, summary.
+- `src/components/teacher/IntegrityReport.tsx` — teacher viewer with: circular score badge (color-coded green/amber/red), activity metrics row (time/keystrokes/pastes/focus losses/deletion rate), severity-flagged alert cards, writing playback slider (scrub through text snapshots), collapsible paste log.
+- `src/components/student/ResponseInput.tsx` — `enableIntegrityMonitoring` + `onIntegrityUpdate` props wired in. When enabled, swaps textarea for MonitoredTextarea.
+- `src/lib/integrity/__tests__/analyze-integrity.test.ts` — 12 test cases covering all rules + edge cases.
 
-**Teacher Integrity Report:**
-- "Playback" slider using snapshots — watch text evolve over time
-- Summary: "Student spent X minutes typing, pasted X times, left tab X times"
-- Human Confidence Score with color indicator (green/amber/red)
-- Per-response breakdown on grading dashboard
+**Still needed:**
+1. **Wire into student submission flow** — when student submits a response, store `integrityMetadata` in the `responses` JSONB field alongside the text.
+2. **Integrity column on teacher grading view** — show score badge + "View report" link on each student response in the grading dashboard.
+3. **Enable monitoring per-page** — teacher or admin toggle to enable integrity monitoring on specific pages (e.g., summative assessment pages).
+4. **Response flagging heuristic** — flag suspiciously long/complex responses for teacher review (complements MonitoredTextarea but works on all responses, not just monitored ones).
+5. **Turnitin/Copyscape integration** — longer term plagiarism detection for text responses.
 
-**Implementation notes:**
-- `MonitoredTextarea` wraps existing `ResponseInput` text mode
-- Paste event listener intercepts clipboard data
-- Metadata is JSON-serializable, stored in existing `responses` JSONB field
-- No student-facing indicators (silent monitoring)
-- Lucide-React icons for teacher report UI
+---
+
+## Phase 6.5: Free Tools for Lead Generation
+
+### 🔥 PRIMARY: Design Thinking Toolkit Browser (NEW — 17 March 2026)
+
+**The most beautiful collection of design thinking tools for teachers, deployable in one click.**
+
+A visual catalogue of 36-50+ design/visual thinking tools (Mind Map, SCAMPER, Lotus Diagram, PMI, Decision Matrix, Empathy Map, Six Thinking Hats, Morphological Chart, Crazy 8s, etc.) that teachers can browse, filter, and deploy instantly in the format they need.
+
+**Why this is the lead tool (not marking comments):** It's exciting, visual, shareable, and hits the "where has this been all my career?" reaction. Teachers share beautiful tool collections in Facebook groups and Twitter. Marking comments are useful but boring — this goes viral.
+
+**Proof-of-concept v1:** `docs/ideas/design-toolkit-browser.html` (36 tools, MYP-specific, card-based)
+**Production v2:** `docs/ideas/toolkit-v2.html` (36+ tools, framework-agnostic, dark theme, aurora gradients, glassmorphism, custom SVG illustrations, deploy overlays)
+**Full design spec:** `docs/ideas/toolkit-design-spec.md`
+
+#### Browse Experience
+- Visual card grid with unique SVG illustration per tool (not generic icons — mini-infographics of the actual framework)
+- **Framework-agnostic (critical decision 17 March 2026):** Uses universal design process phases (Discover, Define, Ideate, Prototype, Test) that map to IB MYP, GCSE DT, A-Level, ACARA, PLTW, Stanford d.school, IDEO, Double Diamond. NOT MYP-only — any design teacher worldwide can use it.
+- Filter by: design process phase (Discover/Define/Ideate/Prototype/Test), tool type (Ideation/Analysis/Evaluation/Research/Planning/Communication/Reflection), deployment mode
+- Instant search with fuzzy matching ("brainstorm" surfaces Mind Map, Crazy 8s, SCAMPER)
+- Each card shows: SVG illustration (60%), tool name, one-line description, phase tags, difficulty, time estimate
+- Hover reveals deploy options as overlay
+- Keyboard shortcut: `/` to focus search
+
+#### Deploy Modes (one-click, ready to use)
+- **📺 Presentation** — Full-screen, projector-optimised, step-by-step walkthrough, built-in timer for timed activities (Crazy 8s), dark/light toggle, works offline
+- **🖨️ Printable** — Clean A4/Letter PDF, student-facing layout with instructions + workspace + reflection prompt, differentiated versions (standard/ELL/extension), QR code back to digital version
+- **👥 Group Activity** — Collaborative digital board, teacher controls (timer, reveal/hide, lock), auto-assigned roles (Six Thinking Hats), gallery walk view, export as PDF
+- **⚡ Individual** — Stripped-down focused interface, timed mode with countdown, auto-save, submit to teacher, portfolio-ready output
+
+#### Visual Direction
+- Phase colours: Discover=indigo, Define=pink, Ideate=purple, Prototype=amber, Test=emerald
+- Glassmorphism filter bar, aurora gradient background (subtle, atmospheric)
+- Cards with perspective tilt on hover + soft shadow lift
+- Fluid card shuffle animations on filter change
+- Lightweight: Preact or Astro, SVG-based, works in low-bandwidth schools
+
+#### Shareability (Viral Loop)
+- Beautiful Open Graph cards when shared (the SVG illustration IS the share image)
+- "Embed in Google Slides" link
+- "Print as A3 classroom poster" for any tool
+- Tool collections: "My top 10 for MYP Year 3" → shareable link
+- Each tool has its own URL for SEO (/toolkit/empathy-map, /toolkit/decision-matrix)
+
+#### Free vs Premium
+- **Free:** Browse all tools, deploy in presentation + printable mode, share links
+- **Premium (StudioLoom account):** Group activity mode, individual mode with auto-save, differentiated printables (ELL/extension), personal collections, classroom integration, analytics
+
+#### Priority Actions
+1. ~~Build proof-of-concept~~ ✅ Done
+2. Commission/generate unique SVG illustrations for each tool (make-or-break visual element)
+3. Build 3 fully-functional deploy modes for 5 tools as the "this is real" demo
+4. Post to design teacher communities — IB Design Facebook, MYP Google Group, #MYPDesign Twitter, r/teaching
+5. Track: which tools get most clicks, which deploy modes, where do teachers come from
+
+#### Competitive Whitespace
+No one does this. Canva is generic templates. TPT is ugly static PDFs. Miro/FigJam is enterprise complexity. Google Jamboard is dead. None of these are "the most beautiful collection of design thinking tools, deployable in one click, mapped to the MYP design cycle." That's the gap.
+
+---
+
+### SECONDARY: AI-Powered Teacher Tools
+
+Still planned but secondary to the toolkit browser. These are useful but less exciting/shareable.
+
+#### Marking Comment Creator
+- Teacher uploads a rubric, criteria sheet, or assessment framework (PDF/DOCX/image)
+- Pastes student work description or sample
+- AI generates tailored feedback comments at different achievement levels (e.g., below/approaching/meeting/exceeding)
+- Framework-aware: MYP, GCSE DT, ACARA, A-Level etc. (reuse existing vocabulary system)
+- Output: copy-paste ready comments, optionally downloadable as a set
+- Supports multiple criteria per generation (e.g., "generate Criterion A and C comments for this student")
+
+#### Report Writer ✅ BUILT (March 2026)
+Live at `/tools/report-writer`. Full bulk workflow:
+- Multi-framework support: General D&T, IB MYP Design, GCSE DT, ACARA DT — each with tailored rating categories
+- Per-student skill ratings (1-5 sliders) across framework categories, auto-converted to natural-language strengths/growth areas
+- Per-project/unit performance ratings (1-5) — blue-tinted columns in student table, visually distinct from skill categories
+- Multi-project input (up to 4) with tag/chip UI + Add button
+- Reporting period selector (Term 1-4, Semester 1-2, Full Year) — temporal phrasing woven into AI output ("Throughout Term 1...", "This semester...")
+- Custom categories — teachers can add their own beyond framework defaults
+- Tone (formal/friendly), word count (50/100/150), pronouns (he/she/they)
+- Bulk generation: up to 10 students per request, Haiku 4.5, per-student rate limiting
+- Excel/CSV upload with auto-detection of columns (firstName, pronouns, notes)
+- Privacy note, email-based rate limiting (20 free/month), copy-to-clipboard, regenerate individual reports
+- Sentry error tracking, usage logging with token counts
+- **Still to do:** School tone customisation (upload sample report to match school voice)
+
+### Implementation Notes (applies to all free tools)
+- All tools are standalone pages on the Questerra site (no login required for basic use)
+- Rate limit: 20 free uses/month without signup, unlimited with free account (AI tools only — toolkit is unlimited)
+- Model: Claude Haiku 4.5 for AI tools (cost: ~$0.25/million input tokens — negligible even at scale)
+- Email capture: "Create a free account to save your toolkit collections and get unlimited AI uses"
+- Data value: which tools teachers use most → informs unit builder defaults and activity suggestions
+- Must feel genuinely useful standalone — NOT a bait-and-switch demo for the paid product
 
 ---
 
@@ -758,11 +1023,46 @@ Workshop environments frequently have poor WiFi. This is a differentiator for de
 - Visual indicator when offline ("Changes will sync when you're back online")
 - Critical for workshops where students are away from desks near the router
 
+### Operational Infrastructure (from 2026-03 audit — HIGH PRIORITY)
+These are quick wins that should be addressed before scaling to more users:
+
+1. **AI Usage Tracking Table** (~1h) — Add `ai_usage_log` table: `teacher_id`, `student_id`, `endpoint`, `model`, `input_tokens`, `output_tokens`, `cost_estimate`, `timestamp`. Log after each API call. Gives cost visibility and usage patterns. Essential before opening to beta.
+2. **Rate Limiting on Student Endpoints** (~1-2h) — `/api/student/design-assistant` has no rate limiting. Add in-memory `Map<studentId, timestamp[]>`, 20 req/student/hour. Prevents credit exhaustion from students or bots.
+3. **Sentry Integration** (~1h) — `@sentry/nextjs` wrapping API routes. Error tracking, performance monitoring, alerting. Currently all errors go to `console.error` — in production, failures are invisible.
+4. **Prompt Snapshot Tests** (~2-3h) — `__tests__/prompts/` with snapshots for `buildDesignAssistantSystemPrompt()`, `UNIT_SYSTEM_PROMPT`, `buildRAGCriterionPrompt()`. When prompts change, the snapshot diff makes impact visible before deployment. Currently zero test files in the repo.
+
 ### Testing
+- **2026-03 audit finding**: Zero test files in the repository. For a system generating educational content via AI, this is the highest-risk gap — prompt changes could silently degrade output quality.
 - Integration tests on critical paths: student login → page load → response submit → portfolio capture
 - API route tests for planning, progress, portfolio endpoints
 - Component tests for complex interactive components (GanttPanel, PlanningPanel, ResponseInput)
 - E2E tests for teacher flow: create class → import students → assign unit → view progress
+
+### Product Analytics & User Behaviour Tracking
+**Recommendation: Plausible or PostHog over Google Analytics 4.**
+
+GA4 is problematic for this platform because students are aged 11–16. Under COPPA (US) and GDPR Article 8 (EU), tracking minors with cookies requires verifiable parental consent — GA4 sets cookies by default and feeds data into Google's advertising ecosystem, making compliance painful. Plausible and PostHog avoid this:
+
+| Option | Cookies | COPPA/GDPR | Self-Host | Cost |
+|--------|---------|------------|-----------|------|
+| **Plausible** | None | Compliant by design | Yes | €9/mo cloud |
+| **PostHog** | Optional | Compliant (cookieless mode) | Yes | Free tier generous |
+| GA4 | Yes | Requires parental consent for <13 | No | Free |
+| Matomo | Optional | Compliant (cookieless mode) | Yes | Free self-hosted |
+
+**What to track:**
+- **Teacher behaviour**: Unit creation flow completion, knowledge base uploads, progress grid usage, AI generation frequency, feature adoption (which tools get used vs ignored)
+- **Student behaviour** (privacy-safe, no PII): Session duration, pages per session, design assistant conversation length, response submission rates, portfolio capture frequency — all aggregated, never individually identifiable
+- **Conversion funnels** (Phase 7 freemium): Landing → signup → first unit created → first student added → upgrade trigger points
+- **AI cost correlation**: Pair with `ai_usage_log` table (Operational Infrastructure) to correlate feature usage with API spend
+
+**Implementation approach:**
+- Plausible for page-level analytics (lightweight, no consent banner needed)
+- PostHog for product analytics if deeper funnel/feature tracking is needed (feature flags, session replay on teacher-facing pages only — never on student pages)
+- Never enable session replay or heatmaps on student-facing pages
+- All student analytics must be aggregate-only with no individual identification
+
+**Connects to:** Phase 7 (Freemium & Monetisation) for conversion tracking, AI Insights Dashboard (Phase 4) for usage patterns, Operational Infrastructure for cost monitoring.
 
 ### Demo / Sandbox Mode
 - "Try StudioLoom" demo unit with fake student data — no signup required
@@ -882,25 +1182,42 @@ International schools in mainland China can't reach `api.anthropic.com` or `api.
 
 ## Priority Summary (What to Tackle)
 
+### 0. Operational Quick Wins (from 2026-03 audit — Do First, ~5 hours total)
+These are pre-scaling essentials. No architectural changes, just plugging gaps before more users arrive:
+
+1. **AI Usage Tracking Table** (~1h) — `ai_usage_log` table logging every API call with tokens/cost. You need cost visibility before scaling.
+2. **Rate Limiting on Student Endpoints** (~1-2h) — In-memory rate limiter on `/api/student/design-assistant`. Prevents credit exhaustion.
+3. **Sentry Integration** (~1h) — `@sentry/nextjs`. Currently all errors go to `console.error` — in production, failures are invisible.
+4. **Prompt Snapshot Tests** (~2-3h) — Zero test files in the repo. Start with snapshot tests for the 3 key prompt builders. Prevents silent regressions.
+5. ~~**Response Flagging Heuristic** (~30m)~~ — Superseded by MonitoredTextarea + analyzeIntegrity() built 19 Mar 2026. Full integrity system with 6-rule scoring, playback, and teacher report.
+
 ### Immediate Impact (Build Next)
 These deliver the most value for the least effort and fill the biggest gaps:
 
-1. **Teacher Review UI** (Phase 2 — Lesson Intelligence) — upload pipeline is built but no way to see/verify the analysis. Quick win: rich display of LessonProfile after upload.
-2. **Real-time Teacher Dashboard** (Phase 4) — the #1 daily-driver feature teachers don't have. "Who's stuck, who's done" at a glance.
-3. **Grading/Marking UI** (Phase 4) — no way to record grades currently. Assessment types are ready, need the UI.
-4. **Batch Upload UI** (Phase 2) — multi-file drag-and-drop for knowledge base. Currently single-file only.
+6. **Teacher Review UI** (Phase 2 — Lesson Intelligence) — upload pipeline is built but no way to see/verify the analysis. Quick win: rich display of LessonProfile after upload.
+7. **Real-time Teacher Dashboard** (Phase 4) — the #1 daily-driver feature teachers don't have. "Who's stuck, who's done" at a glance.
+8. **Grading/Marking UI + Agentic Assessment** (Phase 4) — no way to record grades currently. Assessment types are ready, need the UI. 2026-03 audit identified an agentic assessment workflow (retrieve rubric → evaluate → strand-level feedback → improvements) as the highest-value feature gap. Claude vision could also analyse student prototype photos against design specs.
+9. **AI Insights Dashboard** (Phase 4) — data model already captures signals (retrieval counts, Bloom's progression, quality scores). Primarily a UI build. Pairs with real-time dashboard.
+10. **Batch Upload UI** (Phase 2) — multi-file drag-and-drop for knowledge base. Currently single-file only. Component built 19 Mar 2026 (`src/components/teacher/BatchUpload.tsx`), needs integration into knowledge upload page.
 
 ### Foundation Work (Enables Everything Else)
-5. **Teaching Context Onboarding** (Phase 2.5) — school context + teacher preferences feed into every AI generation
-6. **School Entity + Student Registry** (Phase 3.5) — prerequisite for parent portal, data compliance, multi-teacher schools
+11. **Teaching Context Onboarding** (Phase 2.5) — school context + teacher preferences feed into every AI generation
+12. **School Entity + Student Registry** (Phase 3.5) — prerequisite for parent portal, data compliance, multi-teacher schools
 
 ### Differentiators (What Makes StudioLoom World-Class)
-7. **Wizard RAG Enhancement** (Phase 2) — lesson-level retrieval makes AI generation dramatically better
-8. **Safety Certification Tracking UI** (Phase 3) — elevated to USP, builds trust with schools and insurance
-9. **Offline/Service Worker** (Cross-cutting) — workshop WiFi is terrible, this is a differentiator
-10. **Peer Inspiration Gallery** (Phase 5) — social learning for teens, lightweight but high-engagement
+13. **Wizard RAG Enhancement** (Phase 2) — lesson-level retrieval makes AI generation dramatically better
+14. **Cross-Encoder Re-Ranking** (Phase 2, from audit) — retrieve top 15-20, re-rank with Cohere/Voyage reranker, return top 5. ~1 week. Matters when KB exceeds ~1000 chunks.
+15. **Safety Certification Tracking UI** (Phase 3) — elevated to USP, builds trust with schools and insurance
+16. **Multi-Modal Student Work Analysis** (from audit) — Claude vision on student prototype photos/sketches against design specs. Natural extension of existing vision extraction pipeline. ~2 weeks.
+17. **Offline/Service Worker** (Cross-cutting) — workshop WiFi is terrible, this is a differentiator
+18. **Peer Inspiration Gallery** (Phase 5) — social learning for teens, lightweight but high-engagement
 
 ### Trust Builders (Required for School Sales)
-11. **Data Privacy/Compliance UI** (Phase 3.5) — schools won't adopt without seeing compliance tools
-12. **Report Generation** (Phase 4) — end-of-term reports are a basic expectation
-13. **Parent Portal** (Phase 5.5) — read-only access for parents, required by many school policies
+19. **Data Privacy/Compliance UI** (Phase 3.5) — schools won't adopt without seeing compliance tools
+20. **Report Generation** (Phase 4) — end-of-term reports are a basic expectation
+21. **Parent Portal** (Phase 5.5) — read-only access for parents, required by many school policies
+22. **Product Analytics** (Cross-cutting) — Plausible for page analytics (cookie-free, COPPA-safe), PostHog for product funnels if needed. Essential for Phase 7 freemium conversion tracking. Never track students individually.
+
+---
+
+*Last updated: 2026-03-19 (timing validation wired into pipeline, academic integrity system built, student toolkit persistence layer built — see CLAUDE.md for session details)*

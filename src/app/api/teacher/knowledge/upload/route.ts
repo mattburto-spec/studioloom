@@ -7,6 +7,7 @@ import { embedAll, embedText } from "@/lib/ai/embeddings";
 import { analyseDocument } from "@/lib/knowledge/analyse";
 import { extractVisualContent, type VisualExtractionResult } from "@/lib/knowledge/vision";
 import { ANALYSIS_PROMPT_VERSION } from "@/lib/knowledge/analysis-prompts";
+import { onLessonUploaded } from "@/lib/teacher-style/profile-service";
 import { createKnowledgeItem } from "@/lib/knowledge-library";
 import type { LessonProfile, PartialTeachingContext, SchoolContext, TeacherPreferences } from "@/types/lesson-intelligence";
 import type { TextbookSectionContent, LessonResourceContent } from "@/types/knowledge-library";
@@ -327,6 +328,12 @@ export async function POST(request: NextRequest) {
         let profileId: string | null = null;
 
         if (!skipAnalysis && process.env.ANTHROPIC_API_KEY) {
+          emitStage(controller, "pass0_classify");
+          await supabaseAdmin
+            .from("knowledge_uploads")
+            .update({ analysis_stage: "pass0_classify" })
+            .eq("id", uploadId);
+
           emitStage(controller, "pass1_structure");
           await supabaseAdmin
             .from("knowledge_uploads")
@@ -338,6 +345,7 @@ export async function POST(request: NextRequest) {
               extractedText: doc.rawText,
               filename,
               teachingContext,
+              sourceCategory,
               onProgress: async (stage) => {
                 // Emit SSE progress + update DB
                 const stageKey = stage as UploadStage;
@@ -410,6 +418,13 @@ export async function POST(request: NextRequest) {
                   lesson_profile_id: profileId,
                 })
                 .eq("id", uploadId);
+
+              // Signal teacher style profile: lesson uploaded
+              if (analysisResult.pass1) {
+                onLessonUploaded(teacherId, analysisResult.pass1).catch(() => {
+                  // Non-fatal — style profile update failure shouldn't block upload
+                });
+              }
             }
           } catch (analysisErr) {
             const msg = analysisErr instanceof Error ? analysisErr.message : "Analysis failed";

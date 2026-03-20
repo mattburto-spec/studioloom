@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StudioLoom — Design Thinking Toolkit</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', -apple-system, sans-serif; background: #f8f9fb; color: #1a1a2e; }
+
+  /* Header */
+  .hero { background: linear-gradient(135deg, #1a1a2e 0%, #2d1b69 50%, #1a1a2e 100%); padding: 48px 24px 36px; text-align: center; position: relative; overflow: hidden; }
+  .hero::before { content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: radial-gradient(circle at 30% 50%, rgba(99,102,241,0.12) 0%, transparent 50%), radial-gradient(circle at 70% 50%, rgba(236,72,153,0.08) 0%, transparent 50%); animation: drift 20s ease-in-out infinite; }
+  @keyframes drift { 0%,100% { transform: translate(0,0); } 50% { transform: translate(-2%,1%); } }
+  .hero h1 { font-size: 36px; font-weight: 900; color: #fff; position: relative; letter-spacing: -0.5px; }
+  .hero h1 span { background: linear-gradient(135deg, #818cf8, #e879f9); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .hero p { color: rgba(255,255,255,0.6); font-size: 15px; margin-top: 8px; position: relative; }
+  .hero .count { display: inline-block; background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.1); padding: 6px 16px; border-radius: 20px; font-size: 13px; color: rgba(255,255,255,0.8); margin-top: 16px; position: relative; }
+
+  /* Search & Filters */
+  .controls { max-width: 1200px; margin: 0 auto; padding: 24px 24px 0; position: sticky; top: 0; z-index: 50; background: #f8f9fb; }
+  .search-bar { position: relative; margin-bottom: 16px; }
+  .search-bar input { width: 100%; padding: 14px 20px 14px 48px; border: 2px solid #e2e8f0; border-radius: 14px; font-size: 15px; font-family: inherit; background: #fff; transition: all 0.2s; outline: none; }
+  .search-bar input:focus { border-color: #818cf8; box-shadow: 0 0 0 4px rgba(129,140,248,0.1); }
+  .search-bar svg { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: #94a3b8; }
+
+  .filter-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+  .filter-group { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .filter-label { font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; margin-right: 4px; white-space: nowrap; }
+  .filter-btn { padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; border: 1.5px solid #e2e8f0; background: #fff; color: #64748b; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+  .filter-btn:hover { border-color: #818cf8; color: #6366f1; }
+  .filter-btn.active { background: #6366f1; border-color: #6366f1; color: #fff; }
+
+  .deploy-row { display: flex; gap: 8px; flex-wrap: wrap; padding-bottom: 16px; border-bottom: 1px solid #e2e8f0; margin-bottom: 0; }
+  .deploy-btn { padding: 7px 16px; border-radius: 10px; font-size: 12px; font-weight: 600; border: 1.5px solid #e2e8f0; background: #fff; color: #64748b; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 6px; }
+  .deploy-btn:hover { border-color: #10b981; color: #059669; }
+  .deploy-btn.active { background: #059669; border-color: #059669; color: #fff; }
+  .deploy-icon { font-size: 14px; }
+
+  /* Grid */
+  .grid-wrapper { max-width: 1200px; margin: 0 auto; padding: 24px; }
+  .results-count { font-size: 13px; color: #94a3b8; margin-bottom: 16px; font-weight: 500; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+
+  /* Cards */
+  .card { background: #fff; border-radius: 16px; border: 1.5px solid #e8ecf2; overflow: hidden; cursor: pointer; transition: all 0.25s; position: relative; }
+  .card:hover { transform: translateY(-3px); box-shadow: 0 12px 40px rgba(0,0,0,0.08); border-color: #c7d2fe; }
+  .card.expanded { grid-column: 1 / -1; }
+
+  .card-visual { height: 160px; position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  .card-visual svg { width: 85%; height: 85%; }
+
+  .card-body { padding: 16px; }
+  .card-name { font-size: 16px; font-weight: 700; color: #1a1a2e; margin-bottom: 4px; }
+  .card-desc { font-size: 12.5px; color: #64748b; line-height: 1.5; margin-bottom: 12px; }
+
+  .card-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+  .card-tag { font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 6px; }
+  .tag-phase { background: #ede9fe; color: #7c3aed; }
+  .tag-mode { background: #ecfdf5; color: #059669; }
+  .tag-group { background: #fef3c7; color: #b45309; }
+  .tag-individual { background: #e0f2fe; color: #0369a1; }
+  .tag-type { background: #f1f5f9; color: #475569; }
+
+  .card-deploy { display: flex; gap: 6px; }
+  .card-deploy-btn { flex: 1; padding: 8px; border-radius: 8px; font-size: 11px; font-weight: 600; border: none; cursor: pointer; transition: all 0.2s; text-align: center; }
+  .btn-present { background: #ede9fe; color: #7c3aed; }
+  .btn-present:hover { background: #7c3aed; color: #fff; }
+  .btn-print { background: #fef3c7; color: #b45309; }
+  .btn-print:hover { background: #b45309; color: #fff; }
+  .btn-group { background: #ecfdf5; color: #059669; }
+  .btn-group:hover { background: #059669; color: #fff; }
+  .btn-hands { background: #e0f2fe; color: #0369a1; }
+  .btn-hands:hover { background: #0369a1; color: #fff; }
+
+  .card-meta { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; padding-top: 10px; border-top: 1px solid #f1f5f9; }
+  .card-time { font-size: 11px; color: #94a3b8; }
+  .card-fav { width: 28px; height: 28px; border-radius: 8px; border: none; background: transparent; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; transition: all 0.2s; }
+  .card-fav:hover { background: #fef3c7; }
+  .card-fav.faved { background: #fef3c7; }
+
+  .card-difficulty { position: absolute; top: 12px; right: 12px; font-size: 10px; font-weight: 700; padding: 3px 10px; border-radius: 6px; backdrop-filter: blur(8px); }
+  .diff-easy { background: rgba(16,185,129,0.15); color: #059669; }
+  .diff-medium { background: rgba(245,158,11,0.15); color: #b45309; }
+  .diff-advanced { background: rgba(239,68,68,0.15); color: #dc2626; }
+
+  /* Empty state */
+  .empty { text-align: center; padding: 60px 20px; }
+  .empty-icon { font-size: 48px; margin-bottom: 16px; }
+  .empty h3 { font-size: 18px; color: #1a1a2e; margin-bottom: 8px; }
+  .empty p { font-size: 14px; color: #94a3b8; }
+
+  /* Footer */
+  .footer { text-align: center; padding: 40px 20px; font-size: 12px; color: #94a3b8; }
+  .footer a { color: #6366f1; text-decoration: none; }
+
+  @media (max-width: 640px) {
+    .hero h1 { font-size: 26px; }
+    .grid { grid-template-columns: 1fr; }
+    .filter-row { gap: 6px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <h1>Design <span>Toolkit</span></h1>
+  <p>Every visual thinking tool a design teacher needs. Browse, filter, deploy.</p>
+  <div class="count" id="toolCount">36 tools across 7 categories</div>
+</div>
+
+<div class="controls">
+  <div class="search-bar">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+    <input type="text" id="search" placeholder="Search tools... e.g. 'brainstorm', 'evaluate', 'stakeholder'" />
+  </div>
+
+  <div class="filter-row">
+    <span class="filter-label">Phase:</span>
+    <div class="filter-group" id="phaseFilters">
+      <button class="filter-btn active" data-filter="all" data-group="phase">All</button>
+      <button class="filter-btn" data-filter="inquiring" data-group="phase">Inquiring</button>
+      <button class="filter-btn" data-filter="developing" data-group="phase">Developing</button>
+      <button class="filter-btn" data-filter="creating" data-group="phase">Creating</button>
+      <button class="filter-btn" data-filter="evaluating" data-group="phase">Evaluating</button>
+    </div>
+  </div>
+
+  <div class="filter-row">
+    <span class="filter-label">Type:</span>
+    <div class="filter-group" id="typeFilters">
+      <button class="filter-btn active" data-filter="all" data-group="type">All</button>
+      <button class="filter-btn" data-filter="ideation" data-group="type">Ideation</button>
+      <button class="filter-btn" data-filter="analysis" data-group="type">Analysis</button>
+      <button class="filter-btn" data-filter="planning" data-group="type">Planning</button>
+      <button class="filter-btn" data-filter="evaluation" data-group="type">Evaluation</button>
+      <button class="filter-btn" data-filter="research" data-group="type">Research</button>
+      <button class="filter-btn" data-filter="communication" data-group="type">Communication</button>
+      <button class="filter-btn" data-filter="reflection" data-group="type">Reflection</button>
+    </div>
+  </div>
+
+  <div class="deploy-row">
+    <span class="filter-label" style="padding-top:4px">Deploy as:</span>
+    <button class="deploy-btn active" data-deploy="all"><span class="deploy-icon">📋</span> All modes</button>
+    <button class="deploy-btn" data-deploy="presentation"><span class="deploy-icon">📺</span> Presentation</button>
+    <button class="deploy-btn" data-deploy="printable"><span class="deploy-icon">🖨️</span> Printable</button>
+    <button class="deploy-btn" data-deploy="group"><span class="deploy-icon">👥</span> Group Activity</button>
+    <button class="deploy-btn" data-deploy="individual"><span class="deploy-icon">⚡</span> Individual</button>
+  </div>
+</div>
+
+<div class="grid-wrapper">
+  <div class="results-count" id="resultsCount"></div>
+  <div class="grid" id="grid"></div>
+  <div class="empty" id="empty" style="display:none">
+    <div class="empty-icon">🔍</div>
+    <h3>No tools match your filters</h3>
+    <p>Try broadening your search or changing filters</p>
+  </div>
+</div>
+
+<div class="footer">
+  <p>Proof of concept — <a href="#">StudioLoom</a> Design Toolkit · Built 17 March 2026</p>
+  <p style="margin-top:4px">Free for all teachers. Premium features in StudioLoom platform.</p>
+</div>
+
+<script>
+const tools = [
+  // === IDEATION ===
+  {
+    name: "Mind Map",
+    desc: "Radial brainstorming from a central concept. Branch ideas outward, see connections, find unexpected links between sub-topics.",
+    phases: ["inquiring", "developing"],
+    type: "ideation",
+    modes: ["presentation", "printable", "individual", "group"],
+    difficulty: "easy",
+    time: "10-20 min",
+    groupSize: "individual",
+    color: "#818cf8",
+    bgColor: "#eef2ff",
+    visual: "mindmap"
+  },
+  {
+    name: "SCAMPER",
+    desc: "Systematic idea generation: Substitute, Combine, Adapt, Modify, Put to other use, Eliminate, Reverse. Forces creative thinking through structured prompts.",
+    phases: ["developing"],
+    type: "ideation",
+    modes: ["presentation", "printable", "individual"],
+    difficulty: "easy",
+    time: "15-25 min",
+    groupSize: "individual",
+    color: "#e879f9",
+    bgColor: "#fdf4ff",
+    visual: "scamper"
+  },
+  {
+    name: "Lotus Diagram",
+    desc: "9-box expansion tool. Central idea surrounded by 8 related themes, each expanding into 8 more sub-ideas. Generates 64 ideas from one concept.",
+    phases: ["developing"],
+    type: "ideation",
+    modes: ["printable", "individual"],
+    difficulty: "medium",
+    time: "20-30 min",
+    groupSize: "individual",
+    color: "#f472b6",
+    bgColor: "#fdf2f8",
+    visual: "lotus"
+  },
+  {
+    name: "Crazy 8s",
+    desc: "Rapid sketching: 8 ideas in 8 minutes. Forces quick thinking and prevents overthinking. Great warm-up before deeper ideation.",
+    phases: ["developing"],
+    type: "ideation",
+    modes: ["printable", "individual", "group"],
+    difficulty: "easy",
+    time: "8 min",
+    groupSize: "individual",
+    color: "#fb923c",
+    bgColor: "#fff7ed",
+    visual: "crazy8"
+  },
+  {
+    name: "Brainstorm Web",
+    desc: "Free-association web connecting related ideas. No hierarchy — just connections. Let students see how concepts relate before organizing.",
+    phases: ["inquiring", "developing"],
+    type: "ideation",
+    modes: ["presentation", "group", "individual"],
+    difficulty: "easy",
+    time: "10-15 min",
+    groupSize: "group",
+    color: "#818cf8",
+    bgColor: "#eef2ff",
+    visual: "web"
+  },
+  {
+    name: "Morphological Chart",
+    desc: "Systematic combination of features. List design attributes down the side, options across. Mix and match to generate novel combinations.",
+    phases: ["developing"],
+    type: "ideation",
+    modes: ["printable", "individual"],
+    difficulty: "medium",
+    time: "20-30 min",
+    groupSize: "individual",
+    color: "#a78bfa",
+    bgColor: "#f5f3ff",
+    visual: "morpho"
+  },
+  {
+    name: "Biomimicry Cards",
+    desc: "Nature-inspired design prompts. 'How does nature solve this?' Random organism + design challenge = unexpected solutions.",
+    phases: ["developing"],
+    type: "ideation",
+    modes: ["presentation", "group"],
+    difficulty: "medium",
+    time: "15-20 min",
+    groupSize: "group",
+    color: "#34d399",
+    bgColor: "#ecfdf5",
+    visual: "biomimicry"
+  },
+
+  // === ANALYSIS ===
+  {
+    name: "PMI Chart",
+    desc: "Plus, Minus, Interesting — Edward de Bono's quick evaluation framework. Simple but powerful way to assess any idea or solution.",
+    phases: ["evaluating", "inquiring"],
+    type: "analysis",
+    modes: ["presentation", "printable", "individual", "group"],
+    difficulty: "easy",
+    time: "10-15 min",
+    groupSize: "individual",
+    color: "#10b981",
+    bgColor: "#ecfdf5",
+    visual: "pmi"
+  },
+  {
+    name: "SWOT Analysis",
+    desc: "Strengths, Weaknesses, Opportunities, Threats. Classic strategic analysis adapted for design — assess your solution against context.",
+    phases: ["evaluating", "inquiring"],
+    type: "analysis",
+    modes: ["printable", "individual", "group"],
+    difficulty: "easy",
+    time: "15-20 min",
+    groupSize: "individual",
+    color: "#06b6d4",
+    bgColor: "#ecfeff",
+    visual: "swot"
+  },
+  {
+    name: "Fishbone Diagram",
+    desc: "Ishikawa cause-and-effect analysis. Identify root causes of a design problem by categorising contributing factors along a spine.",
+    phases: ["inquiring"],
+    type: "analysis",
+    modes: ["presentation", "printable", "group"],
+    difficulty: "medium",
+    time: "20-30 min",
+    groupSize: "group",
+    color: "#f59e0b",
+    bgColor: "#fffbeb",
+    visual: "fishbone"
+  },
+  {
+    name: "Five Whys",
+    desc: "Drill to root cause by asking 'Why?' five times. Simple but reveals hidden assumptions and deeper problems behind surface symptoms.",
+    phases: ["inquiring"],
+    type: "analysis",
+    modes: ["presentation", "printable", "individual"],
+    difficulty: "easy",
+    time: "10 min",
+    groupSize: "individual",
+    color: "#ef4444",
+    bgColor: "#fef2f2",
+    visual: "fivewhys"
+  },
+  {
+    name: "Stakeholder Map",
+    desc: "Visual map of who's affected by the design. Plot stakeholders by influence and interest. Reveals who to design for and who to consult.",
+    phases: ["inquiring"],
+    type: "analysis",
+    modes: ["presentation", "printable", "group"],
+    difficulty: "medium",
+    time: "15-25 min",
+    groupSize: "group",
+    color: "#8b5cf6",
+    bgColor: "#f5f3ff",
+    visual: "stakeholder"
+  },
+  {
+    name: "Systems Map",
+    desc: "Visualise the ecosystem around your design problem. Inputs, outputs, feedback loops, actors. See the big picture before zooming in.",
+    phases: ["inquiring"],
+    type: "analysis",
+    modes: ["presentation", "group"],
+    difficulty: "advanced",
+    time: "25-40 min",
+    groupSize: "group",
+    color: "#6366f1",
+    bgColor: "#eef2ff",
+    visual: "systems"
+  },
+
+  // === EVALUATION ===
+  {
+    name: "Decision Matrix",
+    desc: "Weighted criteria comparison. Score options against criteria, apply weights, calculate totals. Data-driven decision making for design choices.",
+    phases: ["evaluating", "developing"],
+    type: "evaluation",
+    modes: ["printable", "individual"],
+    difficulty: "medium",
+    time: "20-30 min",
+    groupSize: "individual",
+    color: "#059669",
+    bgColor: "#ecfdf5",
+    visual: "matrix"
+  },
+  {
+    name: "Pairwise Comparison",
+    desc: "Compare options head-to-head in pairs. Simpler than a full matrix — good for when students struggle with multi-criteria scoring.",
+    phases: ["evaluating"],
+    type: "evaluation",
+    modes: ["printable", "individual"],
+    difficulty: "easy",
+    time: "10-15 min",
+    groupSize: "individual",
+    color: "#14b8a6",
+    bgColor: "#f0fdfa",
+    visual: "pairwise"
+  },
+  {
+    name: "Trade-off Sliders",
+    desc: "Visual tension mapping. Slide between competing priorities (cost↔quality, speed↔durability). Makes design trade-offs explicit and defensible.",
+    phases: ["evaluating", "developing"],
+    type: "evaluation",
+    modes: ["presentation", "individual"],
+    difficulty: "easy",
+    time: "10 min",
+    groupSize: "individual",
+    color: "#0ea5e9",
+    bgColor: "#e0f2fe",
+    visual: "sliders"
+  },
+  {
+    name: "Six Thinking Hats",
+    desc: "de Bono's parallel thinking. Each 'hat' is a perspective: facts, feelings, caution, benefits, creativity, process. Groups evaluate from all angles.",
+    phases: ["evaluating", "developing"],
+    type: "evaluation",
+    modes: ["presentation", "group"],
+    difficulty: "medium",
+    time: "20-30 min",
+    groupSize: "group",
+    color: "#eab308",
+    bgColor: "#fefce8",
+    visual: "hats"
+  },
+  {
+    name: "Feedback Capture Grid",
+    desc: "Four quadrants: Likes, Wishes, Questions, Ideas. Structured peer feedback that's constructive and actionable.",
+    phases: ["evaluating"],
+    type: "evaluation",
+    modes: ["printable", "group"],
+    difficulty: "easy",
+    time: "15 min",
+    groupSize: "group",
+    color: "#22c55e",
+    bgColor: "#f0fdf4",
+    visual: "feedback"
+  },
+  {
+    name: "Impact/Effort Matrix",
+    desc: "2×2 grid plotting ideas by impact vs. effort. Quick wins (high impact, low effort) go first. Teaches prioritisation thinking.",
+    phases: ["evaluating", "developing"],
+    type: "evaluation",
+    modes: ["presentation", "printable", "group"],
+    difficulty: "easy",
+    time: "15 min",
+    groupSize: "group",
+    color: "#f97316",
+    bgColor: "#fff7ed",
+    visual: "impact"
+  },
+
+  // === RESEARCH ===
+  {
+    name: "Empathy Map",
+    desc: "User-centred research tool. What does your user Say, Think, Do, Feel? Forces students to step outside their own perspective.",
+    phases: ["inquiring"],
+    type: "research",
+    modes: ["presentation", "printable", "individual", "group"],
+    difficulty: "easy",
+    time: "15-20 min",
+    groupSize: "individual",
+    color: "#ec4899",
+    bgColor: "#fdf2f8",
+    visual: "empathy"
+  },
+  {
+    name: "User Persona Card",
+    desc: "Create a fictional but research-backed user profile. Demographics, goals, frustrations, context. The north star for design decisions.",
+    phases: ["inquiring"],
+    type: "research",
+    modes: ["printable", "individual"],
+    difficulty: "medium",
+    time: "20-30 min",
+    groupSize: "individual",
+    color: "#d946ef",
+    bgColor: "#fdf4ff",
+    visual: "persona"
+  },
+  {
+    name: "Interview Question Builder",
+    desc: "Structured template for designing user interviews. Open-ended prompts, follow-up questions, avoid leading questions. Teaches research methodology.",
+    phases: ["inquiring"],
+    type: "research",
+    modes: ["printable", "individual"],
+    difficulty: "medium",
+    time: "15-20 min",
+    groupSize: "individual",
+    color: "#a855f7",
+    bgColor: "#faf5ff",
+    visual: "interview"
+  },
+  {
+    name: "Observation Sheet",
+    desc: "Structured field observation template. What you see, what you infer, questions that arise. Trains the 'design eye'.",
+    phases: ["inquiring"],
+    type: "research",
+    modes: ["printable", "individual"],
+    difficulty: "easy",
+    time: "15-30 min",
+    groupSize: "individual",
+    color: "#0891b2",
+    bgColor: "#ecfeff",
+    visual: "observe"
+  },
+  {
+    name: "Affinity Diagram",
+    desc: "Group raw research data into themes. Sticky-note clustering that reveals patterns in messy qualitative data. Essential synthesis skill.",
+    phases: ["inquiring", "developing"],
+    type: "research",
+    modes: ["group", "presentation"],
+    difficulty: "medium",
+    time: "20-30 min",
+    groupSize: "group",
+    color: "#7c3aed",
+    bgColor: "#f5f3ff",
+    visual: "affinity"
+  },
+
+  // === PLANNING ===
+  {
+    name: "Design Brief Template",
+    desc: "Structured brief defining the problem, constraints, target user, success criteria, and timeline. The foundation document for any design project.",
+    phases: ["inquiring"],
+    type: "planning",
+    modes: ["printable", "individual"],
+    difficulty: "medium",
+    time: "30-45 min",
+    groupSize: "individual",
+    color: "#2563eb",
+    bgColor: "#eff6ff",
+    visual: "brief"
+  },
+  {
+    name: "Design Specification",
+    desc: "Detailed technical and performance requirements. Materials, dimensions, tolerances, standards. Bridges the gap between idea and making.",
+    phases: ["developing"],
+    type: "planning",
+    modes: ["printable", "individual"],
+    difficulty: "advanced",
+    time: "30-45 min",
+    groupSize: "individual",
+    color: "#1d4ed8",
+    bgColor: "#eff6ff",
+    visual: "spec"
+  },
+  {
+    name: "Gantt Chart Planner",
+    desc: "Visual timeline for project phases. Tasks, durations, dependencies, milestones. Teaches project management within the design cycle.",
+    phases: ["developing", "creating"],
+    type: "planning",
+    modes: ["printable", "individual"],
+    difficulty: "medium",
+    time: "20-30 min",
+    groupSize: "individual",
+    color: "#3b82f6",
+    bgColor: "#eff6ff",
+    visual: "gantt"
+  },
+  {
+    name: "Resource Planner",
+    desc: "Materials, tools, and time budget. What do you need, what do you have, what's the gap? Practical planning for the making phase.",
+    phases: ["creating"],
+    type: "planning",
+    modes: ["printable", "individual"],
+    difficulty: "easy",
+    time: "15 min",
+    groupSize: "individual",
+    color: "#0284c7",
+    bgColor: "#e0f2fe",
+    visual: "resource"
+  },
+
+  // === COMMUNICATION ===
+  {
+    name: "Mood Board Builder",
+    desc: "Visual inspiration collage. Colours, textures, images, typography, words. Sets the aesthetic direction before designing.",
+    phases: ["developing"],
+    type: "communication",
+    modes: ["individual", "presentation"],
+    difficulty: "easy",
+    time: "20-30 min",
+    groupSize: "individual",
+    color: "#f43f5e",
+    bgColor: "#fff1f2",
+    visual: "mood"
+  },
+  {
+    name: "Storyboard Template",
+    desc: "Sequential visual narrative. 6-8 frames showing how a user interacts with your design over time. Scenario-based thinking.",
+    phases: ["developing", "creating"],
+    type: "communication",
+    modes: ["printable", "individual"],
+    difficulty: "medium",
+    time: "25-40 min",
+    groupSize: "individual",
+    color: "#e11d48",
+    bgColor: "#fff1f2",
+    visual: "storyboard"
+  },
+  {
+    name: "Annotation Template",
+    desc: "Label your design with callouts explaining material choices, dimensions, features, and design rationale. Essential for portfolios.",
+    phases: ["creating", "evaluating"],
+    type: "communication",
+    modes: ["printable", "individual"],
+    difficulty: "easy",
+    time: "15-20 min",
+    groupSize: "individual",
+    color: "#be123c",
+    bgColor: "#fff1f2",
+    visual: "annotate"
+  },
+  {
+    name: "Pitch Deck Builder",
+    desc: "Structured presentation template for pitching design solutions. Problem, research, concept, prototype, testing, reflection. Competition-ready.",
+    phases: ["evaluating"],
+    type: "communication",
+    modes: ["presentation", "individual"],
+    difficulty: "advanced",
+    time: "40-60 min",
+    groupSize: "individual",
+    color: "#9f1239",
+    bgColor: "#fff1f2",
+    visual: "pitch"
+  },
+
+  // === REFLECTION ===
+  {
+    name: "Design Journal Prompt",
+    desc: "Structured daily/weekly reflection. What did I learn? What would I change? What surprised me? Builds metacognitive habits.",
+    phases: ["evaluating", "inquiring", "developing", "creating"],
+    type: "reflection",
+    modes: ["printable", "individual"],
+    difficulty: "easy",
+    time: "5-10 min",
+    groupSize: "individual",
+    color: "#9333ea",
+    bgColor: "#faf5ff",
+    visual: "journal"
+  },
+  {
+    name: "Before & After Comparison",
+    desc: "Side-by-side documentation of iterations. What changed, why it changed, what improved. Makes the design process visible.",
+    phases: ["evaluating"],
+    type: "reflection",
+    modes: ["printable", "individual", "presentation"],
+    difficulty: "easy",
+    time: "15 min",
+    groupSize: "individual",
+    color: "#7e22ce",
+    bgColor: "#faf5ff",
+    visual: "beforeafter"
+  },
+  {
+    name: "Peer Review Protocol",
+    desc: "Structured critique framework. Gallery walk with sticky notes, or round-robin verbal feedback with sentence starters. Kind, specific, helpful.",
+    phases: ["evaluating"],
+    type: "reflection",
+    modes: ["group", "presentation"],
+    difficulty: "easy",
+    time: "20-30 min",
+    groupSize: "group",
+    color: "#6b21a8",
+    bgColor: "#faf5ff",
+    visual: "peer"
+  },
+  {
+    name: "Testing Protocol",
+    desc: "Structured user testing template. Tasks to complete, observations to record, questions to ask. Teaches evidence-based evaluation.",
+    phases: ["evaluating"],
+    type: "reflection",
+    modes: ["printable", "group", "individual"],
+    difficulty: "medium",
+    time: "20-30 min",
+    groupSize: "group",
+    color: "#581c87",
+    bgColor: "#faf5ff",
+    visual: "testing"
+  }
+];
+
+// SVG thumbnail generators
+function generateVisual(tool) {
+  const bg = tool.bgColor;
+  const c = tool.color;
+  const svgs = {
+    mindmap: `<svg viewBox="0 0 200 120"><rect width="200" height="120" fill="${bg}"/><circle cx="100" cy="60" r="16" fill="${c}" opacity="0.9"/><circle cx="45" cy="30" r="9" fill="${c}" opacity="0.5"/><circle cx="155" cy="30" r="9" fill="${c}" opacity="0.5"/><circle cx="45" cy="90" r="9" fill="${c}" opacity="0.5"/><circle cx="155" cy="90" r="9" fill="${c}" opacity="0.5"/><circle cx="30" cy="60" r="7" fill="${c}" opacity="0.3"/><circle cx="170" cy="60" r="7" fill="${c}" opacity="0.3"/><line x1="100" y1="60" x2="45" y2="30" stroke="${c}" stroke-width="1.5" opacity="0.4"/><line x1="100" y1="60" x2="155" y2="30" stroke="${c}" stroke-width="1.5" opacity="0.4"/><line x1="100" y1="60" x2="45" y2="90" stroke="${c}" stroke-width="1.5" opacity="0.4"/><line x1="100" y1="60" x2="155" y2="90" stroke="${c}" stroke-width="1.5" opacity="0.4"/><line x1="100" y1="60" x2="30" y2="60" stroke="${c}" stroke-width="1.5" opacity="0.4"/><line x1="100" y1="60" x2="170" y2="60" stroke="${c}" stroke-width="1.5" opacity="0.4"/></svg>`,
+    pmi: `<svg viewBox="0 0 200 120"><rect width="200" height="120" fill="${bg}"/><rect x="10" y="25" width="55" height="80" rx="6" fill="${c}" opacity="0.15"/><rect x="72" y="25" width="55" height="80" rx="6" fill="${c}" opacity="0.25"/><rect x="135" y="25" width="55" height="80" rx="6" fill="${c}" opacity="0.35"/><text x="37" y="18" text-anchor="middle" fill="${c}" font-size="11" font-weight="700">+</text><text x="100" y="18" text-anchor="middle" fill="${c}" font-size="11" font-weight="700">−</text><text x="162" y="18" text-anchor="middle" fill="${c}" font-size="11" font-weight="700">!</text><rect x="16" y="35" width="42" height="5" rx="2" fill="${c}" opacity="0.3"/><rect x="16" y="46" width="36" height="5" rx="2" fill="${c}" opacity="0.3"/><rect x="16" y="57" width="40" height="5" rx="2" fill="${c}" opacity="0.3"/><rect x="78" y="35" width="42" height="5" rx="2" fill="${c}" opacity="0.3"/><rect x="78" y="46" width="36" height="5" rx="2" fill="${c}" opacity="0.3"/><rect x="141" y="35" width="42" height="5" rx="2" fill="${c}" opacity="0.3"/><rect x="141" y="46" width="36" height="5" rx="2" fill="${c}" opacity="0.3"/></svg>`,
+    swot: `<svg viewBox="0 0 200 120"><rect width="200" height="120" fill="${bg}"/><rect x="15" y="15" width="80" height="40" rx="6" fill="${c}" opacity="0.2"/><rect x="105" y="15" width="80" height="40" rx="6" fill="${c}" opacity="0.3"/><rect x="15" y="65" width="80" height="40" rx="6" fill="${c}" opacity="0.15"/><rect x="105" y="65" width="80" height="40" rx="6" fill="${c}" opacity="0.25"/><text x="55" y="39" text-anchor="middle" fill="${c}" font-size="10" font-weight="700">S</text><text x="145" y="39" text-anchor="middle" fill="${c}" font-size="10" font-weight="700">W</text><text x="55" y="89" text-anchor="middle" fill="${c}" font-size="10" font-weight="700">O</text><text x="145" y="89" text-anchor="middle" fill="${c}" font-size="10" font-weight="700">T</text></svg>`,
+    matrix: `<svg viewBox="0 0 200 120"><rect width="200" height="120" fill="${bg}"/><rect x="55" y="15" width="30" height="10" rx="3" fill="${c}" opacity="0.2"/><rect x="95" y="15" width="30" height="10" rx="3" fill="${c}" opacity="0.2"/><rect x="135" y="15" width="30" height="10" rx="3" fill="${c}" opacity="0.2"/><rect x="15" y="35" width="35" height="8" rx="3" fill="${c}" opacity="0.15"/><rect x="15" y="53" width="35" height="8" rx="3" fill="${c}" opacity="0.15"/><rect x="15" y="71" width="35" height="8" rx="3" fill="${c}" opacity="0.15"/><rect x="15" y="89" width="35" height="8" rx="3" fill="${c}" opacity="0.15"/><circle cx="70" cy="39" r="5" fill="${c}" opacity="0.6"/><circle cx="110" cy="39" r="4" fill="${c}" opacity="0.4"/><circle cx="150" cy="39" r="6" fill="${c}" opacity="0.8"/><circle cx="70" cy="57" r="6" fill="${c}" opacity="0.8"/><circle cx="110" cy="57" r="5" fill="${c}" opacity="0.6"/><circle cx="150" cy="57" r="3" fill="${c}" opacity="0.3"/><circle cx="70" cy="75" r="4" fill="${c}" opacity="0.4"/><circle cx="110" cy="75" r="6" fill="${c}" opacity="0.8"/><circle cx="150" cy="75" r="5" fill="${c}" opacity="0.6"/><circle cx="70" cy="93" r="5" fill="${c}" opacity="0.6"/><circle cx="110" cy="93" r="6" fill="${c}" opacity="0.8"/><circle cx="150" cy="93" r="4" fill="${c}" opacity="0.4"/></svg>`,
+    empathy: `<svg viewBox="0 0 200 120"><rect width="200" height="120" fill="${bg}"/><circle cx="100" cy="45" r="22" fill="${c}" opacity="0.15" stroke="${c}" stroke-width="1.5" opacity="0.3"/><circle cx="94" cy="40" r="2.5" fill="${c}" opacity="0.5"/><circle cx="106" cy="40" r="2.5" fill="${c}" opacity="0.5"/><path d="M93 50 Q100 55 107 50" stroke="${c}" stroke-width="1.5" fill="none" opacity="0.4"/><text x="40" y="25" fill="${c}" font-size="8" font-weight="600" opacity="0.6">THINK</text><text x="140" y="25" fill="${c}" font-size="8" font-weight="600" opacity="0.6">FEEL</text><text x="40" y="100" fill="${c}" font-size="8" font-weight="600" opacity="0.6">SAY</text><text x="140" y="100" fill="${c}" font-size="8" font-weight="600" opacity="0.6">DO</text><line x1="100" y1="0" x2="100" y2="120" stroke="${c}" stroke-width="0.5" opacity="0.15" stroke-dasharray="3,3"/><line x1="0" y1="70" x2="200" y2="70" stroke="${c}" stroke-width="0.5" opacity="0.15" stroke-dasharray="3,3"/></svg>`,
+    fishbone: `<svg viewBox="0 0 200 120"><rect width="200" height="120" fill="${bg}"/><line x1="20" y1="60" x2="180" y2="60" stroke="${c}" stroke-width="2" opacity="0.5"/><line x1="50" y1="25" x2="70" y2="60" stroke="${c}" stroke-width="1.5" opacity="0.3"/><line x1="90" y1="25" x2="110" y2="60" stroke="${c}" stroke-width="1.5" opacity="0.3"/><line x1="130" y1="25" x2="150" y2="60" stroke="${c}" stroke-width="1.5" opacity="0.3"/><line x1="50" y1="95" x2="70" y2="60" stroke="${c}" stroke-width="1.5" opacity="0.3"/><line x1="90" y1="95" x2="110" y2="60" stroke="${c}" stroke-width="1.5" opacity="0.3"/><line x1="130" y1="95" x2="150" y2="60" stroke="${c}" stroke-width="1.5" opacity="0.3"/><rect x="168" y="50" width="24" height="20" rx="4" fill="${c}" opacity="0.4"/></svg>`,
+    hats: `<svg viewBox="0 0 200 120"><rect width="200" height="120" fill="${bg}"/><path d="M25 85 Q25 55 45 55 L55 55 Q75 55 75 85" fill="#fff" stroke="#e5e7eb" stroke-width="1"/><path d="M35 55 Q40 35 50 35 Q60 35 65 55" fill="#ef4444" opacity="0.7"/><path d="M65 85 Q65 55 85 55 L95 55 Q115 55 115 85" fill="#fff" stroke="#e5e7eb" stroke-width="1"/><path d="M75 55 Q80 35 90 35 Q100 35 105 55" fill="#eab308" opacity="0.7"/><path d="M125 85 Q125 55 145 55 L155 55 Q175 55 175 85" fill="#fff" stroke="#e5e7eb" stroke-width="1"/><path d="M135 55 Q140 35 150 35 Q160 35 165 55" fill="#22c55e" opacity="0.7"/><text x="100" y="108" text-anchor="middle" fill="${c}" font-size="9" font-weight="600" opacity="0.5">6 perspectives</text></svg>`,
+    stakeholder: `<svg viewBox="0 0 200 120"><rect width="200" height="120" fill="${bg}"/><line x1="100" y1="10" x2="100" y2="110" stroke="${c}" stroke-width="0.5" opacity="0.2"/><line x1="20" y1="60" x2="180" y2="60" stroke="${c}" stroke-width="0.5" opacity="0.2"/><text x="100" y="8" text-anchor="middle" fill="${c}" font-size="7" opacity="0.4">HIGH INFLUENCE</text><text x="185" y="63" text-anchor="end" fill="${c}" font-size="7" opacity="0.4">HIGH INTEREST</text><circle cx="140" cy="30" r="12" fill="${c}" opacity="0.5"/><circle cx="60" cy="80" r="8" fill="${c}" opacity="0.2"/><circle cx="150" cy="75" r="10" fill="${c}" opacity="0.35"/><circle cx="50" cy="35" r="9" fill="${c}" opacity="0.25"/><circle cx="120" cy="50" r="7" fill="${c}" opacity="0.3"/></svg>`
+  };
+
+  // Default visual for tools without a specific SVG
+  const defaultSvg = `<svg viewBox="0 0 200 120"><rect width="200" height="120" fill="${bg}"/><rect x="30" y="20" width="140" height="80" rx="10" fill="${c}" opacity="0.08" stroke="${c}" stroke-width="1" opacity="0.15"/><rect x="45" y="35" width="50" height="6" rx="3" fill="${c}" opacity="0.25"/><rect x="45" y="48" width="80" height="5" rx="2.5" fill="${c}" opacity="0.15"/><rect x="45" y="60" width="65" height="5" rx="2.5" fill="${c}" opacity="0.15"/><rect x="45" y="72" width="75" height="5" rx="2.5" fill="${c}" opacity="0.15"/></svg>`;
+
+  return svgs[tool.visual] || defaultSvg;
+}
+
+// State
+let activePhase = 'all';
+let activeType = 'all';
+let activeDeploy = 'all';
+let searchTerm = '';
+let favorites = new Set();
+
+function renderGrid() {
+  const grid = document.getElementById('grid');
+  const empty = document.getElementById('empty');
+  const count = document.getElementById('resultsCount');
+
+  const filtered = tools.filter(t => {
+    if (activePhase !== 'all' && !t.phases.includes(activePhase)) return false;
+    if (activeType !== 'all' && t.type !== activeType) return false;
+    if (activeDeploy !== 'all' && !t.modes.includes(activeDeploy)) return false;
+    if (searchTerm) {
+      const s = searchTerm.toLowerCase();
+      return t.name.toLowerCase().includes(s) || t.desc.toLowerCase().includes(s) || t.type.includes(s) || t.phases.some(p => p.includes(s));
+    }
+    return true;
+  });
+
+  if (filtered.length === 0) {
+    grid.innerHTML = '';
+    empty.style.display = 'block';
+    count.textContent = 'No tools found';
+    return;
+  }
+
+  empty.style.display = 'none';
+  count.textContent = `Showing ${filtered.length} of ${tools.length} tools`;
+
+  grid.innerHTML = filtered.map(t => {
+    const diffClass = t.difficulty === 'easy' ? 'diff-easy' : t.difficulty === 'medium' ? 'diff-medium' : 'diff-advanced';
+    const phaseTags = t.phases.map(p => `<span class="card-tag tag-phase">${p}</span>`).join('');
+    const modeTags = t.modes.map(m => {
+      if (m === 'group') return `<span class="card-tag tag-group">👥 Group</span>`;
+      if (m === 'individual') return `<span class="card-tag tag-individual">⚡ Individual</span>`;
+      return '';
+    }).filter(Boolean).join('');
+
+    const deployBtns = [];
+    if (t.modes.includes('presentation')) deployBtns.push(`<button class="card-deploy-btn btn-present">📺 Present</button>`);
+    if (t.modes.includes('printable')) deployBtns.push(`<button class="card-deploy-btn btn-print">🖨️ Print</button>`);
+    if (t.modes.includes('group')) deployBtns.push(`<button class="card-deploy-btn btn-group">👥 Group</button>`);
+    if (t.modes.includes('individual')) deployBtns.push(`<button class="card-deploy-btn btn-hands">⚡ Solo</button>`);
+
+    const isFav = favorites.has(t.name);
+
+    return `
+      <div class="card" data-name="${t.name}">
+        <div class="card-visual">
+          ${generateVisual(t)}
+          <span class="card-difficulty ${diffClass}">${t.difficulty}</span>
+        </div>
+        <div class="card-body">
+          <div class="card-name">${t.name}</div>
+          <div class="card-desc">${t.desc}</div>
+          <div class="card-tags">
+            ${phaseTags}
+            ${modeTags}
+          </div>
+          <div class="card-deploy">${deployBtns.join('')}</div>
+          <div class="card-meta">
+            <span class="card-time">⏱ ${t.time}</span>
+            <button class="card-fav ${isFav ? 'faved' : ''}" onclick="toggleFav('${t.name}', event)">
+              ${isFav ? '⭐' : '☆'}
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function toggleFav(name, e) {
+  e.stopPropagation();
+  if (favorites.has(name)) favorites.delete(name);
+  else favorites.add(name);
+  renderGrid();
+}
+
+// Event listeners
+document.querySelectorAll('[data-group="phase"]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-group="phase"]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activePhase = btn.dataset.filter;
+    renderGrid();
+  });
+});
+
+document.querySelectorAll('[data-group="type"]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-group="type"]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeType = btn.dataset.filter;
+    renderGrid();
+  });
+});
+
+document.querySelectorAll('[data-deploy]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-deploy]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeDeploy = btn.dataset.filter;
+    renderGrid();
+  });
+});
+
+document.getElementById('search').addEventListener('input', (e) => {
+  searchTerm = e.target.value;
+  renderGrid();
+});
+
+// Initial render
+renderGrid();
+</script>
+
+</body>
+</html>

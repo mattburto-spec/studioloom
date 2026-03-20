@@ -2,10 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { resolveCredentials } from "@/lib/ai/resolve-credentials";
 import { createAIProvider } from "@/lib/ai";
-import { UNIT_SYSTEM_PROMPT, buildRAGCriterionPrompt } from "@/lib/ai/prompts";
+import { UNIT_SYSTEM_PROMPT, buildRAGCriterionPrompt, getGradeTimingProfile, buildTimingContext, calculateUsableTime, maxInstructionMinutes } from "@/lib/ai/prompts";
 import { validateGeneratedPages } from "@/lib/ai/validation";
+import { validateLessonTiming } from "@/lib/ai/timing-validation";
 import type { UnitWizardInput } from "@/types";
 import type { CriterionKey } from "@/lib/constants";
+import { onUnitCreated } from "@/lib/teacher-style/profile-service";
 
 function createSupabaseServer(request: NextRequest) {
   return createServerClient(
@@ -153,7 +155,7 @@ export async function POST(request: NextRequest) {
       userPrompt
     );
 
-    // Validate output
+    // Validate output (structural)
     const validation = validateGeneratedPages(rawPages);
 
     if (Object.keys(validation.pages).length === 0) {
@@ -166,11 +168,42 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Timing validation — Workshop Model auto-repair on pages with workshopPhases
+    const gradeLevel = wizardInput.gradeLevel || "Year 3 (Grade 8)";
+    const profile = getGradeTimingProfile(gradeLevel);
+    const timingCtx = buildTimingContext(profile, 60, false); // default 60-min theory
+    const timingResults: Record<string, unknown> = {};
+
+    for (const [pid, page] of Object.entries(validation.pages)) {
+      if (page && typeof page === "object" && "sections" in page) {
+        try {
+          const result = validateLessonTiming(
+            page as Parameters<typeof validateLessonTiming>[0],
+            profile,
+            timingCtx
+          );
+          if (result.issues.length > 0) {
+            // Apply repaired workshopPhases back to the page
+            const repaired = page as unknown as Record<string, unknown>;
+            repaired.workshopPhases = result.repairedLesson.workshopPhases;
+            repaired.extensions = result.repairedLesson.extensions;
+            timingResults[pid] = { issues: result.issues, stats: result.stats };
+          }
+        } catch {
+          // Timing validation is enhancement, not requirement
+        }
+      }
+    }
+
+    // Signal teacher style profile: unit generated
+    onUnitCreated(user.id).catch(() => {}); // non-fatal
+
     return NextResponse.json({
       pages: validation.pages,
       warnings: validation.errors,
       criterion,
       ragChunkIds: chunkIds,
+      timingValidation: Object.keys(timingResults).length > 0 ? timingResults : undefined,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";

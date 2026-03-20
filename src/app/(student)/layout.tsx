@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { StudentContext } from "./student-context";
 import { StudentAvatar } from "@/components/student/StudentAvatar";
+import { QuickToolFAB } from "@/components/toolkit/QuickToolFAB";
 import type { Student, Class } from "@/types";
 
 export default function StudentLayout({
@@ -38,8 +40,11 @@ export default function StudentLayout({
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-pulse text-text-secondary">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center bg-surface-alt">
+        <div className="flex items-center gap-3">
+          <div className="w-5 h-5 border-2 border-brand-purple border-t-transparent rounded-full animate-spin" />
+          <span className="text-text-secondary text-sm">Loading...</span>
+        </div>
       </div>
     );
   }
@@ -47,9 +52,31 @@ export default function StudentLayout({
   return (
     <StudentContext.Provider value={{ student, classInfo }}>
       <div className="min-h-screen bg-surface-alt">
-        <header className="gradient-hero text-white">
-          <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
-            <span className="font-bold text-white">StudioLoom</span>
+        <header
+          className="sticky top-0 z-30 border-b"
+          style={{
+            background: "rgba(255,255,255,0.82)",
+            backdropFilter: "blur(12px)",
+            WebkitBackdropFilter: "blur(12px)",
+            borderColor: "rgba(0,0,0,0.06)",
+          }}
+        >
+          <div className="max-w-5xl mx-auto px-6 h-14 flex items-center justify-between">
+            <Link href="/dashboard" className="flex items-center gap-2">
+              <div
+                className="w-7 h-7 rounded-lg flex items-center justify-center"
+                style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)" }}
+              >
+                <svg width="14" height="14" viewBox="0 0 32 32" fill="none">
+                  <rect x="2" y="8" width="28" height="5" rx="2.5" fill="white" />
+                  <rect x="2" y="19" width="28" height="5" rx="2.5" fill="white" />
+                  <rect x="8" y="2" width="5" height="28" rx="2.5" fill="white" />
+                  <rect x="19" y="2" width="5" height="28" rx="2.5" fill="white" />
+                </svg>
+              </div>
+              <span className="font-bold text-text-primary text-sm tracking-tight">StudioLoom</span>
+            </Link>
+
             <div className="flex items-center gap-3 text-sm">
               {student && (
                 <div className="flex items-center gap-2">
@@ -63,7 +90,7 @@ export default function StudentLayout({
                       );
                     }}
                   />
-                  <span className="text-white/80 font-medium">
+                  <span className="text-text-primary font-medium">
                     {student.display_name || student.username}
                   </span>
                 </div>
@@ -73,7 +100,7 @@ export default function StudentLayout({
                   await fetch("/api/auth/student-session", { method: "DELETE" });
                   router.push("/login");
                 }}
-                className="text-white/50 hover:text-white transition"
+                className="text-text-secondary/50 hover:text-text-primary transition-colors px-2 py-1 rounded-lg hover:bg-surface-alt"
               >
                 Log out
               </button>
@@ -81,6 +108,9 @@ export default function StudentLayout({
           </div>
         </header>
         {children}
+
+        {/* QuickToolFAB — available on all student pages */}
+        <QuickToolFAB />
       </div>
     </StudentContext.Provider>
   );

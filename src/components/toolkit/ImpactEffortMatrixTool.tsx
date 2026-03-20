@@ -1,0 +1,595 @@
+'use client';
+
+import { useState, useRef, useEffect, useCallback } from 'react';
+
+interface ToolkitToolProps {
+  toolId?: string;
+  mode: 'public' | 'embedded' | 'standalone';
+  challenge?: string;
+  sessionId?: string;
+  onSave?: (state: ToolState) => void;
+  onComplete?: (data: ToolResponse) => void;
+}
+
+interface ToolState {
+  stage: 'intro' | 'working' | 'summary';
+  challenge: string;
+  currentStep: number;
+  ideas: Idea[];
+}
+
+interface Idea {
+  text: string;
+  impact?: number;
+  effort?: number;
+  impactReasoning?: string;
+  effortReasoning?: string;
+}
+
+interface ToolResponse {
+  toolId: string;
+  challenge: string;
+  stage: 'intro' | 'working' | 'summary';
+  ideas: Idea[];
+  metadata: {
+    totalIdeas: number;
+    timeSpentMs: number;
+  };
+}
+
+type Quadrant = 'quick-wins' | 'major-projects' | 'fill-ins' | 'avoid';
+
+const STEPS = [
+  {
+    id: 'list',
+    title: 'List Ideas',
+    description: 'What ideas or options are you evaluating?',
+    instruction: 'Enter at least 4 ideas to make the matrix meaningful.',
+  },
+  {
+    id: 'score',
+    title: 'Score Impact & Effort',
+    description: 'For each idea, rate its impact and effort.',
+    instruction: 'Be honest: impact = how much does this solve/improve? effort = cost, time, complexity.',
+  },
+  {
+    id: 'prioritise',
+    title: 'Review Matrix',
+    description: 'View your ideas plotted on the 2×2 grid.',
+    instruction: 'Check if placements make sense. AI will challenge any that seem off.',
+  },
+];
+
+const QUADRANTS: Record<Quadrant, { label: string; emoji: string; color: string; bg: string; description: string }> = {
+  'quick-wins': {
+    label: 'Quick Wins',
+    emoji: '⚡',
+    color: '#22c55e',
+    bg: 'rgba(34, 197, 94, 0.1)',
+    description: 'High impact, low effort. Do these first.',
+  },
+  'major-projects': {
+    label: 'Major Projects',
+    emoji: '🚀',
+    color: '#3b82f6',
+    bg: 'rgba(59, 130, 246, 0.1)',
+    description: 'High impact, high effort. Worth the investment.',
+  },
+  'fill-ins': {
+    label: 'Fill-Ins',
+    emoji: '⏸️',
+    color: '#f59e0b',
+    bg: 'rgba(245, 158, 11, 0.1)',
+    description: 'Low impact, low effort. Do when you have spare time.',
+  },
+  avoid: {
+    label: 'Avoid',
+    emoji: '❌',
+    color: '#ef4444',
+    bg: 'rgba(239, 68, 68, 0.1)',
+    description: 'Low impact, high effort. Skip these.',
+  },
+};
+
+function getQuadrant(impact: number, effort: number): Quadrant {
+  if (impact >= 3 && effort <= 2) return 'quick-wins';
+  if (impact >= 3 && effort > 2) return 'major-projects';
+  if (impact < 3 && effort <= 2) return 'fill-ins';
+  return 'avoid';
+}
+
+export function ImpactEffortMatrixTool({
+  mode = 'public',
+  challenge: initialChallenge = '',
+  sessionId: initialSessionId,
+  onSave,
+  onComplete,
+}: ToolkitToolProps) {
+  const [stage, setStage] = useState<'intro' | 'working' | 'summary'>(initialChallenge ? 'working' : 'intro');
+  const [challenge, setChallenge] = useState(initialChallenge);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [ideas, setIdeas] = useState<Idea[]>([]);
+  const [inputValue, setInputValue] = useState('');
+  const [scoringIdx, setScoringIdx] = useState<number | null>(null);
+  const [impactInput, setImpactInput] = useState<number>(3);
+  const [effortInput, setEffortInput] = useState<number>(3);
+  const [impactReasoning, setImpactReasoning] = useState('');
+  const [effortReasoning, setEffortReasoning] = useState('');
+  const [sessionId] = useState(() => initialSessionId || Math.random().toString(36).slice(2) + Date.now().toString(36));
+  const [recommendations, setRecommendations] = useState('');
+  const [loadingRecommendations, setLoadingRecommendations] = useState(false);
+
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const startTimeRef = useRef(Date.now());
+
+  useEffect(() => {
+    if (mode !== 'public' && onSave) {
+      const timer = setTimeout(() => {
+        const state: ToolState = { stage, challenge, currentStep, ideas };
+        onSave(state);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [stage, challenge, currentStep, ideas, mode, onSave]);
+
+  const fetchAI = useCallback(async (body: Record<string, unknown>): Promise<Record<string, unknown>> => {
+    const res = await fetch('/api/tools/impact-effort-matrix', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  }, []);
+
+  const fetchRecommendations = useCallback(async () => {
+    if (ideas.length === 0) return;
+    setLoadingRecommendations(true);
+    try {
+      const data = await fetchAI({
+        action: 'recommendations',
+        challenge: challenge.trim(),
+        sessionId,
+        ideas: ideas.filter(i => i.impact && i.effort),
+      });
+      if (data.recommendations) setRecommendations(data.recommendations as string);
+    } catch (err) {
+      console.warn('[impact-effort] Recommendations unavailable:', err);
+    } finally {
+      setLoadingRecommendations(false);
+    }
+  }, [challenge, sessionId, ideas, fetchAI]);
+
+  const addIdea = useCallback(() => {
+    const text = inputValue.trim();
+    if (!text) return;
+    setIdeas(prev => [...prev, { text }]);
+    setInputValue('');
+    inputRef.current?.focus();
+  }, [inputValue]);
+
+  const startScoring = (idx: number) => {
+    setScoringIdx(idx);
+    const idea = ideas[idx];
+    setImpactInput(idea.impact || 3);
+    setEffortInput(idea.effort || 3);
+    setImpactReasoning(idea.impactReasoning || '');
+    setEffortReasoning(idea.effortReasoning || '');
+  };
+
+  const saveScore = () => {
+    if (scoringIdx === null) return;
+    setIdeas(prev => {
+      const copy = [...prev];
+      copy[scoringIdx] = {
+        ...copy[scoringIdx],
+        impact: impactInput,
+        effort: effortInput,
+        impactReasoning,
+        effortReasoning,
+      };
+      return copy;
+    });
+    setScoringIdx(null);
+
+    // Fetch AI feedback on scoring
+    fetchAI({
+      action: 'scoreNudge',
+      challenge,
+      idea: ideas[scoringIdx].text,
+      impact: impactInput,
+      effort: effortInput,
+      impactReasoning,
+      effortReasoning,
+    }).then((data) => {
+      // Store feedback if provided, optional nudge display
+      if (data.feedback) {
+        console.log('[impact-effort] Feedback:', data.feedback);
+      }
+    }).catch(() => {});
+  };
+
+  useEffect(() => {
+    if (stage === 'summary' && ideas.length > 0 && !recommendations) {
+      fetchRecommendations();
+    }
+  }, [stage, ideas, recommendations, fetchRecommendations]);
+
+  if (stage === 'intro') {
+    return (
+      <div style={{ minHeight: '100vh', background: '#0a0a0a', color: '#e5e5e5', fontFamily: 'Inter, system-ui, sans-serif', padding: '80px 24px' }}>
+        <style>{`
+          @keyframes toolFadeIn {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+          .tool-screen { animation: toolFadeIn 0.3s ease-out; }
+        `}</style>
+        <div style={{ maxWidth: 640, margin: '0 auto' }} className="tool-screen">
+          <div style={{ marginBottom: 32 }}>
+            <h1 style={{ fontSize: 40, fontWeight: 800, margin: '0 0 4px', background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', lineHeight: 1.1 }}>Impact / Effort Matrix</h1>
+            <p style={{ color: '#999', fontSize: 16, marginTop: 12, lineHeight: 1.6 }}>Prioritise your ideas by plotting them on a 2×2 grid of <strong style={{ color: '#3b82f6' }}>impact</strong> vs <strong style={{ color: '#8b5cf6' }}>effort</strong>. Quick wins rise to the top.</p>
+          </div>
+
+          <div style={{ marginBottom: 32 }}>
+            <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: '#ccc', marginBottom: 8 }}>
+              What ideas are you prioritising?
+            </label>
+            <textarea
+              value={challenge}
+              onChange={(e) => setChallenge(e.target.value)}
+              placeholder="e.g. Improving student engagement in online lessons"
+              rows={3}
+              style={{ width: '100%', background: '#161616', border: '1px solid #333', borderRadius: 12, padding: '14px 16px', color: '#e5e5e5', fontSize: 16, fontFamily: 'inherit', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }}
+            />
+          </div>
+
+          <button
+            onClick={() => setStage('working')}
+            disabled={!challenge.trim()}
+            style={{ width: '100%', padding: '16px 24px', borderRadius: 12, border: 'none', background: challenge.trim() ? 'linear-gradient(135deg, #3b82f6, #8b5cf6)' : '#333', color: challenge.trim() ? '#fff' : '#666', fontSize: 16, fontWeight: 700, cursor: challenge.trim() ? 'pointer' : 'not-allowed', transition: 'all 0.2s' }}
+          >
+            Start Matrix →
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (stage === 'working') {
+    const step = STEPS[currentStep];
+    const scoredIdeas = ideas.filter(i => i.impact && i.effort).length;
+
+    if (currentStep === 0) {
+      return (
+        <div style={{ minHeight: '100vh', background: '#0a0a0a', color: '#e5e5e5', fontFamily: 'Inter, system-ui, sans-serif', padding: '32px 24px 120px' }}>
+          <style>{`
+            @keyframes toolFadeIn {
+              from { opacity: 0; transform: translateY(12px); }
+              to { opacity: 1; transform: translateY(0); }
+            }
+            .tool-screen { animation: toolFadeIn 0.3s ease-out; }
+          `}</style>
+          <div style={{ maxWidth: 700, margin: '0 auto' }} className="tool-screen">
+            <h2 style={{ margin: '0 0 8px', fontSize: 24, fontWeight: 800, color: '#3b82f6' }}>{step.title}</h2>
+            <p style={{ color: '#999', fontSize: 14, margin: '0 0 24px', lineHeight: 1.5 }}>{step.instruction}</p>
+
+            <div style={{ marginBottom: 24 }}>
+              <textarea
+                ref={inputRef}
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey && inputValue.trim()) {
+                    e.preventDefault();
+                    addIdea();
+                  }
+                }}
+                placeholder="e.g. Use interactive polls in lessons"
+                rows={3}
+                style={{ width: '100%', background: '#161616', border: '1px solid #333', borderRadius: 12, padding: '14px 16px', color: '#e5e5e5', fontSize: 15, fontFamily: 'inherit', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }}
+              />
+              <button
+                onClick={addIdea}
+                disabled={!inputValue.trim()}
+                style={{ marginTop: 8, padding: '8px 20px', borderRadius: 8, border: 'none', background: inputValue.trim() ? '#3b82f6' : '#333', color: inputValue.trim() ? '#fff' : '#666', fontSize: 13, fontWeight: 700, cursor: inputValue.trim() ? 'pointer' : 'not-allowed', transition: 'all 0.2s' }}
+              >
+                Add Idea
+              </button>
+            </div>
+
+            {ideas.length > 0 && (
+              <div style={{ marginBottom: 24 }}>
+                <p style={{ fontSize: 13, color: '#666', marginBottom: 8, fontWeight: 600 }}>Ideas ({ideas.length})</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {ideas.map((idea, i) => (
+                    <div key={i} style={{ padding: '10px 14px', borderRadius: 10, background: '#141414', border: '1px solid #222', display: 'flex', gap: 10, alignItems: 'flex-start', justifyContent: 'space-between' }}>
+                      <div style={{ flex: 1 }}>
+                        <p style={{ margin: 0, fontSize: 14, color: '#ccc', lineHeight: 1.5 }}>{idea.text}</p>
+                      </div>
+                      <button
+                        onClick={() => setIdeas(prev => prev.filter((_, idx) => idx !== i))}
+                        style={{ padding: '4px 8px', background: 'transparent', border: '1px solid #555', borderRadius: 6, color: '#999', fontSize: 12, cursor: 'pointer', flexShrink: 0 }}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, padding: '16px 24px', background: 'linear-gradient(transparent, #0a0a0a 30%)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <button
+                onClick={() => setStage('intro')}
+                style={{ padding: '10px 20px', borderRadius: 10, border: '1px solid #333', background: 'transparent', color: '#999', fontSize: 14, cursor: 'pointer' }}
+              >
+                ← Back
+              </button>
+
+              <span style={{ fontSize: 12, color: '#555' }}>
+                {ideas.length} idea{ideas.length !== 1 ? 's' : ''}
+              </span>
+
+              <button
+                onClick={() => setCurrentStep(1)}
+                disabled={ideas.length < 4}
+                style={{ padding: '10px 20px', borderRadius: 10, border: 'none', background: ideas.length >= 4 ? '#3b82f6' : '#333', color: ideas.length >= 4 ? '#fff' : '#666', fontSize: 14, fontWeight: 700, cursor: ideas.length >= 4 ? 'pointer' : 'not-allowed' }}
+              >
+                Next →
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (currentStep === 1) {
+      return (
+        <div style={{ minHeight: '100vh', background: '#0a0a0a', color: '#e5e5e5', fontFamily: 'Inter, system-ui, sans-serif', padding: '32px 24px 120px' }}>
+          <style>{`
+            @keyframes toolFadeIn {
+              from { opacity: 0; transform: translateY(12px); }
+              to { opacity: 1; transform: translateY(0); }
+            }
+            .tool-screen { animation: toolFadeIn 0.3s ease-out; }
+          `}</style>
+          <div style={{ maxWidth: 700, margin: '0 auto' }} className="tool-screen">
+            <h2 style={{ margin: '0 0 8px', fontSize: 24, fontWeight: 800, color: '#3b82f6' }}>{step.title}</h2>
+            <p style={{ color: '#999', fontSize: 14, margin: '0 0 24px', lineHeight: 1.5 }}>{step.instruction}</p>
+
+            {scoringIdx === null ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {ideas.map((idea, i) => (
+                  <div key={i} style={{ padding: '14px 16px', borderRadius: 10, background: '#141414', border: '1px solid #222', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ flex: 1 }}>
+                      <p style={{ margin: 0, fontSize: 14, color: '#ccc', lineHeight: 1.5 }}>{idea.text}</p>
+                      {idea.impact && idea.effort && (
+                        <p style={{ margin: '6px 0 0', fontSize: 12, color: '#666' }}>
+                          Impact: {idea.impact}/5 • Effort: {idea.effort}/5
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => startScoring(i)}
+                      style={{ padding: '8px 16px', background: '#3b82f6', border: 'none', borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', flexShrink: 0, marginLeft: 12 }}
+                    >
+                      {idea.impact ? 'Edit' : 'Score'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ padding: 20, borderRadius: 12, background: '#111', border: '1px solid #222' }}>
+                <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700, color: '#e5e5e5' }}>
+                  Scoring: {ideas[scoringIdx].text}
+                </h3>
+
+                <div style={{ marginBottom: 20 }}>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#ccc', marginBottom: 8 }}>Impact (1-5): {impactInput}</label>
+                  <input
+                    type="range"
+                    min="1"
+                    max="5"
+                    value={impactInput}
+                    onChange={(e) => setImpactInput(parseInt(e.target.value))}
+                    style={{ width: '100%', cursor: 'pointer' }}
+                  />
+                  <p style={{ fontSize: 12, color: '#999', margin: '8px 0 0' }}>1=minimal improvement, 5=transformative</p>
+                  <textarea
+                    value={impactReasoning}
+                    onChange={(e) => setImpactReasoning(e.target.value)}
+                    placeholder="Why this impact rating?"
+                    style={{ width: '100%', marginTop: 8, padding: '8px 12px', borderRadius: 8, border: '1px solid #222', background: '#161616', color: '#e5e5e5', fontSize: 13, fontFamily: 'inherit', minHeight: 60, boxSizing: 'border-box', outline: 'none' }}
+                  />
+                </div>
+
+                <div style={{ marginBottom: 20 }}>
+                  <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#ccc', marginBottom: 8 }}>Effort (1-5): {effortInput}</label>
+                  <input
+                    type="range"
+                    min="1"
+                    max="5"
+                    value={effortInput}
+                    onChange={(e) => setEffortInput(parseInt(e.target.value))}
+                    style={{ width: '100%', cursor: 'pointer' }}
+                  />
+                  <p style={{ fontSize: 12, color: '#999', margin: '8px 0 0' }}>1=quick & easy, 5=major project</p>
+                  <textarea
+                    value={effortReasoning}
+                    onChange={(e) => setEffortReasoning(e.target.value)}
+                    placeholder="Why this effort rating?"
+                    style={{ width: '100%', marginTop: 8, padding: '8px 12px', borderRadius: 8, border: '1px solid #222', background: '#161616', color: '#e5e5e5', fontSize: 13, fontFamily: 'inherit', minHeight: 60, boxSizing: 'border-box', outline: 'none' }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', gap: 12 }}>
+                  <button
+                    onClick={() => setScoringIdx(null)}
+                    style={{ flex: 1, padding: '10px 16px', borderRadius: 8, border: '1px solid #333', background: 'transparent', color: '#999', fontSize: 13, cursor: 'pointer' }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={saveScore}
+                    style={{ flex: 1, padding: '10px 16px', borderRadius: 8, border: 'none', background: '#3b82f6', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    Save Score
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, padding: '16px 24px', background: 'linear-gradient(transparent, #0a0a0a 30%)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <button
+                onClick={() => setCurrentStep(0)}
+                style={{ padding: '10px 20px', borderRadius: 10, border: '1px solid #333', background: 'transparent', color: '#999', fontSize: 14, cursor: 'pointer' }}
+              >
+                ← Back
+              </button>
+
+              <span style={{ fontSize: 12, color: '#555' }}>
+                {scoredIdeas}/{ideas.length} scored
+              </span>
+
+              <button
+                onClick={() => setCurrentStep(2)}
+                disabled={scoredIdeas < ideas.length}
+                style={{ padding: '10px 20px', borderRadius: 10, border: 'none', background: scoredIdeas === ideas.length ? '#3b82f6' : '#333', color: scoredIdeas === ideas.length ? '#fff' : '#666', fontSize: 14, fontWeight: 700, cursor: scoredIdeas === ideas.length ? 'pointer' : 'not-allowed' }}
+              >
+                Next →
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div style={{ minHeight: '100vh', background: '#0a0a0a', color: '#e5e5e5', fontFamily: 'Inter, system-ui, sans-serif', padding: '32px 24px 120px' }}>
+        <style>{`
+          @keyframes toolFadeIn {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+          .tool-screen { animation: toolFadeIn 0.3s ease-out; }
+        `}</style>
+        <div style={{ maxWidth: 700, margin: '0 auto' }} className="tool-screen">
+          <h2 style={{ margin: '0 0 8px', fontSize: 24, fontWeight: 800, color: '#3b82f6' }}>{step.title}</h2>
+          <p style={{ color: '#999', fontSize: 14, margin: '0 0 24px', lineHeight: 1.5 }}>{step.instruction}</p>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
+            {(Object.entries(QUADRANTS) as Array<[Quadrant, typeof QUADRANTS['quick-wins']]>).map(([key, quad]) => {
+              const quadrantIdeas = ideas.filter(i => getQuadrant(i.impact || 3, i.effort || 3) === key);
+              return (
+                <div key={key} style={{ padding: 16, borderRadius: 12, background: quad.bg, border: `1px solid ${quad.color}44` }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                    <span style={{ fontSize: 18 }}>{quad.emoji}</span>
+                    <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: quad.color }}>
+                      {quad.label}
+                    </h3>
+                  </div>
+                  <p style={{ fontSize: 12, color: '#888', margin: '0 0 12px', lineHeight: 1.4 }}>
+                    {quad.description}
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {quadrantIdeas.map((idea, i) => (
+                      <div key={i} style={{ padding: 8, borderRadius: 6, background: '#000a', border: `1px solid ${quad.color}33`, fontSize: 12, color: '#ddd', lineHeight: 1.4 }}>
+                        {idea.text}
+                      </div>
+                    ))}
+                    {quadrantIdeas.length === 0 && (
+                      <p style={{ fontSize: 12, color: '#555', fontStyle: 'italic', margin: 0 }}>No ideas here</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {recommendations && (
+            <div style={{ padding: 20, borderRadius: 14, background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.06), rgba(139, 92, 246, 0.06))', border: '1px solid rgba(59, 130, 246, 0.15)', marginBottom: 24 }}>
+              <p style={{ fontSize: 13, fontWeight: 700, color: '#93c5fd', margin: '0 0 10px' }}>✦ AI Recommendations</p>
+              <p style={{ color: '#ccc', fontSize: 14, lineHeight: 1.7, margin: 0 }}>{recommendations}</p>
+            </div>
+          )}
+
+          <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, padding: '16px 24px', background: 'linear-gradient(transparent, #0a0a0a 30%)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <button
+              onClick={() => setCurrentStep(1)}
+              style={{ padding: '10px 20px', borderRadius: 10, border: '1px solid #333', background: 'transparent', color: '#999', fontSize: 14, cursor: 'pointer' }}
+            >
+              ← Back
+            </button>
+
+            <button
+              onClick={() => setStage('summary')}
+              style={{ padding: '10px 20px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}
+            >
+              View Summary ✓
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ minHeight: '100vh', background: '#0a0a0a', color: '#e5e5e5', fontFamily: 'Inter, system-ui, sans-serif', padding: '40px 24px 80px' }}>
+      <style>{`
+        @keyframes toolFadeIn {
+          from { opacity: 0; transform: translateY(12px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .tool-screen { animation: toolFadeIn 0.3s ease-out; }
+      `}</style>
+      <div style={{ maxWidth: 700, margin: '0 auto' }} className="tool-screen">
+        <h1 style={{ fontSize: 32, fontWeight: 800, margin: '0 0 8px', background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Matrix Summary</h1>
+        <p style={{ color: '#888', fontSize: 14, margin: '0 0 28px' }}>{challenge}</p>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 28 }}>
+          {(Object.entries(QUADRANTS) as Array<[Quadrant, typeof QUADRANTS['quick-wins']]>).map(([key, quad]) => {
+            const quadrantIdeas = ideas.filter(i => getQuadrant(i.impact || 3, i.effort || 3) === key);
+            return (
+              <div key={key} style={{ padding: 20, borderRadius: 14, background: '#111', border: `1px solid ${quad.color}33` }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                  <span style={{ fontSize: 20 }}>{quad.emoji}</span>
+                  <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: quad.color }}>
+                    {quad.label}
+                  </h3>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {quadrantIdeas.map((idea, i) => (
+                    <div key={i} style={{ padding: 10, borderRadius: 8, background: '#000a', border: `1px solid ${quad.color}33`, fontSize: 13, color: '#ddd', lineHeight: 1.4 }}>
+                      <p style={{ margin: 0, fontWeight: 500 }}>{idea.text}</p>
+                      <p style={{ margin: '4px 0 0', fontSize: 11, color: '#888' }}>
+                        Impact {idea.impact}/5 • Effort {idea.effort}/5
+                      </p>
+                    </div>
+                  ))}
+                  {quadrantIdeas.length === 0 && (
+                    <p style={{ fontSize: 13, color: '#555', fontStyle: 'italic', margin: 0 }}>No ideas here</p>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {recommendations && (
+          <div style={{ padding: 20, borderRadius: 14, background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.06), rgba(139, 92, 246, 0.06))', border: '1px solid rgba(59, 130, 246, 0.15)', marginBottom: 24 }}>
+            <p style={{ fontSize: 13, fontWeight: 700, color: '#93c5fd', margin: '0 0 10px' }}>✦ AI Recommendations</p>
+            <p style={{ color: '#ccc', fontSize: 14, lineHeight: 1.7, margin: 0 }}>{recommendations}</p>
+          </div>
+        )}
+
+        <button
+          onClick={() => setStage('working')}
+          style={{ width: '100%', padding: '12px 20px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}
+        >
+          ← Keep Editing
+        </button>
+      </div>
+    </div>
+  );
+}

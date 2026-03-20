@@ -89,6 +89,55 @@ export const BLOOM_LEVELS = {
 } as const;
 
 /**
+ * Toolkit tools available for suggestions by design phase.
+ * Each tool maps to one or more phases where it's most useful.
+ */
+const TOOLKIT_TOOLS_BY_PHASE = {
+  discover: [
+    { name: 'Empathy Map', slug: 'empathy-map', desc: 'understand user perspective' },
+    { name: 'Five Whys', slug: 'five-whys', desc: 'root cause analysis' },
+    { name: 'Stakeholder Map', slug: 'stakeholder-map', desc: 'identify who\'s affected' },
+    { name: 'Affinity Diagram', slug: 'affinity-diagram', desc: 'cluster research into themes' },
+  ],
+  define: [
+    { name: 'How Might We', slug: 'how-might-we', desc: 'reframe problems as opportunities' },
+    { name: 'Five Whys', slug: 'five-whys', desc: 'root cause analysis' },
+    { name: 'Stakeholder Map', slug: 'stakeholder-map', desc: 'identify affected parties' },
+  ],
+  ideate: [
+    { name: 'SCAMPER', slug: 'scamper', desc: 'modify existing ideas creatively' },
+    { name: 'Reverse Brainstorm', slug: 'reverse-brainstorm', desc: 'brainstorm problems, flip into solutions' },
+    { name: 'Lotus Diagram', slug: 'lotus-diagram', desc: 'expand from central theme to many ideas' },
+    { name: 'Morphological Chart', slug: 'morphological-chart', desc: 'combine parameters systematically' },
+  ],
+  prototype: [
+    { name: 'Decision Matrix', slug: 'decision-matrix', desc: 'score options against criteria' },
+    { name: 'PMI Chart', slug: 'pmi-chart', desc: 'Plus/Minus/Interesting evaluation' },
+    { name: 'SWOT Analysis', slug: 'swot-analysis', desc: 'Strengths/Weaknesses/Opportunities/Threats' },
+  ],
+  test: [
+    { name: 'Decision Matrix', slug: 'decision-matrix', desc: 'compare test results' },
+    { name: 'PMI Chart', slug: 'pmi-chart', desc: 'evaluate prototype performance' },
+    { name: 'SWOT Analysis', slug: 'swot-analysis', desc: 'identify improvements' },
+  ],
+} as const;
+
+/**
+ * Map criterion tags to design phases for tool biasing.
+ * MYP Design criteria: Criterion A=Inquiring, B=Developing, C=Creating, D=Evaluating
+ */
+const CRITERION_TO_PHASE = {
+  'Criterion A': 'discover' as const,
+  'Criterion B': 'ideate' as const,
+  'Criterion C': 'prototype' as const,
+  'Criterion D': 'test' as const,
+  'Inquiring & Analysing': 'discover' as const,
+  'Developing Ideas': 'ideate' as const,
+  'Creating the Solution': 'prototype' as const,
+  'Evaluating': 'test' as const,
+} as const;
+
+/**
  * Build the system prompt for the Student Design Assistant.
  *
  * The prompt adapts based on:
@@ -96,6 +145,7 @@ export const BLOOM_LEVELS = {
  * - Current effort score (used for 3-strike gating)
  * - Curriculum framework (vocabulary adjustment)
  * - Activity context (what the student is working on)
+ * - Criterion tags (used to bias tool suggestions)
  */
 export function buildDesignAssistantSystemPrompt(options: {
   bloomLevel: number;
@@ -122,6 +172,48 @@ export function buildDesignAssistantSystemPrompt(options: {
 
   const vocab = getFrameworkVocabulary(framework);
   const bloomName = BLOOM_LEVELS[bloomLevel as keyof typeof BLOOM_LEVELS]?.name || "Apply";
+
+  // Determine design phase from criterion tags
+  let designPhase: keyof typeof TOOLKIT_TOOLS_BY_PHASE | null = null;
+  if (criterionTags?.length) {
+    for (const tag of criterionTags) {
+      const phase = CRITERION_TO_PHASE[tag as keyof typeof CRITERION_TO_PHASE];
+      if (phase) {
+        designPhase = phase;
+        break;
+      }
+    }
+  }
+
+  // Build toolkit tools awareness section
+  let toolkitSection = "";
+  if (designPhase && TOOLKIT_TOOLS_BY_PHASE[designPhase]) {
+    const toolsForPhase = TOOLKIT_TOOLS_BY_PHASE[designPhase];
+    toolkitSection = `\n## Toolkit Tool Suggestions
+The student has access to these design thinking tools. When they're stuck or need a specific type of thinking for ${designPhase}, you can suggest ONE of these:
+${toolsForPhase.map((t) => `- **${t.name}** (/toolkit/${t.slug}) — ${t.desc}`).join("\n")}
+
+RULES FOR SUGGESTING TOOLS:
+- Only suggest a tool when their message clearly indicates they'd benefit from that type of thinking
+- Maximum ONE tool suggestion per response (suggest in addition to your question, not instead of it)
+- Frame it as optional: "You might find [Tool Name] helpful here — it lets you [benefit]"
+- Include the link so they can click it directly
+- Don't suggest if they're just asking for a quick answer or encouragement
+- If they mention using a tool already, help them with THAT tool instead of suggesting a different one`;
+  } else {
+    // Generic toolkit awareness when no specific phase
+    toolkitSection = `\n## Toolkit Tool Suggestions
+The student has access to design thinking tools for different situations:
+- **Ideation phase**: SCAMPER, Reverse Brainstorm, Lotus Diagram, Morphological Chart
+- **Analysis phase**: Empathy Map, Five Whys, Stakeholder Map, Affinity Diagram
+- **Evaluation phase**: Decision Matrix, PMI Chart, SWOT Analysis
+
+RULES FOR SUGGESTING TOOLS:
+- Only suggest a tool when their message clearly indicates they'd benefit from that type of thinking
+- Maximum ONE tool suggestion per response
+- Frame it as optional: "You might find [Tool Name] helpful — it lets you [benefit]"
+- Include the link in your response like: Try using a [Tool Name](/toolkit/tool-slug)`;
+  }
 
   // Effort gating instructions
   let effortInstructions = "";
@@ -194,9 +286,25 @@ ${previousTurns === 0
 ${effortInstructions}
 ${frameworkSection}
 ${activitySection}
+${toolkitSection}
 
-## Design-Specific Knowledge
-When students discuss design decisions, you can probe:
+## Design Teaching Intelligence
+You understand how great design education works. Use this to guide your mentoring:
+
+PROCESS: The design cycle is NON-LINEAR. Students jump between research, ideation, making, and testing. This is normal — don't force a linear sequence. Ask "where are you in your design process?" not "what's the next step?"
+
+ITERATION: A portfolio showing iterative improvement matters more than a perfect final product. When a student's first attempt fails, celebrate: "Great — now you know what doesn't work. What did you learn?"
+
+CRITIQUE: Use Kind/Specific/Helpful feedback. Push students from "I like it" to "I like how the handle curves to fit the palm." When students struggle with critique, model it: "One thing I notice about your prototype is..."
+
+WHOLE GAME: Every activity should connect to the broader design challenge. If a student asks "why are we doing this?", that's a sign the connection needs to be made explicit.
+
+SCAFFOLDING: Match support to the student's confidence. Early: give checklists and sentence starters. Mid: give exemplars and reference materials. Late: just ask questions.
+
+MAKING: When students are in the making phase, ask questions that don't interrupt flow. Short, focused: "What's working?" / "What's your next step?" Not long analytical questions during active making.
+
+## Design Content Knowledge
+When students discuss design decisions, probe:
 - Material properties (strength, flexibility, sustainability, cost, aesthetics)
 - Manufacturing processes (which process suits their design? Can it be mass-produced?)
 - User needs (who is the user? How do you know what they need?)
@@ -210,10 +318,15 @@ When students discuss design decisions, you can probe:
 Keep it simple:
 1. Brief acknowledgment of what the student said (1 sentence)
 2. ONE question (appropriate to their Bloom's level)
+3. Optional: ONE toolkit tool suggestion if appropriate (max one per response)
 
-Example:
+Example without tool suggestion:
 Student: "I think I'll use wood for my phone stand"
-You: "Wood is a popular choice! What specific properties of wood make it suitable for holding a phone securely?"`;
+You: "Wood is a popular choice! What specific properties of wood make it suitable for holding a phone securely?"
+
+Example with tool suggestion:
+Student: "I have three ideas but I'm not sure which one is best"
+You: "Having multiple strong ideas is great! You might find a Decision Matrix helpful here — it lets you score each idea against your criteria. What criteria matter most for your design?"`;
 }
 
 /**

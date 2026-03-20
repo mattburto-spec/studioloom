@@ -1,0 +1,33 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`buildTimingBlock > generates timing block for Year 1 / 50 min lesson 1`] = `
+"## Age-Appropriate Pacing (MYP Year 1 (age 11): Students sustain cognitive focus for ~10-12 minutes but can engage in hands-on making for much longer. Reading, writing, and analysis tasks must be SHORT (≤12 min) and heavily scaffolded with checklists, sentence starters, and worked examples. Hands-on/making activities can run 20-40 min as long as they have clear checkpoints. Break reading-heavy tasks into small chunks with partner discussion between them.)
+
+Timing by activity type — duration depends on COGNITIVE DEMAND, not just the clock:
+- Reading, writing, analysis, documentation (HIGH cognitive): ≤12 min per activity
+- Making, experimenting, building, testing (HANDS-ON): ≤40 min per activity
+- Discussion, peer review, group critique (COLLABORATIVE): ≤15 min per activity
+- Online research, digital tools, CAD work (DIGITAL): ≤15 min per activity
+
+Lesson structure:
+- Warmup: ~5 min | Introduction: ~5 min | Reflection: ~5 min
+- Core work: ~35 min available (2-4 core activities per lesson)
+- All sections should sum to approximately 50 minutes
+- Avoid placing two high-cognitive activities back-to-back — alternate with hands-on or collaborative tasks"
+`;
+
+exports[`buildTimingBlock > generates timing block for Year 5 / 60 min lesson 1`] = `
+"## Age-Appropriate Pacing (MYP Year 5 (age 16): Cognitive focus ~30 minutes. Minimise unnecessary transitions to allow flow state during deep work. Scaffold through prompts and peer critique. Students can sustain extended analysis, documentation, and independent making sessions.)
+
+Timing by activity type — duration depends on COGNITIVE DEMAND, not just the clock:
+- Reading, writing, analysis, documentation (HIGH cognitive): ≤30 min per activity
+- Making, experimenting, building, testing (HANDS-ON): ≤45 min per activity
+- Discussion, peer review, group critique (COLLABORATIVE): ≤25 min per activity
+- Online research, digital tools, CAD work (DIGITAL): ≤35 min per activity
+
+Lesson structure:
+- Warmup: ~5 min | Introduction: ~3 min | Reflection: ~5 min
+- Core work: ~47 min available (2-4 core activities per lesson)
+- All sections should sum to approximately 60 minutes
+- Avoid placing two high-cognitive activities back-to-back — alternate with hands-on or collaborative tasks"
+`;

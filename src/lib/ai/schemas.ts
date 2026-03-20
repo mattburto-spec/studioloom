@@ -115,6 +115,67 @@ const pageContentSchema = {
         items: { type: "array" as const, items: { type: "string" as const } },
       },
     },
+    workshopPhases: {
+      type: "object" as const,
+      description: "Workshop Model timing: 4-phase structure for every lesson. Opening (5-10 min), Mini-Lesson (max 1+age min), Work Time (≥45% of usable time), Debrief (5-10 min).",
+      properties: {
+        opening: {
+          type: "object" as const,
+          required: ["durationMinutes"],
+          properties: {
+            durationMinutes: { type: "number" as const, description: "5-10 minutes" },
+            hook: { type: "string" as const, description: "Engaging opening activity or question" },
+          },
+        },
+        miniLesson: {
+          type: "object" as const,
+          required: ["durationMinutes"],
+          properties: {
+            durationMinutes: { type: "number" as const, description: "Max 1+avg student age minutes of direct instruction" },
+            focus: { type: "string" as const, description: "Key concept or skill being taught" },
+          },
+        },
+        workTime: {
+          type: "object" as const,
+          required: ["durationMinutes"],
+          properties: {
+            durationMinutes: { type: "number" as const, description: "≥45% of usable time — ONE sustained block" },
+            focus: { type: "string" as const, description: "What students are doing during work time" },
+            checkpoints: {
+              type: "array" as const,
+              items: { type: "string" as const },
+              description: "1-2 brief teacher check-in points during work time",
+            },
+          },
+        },
+        debrief: {
+          type: "object" as const,
+          required: ["durationMinutes"],
+          properties: {
+            durationMinutes: { type: "number" as const, description: "5-10 minutes — never skip" },
+            protocol: { type: "string" as const, description: "e.g. quick-share, i-like-i-wish, exit-ticket, two-stars-a-wish" },
+            prompt: { type: "string" as const, description: "The debrief question or activity instructions" },
+          },
+        },
+      },
+    },
+    extensions: {
+      type: "array" as const,
+      description: "2-3 extension activities for early finishers, indexed to the current design phase",
+      items: {
+        type: "object" as const,
+        required: ["title", "description", "durationMinutes"],
+        properties: {
+          title: { type: "string" as const },
+          description: { type: "string" as const },
+          durationMinutes: { type: "number" as const },
+          designPhase: {
+            type: "string" as const,
+            enum: ["investigation", "ideation", "prototyping", "evaluation"],
+          },
+        },
+      },
+    },
   },
 };
 

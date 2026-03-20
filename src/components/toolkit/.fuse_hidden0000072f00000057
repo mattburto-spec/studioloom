@@ -1,0 +1,682 @@
+'use client';
+
+import { useState, useRef, useEffect, useCallback } from 'react';
+
+
+interface ToolkitToolProps {
+  toolId?: string;
+  mode: 'public' | 'embedded' | 'standalone';
+  challenge?: string;
+  sessionId?: string;
+  onSave?: (state: ToolState) => void;
+  onComplete?: (data: ToolResponse) => void;
+}
+
+interface ToolState {
+  stage: 'intro' | 'working' | 'summary';
+  challenge: string;
+  currentStep: number;
+  options: string[];
+  comparisons: Comparison[];
+}
+
+interface Comparison {
+  optionA: string;
+  optionB: string;
+  winner: string;
+  reasoning: string;
+}
+
+interface ToolResponse {
+  toolId: string;
+  challenge: string;
+  stage: 'intro' | 'working' | 'summary';
+  options: string[];
+  comparisons: Comparison[];
+  metadata: {
+    totalOptions: number;
+    totalComparisons: number;
+    timeSpentMs: number;
+  };
+}
+
+interface Pair {
+  a: string;
+  b: string;
+}
+
+const STEPS = [
+  {
+    id: 'list',
+    title: 'List Options',
+    description: 'What options are you comparing?',
+    instruction: 'Enter 3-6 distinct options. They should be genuinely different, not variations of the same idea.',
+  },
+  {
+    id: 'compare',
+    title: 'Compare Pairs',
+    description: 'Head-to-head: which option is better for each pair?',
+    instruction: 'For each pair, choose which is better and explain why. You'll compare all pairs.',
+  },
+];
+
+function generatePairs(options: string[]): Pair[] {
+  const pairs: Pair[] = [];
+  for (let i = 0; i < options.length; i++) {
+    for (let j = i + 1; j < options.length; j++) {
+      pairs.push({ a: options[i], b: options[j] });
+    }
+  }
+  return pairs;
+}
+
+function countWins(option: string, comparisons: Comparison[]): number {
+  return comparisons.filter(c => c.winner === option).length;
+}
+
+function detectCircularPreference(
+  optionA: string,
+  optionB: string,
+  optionC: string,
+  comparisons: Comparison[]
+): boolean {
+  // Find: A > B, B > C, C > A
+  const aBeatsB = comparisons.some(c => c.optionA === optionA && c.optionB === optionB && c.winner === optionA);
+  const bBeatsC = comparisons.some(c => c.optionA === optionB && c.optionB === optionC && c.winner === optionB);
+  const cBeatsA = comparisons.some(c => c.optionA === optionC && c.optionB === optionA && c.winner === optionC);
+
+  // Also check reverse order: A > B, B > C, C > A
+  const bBeatsA = comparisons.some(c => c.optionA === optionA && c.optionB === optionB && c.winner === optionB);
+  const cBeatsB = comparisons.some(c => c.optionA === optionB && c.optionB === optionC && c.winner === optionC);
+  const aBeatsC = comparisons.some(c => c.optionA === optionC && c.optionB === optionA && c.winner === optionA);
+
+  return (aBeatsB && bBeatsC && cBeatsA) || (bBeatsA && cBeatsB && aBeatsC);
+}
+
+export function PairwiseComparisonTool({
+  mode = 'public',
+  challenge: initialChallenge = '',
+  sessionId: initialSessionId,
+  onSave,
+  onComplete,
+}: ToolkitToolProps) {
+  const [stage, setStage] = useState<'intro' | 'working' | 'summary'>(initialChallenge ? 'working' : 'intro');
+  const [challenge, setChallenge] = useState(initialChallenge);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [options, setOptions] = useState<string[]>([]);
+  const [inputValue, setInputValue] = useState('');
+  const [comparisons, setComparisons] = useState<Comparison[]>([]);
+  const [currentPairIdx, setCurrentPairIdx] = useState(0);
+  const [reasoningInput, setReasoningInput] = useState('');
+  const [selectedWinner, setSelectedWinner] = useState<string | null>(null);
+
+  const [sessionId] = useState(() => initialSessionId || Math.random().toString(36).slice(2) + Date.now().toString(36));
+  const [circularAlert, setCircularAlert] = useState<{ options: [string, string, string]; message: string } | null>(null);
+  const [analysis, setAnalysis] = useState('');
+  const [loadingAnalysis, setLoadingAnalysis] = useState(false);
+
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (mode !== 'public' && onSave) {
+      const timer = setTimeout(() => {
+        const state: ToolState = { stage, challenge, currentStep, options, comparisons };
+        onSave(state);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [stage, challenge, currentStep, options, comparisons, mode, onSave]);
+
+  const fetchAI = useCallback(async (body: Record<string, unknown>): Promise<Record<string, unknown>> => {
+    const res = await fetch('/api/tools/pairwise-comparison', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  }, []);
+
+  const fetchAnalysis = useCallback(async () => {
+    if (options.length === 0) return;
+    setLoadingAnalysis(true);
+    try {
+      const data = await fetchAI({
+        action: 'analysis',
+        challenge: challenge.trim(),
+        sessionId,
+        options,
+        comparisons,
+      });
+      if (data.analysis) setAnalysis(data.analysis as string);
+    } catch (err) {
+      console.warn('[pairwise] Analysis unavailable:', err);
+    } finally {
+      setLoadingAnalysis(false);
+    }
+  }, [challenge, sessionId, options, comparisons, fetchAI]);
+
+  const addOption = useCallback(() => {
+    const text = inputValue.trim();
+    if (!text || options.length >= 6) return;
+
+    setOptions(prev => [...prev, text]);
+    setInputValue('');
+    inputRef.current?.focus();
+  }, [inputValue, options.length]);
+
+  const saveComparison = () => {
+    if (!selectedWinner || !reasoningInput.trim()) return;
+
+    const pairs = generatePairs(options);
+    const pair = pairs[currentPairIdx];
+
+    const newComparison: Comparison = {
+      optionA: pair.a,
+      optionB: pair.b,
+      winner: selectedWinner,
+      reasoning: reasoningInput.trim(),
+    };
+
+    const newComparisons = [...comparisons, newComparison];
+    setComparisons(newComparisons);
+
+    // Check for circular preferences
+    if (options.length >= 3) {
+      for (let i = 0; i < options.length; i++) {
+        for (let j = i + 1; j < options.length; j++) {
+          for (let k = j + 1; k < options.length; k++) {
+            if (detectCircularPreference(options[i], options[j], options[k], newComparisons)) {
+              setCircularAlert({
+                options: [options[i], options[j], options[k]],
+                message: `Circular preference detected: ${options[i]} > ${options[j]} > ${options[k]} > ${options[i]}. Your preferences aren't consistent — which do you REALLY prefer?`,
+              });
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    setReasoningInput('');
+    setSelectedWinner(null);
+
+    if (currentPairIdx < pairs.length - 1) {
+      setCurrentPairIdx(currentPairIdx + 1);
+    } else {
+      setStage('summary');
+      fetchAnalysis();
+    }
+  };
+
+  if (stage === 'intro') {
+    return (
+        style={{ minHeight: '100vh', background: '#0a0a0a', color: '#e5e5e5', fontFamily: 'Inter, system-ui, sans-serif', padding: '80px 24px' }}>
+        <div style={{ maxWidth: 640, margin: '0 auto' }}>
+          <div style={{ marginBottom: 32 }}>
+            <h1 style={{
+              fontSize: 40,
+              fontWeight: 800,
+              margin: '0 0 4px',
+              background: 'linear-gradient(135deg, #ec4899 0%, #f97316 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              lineHeight: 1.1,
+            }}>
+              Pairwise Comparison
+            </h1>
+            <p style={{ color: '#999', fontSize: 16, marginTop: 12, lineHeight: 1.6 }}>
+              Compare options head-to-head. Every option gets matched against every other option. The winner emerges through systematic preference testing.
+            </p>
+          </div>
+
+          <div style={{ marginBottom: 32 }}>
+            <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: '#ccc', marginBottom: 8 }}>
+              What are you comparing?
+            </label>
+            <textarea
+              value={challenge}
+              onChange={(e) => setChallenge(e.target.value)}
+              placeholder="e.g. Which research method should I use for my design project?"
+              rows={3}
+              style={{
+                width: '100%',
+                background: '#161616',
+                border: '1px solid #333',
+                borderRadius: 12,
+                padding: '14px 16px',
+                color: '#e5e5e5',
+                fontSize: 16,
+                fontFamily: 'inherit',
+                resize: 'vertical',
+                outline: 'none',
+                boxSizing: 'border-box',
+              }}
+            />
+          </div>
+
+          <button
+            onClick={() => setStage('working')}
+            disabled={!challenge.trim()}
+            style={{
+              width: '100%',
+              padding: '16px 24px',
+              borderRadius: 12,
+              border: 'none',
+              background: challenge.trim() ? 'linear-gradient(135deg, #ec4899, #f97316)' : '#333',
+              color: challenge.trim() ? '#fff' : '#666',
+              fontSize: 16,
+              fontWeight: 700,
+              cursor: challenge.trim() ? 'pointer' : 'not-allowed',
+            }}
+          >
+            Start Comparing →
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (stage === 'working') {
+    const pairs = generatePairs(options);
+    const totalPairs = (options.length * (options.length - 1)) / 2;
+
+    if (currentStep === 0) {
+      // List options
+      return (
+          style={{ minHeight: '100vh', background: '#0a0a0a', color: '#e5e5e5', fontFamily: 'Inter, system-ui, sans-serif', padding: '32px 24px 120px' }}>
+          <div style={{ maxWidth: 700, margin: '0 auto' }}>
+            <h2 style={{ margin: '0 0 8px', fontSize: 24, fontWeight: 800, color: '#ec4899' }}>
+              {STEPS[0].title}
+            </h2>
+            <p style={{ color: '#999', fontSize: 14, margin: '0 0 24px', lineHeight: 1.5 }}>
+              {STEPS[0].instruction}
+            </p>
+
+            <div style={{ marginBottom: 24 }}>
+              <textarea
+                ref={inputRef}
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey && inputValue.trim()) {
+                    e.preventDefault();
+                    addOption();
+                  }
+                }}
+                placeholder="e.g. User interviews"
+                rows={2}
+                style={{
+                  width: '100%',
+                  background: '#161616',
+                  border: '1px solid #333',
+                  borderRadius: 12,
+                  padding: '14px 16px',
+                  color: '#e5e5e5',
+                  fontSize: 15,
+                  fontFamily: 'inherit',
+                  resize: 'vertical',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                }}
+              />
+              <button
+                onClick={addOption}
+                disabled={!inputValue.trim() || options.length >= 6}
+                style={{
+                  marginTop: 8,
+                  padding: '8px 20px',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: inputValue.trim() && options.length < 6 ? '#ec4899' : '#333',
+                  color: inputValue.trim() && options.length < 6 ? '#fff' : '#666',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  cursor: inputValue.trim() && options.length < 6 ? 'pointer' : 'not-allowed',
+                }}
+              >
+                Add Option
+              </button>
+            </div>
+
+            {options.length > 0 && (
+              <div style={{ marginBottom: 24 }}>
+                <p style={{ fontSize: 13, color: '#666', marginBottom: 8, fontWeight: 600 }}>
+                  Options ({options.length}/6)
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {options.map((option, i) => (
+                    <div key={i} style={{
+                      padding: '10px 14px',
+                      borderRadius: 10,
+                      background: '#141414',
+                      border: '1px solid #222',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }}>
+                      <p style={{ margin: 0, fontSize: 14, color: '#ccc' }}>{option}</p>
+                      <button
+                        onClick={() => setOptions(prev => prev.filter((_, idx) => idx !== i))}
+                        style={{
+                          padding: '4px 8px',
+                          background: 'transparent',
+                          border: '1px solid #555',
+                          borderRadius: 6,
+                          color: '#999',
+                          fontSize: 12,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div style={{
+              position: 'fixed',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              padding: '16px 24px',
+              background: 'linear-gradient(transparent, #0a0a0a 30%)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}>
+              <button
+                onClick={() => setStage('intro')}
+                style={{
+                  padding: '10px 20px',
+                  borderRadius: 10,
+                  border: '1px solid #333',
+                  background: 'transparent',
+                  color: '#999',
+                  fontSize: 14,
+                  cursor: 'pointer',
+                }}
+              >
+                ← Back
+              </button>
+
+              <span style={{ fontSize: 12, color: '#555' }}>
+                {options.length} option{options.length !== 1 ? 's' : ''}
+              </span>
+
+              <button
+                onClick={() => { setCurrentStep(1); setCurrentPairIdx(0); }}
+                disabled={options.length < 3}
+                style={{
+                  padding: '10px 20px',
+                  borderRadius: 10,
+                  border: 'none',
+                  background: options.length >= 3 ? '#ec4899' : '#333',
+                  color: options.length >= 3 ? '#fff' : '#666',
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: options.length >= 3 ? 'pointer' : 'not-allowed',
+                }}
+              >
+                Next →
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Step 1: Compare pairs
+    if (currentPairIdx < pairs.length) {
+      const pair = pairs[currentPairIdx];
+      return (
+          style={{ minHeight: '100vh', background: '#0a0a0a', color: '#e5e5e5', fontFamily: 'Inter, system-ui, sans-serif', padding: '32px 24px 120px' }}>
+          <div style={{ maxWidth: 700, margin: '0 auto' }}>
+            <h2 style={{ margin: '0 0 8px', fontSize: 24, fontWeight: 800, color: '#ec4899' }}>
+              {STEPS[1].title}
+            </h2>
+            <p style={{ color: '#999', fontSize: 14, margin: '0 0 24px', lineHeight: 1.5 }}>
+              {STEPS[1].instruction}
+            </p>
+
+            {circularAlert && (
+              <div style={{
+                padding: 16,
+                borderRadius: 12,
+                background: 'rgba(234, 179, 8, 0.1)',
+                border: '1px solid rgba(234, 179, 8, 0.3)',
+                marginBottom: 20,
+              }}>
+                <p style={{ margin: '0 0 8px', fontSize: 13, fontWeight: 700, color: '#eab308' }}>
+                  ⚠️ Circular Preference Detected
+                </p>
+                <p style={{ margin: 0, fontSize: 13, color: '#fcd34d', lineHeight: 1.5 }}>
+                  {circularAlert.message}
+                </p>
+              </div>
+            )}
+
+            <div style={{
+              padding: 20,
+              borderRadius: 12,
+              background: '#111',
+              border: '1px solid #222',
+              marginBottom: 24,
+            }}>
+              <p style={{ fontSize: 13, color: '#999', margin: '0 0 16px', fontWeight: 600 }}>
+                Comparison {currentPairIdx + 1} of {totalPairs}
+              </p>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 12, alignItems: 'center', marginBottom: 24 }}>
+                <div style={{
+                  padding: 16,
+                  borderRadius: 10,
+                  background: selectedWinner === pair.a ? 'rgba(236, 72, 153, 0.15)' : '#141414',
+                  border: selectedWinner === pair.a ? '1px solid #ec4899' : '1px solid #222',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }} onClick={() => setSelectedWinner(pair.a)}>
+                  <p style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#ccc', textAlign: 'center', lineHeight: 1.4 }}>
+                    {pair.a}
+                  </p>
+                </div>
+
+                <div style={{ fontSize: 20, fontWeight: 800, color: '#666', textAlign: 'center', minWidth: 40 }}>
+                  VS
+                </div>
+
+                <div style={{
+                  padding: 16,
+                  borderRadius: 10,
+                  background: selectedWinner === pair.b ? 'rgba(236, 72, 153, 0.15)' : '#141414',
+                  border: selectedWinner === pair.b ? '1px solid #ec4899' : '1px solid #222',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }} onClick={() => setSelectedWinner(pair.b)}>
+                  <p style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#ccc', textAlign: 'center', lineHeight: 1.4 }}>
+                    {pair.b}
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#ccc', marginBottom: 8 }}>
+                  Why is {selectedWinner || '...'} better?
+                </label>
+                <textarea
+                  value={reasoningInput}
+                  onChange={(e) => setReasoningInput(e.target.value)}
+                  placeholder="Explain your choice. What criteria matter most for this decision?"
+                  style={{
+                    width: '100%',
+                    padding: '12px 14px',
+                    borderRadius: 10,
+                    border: '1px solid #222',
+                    background: '#161616',
+                    color: '#e5e5e5',
+                    fontSize: 13,
+                    fontFamily: 'inherit',
+                    minHeight: 80,
+                    boxSizing: 'border-box',
+                    outline: 'none',
+                  }}
+                />
+              </div>
+
+              <button
+                onClick={saveComparison}
+                disabled={!selectedWinner || !reasoningInput.trim()}
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  borderRadius: 10,
+                  border: 'none',
+                  background: selectedWinner && reasoningInput.trim() ? '#ec4899' : '#333',
+                  color: selectedWinner && reasoningInput.trim() ? '#fff' : '#666',
+                  fontSize: 14,
+                  fontWeight: 700,
+                  cursor: selectedWinner && reasoningInput.trim() ? 'pointer' : 'not-allowed',
+                }}
+              >
+                Save & Next
+              </button>
+            </div>
+
+            <div style={{
+              position: 'fixed',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              padding: '16px 24px',
+              background: 'linear-gradient(transparent, #0a0a0a 30%)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}>
+              <button
+                onClick={() => { setCurrentStep(0); setCurrentPairIdx(0); }}
+                style={{
+                  padding: '10px 20px',
+                  borderRadius: 10,
+                  border: '1px solid #333',
+                  background: 'transparent',
+                  color: '#999',
+                  fontSize: 14,
+                  cursor: 'pointer',
+                }}
+              >
+                ← Back
+              </button>
+
+              <span style={{ fontSize: 12, color: '#555' }}>
+                {currentPairIdx}/{totalPairs} comparisons
+              </span>
+
+              <div />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+    }
+
+    return null;
+  }
+
+  // Summary stage
+  const winCounts = options.map(opt => ({ option: opt, wins: countWins(opt, comparisons) }))
+    .sort((a, b) => b.wins - a.wins);
+
+  return (
+      style={{ minHeight: '100vh', background: '#0a0a0a', color: '#e5e5e5', fontFamily: 'Inter, system-ui, sans-serif', padding: '40px 24px 80px' }}>
+      <div style={{ maxWidth: 700, margin: '0 auto' }}>
+        <h1 style={{ fontSize: 32, fontWeight: 800, margin: '0 0 8px', background: 'linear-gradient(135deg, #ec4899, #f97316)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+          Ranking Results
+        </h1>
+        <p style={{ color: '#888', fontSize: 14, margin: '0 0 28px' }}>{challenge}</p>
+
+        <div style={{
+          padding: 20,
+          borderRadius: 14,
+          background: '#111',
+          border: '1px solid #222',
+          marginBottom: 24,
+        }}>
+          <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700, color: '#e5e5e5' }}>
+            Final Ranking
+          </h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {winCounts.map((item, i) => (
+              <div key={i} style={{
+                padding: '12px 16px',
+                borderRadius: 10,
+                background: '#141414',
+                border: '1px solid #222',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+              }}>
+                <div style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 50,
+                  background: i === 0 ? '#ec4899' : i === 1 ? '#f97316' : '#666',
+                  color: '#fff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 700,
+                  fontSize: 14,
+                  flexShrink: 0,
+                }}>
+                  {i + 1}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <p style={{ margin: 0, fontSize: 15, fontWeight: 600, color: '#e5e5e5' }}>
+                    {item.option}
+                  </p>
+                </div>
+                <p style={{ margin: 0, fontSize: 13, color: '#999', fontWeight: 600 }}>
+                  {item.wins} win{item.wins !== 1 ? 's' : ''}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {analysis && (
+          <div style={{
+            padding: 20,
+            borderRadius: 14,
+            background: 'linear-gradient(135deg, rgba(236, 72, 153, 0.06), rgba(249, 115, 22, 0.06))',
+            border: '1px solid rgba(236, 72, 153, 0.15)',
+            marginBottom: 24,
+          }}>
+            <p style={{ fontSize: 13, fontWeight: 700, color: '#f472b6', margin: '0 0 10px' }}>✦ Analysis</p>
+            <p style={{ color: '#ccc', fontSize: 14, lineHeight: 1.7, margin: 0 }}>{analysis}</p>
+          </div>
+        )}
+
+        <button
+          onClick={() => { setStage('working'); setCurrentStep(0); setCurrentPairIdx(0); }}
+          style={{
+            width: '100%',
+            padding: '12px 20px',
+            borderRadius: 10,
+            border: 'none',
+            background: 'linear-gradient(135deg, #ec4899, #f97316)',
+            color: '#fff',
+            fontSize: 14,
+            fontWeight: 700,
+            cursor: 'pointer',
+          }}
+        >
+          ← Review Comparisons
+        </button>
+      </div>
+    </div>
+  </div>
+    );
+}

@@ -1,0 +1,545 @@
+'use client';
+
+import { useState, useRef, useEffect, useCallback } from 'react';
+
+
+interface ToolkitToolProps {
+  toolId?: string;
+  mode: 'public' | 'embedded' | 'standalone';
+  challenge?: string;
+  sessionId?: string;
+  onSave?: (state: ToolState) => void;
+  onComplete?: (data: ToolResponse) => void;
+}
+
+interface ToolState {
+  stage: 'intro' | 'working' | 'summary';
+  challenge: string;
+  currentStep: number;
+  ideas: (string | null)[][];
+  ideaEfforts: Record<number, EffortLevel[]>;
+}
+
+interface ToolResponse {
+  toolId: string;
+  challenge: string;
+  stage: 'intro' | 'working' | 'summary';
+  ideas: (string | null)[][];
+  metadata: {
+    totalIdeas: number;
+    timeSpentMs: number;
+  };
+}
+
+type EffortLevel = 'low' | 'medium' | 'high';
+
+const STEPS = [
+  {
+    label: 'Observe Nature',
+    emoji: '🔍',
+    color: '#10b981',
+    glow: 'rgba(16,185,129,0.15)',
+    instruction: 'What natural systems or organisms solve a similar problem?',
+    hint: 'Think across all scales — bacteria, insects, plants, animals, ecosystems. What solves this in nature?',
+    placeholder: 'E.g., "How do spider webs distribute stress while staying flexible?"',
+    minLength: 3,
+  },
+  {
+    label: 'Extract Principle',
+    emoji: '💡',
+    color: '#f59e0b',
+    glow: 'rgba(245,158,11,0.15)',
+    instruction: 'What design PRINCIPLE makes this work?',
+    hint: 'Go beyond the organism — what\'s the underlying strategy? Look for mechanisms, structures, processes.',
+    placeholder: 'E.g., "The principle is distributed load via a lattice structure"',
+    minLength: 3,
+  },
+  {
+    label: 'Apply to Design',
+    emoji: '🎨',
+    color: '#8b5cf6',
+    glow: 'rgba(139,92,246,0.15)',
+    instruction: 'How could you use this principle in your design?',
+    hint: 'Be specific — what materials, shapes, or mechanisms could you use? How would it work?',
+    placeholder: 'E.g., "Use a 3D-woven structure instead of solid plastic to distribute stress"',
+    minLength: 5,
+  },
+  {
+    label: 'Evaluate Fit',
+    emoji: '⚖️',
+    color: '#ec4899',
+    glow: 'rgba(236,72,153,0.15)',
+    instruction: 'How well does this solution fit your original problem?',
+    hint: 'Consider feasibility, cost, materials, manufacturing, user needs. Is it practical?',
+    placeholder: 'E.g., "Fits well — reduces material by 30%, but requires new tooling costs"',
+    minLength: 4,
+  },
+];
+
+function assessEffort(text: string): EffortLevel {
+  const words = text.trim().split(/\s+/).length;
+  const hasReasoning = /\b(because|since|so that|in order to|this would|this could|which means|that way|due to|allows|enables)\b/i.test(text);
+  const hasSpecifics = /\b(for example|such as|like|using|made of|instead of|rather than|compared to|structure|mechanism|process|principle)\b/i.test(text);
+  const hasDetail = words >= 15;
+
+  if (words < 6) return 'low';
+  if ((hasDetail && hasSpecifics) || (hasDetail && hasReasoning) || (hasSpecifics && hasReasoning)) return 'high';
+  if (words >= 10 || hasSpecifics || hasReasoning) return 'medium';
+  return 'low';
+}
+
+const MICRO_FEEDBACK: Record<EffortLevel, { emoji: string; messages: string[] }> = {
+  high: { emoji: '✦', messages: ['Deep thinking!', 'Great principle!', 'Solid application!', 'Strong analysis!'] },
+  medium: { emoji: '→', messages: ['Good start!', 'Build on that!', 'Getting clearer!', 'Keep thinking!'] },
+  low: { emoji: '↑', messages: ['More detail?', 'What specifically?', 'Can you elaborate?', 'Tell me more'] },
+};
+
+export function BiomimicryTool({
+  mode = 'public',
+  challenge: initialChallenge = '',
+  sessionId: initialSessionId,
+  onSave,
+  onComplete,
+}: ToolkitToolProps) {
+  const [stage, setStage] = useState<'intro' | 'working' | 'summary'>(initialChallenge ? 'working' : 'intro');
+  const [challenge, setChallenge] = useState(initialChallenge);
+  const [currentStep, setCurrentStep] = useState(0);
+  const [ideas, setIdeas] = useState<(string | null)[][]>([[], [], [], []]);
+  const [inputValue, setInputValue] = useState('');
+
+  const [sessionId] = useState(() => initialSessionId || Math.random().toString(36).slice(2) + Date.now().toString(36));
+  const [microFeedback, setMicroFeedback] = useState<{ msg: string; level: EffortLevel } | null>(null);
+  const [ideaEfforts, setIdeaEfforts] = useState<Record<number, EffortLevel[]>>({});
+  const [nudge, setNudge] = useState('');
+  const [nudgeLoading, setNudgeLoading] = useState(false);
+  const [insights, setInsights] = useState('');
+  const [loadingInsights, setLoadingInsights] = useState(false);
+  const [natureSolutions, setNatureSolutions] = useState<string[]>([]);
+
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const microFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const step = STEPS[currentStep];
+  const totalIdeas = ideas.reduce((sum, arr) => sum + (arr[0] ? 1 : 0), 0);
+
+  useEffect(() => {
+    if (mode !== 'public' && onSave) {
+      const timer = setTimeout(() => {
+        const state: ToolState = { stage, challenge, currentStep, ideas, ideaEfforts };
+        onSave(state);
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [stage, challenge, currentStep, ideas, ideaEfforts, mode, onSave]);
+
+  const fetchAI = useCallback(async (body: Record<string, unknown>): Promise<Record<string, unknown>> => {
+    const res = await fetch('/api/tools/biomimicry', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`API error: ${res.status}`);
+    return res.json();
+  }, []);
+
+  const handleIntroSubmit = () => {
+    if (!challenge.trim()) return;
+    setStage('working');
+    inputRef.current?.focus();
+  };
+
+  const handleAddIdea = async () => {
+    if (!inputValue.trim()) return;
+
+    const effort = assessEffort(inputValue);
+    const feedback = MICRO_FEEDBACK[effort];
+    const feedbackMsg = feedback.messages[Math.floor(Math.random() * feedback.messages.length)];
+    setMicroFeedback({ msg: feedbackMsg, level: effort });
+
+    // For step 0 (Observe Nature), track nature solutions separately
+    if (currentStep === 0) {
+      setNatureSolutions([...natureSolutions, inputValue]);
+    }
+
+    // Store idea in step-specific slot
+    const newIdeas = ideas.map((arr, i) => i === currentStep ? [...arr, inputValue] : arr);
+    setIdeas(newIdeas);
+    setIdeaEfforts({
+      ...ideaEfforts,
+      [currentStep]: [...(ideaEfforts[currentStep] || []), effort],
+    });
+    setInputValue('');
+
+    if (microFeedbackTimerRef.current) clearTimeout(microFeedbackTimerRef.current);
+    microFeedbackTimerRef.current = setTimeout(() => setMicroFeedback(null), 3000);
+
+    // Fetch nudge
+    setNudgeLoading(true);
+    try {
+      const result = (await fetchAI({
+        action: 'nudge',
+        challenge,
+        sessionId,
+        stepIndex: currentStep,
+        idea: inputValue,
+        natureSolutions: currentStep === 0 ? [] : natureSolutions,
+        effortLevel: effort,
+      })) as { nudge?: string; acknowledgment?: string; effortLevel?: EffortLevel };
+      setNudge(result.nudge || '');
+    } catch (err) {
+      console.error('Nudge fetch error:', err);
+      setNudge('');
+    } finally {
+      setNudgeLoading(false);
+    }
+
+    inputRef.current?.focus();
+  };
+
+  const handleRemoveIdea = (idx: number) => {
+    const stepIdeas = ideas[currentStep] || [];
+    const newIdeas = ideas.map((arr, i) =>
+      i === currentStep ? arr.filter((_, j) => j !== idx) : arr
+    );
+    setIdeas(newIdeas);
+
+    const efforts = ideaEfforts[currentStep] || [];
+    const newEfforts = efforts.filter((_, j) => j !== idx);
+    setIdeaEfforts({
+      ...ideaEfforts,
+      [currentStep]: newEfforts,
+    });
+  };
+
+  const handleNextStep = () => {
+    const currentIdeas = ideas[currentStep] || [];
+    if (currentIdeas.length === 0 || !currentIdeas[0]) return;
+    setCurrentStep(Math.min(currentStep + 1, STEPS.length - 1));
+    setInputValue('');
+    setNudge('');
+    inputRef.current?.focus();
+  };
+
+  const handleGoToSummary = async () => {
+    setLoadingInsights(true);
+    try {
+      const result = (await fetchAI({
+        action: 'insights',
+        challenge,
+        sessionId,
+        allIdeas: ideas,
+      })) as { insights?: string };
+      setInsights(result.insights || '');
+    } catch (err) {
+      console.error('Insights fetch error:', err);
+      setInsights('');
+    } finally {
+      setLoadingInsights(false);
+    }
+    setStage('summary');
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && e.metaKey) {
+      handleAddIdea();
+    }
+  };
+
+  // ─── INTRO SCREEN ───
+  if (stage === 'intro') {
+    return (
+      <div className="min-h-screen w-full flex flex-col items-center justify-center p-4" style={{ background: 'linear-gradient(135deg, rgba(16,185,129,0.05) 0%, rgba(139,92,246,0.05) 100%)' }}>
+      <div className="min-h-screen w-full flex flex-col items-center justify-center p-4" style={{ background: 'linear-gradient(135deg, rgba(16,185,129,0.05) 0%, rgba(139,92,246,0.05) 100%)' }}>
+        <div className="max-w-2xl w-full space-y-8">
+          <div>
+            <h1 className="text-4xl font-bold text-gray-900 mb-2">🌿 Biomimicry Cards</h1>
+            <p className="text-lg text-gray-600">Nature-inspired design ideation. What can nature teach you?</p>
+          </div>
+
+          <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-200">
+            <label className="block text-sm font-semibold text-gray-700 mb-3">What design problem are you solving?</label>
+            <textarea
+              value={challenge}
+              onChange={(e) => setChallenge(e.target.value)}
+              placeholder="E.g., 'How to make packaging that protects contents but is lightweight' or 'Design a structure that's strong but flexible'"
+              className="w-full h-32 p-4 border border-gray-300 rounded-lg focus:border-green-500 focus:outline-none resize-none text-gray-700"
+            />
+          </div>
+
+          <div className="flex gap-4">
+            <button
+              onClick={handleIntroSubmit}
+              disabled={!challenge.trim()}
+              className="flex-1 py-3 px-6 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition"
+            >
+              Start Exploring
+            </button>
+          </div>
+
+          <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+            <p className="text-sm text-gray-700">
+              <strong>How it works:</strong> Biomimicry means learning from nature's solutions. You'll explore 4 steps: (1) observe how nature solves a similar problem, (2) extract the underlying principle, (3) apply it to your design, and (4) evaluate how well it fits. Nature has 3.8 billion years of R&D behind it.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── WORKING SCREEN ───
+  if (stage === 'working') {
+    const stepIdeas = ideas[currentStep] || [];
+
+    return (
+      <div className="min-h-screen w-full p-4" style={{ background: 'linear-gradient(135deg, rgba(16,185,129,0.03) 0%, rgba(139,92,246,0.03) 100%)' }}>
+      <div className="min-h-screen w-full p-4" style={{ background: 'linear-gradient(135deg, rgba(16,185,129,0.03) 0%, rgba(139,92,246,0.03) 100%)' }}>
+        <div className="max-w-4xl mx-auto space-y-6">
+          {/* Header */}
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+            <h2 className="text-2xl font-bold text-gray-900 mb-1">🌿 {challenge}</h2>
+            <p className="text-sm text-gray-600">Step {currentStep + 1} of 4: {step.label}</p>
+          </div>
+
+          {/* Step Navigation */}
+          <div className="grid grid-cols-4 gap-2">
+            {STEPS.map((s, idx) => {
+              const stepIdeas = ideas[idx] || [];
+              const isActive = idx === currentStep;
+              const isComplete = stepIdeas.length > 0 && stepIdeas[0];
+              return (
+                <button
+                  key={idx}
+                  onClick={() => setCurrentStep(idx)}
+                  disabled={idx > 0 && !ideas[idx - 1]?.some((i) => i)}
+                  className={`p-3 rounded-lg font-semibold text-sm transition flex flex-col items-center gap-2 ${
+                    isActive
+                      ? 'text-white shadow-lg'
+                      : isComplete
+                      ? 'text-white shadow-md'
+                      : 'text-gray-700 bg-white border border-gray-200 hover:border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed'
+                  }`}
+                  style={{
+                    backgroundColor: isActive || isComplete ? s.color : undefined,
+                    boxShadow: isActive ? `0 0 12px ${s.glow}` : undefined,
+                  }}
+                >
+                  <span className="text-lg">{s.emoji}</span>
+                  <span className="text-xs hidden sm:block">{s.label.split(' ')[0]}</span>
+                  {isComplete && !isActive && <span className="text-xs">✓</span>}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Working Area */}
+          <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-200">
+            <div className="mb-6">
+              <h3 className="text-2xl font-bold mb-2" style={{ color: step.color }}>
+                {step.emoji} {step.label}
+              </h3>
+              <p className="text-gray-700 font-medium mb-2">{step.instruction}</p>
+              <p className="text-sm text-gray-600">{step.hint}</p>
+            </div>
+
+            {/* Input Area */}
+            <div className="space-y-3 mb-6">
+              <textarea
+                ref={inputRef}
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={step.placeholder}
+                className="w-full h-24 p-4 border border-gray-300 rounded-lg focus:border-green-500 focus:outline-none resize-none text-gray-700"
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={handleAddIdea}
+                  disabled={!inputValue.trim() || nudgeLoading}
+                  className="flex-1 py-2 px-4 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg font-semibold hover:from-green-700 hover:to-emerald-700 disabled:from-gray-300 disabled:to-gray-300 disabled:cursor-not-allowed transition"
+                >
+                  {nudgeLoading ? 'Getting feedback...' : 'Add'}
+                </button>
+              </div>
+            </div>
+
+            {/* Micro-feedback */}
+            {microFeedback && (
+              <div
+                className="mb-4 p-3 rounded-lg text-center font-semibold transition-opacity"
+                style={{
+                  backgroundColor: microFeedback.level === 'high' ? '#dcfce7' : microFeedback.level === 'medium' ? '#fef3c7' : '#fecaca',
+                  color: microFeedback.level === 'high' ? '#166534' : microFeedback.level === 'medium' ? '#92400e' : '#991b1b',
+                }}
+              >
+                {MICRO_FEEDBACK[microFeedback.level].emoji} {microFeedback.msg}
+              </div>
+            )}
+
+            {/* Nudge */}
+            {nudge && (
+              <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-900">
+                  <strong>💡 Next thought:</strong> {nudge}
+                </p>
+              </div>
+            )}
+
+            {/* Ideas List */}
+            {stepIdeas.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-semibold text-gray-700">
+                  Your answer:
+                </p>
+                {stepIdeas.map((idea, idx) => {
+                  if (!idea) return null;
+                  const efforts = ideaEfforts[currentStep] || [];
+                  const effort = efforts[idx] || 'medium';
+                  const effortColor =
+                    effort === 'high' ? '#22c55e' : effort === 'medium' ? '#eab308' : '#ef4444';
+                  return (
+                    <div
+                      key={idx}
+                      className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition group"
+                    >
+                      <span
+                        className="text-lg font-bold flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full text-white text-xs"
+                        style={{ backgroundColor: effortColor }}
+                      >
+                        {effort === 'high' ? '●' : effort === 'medium' ? '◐' : '◯'}
+                      </span>
+                      <p className="flex-1 text-gray-700 text-sm">{idea}</p>
+                      <button
+                        onClick={() => handleRemoveIdea(idx)}
+                        className="text-gray-400 hover:text-red-500 transition opacity-0 group-hover:opacity-100"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Navigation Buttons */}
+          {stepIdeas.length > 0 && stepIdeas[0] && (
+            <div className="flex gap-4">
+              {currentStep < STEPS.length - 1 && (
+                <button
+                  onClick={handleNextStep}
+                  className="flex-1 py-3 px-6 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition"
+                >
+                  → Next Step
+                </button>
+              )}
+              {currentStep === STEPS.length - 1 && (
+                <button
+                  onClick={handleGoToSummary}
+                  disabled={loadingInsights}
+                  className="flex-1 py-3 px-6 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg font-semibold hover:from-green-700 hover:to-emerald-700 disabled:from-gray-300 disabled:to-gray-300 disabled:cursor-not-allowed transition"
+                >
+                  {loadingInsights ? 'Synthesizing...' : '→ Review Solutions'}
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Progress */}
+          <div className="text-center text-sm text-gray-600">
+            {totalIdeas} step{totalIdeas !== 1 ? 's' : ''} completed of {STEPS.length}
+          </div>
+        </div>
+      </div>
+    </div>
+    );
+  }
+
+  // ─── SUMMARY SCREEN ───
+  return (
+    <div className="min-h-screen w-full p-4" style={{ background: 'linear-gradient(135deg, rgba(16,185,129,0.03) 0%, rgba(139,92,246,0.03) 100%)' }}>
+    <div className="min-h-screen w-full p-4" style={{ background: 'linear-gradient(135deg, rgba(16,185,129,0.03) 0%, rgba(139,92,246,0.03) 100%)' }}>
+      <div className="max-w-4xl mx-auto space-y-6">
+        {/* Header */}
+        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+          <h2 className="text-2xl font-bold text-gray-900 mb-1">🌿 Nature-Inspired Solutions</h2>
+          <p className="text-sm text-gray-600">Problem: {challenge}</p>
+        </div>
+
+        {/* Solution Pipeline */}
+        <div className="space-y-6">
+          {ideas.map((stepIdeas, stepIdx) => {
+            if (!stepIdeas.length || !stepIdeas[0]) return null;
+            const step = STEPS[stepIdx];
+
+            return (
+              <div
+                key={stepIdx}
+                className="bg-white rounded-xl p-6 shadow-sm border-2"
+                style={{ borderColor: step.color }}
+              >
+                <div className="flex items-start gap-4 mb-4">
+                  <span className="text-3xl">{step.emoji}</span>
+                  <div>
+                    <h3 className="text-lg font-bold" style={{ color: step.color }}>
+                      {step.label}
+                    </h3>
+                    <p className="text-sm text-gray-600">{step.instruction}</p>
+                  </div>
+                </div>
+
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <p className="text-gray-800 leading-relaxed">{stepIdeas[0]}</p>
+                </div>
+
+                {stepIdx < ideas.length - 1 && (
+                  <div className="text-center text-2xl mt-4 text-gray-400">↓</div>
+                )}
+              </div>
+            </div>
+    );
+          })}
+        </div>
+
+        {/* Synthesis */}
+        {insights && (
+          <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-8 border border-green-200">
+            <h3 className="text-lg font-bold text-gray-900 mb-4">💡 Design Synthesis</h3>
+            <div className="text-gray-700 leading-relaxed whitespace-pre-wrap text-sm">
+              {insights}
+            </div>
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex gap-4">
+          <button
+            onClick={() => {
+              setStage('working');
+              setCurrentStep(0);
+            }}
+            className="flex-1 py-3 px-6 bg-white text-green-600 border-2 border-green-600 rounded-lg font-semibold hover:bg-green-50 transition"
+          >
+            ← Explore More
+          </button>
+          <button
+            onClick={() => {
+              if (onComplete) {
+                onComplete({
+                  toolId: 'biomimicry',
+                  challenge,
+                  stage: 'summary',
+                  ideas,
+                  metadata: { totalIdeas, timeSpentMs: 0 },
+                });
+              }
+            }}
+            className="flex-1 py-3 px-6 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg font-semibold hover:from-green-700 hover:to-emerald-700 transition"
+          >
+            Save Ideas
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+    );
+}

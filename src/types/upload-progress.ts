@@ -14,6 +14,7 @@ import type { LessonProfile } from "./lesson-intelligence";
 export type UploadStage =
   | "extracting"
   | "vision"
+  | "pass0_classify"
   | "pass1_structure"
   | "pass2_pedagogy"
   | "pass3_design_teaching"
@@ -83,6 +84,13 @@ export const UPLOAD_STAGE_CONFIG: Record<UploadStage, StageConfig> = {
     messages: [
       "Examining diagrams and images...",
       "Analysing visual content...",
+    ],
+  },
+  pass0_classify: {
+    percent: 20,
+    messages: [
+      "Classifying document type...",
+      "Determining content category...",
     ],
   },
   pass1_structure: {
