@@ -356,22 +356,60 @@ export async function GET(request: NextRequest) {
   }
 
   // Load or create discovery profile
-  let { data: profile } = await supabase
+  let { data: profile, error: profileError } = await supabase
     .from("open_studio_profiles")
     .select("*")
     .eq("student_id", session.student_id)
     .eq("unit_id", unitId)
     .single();
 
+  // Handle table not existing (migration 031 not applied)
+  if (profileError && (profileError.code === "42P01" || profileError.message?.includes("does not exist"))) {
+    console.warn("[discovery] open_studio_profiles table does not exist yet (migration 031 not applied)");
+    // Return a fallback profile shape so the UI doesn't crash
+    return NextResponse.json({
+      profile: {
+        strengths: [],
+        interests: [],
+        needs_identified: [],
+        project_statement: null,
+        archetype: null,
+        discovery_step: "strengths",
+        completed_at: null,
+        discovery_conversation: [{
+          role: "ai",
+          content: "Welcome to Open Studio! 🚀 The discovery system is being set up — please ask your teacher to check the database migration status.",
+          step: "strengths",
+          timestamp: new Date().toISOString(),
+        }],
+      },
+      step: "strengths",
+      conversation: [{
+        role: "ai",
+        content: "Welcome to Open Studio! 🚀 The discovery system is being set up — please ask your teacher to check the database migration status.",
+        step: "strengths",
+        timestamp: new Date().toISOString(),
+      }],
+      isComplete: false,
+    });
+  }
+
   if (!profile) {
-    // Create new profile
+    // Create new profile with initial AI greeting
+    const initialGreeting = {
+      role: "ai",
+      content: "Welcome to Open Studio! 🚀 This is YOUR space to pursue a self-directed project.\n\nBefore we dive in, I want to help you discover what you're naturally drawn to. We'll explore your strengths, interests, and the needs you see around you — then narrow it all down into a project that's uniquely yours.\n\nLet's start with your strengths. What are you naturally good at? Think about what friends ask you for help with, or what comes easily to you that others find hard.",
+      step: "strengths",
+      timestamp: new Date().toISOString(),
+    };
+
     const { data: newProfile, error } = await supabase
       .from("open_studio_profiles")
       .insert({
         student_id: session.student_id,
         unit_id: unitId,
         discovery_step: "strengths",
-        discovery_conversation: [],
+        discovery_conversation: [initialGreeting],
       })
       .select()
       .single();

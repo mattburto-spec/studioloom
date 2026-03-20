@@ -109,16 +109,20 @@ export default function OpenStudioPage({
 
         setStatus(statusData);
 
-        // Fetch unit info via list endpoint
-        const unitsRes = await fetch("/api/student/units");
-        if (unitsRes.ok) {
-          const unitsData = await unitsRes.json();
-          const foundUnit = unitsData.units?.find(
-            (u: Unit) => u.id === unitId
-          );
-          if (foundUnit) {
-            setUnit(foundUnit);
+        // Try to get unit title — non-critical, just for display
+        try {
+          const unitsRes = await fetch("/api/student/units");
+          if (unitsRes.ok) {
+            const unitsData = await unitsRes.json();
+            const foundUnit = unitsData.units?.find(
+              (u: Unit) => u.id === unitId
+            );
+            if (foundUnit) {
+              setUnit(foundUnit);
+            }
           }
+        } catch {
+          // Non-critical — unit title just won't show
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : "An error occurred");

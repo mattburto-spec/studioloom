@@ -72,7 +72,18 @@ export function DiscoveryFlow({ unitId, onComplete, onStepChange }: DiscoveryFlo
 
         const data = await response.json();
         setProfile(data.profile);
-        setConversation(data.conversation || []);
+
+        // If conversation is empty (pre-existing profile without greeting), add a client-side greeting
+        const conv = data.conversation || [];
+        if (conv.length === 0) {
+          conv.push({
+            role: "ai",
+            content: "Welcome to Open Studio! 🚀 Let's explore what you're naturally drawn to. What are you good at? Think about what friends ask you for help with, or what comes easily to you.",
+            step: "strengths",
+            timestamp: new Date().toISOString(),
+          });
+        }
+        setConversation(conv);
         setCurrentStep(data.profile.discovery_step || "strengths");
 
         if (onStepChange) {
@@ -271,15 +282,19 @@ export function DiscoveryFlow({ unitId, onComplete, onStepChange }: DiscoveryFlo
                 }}
               >
                 <QuestBubble
-                  message={msg.content}
-                  role={msg.role}
+                  direction={msg.role === "ai" ? "right" : "left"}
                   avatar={msg.role === "ai" ? "🎯" : "👤"}
-                  variant={msg.role === "ai" ? "ai" : "student"}
-                  timestamp={new Date(msg.timestamp).toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                />
+                >
+                  <div>
+                    <div>{msg.content}</div>
+                    <div style={{ fontSize: "11px", color: "#71717a", marginTop: "6px" }}>
+                      {new Date(msg.timestamp).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </div>
+                  </div>
+                </QuestBubble>
               </motion.div>
             ))}
 
@@ -291,13 +306,15 @@ export function DiscoveryFlow({ unitId, onComplete, onStepChange }: DiscoveryFlo
                 exit={{ opacity: 0, y: -10 }}
                 style={{ display: "flex" }}
               >
-                <QuestBubble
-                  message="..."
-                  role="ai"
-                  avatar="🎯"
-                  variant="ai"
-                  isLoading={true}
-                />
+                <QuestBubble direction="right" avatar="🎯">
+                  <motion.div
+                    animate={{ opacity: [0.3, 1, 0.3] }}
+                    transition={{ duration: 1.5, repeat: Infinity }}
+                    style={{ color: "#a78bfa" }}
+                  >
+                    Thinking...
+                  </motion.div>
+                </QuestBubble>
               </motion.div>
             )}
 

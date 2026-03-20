@@ -193,6 +193,10 @@ export async function GET(request: NextRequest) {
       const { data: sessions, error: queryError } = await listQuery;
 
       if (queryError) {
+        // Table might not exist yet (migration 028 not applied)
+        if (queryError.code === "42P01" || queryError.message?.includes("does not exist")) {
+          return NextResponse.json({ sessions: [] });
+        }
         console.error("[tool-sessions GET] List error:", queryError);
         Sentry.captureException(queryError);
         return NextResponse.json(
