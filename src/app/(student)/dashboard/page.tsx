@@ -31,6 +31,7 @@ export default function StudentDashboard() {
   const [recentEntries, setRecentEntries] = useState<PortfolioEntry[]>([]);
   const [recentToolSessions, setRecentToolSessions] = useState<ToolSession[]>([]);
   const [selectedToolId, setSelectedToolId] = useState<string | null>(null);
+  const [openStudioUnits, setOpenStudioUnits] = useState<Set<string>>(new Set());
 
   const loadPortfolio = useCallback(async () => {
     try {
@@ -52,6 +53,23 @@ export default function StudentDashboard() {
     } catch { /* silent */ }
   }, []);
 
+  const loadOpenStudioStatus = useCallback(async (unitList: UnitWithProgress[]) => {
+    // Check Open Studio status for each unit
+    const unlocked = new Set<string>();
+    await Promise.all(
+      unitList.map(async (unit) => {
+        try {
+          const res = await fetch(`/api/student/open-studio/status?unitId=${unit.id}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.unlocked) unlocked.add(unit.id);
+          }
+        } catch { /* silent */ }
+      })
+    );
+    setOpenStudioUnits(unlocked);
+  }, []);
+
   useEffect(() => {
     async function loadUnits() {
       if (!student) return;
@@ -59,7 +77,9 @@ export default function StudentDashboard() {
         const res = await fetch("/api/student/units");
         if (res.ok) {
           const data = await res.json();
-          setUnits(data.units || []);
+          const unitList = data.units || [];
+          setUnits(unitList);
+          loadOpenStudioStatus(unitList);
         }
       } finally {
         setLoading(false);
@@ -68,7 +88,7 @@ export default function StudentDashboard() {
     loadUnits();
     loadPortfolio();
     loadToolSessions();
-  }, [student, loadPortfolio, loadToolSessions]);
+  }, [student, loadPortfolio, loadToolSessions, loadOpenStudioStatus]);
 
   function getCompletionPercent(unit: Unit, progress: StudentProgress[]): number {
     const unitPages = getPageList(unit.content_data);
@@ -160,9 +180,27 @@ export default function StudentDashboard() {
                   </div>
                 )}
                 <div className="p-5">
-                  <h2 className="font-semibold text-base text-text-primary group-hover:text-brand-purple transition mb-1.5">
-                    {unit.title}
-                  </h2>
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <h2 className="font-semibold text-base text-text-primary group-hover:text-brand-purple transition">
+                      {unit.title}
+                    </h2>
+                    {openStudioUnits.has(unit.id) && (
+                      <span
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider"
+                        style={{
+                          background: "rgba(124,58,237,0.1)",
+                          color: "#7c3aed",
+                          border: "1px solid rgba(124,58,237,0.2)",
+                        }}
+                      >
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                          <path d="M7 11V7a5 5 0 0 1 10 0" />
+                        </svg>
+                        Studio
+                      </span>
+                    )}
+                  </div>
                   {unit.description && (
                     <p className="text-text-secondary text-sm mb-4 line-clamp-2 leading-relaxed">
                       {unit.description}
@@ -220,10 +258,12 @@ export default function StudentDashboard() {
         </div>
       )}
 
-      {/* Open Studio Readiness — shows criteria progress */}
-      <div className="mt-10">
-        <ReadinessIndicator unlocked={false} compact={false} />
-      </div>
+      {/* Open Studio Readiness — shows if any unit has Studio unlocked */}
+      {openStudioUnits.size === 0 && units.length > 0 && (
+        <div className="mt-10">
+          <ReadinessIndicator unlocked={false} compact={false} />
+        </div>
+      )}
 
       {/* My Tools Section */}
       {recentToolSessions.length > 0 && (
