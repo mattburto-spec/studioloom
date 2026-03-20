@@ -85,36 +85,45 @@ export default function UnitPageView({
 
   return (
     <div className="min-h-screen bg-white">
+      {/* ── Sticky top nav bar ── */}
+      <div className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-100 shadow-sm">
+        <div className="max-w-4xl mx-auto px-4 py-2 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {unitNav && (
+              <button
+                onClick={() => unitNav.setSidebarOpen(true)}
+                className="md:hidden w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-200 transition"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="3" y1="6" x2="21" y2="6" />
+                  <line x1="3" y1="12" x2="21" y2="12" />
+                  <line x1="3" y1="18" x2="21" y2="18" />
+                </svg>
+              </button>
+            )}
+            <span className="text-xs text-gray-400 font-medium hidden sm:block">
+              {currentIndex + 1}/{enabledPages.length}
+            </span>
+          </div>
+          <span className="text-sm font-semibold text-gray-700 truncate max-w-[50%]">
+            {displayTitle}
+          </span>
+          <button
+            onClick={() => router.push("/dashboard")}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 rounded-lg transition"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+              <polyline points="9 22 9 12 15 12 15 22" />
+            </svg>
+            Dashboard
+          </button>
+        </div>
+      </div>
+
       {/* ── Hero header — full-width gradient block ── */}
       <div className="w-full" style={{ background: `linear-gradient(135deg, #1A1A2E 0%, ${pageColor} 100%)` }}>
         <div className="max-w-4xl mx-auto px-6 pt-6 pb-10">
-          {/* Top bar: hamburger (mobile) + back to dashboard */}
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-2">
-              {unitNav && (
-                <button
-                  onClick={() => unitNav.setSidebarOpen(true)}
-                  className="md:hidden w-9 h-9 rounded-lg bg-white/20 flex items-center justify-center text-white hover:bg-white/30 transition"
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="3" y1="6" x2="21" y2="6" />
-                    <line x1="3" y1="12" x2="21" y2="12" />
-                    <line x1="3" y1="18" x2="21" y2="18" />
-                  </svg>
-                </button>
-              )}
-            </div>
-            <button
-              onClick={() => router.push("/dashboard")}
-              className="flex items-center gap-1.5 text-white/70 hover:text-white text-sm font-medium transition"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-                <polyline points="9 22 9 12 15 12 15 22" />
-              </svg>
-              Dashboard
-            </button>
-          </div>
 
           <p className="text-sm text-white/70 font-medium mb-3 uppercase tracking-wider">
             Lesson {currentIndex + 1} of {enabledPages.length}
@@ -343,83 +352,121 @@ export default function UnitPageView({
           </>
         )}
 
-        {/* ── Reflection — solid colored block ── */}
-        {pageContent?.reflection && (
-          <ScrollReveal>
-            <SectionDivider number={++sectionNum} color={pageColor} />
-            <div
-              className="full-bleed py-10"
-              style={{ backgroundColor: pageColor }}
-            >
-            <div className="max-w-4xl mx-auto px-6">
-              <h2 className="text-sm font-bold uppercase tracking-widest mb-4 text-white/70">
-                Reflection
-              </h2>
-              {pageContent.reflection.type === "confidence-slider" && (
-                <div>
-                  <p className="text-base text-white mb-4">
-                    How confident are you about this section?
-                  </p>
-                  <div className="flex items-center gap-4">
-                    <span className="text-sm text-white/70">Not sure</span>
-                    <input
-                      type="range"
-                      min={1}
-                      max={5}
-                      value={confidenceLevel}
-                      onChange={(e) => setConfidenceLevel(Number(e.target.value))}
-                      className="flex-1 h-2"
-                      style={{ accentColor: "white" }}
-                    />
-                    <span className="text-sm text-white/70">Very confident</span>
-                  </div>
+        {/* ── Reflection — redesigned for genuine thinking ── */}
+        {pageContent?.reflection && (() => {
+          // Helper: count meaningful words (exclude filler)
+          const FILLER = new Set(["i", "the", "a", "an", "is", "was", "it", "my", "to", "and", "of", "in", "that", "this"]);
+          const countMeaningful = (text: string) => {
+            const words = text.trim().split(/\s+/).filter(w => w.length > 0);
+            return words.filter(w => !FILLER.has(w.toLowerCase())).length;
+          };
+
+          // Determine if any reflection response meets the thinking threshold
+          const reflectionTexts = pageContent.reflection.items.map((_, i) => responses[`reflection_${i}`] || "");
+          const hasEnoughThought = reflectionTexts.some(t => countMeaningful(t) >= 12);
+
+          // Word count display for each textarea
+          const getEffortTag = (text: string) => {
+            const meaningful = countMeaningful(text);
+            if (meaningful >= 20) return { label: "Deep thinking", color: "#22c55e", icon: "🌟" };
+            if (meaningful >= 12) return { label: "Good reflection", color: "#a78bfa", icon: "💭" };
+            if (meaningful >= 5) return { label: "Keep going...", color: "#f59e0b", icon: "✏️" };
+            return { label: "Think deeper — use a specific example", color: "#ef4444", icon: "🤔" };
+          };
+
+          return (
+            <ScrollReveal>
+              <SectionDivider number={++sectionNum} color={pageColor} />
+              <div
+                className="full-bleed py-10"
+                style={{ backgroundColor: pageColor }}
+              >
+              <div className="max-w-4xl mx-auto px-6">
+                {/* Header with thinking prompt */}
+                <div className="flex items-center gap-3 mb-2">
+                  <span className="text-2xl">🪞</span>
+                  <h2 className="text-lg font-bold text-white">
+                    Pause & Think
+                  </h2>
                 </div>
-              )}
-              {pageContent.reflection.type === "checklist" && (
-                <div className="space-y-3">
-                  {pageContent.reflection.items.map((item, i) => (
-                    <label key={i} className="flex items-start gap-3 text-base cursor-pointer">
+                <p className="text-sm text-white/60 mb-6">
+                  Use a specific example from YOUR work. Generic answers won&apos;t count.
+                </p>
+
+                {/* All reflection types now require written thinking */}
+                <div className="space-y-5">
+                  {pageContent.reflection.items.map((item, i) => {
+                    const text = responses[`reflection_${i}`] || "";
+                    const effort = getEffortTag(text);
+                    const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
+                    return (
+                      <div key={i} className="bg-white/10 rounded-xl p-5 border border-white/10">
+                        <p className="text-base text-white font-medium mb-1">{item}</p>
+                        <p className="text-xs text-white/40 mb-3 italic">
+                          {i === 0 && "Start with \"I noticed that...\" or \"For example, when I...\""}
+                          {i === 1 && "Be specific — name the thing, the moment, the choice."}
+                          {i >= 2 && "Connect this to something you actually did or will do differently."}
+                        </p>
+                        <textarea
+                          value={text}
+                          onChange={(e) =>
+                            setResponses((prev) => ({
+                              ...prev,
+                              [`reflection_${i}`]: e.target.value,
+                            }))
+                          }
+                          rows={3}
+                          placeholder="Write at least 2-3 sentences with a specific example..."
+                          className="w-full px-4 py-3 border border-white/20 bg-white/5 rounded-xl focus:outline-none focus:ring-2 focus:ring-white/40 focus:border-transparent resize-y text-base text-white placeholder:text-white/30"
+                        />
+                        {/* Effort indicator */}
+                        <div className="flex items-center justify-between mt-2">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-sm">{effort.icon}</span>
+                            <span className="text-xs font-medium" style={{ color: effort.color }}>
+                              {effort.label}
+                            </span>
+                          </div>
+                          <span className="text-xs text-white/30">{wordCount} word{wordCount !== 1 ? "s" : ""}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Confidence only appears AFTER writing */}
+                {hasEnoughThought && pageContent.reflection.type === "confidence-slider" && (
+                  <div className="mt-6 bg-white/10 rounded-xl p-5 border border-white/10">
+                    <p className="text-sm text-white/80 mb-3 font-medium">
+                      Now that you&apos;ve reflected — how confident do you feel?
+                    </p>
+                    <div className="flex items-center gap-4">
+                      <span className="text-xs text-white/50">Still figuring it out</span>
                       <input
-                        type="checkbox"
-                        className="mt-1 w-5 h-5"
+                        type="range"
+                        min={1}
+                        max={5}
+                        value={confidenceLevel}
+                        onChange={(e) => setConfidenceLevel(Number(e.target.value))}
+                        className="flex-1 h-2"
                         style={{ accentColor: "white" }}
-                        checked={responses[`check_${i}`] === "true"}
-                        onChange={(e) =>
-                          setResponses((prev) => ({
-                            ...prev,
-                            [`check_${i}`]: String(e.target.checked),
-                          }))
-                        }
                       />
-                      <span className="text-white">{item}</span>
-                    </label>
-                  ))}
-                </div>
-              )}
-              {pageContent.reflection.type === "short-response" && (
-                <div className="space-y-4">
-                  {pageContent.reflection.items.map((item, i) => (
-                    <div key={i}>
-                      <p className="text-base text-white mb-2 font-medium">{item}</p>
-                      <textarea
-                        value={responses[`reflection_${i}`] || ""}
-                        onChange={(e) =>
-                          setResponses((prev) => ({
-                            ...prev,
-                            [`reflection_${i}`]: e.target.value,
-                          }))
-                        }
-                        rows={3}
-                        className="w-full px-4 py-3 border border-white/20 bg-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-white/40 focus:border-transparent resize-y text-base text-white placeholder:text-white/40"
-                      />
+                      <span className="text-xs text-white/50">Really confident</span>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            </div>
-          </ScrollReveal>
-        )}
+                  </div>
+                )}
+
+                {/* Gentle gate: show hint if not enough thought */}
+                {!hasEnoughThought && (
+                  <p className="mt-4 text-xs text-white/40 text-center italic">
+                    Write at least 12 meaningful words in one reflection to continue ↓
+                  </p>
+                )}
+              </div>
+              </div>
+            </ScrollReveal>
+          );
+        })()}
 
         {/* ── NM Competency Pulse — above Complete & Continue ── */}
         {nmCheckpoint && !nmCompleted && (

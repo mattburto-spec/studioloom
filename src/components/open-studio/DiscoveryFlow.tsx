@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { QuestBubble } from "./QuestBubble";
+import { ComicPanel, StepTransition } from "./ComicPanel";
 
 interface ConversationMessage {
   role: "ai" | "student";
@@ -257,7 +258,7 @@ export function DiscoveryFlow({ unitId, onComplete, onStepChange }: DiscoveryFlo
           </div>
         </motion.div>
 
-        {/* Messages area */}
+        {/* Comic strip conversation area */}
         <div
           style={{
             flex: 1,
@@ -265,57 +266,69 @@ export function DiscoveryFlow({ unitId, onComplete, onStepChange }: DiscoveryFlo
             padding: "24px",
             display: "flex",
             flexDirection: "column",
-            gap: "16px",
+            gap: "12px",
           }}
         >
           <AnimatePresence mode="popLayout">
-            {conversation.map((msg, idx) => (
-              <motion.div
-                key={`${msg.timestamp}-${idx}`}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.3 }}
-                style={{
-                  display: "flex",
-                  justifyContent: msg.role === "ai" ? "flex-start" : "flex-end",
-                }}
-              >
-                <QuestBubble
-                  direction={msg.role === "ai" ? "right" : "left"}
-                  avatar={msg.role === "ai" ? "🎯" : "👤"}
-                >
-                  <div>
-                    <div>{msg.content}</div>
-                    <div style={{ fontSize: "11px", color: "#71717a", marginTop: "6px" }}>
-                      {new Date(msg.timestamp).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
+            {conversation.map((msg, idx) => {
+              // Detect step transitions — show a cinematic panel
+              const prevMsg = idx > 0 ? conversation[idx - 1] : null;
+              const isNewStep = prevMsg && prevMsg.step !== msg.step && msg.role === "ai";
+              const msgStepInfo = STEP_INFO[msg.step] || STEP_INFO.strengths;
+
+              return (
+                <div key={`${msg.timestamp}-${idx}`}>
+                  {/* Cinematic step transition panel */}
+                  {isNewStep && (
+                    <StepTransition
+                      step={msg.step}
+                      stepLabel={msgStepInfo.title}
+                      stepIcon={msgStepInfo.icon}
+                      stepSubtitle={msgStepInfo.subtitle}
+                    />
+                  )}
+
+                  {/* Comic panel for the message */}
+                  <ComicPanel
+                    speaker={msg.role === "ai" ? "mentor" : "student"}
+                    step={msg.step}
+                    index={idx}
+                    isStepStart={idx === 0 && msg.role === "ai"}
+                    stepLabel={idx === 0 ? msgStepInfo.title : undefined}
+                    stepIcon={idx === 0 ? msgStepInfo.icon : undefined}
+                  >
+                    <div>
+                      <div style={{ whiteSpace: "pre-wrap" }}>{msg.content}</div>
+                      <div style={{ fontSize: "10px", color: "#71717a", marginTop: "8px", textAlign: msg.role === "ai" ? "left" : "right" }}>
+                        {new Date(msg.timestamp).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </div>
                     </div>
-                  </div>
-                </QuestBubble>
-              </motion.div>
-            ))}
+                  </ComicPanel>
+                </div>
+              );
+            })}
 
             {isLoading && (
-              <motion.div
+              <ComicPanel
                 key="loading"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                style={{ display: "flex" }}
+                speaker="mentor"
+                step={currentStep}
+                index={conversation.length}
               >
-                <QuestBubble direction="right" avatar="🎯">
-                  <motion.div
-                    animate={{ opacity: [0.3, 1, 0.3] }}
-                    transition={{ duration: 1.5, repeat: Infinity }}
-                    style={{ color: "#a78bfa" }}
-                  >
-                    Thinking...
-                  </motion.div>
-                </QuestBubble>
-              </motion.div>
+                <motion.div
+                  animate={{ opacity: [0.3, 1, 0.3] }}
+                  transition={{ duration: 1.5, repeat: Infinity }}
+                  style={{ color: "#a78bfa", display: "flex", gap: "4px", alignItems: "center" }}
+                >
+                  <span>Thinking</span>
+                  <motion.span animate={{ opacity: [0, 1, 0] }} transition={{ duration: 1, repeat: Infinity, delay: 0 }}>.</motion.span>
+                  <motion.span animate={{ opacity: [0, 1, 0] }} transition={{ duration: 1, repeat: Infinity, delay: 0.2 }}>.</motion.span>
+                  <motion.span animate={{ opacity: [0, 1, 0] }} transition={{ duration: 1, repeat: Infinity, delay: 0.4 }}>.</motion.span>
+                </motion.div>
+              </ComicPanel>
             )}
 
             {lastCompletedStep && lastCompletedStep === currentStep && !isLoading && (
@@ -330,18 +343,32 @@ export function DiscoveryFlow({ unitId, onComplete, onStepChange }: DiscoveryFlo
                   marginTop: "8px",
                 }}
               >
-                <div
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: "auto" }}
                   style={{
                     backgroundColor: "#7c3aed",
                     color: "#ffffff",
-                    padding: "8px 16px",
+                    padding: "8px 20px",
                     borderRadius: "20px",
                     fontSize: "13px",
                     fontWeight: "600",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    overflow: "hidden",
+                    whiteSpace: "nowrap",
                   }}
                 >
-                  ✓ Step complete
-                </div>
+                  <motion.span
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: "spring", delay: 0.1 }}
+                  >
+                    ✓
+                  </motion.span>
+                  Step complete — onward!
+                </motion.div>
               </motion.div>
             )}
           </AnimatePresence>

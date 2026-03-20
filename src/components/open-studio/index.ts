@@ -1,3 +1,4 @@
+export { ComicPanel, StepTransition } from "./ComicPanel";
 export { DiscoveryFlow } from "./DiscoveryFlow";
 export { JourneyMap, type JourneyPhase } from "./JourneyMap";
 export { OpenStudioBanner } from "./OpenStudioBanner";
