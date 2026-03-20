@@ -235,6 +235,7 @@ Advanced prototype — core platform functional (unit builder, knowledge base, s
   - Design principles: Scott McCloud's "Understanding Comics" — panel closure, progressive reveal, visual storytelling through sequential art
 
 ## What's next
+- **🔴 Student Dashboard Redesign — "My Design Journey" (PRIORITY)** — Full redesign from assignment tracker to visual journey. 3 layers: Journey Map hero (MYP design cycle as SVG landscape with student avatar), Badge Wall (design cycle mastery, safety certifications, toolkit badges, effort/growth badges, Open Studio badges — all computed from existing DB data except safety certs which are teacher-granted), Active Work (enhanced continue card, due this week, unified activity feed). Teacher sees same dashboard per-student plus integrity overlays + class-wide badge matrix. Safety certifications table (new migration). ~4.5 days across 5 phases. Spec at `docs/specs/student-dashboard-spec.md`.
 - ~~**Deploy to Vercel**~~ DEPLOYED 20 Mar 2026 at studioloom-teal.vercel.app. Env vars set (ANTHROPIC_API_KEY, Supabase keys). Auto-deploys from GitHub main branch.
 - ~~**Migration 032 (page_id UUID→TEXT fix) — NOT YET APPLIED.**~~ ✅ APPLIED 21 Mar 2026.
 - ~~**Migration 033 (unit-as-template architecture) — NOT YET APPLIED.**~~ ✅ APPLIED 21 Mar 2026. Assigned Classes, per-class NM config, and archived class filtering now active.
