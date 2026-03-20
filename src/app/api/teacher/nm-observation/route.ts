@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { v4 as uuid } from "uuid";
+import { verifyTeacherHasUnit, getNmConfigForClassUnit, verifyTeacherOwnsClass } from "@/lib/auth/verify-teacher-unit";
 
 /**
  * Teacher NM Observation API
  *
  * POST /api/teacher/nm-observation
- *   → Submit teacher observation for one or more students.
+ *   → Submit teacher observation for a student.
  *   Body: {
  *     studentId: string;
  *     unitId: string;
+ *     classId?: string;    // NEW: class context for per-class NM config + class_id on assessment
  *     pageId?: string;
  *     assessments: [{ element: string; rating: 1-4; comment?: string }]
  *   }
@@ -18,15 +21,13 @@ import { v4 as uuid } from "uuid";
  *   → Fetch all NM assessment data for a unit in a class.
  */
 
-function createSupabaseServer(request: NextRequest) {
+function getAuthClient(request: NextRequest) {
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
+        getAll() { return request.cookies.getAll(); },
         setAll() {},
       },
     }
@@ -34,7 +35,7 @@ function createSupabaseServer(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
-  const supabase = createSupabaseServer(request);
+  const supabase = getAuthClient(request);
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -48,18 +49,15 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "unitId and classId are required" }, { status: 400 });
   }
 
-  const { data: classData } = await supabase
-    .from("classes")
-    .select("id")
-    .eq("id", classId)
-    .eq("author_teacher_id", user.id)
-    .single();
-
-  if (!classData) {
+  // Verify teacher owns this class (FIX: was using author_teacher_id on classes table)
+  const ownsClass = await verifyTeacherOwnsClass(user.id, classId);
+  if (!ownsClass) {
     return NextResponse.json({ error: "Class not found" }, { status: 404 });
   }
 
-  const { data: students } = await supabase
+  const db = createAdminClient();
+
+  const { data: students } = await db
     .from("students")
     .select("id, display_name")
     .eq("class_id", classId);
@@ -68,7 +66,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ data: [] });
   }
 
-  const { data: assessments } = await supabase
+  const { data: assessments } = await db
     .from("competency_assessments")
     .select("*")
     .eq("unit_id", unitId)
@@ -103,16 +101,17 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const supabase = createSupabaseServer(request);
+  const supabase = getAuthClient(request);
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const body = await request.json();
-  const { studentId, unitId, pageId, assessments } = body as {
+  const { studentId, unitId, classId, pageId, assessments } = body as {
     studentId: string;
     unitId: string;
+    classId?: string;
     pageId?: string;
     assessments: Array<{ element: string; rating: number; comment?: string }>;
   };
@@ -127,30 +126,54 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const { data: unit } = await supabase
-    .from("units")
-    .select("id, nm_config")
-    .eq("id", unitId)
-    .eq("author_teacher_id", user.id)
-    .single();
-
-  if (!unit) {
+  // Verify teacher has access to this unit (authored OR assigned)
+  const { hasAccess } = await verifyTeacherHasUnit(user.id, unitId);
+  if (!hasAccess) {
     return NextResponse.json({ error: "Unit not found" }, { status: 404 });
   }
 
-  if (!unit.nm_config) {
+  // Get NM config (class-specific with fallback)
+  let nmConfig: Record<string, unknown> | null = null;
+  if (classId) {
+    nmConfig = await getNmConfigForClassUnit(classId, unitId);
+  } else {
+    const db = createAdminClient();
+    const { data: unit } = await db
+      .from("units")
+      .select("nm_config")
+      .eq("id", unitId)
+      .single();
+    nmConfig = (unit?.nm_config as Record<string, unknown>) || null;
+  }
+
+  if (!nmConfig) {
     return NextResponse.json({ error: "NM not configured for unit" }, { status: 400 });
   }
 
-  const competency = unit.nm_config.competencies?.[0];
+  const competency = (nmConfig as { competencies?: string[] }).competencies?.[0];
   if (!competency) {
     return NextResponse.json({ error: "No competency configured for unit" }, { status: 400 });
   }
 
+  // Resolve class_id for the assessment record
+  let resolvedClassId = classId || null;
+  if (!resolvedClassId) {
+    // Try to get class_id from the student record
+    const db = createAdminClient();
+    const { data: student } = await db
+      .from("students")
+      .select("class_id")
+      .eq("id", studentId)
+      .single();
+    resolvedClassId = student?.class_id || null;
+  }
+
+  const db = createAdminClient();
   const rows = assessments.map((a) => ({
     id: uuid(),
     student_id: studentId,
     unit_id: unitId,
+    class_id: resolvedClassId,
     page_id: pageId || null,
     competency,
     element: a.element,
@@ -161,7 +184,7 @@ export async function POST(request: NextRequest) {
     created_at: new Date().toISOString(),
   }));
 
-  const { error } = await supabase.from("competency_assessments").insert(rows);
+  const { error } = await db.from("competency_assessments").insert(rows);
 
   if (error) {
     console.error("[nm-observation] Insert error:", error);

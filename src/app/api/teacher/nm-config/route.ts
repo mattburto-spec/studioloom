@@ -1,35 +1,35 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { NMUnitConfig, DEFAULT_NM_CONFIG } from "@/lib/nm/constants";
+import { verifyTeacherHasUnit, getNmConfigForClassUnit } from "@/lib/auth/verify-teacher-unit";
 
-function createSupabaseServer(request: NextRequest) {
+function getAuthClient(request: NextRequest) {
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll() {
-          // Read-only for API routes
-        },
+        getAll() { return request.cookies.getAll(); },
+        setAll() {},
       },
     }
   );
 }
 
 /**
- * GET  /api/teacher/nm-config?unitId={id}
- *   → Fetch nm_config for a unit.
+ * GET  /api/teacher/nm-config?unitId={id}&classId={id}
+ *   → Fetch NM config for a unit in a class context.
+ *     Reads class_units.nm_config first, falls back to units.nm_config.
  *
  * POST /api/teacher/nm-config
- *   → Save nm_config for a unit.
- *   Body: { unitId, config: NMUnitConfig }
+ *   → Save NM config for a unit in a class context.
+ *   Body: { unitId, classId, config: NMUnitConfig }
+ *     Writes to class_units.nm_config (per-class).
  */
 
 export async function GET(request: NextRequest) {
-  const supabase = createSupabaseServer(request);
+  const supabase = getAuthClient(request);
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -37,52 +37,80 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url);
   const unitId = searchParams.get("unitId");
+  const classId = searchParams.get("classId");
 
   if (!unitId) {
     return NextResponse.json({ error: "unitId is required" }, { status: 400 });
   }
 
-  const { data: unit } = await supabase
-    .from("units")
-    .select("id, nm_config")
-    .eq("id", unitId)
-    .eq("author_teacher_id", user.id)
-    .single();
-
-  if (!unit) {
+  // Verify teacher has access to this unit
+  const { hasAccess } = await verifyTeacherHasUnit(user.id, unitId);
+  if (!hasAccess) {
     return NextResponse.json({ error: "Unit not found" }, { status: 404 });
   }
 
-  return NextResponse.json({ config: unit.nm_config || DEFAULT_NM_CONFIG });
+  // If classId provided, get class-specific config with fallback
+  if (classId) {
+    const config = await getNmConfigForClassUnit(classId, unitId);
+    return NextResponse.json({ config: config || DEFAULT_NM_CONFIG });
+  }
+
+  // No classId — return unit-level config (backward compat / template view)
+  const db = createAdminClient();
+  const { data: unit } = await db
+    .from("units")
+    .select("nm_config")
+    .eq("id", unitId)
+    .single();
+
+  return NextResponse.json({ config: unit?.nm_config || DEFAULT_NM_CONFIG });
 }
 
 export async function POST(request: NextRequest) {
-  const supabase = createSupabaseServer(request);
+  const supabase = getAuthClient(request);
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const body = await request.json();
-  const { unitId, config } = body as { unitId: string; config: NMUnitConfig };
+  const { unitId, classId, config } = body as {
+    unitId: string;
+    classId?: string;
+    config: NMUnitConfig;
+  };
 
   if (!unitId || !config) {
     return NextResponse.json({ error: "unitId and config are required" }, { status: 400 });
   }
 
-  // Verify teacher owns this unit
-  const { data: existing } = await supabase
-    .from("units")
-    .select("id")
-    .eq("id", unitId)
-    .eq("author_teacher_id", user.id)
-    .single();
-
-  if (!existing) {
+  const { hasAccess } = await verifyTeacherHasUnit(user.id, unitId);
+  if (!hasAccess) {
     return NextResponse.json({ error: "Unit not found" }, { status: 404 });
   }
 
-  const { data: updated, error } = await supabase
+  const db = createAdminClient();
+
+  // If classId provided, write to class_units (per-class config)
+  if (classId) {
+    const { data: updated, error } = await db
+      .from("class_units")
+      .update({ nm_config: config })
+      .eq("class_id", classId)
+      .eq("unit_id", unitId)
+      .select("nm_config")
+      .single();
+
+    if (error) {
+      console.error("[nm-config] Save to class_units error:", error);
+      return NextResponse.json({ error: "Failed to save NM config" }, { status: 500 });
+    }
+
+    return NextResponse.json({ config: updated?.nm_config || config });
+  }
+
+  // No classId — write to units table (template-level, backward compat)
+  const { data: updated, error } = await db
     .from("units")
     .update({ nm_config: config })
     .eq("id", unitId)
@@ -90,9 +118,9 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (error) {
-    console.error("[nm-config] Save error:", error);
+    console.error("[nm-config] Save to units error:", error);
     return NextResponse.json({ error: "Failed to save NM config" }, { status: 500 });
   }
 
-  return NextResponse.json({ config: updated.nm_config });
+  return NextResponse.json({ config: updated?.nm_config || config });
 }

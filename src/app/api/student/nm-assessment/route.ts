@@ -96,18 +96,46 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Get the unit to determine competency
-  const { data: unit } = await supabase
-    .from("units")
-    .select("nm_config")
-    .eq("id", unitId)
+  // Get student's class_id for per-class NM config + assessment scoping
+  const { data: student } = await supabase
+    .from("students")
+    .select("class_id")
+    .eq("id", session.student_id)
     .single();
 
-  if (!unit || !unit.nm_config) {
+  const classId = student?.class_id || null;
+
+  // Get NM config: class-specific (class_units) with fallback to unit-level (units)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let nmConfig: any = null;
+
+  if (classId) {
+    const { data: classUnit } = await supabase
+      .from("class_units")
+      .select("nm_config")
+      .eq("class_id", classId)
+      .eq("unit_id", unitId)
+      .single();
+
+    if (classUnit?.nm_config) {
+      nmConfig = classUnit.nm_config;
+    }
+  }
+
+  if (!nmConfig) {
+    // Fallback to unit-level config
+    const { data: unit } = await supabase
+      .from("units")
+      .select("nm_config")
+      .eq("id", unitId)
+      .single();
+    nmConfig = unit?.nm_config || null;
+  }
+
+  if (!nmConfig) {
     return NextResponse.json({ error: "Unit not found or NM not configured" }, { status: 404 });
   }
 
-  const nmConfig = unit.nm_config;
   const competency = nmConfig.competencies?.[0]; // Use primary competency
 
   if (!competency) {
@@ -117,11 +145,12 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Insert rows into competency_assessments
+  // Insert rows into competency_assessments (now includes class_id)
   const rows = assessments.map((a) => ({
     id: uuid(),
     student_id: session.student_id,
     unit_id: unitId,
+    class_id: classId,
     page_id: pageId,
     competency,
     element: a.element,

@@ -48,18 +48,42 @@ export async function GET(
     return NextResponse.json({ checkpoint: null });
   }
 
-  // Get the unit's nm_config
-  const { data: unit } = await supabase
-    .from("units")
-    .select("nm_config")
-    .eq("id", unitId)
+  // Get student's class_id for per-class NM config lookup
+  const { data: student } = await supabase
+    .from("students")
+    .select("class_id")
+    .eq("id", session.student_id)
     .single();
 
-  if (!unit?.nm_config) {
-    return NextResponse.json({ checkpoint: null });
+  // Get NM config: class-specific (class_units) with fallback to unit-level (units)
+  let nmConfig: NMUnitConfig | null = null;
+
+  if (student?.class_id) {
+    const { data: classUnit } = await supabase
+      .from("class_units")
+      .select("nm_config")
+      .eq("class_id", student.class_id)
+      .eq("unit_id", unitId)
+      .single();
+
+    if (classUnit?.nm_config) {
+      nmConfig = classUnit.nm_config as NMUnitConfig;
+    }
   }
 
-  const nmConfig = unit.nm_config as NMUnitConfig;
+  if (!nmConfig) {
+    // Fallback to unit-level config
+    const { data: unit } = await supabase
+      .from("units")
+      .select("nm_config")
+      .eq("id", unitId)
+      .single();
+    nmConfig = (unit?.nm_config as NMUnitConfig) || null;
+  }
+
+  if (!nmConfig) {
+    return NextResponse.json({ checkpoint: null });
+  }
 
   if (!nmConfig.enabled) {
     return NextResponse.json({ checkpoint: null });

@@ -7,6 +7,7 @@ interface ObservationSnapProps {
   studentId: string;
   studentName: string;
   unitId: string;
+  classId?: string;
   elements: NMElement[];
   onComplete: () => void;
   onClose: () => void;
@@ -31,6 +32,7 @@ export function ObservationSnap({
   studentId,
   studentName,
   unitId,
+  classId,
   elements,
   onComplete,
   onClose,
@@ -58,6 +60,7 @@ export function ObservationSnap({
         body: JSON.stringify({
           studentId,
           unitId,
+          classId: classId || undefined,
           assessments: Object.entries(ratings).map(([element, rating]) => ({
             element,
             rating,

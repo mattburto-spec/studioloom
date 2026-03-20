@@ -70,6 +70,8 @@ export default function UnitDetailPage({
   const [showFeedback, setShowFeedback] = useState(false);
   const [nmConfig, setNmConfig] = useState<NMUnitConfig>(DEFAULT_NM_CONFIG);
   const [showLessons, setShowLessons] = useState(false);
+  const [nmClasses, setNmClasses] = useState<Array<{ id: string; name: string }>>([]);
+  const [selectedNmClassId, setSelectedNmClassId] = useState<string>("");
 
   useEffect(() => {
     async function load() {
@@ -83,10 +85,44 @@ export default function UnitDetailPage({
       if (data?.nm_config) {
         setNmConfig(data.nm_config as NMUnitConfig);
       }
+
+      // Fetch classes that have this unit assigned (for NM class selector)
+      const { data: classUnits } = await supabase
+        .from("class_units")
+        .select("class_id, classes(id, name)")
+        .eq("unit_id", unitId)
+        .eq("is_active", true);
+
+      if (classUnits && classUnits.length > 0) {
+        const classes = classUnits
+          .map((cu: Record<string, unknown>) => {
+            const cls = cu.classes as { id: string; name: string } | null;
+            return cls ? { id: cls.id, name: cls.name } : null;
+          })
+          .filter(Boolean) as Array<{ id: string; name: string }>;
+        setNmClasses(classes);
+        if (classes.length > 0) {
+          setSelectedNmClassId(classes[0].id);
+        }
+      }
+
       setLoading(false);
     }
     load();
   }, [unitId]);
+
+  // Load class-specific NM config when class selection changes
+  useEffect(() => {
+    if (!selectedNmClassId || !unit) return;
+    async function loadClassNmConfig() {
+      const res = await fetch(`/api/teacher/nm-config?unitId=${unitId}&classId=${selectedNmClassId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setNmConfig(data.config || DEFAULT_NM_CONFIG);
+      }
+    }
+    loadClassNmConfig();
+  }, [selectedNmClassId, unitId, unit]);
 
   if (loading) {
     return (
@@ -315,15 +351,36 @@ export default function UnitDetailPage({
       {/* New Metrics config panel                                            */}
       {/* ----------------------------------------------------------------- */}
       <div className="mb-6">
+        {/* Class selector for NM — config is per-class */}
+        {nmClasses.length > 1 && (
+          <div className="mb-3 flex items-center gap-2">
+            <label className="text-xs font-medium text-text-secondary">NM class:</label>
+            <select
+              value={selectedNmClassId}
+              onChange={(e) => setSelectedNmClassId(e.target.value)}
+              className="text-sm px-3 py-1.5 rounded-lg border border-border bg-white"
+            >
+              {nmClasses.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
+        {nmClasses.length === 0 && (
+          <div className="mb-3 text-xs text-text-secondary italic">
+            Assign this unit to a class to configure NM per-class.
+          </div>
+        )}
         <NMConfigPanel
           unitId={unitId}
+          classId={selectedNmClassId || undefined}
           pages={pages.map((p, i) => ({ id: p.id, title: p.title || p.content?.title || `Page ${i + 1}` }))}
           currentConfig={nmConfig}
           onSave={async (config) => {
             const res = await fetch("/api/teacher/nm-config", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ unitId, config }),
+              body: JSON.stringify({ unitId, classId: selectedNmClassId || undefined, config }),
             });
             if (!res.ok) {
               const errData = await res.json().catch(() => ({}));
@@ -340,7 +397,7 @@ export default function UnitDetailPage({
       {/* ----------------------------------------------------------------- */}
       {nmConfig.enabled && (
         <div className="mb-6">
-          <NMResultsPanel unitId={unitId} />
+          <NMResultsPanel unitId={unitId} classId={selectedNmClassId || undefined} />
         </div>
       )}
 

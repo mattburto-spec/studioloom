@@ -10,6 +10,7 @@ import {
 
 interface NMConfigPanelProps {
   unitId: string;
+  classId?: string;
   pages: Array<{ id: string; title: string }>;
   currentConfig: NMUnitConfig | null;
   onSave: (config: NMUnitConfig) => void;

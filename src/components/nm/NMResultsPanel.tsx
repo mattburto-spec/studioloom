@@ -19,6 +19,7 @@ interface Assessment {
 
 interface NMResultsPanelProps {
   unitId: string;
+  classId?: string;
 }
 
 const POP = {
@@ -52,7 +53,7 @@ const RATING_LABELS_TEACHER: Record<number, string> = {
   4: "Extending",
 };
 
-export function NMResultsPanel({ unitId }: NMResultsPanelProps) {
+export function NMResultsPanel({ unitId, classId }: NMResultsPanelProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [assessments, setAssessments] = useState<Assessment[]>([]);
@@ -63,7 +64,9 @@ export function NMResultsPanel({ unitId }: NMResultsPanelProps) {
   useEffect(() => {
     if (!open) return;
     setLoading(true);
-    fetch(`/api/teacher/nm-results?unitId=${unitId}`)
+    const params = new URLSearchParams({ unitId });
+    if (classId) params.set("classId", classId);
+    fetch(`/api/teacher/nm-results?${params}`)
       .then(r => r.ok ? r.json() : null)
       .then(d => {
         if (d) {
@@ -74,7 +77,7 @@ export function NMResultsPanel({ unitId }: NMResultsPanelProps) {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [open, unitId]);
+  }, [open, unitId, classId]);
 
   const selfAssessments = assessments.filter(a => a.source === "student_self");
   const teacherObs = assessments.filter(a => a.source === "teacher_observation");

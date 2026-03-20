@@ -98,6 +98,7 @@ export default function TeachingDashboard({
 
   // NM Observation state
   const [nmObsStudent, setNmObsStudent] = useState<{ id: string; name: string } | null>(null);
+  const [classNmConfig, setClassNmConfig] = useState<NMUnitConfig | null>(null);
 
   // -----------------------------------------------------------------------
   // Load unit + classes
@@ -137,6 +138,33 @@ export default function TeachingDashboard({
     }
     load();
   }, [unitId]);
+
+  // -----------------------------------------------------------------------
+  // Load class-specific NM config when class selection changes
+  // -----------------------------------------------------------------------
+  useEffect(() => {
+    if (!selectedClassId || !unit) {
+      setClassNmConfig(null);
+      return;
+    }
+    async function loadClassNm() {
+      try {
+        const res = await fetch(`/api/teacher/nm-config?unitId=${unitId}&classId=${selectedClassId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setClassNmConfig(data.config || null);
+        }
+      } catch {
+        // Fallback to unit-level
+        setClassNmConfig(null);
+      }
+    }
+    loadClassNm();
+  }, [selectedClassId, unitId, unit]);
+
+  // Resolved NM config: class-specific if available, otherwise unit-level
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const resolvedNmConfig = classNmConfig || ((unit as any)?.nm_config as NMUnitConfig | null) || null;
 
   // -----------------------------------------------------------------------
   // Poll live status
@@ -526,7 +554,7 @@ export default function TeachingDashboard({
                       </span>
 
                       {/* NM Observation button */}
-                      {(unit?.nm_config as NMUnitConfig | null)?.enabled && (
+                      {resolvedNmConfig?.enabled && (
                         <button
                           onClick={() => setNmObsStudent({ id: s.id, name: s.name })}
                           title={`NM Observation for ${s.name}`}
@@ -734,8 +762,8 @@ export default function TeachingDashboard({
       </div>
 
       {/* NM Observation Snap Modal */}
-      {nmObsStudent && unit?.nm_config && (unit.nm_config as NMUnitConfig).enabled && (() => {
-        const nmCfg = unit.nm_config as NMUnitConfig;
+      {nmObsStudent && resolvedNmConfig?.enabled && (() => {
+        const nmCfg = resolvedNmConfig;
         const nmElements = (nmCfg.elements || [])
           .map((eid: string) => AGENCY_ELEMENT_MAP[eid])
           .filter(Boolean);
@@ -755,6 +783,7 @@ export default function TeachingDashboard({
                 studentId={nmObsStudent.id}
                 studentName={nmObsStudent.name}
                 unitId={unitId}
+                classId={selectedClassId || undefined}
                 elements={nmElements}
                 onComplete={() => setNmObsStudent(null)}
                 onClose={() => setNmObsStudent(null)}

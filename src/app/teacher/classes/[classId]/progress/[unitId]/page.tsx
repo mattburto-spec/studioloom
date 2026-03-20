@@ -134,9 +134,25 @@ export default function ProgressTrackingPage({
       // Open Studio status is non-critical
     }
 
-    // Load NM config from unit
-    if (unitRes.data?.nm_config) {
-      setNmConfig(unitRes.data.nm_config as NMUnitConfig);
+    // Load NM config: class-specific (class_units) with fallback to unit-level
+    try {
+      const { data: classUnit } = await supabase
+        .from("class_units")
+        .select("nm_config")
+        .eq("class_id", classId)
+        .eq("unit_id", unitId)
+        .single();
+
+      if (classUnit?.nm_config) {
+        setNmConfig(classUnit.nm_config as NMUnitConfig);
+      } else if (unitRes.data?.nm_config) {
+        setNmConfig(unitRes.data.nm_config as NMUnitConfig);
+      }
+    } catch {
+      // Fallback to unit-level config
+      if (unitRes.data?.nm_config) {
+        setNmConfig(unitRes.data.nm_config as NMUnitConfig);
+      }
     }
 
     setLoading(false);
@@ -532,10 +548,11 @@ export default function ProgressTrackingPage({
           studentId={nmObserveStudent.id}
           studentName={nmObserveStudent.display_name || nmObserveStudent.username}
           unitId={unitId}
+          classId={classId}
           elements={
             AGENCY_ELEMENTS
               .filter((e) => nmConfig.elements.includes(e.id))
-              .map((e) => ({ id: e.id, name: e.name, definition: e.definition, color: e.color }))
+              .map((e) => ({ id: e.id, name: e.name, definition: e.definition, color: e.color, studentDescription: e.studentDescription }))
           }
           onComplete={() => setNmObserveStudent(null)}
           onClose={() => setNmObserveStudent(null)}

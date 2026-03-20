@@ -45,11 +45,12 @@ interface StudentRow {
 interface ClassUnitRow {
   class_id: string;
   unit_id: string;
+  nm_config: { enabled?: boolean } | null; // per-class NM config
   units: {
     id: string;
     title: string;
     content_data: UnitContentData;
-    nm_config: { enabled?: boolean } | null;
+    nm_config: { enabled?: boolean } | null; // unit-level fallback
   };
 }
 
@@ -72,11 +73,12 @@ export async function GET(request: NextRequest) {
 
   const teacherId = user.id;
 
-  // 1. Fetch all classes for this teacher
+  // 1. Fetch all non-archived classes for this teacher
   const { data: classes } = await supabase
     .from("classes")
     .select("id, name, code")
     .eq("teacher_id", teacherId)
+    .neq("is_archived", true)
     .order("created_at", { ascending: false });
 
   if (!classes || classes.length === 0) {
@@ -95,7 +97,7 @@ export async function GET(request: NextRequest) {
     // Active class_units with unit title + content_data
     supabase
       .from("class_units")
-      .select("class_id, unit_id, units!inner(id, title, content_data, nm_config)")
+      .select("class_id, unit_id, nm_config, units!inner(id, title, content_data, nm_config)")
       .in("class_id", classIds)
       .eq("is_active", true),
     // All students in teacher's classes
@@ -146,10 +148,11 @@ export async function GET(request: NextRequest) {
     studentsByClass.set(s.class_id, arr);
   }
 
-  // Build unit lookup (unitId -> { title, totalPages, nmEnabled })
+  // Build unit lookup (unitId -> { title, totalPages })
+  // nmEnabled is per class-unit, not per unit — resolved later
   const unitInfo = new Map<
     string,
-    { title: string; totalPages: number; nmEnabled: boolean }
+    { title: string; totalPages: number }
   >();
   for (const cu of classUnits) {
     if (!unitInfo.has(cu.unit_id)) {
@@ -157,7 +160,6 @@ export async function GET(request: NextRequest) {
       unitInfo.set(cu.unit_id, {
         title: cu.units.title,
         totalPages: pages.length,
-        nmEnabled: !!cu.units.nm_config?.enabled,
       });
     }
   }
@@ -293,6 +295,9 @@ export async function GET(request: NextRequest) {
         }
       }
 
+      // NM enabled: check class_units.nm_config first, fallback to units.nm_config
+      const nmEnabled = cu.nm_config?.enabled ?? cu.units.nm_config?.enabled ?? false;
+
       return {
         unitId: cu.unit_id,
         unitTitle: info.title,
@@ -302,7 +307,7 @@ export async function GET(request: NextRequest) {
         notStartedCount: Math.max(0, notStartedCount),
         completionPct,
         openStudioCount: osCount,
-        nmEnabled: info.nmEnabled,
+        nmEnabled: !!nmEnabled,
       };
     });
 
