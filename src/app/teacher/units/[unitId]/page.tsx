@@ -4,9 +4,6 @@ import { useState, useEffect, use } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import TeacherFeedbackForm from "@/components/teacher/knowledge/TeacherFeedbackForm";
-import { NMConfigPanel, NMResultsPanel } from "@/components/nm";
-import type { NMUnitConfig } from "@/lib/nm/constants";
-import { DEFAULT_NM_CONFIG } from "@/lib/nm/constants";
 import {
   getPageList,
   normalizeContentData,
@@ -68,10 +65,15 @@ export default function UnitDetailPage({
   const [unit, setUnit] = useState<Unit | null>(null);
   const [loading, setLoading] = useState(true);
   const [showFeedback, setShowFeedback] = useState(false);
-  const [nmConfig, setNmConfig] = useState<NMUnitConfig>(DEFAULT_NM_CONFIG);
   const [showLessons, setShowLessons] = useState(false);
-  const [nmClasses, setNmClasses] = useState<Array<{ id: string; name: string }>>([]);
-  const [selectedNmClassId, setSelectedNmClassId] = useState<string>("");
+  const [assignedClasses, setAssignedClasses] = useState<Array<{
+    id: string;
+    name: string;
+    code: string;
+    studentCount: number;
+    isArchived: boolean;
+    nmEnabled: boolean;
+  }>>([]);
 
   useEffect(() => {
     async function load() {
@@ -82,47 +84,61 @@ export default function UnitDetailPage({
         .eq("id", unitId)
         .single();
       setUnit(data);
-      if (data?.nm_config) {
-        setNmConfig(data.nm_config as NMUnitConfig);
-      }
 
-      // Fetch classes that have this unit assigned (for NM class selector)
+      // Fetch classes that have this unit assigned — with student counts + NM status
       const { data: classUnits } = await supabase
         .from("class_units")
-        .select("class_id, classes(id, name)")
-        .eq("unit_id", unitId)
-        .eq("is_active", true);
+        .select("class_id, nm_config, is_active, classes(id, name, code, is_archived)")
+        .eq("unit_id", unitId);
 
       if (classUnits && classUnits.length > 0) {
+        // Get student counts per class
+        const classIds = classUnits
+          .map((cu: Record<string, unknown>) => (cu.classes as { id: string } | null)?.id)
+          .filter(Boolean) as string[];
+
+        const { data: students } = classIds.length > 0
+          ? await supabase
+              .from("students")
+              .select("class_id")
+              .in("class_id", classIds)
+          : { data: [] };
+
+        const countByClass = new Map<string, number>();
+        for (const s of students || []) {
+          countByClass.set(s.class_id, (countByClass.get(s.class_id) || 0) + 1);
+        }
+
         const classes = classUnits
           .map((cu: Record<string, unknown>) => {
-            const cls = cu.classes as { id: string; name: string } | null;
-            return cls ? { id: cls.id, name: cls.name } : null;
+            const cls = cu.classes as { id: string; name: string; code: string; is_archived?: boolean } | null;
+            if (!cls) return null;
+            const cuNmConfig = cu.nm_config as { enabled?: boolean } | null;
+            const unitNmConfig = data?.nm_config as { enabled?: boolean } | null;
+            return {
+              id: cls.id,
+              name: cls.name,
+              code: cls.code,
+              studentCount: countByClass.get(cls.id) || 0,
+              isArchived: cls.is_archived ?? false,
+              nmEnabled: cuNmConfig?.enabled ?? unitNmConfig?.enabled ?? false,
+            };
           })
-          .filter(Boolean) as Array<{ id: string; name: string }>;
-        setNmClasses(classes);
-        if (classes.length > 0) {
-          setSelectedNmClassId(classes[0].id);
-        }
+          .filter(Boolean) as typeof assignedClasses;
+
+        // Sort: active first, then archived
+        classes.sort((a, b) => {
+          if (a.isArchived !== b.isArchived) return a.isArchived ? 1 : -1;
+          return a.name.localeCompare(b.name);
+        });
+
+        setAssignedClasses(classes);
       }
 
       setLoading(false);
     }
     load();
   }, [unitId]);
-
-  // Load class-specific NM config when class selection changes
-  useEffect(() => {
-    if (!selectedNmClassId || !unit) return;
-    async function loadClassNmConfig() {
-      const res = await fetch(`/api/teacher/nm-config?unitId=${unitId}&classId=${selectedNmClassId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setNmConfig(data.config || DEFAULT_NM_CONFIG);
-      }
-    }
-    loadClassNmConfig();
-  }, [selectedNmClassId, unitId, unit]);
 
   if (loading) {
     return (
@@ -348,58 +364,74 @@ export default function UnitDetailPage({
       )}
 
       {/* ----------------------------------------------------------------- */}
-      {/* New Metrics config panel                                            */}
+      {/* Assigned Classes                                                     */}
       {/* ----------------------------------------------------------------- */}
       <div className="mb-6">
-        {/* Class selector for NM — config is per-class */}
-        {nmClasses.length > 1 && (
-          <div className="mb-3 flex items-center gap-2">
-            <label className="text-xs font-medium text-text-secondary">NM class:</label>
-            <select
-              value={selectedNmClassId}
-              onChange={(e) => setSelectedNmClassId(e.target.value)}
-              className="text-sm px-3 py-1.5 rounded-lg border border-border bg-white"
-            >
-              {nmClasses.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-          </div>
-        )}
-        {nmClasses.length === 0 && (
-          <div className="mb-3 text-xs text-text-secondary italic">
-            Assign this unit to a class to configure NM per-class.
-          </div>
-        )}
-        <NMConfigPanel
-          unitId={unitId}
-          classId={selectedNmClassId || undefined}
-          pages={pages.map((p, i) => ({ id: p.id, title: p.title || p.content?.title || `Page ${i + 1}` }))}
-          currentConfig={nmConfig}
-          onSave={async (config) => {
-            const res = await fetch("/api/teacher/nm-config", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ unitId, classId: selectedNmClassId || undefined, config }),
-            });
-            if (!res.ok) {
-              const errData = await res.json().catch(() => ({}));
-              console.error("Failed to save NM config:", errData);
-              throw new Error(errData.error || "Save failed");
-            }
-            setNmConfig(config);
-          }}
-        />
-      </div>
+        <h2 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M23 21v-2a4 4 0 00-3-3.87" />
+            <path d="M16 3.13a4 4 0 010 7.75" />
+          </svg>
+          Assigned Classes
+        </h2>
 
-      {/* ----------------------------------------------------------------- */}
-      {/* New Metrics results panel                                          */}
-      {/* ----------------------------------------------------------------- */}
-      {nmConfig.enabled && (
-        <div className="mb-6">
-          <NMResultsPanel unitId={unitId} classId={selectedNmClassId || undefined} />
-        </div>
-      )}
+        {assignedClasses.length === 0 ? (
+          <div className="p-4 rounded-xl border border-dashed border-border text-center">
+            <p className="text-sm text-text-secondary">No classes assigned yet.</p>
+            <p className="text-xs text-text-tertiary mt-1">Assign this unit to a class from the class page to get started.</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {assignedClasses.map((cls) => (
+              <Link
+                key={cls.id}
+                href={`/teacher/units/${unitId}/class/${cls.id}`}
+                className={`flex items-center justify-between p-3 rounded-xl border transition-colors group ${
+                  cls.isArchived
+                    ? "border-border/50 bg-gray-50 opacity-60"
+                    : "border-border bg-white hover:border-gray-300 hover:shadow-sm"
+                }`}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold ${
+                    cls.isArchived ? "bg-gray-100 text-gray-400" : "bg-indigo-50 text-indigo-600"
+                  }`}>
+                    {cls.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-text-primary truncate">{cls.name}</span>
+                      {cls.isArchived && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-200 text-gray-500 font-medium">Archived</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 text-[11px] text-text-tertiary mt-0.5">
+                      <span>{cls.studentCount} student{cls.studentCount !== 1 ? "s" : ""}</span>
+                      <span className="text-text-tertiary/40">·</span>
+                      <span>Code: {cls.code}</span>
+                      {cls.nmEnabled && (
+                        <>
+                          <span className="text-text-tertiary/40">·</span>
+                          <span className="text-pink-500 font-medium">NM</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <svg
+                  width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                  strokeLinecap="round" strokeLinejoin="round"
+                  className="text-text-tertiary group-hover:text-text-secondary transition-colors flex-shrink-0"
+                >
+                  <polyline points="9 18 15 12 9 6" />
+                </svg>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* ----------------------------------------------------------------- */}
       {/* Lesson / page list — collapsible                                   */}
