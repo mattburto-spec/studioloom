@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Open Studio Discovery — Comic Strip Prototype</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Bangers&family=Inter:wght@400;500;600;700&family=Caveat:wght@500;600&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0a0a14;
+    color: #e0e0e0;
+    font-family: 'Inter', sans-serif;
+    overflow-x: hidden;
+  }
+
+  .discovery-container {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 20px 16px 100px;
+  }
+
+  /* ─── Progress Bar ─── */
+  .progress-bar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(10, 10, 20, 0.95);
+    backdrop-filter: blur(12px);
+    padding: 12px 20px;
+    border-bottom: 1px solid #1e1e3f;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: -20px -16px 20px;
+    width: calc(100% + 32px);
+  }
+
+  .progress-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: #c4b5fd;
+    white-space: nowrap;
+  }
+
+  .progress-dots {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .progress-dot {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    border: 2px solid #2a2a3e;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    transition: all 0.3s;
+  }
+
+  .progress-dot.active {
+    border-color: #7c3aed;
+    background: rgba(124, 58, 237, 0.15);
+  }
+
+  .progress-dot.current {
+    border-color: #a78bfa;
+    background: rgba(167, 139, 250, 0.2);
+    box-shadow: 0 0 12px rgba(124, 58, 237, 0.3);
+  }
+
+  /* ─── Panel Base ─── */
+  .panel {
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 3px solid #2a2035;
+    margin-bottom: 16px;
+    background: #12111e;
+  }
+
+  .panel-image {
+    width: 100%;
+    display: block;
+    min-height: 200px;
+    object-fit: cover;
+  }
+
+  .panel-image-placeholder {
+    width: 100%;
+    min-height: 350px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    color: #555;
+    font-style: italic;
+    background: linear-gradient(135deg, #1a1528, #0f0f1e);
+  }
+
+  /* ─── Full-width Silent Panel ─── */
+  .panel.silent {
+    border-color: #1a1528;
+  }
+
+  .panel.full-width {
+    border-radius: 16px;
+    margin-bottom: 24px;
+  }
+
+  /* ─── Speech Bubbles ─── */
+  .bubble-overlay {
+    position: absolute;
+    padding: 14px 18px;
+    border-radius: 16px;
+    font-size: 15px;
+    line-height: 1.5;
+    max-width: 70%;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  }
+
+  .bubble-kit {
+    background: #ffffff;
+    color: #1a1a2e;
+    border: 2px solid #d4d0e0;
+  }
+
+  .bubble-kit::after {
+    content: '';
+    position: absolute;
+    bottom: -10px;
+    left: 30px;
+    width: 0;
+    height: 0;
+    border-left: 10px solid transparent;
+    border-right: 10px solid transparent;
+    border-top: 12px solid #ffffff;
+  }
+
+  .bubble-thought {
+    background: rgba(124, 58, 237, 0.12);
+    color: #c4b5fd;
+    border: 1.5px dashed #7c3aed55;
+    font-family: 'Caveat', cursive;
+    font-size: 17px;
+    font-style: italic;
+  }
+
+  .bubble-student {
+    background: #1a3a5c;
+    color: #e0f0ff;
+    border: 2px solid #2a5a8c;
+    align-self: flex-end;
+  }
+
+  .bubble-student::after {
+    content: '';
+    position: absolute;
+    bottom: -10px;
+    right: 30px;
+    width: 0;
+    height: 0;
+    border-left: 10px solid transparent;
+    border-right: 10px solid transparent;
+    border-top: 12px solid #1a3a5c;
+  }
+
+  /* ─── Narration Bar ─── */
+  .narration {
+    background: linear-gradient(90deg, #0f0a1e, #1a1035, #0f0a1e);
+    border: 1px solid #2a1f45;
+    border-radius: 8px;
+    padding: 14px 20px;
+    margin-bottom: 16px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #b8a8d4;
+    font-style: italic;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .narration::before {
+    content: '🎙️';
+    position: absolute;
+    top: 12px;
+    left: -2px;
+    font-size: 16px;
+    opacity: 0.6;
+  }
+
+  .narration .vo-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: #7c3aed;
+    font-style: normal;
+    font-weight: 600;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .narration .vo-label .speaker-icon {
+    width: 14px;
+    height: 14px;
+    background: #7c3aed;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 8px;
+    color: white;
+  }
+
+  /* ─── Chapter Transition ─── */
+  .chapter-transition {
+    text-align: center;
+    padding: 48px 20px;
+    margin: 32px 0;
+    border-top: 1px solid #1e1e3f;
+    border-bottom: 1px solid #1e1e3f;
+  }
+
+  .chapter-number {
+    font-family: 'Bangers', cursive;
+    font-size: 14px;
+    letter-spacing: 3px;
+    color: #7c3aed;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .chapter-title {
+    font-family: 'Bangers', cursive;
+    font-size: 36px;
+    color: #ffffff;
+    margin-bottom: 8px;
+    letter-spacing: 1px;
+  }
+
+  .chapter-subtitle {
+    font-size: 14px;
+    color: #8080a0;
+    font-style: italic;
+  }
+
+  /* ─── Student Input Mock ─── */
+  .student-input-mock {
+    background: #1a1a2e;
+    border: 2px solid #2a2a4e;
+    border-radius: 12px;
+    padding: 16px;
+    margin: 16px 0;
+    min-height: 80px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .student-input-mock .placeholder {
+    color: #555;
+    font-size: 14px;
+    font-style: italic;
+  }
+
+  .student-input-mock .label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #7c3aed;
+    font-weight: 600;
+  }
+
+  .student-input-mock.active {
+    border-color: #7c3aed;
+    box-shadow: 0 0 20px rgba(124, 58, 237, 0.15);
+  }
+
+  /* ─── Profile Reveal Card ─── */
+  .profile-reveal {
+    background: linear-gradient(135deg, #1a1035, #12111e);
+    border: 2px solid #7c3aed44;
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin: 20px 0;
+  }
+
+  .profile-reveal .reveal-header {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: #a78bfa;
+    font-weight: 700;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .profile-reveal .reveal-items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .profile-reveal .reveal-item {
+    background: #7c3aed22;
+    border: 1px solid #7c3aed44;
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-size: 13px;
+    color: #d4c4f0;
+  }
+
+  /* ─── Panel with bubble positioned over image ─── */
+  .panel-with-bubbles {
+    position: relative;
+  }
+
+  .panel-with-bubbles .bubbles-container {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: linear-gradient(transparent, rgba(0,0,0,0.6));
+  }
+
+  /* ─── Standalone bubble (not over image) ─── */
+  .standalone-bubble {
+    padding: 16px 20px;
+    margin-bottom: 12px;
+    border-radius: 16px;
+    font-size: 15px;
+    line-height: 1.55;
+    max-width: 85%;
+  }
+
+  .standalone-bubble.kit {
+    background: #ffffff;
+    color: #1a1a2e;
+    border: 2px solid #d4d0e0;
+    position: relative;
+    margin-left: 48px;
+  }
+
+  .standalone-bubble.kit .avatar {
+    position: absolute;
+    left: -44px;
+    top: 8px;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #7c3aed, #a78bfa);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    border: 2px solid #2a2a3e;
+  }
+
+  .standalone-bubble.thought {
+    background: rgba(124, 58, 237, 0.08);
+    color: #b8a8d4;
+    border: 1.5px dashed #7c3aed44;
+    font-family: 'Caveat', cursive;
+    font-size: 18px;
+    font-style: italic;
+    margin-left: 48px;
+    max-width: 75%;
+  }
+
+  .standalone-bubble.student-response {
+    background: #1a3a5c;
+    color: #e0f0ff;
+    border: 2px solid #2a5a8c;
+    margin-left: auto;
+    max-width: 75%;
+  }
+
+  /* ─── Section label ─── */
+  .section-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: #555;
+    text-align: center;
+    margin: 24px 0 8px;
+  }
+
+  /* ─── Footnote / design note ─── */
+  .design-note {
+    font-size: 11px;
+    color: #444;
+    padding: 8px 12px;
+    border-left: 2px solid #333;
+    margin: 8px 0 16px;
+    font-style: italic;
+  }
+
+  /* ─── Audio indicator ─── */
+  .audio-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #7c3aed;
+    background: #7c3aed15;
+    border: 1px solid #7c3aed33;
+    border-radius: 12px;
+    padding: 3px 8px;
+    font-weight: 600;
+  }
+
+  .audio-badge .eq {
+    display: flex;
+    gap: 1px;
+    align-items: flex-end;
+    height: 10px;
+  }
+
+  .audio-badge .eq span {
+    width: 2px;
+    background: #7c3aed;
+    border-radius: 1px;
+    animation: eq 0.8s ease-in-out infinite alternate;
+  }
+
+  .audio-badge .eq span:nth-child(1) { height: 4px; animation-delay: 0s; }
+  .audio-badge .eq span:nth-child(2) { height: 8px; animation-delay: 0.2s; }
+  .audio-badge .eq span:nth-child(3) { height: 5px; animation-delay: 0.4s; }
+
+  @keyframes eq {
+    0% { transform: scaleY(0.4); }
+    100% { transform: scaleY(1); }
+  }
+
+  /* ─── Responsive ─── */
+  @media (max-width: 480px) {
+    .standalone-bubble { max-width: 92%; font-size: 14px; }
+    .chapter-title { font-size: 28px; }
+    .panel-image { min-height: 200px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="discovery-container">
+
+  <!-- ═══════ PROGRESS BAR ═══════ -->
+  <div class="progress-bar">
+    <div class="progress-label">Discovery</div>
+    <div class="progress-dots">
+      <div class="progress-dot current" title="The Workshop">🔧</div>
+      <div class="progress-dot" title="The Collection Wall">📌</div>
+      <div class="progress-dot" title="The Window">🪟</div>
+      <div class="progress-dot" title="The Crossroads">🚪</div>
+      <div class="progress-dot" title="The Launchpad">🚀</div>
+    </div>
+    <div style="margin-left: auto;">
+      <div class="audio-badge">
+        <div class="eq"><span></span><span></span><span></span></div>
+        Audio On
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!-- CHAPTER 1: THE WORKSHOP                            -->
+  <!-- ═══════════════════════════════════════════════════ -->
+
+  <div class="chapter-transition">
+    <div class="chapter-number">Chapter One</div>
+    <div class="chapter-title">The Workshop</div>
+    <div class="chapter-subtitle">What are you naturally drawn to?</div>
+  </div>
+
+
+  <!-- Panel 1.1 — THE DOOR (Silent) -->
+  <div class="section-label">Panel 1.1 — The Door</div>
+
+  <div class="panel full-width silent">
+    <img class="panel-image" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
+         alt="The Door"
+         style="min-height: 500px; background: linear-gradient(135deg, #2a1f0a, #1a1508, #3a2a10); display: block;"
+         onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+    <div class="panel-image-placeholder" style="min-height: 500px;">
+      📸 Panel 1.1: The Door — Studio door ajar, warm light spilling out, "Studio — come in" sign
+    </div>
+  </div>
+
+  <div class="narration">
+    <div class="vo-label"><span class="speaker-icon">▶</span> Kit — Inner Monologue</div>
+    "Another new one. They always pause at the door. I used to think it was nerves. Now I think it's something else. They're deciding whether this is going to be real — or just another adult asking them to perform."
+    <br><br>
+    "Let's find out."
+  </div>
+
+  <div class="design-note">⏱ ~12 seconds. No dialogue. The narration plays as the student scrolls this panel into view. Silent invitation.</div>
+
+
+  <!-- Panel 1.2 — KIT'S INTRO -->
+  <div class="section-label">Panel 1.2 — Kit's Introduction</div>
+
+  <div class="panel full-width">
+    <img class="panel-image" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
+         alt="Kit Introduction"
+         style="min-height: 400px; background: linear-gradient(135deg, #2a1f15, #1a1510, #352818); display: block;"
+         onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+    <div class="panel-image-placeholder" style="min-height: 400px;">
+      📸 Panel 1.2: Kit — Leaning against workbench, paint-stained apron, warm smile, workshop behind
+    </div>
+  </div>
+
+  <div class="standalone-bubble kit">
+    <div class="avatar">🎨</div>
+    "So — welcome. I know this is a bit unusual. You've been asked to 'discover yourself' — which sounds like something off a wellness retreat brochure."
+    <br><br>
+    <em>[slight laugh]</em>
+    <br><br>
+    "I promise this is different."
+  </div>
+
+  <div class="standalone-bubble thought">
+    "Just be honest with them. They'll know if you're not."
+  </div>
+
+  <div class="narration">
+    <div class="vo-label"><span class="speaker-icon">▶</span> Kit — Inner Monologue</div>
+    Plays after dialogue, during thought bubble appearance. ~3 seconds, quieter, more internal.
+  </div>
+
+
+  <!-- Panel 1.3a — YOUNG KIT (Failure) -->
+  <div class="section-label">Panel 1.3a — Young Kit (Failure)</div>
+
+  <div class="panel full-width">
+    <img class="panel-image" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
+         alt="Young Kit surrounded by failed prototypes"
+         style="min-height: 380px; background: linear-gradient(135deg, #1a1510, #2a200a, #15120d); display: block;"
+         onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+    <div class="panel-image-placeholder" style="min-height: 380px;">
+      📸 Panel 1.3a: Young Kit on floor, failed prototypes, laptop showing deadline countdown (00:12:47)
+    </div>
+  </div>
+
+  <div class="standalone-bubble kit">
+    <div class="avatar">🎨</div>
+    "When I was starting out, I spent a year trying to be a graphic designer. Because it seemed like the right career. I was terrible. <em>Absolutely</em> terrible."
+  </div>
+
+  <div class="narration">
+    <div class="vo-label"><span class="speaker-icon">▶</span> Dialogue</div>
+    ⏱ ~8 seconds. Self-deprecating, honest, slight wince in the voice.
+  </div>
+
+
+  <!-- Panel 1.3b — KIT NOW (Reflection) -->
+  <div class="section-label">Panel 1.3b — Kit Now (desk detail / reflection)</div>
+
+  <div class="panel full-width">
+    <img class="panel-image" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
+         alt="Kit's desk — lamp, coffee, sketches"
+         style="min-height: 220px; background: linear-gradient(135deg, #1a1510, #2a200a); display: block;"
+         onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+    <div class="panel-image-placeholder" style="min-height: 220px;">
+      📸 Panel 1.3b: Close-up of workshop desk — lamp, coffee mugs, pencils, scattered papers. Warm amber light.
+    </div>
+  </div>
+
+  <div class="standalone-bubble kit">
+    <div class="avatar">🎨</div>
+    "But I kept noticing something. Every night, I'd sneak away from the screen to build things with my hands instead. Little models. Prototypes. Things nobody asked for."
+    <br><br>
+    "Took me an embarrassingly long time to realise — the thing I kept avoiding my real work to do... <strong>was my real work.</strong>"
+  </div>
+
+  <div class="narration">
+    <div class="vo-label"><span class="speaker-icon">▶</span> Kit — Inner Monologue</div>
+    "I tell that story a lot. It never stops being true. The thing you can't stop doing — that's the signal. Most people spend years ignoring it."
+  </div>
+
+
+  <!-- Panel 1.4 — THE PROVOCATION -->
+  <div class="section-label">Panel 1.4 — The Provocation</div>
+
+  <div class="panel full-width">
+    <div class="panel-image-placeholder" style="min-height: 350px; background: linear-gradient(135deg, #1a1515, #251a10, #1a1510);">
+      📸 Panel 1.4: Messy workbench with materials, a brief card reading "Your friend needs help", Kit stepping back with coffee
+    </div>
+  </div>
+
+  <div class="standalone-bubble kit">
+    <div class="avatar">🎨</div>
+    "Here's what I want to know. And there's genuinely no right answer."
+    <br><br>
+    "Your best friend comes to you, panicking. Big project. Due tomorrow. Two hours left. They have no idea where to start."
+    <br><br>
+    <strong>"What do you <em>actually</em> do?"</strong> Not what you think you should do. What do you actually do?
+  </div>
+
+  <div class="narration">
+    <div class="vo-label"><span class="speaker-icon">▶</span> Kit — Inner Monologue (plays while student types)</div>
+    "This is the question that tells me everything. Not because of what they say — but because of what they don't even think to mention. The maker grabs materials before they've finished reading the brief. The researcher opens six tabs. The leader starts drawing a plan. They don't even know they're telling me who they are."
+  </div>
+
+  <!-- Student input -->
+  <div class="student-input-mock active">
+    <div class="label">Your turn</div>
+    <div class="placeholder">What do you actually do when your friend needs help?</div>
+  </div>
+
+
+  <!-- Panel 1.5 — KIT REFLECTS (AI-generated) -->
+  <div class="section-label">Panel 1.5 — Kit Reflects on Answer (AI-generated)</div>
+
+  <div class="standalone-bubble student-response">
+    "I'd probably grab some cardboard and start sketching out ideas really quickly. Like rough prototypes to see what works."
+  </div>
+
+  <div class="standalone-bubble kit">
+    <div class="avatar">🎨</div>
+    <em>[AI-generated response — e.g.:]</em>
+    <br><br>
+    "Interesting. So when the pressure's on, you go straight to making. You didn't say 'let me think about it' or 'let me research options' — you said 'let me build something.' That tells me a lot about how your brain works."
+    <br><br>
+    "I had a friend like that in school. She'd already have cardboard and tape out before the rest of us had finished reading the brief."
+  </div>
+
+  <div class="narration">
+    <div class="vo-label"><span class="speaker-icon">▶</span> Kit — Inner Monologue</div>
+    "There it is. They don't see it yet — but I do. That instinct they just described? That's not a random preference. That's wiring."
+  </div>
+
+
+  <!-- Panel 1.6 — GOING DEEPER -->
+  <div class="section-label">Panel 1.6 — Going Deeper</div>
+
+  <div class="standalone-bubble kit">
+    <div class="avatar">🎨</div>
+    "One more thing. The thing people <em>actually</em> come to you for. Not what you wish they'd ask — what they really come to you for. Could be anything. Fixing tech. Settling arguments. Making things look good. Being honest when everyone else is being polite."
+  </div>
+
+  <div class="student-input-mock">
+    <div class="label">Your turn</div>
+    <div class="placeholder">What do people come to you for?</div>
+  </div>
+
+
+  <!-- Panel 1.7 — CHAPTER CLOSE -->
+  <div class="section-label">Panel 1.7 — Chapter Close</div>
+
+  <div class="narration">
+    <div class="vo-label"><span class="speaker-icon">▶</span> Kit — Inner Monologue</div>
+    "Two answers. That's all it took. I already know more about them than most icebreakers learn in an hour. Not because I asked the right questions — because I asked the real ones."
+  </div>
+
+  <div class="standalone-bubble kit">
+    <div class="avatar">🎨</div>
+    "I'm starting to get a picture of you. Let's keep going."
+  </div>
+
+  <div class="profile-reveal">
+    <div class="reveal-header">💪 Strengths Discovered</div>
+    <div class="reveal-items">
+      <div class="reveal-item">Hands-on maker — builds first, thinks later</div>
+      <div class="reveal-item">The "fixer" — people come to you when things are broken</div>
+    </div>
+  </div>
+
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!-- CHAPTER 2: THE COLLECTION WALL                     -->
+  <!-- ═══════════════════════════════════════════════════ -->
+
+  <div class="chapter-transition">
+    <div class="chapter-number">Chapter Two</div>
+    <div class="chapter-title">The Collection Wall</div>
+    <div class="chapter-subtitle">What pulls you forward when nobody's watching?</div>
+  </div>
+
+  <div class="narration">
+    <div class="vo-label"><span class="speaker-icon">▶</span> Kit — Inner Monologue (transition)</div>
+    "Strengths are what you can do. But they're not the whole picture. I need to know what pulls them forward — the things they'd do even if nobody was watching. Even if it didn't count for anything."
+  </div>
+
+  <div class="panel full-width">
+    <div class="panel-image-placeholder" style="min-height: 400px; background: linear-gradient(135deg, #1a1515, #201a12, #1a1510);">
+      📸 Panel 2.2: The Collection Wall — dense pinboard with photos, circuit board, kid's drawing, fabric swatches, postcards, bus tickets, handwritten notes, connected with string
+    </div>
+  </div>
+
+  <div class="standalone-bubble kit">
+    <div class="avatar">🎨</div>
+    "This is my collection wall. Everything on here is something that made me stop and go... <em>huh. That's interesting.</em> No theme. No logic. Just things that grabbed me."
+    <br><br>
+    "That circuit board? Found it on a street in Shenzhen. The kid's drawing? My niece's version of this workshop. The bridge photo? I don't even know why I like that bridge. I just do."
+  </div>
+
+  <div class="standalone-bubble kit">
+    <div class="avatar">🎨</div>
+    "People say 'follow your passion' like it's one big obvious thing. I've never had that. I have a hundred small curiosities that bump into each other. The interesting stuff happens in the collisions."
+  </div>
+
+  <div class="narration">
+    <div class="vo-label"><span class="speaker-icon">▶</span> Kit — Inner Monologue</div>
+    "I say this because almost every student I've worked with thinks there's something wrong with them for not having One Big Passion. There isn't. Most interesting people are a mess of overlapping curiosities. The trick is noticing the pattern."
+  </div>
+
+  <div class="standalone-bubble kit">
+    <div class="avatar">🎨</div>
+    "If you had a wall like this — what would be on it? Not school subjects. I don't mean 'I like science.' I mean... what do you actually spend time on when nobody's watching? What rabbit hole did you fall into last? What makes you completely lose track of time?"
+  </div>
+
+  <div class="student-input-mock active">
+    <div class="label">Your collection</div>
+    <div class="placeholder">What would be on your wall?</div>
+  </div>
+
+  <!-- More panels continue... -->
+  <div class="section-label" style="margin-top: 40px;">Chapters 3-5 continue below with the same pattern</div>
+
+  <div style="text-align: center; padding: 40px; color: #444; font-style: italic;">
+    Chapter 3: The Window (Needs) → Chapter 4: The Crossroads (Narrowing) → Chapter 5: The Launchpad (Commitment)
+    <br><br>
+    Full panel sequence in discovery-comic-strip-spec.md
+  </div>
+
+</div>
+
+</body>
+</html>

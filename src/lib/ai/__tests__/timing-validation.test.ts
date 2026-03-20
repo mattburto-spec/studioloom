@@ -58,7 +58,7 @@ describe("validateLessonTiming", () => {
     const lesson = makeLesson({ workshopPhases: undefined });
     const result = validateLessonTiming(lesson, profile, defaultTimingCtx);
     expect(result.repairedLesson.workshopPhases).toBeTruthy();
-    expect(result.issues.some((i) => i.code === "MISSING_PHASES")).toBe(true);
+    expect(result.issues.some((i) => i.code === "MISSING_WORKSHOP_PHASES")).toBe(true);
   });
 
   it("auto-repairs over-cap instruction time", () => {
@@ -93,7 +93,7 @@ describe("validateLessonTiming", () => {
   it("flags missing extensions", () => {
     const lesson = makeLesson({ extensions: undefined });
     const result = validateLessonTiming(lesson, profile, defaultTimingCtx);
-    expect(result.issues.some((i) => i.code === "NO_EXTENSIONS")).toBe(true);
+    expect(result.issues.some((i) => i.code === "INSUFFICIENT_EXTENSIONS")).toBe(true);
   });
 
   it("returns stats with correct usable time calculation", () => {
@@ -170,7 +170,7 @@ describe("applyTimingPreset", () => {
 
   it("hands-on preset has more work time than balanced", () => {
     const balanced = applyTimingPreset("balanced", profile, defaultTimingCtx);
-    const handsOn = applyTimingPreset("hands-on", profile, defaultTimingCtx);
+    const handsOn = applyTimingPreset("hands-on-heavy", profile, defaultTimingCtx);
     expect(balanced).not.toBeNull();
     expect(handsOn).not.toBeNull();
     expect(handsOn!.workTime.durationMinutes).toBeGreaterThanOrEqual(
