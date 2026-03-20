@@ -4,6 +4,9 @@ import { useState, useEffect, use } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import TeacherFeedbackForm from "@/components/teacher/knowledge/TeacherFeedbackForm";
+import { NMConfigPanel } from "@/components/nm";
+import type { NMUnitConfig } from "@/lib/nm/constants";
+import { DEFAULT_NM_CONFIG } from "@/lib/nm/constants";
 import {
   getPageList,
   normalizeContentData,
@@ -65,6 +68,7 @@ export default function UnitDetailPage({
   const [unit, setUnit] = useState<Unit | null>(null);
   const [loading, setLoading] = useState(true);
   const [showFeedback, setShowFeedback] = useState(false);
+  const [nmConfig, setNmConfig] = useState<NMUnitConfig>(DEFAULT_NM_CONFIG);
 
   useEffect(() => {
     async function load() {
@@ -75,6 +79,9 @@ export default function UnitDetailPage({
         .eq("id", unitId)
         .single();
       setUnit(data);
+      if (data?.nm_config) {
+        setNmConfig(data.nm_config as NMUnitConfig);
+      }
       setLoading(false);
     }
     load();
@@ -302,6 +309,29 @@ export default function UnitDetailPage({
           />
         </div>
       )}
+
+      {/* ----------------------------------------------------------------- */}
+      {/* New Metrics config panel                                            */}
+      {/* ----------------------------------------------------------------- */}
+      <div className="mb-6">
+        <NMConfigPanel
+          unitId={unitId}
+          pages={pages.map((p, i) => ({ id: p.id, title: p.title || p.content?.title || `Page ${i + 1}` }))}
+          currentConfig={nmConfig}
+          onSave={async (config) => {
+            try {
+              await fetch("/api/teacher/nm-config", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ unitId, config }),
+              });
+              setNmConfig(config);
+            } catch (err) {
+              console.error("Failed to save NM config:", err);
+            }
+          }}
+        />
+      </div>
 
       {/* ----------------------------------------------------------------- */}
       {/* Lesson / page list — SkeletonReview card style                     */}

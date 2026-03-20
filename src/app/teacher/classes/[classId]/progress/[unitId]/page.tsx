@@ -8,6 +8,8 @@ import { getPageList } from "@/lib/unit-adapter";
 import type { Student, StudentProgress, Unit, UnitPage } from "@/types";
 import type { AssessmentRecordRow } from "@/types/assessment";
 import { OpenStudioUnlock, OpenStudioClassView } from "@/components/open-studio";
+import { ObservationSnap } from "@/components/nm";
+import { AGENCY_ELEMENTS, type NMUnitConfig } from "@/lib/nm/constants";
 
 interface ProgressCell {
   status: "not_started" | "in_progress" | "complete";
@@ -36,6 +38,8 @@ export default function ProgressTrackingPage({
   const [detailResponses, setDetailResponses] = useState<Record<string, string> | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [openStudioStatuses, setOpenStudioStatuses] = useState<Record<string, { unlocked_at: string | null }>>({});
+  const [nmObserveStudent, setNmObserveStudent] = useState<Student | null>(null);
+  const [nmConfig, setNmConfig] = useState<NMUnitConfig | null>(null);
 
   useEffect(() => {
     loadData();
@@ -128,6 +132,11 @@ export default function ProgressTrackingPage({
       }
     } catch {
       // Open Studio status is non-critical
+    }
+
+    // Load NM config from unit
+    if (unitRes.data?.nm_config) {
+      setNmConfig(unitRes.data.nm_config as NMUnitConfig);
     }
 
     setLoading(false);
@@ -322,7 +331,7 @@ export default function ProgressTrackingPage({
                             </span>
                           )}
                         </div>
-                        <div className="mt-1">
+                        <div className="mt-1 flex items-center gap-1">
                           <OpenStudioUnlock
                             studentId={student.id}
                             studentName={student.display_name || student.username}
@@ -339,6 +348,15 @@ export default function ProgressTrackingPage({
                               }));
                             }}
                           />
+                          {nmConfig?.enabled && (
+                            <button
+                              onClick={() => setNmObserveStudent(student)}
+                              className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-700 hover:bg-purple-200 transition-colors"
+                              title="Record NM observation"
+                            >
+                              NM
+                            </button>
+                          )}
                         </div>
                       </td>
                       {unitPages.map((page) => {
@@ -507,6 +525,22 @@ export default function ProgressTrackingPage({
       <div className="mt-8">
         <OpenStudioClassView unitId={unitId} classId={classId} />
       </div>
+
+      {/* NM Observation Snap modal */}
+      {nmObserveStudent && nmConfig?.enabled && (
+        <ObservationSnap
+          studentId={nmObserveStudent.id}
+          studentName={nmObserveStudent.display_name || nmObserveStudent.username}
+          unitId={unitId}
+          elements={
+            AGENCY_ELEMENTS
+              .filter((e) => nmConfig.elements.includes(e.id))
+              .map((e) => ({ id: e.id, name: e.name, definition: e.definition, color: e.color }))
+          }
+          onComplete={() => setNmObserveStudent(null)}
+          onClose={() => setNmObserveStudent(null)}
+        />
+      )}
     </main>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, use } from "react";
+import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
 import { CRITERIA, PAGE_TYPE_LABELS, type CriterionKey } from "@/lib/constants";
 import { isV3 } from "@/lib/unit-adapter";
@@ -25,6 +25,7 @@ import DesignAssistantWidget from "@/components/student/DesignAssistantWidget";
 import { useStudent } from "@/app/(student)/student-context";
 import { OpenStudioBanner } from "@/components/open-studio";
 import { useOpenStudio } from "@/hooks/useOpenStudio";
+import { CompetencyPulse } from "@/components/nm";
 import type { PageContent } from "@/types";
 
 export default function UnitPageView({
@@ -50,6 +51,19 @@ export default function UnitPageView({
   const [confidenceLevel, setConfidenceLevel] = useState(3);
   const [showFeedbackPulse, setShowFeedbackPulse] = useState(false);
   const [pendingNavTarget, setPendingNavTarget] = useState<string | null>(null);
+  const [nmCheckpoint, setNmCheckpoint] = useState<{ elements: Array<{ id: string; name: string; studentDescription: string }> } | null>(null);
+  const [showNmPulse, setShowNmPulse] = useState(false);
+  const [nmCompleted, setNmCompleted] = useState(false);
+
+  // Fetch NM checkpoint config for this page
+  useEffect(() => {
+    fetch(`/api/student/nm-checkpoint/${pageId}?unitId=${unitId}`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => {
+        if (d?.checkpoint) setNmCheckpoint(d.checkpoint);
+      })
+      .catch(() => {}); // silently ignore — NM is optional
+  }, [pageId]);
 
   if (loading || !data || !currentPage) {
     return null; // Layout handles the loading state
@@ -515,6 +529,18 @@ export default function UnitPageView({
               }}
             />
           </div>
+        </div>
+      )}
+
+      {/* NM Competency Pulse — shown inline when this page has a checkpoint configured */}
+      {nmCheckpoint && !nmCompleted && (
+        <div className="max-w-4xl mx-auto px-6 mb-6">
+          <CompetencyPulse
+            pageId={pageId}
+            unitId={unitId}
+            elements={nmCheckpoint.elements}
+            onComplete={() => setNmCompleted(true)}
+          />
         </div>
       )}
 
