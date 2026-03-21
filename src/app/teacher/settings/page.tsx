@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import type { LMSProviderType } from "@/types";
 import { SchoolCalendarSetup } from "@/components/teacher/SchoolCalendarSetup";
 
-type SettingsTab = "general" | "school" | "lms" | "ai";
+type SettingsTab = "general" | "school" | "workshop" | "lms" | "ai";
 
 /* ── Common D&T tools/machines (checkbox presets) ── */
 const COMMON_TOOLS: { category: string; items: string[] }[] = [
@@ -37,6 +37,7 @@ const WORKSHOP_PRESETS: { space: string; linkedBadge: string; badgeLabel: string
 const TABS: { key: SettingsTab; label: string; icon: string }[] = [
   { key: "general", label: "General", icon: "M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" },
   { key: "school", label: "School & Teaching", icon: "M3 21h18M3 7v1a3 3 0 006 0V7m0 1a3 3 0 006 0V7m0 1a3 3 0 006 0V7H3l2-4h14l2 4M5 21V10.5M19 21V10.5" },
+  { key: "workshop", label: "Workshop & Equipment", icon: "M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z" },
   { key: "lms", label: "LMS Integration", icon: "M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.66 0 3-4.03 3-9s-1.34-9-3-9m0 18c-1.66 0-3-4.03-3-9s1.34-9 3-9" },
   { key: "ai", label: "AI Generator", icon: "M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" },
 ];
@@ -107,6 +108,23 @@ export default function TeacherSettingsPage() {
   const [profileError, setProfileError] = useState("");
   const [profileLoaded, setProfileLoaded] = useState(false);
 
+  // Timetable / cycle state
+  const [cycleLength, setCycleLength] = useState<number>(5);
+  const [anchorDate, setAnchorDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [anchorCycleDay, setAnchorCycleDay] = useState<number>(1);
+  const [resetEachTerm, setResetEachTerm] = useState(false);
+  const [timetableLoaded, setTimetableLoaded] = useState(false);
+  const [savingTimetable, setSavingTimetable] = useState(false);
+  const [timetableSuccess, setTimetableSuccess] = useState("");
+  const [timetableError, setTimetableError] = useState("");
+  const [classMeetings, setClassMeetings] = useState<Array<{ class_id: string; cycle_day: number; period_number?: number; room?: string }>>([]);
+  const [classes, setClasses] = useState<Array<{ id: string; name: string }>>([]);
+  // Temp state for adding a meeting
+  const [newMeetingClassId, setNewMeetingClassId] = useState("");
+  const [newMeetingCycleDay, setNewMeetingCycleDay] = useState<number>(1);
+  const [newMeetingPeriod, setNewMeetingPeriod] = useState<number | "">("");
+  const [newMeetingRoom, setNewMeetingRoom] = useState("");
+
   // AI state
   const [aiConfig, setAiConfig] = useState<AIConfig | null>(null);
   const [aiProvider, setAiProvider] = useState("openai-compatible");
@@ -119,7 +137,7 @@ export default function TeacherSettingsPage() {
   const [testingAi, setTestingAi] = useState(false);
 
   useEffect(() => {
-    Promise.all([loadIntegration(), loadAiSettings(), loadProfile()]).then(() =>
+    Promise.all([loadIntegration(), loadAiSettings(), loadProfile(), loadTimetable(), loadClasses()]).then(() =>
       setLoading(false)
     );
   }, []);
@@ -209,6 +227,95 @@ export default function TeacherSettingsPage() {
     } catch {
       // silent — table might not exist yet
     }
+  }
+
+  async function loadTimetable() {
+    try {
+      const res = await fetch("/api/teacher/timetable");
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.timetable) {
+        setCycleLength(data.timetable.cycle_length || 5);
+        setAnchorDate(data.timetable.anchor_date || new Date().toISOString().split("T")[0]);
+        setAnchorCycleDay(data.timetable.anchor_cycle_day || 1);
+        setResetEachTerm(data.timetable.reset_each_term || false);
+        setTimetableLoaded(true);
+      }
+      if (data.meetings) {
+        setClassMeetings(data.meetings.map((m: { class_id: string; cycle_day: number; period_number?: number; room?: string }) => ({
+          class_id: m.class_id,
+          cycle_day: m.cycle_day,
+          period_number: m.period_number,
+          room: m.room,
+        })));
+      }
+    } catch {
+      // silent — table might not exist yet
+    }
+  }
+
+  async function loadClasses() {
+    try {
+      const supabase = (await import("@/lib/supabase/client")).createClient();
+      const { data } = await supabase.from("classes").select("id, name").order("name");
+      if (data) setClasses(data);
+    } catch {
+      // silent
+    }
+  }
+
+  async function handleSaveTimetable() {
+    setSavingTimetable(true);
+    setTimetableError("");
+    setTimetableSuccess("");
+
+    try {
+      const res = await fetch("/api/teacher/timetable", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cycle_length: cycleLength,
+          anchor_date: anchorDate,
+          anchor_cycle_day: anchorCycleDay,
+          reset_each_term: resetEachTerm,
+          meetings: classMeetings,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setTimetableError(data.error || "Failed to save timetable");
+        return;
+      }
+
+      setTimetableSuccess("Timetable saved!");
+      setTimetableLoaded(true);
+      setTimeout(() => setTimetableSuccess(""), 3000);
+    } catch {
+      setTimetableError("Network error");
+    } finally {
+      setSavingTimetable(false);
+    }
+  }
+
+  function addMeeting() {
+    if (!newMeetingClassId) return;
+    setClassMeetings([
+      ...classMeetings,
+      {
+        class_id: newMeetingClassId,
+        cycle_day: newMeetingCycleDay,
+        period_number: newMeetingPeriod || undefined,
+        room: newMeetingRoom || undefined,
+      },
+    ]);
+    setNewMeetingCycleDay(1);
+    setNewMeetingPeriod("");
+    setNewMeetingRoom("");
+  }
+
+  function removeMeeting(index: number) {
+    setClassMeetings(classMeetings.filter((_, i) => i !== index));
   }
 
   async function handleSaveProfile() {
@@ -595,11 +702,13 @@ export default function TeacherSettingsPage() {
             </div>
           </section>
 
-          {/* ── 2. Timetable ── */}
+          {/* ── 2. Timetable & Period Lengths ── */}
           <section className="bg-white rounded-xl p-6 border border-border">
             <h2 className="text-lg font-semibold text-text-primary mb-1">Timetable</h2>
-            <p className="text-sm text-text-secondary mb-5">Period lengths drive lesson timing and the Workshop Model.</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <p className="text-sm text-text-secondary mb-5">Period lengths drive lesson timing. Cycle settings let StudioLoom calculate class dates.</p>
+
+            {/* Period lengths (existing) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
               <div>
                 <label className="block text-sm font-medium text-text-secondary mb-1">Single period (minutes)</label>
                 <input type="number" value={periodMinutes} onChange={(e) => setPeriodMinutes(Number(e.target.value))} min={20} max={120} className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
@@ -615,112 +724,116 @@ export default function TeacherSettingsPage() {
               </div>
             </div>
             {hasDoubles && (
-              <div className="mt-4">
+              <div className="mb-6">
                 <label className="block text-sm font-medium text-text-secondary mb-1">Double period length (minutes)</label>
                 <input type="number" value={doublePeriodMinutes} onChange={(e) => setDoublePeriodMinutes(Number(e.target.value))} min={40} max={240} className="w-48 px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
                 <p className="text-xs text-text-secondary/60 mt-1">Often not exactly 2x — e.g. 50 min singles = 95 min doubles</p>
               </div>
             )}
+
+            {/* Rotating cycle setup */}
+            <div className="border-t border-border pt-5 mt-2">
+              <h3 className="text-sm font-semibold text-text-primary mb-1">Rotating Cycle</h3>
+              <p className="text-xs text-text-secondary mb-4">If your school uses a rotating timetable (e.g. 6-day or 8-day cycle), set it here so StudioLoom can calculate lesson dates.</p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-medium text-text-secondary mb-1">Cycle length (days)</label>
+                  <input type="number" value={cycleLength} onChange={(e) => { setCycleLength(Number(e.target.value)); if (anchorCycleDay > Number(e.target.value)) setAnchorCycleDay(1); }} min={2} max={20} className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+                  <p className="text-xs text-text-secondary/60 mt-1">5 = standard week, 6/8/10 = rotating</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-text-secondary mb-1">Anchor date</label>
+                  <input type="date" value={anchorDate} onChange={(e) => setAnchorDate(e.target.value)} className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+                  <p className="text-xs text-text-secondary/60 mt-1">A date you know the cycle day of</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-text-secondary mb-1">That date was Day...</label>
+                  <select value={anchorCycleDay} onChange={(e) => setAnchorCycleDay(Number(e.target.value))} className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30">
+                    {Array.from({ length: cycleLength }, (_, i) => i + 1).map((d) => (
+                      <option key={d} value={d}>Day {d}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 mb-4">
+                <button type="button" onClick={() => setResetEachTerm(!resetEachTerm)} className={`relative w-11 h-6 rounded-full transition-colors ${resetEachTerm ? "bg-brand-purple" : "bg-gray-300"}`}>
+                  <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${resetEachTerm ? "translate-x-5" : ""}`} />
+                </button>
+                <span className="text-sm text-text-secondary">Reset cycle to Day 1 at the start of each term</span>
+              </div>
+
+              {/* Class meetings */}
+              <div className="border-t border-border pt-4 mt-4">
+                <h4 className="text-xs font-semibold text-text-primary mb-3">When do your classes meet?</h4>
+
+                {classMeetings.length > 0 && (
+                  <div className="space-y-1.5 mb-4">
+                    {classMeetings.map((m, i) => {
+                      const cls = classes.find((c) => c.id === m.class_id);
+                      return (
+                        <div key={i} className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg px-3 py-2">
+                          <span className="font-medium text-text-primary">{cls?.name || m.class_id}</span>
+                          <span className="text-text-secondary">— Day {m.cycle_day}{m.period_number ? `, P${m.period_number}` : ""}{m.room ? ` (${m.room})` : ""}</span>
+                          <button onClick={() => removeMeeting(i)} className="ml-auto text-red-400 hover:text-red-600 text-xs">✕</button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {classes.length > 0 ? (
+                  <div className="flex items-end gap-2 flex-wrap">
+                    <div>
+                      <label className="block text-xs text-text-secondary mb-1">Class</label>
+                      <select value={newMeetingClassId} onChange={(e) => setNewMeetingClassId(e.target.value)} className="px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30">
+                        <option value="">Select class...</option>
+                        {classes.map((c) => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-text-secondary mb-1">Cycle day</label>
+                      <select value={newMeetingCycleDay} onChange={(e) => setNewMeetingCycleDay(Number(e.target.value))} className="px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30">
+                        {Array.from({ length: cycleLength }, (_, i) => i + 1).map((d) => (
+                          <option key={d} value={d}>Day {d}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-text-secondary mb-1">Period (opt.)</label>
+                      <input type="number" value={newMeetingPeriod} onChange={(e) => setNewMeetingPeriod(e.target.value ? Number(e.target.value) : "")} min={1} max={12} placeholder="—" className="w-16 px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-text-secondary mb-1">Room (opt.)</label>
+                      <input type="text" value={newMeetingRoom} onChange={(e) => setNewMeetingRoom(e.target.value)} placeholder="e.g. D201" className="w-24 px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+                    </div>
+                    <button onClick={addMeeting} disabled={!newMeetingClassId} className="px-4 py-2 rounded-lg text-sm font-medium bg-brand-purple/10 text-brand-purple hover:bg-brand-purple/20 transition disabled:opacity-40">
+                      + Add
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-sm text-text-secondary">Create classes first to add meeting times.</p>
+                )}
+              </div>
+
+              {/* Save timetable */}
+              <div className="flex items-center gap-3 mt-5">
+                <button onClick={handleSaveTimetable} disabled={savingTimetable} className="px-5 py-2 rounded-lg text-sm font-medium bg-brand-purple text-white hover:bg-brand-purple/90 transition disabled:opacity-50">
+                  {savingTimetable ? "Saving..." : timetableLoaded ? "Update Timetable" : "Save Timetable"}
+                </button>
+                {timetableSuccess && <span className="text-sm text-accent-green font-medium">{timetableSuccess}</span>}
+                {timetableError && <span className="text-sm text-red-500">{timetableError}</span>}
+              </div>
+            </div>
           </section>
 
           {/* ── 3. School Calendar ── */}
           <SchoolCalendarSetup />
 
-          {/* ── 4. Workshop Spaces & Safety ── */}
-          <section className="bg-white rounded-xl p-6 border border-border">
-            <h2 className="text-lg font-semibold text-text-primary mb-1">Workshop Spaces</h2>
-            <p className="text-sm text-text-secondary mb-5">Which spaces do you have? Tick to require a safety badge before students can work there.</p>
-            <div className="space-y-2 mb-4">
-              {WORKSHOP_PRESETS.map((ws) => (
-                <div key={ws.space} className="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-gray-50 transition">
-                  <input type="checkbox" id={`space-${ws.space}`} checked={selectedSpaces.includes(ws.space)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setSelectedSpaces([...selectedSpaces, ws.space]);
-                        if (ws.linkedBadge) setSpaceBadgeRequirements((prev) => ({ ...prev, [ws.space]: true }));
-                      } else {
-                        setSelectedSpaces(selectedSpaces.filter((s) => s !== ws.space));
-                        setSpaceBadgeRequirements((prev) => { const next = { ...prev }; delete next[ws.space]; return next; });
-                      }
-                    }}
-                    className="w-4 h-4 rounded border-gray-300 text-brand-purple focus:ring-brand-purple/30" />
-                  <label htmlFor={`space-${ws.space}`} className="text-sm font-medium text-text-primary flex-1 cursor-pointer">{ws.space}</label>
-                  {ws.linkedBadge && selectedSpaces.includes(ws.space) && (
-                    <label className="flex items-center gap-1.5 text-xs cursor-pointer">
-                      <input type="checkbox" checked={spaceBadgeRequirements[ws.space] || false}
-                        onChange={(e) => setSpaceBadgeRequirements((prev) => ({ ...prev, [ws.space]: e.target.checked }))}
-                        className="w-3.5 h-3.5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500/30" />
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-medium">
-                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
-                        {ws.badgeLabel}
-                      </span>
-                    </label>
-                  )}
-                </div>
-              ))}
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-text-secondary mb-1">Other spaces</label>
-              <input type="text" value={customSpaces} onChange={(e) => setCustomSpaces(e.target.value)} placeholder="e.g. Ceramics room, Print lab" className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
-              <p className="text-xs text-text-secondary/60 mt-1">Comma-separated</p>
-            </div>
-          </section>
-
-          {/* ── 5. Tools & Machines ── */}
-          <section className="bg-white rounded-xl p-6 border border-border">
-            <h2 className="text-lg font-semibold text-text-primary mb-1">Tools & Machines</h2>
-            <p className="text-sm text-text-secondary mb-5">The AI only suggests activities using equipment you actually have.</p>
-            {COMMON_TOOLS.map((cat) => (
-              <div key={cat.category} className="mb-4">
-                <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wide mb-2">{cat.category}</h3>
-                <div className="flex flex-wrap gap-2">
-                  {cat.items.map((tool) => {
-                    const on = selectedTools.includes(tool);
-                    return (
-                      <button key={tool} type="button" onClick={() => setSelectedTools(on ? selectedTools.filter((t) => t !== tool) : [...selectedTools, tool])}
-                        className={`px-3 py-1.5 rounded-full text-xs font-medium border transition ${on ? "bg-brand-purple/10 border-brand-purple/30 text-brand-purple" : "bg-gray-50 border-gray-200 text-text-secondary hover:border-gray-300"}`}>
-                        {on && <span className="mr-1">✓</span>}{tool}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-            <div className="mt-4">
-              <label className="block text-sm font-medium text-text-secondary mb-1">Other tools</label>
-              <input type="text" value={customTools} onChange={(e) => setCustomTools(e.target.value)} placeholder="e.g. Pottery wheel, Kiln, Embroidery machine" className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
-              <p className="text-xs text-text-secondary/60 mt-1">Comma-separated</p>
-            </div>
-          </section>
-
-          {/* ── 6. Software ── */}
-          <section className="bg-white rounded-xl p-6 border border-border">
-            <h2 className="text-lg font-semibold text-text-primary mb-1">Software</h2>
-            <p className="text-sm text-text-secondary mb-5">Software available on school devices.</p>
-            {COMMON_SOFTWARE.map((cat) => (
-              <div key={cat.category} className="mb-4">
-                <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wide mb-2">{cat.category}</h3>
-                <div className="flex flex-wrap gap-2">
-                  {cat.items.map((sw) => {
-                    const on = selectedSoftware.includes(sw);
-                    return (
-                      <button key={sw} type="button" onClick={() => setSelectedSoftware(on ? selectedSoftware.filter((s) => s !== sw) : [...selectedSoftware, sw])}
-                        className={`px-3 py-1.5 rounded-full text-xs font-medium border transition ${on ? "bg-accent-blue/10 border-accent-blue/30 text-accent-blue" : "bg-gray-50 border-gray-200 text-text-secondary hover:border-gray-300"}`}>
-                        {on && <span className="mr-1">✓</span>}{sw}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-            <div className="mt-4">
-              <label className="block text-sm font-medium text-text-secondary mb-1">Other software</label>
-              <input type="text" value={customSoftware} onChange={(e) => setCustomSoftware(e.target.value)} placeholder="e.g. Cura, LightBurn, Cricut Design Space" className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
-              <p className="text-xs text-text-secondary/60 mt-1">Comma-separated</p>
-            </div>
-          </section>
-
-          {/* ── 7. New Metrics ── */}
+          {/* ── 4. New Metrics ── */}
           <section className="bg-white rounded-xl p-6 border border-border">
             <div className="flex items-center justify-between">
               <div>
@@ -778,7 +891,126 @@ export default function TeacherSettingsPage() {
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7B2FF2" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 mt-0.5"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></svg>
               <div className="text-sm text-text-secondary">
                 <p className="font-medium text-text-primary mb-1">Why this matters</p>
-                <p>Everything here feeds the AI. Period lengths drive lesson timing. Equipment lists ensure activities are realistic. Safety badge requirements gate student access to workshops. New Metrics controls whether competency assessment appears across the platform.</p>
+                <p>Everything here feeds the AI. Period lengths and cycle settings drive lesson timing. The school calendar enables term-based scheduling. New Metrics controls whether competency assessment appears across the platform. Workshop equipment is in its own tab.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== WORKSHOP & EQUIPMENT TAB ==================== */}
+      {activeTab === "workshop" && (
+        <div className="space-y-6">
+
+          {/* ── 1. Workshop Spaces & Safety ── */}
+          <section className="bg-white rounded-xl p-6 border border-border">
+            <h2 className="text-lg font-semibold text-text-primary mb-1">Workshop Spaces</h2>
+            <p className="text-sm text-text-secondary mb-5">Which spaces do you have? Tick to require a safety badge before students can work there.</p>
+            <div className="space-y-2 mb-4">
+              {WORKSHOP_PRESETS.map((ws) => (
+                <div key={ws.space} className="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-gray-50 transition">
+                  <input type="checkbox" id={`space-${ws.space}`} checked={selectedSpaces.includes(ws.space)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedSpaces([...selectedSpaces, ws.space]);
+                        if (ws.linkedBadge) setSpaceBadgeRequirements((prev) => ({ ...prev, [ws.space]: true }));
+                      } else {
+                        setSelectedSpaces(selectedSpaces.filter((s) => s !== ws.space));
+                        setSpaceBadgeRequirements((prev) => { const next = { ...prev }; delete next[ws.space]; return next; });
+                      }
+                    }}
+                    className="w-4 h-4 rounded border-gray-300 text-brand-purple focus:ring-brand-purple/30" />
+                  <label htmlFor={`space-${ws.space}`} className="text-sm font-medium text-text-primary flex-1 cursor-pointer">{ws.space}</label>
+                  {ws.linkedBadge && selectedSpaces.includes(ws.space) && (
+                    <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                      <input type="checkbox" checked={spaceBadgeRequirements[ws.space] || false}
+                        onChange={(e) => setSpaceBadgeRequirements((prev) => ({ ...prev, [ws.space]: e.target.checked }))}
+                        className="w-3.5 h-3.5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500/30" />
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-medium">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
+                        {ws.badgeLabel}
+                      </span>
+                    </label>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-1">Other spaces</label>
+              <input type="text" value={customSpaces} onChange={(e) => setCustomSpaces(e.target.value)} placeholder="e.g. Ceramics room, Print lab" className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+              <p className="text-xs text-text-secondary/60 mt-1">Comma-separated</p>
+            </div>
+          </section>
+
+          {/* ── 2. Tools & Machines ── */}
+          <section className="bg-white rounded-xl p-6 border border-border">
+            <h2 className="text-lg font-semibold text-text-primary mb-1">Tools & Machines</h2>
+            <p className="text-sm text-text-secondary mb-5">The AI only suggests activities using equipment you actually have.</p>
+            {COMMON_TOOLS.map((cat) => (
+              <div key={cat.category} className="mb-4">
+                <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wide mb-2">{cat.category}</h3>
+                <div className="flex flex-wrap gap-2">
+                  {cat.items.map((tool) => {
+                    const on = selectedTools.includes(tool);
+                    return (
+                      <button key={tool} type="button" onClick={() => setSelectedTools(on ? selectedTools.filter((t) => t !== tool) : [...selectedTools, tool])}
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium border transition ${on ? "bg-brand-purple/10 border-brand-purple/30 text-brand-purple" : "bg-gray-50 border-gray-200 text-text-secondary hover:border-gray-300"}`}>
+                        {on && <span className="mr-1">✓</span>}{tool}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-text-secondary mb-1">Other tools</label>
+              <input type="text" value={customTools} onChange={(e) => setCustomTools(e.target.value)} placeholder="e.g. Pottery wheel, Kiln, Embroidery machine" className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+              <p className="text-xs text-text-secondary/60 mt-1">Comma-separated</p>
+            </div>
+          </section>
+
+          {/* ── 3. Software ── */}
+          <section className="bg-white rounded-xl p-6 border border-border">
+            <h2 className="text-lg font-semibold text-text-primary mb-1">Software</h2>
+            <p className="text-sm text-text-secondary mb-5">Software available on school devices.</p>
+            {COMMON_SOFTWARE.map((cat) => (
+              <div key={cat.category} className="mb-4">
+                <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wide mb-2">{cat.category}</h3>
+                <div className="flex flex-wrap gap-2">
+                  {cat.items.map((sw) => {
+                    const on = selectedSoftware.includes(sw);
+                    return (
+                      <button key={sw} type="button" onClick={() => setSelectedSoftware(on ? selectedSoftware.filter((s) => s !== sw) : [...selectedSoftware, sw])}
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium border transition ${on ? "bg-accent-blue/10 border-accent-blue/30 text-accent-blue" : "bg-gray-50 border-gray-200 text-text-secondary hover:border-gray-300"}`}>
+                        {on && <span className="mr-1">✓</span>}{sw}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-text-secondary mb-1">Other software</label>
+              <input type="text" value={customSoftware} onChange={(e) => setCustomSoftware(e.target.value)} placeholder="e.g. Cura, LightBurn, Cricut Design Space" className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+              <p className="text-xs text-text-secondary/60 mt-1">Comma-separated</p>
+            </div>
+          </section>
+
+          {/* ── Save (shared with profile) ── */}
+          <div className="flex items-center gap-3">
+            <button onClick={handleSaveProfile} disabled={savingProfile} className="px-6 py-2.5 gradient-cta text-white rounded-lg text-sm font-medium shadow-md shadow-brand-pink/20 hover:opacity-90 transition disabled:opacity-50">
+              {savingProfile ? "Saving..." : "Save Equipment"}
+            </button>
+            {profileSuccess && <span className="text-sm text-accent-green font-medium">{profileSuccess}</span>}
+            {profileError && <span className="text-sm text-red-500">{profileError}</span>}
+          </div>
+
+          <div className="bg-brand-purple/5 border border-brand-purple/15 rounded-xl p-4">
+            <div className="flex gap-3">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7B2FF2" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 mt-0.5"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></svg>
+              <div className="text-sm text-text-secondary">
+                <p className="font-medium text-text-primary mb-1">Why this matters</p>
+                <p>Equipment lists ensure the AI only suggests activities using tools you actually have. Safety badge requirements gate student access to workshops.</p>
               </div>
             </div>
           </div>
