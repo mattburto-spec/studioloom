@@ -279,14 +279,6 @@ export default function UnitDetailPage({
         <p className="text-sm text-text-secondary mt-1">{unit.description}</p>
       )}
 
-      {/* Unit arc / description card (if available — mimics narrative arc) */}
-      {unit.topic && (
-        <div className="mt-4 mb-6 p-4 rounded-xl bg-gradient-to-r from-brand-purple/5 to-blue-50/50 border border-brand-purple/10">
-          <p className="text-xs font-medium text-brand-purple mb-1">Topic</p>
-          <p className="text-sm text-text-secondary leading-relaxed">{unit.topic}</p>
-        </div>
-      )}
-
       {/* Stats bar */}
       <div className="flex items-center gap-4 mb-4 text-xs text-text-tertiary">
         <span>
@@ -465,10 +457,15 @@ export default function UnitDetailPage({
         onClick={() => setShowLessons(!showLessons)}
         className="w-full flex items-center justify-between px-4 py-3 rounded-xl border border-border bg-white hover:bg-surface-alt transition-colors mb-2"
       >
-        <span className="text-sm font-medium text-text-primary">
-          Unit Plan — {isTimelineUnit ? lessons.length : pages.length}{" "}
-          {isTimelineUnit || isJourneyUnit ? "lessons" : "pages"}
-        </span>
+        <div className="text-left">
+          <span className="text-sm font-medium text-text-primary">
+            Unit Plan — {isTimelineUnit ? lessons.length : pages.length}{" "}
+            {isTimelineUnit || isJourneyUnit ? "lessons" : "pages"}
+          </span>
+          {unit.topic && (
+            <span className="block text-xs text-text-tertiary mt-0.5">{unit.topic}</span>
+          )}
+        </div>
         <svg
           width="16"
           height="16"
@@ -478,7 +475,7 @@ export default function UnitDetailPage({
           strokeWidth="2"
           strokeLinecap="round"
           strokeLinejoin="round"
-          className={`text-text-tertiary transition-transform ${showLessons ? "rotate-180" : ""}`}
+          className={`text-text-tertiary transition-transform flex-shrink-0 ${showLessons ? "rotate-180" : ""}`}
         >
           <polyline points="6 9 12 15 18 9" />
         </svg>
