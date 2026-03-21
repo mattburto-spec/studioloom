@@ -254,7 +254,7 @@ async function handleGeneration(
         const contextPrompt = buildConverterPrompt(lesson, originalText + resourcesText, extraction, defaultDuration);
 
         // Direct single-page generation — much faster than generateCriterionPages
-        const page = await generateSingleLessonPage(apiKey, modelName, contextPrompt, originalText);
+        const page = await generateSingleLessonPage(apiKey, modelName, contextPrompt, originalText, lesson.title);
 
         // Record timing observations for learning
         if (extractionLesson) {
@@ -314,12 +314,13 @@ async function generateSingleLessonPage(
   apiKey: string,
   modelName: string,
   userPrompt: string,
-  originalText: string
+  originalText: string,
+  lessonTitle: string = "Untitled Lesson"
 ): Promise<PageContent> {
   const systemPrompt = `You are converting a teacher's existing lesson plan into a structured lesson page.
 Your job is to PRESERVE the teacher's original activities and enhance them with scaffolding.
 
-Return ONLY valid JSON matching this structure (no markdown, no explanation):
+Return ONLY valid JSON matching this structure (no markdown, no explanation, no trailing text):
 {
   "title": "string — lesson title",
   "learningGoal": "string — clear learning objective",
@@ -348,6 +349,8 @@ Return ONLY valid JSON matching this structure (no markdown, no explanation):
   }
 }
 
+CRITICAL: Your entire response must be valid JSON. Do NOT include any text before or after the JSON object. Keep sections concise — aim for 3-6 sections per lesson, with brief scaffolding strings. This ensures the response fits within output limits.
+
 RULES:
 - PRESERVE the teacher's original activities — convert them into sections, don't replace them
 - Each teacher activity becomes one section with appropriate responseType
@@ -357,50 +360,130 @@ RULES:
 - Keep the teacher's sequencing and timing — don't rearrange
 - ${originalText ? "The ORIGINAL TEACHER ACTIVITIES section below is what the teacher actually planned. Use it." : "Generate reasonable activities based on the lesson description."}`;
 
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: modelName,
-      max_tokens: 4096,
-      system: systemPrompt,
-      messages: [{ role: "user", content: userPrompt }],
-    }),
-  });
+  const MAX_RETRIES = 2;
+  let lastError: Error | null = null;
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Single lesson generation failed (${response.status}): ${errorText.slice(0, 200)}`);
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: modelName,
+          max_tokens: 8192,
+          system: systemPrompt,
+          messages: [{ role: "user", content: userPrompt }],
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`API error (${response.status}): ${errorText.slice(0, 200)}`);
+      }
+
+      const data = await response.json();
+      const text = data.content?.[0]?.type === "text" ? data.content[0].text : "";
+      const stopReason = data.stop_reason;
+
+      if (stopReason === "max_tokens") {
+        console.warn(`[generateSingleLessonPage] "${lessonTitle}" hit max_tokens (attempt ${attempt + 1}). Response truncated.`);
+      }
+
+      // Extract JSON from response
+      const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/) ||
+        text.match(/(\{[\s\S]*\})/);
+
+      if (!jsonMatch?.[1]) {
+        console.error(`[generateSingleLessonPage] No JSON in response for "${lessonTitle}":`, text.slice(0, 300));
+        throw new Error("AI did not return valid JSON");
+      }
+
+      let jsonStr = jsonMatch[1].trim();
+
+      // Attempt to repair truncated JSON by closing open structures
+      try {
+        JSON.parse(jsonStr);
+      } catch {
+        console.warn(`[generateSingleLessonPage] "${lessonTitle}" JSON parse failed, attempting repair...`);
+        jsonStr = repairTruncatedJSON(jsonStr);
+      }
+
+      const parsed = JSON.parse(jsonStr);
+
+      // Ensure minimum structure
+      return {
+        title: parsed.title || lessonTitle,
+        learningGoal: parsed.learningGoal || "",
+        introduction: parsed.introduction || { text: "" },
+        sections: parsed.sections || [],
+        extensions: parsed.extensions || [],
+        reflection: parsed.reflection || { type: "short-response", items: ["What did you learn today?"] },
+        ...parsed,
+      } as PageContent;
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      console.warn(`[generateSingleLessonPage] "${lessonTitle}" attempt ${attempt + 1} failed: ${lastError.message}`);
+      if (attempt < MAX_RETRIES - 1) {
+        // Brief pause before retry
+        await new Promise(r => setTimeout(r, 1000));
+      }
+    }
   }
 
-  const data = await response.json();
-  const text = data.content?.[0]?.type === "text" ? data.content[0].text : "";
-
-  // Extract JSON from response
-  const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/) ||
-    text.match(/(\{[\s\S]*\})/);
-
-  if (!jsonMatch?.[1]) {
-    console.error("[generateSingleLessonPage] No JSON in response:", text.slice(0, 300));
-    throw new Error("AI did not return valid JSON for lesson page");
-  }
-
-  const parsed = JSON.parse(jsonMatch[1]);
-
-  // Ensure minimum structure
+  // All retries exhausted — return a minimal fallback page so one bad lesson doesn't kill the whole batch
+  console.error(`[generateSingleLessonPage] "${lessonTitle}" failed after ${MAX_RETRIES} attempts. Using fallback. Last error: ${lastError?.message}`);
   return {
-    title: parsed.title || "Untitled Lesson",
-    learningGoal: parsed.learningGoal || "",
-    introduction: parsed.introduction || { text: "" },
-    sections: parsed.sections || [],
-    extensions: parsed.extensions || [],
-    reflection: parsed.reflection || { type: "short-response", items: ["What did you learn today?"] },
-    ...parsed,
+    title: lessonTitle,
+    learningGoal: "",
+    introduction: { text: `This lesson could not be fully converted. Please review and edit manually.` },
+    sections: [{
+      prompt: originalText || "Review the original lesson plan and complete the activities as directed by your teacher.",
+      responseType: "text" as const,
+      durationMinutes: 30,
+      scaffolding: { ell1: { sentenceStarters: [], hints: [] }, ell2: { sentenceStarters: [] }, ell3: { extensionPrompts: [] } },
+    }],
+    extensions: [],
+    reflection: { type: "short-response", items: ["What did you learn today?"] },
+    _conversionError: lastError?.message,
   } as PageContent;
+}
+
+/**
+ * Attempt to repair truncated JSON by closing open brackets/braces.
+ * Handles the common case where AI output is cut off mid-array or mid-object.
+ */
+function repairTruncatedJSON(json: string): string {
+  // Remove any trailing incomplete string (ends mid-value)
+  let repaired = json.replace(/,\s*"[^"]*$/, "");  // trailing incomplete key
+  repaired = repaired.replace(/,\s*$/, "");          // trailing comma
+  repaired = repaired.replace(/:\s*"[^"]*$/, ': ""'); // trailing incomplete value
+
+  // Count open/close brackets and braces
+  let openBraces = 0;
+  let openBrackets = 0;
+  let inString = false;
+  let escapeNext = false;
+
+  for (const ch of repaired) {
+    if (escapeNext) { escapeNext = false; continue; }
+    if (ch === "\\") { escapeNext = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === "{") openBraces++;
+    if (ch === "}") openBraces--;
+    if (ch === "[") openBrackets++;
+    if (ch === "]") openBrackets--;
+  }
+
+  // Close any unclosed structures
+  while (openBrackets > 0) { repaired += "]"; openBrackets--; }
+  while (openBraces > 0) { repaired += "}"; openBraces--; }
+
+  return repaired;
 }
 
 /**
