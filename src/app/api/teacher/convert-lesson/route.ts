@@ -8,9 +8,6 @@ import { extractLessonStructure, type LessonStructureExtraction, type ExtractedR
 import { buildSkeletonFromExtraction } from "@/lib/converter/build-skeleton";
 import { extractImagesFromDocx, isDocx, type ExtractedImage } from "@/lib/converter/extract-images";
 import { resolveCredentials } from "@/lib/ai/resolve-credentials";
-import { createAIProvider } from "@/lib/ai";
-import { UNIT_SYSTEM_PROMPT } from "@/lib/ai/prompts";
-import { validateGeneratedPages } from "@/lib/ai/validation";
 import { onLessonUploaded } from "@/lib/teacher-style/profile-service";
 import { chunkDocument, type ChunkMetadata } from "@/lib/knowledge/chunk";
 import { embedAll } from "@/lib/ai/embeddings";
@@ -227,64 +224,39 @@ async function handleGeneration(
   }
 
   try {
-    const provider = createAIProvider(creds.provider, {
-      apiEndpoint: creds.apiEndpoint,
-      apiKey: creds.apiKey,
-      modelName: creds.modelName,
-    });
-
     // For imported lessons: OBSERVE timing, don't enforce rigid rules.
     // The teacher's original timing IS the data — we learn from it, not overwrite it.
     const defaultDuration = lessonDurationMinutes || 50;
+    const apiKey = creds.apiKey;
+    const modelName = creds.modelName || "claude-sonnet-4-20250514";
 
-    // Generate pages for each lesson with context injection
-    // Process in parallel batches of 3 to speed up (was sequential = timeout)
+    // Generate ONE page per lesson using lightweight direct API calls.
+    // The old approach used generateCriterionPages which generates 3-5 pages per call
+    // (designed for the wizard). For 12 lessons that's 36-60 pages = timeout.
+    // Direct calls: 1 page per lesson, batches of 4 in parallel = ~90 seconds total.
     const allPages: Record<string, PageContent> = {};
     const timingObservations: Array<{ lessonId: string; duration: number; activityBreakdown: string[] }> = [];
-    const BATCH_SIZE = 3;
+    const BATCH_SIZE = 4;
 
     for (let i = 0; i < skeleton.lessons.length; i += BATCH_SIZE) {
       const batch = skeleton.lessons.slice(i, i + BATCH_SIZE);
       const batchResults = await Promise.all(batch.map(async (lesson) => {
-        // Find matching extraction lesson for context
         const extractionLesson = extraction?.lessons?.[lesson.lessonNumber - 1];
         const originalText = extractionLesson
           ? extractionLesson.activities.map((a: { description: string; type: string }) => `- ${a.type}: ${a.description}`).join("\n")
           : "";
 
-        // Include resources for this lesson
         const lessonResources = extractionLesson?.resources || [];
         const resourcesText = lessonResources.length > 0
           ? `\n\nTEACHER RESOURCES FOR THIS LESSON:\n${lessonResources.map((r: { url: string; title: string; type: string }) => `- [${r.type}] ${r.title}: ${r.url}`).join("\n")}\nPRESERVE these resource links in the generated content.`
           : "";
 
-        // Build the context-injected user prompt — flexible, not rigid
         const contextPrompt = buildConverterPrompt(lesson, originalText + resourcesText, extraction, defaultDuration);
 
-        // Sanitize criterion tag for use as Anthropic schema property key
-        // Keys must match ^[a-zA-Z0-9_.-]{1,64}$ — so "P&P" → "P_P", "AO1" stays "AO1"
-        // The original criterion tags are preserved in the prompt context for the AI
-        const rawCriterion = lesson.criterionTags?.[0] || "B";
-        const safeCriterion = rawCriterion.replace(/[^a-zA-Z0-9_.-]/g, "_").slice(0, 64) || "B";
+        // Direct single-page generation — much faster than generateCriterionPages
+        const page = await generateSingleLessonPage(apiKey, modelName, contextPrompt, originalText);
 
-        // Generate using existing page generation
-        const pages = await provider.generateCriterionPages(
-          safeCriterion as "A" | "B" | "C" | "D",
-          {
-            topic: extraction.unitTopic,
-            subject: extraction.subjectArea || "Design",
-            gradeLevel: extraction.gradeLevel || "Year 9",
-            framework: frameworkKey || "myp",
-            duration: `${lesson.estimatedMinutes} minutes`,
-          } as unknown as import("@/types").UnitWizardInput,
-          UNIT_SYSTEM_PROMPT + `\n\nCONTEXT: This unit is being converted from the teacher's existing lesson plan.\nThe original lesson plan text for this lesson is:\n---\n${originalText}\n---\nPRESERVE the teacher's original activities, timing, and teaching approach.\nENHANCE with: scaffolding tiers, response types, student engagement activities.\nDo NOT force the teacher's lesson into a rigid timing model.\nDo NOT replace the teacher's activities with generic alternatives.`,
-          contextPrompt
-        );
-
-        // Observe timing from the generated page — store as learning data, don't auto-repair
-        const validation = validateGeneratedPages(pages);
-
-        // Record timing observations for the teacher style profile
+        // Record timing observations for learning
         if (extractionLesson) {
           timingObservations.push({
             lessonId: lesson.lessonId,
@@ -295,17 +267,14 @@ async function handleGeneration(
           });
         }
 
-        return { lessonId: lesson.lessonId, pages: validation.pages };
+        return { lessonId: lesson.lessonId, page };
       }));
 
-      // Collect results from batch
-      for (const { lessonId, pages } of batchResults) {
-        for (const [pageId, page] of Object.entries(pages)) {
-          allPages[`${lessonId}_${pageId}`] = page;
-        }
+      for (const { lessonId, page } of batchResults) {
+        allPages[lessonId] = page;
       }
 
-      console.log(`[convert-lesson] Generated batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(skeleton.lessons.length / BATCH_SIZE)}`);
+      console.log(`[convert-lesson] Generated batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(skeleton.lessons.length / BATCH_SIZE)} (${Math.min(i + BATCH_SIZE, skeleton.lessons.length)}/${skeleton.lessons.length} lessons)`);
     }
 
     // Fire teacher style profile learning (fire-and-forget)
@@ -334,6 +303,104 @@ async function handleGeneration(
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });
   }
+}
+
+/**
+ * Generate a single lesson page via direct Anthropic API call.
+ * Much faster than generateCriterionPages (which generates 3-5 pages per call).
+ * Returns one PageContent object with sections, scaffolding, and extensions.
+ */
+async function generateSingleLessonPage(
+  apiKey: string,
+  modelName: string,
+  userPrompt: string,
+  originalText: string
+): Promise<PageContent> {
+  const systemPrompt = `You are converting a teacher's existing lesson plan into a structured lesson page.
+Your job is to PRESERVE the teacher's original activities and enhance them with scaffolding.
+
+Return ONLY valid JSON matching this structure (no markdown, no explanation):
+{
+  "title": "string — lesson title",
+  "learningGoal": "string — clear learning objective",
+  "introduction": {
+    "text": "string — brief intro paragraph for students"
+  },
+  "sections": [
+    {
+      "prompt": "string — activity instructions for students",
+      "responseType": "text|upload|voice|link|multi",
+      "durationMinutes": number,
+      "exampleResponse": "string — model response (optional)",
+      "scaffolding": {
+        "ell1": { "sentenceStarters": ["string"], "hints": ["string"] },
+        "ell2": { "sentenceStarters": ["string"] },
+        "ell3": { "extensionPrompts": ["string"] }
+      }
+    }
+  ],
+  "extensions": [
+    { "title": "string", "description": "string", "durationMinutes": number }
+  ],
+  "reflection": {
+    "type": "short-response",
+    "items": ["string — reflection prompt"]
+  }
+}
+
+RULES:
+- PRESERVE the teacher's original activities — convert them into sections, don't replace them
+- Each teacher activity becomes one section with appropriate responseType
+- Add 3-tier ELL scaffolding (sentence starters for beginners, extension prompts for advanced)
+- Add 2-3 extension activities for early finishers
+- Add one reflection prompt at the end
+- Keep the teacher's sequencing and timing — don't rearrange
+- ${originalText ? "The ORIGINAL TEACHER ACTIVITIES section below is what the teacher actually planned. Use it." : "Generate reasonable activities based on the lesson description."}`;
+
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: modelName,
+      max_tokens: 4096,
+      system: systemPrompt,
+      messages: [{ role: "user", content: userPrompt }],
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Single lesson generation failed (${response.status}): ${errorText.slice(0, 200)}`);
+  }
+
+  const data = await response.json();
+  const text = data.content?.[0]?.type === "text" ? data.content[0].text : "";
+
+  // Extract JSON from response
+  const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/) ||
+    text.match(/(\{[\s\S]*\})/);
+
+  if (!jsonMatch?.[1]) {
+    console.error("[generateSingleLessonPage] No JSON in response:", text.slice(0, 300));
+    throw new Error("AI did not return valid JSON for lesson page");
+  }
+
+  const parsed = JSON.parse(jsonMatch[1]);
+
+  // Ensure minimum structure
+  return {
+    title: parsed.title || "Untitled Lesson",
+    learningGoal: parsed.learningGoal || "",
+    introduction: parsed.introduction || { text: "" },
+    sections: parsed.sections || [],
+    extensions: parsed.extensions || [],
+    reflection: parsed.reflection || { type: "short-response", items: ["What did you learn today?"] },
+    ...parsed,
+  } as PageContent;
 }
 
 /**
