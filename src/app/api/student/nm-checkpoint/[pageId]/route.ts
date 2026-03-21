@@ -77,19 +77,19 @@ export async function GET(
     return NextResponse.json({ checkpoint: null });
   }
 
-  // Check global NM toggle on teacher profile
+  // Check global NM toggle (stored in teacher_profiles, not teachers)
   const { data: unit } = await supabase
     .from("units")
     .select("author_teacher_id")
     .eq("id", unitId)
     .single();
   if (unit?.author_teacher_id) {
-    const { data: teacher } = await supabase
-      .from("teachers")
+    const { data: teacherProfile } = await supabase
+      .from("teacher_profiles")
       .select("school_context")
-      .eq("id", unit.author_teacher_id)
+      .eq("teacher_id", unit.author_teacher_id)
       .single();
-    const sc = teacher?.school_context as { use_new_metrics?: boolean } | null;
+    const sc = teacherProfile?.school_context as { use_new_metrics?: boolean } | null;
     if (!sc?.use_new_metrics) {
       return NextResponse.json({ checkpoint: null });
     }

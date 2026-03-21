@@ -50,12 +50,12 @@ export const GET = withErrorHandler("teacher/nm-config:GET", async (request: Nex
     return NextResponse.json({ error: "Unit not found" }, { status: 404 });
   }
 
-  // Check global NM toggle on teacher profile
+  // Check global NM toggle (stored in teacher_profiles, not teachers)
   const db = createAdminClient();
   const { data: teacherProfile } = await db
-    .from("teachers")
+    .from("teacher_profiles")
     .select("school_context")
-    .eq("id", user.id)
+    .eq("teacher_id", user.id)
     .single();
   const globalNmEnabled = !!(teacherProfile?.school_context as { use_new_metrics?: boolean } | null)?.use_new_metrics;
 

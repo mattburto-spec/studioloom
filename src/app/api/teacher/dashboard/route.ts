@@ -117,11 +117,11 @@ export const GET = withErrorHandler("teacher/dashboard:GET", async (request: Nex
         // Use a broad query — RLS already scopes to teacher's students.
         []
       ),
-    // Teacher profile — check global NM toggle
+    // Teacher profile — check global NM toggle (stored in teacher_profiles)
     supabase
-      .from("teachers")
+      .from("teacher_profiles")
       .select("school_context")
-      .eq("id", teacherId)
+      .eq("teacher_id", teacherId)
       .single(),
   ]);
 

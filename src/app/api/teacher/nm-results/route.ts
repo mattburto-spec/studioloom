@@ -45,11 +45,11 @@ export async function GET(request: NextRequest) {
 
   const db = createAdminClient();
 
-  // Check global NM toggle on teacher profile
+  // Check global NM toggle (stored in teacher_profiles, not teachers)
   const { data: teacherProfile } = await db
-    .from("teachers")
+    .from("teacher_profiles")
     .select("school_context")
-    .eq("id", user.id)
+    .eq("teacher_id", user.id)
     .single();
   const globalNmEnabled = !!(teacherProfile?.school_context as { use_new_metrics?: boolean } | null)?.use_new_metrics;
   if (!globalNmEnabled) {
