@@ -7,6 +7,33 @@ import { SchoolCalendarSetup } from "@/components/teacher/SchoolCalendarSetup";
 
 type SettingsTab = "general" | "school" | "lms" | "ai";
 
+/* ── Common D&T tools/machines (checkbox presets) ── */
+const COMMON_TOOLS: { category: string; items: string[] }[] = [
+  { category: "Hand Tools", items: ["Coping saw", "Tenon saw", "Files & rasps", "Chisels", "Hammers", "Pliers", "Screwdrivers", "Hand drill", "Craft knife", "Scissors", "Hot glue gun", "Soldering iron"] },
+  { category: "Power Tools", items: ["Pillar drill", "Band saw", "Scroll saw", "Belt/disc sander", "Bench grinder", "Jigsaw"] },
+  { category: "Machines", items: ["Laser cutter", "3D printer (FDM)", "3D printer (resin)", "CNC router", "Vinyl cutter", "Vacuum former", "Strip heater", "Sewing machine", "Overlocker", "Sublimation press", "Heat press"] },
+];
+
+const COMMON_SOFTWARE: { category: string; items: string[] }[] = [
+  { category: "CAD / 3D", items: ["TinkerCAD", "Fusion 360", "OnShape", "SketchUp", "SolidWorks", "Inventor"] },
+  { category: "2D / Vector", items: ["Adobe Illustrator", "Inkscape", "CorelDRAW", "Canva"] },
+  { category: "Graphics / Image", items: ["Adobe Photoshop", "GIMP", "Procreate", "Figma"] },
+  { category: "Coding / Electronics", items: ["Arduino IDE", "micro:bit MakeCode", "Scratch", "MIT App Inventor"] },
+  { category: "Media / Other", items: ["Adobe Premiere", "iMovie", "Google Slides", "PowerPoint"] },
+];
+
+/* ── Workshop spaces with linked safety badges ── */
+const WORKSHOP_PRESETS: { space: string; linkedBadge: string; badgeLabel: string }[] = [
+  { space: "General Workshop", linkedBadge: "general-workshop-safety", badgeLabel: "General Workshop Safety" },
+  { space: "Wood Workshop", linkedBadge: "wood-workshop-safety", badgeLabel: "Wood Workshop Safety" },
+  { space: "Metal Workshop", linkedBadge: "metal-workshop-safety", badgeLabel: "Metal Workshop Safety" },
+  { space: "Plastics / Composites Room", linkedBadge: "plastics-composites-safety", badgeLabel: "Plastics & Composites Safety" },
+  { space: "Electronics Lab", linkedBadge: "electronics-soldering-safety", badgeLabel: "Electronics & Soldering Safety" },
+  { space: "Laser Cutter Room", linkedBadge: "laser-cutter-safety", badgeLabel: "Laser Cutter Safety" },
+  { space: "CAD Lab", linkedBadge: "", badgeLabel: "" },
+  { space: "Textiles Room", linkedBadge: "", badgeLabel: "" },
+];
+
 const TABS: { key: SettingsTab; label: string; icon: string }[] = [
   { key: "general", label: "General", icon: "M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" },
   { key: "school", label: "School & Teaching", icon: "M3 21h18M3 7v1a3 3 0 006 0V7m0 1a3 3 0 006 0V7m0 1a3 3 0 006 0V7H3l2-4h14l2 4M5 21V10.5M19 21V10.5" },
@@ -61,9 +88,20 @@ export default function TeacherSettingsPage() {
   const [periodMinutes, setPeriodMinutes] = useState<number>(50);
   const [subjectsTaught, setSubjectsTaught] = useState("");
   const [gradeLevelsTaught, setGradeLevelsTaught] = useState("");
-  const [workshopSpaces, setWorkshopSpaces] = useState("");
-  const [availableTools, setAvailableTools] = useState("");
-  const [availableSoftware, setAvailableSoftware] = useState("");
+  const [selectedTools, setSelectedTools] = useState<string[]>([]);
+  const [customTools, setCustomTools] = useState("");
+  const [selectedSoftware, setSelectedSoftware] = useState<string[]>([]);
+  const [customSoftware, setCustomSoftware] = useState("");
+  const [selectedSpaces, setSelectedSpaces] = useState<string[]>([]);
+  const [customSpaces, setCustomSpaces] = useState("");
+  const [spaceBadgeRequirements, setSpaceBadgeRequirements] = useState<Record<string, boolean>>({});
+  const [hasDoubles, setHasDoubles] = useState(false);
+  const [doublePeriodMinutes, setDoublePeriodMinutes] = useState<number>(100);
+  const [studentAgeMin, setStudentAgeMin] = useState<number>(11);
+  const [studentAgeMax, setStudentAgeMax] = useState<number>(16);
+  const [assessmentWeighting, setAssessmentWeighting] = useState<Record<string, string>>({
+    A: "equal", B: "equal", C: "equal", D: "equal",
+  });
   const [teachingStyle, setTeachingStyle] = useState("");
   const [yearsExperience, setYearsExperience] = useState<number | "">("");
   const [savingProfile, setSavingProfile] = useState(false);
@@ -132,9 +170,39 @@ export default function TeacherSettingsPage() {
         setGradeLevelsTaught((p.grade_levels_taught || []).join(", "));
         // Unpack JSONB fields
         const sc = p.school_context || {};
-        setWorkshopSpaces((sc.workshop_spaces || []).join(", "));
-        setAvailableTools((sc.available_tools || []).join(", "));
-        setAvailableSoftware((sc.available_software || []).join(", "));
+        // Separate preset items from custom items for tools
+        const allTools: string[] = sc.available_tools || [];
+        const presetToolNames = COMMON_TOOLS.flatMap((c) => c.items);
+        setSelectedTools(allTools.filter((t: string) => presetToolNames.includes(t)));
+        setCustomTools(allTools.filter((t: string) => !presetToolNames.includes(t)).join(", "));
+        // Same for software
+        const allSw: string[] = sc.available_software || [];
+        const presetSwNames = COMMON_SOFTWARE.flatMap((c) => c.items);
+        setSelectedSoftware(allSw.filter((s: string) => presetSwNames.includes(s)));
+        setCustomSoftware(allSw.filter((s: string) => !presetSwNames.includes(s)).join(", "));
+        // Workshop spaces
+        const allSpaces: string[] = sc.workshop_spaces || [];
+        const presetSpaceNames = WORKSHOP_PRESETS.map((w) => w.space);
+        setSelectedSpaces(allSpaces.filter((s: string) => presetSpaceNames.includes(s)));
+        setCustomSpaces(allSpaces.filter((s: string) => !presetSpaceNames.includes(s)).join(", "));
+        // Badge requirements per space
+        const badgeReqs: Record<string, boolean> = {};
+        const reqMap = sc.workshop_badge_requirements || {};
+        for (const preset of WORKSHOP_PRESETS) {
+          if (preset.linkedBadge && reqMap[preset.space]?.includes(preset.linkedBadge)) {
+            badgeReqs[preset.space] = true;
+          }
+        }
+        setSpaceBadgeRequirements(badgeReqs);
+        // Doubles
+        setHasDoubles(sc.has_double_periods || false);
+        setDoublePeriodMinutes(sc.double_period_minutes || 100);
+        // Student ages
+        const ages = sc.default_student_ages || {};
+        setStudentAgeMin(ages.min || 11);
+        setStudentAgeMax(ages.max || 16);
+        // Assessment
+        setAssessmentWeighting(sc.assessment_defaults || { A: "equal", B: "equal", C: "equal", D: "equal" });
         const tp = p.teacher_preferences || {};
         setTeachingStyle(tp.classroom_management_style || "");
         setYearsExperience(tp.years_experience || "");
@@ -164,9 +232,18 @@ export default function TeacherSettingsPage() {
           subjects_taught: splitList(subjectsTaught),
           grade_levels_taught: splitList(gradeLevelsTaught),
           school_context: {
-            workshop_spaces: splitList(workshopSpaces),
-            available_tools: splitList(availableTools),
-            available_software: splitList(availableSoftware),
+            workshop_spaces: [...selectedSpaces, ...splitList(customSpaces)],
+            available_tools: [...selectedTools, ...splitList(customTools)],
+            available_software: [...selectedSoftware, ...splitList(customSoftware)],
+            has_double_periods: hasDoubles,
+            double_period_minutes: doublePeriodMinutes,
+            workshop_badge_requirements: Object.fromEntries(
+              WORKSHOP_PRESETS
+                .filter((p) => selectedSpaces.includes(p.space) && p.linkedBadge && spaceBadgeRequirements[p.space])
+                .map((p) => [p.space, [p.linkedBadge]])
+            ),
+            default_student_ages: { min: studentAgeMin, max: studentAgeMax },
+            assessment_defaults: assessmentWeighting,
           },
           teacher_preferences: {
             classroom_management_style: teachingStyle.trim() || null,
@@ -465,38 +542,30 @@ export default function TeacherSettingsPage() {
       {/* ==================== SCHOOL & TEACHING TAB ==================== */}
       {activeTab === "school" && (
         <div className="space-y-6">
-          <section className="bg-white rounded-xl p-6 border border-border">
-            <h2 className="text-lg font-semibold text-text-primary mb-1">
-              School Context
-            </h2>
-            <p className="text-sm text-text-secondary mb-5">
-              This information enriches AI analysis of your uploads and improves generated unit quality.
-              Set it once — the AI uses it every time.
-            </p>
 
+          {/* ── 1. School Context ── */}
+          <section className="bg-white rounded-xl p-6 border border-border">
+            <h2 className="text-lg font-semibold text-text-primary mb-1">School Context</h2>
+            <p className="text-sm text-text-secondary mb-5">Basic info that shapes all AI-generated content.</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
               <div>
                 <label className="block text-sm font-medium text-text-secondary mb-1">School name</label>
-                <input type="text" value={schoolName} onChange={(e) => setSchoolName(e.target.value)}
-                  placeholder="e.g. Dubai International Academy"
-                  className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+                <input type="text" value={schoolName} onChange={(e) => setSchoolName(e.target.value)} placeholder="e.g. Dubai International Academy" className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-text-secondary mb-1">Country</label>
-                <input type="text" value={country} onChange={(e) => setCountry(e.target.value)}
-                  placeholder="e.g. UAE, UK, Australia"
-                  className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+                <input type="text" value={country} onChange={(e) => setCountry(e.target.value)} placeholder="e.g. UAE, UK, Australia" className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
               </div>
             </div>
-
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
               <div>
                 <label className="block text-sm font-medium text-text-secondary mb-1">Curriculum framework</label>
-                <select value={curriculumFramework} onChange={(e) => setCurriculumFramework(e.target.value)}
-                  className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30">
+                <select value={curriculumFramework} onChange={(e) => setCurriculumFramework(e.target.value)} className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30">
                   <option value="">Select...</option>
                   <option value="IB_MYP">IB MYP</option>
                   <option value="GCSE_DT">UK GCSE Design & Technology</option>
+                  <option value="ALEVEL_DT">UK A-Level Design & Technology</option>
+                  <option value="IGCSE_DT">Cambridge IGCSE Design & Technology</option>
                   <option value="ACARA_DT">Australian D&T (ACARA)</option>
                   <option value="VCE_DT">VCE Product Design & Technology</option>
                   <option value="PLTW">US PLTW</option>
@@ -504,114 +573,211 @@ export default function TeacherSettingsPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-text-secondary mb-1">Typical period length (minutes)</label>
-                <input type="number" value={periodMinutes} onChange={(e) => setPeriodMinutes(Number(e.target.value))}
-                  min={20} max={120}
-                  className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-              <div>
                 <label className="block text-sm font-medium text-text-secondary mb-1">Subjects taught</label>
-                <input type="text" value={subjectsTaught} onChange={(e) => setSubjectsTaught(e.target.value)}
-                  placeholder="Product Design, Textiles, Digital Design"
-                  className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+                <input type="text" value={subjectsTaught} onChange={(e) => setSubjectsTaught(e.target.value)} placeholder="Product Design, Textiles, Digital Design" className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+                <p className="text-xs text-text-secondary/60 mt-1">Comma-separated</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-text-secondary mb-1">Year/grade levels</label>
+                <input type="text" value={gradeLevelsTaught} onChange={(e) => setGradeLevelsTaught(e.target.value)} placeholder="Year 7, Year 8, MYP 4" className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
                 <p className="text-xs text-text-secondary/60 mt-1">Comma-separated</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-text-secondary mb-1">Year/grade levels taught</label>
-                <input type="text" value={gradeLevelsTaught} onChange={(e) => setGradeLevelsTaught(e.target.value)}
-                  placeholder="Year 7, Year 8, MYP 4, MYP 5"
-                  className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
-                <p className="text-xs text-text-secondary/60 mt-1">Comma-separated</p>
+                <label className="block text-sm font-medium text-text-secondary mb-1">Student age range</label>
+                <div className="flex items-center gap-2">
+                  <input type="number" value={studentAgeMin} onChange={(e) => setStudentAgeMin(Number(e.target.value))} min={5} max={20} className="w-20 px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+                  <span className="text-text-secondary text-sm">to</span>
+                  <input type="number" value={studentAgeMax} onChange={(e) => setStudentAgeMax(Number(e.target.value))} min={5} max={20} className="w-20 px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+                  <span className="text-xs text-text-secondary/60">years</span>
+                </div>
+                <p className="text-xs text-text-secondary/60 mt-1">Used for instruction caps (1+age rule)</p>
               </div>
             </div>
           </section>
 
+          {/* ── 2. Timetable ── */}
           <section className="bg-white rounded-xl p-6 border border-border">
-            <h2 className="text-lg font-semibold text-text-primary mb-1">
-              Workshop & Equipment
-            </h2>
-            <p className="text-sm text-text-secondary mb-5">
-              Helps the AI suggest realistic activities based on what you actually have access to.
-            </p>
+            <h2 className="text-lg font-semibold text-text-primary mb-1">Timetable</h2>
+            <p className="text-sm text-text-secondary mb-5">Period lengths drive lesson timing and the Workshop Model.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-text-secondary mb-1">Single period (minutes)</label>
+                <input type="number" value={periodMinutes} onChange={(e) => setPeriodMinutes(Number(e.target.value))} min={20} max={120} className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-text-secondary mb-1">Double periods?</label>
+                <div className="flex items-center gap-3 mt-1.5">
+                  <button type="button" onClick={() => setHasDoubles(!hasDoubles)} className={`relative w-11 h-6 rounded-full transition-colors ${hasDoubles ? "bg-brand-purple" : "bg-gray-300"}`}>
+                    <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${hasDoubles ? "translate-x-5" : ""}`} />
+                  </button>
+                  <span className="text-sm text-text-secondary">{hasDoubles ? "Yes" : "No"}</span>
+                </div>
+              </div>
+            </div>
+            {hasDoubles && (
+              <div className="mt-4">
+                <label className="block text-sm font-medium text-text-secondary mb-1">Double period length (minutes)</label>
+                <input type="number" value={doublePeriodMinutes} onChange={(e) => setDoublePeriodMinutes(Number(e.target.value))} min={40} max={240} className="w-48 px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+                <p className="text-xs text-text-secondary/60 mt-1">Often not exactly 2x — e.g. 50 min singles = 95 min doubles</p>
+              </div>
+            )}
+          </section>
 
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-text-secondary mb-1">Workshop spaces</label>
-                <input type="text" value={workshopSpaces} onChange={(e) => setWorkshopSpaces(e.target.value)}
-                  placeholder="Main workshop, CAD lab, Textiles room"
-                  className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
-                <p className="text-xs text-text-secondary/60 mt-1">Comma-separated</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-text-secondary mb-1">Available tools & machines</label>
-                <input type="text" value={availableTools} onChange={(e) => setAvailableTools(e.target.value)}
-                  placeholder="Laser cutter x2, 3D printer x3, Band saw, Sewing machines x10"
-                  className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
-                <p className="text-xs text-text-secondary/60 mt-1">Comma-separated, include quantities</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-text-secondary mb-1">Available software</label>
-                <input type="text" value={availableSoftware} onChange={(e) => setAvailableSoftware(e.target.value)}
-                  placeholder="TinkerCAD, Fusion 360, Adobe Illustrator, Canva"
-                  className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
-                <p className="text-xs text-text-secondary/60 mt-1">Comma-separated</p>
-              </div>
+          {/* ── 3. School Calendar ── */}
+          <SchoolCalendarSetup />
+
+          {/* ── 4. Workshop Spaces & Safety ── */}
+          <section className="bg-white rounded-xl p-6 border border-border">
+            <h2 className="text-lg font-semibold text-text-primary mb-1">Workshop Spaces</h2>
+            <p className="text-sm text-text-secondary mb-5">Which spaces do you have? Tick to require a safety badge before students can work there.</p>
+            <div className="space-y-2 mb-4">
+              {WORKSHOP_PRESETS.map((ws) => (
+                <div key={ws.space} className="flex items-center gap-3 py-2 px-3 rounded-lg hover:bg-gray-50 transition">
+                  <input type="checkbox" id={`space-${ws.space}`} checked={selectedSpaces.includes(ws.space)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedSpaces([...selectedSpaces, ws.space]);
+                        if (ws.linkedBadge) setSpaceBadgeRequirements((prev) => ({ ...prev, [ws.space]: true }));
+                      } else {
+                        setSelectedSpaces(selectedSpaces.filter((s) => s !== ws.space));
+                        setSpaceBadgeRequirements((prev) => { const next = { ...prev }; delete next[ws.space]; return next; });
+                      }
+                    }}
+                    className="w-4 h-4 rounded border-gray-300 text-brand-purple focus:ring-brand-purple/30" />
+                  <label htmlFor={`space-${ws.space}`} className="text-sm font-medium text-text-primary flex-1 cursor-pointer">{ws.space}</label>
+                  {ws.linkedBadge && selectedSpaces.includes(ws.space) && (
+                    <label className="flex items-center gap-1.5 text-xs cursor-pointer">
+                      <input type="checkbox" checked={spaceBadgeRequirements[ws.space] || false}
+                        onChange={(e) => setSpaceBadgeRequirements((prev) => ({ ...prev, [ws.space]: e.target.checked }))}
+                        className="w-3.5 h-3.5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500/30" />
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-medium">
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
+                        {ws.badgeLabel}
+                      </span>
+                    </label>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-1">Other spaces</label>
+              <input type="text" value={customSpaces} onChange={(e) => setCustomSpaces(e.target.value)} placeholder="e.g. Ceramics room, Print lab" className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+              <p className="text-xs text-text-secondary/60 mt-1">Comma-separated</p>
             </div>
           </section>
 
+          {/* ── 5. Tools & Machines ── */}
           <section className="bg-white rounded-xl p-6 border border-border">
-            <h2 className="text-lg font-semibold text-text-primary mb-1">
-              Teaching Style
-            </h2>
-            <p className="text-sm text-text-secondary mb-5">
-              Helps the AI match your teaching approach when analysing uploads and generating units.
-            </p>
+            <h2 className="text-lg font-semibold text-text-primary mb-1">Tools & Machines</h2>
+            <p className="text-sm text-text-secondary mb-5">The AI only suggests activities using equipment you actually have.</p>
+            {COMMON_TOOLS.map((cat) => (
+              <div key={cat.category} className="mb-4">
+                <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wide mb-2">{cat.category}</h3>
+                <div className="flex flex-wrap gap-2">
+                  {cat.items.map((tool) => {
+                    const on = selectedTools.includes(tool);
+                    return (
+                      <button key={tool} type="button" onClick={() => setSelectedTools(on ? selectedTools.filter((t) => t !== tool) : [...selectedTools, tool])}
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium border transition ${on ? "bg-brand-purple/10 border-brand-purple/30 text-brand-purple" : "bg-gray-50 border-gray-200 text-text-secondary hover:border-gray-300"}`}>
+                        {on && <span className="mr-1">✓</span>}{tool}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-text-secondary mb-1">Other tools</label>
+              <input type="text" value={customTools} onChange={(e) => setCustomTools(e.target.value)} placeholder="e.g. Pottery wheel, Kiln, Embroidery machine" className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+              <p className="text-xs text-text-secondary/60 mt-1">Comma-separated</p>
+            </div>
+          </section>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+          {/* ── 6. Software ── */}
+          <section className="bg-white rounded-xl p-6 border border-border">
+            <h2 className="text-lg font-semibold text-text-primary mb-1">Software</h2>
+            <p className="text-sm text-text-secondary mb-5">Software available on school devices.</p>
+            {COMMON_SOFTWARE.map((cat) => (
+              <div key={cat.category} className="mb-4">
+                <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wide mb-2">{cat.category}</h3>
+                <div className="flex flex-wrap gap-2">
+                  {cat.items.map((sw) => {
+                    const on = selectedSoftware.includes(sw);
+                    return (
+                      <button key={sw} type="button" onClick={() => setSelectedSoftware(on ? selectedSoftware.filter((s) => s !== sw) : [...selectedSoftware, sw])}
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium border transition ${on ? "bg-accent-blue/10 border-accent-blue/30 text-accent-blue" : "bg-gray-50 border-gray-200 text-text-secondary hover:border-gray-300"}`}>
+                        {on && <span className="mr-1">✓</span>}{sw}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-text-secondary mb-1">Other software</label>
+              <input type="text" value={customSoftware} onChange={(e) => setCustomSoftware(e.target.value)} placeholder="e.g. Cura, LightBurn, Cricut Design Space" className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+              <p className="text-xs text-text-secondary/60 mt-1">Comma-separated</p>
+            </div>
+          </section>
+
+          {/* ── 7. Assessment Defaults ── */}
+          <section className="bg-white rounded-xl p-6 border border-border">
+            <h2 className="text-lg font-semibold text-text-primary mb-1">Assessment Defaults</h2>
+            <p className="text-sm text-text-secondary mb-5">Default criterion weighting for new units. Override per unit.</p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {(["A", "B", "C", "D"] as const).map((crit) => {
+                const colors: Record<string, string> = { A: "#4338CA", B: "#059669", C: "#D97706", D: "#7C3AED" };
+                const labels: Record<string, string> = { A: "Inquiring & Analysing", B: "Developing Ideas", C: "Creating the Solution", D: "Evaluating" };
+                return (
+                  <div key={crit} className="space-y-1">
+                    <label className="block text-xs font-semibold" style={{ color: colors[crit] }}>Criterion {crit}</label>
+                    <p className="text-[10px] text-text-secondary leading-tight mb-1">{labels[crit]}</p>
+                    <select value={assessmentWeighting[crit]} onChange={(e) => setAssessmentWeighting((prev) => ({ ...prev, [crit]: e.target.value }))}
+                      className="w-full px-2 py-1.5 border border-border rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-brand-purple/30">
+                      <option value="heavy">Heavy focus</option>
+                      <option value="equal">Equal weight</option>
+                      <option value="light">Light touch</option>
+                    </select>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* ── 8. Teaching Style ── */}
+          <section className="bg-white rounded-xl p-6 border border-border">
+            <h2 className="text-lg font-semibold text-text-primary mb-1">Teaching Style</h2>
+            <p className="text-sm text-text-secondary mb-5">Helps the AI match your approach.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-text-secondary mb-1">Years of teaching experience</label>
-                <input type="number" value={yearsExperience} onChange={(e) => setYearsExperience(e.target.value ? Number(e.target.value) : "")}
-                  min={0} max={50} placeholder="e.g. 8"
-                  className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+                <label className="block text-sm font-medium text-text-secondary mb-1">Years of experience</label>
+                <input type="number" value={yearsExperience} onChange={(e) => setYearsExperience(e.target.value ? Number(e.target.value) : "")} min={0} max={50} placeholder="e.g. 8" className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-text-secondary mb-1">Classroom management style</label>
-                <input type="text" value={teachingStyle} onChange={(e) => setTeachingStyle(e.target.value)}
-                  placeholder="e.g. Relaxed workshop, Structured rotations, Student-led"
-                  className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+                <input type="text" value={teachingStyle} onChange={(e) => setTeachingStyle(e.target.value)} placeholder="e.g. Relaxed workshop, Structured rotations" className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
               </div>
             </div>
           </section>
 
-          {/* Save button */}
+          {/* ── Save ── */}
           <div className="flex items-center gap-3">
-            <button
-              onClick={handleSaveProfile}
-              disabled={savingProfile}
-              className="px-6 py-2.5 gradient-cta text-white rounded-lg text-sm font-medium shadow-md shadow-brand-pink/20 hover:opacity-90 transition disabled:opacity-50"
-            >
+            <button onClick={handleSaveProfile} disabled={savingProfile} className="px-6 py-2.5 gradient-cta text-white rounded-lg text-sm font-medium shadow-md shadow-brand-pink/20 hover:opacity-90 transition disabled:opacity-50">
               {savingProfile ? "Saving..." : profileLoaded ? "Update Profile" : "Save Profile"}
             </button>
             {profileSuccess && <span className="text-sm text-accent-green font-medium">{profileSuccess}</span>}
             {profileError && <span className="text-sm text-red-500">{profileError}</span>}
           </div>
 
-          {/* School Calendar */}
-          <SchoolCalendarSetup />
-
           {/* Info note */}
           <div className="bg-brand-purple/5 border border-brand-purple/15 rounded-xl p-4">
             <div className="flex gap-3">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7B2FF2" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 mt-0.5">
-                <circle cx="12" cy="12" r="10" />
-                <path d="M12 16v-4M12 8h.01" />
-              </svg>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7B2FF2" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 mt-0.5"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></svg>
               <div className="text-sm text-text-secondary">
                 <p className="font-medium text-text-primary mb-1">Why this matters</p>
-                <p>When you upload documents, the AI analyses them through the lens of your school context. A lesson plan analysed knowing you have &quot;50-minute periods with laser cutters&quot; produces very different insights than one without that context. This also feeds into the unit generation wizard.</p>
+                <p>Everything here feeds the AI. Period lengths drive lesson timing. Equipment lists ensure activities are realistic. Safety badge requirements gate student access to workshops. Assessment weights shape how units are generated.</p>
               </div>
             </div>
           </div>

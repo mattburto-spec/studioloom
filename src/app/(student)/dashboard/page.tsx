@@ -525,7 +525,7 @@ export default function StudentDashboard() {
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-lg font-bold text-text-primary">My Tools</h2>
                   <Link
-                    href="/tools"
+                    href="/my-tools"
                     className="text-xs text-purple-600 hover:text-purple-700 font-semibold"
                   >
                     View all →
