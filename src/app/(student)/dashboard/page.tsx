@@ -40,6 +40,28 @@ export default function StudentDashboard() {
   const [selectedToolId, setSelectedToolId] = useState<string | null>(null);
   const [openStudioUnits, setOpenStudioUnits] = useState<Set<string>>(new Set());
   const [safetyCerts, setSafetyCerts] = useState<Array<{ cert_type: string; granted_at: string }>>([]);
+  const [pendingBadges, setPendingBadges] = useState<Array<{
+    badge_id: string;
+    badge_name: string;
+    badge_slug: string;
+    badge_description: string;
+    badge_icon: string;
+    badge_color: string;
+    pass_threshold: number;
+    question_count: number;
+    unit_title: string;
+    student_status: "not_started" | "cooldown" | "expired";
+    cooldown_until?: string;
+  }>>([]);
+  const [earnedBadges, setEarnedBadges] = useState<Array<{
+    badge_id: string;
+    badge_name: string;
+    badge_slug: string;
+    badge_icon: string;
+    badge_color: string;
+    earned_at: string;
+    expires_at: string | null;
+  }>>([]);
 
   const loadPortfolio = useCallback(async () => {
     try {
@@ -90,6 +112,17 @@ export default function StudentDashboard() {
     } catch { /* silent */ }
   }, []);
 
+  const loadPendingBadges = useCallback(async () => {
+    try {
+      const res = await fetch("/api/student/safety/pending");
+      if (res.ok) {
+        const data = await res.json();
+        setPendingBadges(data.pending || []);
+        setEarnedBadges(data.earned || []);
+      }
+    } catch { /* silent */ }
+  }, []);
+
   useEffect(() => {
     async function loadAll() {
       if (!student) return;
@@ -109,7 +142,8 @@ export default function StudentDashboard() {
     loadPortfolio();
     loadToolSessions();
     loadSafetyCerts();
-  }, [student, loadPortfolio, loadToolSessions, loadOpenStudioStatus, loadSafetyCerts]);
+    loadPendingBadges();
+  }, [student, loadPortfolio, loadToolSessions, loadOpenStudioStatus, loadSafetyCerts, loadPendingBadges]);
 
   // === Helpers ===
 
@@ -310,6 +344,91 @@ export default function StudentDashboard() {
           </>
         ) : (
           <>
+            {/* ============ Required Safety Tests ============ */}
+            {pendingBadges.length > 0 && (
+              <div className="mb-6">
+                <div className="rounded-2xl border-2 border-amber-300 bg-amber-50 overflow-hidden shadow-md">
+                  <div className="px-5 py-3 bg-amber-100 border-b border-amber-200 flex items-center gap-2">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                    </svg>
+                    <h2 className="text-sm font-bold text-amber-800">
+                      Required Safety Tests ({pendingBadges.length})
+                    </h2>
+                    <span className="text-xs text-amber-600 ml-auto">Complete these before starting your unit</span>
+                  </div>
+                  <div className="p-4 space-y-3">
+                    {pendingBadges.map((badge) => {
+                      const isCooldown = badge.student_status === "cooldown";
+                      return (
+                        <div key={badge.badge_id} className="flex items-center gap-4 bg-white rounded-xl p-4 border border-amber-200/60 shadow-sm">
+                          <div
+                            className="w-12 h-12 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
+                            style={{ backgroundColor: badge.badge_color + "20", border: `2px solid ${badge.badge_color}` }}
+                          >
+                            {badge.badge_icon === "shield" ? "🛡️" :
+                             badge.badge_icon === "hammer" ? "🔨" :
+                             badge.badge_icon === "zap" ? "⚡" :
+                             badge.badge_icon === "cog" ? "⚙️" :
+                             badge.badge_icon === "cpu" ? "🖥️" :
+                             badge.badge_icon === "scissors" ? "✂️" : "🛡️"}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-sm text-text-primary">{badge.badge_name}</p>
+                            <p className="text-xs text-text-secondary mt-0.5">
+                              Required for <span className="font-medium">{badge.unit_title}</span>
+                              {" · "}{badge.question_count} questions · {badge.pass_threshold}% to pass
+                            </p>
+                            {isCooldown && badge.cooldown_until && (
+                              <p className="text-xs text-amber-600 mt-1 font-medium">
+                                ⏳ Retake available {timeAgo(badge.cooldown_until)}
+                              </p>
+                            )}
+                            {badge.student_status === "expired" && (
+                              <p className="text-xs text-red-600 mt-1 font-medium">
+                                ⚠️ Previously earned but expired — retake required
+                              </p>
+                            )}
+                          </div>
+                          <Link
+                            href={`/safety/${badge.badge_id}`}
+                            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all whitespace-nowrap ${
+                              isCooldown
+                                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                                : "bg-amber-500 hover:bg-amber-600 text-white shadow-sm hover:shadow-md"
+                            }`}
+                            onClick={(e) => isCooldown && e.preventDefault()}
+                          >
+                            {isCooldown ? "Cooldown" : badge.student_status === "expired" ? "Retake" : "Take Test"}
+                          </Link>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ============ Earned Safety Badges (compact) ============ */}
+            {earnedBadges.length > 0 && pendingBadges.length === 0 && (
+              <div className="mb-4 flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-medium text-text-secondary">Safety:</span>
+                {earnedBadges.map((b) => (
+                  <span
+                    key={b.badge_id}
+                    className="inline-flex items-center gap-1 text-xs font-medium rounded-full px-2.5 py-1 border"
+                    style={{ borderColor: b.badge_color, color: b.badge_color, backgroundColor: b.badge_color + "10" }}
+                    title={`Earned ${new Date(b.earned_at).toLocaleDateString()}`}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                    {b.badge_name}
+                  </span>
+                ))}
+              </div>
+            )}
+
             {/* ============ Continue Card (primary CTA) ============ */}
             {inProgressUnit && (
               <div className="mb-6">

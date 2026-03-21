@@ -253,6 +253,22 @@ export const GET = withErrorHandler("teacher/dashboard:GET", async (request: Nex
     }
   }
 
+  // --- Badge requirements per unit ---
+  const activeUnitIdsForBadges = [...new Set(classUnits.map((cu) => cu.unit_id))];
+  const badgeReqByUnit = new Map<string, number>(); // unitId -> count of required badges
+  if (activeUnitIdsForBadges.length > 0) {
+    const { data: badgeReqs } = await supabase
+      .from("unit_badge_requirements")
+      .select("unit_id, badge_id")
+      .in("unit_id", activeUnitIdsForBadges)
+      .eq("is_required", true);
+    if (badgeReqs) {
+      for (const br of badgeReqs) {
+        badgeReqByUnit.set(br.unit_id, (badgeReqByUnit.get(br.unit_id) || 0) + 1);
+      }
+    }
+  }
+
   // --- Class overview ---
   // Group class_units by class
   const cuByClass = new Map<string, ClassUnitRow[]>();
@@ -316,6 +332,7 @@ export const GET = withErrorHandler("teacher/dashboard:GET", async (request: Nex
         completionPct,
         openStudioCount: osCount,
         nmEnabled: !!nmEnabled,
+        badgeRequirementCount: badgeReqByUnit.get(cu.unit_id) || 0,
       };
     });
 

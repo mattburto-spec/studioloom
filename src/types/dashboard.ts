@@ -27,6 +27,8 @@ export interface DashboardUnit {
   openStudioCount?: number;
   /** Whether New Metrics is enabled for this unit */
   nmEnabled?: boolean;
+  /** Number of required safety badges for this unit */
+  badgeRequirementCount?: number;
 }
 
 export interface StuckStudent {

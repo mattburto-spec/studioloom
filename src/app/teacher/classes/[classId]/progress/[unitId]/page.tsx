@@ -41,6 +41,8 @@ export default function ProgressTrackingPage({
   const [openStudioStatuses, setOpenStudioStatuses] = useState<Record<string, { unlocked_at: string | null }>>({});
   const [nmObserveStudent, setNmObserveStudent] = useState<Student | null>(null);
   const [nmConfig, setNmConfig] = useState<NMUnitConfig | null>(null);
+  const [badgeRequirements, setBadgeRequirements] = useState<Array<{ badge_id: string; badge_name: string; badge_slug: string; is_required: boolean }>>([]);
+  const [badgeStatusMap, setBadgeStatusMap] = useState<Record<string, Array<{ badge_id: string; status: "earned" | "failed" | "not_attempted"; score: number | null }>>>({});
 
   useEffect(() => {
     loadData();
@@ -154,6 +156,18 @@ export default function ProgressTrackingPage({
       if (unitRes.data?.nm_config) {
         setNmConfig(unitRes.data.nm_config as NMUnitConfig);
       }
+    }
+
+    // Load badge requirements + student status for this unit
+    try {
+      const badgeRes = await fetch(`/api/teacher/badges/class-status?classId=${classId}&unitId=${unitId}`);
+      if (badgeRes.ok) {
+        const badgeData = await badgeRes.json();
+        setBadgeRequirements(badgeData.requirements || []);
+        setBadgeStatusMap(badgeData.student_status || {});
+      }
+    } catch {
+      // Badge status is non-critical
     }
 
     setLoading(false);
@@ -300,6 +314,14 @@ export default function ProgressTrackingPage({
                   <th className="sticky left-0 z-10 bg-white px-4 py-2 text-left text-xs font-medium text-text-secondary min-w-[160px]">
                     Student
                   </th>
+                  {badgeRequirements.length > 0 && (
+                    <th className="px-2 py-2 text-center text-xs font-medium text-amber-700 min-w-[60px] bg-amber-50 border-b-2 border-amber-400" title="Safety badge status">
+                      <span className="flex items-center justify-center gap-1">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
+                        Safety
+                      </span>
+                    </th>
+                  )}
                   {unitPages.map((page) => {
                     const color = getPageColor(page);
                     const completion = getPageCompletion(page.id);
@@ -376,6 +398,46 @@ export default function ProgressTrackingPage({
                           )}
                         </div>
                       </td>
+                      {badgeRequirements.length > 0 && (
+                        <td className="px-2 py-2 text-center bg-amber-50/50">
+                          {(() => {
+                            const statuses = badgeStatusMap[student.id] || [];
+                            const allEarned = statuses.length > 0 && statuses.every(s => s.status === "earned");
+                            const anyFailed = statuses.some(s => s.status === "failed");
+                            const noneAttempted = statuses.every(s => s.status === "not_attempted");
+
+                            if (allEarned) {
+                              return (
+                                <span className="inline-flex items-center justify-center w-7 h-7 rounded bg-emerald-100 text-emerald-600" title={`All ${statuses.length} safety badge(s) earned`}>
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12" /></svg>
+                                </span>
+                              );
+                            }
+                            if (anyFailed) {
+                              const failedCount = statuses.filter(s => s.status === "failed").length;
+                              return (
+                                <span className="inline-flex items-center justify-center w-7 h-7 rounded bg-red-100 text-red-600 text-xs font-bold" title={`${failedCount} badge(s) failed`}>
+                                  ✗
+                                </span>
+                              );
+                            }
+                            if (noneAttempted) {
+                              return (
+                                <span className="inline-flex items-center justify-center w-7 h-7 rounded bg-gray-100 text-gray-400 text-xs" title="Not attempted">
+                                  —
+                                </span>
+                              );
+                            }
+                            // Mixed: some earned, some not
+                            const earnedCount = statuses.filter(s => s.status === "earned").length;
+                            return (
+                              <span className="inline-flex items-center justify-center w-7 h-7 rounded bg-amber-100 text-amber-700 text-[10px] font-bold" title={`${earnedCount}/${statuses.length} badges earned`}>
+                                {earnedCount}/{statuses.length}
+                              </span>
+                            );
+                          })()}
+                        </td>
+                      )}
                       {unitPages.map((page) => {
                         const cell =
                           progressMap[student.id]?.[page.id];
@@ -421,6 +483,22 @@ export default function ProgressTrackingPage({
                   <td className="sticky left-0 z-10 bg-surface-alt/30 px-4 py-2 text-xs font-medium text-text-secondary">
                     Class completion
                   </td>
+                  {badgeRequirements.length > 0 && (
+                    <td className="px-2 py-2 text-center text-xs text-amber-700 bg-amber-50/30">
+                      {(() => {
+                        const totalStudents = students.length;
+                        if (totalStudents === 0) return "—";
+                        let allEarnedCount = 0;
+                        for (const sid of students.map(s => s.id)) {
+                          const statuses = badgeStatusMap[sid] || [];
+                          if (statuses.length > 0 && statuses.every(s => s.status === "earned")) {
+                            allEarnedCount++;
+                          }
+                        }
+                        return `${Math.round((allEarnedCount / totalStudents) * 100)}%`;
+                      })()}
+                    </td>
+                  )}
                   {unitPages.map((page) => {
                     const completion = getPageCompletion(page.id);
                     const pct =

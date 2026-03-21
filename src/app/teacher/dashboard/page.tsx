@@ -676,6 +676,7 @@ function UnitProgressRow({
 }) {
   const studioCount = unit.openStudioCount ?? 0;
   const nmEnabled = unit.nmEnabled ?? false;
+  const badgeCount = unit.badgeRequirementCount ?? 0;
   const hasActiveStudents = unit.inProgressCount > 0;
   const isComplete = unit.completionPct === 100;
 
@@ -739,6 +740,28 @@ function UnitProgressRow({
                 title="View NM Results"
               >
                 NM
+              </Link>
+            </>
+          )}
+
+          {/* Safety badge requirement */}
+          {badgeCount > 0 && (
+            <>
+              <span className="text-text-tertiary/40">·</span>
+              <Link
+                href={`/teacher/classes/${classId}/progress/${unit.unitId}`}
+                className="inline-flex items-center gap-1 text-xs font-bold rounded transition whitespace-nowrap"
+                style={{
+                  background: "#D97706",
+                  color: "#fff",
+                  padding: "1px 6px",
+                  borderRadius: "4px",
+                  fontSize: "10px",
+                }}
+                title={`${badgeCount} safety badge${badgeCount > 1 ? "s" : ""} required`}
+              >
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
+                {badgeCount}
               </Link>
             </>
           )}
