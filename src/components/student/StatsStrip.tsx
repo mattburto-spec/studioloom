@@ -12,56 +12,34 @@ interface StatsStripProps {
   };
 }
 
-/**
- * StatsStrip component displays 5 key stats in a horizontal strip.
- * Shows pages completed, time invested, tools used, and badges earned.
- */
 export function StatsStrip({ stats }: StatsStripProps) {
-  // Convert milliseconds to hours
   const hours = (stats.totalTimeMs / (1000 * 60 * 60)).toFixed(1);
 
+  const items = [
+    { value: stats.totalPagesComplete, label: "Pages", color: "#7C3AED" },
+    { value: hours, label: "Hours", color: "#3B82F6" },
+    { value: stats.totalToolsUsed, label: "Tools", color: "#10B981" },
+    { value: `${stats.badgesEarned}`, sub: `/${stats.badgesTotal}`, label: "Badges", color: "#F59E0B" },
+  ];
+
   return (
-    <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-4">
-      {/* Pages Complete */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4 text-center">
-        <div className="text-3xl font-bold text-purple-600">
-          {stats.totalPagesComplete}
+    <div className="grid grid-cols-4 gap-3">
+      {items.map((item) => (
+        <div
+          key={item.label}
+          className="bg-white rounded-xl border border-gray-200/60 py-3 px-2 text-center"
+        >
+          <div className="text-2xl font-bold" style={{ color: item.color }}>
+            {item.value}
+            {"sub" in item && item.sub && (
+              <span className="text-lg text-gray-300">{item.sub}</span>
+            )}
+          </div>
+          <div className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider mt-0.5">
+            {item.label}
+          </div>
         </div>
-        <div className="text-xs text-gray-600 font-medium mt-1 uppercase tracking-wide">
-          Pages Complete
-        </div>
-      </div>
-
-      {/* Time Invested */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4 text-center">
-        <div className="text-3xl font-bold text-blue-600">
-          {hours}
-        </div>
-        <div className="text-xs text-gray-600 font-medium mt-1 uppercase tracking-wide">
-          Hours Invested
-        </div>
-      </div>
-
-      {/* Tools Used */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4 text-center">
-        <div className="text-3xl font-bold text-green-600">
-          {stats.totalToolsUsed}
-        </div>
-        <div className="text-xs text-gray-600 font-medium mt-1 uppercase tracking-wide">
-          Tools Used
-        </div>
-      </div>
-
-      {/* Badges Earned */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4 text-center">
-        <div className="text-3xl font-bold text-amber-600">
-          {stats.badgesEarned}
-          <span className="text-xl text-gray-400">/{stats.badgesTotal}</span>
-        </div>
-        <div className="text-xs text-gray-600 font-medium mt-1 uppercase tracking-wide">
-          Badges Earned
-        </div>
-      </div>
+      ))}
     </div>
   );
 }

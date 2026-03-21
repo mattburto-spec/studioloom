@@ -211,9 +211,9 @@ export default function StudentDashboard() {
       <div className="max-w-6xl mx-auto px-6 py-10">
 
         {/* ============ LAYER 1: Hero + Journey Map ============ */}
-        <div className="mb-10">
+        <div className="mb-8">
           {/* Greeting */}
-          <div className="mb-6">
+          <div className="mb-4">
             <p className="text-sm font-semibold text-purple-600 tracking-wider uppercase mb-1">My Design Journey</p>
             <h1 className="text-3xl md:text-4xl font-bold text-text-primary bg-gradient-to-r from-purple-600 via-blue-600 to-indigo-600 bg-clip-text text-transparent">
               {student?.display_name || student?.username}
@@ -245,16 +245,11 @@ export default function StudentDashboard() {
         ) : (
           <>
             {/* ============ LAYER 2: Stats + Badges ============ */}
-            <div className="mb-10 grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Stats Strip — spans 2 cols on large screens */}
-              <div className="lg:col-span-2">
-                <StatsStrip stats={stats} />
-              </div>
-
-              {/* Badge Wall */}
-              <div className="lg:col-span-1">
-                <BadgeWall badges={badges} />
-              </div>
+            <div className="mb-8">
+              <StatsStrip stats={stats} />
+            </div>
+            <div className="mb-8">
+              <BadgeWall badges={badges} />
             </div>
 
             {/* ============ LAYER 3: Active Work ============ */}
