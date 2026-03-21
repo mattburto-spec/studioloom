@@ -86,31 +86,34 @@ export default function BadgeDetailPage() {
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [grantNote, setGrantNote] = useState("");
 
-  // Fetch units for assignment
+  // Fetch units for assignment — units are nested inside classes in the dashboard response
   const fetchUnits = async () => {
     try {
       const res = await fetch("/api/teacher/dashboard");
       if (!res.ok) return;
       const data = await res.json();
-      const allUnits = (data.units || []).map((u: { id: string; title: string }) => ({ id: u.id, title: u.title }));
-      setUnits(allUnits);
+      // Extract unique units from all classes
+      const unitMap = new Map<string, { id: string; title: string }>();
+      for (const cls of data.classes || []) {
+        for (const u of cls.units || []) {
+          if (!unitMap.has(u.unitId)) {
+            unitMap.set(u.unitId, { id: u.unitId, title: u.unitTitle });
+          }
+        }
+      }
+      setUnits(Array.from(unitMap.values()));
     } catch (e) {
       console.error("Failed to fetch units:", e);
     }
   };
 
-  // Fetch classes + students for granting
+  // Fetch classes + students for granting badges to individual students
   const fetchClasses = async () => {
     try {
-      const res = await fetch("/api/teacher/dashboard");
+      const res = await fetch("/api/teacher/badges/classes-students");
       if (!res.ok) return;
       const data = await res.json();
-      const allClasses = (data.classes || []).map((c: { id: string; name: string; students?: Array<{ id: string; display_name: string }> }) => ({
-        id: c.id,
-        name: c.name,
-        students: c.students || [],
-      }));
-      setClasses(allClasses);
+      setClasses(data.classes || []);
     } catch (e) {
       console.error("Failed to fetch classes:", e);
     }
