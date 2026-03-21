@@ -66,11 +66,11 @@ export default function ToolkitLayout({
               ← All Tools
             </Link>
             <Link
-              href="/tools/marking-comment-creator"
+              href="/tools"
               className="hidden sm:inline-block text-xs font-medium transition"
               style={{ color: "rgba(255,255,255,0.35)" }}
             >
-              More Free Tools
+              More Tools
             </Link>
             <Link
               href="/teacher/login"

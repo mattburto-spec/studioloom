@@ -29,22 +29,16 @@ export default function ToolsLayout({ children }: { children: ReactNode }) {
           </Link>
           <nav className="flex items-center gap-4">
             <Link
-              href="/tools/report-writer"
+              href="/tools"
               className="text-sm font-medium text-gray-600 hover:text-[#7B2FF2] transition"
             >
-              Report Writer
-            </Link>
-            <Link
-              href="/tools/safety"
-              className="text-sm font-medium text-gray-600 hover:text-[#7B2FF2] transition"
-            >
-              Safety Badges
+              All Tools
             </Link>
             <Link
               href="/toolkit"
               className="text-sm font-medium text-gray-600 hover:text-[#7B2FF2] transition"
             >
-              Toolkit
+              Design Toolkit
             </Link>
             <Link
               href="/teacher/login"
