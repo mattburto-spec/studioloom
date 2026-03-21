@@ -66,14 +66,16 @@ export default function UnitDetailPage({
   const [loading, setLoading] = useState(true);
   const [showFeedback, setShowFeedback] = useState(false);
   const [showLessons, setShowLessons] = useState(false);
-  const [assignedClasses, setAssignedClasses] = useState<Array<{
+  const [allClasses, setAllClasses] = useState<Array<{
     id: string;
     name: string;
     code: string;
     studentCount: number;
     isArchived: boolean;
     nmEnabled: boolean;
+    assigned: boolean;
   }>>([]);
+  const [togglingClass, setTogglingClass] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -85,60 +87,76 @@ export default function UnitDetailPage({
         .single();
       setUnit(data);
 
-      // Fetch classes that have this unit assigned — with student counts + NM status
-      const { data: classUnits } = await supabase
-        .from("class_units")
-        .select("class_id, nm_config, is_active, classes(id, name, code, is_archived)")
-        .eq("unit_id", unitId);
+      // Fetch ALL teacher's classes + which ones have this unit assigned
+      const [classesRes, classUnitsRes, studentsRes] = await Promise.all([
+        supabase.from("classes").select("id, name, code, is_archived").order("name"),
+        supabase.from("class_units").select("class_id, nm_config").eq("unit_id", unitId),
+        supabase.from("students").select("class_id"),
+      ]);
 
-      if (classUnits && classUnits.length > 0) {
-        // Get student counts per class
-        const classIds = classUnits
-          .map((cu: Record<string, unknown>) => (cu.classes as { id: string } | null)?.id)
-          .filter(Boolean) as string[];
+      const assignedMap = new Map<string, { nm_config?: { enabled?: boolean } }>();
+      for (const cu of classUnitsRes.data || []) {
+        assignedMap.set(cu.class_id, { nm_config: cu.nm_config as { enabled?: boolean } | undefined });
+      }
 
-        const { data: students } = classIds.length > 0
-          ? await supabase
-              .from("students")
-              .select("class_id")
-              .in("class_id", classIds)
-          : { data: [] };
+      const countByClass = new Map<string, number>();
+      for (const s of studentsRes.data || []) {
+        countByClass.set(s.class_id, (countByClass.get(s.class_id) || 0) + 1);
+      }
 
-        const countByClass = new Map<string, number>();
-        for (const s of students || []) {
-          countByClass.set(s.class_id, (countByClass.get(s.class_id) || 0) + 1);
-        }
-
-        const classes = classUnits
-          .map((cu: Record<string, unknown>) => {
-            const cls = cu.classes as { id: string; name: string; code: string; is_archived?: boolean } | null;
-            if (!cls) return null;
-            const cuNmConfig = cu.nm_config as { enabled?: boolean } | null;
-            const unitNmConfig = data?.nm_config as { enabled?: boolean } | null;
-            return {
-              id: cls.id,
-              name: cls.name,
-              code: cls.code,
-              studentCount: countByClass.get(cls.id) || 0,
-              isArchived: cls.is_archived ?? false,
-              nmEnabled: cuNmConfig?.enabled ?? unitNmConfig?.enabled ?? false,
-            };
-          })
-          .filter(Boolean) as typeof assignedClasses;
-
-        // Sort: active first, then archived
-        classes.sort((a, b) => {
-          if (a.isArchived !== b.isArchived) return a.isArchived ? 1 : -1;
-          return a.name.localeCompare(b.name);
+      const unitNmConfig = data?.nm_config as { enabled?: boolean } | null;
+      const classes = (classesRes.data || [])
+        .filter((c) => !c.is_archived) // only show active classes in the toggle
+        .map((cls) => {
+          const cuData = assignedMap.get(cls.id);
+          return {
+            id: cls.id,
+            name: cls.name,
+            code: cls.code,
+            studentCount: countByClass.get(cls.id) || 0,
+            isArchived: cls.is_archived ?? false,
+            nmEnabled: cuData?.nm_config?.enabled ?? unitNmConfig?.enabled ?? false,
+            assigned: assignedMap.has(cls.id),
+          };
         });
 
-        setAssignedClasses(classes);
-      }
+      setAllClasses(classes);
 
       setLoading(false);
     }
     load();
   }, [unitId]);
+
+  async function toggleClassAssignment(classId: string, currentlyAssigned: boolean) {
+    setTogglingClass(classId);
+    const supabase = createClient();
+
+    if (currentlyAssigned) {
+      // Remove assignment
+      await supabase
+        .from("class_units")
+        .delete()
+        .eq("class_id", classId)
+        .eq("unit_id", unitId);
+    } else {
+      // Create assignment
+      await supabase
+        .from("class_units")
+        .upsert({
+          class_id: classId,
+          unit_id: unitId,
+          is_active: true,
+        });
+    }
+
+    // Update local state
+    setAllClasses((prev) =>
+      prev.map((c) =>
+        c.id === classId ? { ...c, assigned: !currentlyAssigned } : c
+      )
+    );
+    setTogglingClass(null);
+  }
 
   if (loading) {
     return (
@@ -364,7 +382,7 @@ export default function UnitDetailPage({
       )}
 
       {/* ----------------------------------------------------------------- */}
-      {/* Assigned Classes                                                     */}
+      {/* Classes — toggle assignment                                          */}
       {/* ----------------------------------------------------------------- */}
       <div className="mb-6">
         <h2 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
@@ -374,44 +392,50 @@ export default function UnitDetailPage({
             <path d="M23 21v-2a4 4 0 00-3-3.87" />
             <path d="M16 3.13a4 4 0 010 7.75" />
           </svg>
-          Assigned Classes
+          Classes
+          <span className="text-xs font-normal text-text-tertiary ml-1">
+            ({allClasses.filter((c) => c.assigned).length} assigned)
+          </span>
         </h2>
 
-        {assignedClasses.length === 0 ? (
+        {allClasses.length === 0 ? (
           <div className="p-4 rounded-xl border border-dashed border-border text-center">
-            <p className="text-sm text-text-secondary">No classes assigned yet.</p>
-            <p className="text-xs text-text-tertiary mt-1">Assign this unit to a class from the class page to get started.</p>
+            <p className="text-sm text-text-secondary">No classes yet.</p>
+            <Link href="/teacher/classes" className="text-xs text-purple-600 hover:text-purple-700 mt-1 inline-block">
+              Create a class →
+            </Link>
           </div>
         ) : (
           <div className="space-y-2">
-            {assignedClasses.map((cls) => (
-              <Link
+            {allClasses.map((cls) => (
+              <div
                 key={cls.id}
-                href={`/teacher/units/${unitId}/class/${cls.id}`}
-                className={`flex items-center justify-between p-3 rounded-xl border transition-colors group ${
-                  cls.isArchived
-                    ? "border-border/50 bg-gray-50 opacity-60"
-                    : "border-border bg-white hover:border-gray-300 hover:shadow-sm"
+                className={`flex items-center justify-between p-3 rounded-xl border transition-colors ${
+                  cls.assigned
+                    ? "border-purple-200 bg-purple-50/50"
+                    : "border-border bg-white"
                 }`}
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold ${
-                    cls.isArchived ? "bg-gray-100 text-gray-400" : "bg-indigo-50 text-indigo-600"
-                  }`}>
-                    {cls.name.charAt(0).toUpperCase()}
-                  </div>
+                  {/* Toggle switch */}
+                  <button
+                    onClick={() => toggleClassAssignment(cls.id, cls.assigned)}
+                    disabled={togglingClass === cls.id}
+                    className={`relative flex-shrink-0 w-10 h-6 rounded-full transition-colors duration-200 ${
+                      cls.assigned ? "bg-purple-600" : "bg-gray-200"
+                    } ${togglingClass === cls.id ? "opacity-50" : ""}`}
+                  >
+                    <span
+                      className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${
+                        cls.assigned ? "translate-x-4" : ""
+                      }`}
+                    />
+                  </button>
                   <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-text-primary truncate">{cls.name}</span>
-                      {cls.isArchived && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-200 text-gray-500 font-medium">Archived</span>
-                      )}
-                    </div>
+                    <span className="text-sm font-medium text-text-primary truncate block">{cls.name}</span>
                     <div className="flex items-center gap-3 text-[11px] text-text-tertiary mt-0.5">
                       <span>{cls.studentCount} student{cls.studentCount !== 1 ? "s" : ""}</span>
-                      <span className="text-text-tertiary/40">·</span>
-                      <span>Code: {cls.code}</span>
-                      {cls.nmEnabled && (
+                      {cls.nmEnabled && cls.assigned && (
                         <>
                           <span className="text-text-tertiary/40">·</span>
                           <span className="text-pink-500 font-medium">NM</span>
@@ -420,14 +444,15 @@ export default function UnitDetailPage({
                     </div>
                   </div>
                 </div>
-                <svg
-                  width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                  strokeLinecap="round" strokeLinejoin="round"
-                  className="text-text-tertiary group-hover:text-text-secondary transition-colors flex-shrink-0"
-                >
-                  <polyline points="9 18 15 12 9 6" />
-                </svg>
-              </Link>
+                {cls.assigned && (
+                  <Link
+                    href={`/teacher/units/${unitId}/class/${cls.id}`}
+                    className="text-xs text-purple-600 hover:text-purple-700 px-2 py-1 rounded-lg hover:bg-purple-50 transition flex-shrink-0"
+                  >
+                    Settings →
+                  </Link>
+                )}
+              </div>
             ))}
           </div>
         )}
