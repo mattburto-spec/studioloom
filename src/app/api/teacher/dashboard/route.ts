@@ -93,8 +93,8 @@ export const GET = withErrorHandler("teacher/dashboard:GET", async (request: Nex
 
   const classIds = classes.map((c: ClassRow) => c.id);
 
-  // 2-4: Parallel queries
-  const [classUnitsRes, studentsRes, progressRes] = await Promise.all([
+  // 2-5: Parallel queries (including teacher profile for NM global toggle)
+  const [classUnitsRes, studentsRes, progressRes, teacherProfileRes] = await Promise.all([
     // Active class_units with unit title + content_data
     supabase
       .from("class_units")
@@ -117,10 +117,17 @@ export const GET = withErrorHandler("teacher/dashboard:GET", async (request: Nex
         // Use a broad query — RLS already scopes to teacher's students.
         []
       ),
+    // Teacher profile — check global NM toggle
+    supabase
+      .from("teachers")
+      .select("school_context")
+      .eq("id", teacherId)
+      .single(),
   ]);
 
   const classUnits = (classUnitsRes.data || []) as unknown as ClassUnitRow[];
   const students = (studentsRes.data || []) as StudentRow[];
+  const globalNmEnabled = !!(teacherProfileRes.data as { school_context?: { use_new_metrics?: boolean } } | null)?.school_context?.use_new_metrics;
 
   // Now fetch progress with actual student IDs (couldn't do in parallel above)
   const studentIds = students.map((s) => s.id);
@@ -296,8 +303,8 @@ export const GET = withErrorHandler("teacher/dashboard:GET", async (request: Nex
         }
       }
 
-      // NM enabled: check class_units.nm_config first, fallback to units.nm_config
-      const nmEnabled = cu.nm_config?.enabled ?? cu.units.nm_config?.enabled ?? false;
+      // NM enabled: global toggle must be on, then check class_units.nm_config → units.nm_config
+      const nmEnabled = globalNmEnabled && (cu.nm_config?.enabled ?? cu.units.nm_config?.enabled ?? false);
 
       return {
         unitId: cu.unit_id,

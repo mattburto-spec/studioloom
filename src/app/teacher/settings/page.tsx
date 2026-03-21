@@ -99,9 +99,7 @@ export default function TeacherSettingsPage() {
   const [doublePeriodMinutes, setDoublePeriodMinutes] = useState<number>(100);
   const [studentAgeMin, setStudentAgeMin] = useState<number>(11);
   const [studentAgeMax, setStudentAgeMax] = useState<number>(16);
-  const [assessmentWeighting, setAssessmentWeighting] = useState<Record<string, string>>({
-    A: "equal", B: "equal", C: "equal", D: "equal",
-  });
+  const [useNewMetrics, setUseNewMetrics] = useState(false);
   const [teachingStyle, setTeachingStyle] = useState("");
   const [yearsExperience, setYearsExperience] = useState<number | "">("");
   const [savingProfile, setSavingProfile] = useState(false);
@@ -201,8 +199,8 @@ export default function TeacherSettingsPage() {
         const ages = sc.default_student_ages || {};
         setStudentAgeMin(ages.min || 11);
         setStudentAgeMax(ages.max || 16);
-        // Assessment
-        setAssessmentWeighting(sc.assessment_defaults || { A: "equal", B: "equal", C: "equal", D: "equal" });
+        // New Metrics
+        setUseNewMetrics(sc.use_new_metrics || false);
         const tp = p.teacher_preferences || {};
         setTeachingStyle(tp.classroom_management_style || "");
         setYearsExperience(tp.years_experience || "");
@@ -243,7 +241,7 @@ export default function TeacherSettingsPage() {
                 .map((p) => [p.space, [p.linkedBadge]])
             ),
             default_student_ages: { min: studentAgeMin, max: studentAgeMax },
-            assessment_defaults: assessmentWeighting,
+            use_new_metrics: useNewMetrics,
           },
           teacher_preferences: {
             classroom_management_style: teachingStyle.trim() || null,
@@ -722,28 +720,31 @@ export default function TeacherSettingsPage() {
             </div>
           </section>
 
-          {/* ── 7. Assessment Defaults ── */}
+          {/* ── 7. New Metrics ── */}
           <section className="bg-white rounded-xl p-6 border border-border">
-            <h2 className="text-lg font-semibold text-text-primary mb-1">Assessment Defaults</h2>
-            <p className="text-sm text-text-secondary mb-5">Default criterion weighting for new units. Override per unit.</p>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {(["A", "B", "C", "D"] as const).map((crit) => {
-                const colors: Record<string, string> = { A: "#4338CA", B: "#059669", C: "#D97706", D: "#7C3AED" };
-                const labels: Record<string, string> = { A: "Inquiring & Analysing", B: "Developing Ideas", C: "Creating the Solution", D: "Evaluating" };
-                return (
-                  <div key={crit} className="space-y-1">
-                    <label className="block text-xs font-semibold" style={{ color: colors[crit] }}>Criterion {crit}</label>
-                    <p className="text-[10px] text-text-secondary leading-tight mb-1">{labels[crit]}</p>
-                    <select value={assessmentWeighting[crit]} onChange={(e) => setAssessmentWeighting((prev) => ({ ...prev, [crit]: e.target.value }))}
-                      className="w-full px-2 py-1.5 border border-border rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-brand-purple/30">
-                      <option value="heavy">Heavy focus</option>
-                      <option value="equal">Equal weight</option>
-                      <option value="light">Light touch</option>
-                    </select>
-                  </div>
-                );
-              })}
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-text-primary mb-1">New Metrics</h2>
+                <p className="text-sm text-text-secondary">Enable the University of Melbourne competency assessment framework across your classes.</p>
+              </div>
+              <button
+                onClick={() => setUseNewMetrics(!useNewMetrics)}
+                className="relative flex-shrink-0 w-12 h-7 rounded-full transition-colors duration-200"
+                style={{ background: useNewMetrics ? "#7B2FF2" : "#D1D5DB" }}
+                role="switch"
+                aria-checked={useNewMetrics}
+              >
+                <span
+                  className="absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform duration-200"
+                  style={{ transform: useNewMetrics ? "translateX(20px)" : "translateX(0)" }}
+                />
+              </button>
             </div>
+            {useNewMetrics && (
+              <div className="mt-4 p-3 rounded-lg" style={{ background: "rgba(123,47,242,0.05)", border: "1px solid rgba(123,47,242,0.15)" }}>
+                <p className="text-sm text-text-secondary">Student self-assessment pulse and teacher observation snap will appear on checkpoint pages. Configure which competencies to track per class in each unit&apos;s class settings.</p>
+              </div>
+            )}
           </section>
 
           {/* ── 8. Teaching Style ── */}
@@ -777,7 +778,7 @@ export default function TeacherSettingsPage() {
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7B2FF2" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 mt-0.5"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></svg>
               <div className="text-sm text-text-secondary">
                 <p className="font-medium text-text-primary mb-1">Why this matters</p>
-                <p>Everything here feeds the AI. Period lengths drive lesson timing. Equipment lists ensure activities are realistic. Safety badge requirements gate student access to workshops. Assessment weights shape how units are generated.</p>
+                <p>Everything here feeds the AI. Period lengths drive lesson timing. Equipment lists ensure activities are realistic. Safety badge requirements gate student access to workshops. New Metrics controls whether competency assessment appears across the platform.</p>
               </div>
             </div>
           </div>

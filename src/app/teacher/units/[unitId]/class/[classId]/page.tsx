@@ -30,6 +30,7 @@ export default function ClassUnitSettingsPage({
   const [studentCount, setStudentCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [nmConfig, setNmConfig] = useState<NMUnitConfig>(DEFAULT_NM_CONFIG);
+  const [globalNmEnabled, setGlobalNmEnabled] = useState(false);
   const [pages, setPages] = useState<Array<{ id: string; title: string }>>([]);
   const [students, setStudents] = useState<Array<{ student_id: string; display_name: string; username: string }>>([]);
   const [terms, setTerms] = useState<Array<{ id: string; academic_year: string; term_name: string; term_order: number }>>([]);
@@ -89,6 +90,7 @@ export default function ClassUnitSettingsPage({
         if (res.ok) {
           const data = await res.json();
           setNmConfig(data.config || DEFAULT_NM_CONFIG);
+          setGlobalNmEnabled(data.globalNmEnabled !== false);
         }
       } catch {
         // Fallback to unit-level
@@ -277,36 +279,40 @@ export default function ClassUnitSettingsPage({
       </div>
 
       {/* ----------------------------------------------------------------- */}
-      {/* NM Config                                                          */}
+      {/* NM Config & Results (only when global NM toggle is on)             */}
       {/* ----------------------------------------------------------------- */}
-      <div className="mb-6">
-        <NMConfigPanel
-          unitId={unitId}
-          classId={classId}
-          pages={pages}
-          currentConfig={nmConfig}
-          onSave={async (config) => {
-            const res = await fetch("/api/teacher/nm-config", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ unitId, classId, config }),
-            });
-            if (!res.ok) {
-              const errData = await res.json().catch(() => ({}));
-              console.error("Failed to save NM config:", errData);
-              throw new Error(errData.error || "Save failed");
-            }
-            setNmConfig(config);
-          }}
-        />
-      </div>
-
-      {/* ----------------------------------------------------------------- */}
-      {/* NM Results                                                         */}
-      {/* ----------------------------------------------------------------- */}
-      {nmConfig.enabled && (
-        <div className="mb-6">
-          <NMResultsPanel unitId={unitId} classId={classId} />
+      {globalNmEnabled ? (
+        <>
+          <div className="mb-6">
+            <NMConfigPanel
+              unitId={unitId}
+              classId={classId}
+              pages={pages}
+              currentConfig={nmConfig}
+              onSave={async (config) => {
+                const res = await fetch("/api/teacher/nm-config", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ unitId, classId, config }),
+                });
+                if (!res.ok) {
+                  const errData = await res.json().catch(() => ({}));
+                  console.error("Failed to save NM config:", errData);
+                  throw new Error(errData.error || "Save failed");
+                }
+                setNmConfig(config);
+              }}
+            />
+          </div>
+          {nmConfig.enabled && (
+            <div className="mb-6">
+              <NMResultsPanel unitId={unitId} classId={classId} />
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="mb-6 p-4 bg-gray-50 rounded-xl border border-border text-sm text-text-secondary">
+          New Metrics is turned off. Enable it in <a href="/teacher/settings?tab=school" className="text-purple-600 underline">Settings → School &amp; Teaching</a> to configure competency assessments.
         </div>
       )}
 

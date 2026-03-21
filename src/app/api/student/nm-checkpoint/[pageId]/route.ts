@@ -77,6 +77,24 @@ export async function GET(
     return NextResponse.json({ checkpoint: null });
   }
 
+  // Check global NM toggle on teacher profile
+  const { data: unit } = await supabase
+    .from("units")
+    .select("author_teacher_id")
+    .eq("id", unitId)
+    .single();
+  if (unit?.author_teacher_id) {
+    const { data: teacher } = await supabase
+      .from("teachers")
+      .select("school_context")
+      .eq("id", unit.author_teacher_id)
+      .single();
+    const sc = teacher?.school_context as { use_new_metrics?: boolean } | null;
+    if (!sc?.use_new_metrics) {
+      return NextResponse.json({ checkpoint: null });
+    }
+  }
+
   const checkpoint = nmConfig.checkpoints?.[pageId];
   if (!checkpoint) {
     return NextResponse.json({ checkpoint: null });

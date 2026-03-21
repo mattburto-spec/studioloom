@@ -45,6 +45,17 @@ export async function GET(request: NextRequest) {
 
   const db = createAdminClient();
 
+  // Check global NM toggle on teacher profile
+  const { data: teacherProfile } = await db
+    .from("teachers")
+    .select("school_context")
+    .eq("id", user.id)
+    .single();
+  const globalNmEnabled = !!(teacherProfile?.school_context as { use_new_metrics?: boolean } | null)?.use_new_metrics;
+  if (!globalNmEnabled) {
+    return NextResponse.json({ students: [], assessments: [], nmConfig: null });
+  }
+
   // Get NM config — class-specific with fallback to unit-level
   let nmConfig = null;
   if (classId) {

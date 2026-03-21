@@ -50,21 +50,34 @@ export const GET = withErrorHandler("teacher/nm-config:GET", async (request: Nex
     return NextResponse.json({ error: "Unit not found" }, { status: 404 });
   }
 
+  // Check global NM toggle on teacher profile
+  const db = createAdminClient();
+  const { data: teacherProfile } = await db
+    .from("teachers")
+    .select("school_context")
+    .eq("id", user.id)
+    .single();
+  const globalNmEnabled = !!(teacherProfile?.school_context as { use_new_metrics?: boolean } | null)?.use_new_metrics;
+
+  // If global toggle is off, return disabled config
+  if (!globalNmEnabled) {
+    return NextResponse.json({ config: { ...DEFAULT_NM_CONFIG, enabled: false }, globalNmEnabled: false });
+  }
+
   // If classId provided, get class-specific config with fallback
   if (classId) {
     const config = await getNmConfigForClassUnit(classId, unitId);
-    return NextResponse.json({ config: config || DEFAULT_NM_CONFIG });
+    return NextResponse.json({ config: config || DEFAULT_NM_CONFIG, globalNmEnabled: true });
   }
 
   // No classId — return unit-level config (backward compat / template view)
-  const db = createAdminClient();
   const { data: unit } = await db
     .from("units")
     .select("nm_config")
     .eq("id", unitId)
     .single();
 
-  return NextResponse.json({ config: unit?.nm_config || DEFAULT_NM_CONFIG });
+  return NextResponse.json({ config: unit?.nm_config || DEFAULT_NM_CONFIG, globalNmEnabled: true });
 });
 
 export const POST = withErrorHandler("teacher/nm-config:POST", async (request: NextRequest) => {
