@@ -1308,7 +1308,15 @@ Every activity has a "role":
 - **warmup**: Vocabulary warm-up (include vocabTerms). Place one roughly every [lessonLength] minutes.
 - **intro**: Introduction connecting to prior learning. Place one after each warmup.
 - **core**: Main student tasks — the heart of the unit. Most activities are core.
-- **content**: Pure information — safety warnings, key concepts, context blocks. No student response required. Omit responseType. Use contentStyle: "info" (key concepts), "warning" (safety/caution), "tip" (pro tips), "context" (background). Include media (image/video URLs) or links (external tool URLs with labels) where visual reference or tool access helps.
+- **content**: Pure information — no student response required. Omit responseType. Use contentStyle to visually categorise the block:
+  - "info" (blue) — key concepts, facts, definitions
+  - "warning" (amber) — safety warnings, cautions, things to watch out for
+  - "tip" (green) — pro tips, teacher advice, best practices
+  - "context" (gray) — background context, transitions between activities
+  - "activity" (purple) — group/classroom activities (think-pair-share, gallery walk, peer review)
+  - "speaking" (indigo) — discussion prompts, presentations, verbal sharing
+  - "practical" (orange) — hands-on making, building, prototyping, physical tasks
+  Choose the most specific style. Use "activity"/"speaking"/"practical" when the block describes what students DO physically — these help students quickly see the type of work at a glance. Include media (image/video URLs) or links (external tool URLs with labels) where visual reference or tool access helps.
 - **reflection**: Self-assessment at natural breakpoints. Place one roughly every [lessonLength] minutes.
 
 ## Rich Content
@@ -1495,7 +1503,7 @@ ${options?.activitiesGeneratedSoFar ? `Activities generated so far: ${options.ac
 Remember:
 - Every activity needs: id, role, title, prompt, durationMinutes
 - Core activities need: responseType, criterionTags, scaffolding (ell1/ell2/ell3)
-- Content activities: omit responseType. Use contentStyle, media, links where helpful.
+- Content activities: omit responseType. Use contentStyle (info/warning/tip/context/activity/speaking/practical), media, links where helpful.
 - Warmup activities need: vocabTerms
 - Reflection activities need: reflectionType, reflectionItems
 - Use phaseLabel to group activities into coherent phases
@@ -2116,7 +2124,7 @@ All activities in this lesson should have phaseLabel: "${lesson.phaseLabel}"
 Remember:
 - Every activity needs: id, role, title, prompt, durationMinutes
 - Core activities need: responseType, criterionTags, scaffolding (ell1/ell2/ell3)
-- Content activities: omit responseType. Use contentStyle, media, links where helpful.
+- Content activities: omit responseType. Use contentStyle (info/warning/tip/context/activity/speaking/practical), media, links where helpful.
 - Warmup activities need: vocabTerms
 - Reflection activities need: reflectionType, reflectionItems
 - Set portfolioCapture: true on 1-2 core activities

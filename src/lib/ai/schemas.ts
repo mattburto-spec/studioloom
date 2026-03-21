@@ -408,8 +408,8 @@ const timelineActivitySchema = {
     },
     contentStyle: {
       type: "string" as const,
-      enum: ["info", "warning", "tip", "context"],
-      description: "Visual style for content-role blocks: info (blue), warning (amber), tip (green), context (gray default)",
+      enum: ["info", "warning", "tip", "context", "activity", "speaking", "practical"],
+      description: "Visual style for content-role blocks: info (blue, key concepts), warning (amber, safety/caution), tip (green, pro tips), context (gray, background), activity (purple, group/classroom activities), speaking (indigo, discussion/presentation), practical (orange, hands-on making/building)",
     },
     exampleResponse: { type: "string" as const, description: "Model response showing what good work looks like" },
     portfolioCapture: { type: "boolean" as const, description: "True for substantive design work that should auto-capture to portfolio" },
