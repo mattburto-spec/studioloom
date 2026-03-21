@@ -33,10 +33,24 @@ export default function ClassUnitSettingsPage({
   const [globalNmEnabled, setGlobalNmEnabled] = useState(false);
   const [pages, setPages] = useState<Array<{ id: string; title: string }>>([]);
   const [students, setStudents] = useState<Array<{ student_id: string; display_name: string; username: string }>>([]);
-  const [terms, setTerms] = useState<Array<{ id: string; academic_year: string; term_name: string; term_order: number }>>([]);
+  const [terms, setTerms] = useState<Array<{ id: string; academic_year: string; term_name: string; term_order: number; start_date?: string; end_date?: string }>>([]);
   const [selectedTermId, setSelectedTermId] = useState<string | null>(null);
   const [savingTerm, setSavingTerm] = useState(false);
   const [termMessage, setTermMessage] = useState("");
+  const [scheduleInfo, setScheduleInfo] = useState<{
+    lessonCount: number | null;
+    nextClass: {
+      dateISO: string;
+      dayOfWeek: string;
+      cycleDay: number;
+      periodNumber?: number;
+      room?: string;
+      formatted: string;
+      short: string;
+    } | null;
+    reason?: string;
+  } | null>(null);
+  const [scheduleLoading, setScheduleLoading] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -103,6 +117,64 @@ export default function ClassUnitSettingsPage({
     }
     load();
   }, [unitId, classId]);
+
+  // Fetch schedule info when term is selected and timetable may exist
+  useEffect(() => {
+    async function loadSchedule() {
+      // Find selected term's date range
+      const term = terms.find((t) => t.id === selectedTermId);
+      if (!term || !classId) {
+        setScheduleInfo(null);
+        return;
+      }
+
+      // We need start/end dates — terms from the API should have them
+      const termWithDates = term as typeof term & { start_date?: string; end_date?: string };
+      if (!termWithDates.start_date || !termWithDates.end_date) {
+        setScheduleInfo(null);
+        return;
+      }
+
+      setScheduleLoading(true);
+      try {
+        // Fetch lesson count for the term
+        const today = new Date().toISOString().split("T")[0];
+        const fromDate = termWithDates.start_date > today ? termWithDates.start_date : today;
+
+        const [countRes, nextRes] = await Promise.all([
+          fetch(
+            `/api/teacher/schedule/lessons?classId=${classId}&mode=count&from=${termWithDates.start_date}&to=${termWithDates.end_date}`
+          ).then((r) => (r.ok ? r.json() : null)),
+          fetch(
+            `/api/teacher/schedule/lessons?classId=${classId}&mode=next&from=${fromDate}&count=1`
+          ).then((r) => (r.ok ? r.json() : null)),
+        ]);
+
+        const nextLesson = nextRes?.lessons?.[0] || null;
+
+        setScheduleInfo({
+          lessonCount: countRes?.lessonCount ?? null,
+          nextClass: nextLesson
+            ? {
+                dateISO: nextLesson.dateISO,
+                dayOfWeek: nextLesson.dayOfWeek,
+                cycleDay: nextLesson.cycleDay,
+                periodNumber: nextLesson.periodNumber,
+                room: nextLesson.room,
+                formatted: `${nextLesson.dayOfWeek} ${nextLesson.dateISO} (Day ${nextLesson.cycleDay}${nextLesson.periodNumber ? `, P${nextLesson.periodNumber}` : ""})`,
+                short: `Day ${nextLesson.cycleDay}${nextLesson.periodNumber ? `, P${nextLesson.periodNumber}` : ""} — ${nextLesson.dayOfWeek?.slice(0, 3)}`,
+              }
+            : null,
+          reason: nextRes?.lessons?.length === 0 ? "no_meetings" : undefined,
+        });
+      } catch {
+        setScheduleInfo(null);
+      } finally {
+        setScheduleLoading(false);
+      }
+    }
+    loadSchedule();
+  }, [selectedTermId, classId, terms]);
 
   async function handleTermChange(termId: string | null) {
     setSelectedTermId(termId);
@@ -277,6 +349,78 @@ export default function ClassUnitSettingsPage({
           )}
         </div>
       </div>
+
+      {/* ----------------------------------------------------------------- */}
+      {/* Schedule Info (when timetable configured + term assigned)          */}
+      {/* ----------------------------------------------------------------- */}
+      {selectedTermId && (
+        <div className="mb-6 bg-surface-alt rounded-xl p-4 border border-border">
+          <h3 className="text-xs font-semibold text-text-primary mb-3 flex items-center gap-2">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+              <line x1="16" y1="2" x2="16" y2="6" />
+              <line x1="8" y1="2" x2="8" y2="6" />
+              <line x1="3" y1="10" x2="21" y2="10" />
+            </svg>
+            Schedule
+          </h3>
+
+          {scheduleLoading ? (
+            <div className="animate-pulse flex gap-4">
+              <div className="h-14 bg-gray-200 rounded-lg flex-1" />
+              <div className="h-14 bg-gray-200 rounded-lg flex-1" />
+            </div>
+          ) : scheduleInfo?.lessonCount !== null && scheduleInfo?.lessonCount !== undefined ? (
+            <div className="flex gap-3">
+              {/* Lesson count card */}
+              <div className="flex-1 bg-white rounded-lg p-3 border border-border">
+                <div className="text-2xl font-bold text-purple-600">
+                  {scheduleInfo.lessonCount}
+                </div>
+                <div className="text-xs text-text-secondary mt-0.5">
+                  lessons this term
+                </div>
+              </div>
+
+              {/* Next class card */}
+              <div className="flex-1 bg-white rounded-lg p-3 border border-border">
+                {scheduleInfo.nextClass ? (
+                  <>
+                    <div className="text-sm font-semibold text-text-primary">
+                      {scheduleInfo.nextClass.short}
+                    </div>
+                    <div className="text-xs text-text-secondary mt-0.5">
+                      Next: {scheduleInfo.nextClass.dayOfWeek} {scheduleInfo.nextClass.dateISO}
+                    </div>
+                    {scheduleInfo.nextClass.room && (
+                      <div className="text-xs text-text-tertiary mt-0.5">
+                        Room {scheduleInfo.nextClass.room}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <div className="text-sm font-medium text-text-secondary">—</div>
+                    <div className="text-xs text-text-tertiary mt-0.5">
+                      No upcoming classes
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-text-secondary">
+              No timetable set up yet.{" "}
+              <Link
+                href="/teacher/settings?tab=school"
+                className="text-purple-600 text-xs font-medium hover:underline"
+              >
+                Set up your timetable →
+              </Link>
+            </p>
+          )}
+        </div>
+      )}
 
       {/* ----------------------------------------------------------------- */}
       {/* NM Config & Results (only when global NM toggle is on)             */}
