@@ -444,12 +444,20 @@ export default function TeacherUnitsPage() {
               : "Browse and fork units shared by other teachers"}
           </p>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="px-4 py-2 border border-border text-text-secondary rounded-lg text-sm font-medium hover:bg-surface-alt transition"
-        >
-          + Manual
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/teacher/units/import"
+            className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 transition shadow-sm"
+          >
+            ↑ Import Plan
+          </Link>
+          <button
+            onClick={() => setShowCreate(true)}
+            className="px-4 py-2 border border-border text-text-secondary rounded-lg text-sm font-medium hover:bg-surface-alt transition"
+          >
+            + Manual
+          </button>
+        </div>
       </div>
 
       {/* View toggle */}
