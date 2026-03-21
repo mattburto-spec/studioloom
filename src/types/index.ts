@@ -601,3 +601,64 @@ export interface StudentToolSession {
   updated_at: string;
   portfolio_entry_id: string | null;
 }
+
+// --- Safety Badges System ---
+
+export type BadgeCategory = "safety" | "skill" | "software";
+export type BadgeTier = 1 | 2 | 3 | 4;
+export type BadgeStatus = "active" | "expired" | "revoked";
+
+export interface Badge {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  category: BadgeCategory;
+  tier: BadgeTier;
+  icon_name: string;
+  color: string;
+  is_built_in: boolean;
+  created_by_teacher_id: string | null;
+  pass_threshold: number;
+  expiry_months: number | null;
+  retake_cooldown_minutes: number;
+  question_count: number;
+  question_pool: QuestionPoolItem[];
+  learn_content: LearningCard[];
+  topics: string[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface QuestionPoolItem {
+  id: string;
+  text: string;
+  type: "multiple_choice" | "true_false" | "short_answer";
+  options?: string[];
+  correct_answer: string | number;
+}
+
+export interface LearningCard {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  tips: string[];
+  examples: string[];
+}
+
+export interface StudentBadge {
+  id: string;
+  student_id: string;
+  badge_id: string;
+  score: number | null;
+  attempt_number: number;
+  granted_by: string;
+  teacher_note: string | null;
+  status: BadgeStatus;
+  answers: Record<string, unknown>[];
+  time_taken_seconds: number | null;
+  awarded_at: string;
+  expires_at: string | null;
+  created_at: string;
+}

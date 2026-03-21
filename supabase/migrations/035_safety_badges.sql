@@ -237,6 +237,7 @@ CREATE INDEX IF NOT EXISTS idx_safety_results_created_at ON safety_results(creat
 
 -- ═══════════════════════════════════════════════════════════════
 -- 6. RLS POLICIES
+-- All comparisons use explicit ::text casts to avoid text=uuid errors
 -- ═══════════════════════════════════════════════════════════════
 
 -- Badges: everyone can read (public discovery)
@@ -246,35 +247,35 @@ CREATE POLICY badges_readable ON badges
 
 -- Teachers can insert and update their own badges
 CREATE POLICY badges_teacher_insert ON badges
-  FOR INSERT WITH CHECK (created_by_teacher_id = auth.uid() OR is_built_in);
+  FOR INSERT WITH CHECK (created_by_teacher_id::text = auth.uid()::text OR is_built_in);
 
 CREATE POLICY badges_teacher_update ON badges
-  FOR UPDATE USING (created_by_teacher_id = auth.uid())
-  WITH CHECK (created_by_teacher_id = auth.uid());
+  FOR UPDATE USING (created_by_teacher_id::text = auth.uid()::text)
+  WITH CHECK (created_by_teacher_id::text = auth.uid()::text);
 
 -- Student badges: students can read their own
 ALTER TABLE student_badges ENABLE ROW LEVEL SECURITY;
 CREATE POLICY student_badges_read_own ON student_badges
   FOR SELECT USING (
-    student_id = current_setting('app.student_id', true)
-    OR student_id = current_setting('request.jwt.claims', true)::json->>'sub'
+    student_id::text = COALESCE(current_setting('app.student_id', true), '')
+    OR student_id::text = COALESCE((current_setting('request.jwt.claims', true)::json->>'sub'), '')
   );
 
 -- Teachers can read badges awarded to their class members
 CREATE POLICY student_badges_teacher_read ON student_badges
   FOR SELECT USING (
-    student_id IN (
-      SELECT s.id FROM students s
-      WHERE s.class_id IN (SELECT id FROM classes WHERE teacher_id = auth.uid())
+    student_id::text IN (
+      SELECT s.id::text FROM students s
+      WHERE s.class_id::text IN (SELECT c.id::text FROM classes c WHERE c.teacher_id::text = auth.uid()::text)
     )
   );
 
 -- Teachers can insert student badges for their classes
 CREATE POLICY student_badges_teacher_insert ON student_badges
   FOR INSERT WITH CHECK (
-    student_id IN (
-      SELECT s.id FROM students s
-      WHERE s.class_id IN (SELECT id FROM classes WHERE teacher_id = auth.uid())
+    student_id::text IN (
+      SELECT s.id::text FROM students s
+      WHERE s.class_id::text IN (SELECT c.id::text FROM classes c WHERE c.teacher_id::text = auth.uid()::text)
     )
   );
 
@@ -285,13 +286,13 @@ CREATE POLICY unit_badge_reqs_read ON unit_badge_requirements
 
 CREATE POLICY unit_badge_reqs_teacher ON unit_badge_requirements
   FOR ALL USING (
-    unit_id IN (SELECT id FROM units WHERE author_teacher_id = auth.uid())
+    unit_id::text IN (SELECT id::text FROM units WHERE author_teacher_id::text = auth.uid()::text)
   );
 
 -- Safety sessions: creator can manage, others can join via code
 ALTER TABLE safety_sessions ENABLE ROW LEVEL SECURITY;
 CREATE POLICY safety_sessions_creator ON safety_sessions
-  FOR ALL USING (teacher_email = COALESCE(auth.email(), ''));
+  FOR ALL USING (teacher_email::text = COALESCE(auth.email()::text, ''));
 
 -- Anyone can read sessions by code (to join)
 CREATE POLICY safety_sessions_read_by_code ON safety_sessions
@@ -301,7 +302,7 @@ CREATE POLICY safety_sessions_read_by_code ON safety_sessions
 ALTER TABLE safety_results ENABLE ROW LEVEL SECURITY;
 CREATE POLICY safety_results_read ON safety_results
   FOR SELECT USING (
-    session_id IN (SELECT id FROM safety_sessions WHERE teacher_email = COALESCE(auth.email(), ''))
+    session_id::text IN (SELECT id::text FROM safety_sessions WHERE teacher_email::text = COALESCE(auth.email()::text, ''))
   );
 
 -- Public insert (students submit results via code)

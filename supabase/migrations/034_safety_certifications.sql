@@ -51,11 +51,16 @@ CREATE POLICY "Teachers can revoke certs"
   ON safety_certifications FOR DELETE
   USING (granted_by = auth.uid());
 
--- Updated_at trigger
+-- Protect created_at from being overwritten on update
 CREATE OR REPLACE FUNCTION update_safety_certs_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
-  NEW.created_at = OLD.created_at; -- Prevent created_at from changing
+  NEW.created_at = OLD.created_at;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trigger_safety_certs_created_at
+  BEFORE UPDATE ON safety_certifications
+  FOR EACH ROW
+  EXECUTE FUNCTION update_safety_certs_updated_at();
