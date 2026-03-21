@@ -1125,6 +1125,23 @@ export default function TeacherSettingsPage() {
               )}
             </div>
           </section>
+
+          {/* Link to advanced AI controls */}
+          <section className="bg-white rounded-xl p-6 border border-border">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-text-primary mb-1">Advanced AI Controls</h2>
+                <p className="text-sm text-text-secondary">Fine-tune emphasis dials, test generation, and configure AI behaviour in detail.</p>
+              </div>
+              <a
+                href="/admin/ai-model"
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-purple-700 bg-purple-50 rounded-lg hover:bg-purple-100 transition"
+              >
+                Open AI Config
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M7 17l9.2-9.2M17 17V7H7" /></svg>
+              </a>
+            </div>
+          </section>
         </div>
       )}
     </main>
