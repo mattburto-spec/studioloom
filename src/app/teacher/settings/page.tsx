@@ -122,6 +122,7 @@ export default function TeacherSettingsPage() {
   const [excludedDates, setExcludedDates] = useState<string[]>([]);
   const [newExcludedDate, setNewExcludedDate] = useState("");
   const [newExcludedLabel, setNewExcludedLabel] = useState("");
+  const [showManualSetup, setShowManualSetup] = useState(false);
   // iCal import
   const [icalUrl, setIcalUrl] = useState("");
   const [icalParsing, setIcalParsing] = useState(false);
@@ -257,6 +258,10 @@ export default function TeacherSettingsPage() {
           period_number: m.period_number,
           room: m.room,
         })));
+        // Auto-expand manual section if meetings or custom anchor exist
+        if (data.meetings.length > 0 || (data.timetable?.anchor_date && !data.timetable?.ical_url)) {
+          setShowManualSetup(true);
+        }
       }
     } catch {
       // silent — table might not exist yet
@@ -747,141 +752,22 @@ export default function TeacherSettingsPage() {
             {/* Rotating cycle setup */}
             <div className="border-t border-border pt-5 mt-2">
               <h3 className="text-sm font-semibold text-text-primary mb-1">Rotating Cycle</h3>
-              <p className="text-xs text-text-secondary mb-4">If your school uses a rotating timetable (e.g. 6-day or 8-day cycle), set it here so StudioLoom can calculate lesson dates.</p>
+              <p className="text-xs text-text-secondary mb-4">Set your school&apos;s cycle length so StudioLoom can calculate lesson dates.</p>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
-                <div>
-                  <label className="block text-sm font-medium text-text-secondary mb-1">Cycle length (days)</label>
-                  <input type="number" value={cycleLength} onChange={(e) => { setCycleLength(Number(e.target.value)); if (anchorCycleDay > Number(e.target.value)) setAnchorCycleDay(1); }} min={2} max={20} className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
-                  <p className="text-xs text-text-secondary/60 mt-1">5 = standard week, 6/8/10 = rotating</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-text-secondary mb-1">Anchor date</label>
-                  <input type="date" value={anchorDate} onChange={(e) => setAnchorDate(e.target.value)} className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
-                  <p className="text-xs text-text-secondary/60 mt-1">A date you know the cycle day of</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-text-secondary mb-1">That date was Day...</label>
-                  <select value={anchorCycleDay} onChange={(e) => setAnchorCycleDay(Number(e.target.value))} className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30">
-                    {Array.from({ length: cycleLength }, (_, i) => i + 1).map((d) => (
-                      <option key={d} value={d}>Day {d}</option>
-                    ))}
-                  </select>
-                </div>
+              {/* Cycle length — always visible */}
+              <div className="max-w-xs mb-5">
+                <label className="block text-sm font-medium text-text-secondary mb-1">Cycle length (days)</label>
+                <input type="number" value={cycleLength} onChange={(e) => { setCycleLength(Number(e.target.value)); if (anchorCycleDay > Number(e.target.value)) setAnchorCycleDay(1); }} min={2} max={20} className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+                <p className="text-xs text-text-secondary/60 mt-1">5 = standard week, 6/8/10 = rotating</p>
               </div>
 
-              <div className="flex items-center gap-3 mb-4">
-                <button type="button" onClick={() => setResetEachTerm(!resetEachTerm)} className={`relative w-11 h-6 rounded-full transition-colors ${resetEachTerm ? "bg-brand-purple" : "bg-gray-300"}`}>
-                  <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${resetEachTerm ? "translate-x-5" : ""}`} />
-                </button>
-                <span className="text-sm text-text-secondary">Reset cycle to Day 1 at the start of each term</span>
-              </div>
-
-              {/* Class meetings */}
-              <div className="border-t border-border pt-4 mt-4">
-                <h4 className="text-xs font-semibold text-text-primary mb-3">When do your classes meet?</h4>
-
-                {classMeetings.length > 0 && (
-                  <div className="space-y-1.5 mb-4">
-                    {classMeetings.map((m, i) => {
-                      const cls = classes.find((c) => c.id === m.class_id);
-                      return (
-                        <div key={i} className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg px-3 py-2">
-                          <span className="font-medium text-text-primary">{cls?.name || m.class_id}</span>
-                          <span className="text-text-secondary">— Day {m.cycle_day}{m.period_number ? `, P${m.period_number}` : ""}{m.room ? ` (${m.room})` : ""}</span>
-                          <button onClick={() => removeMeeting(i)} className="ml-auto text-red-400 hover:text-red-600 text-xs">✕</button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {classes.length > 0 ? (
-                  <div className="flex items-end gap-2 flex-wrap">
-                    <div>
-                      <label className="block text-xs text-text-secondary mb-1">Class</label>
-                      <select value={newMeetingClassId} onChange={(e) => setNewMeetingClassId(e.target.value)} className="px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30">
-                        <option value="">Select class...</option>
-                        {classes.map((c) => (
-                          <option key={c.id} value={c.id}>{c.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs text-text-secondary mb-1">Cycle day</label>
-                      <select value={newMeetingCycleDay} onChange={(e) => setNewMeetingCycleDay(Number(e.target.value))} className="px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30">
-                        {Array.from({ length: cycleLength }, (_, i) => i + 1).map((d) => (
-                          <option key={d} value={d}>Day {d}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs text-text-secondary mb-1">Period (opt.)</label>
-                      <input type="number" value={newMeetingPeriod} onChange={(e) => setNewMeetingPeriod(e.target.value ? Number(e.target.value) : "")} min={1} max={12} placeholder="—" className="w-16 px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-text-secondary mb-1">Room (opt.)</label>
-                      <input type="text" value={newMeetingRoom} onChange={(e) => setNewMeetingRoom(e.target.value)} placeholder="e.g. D201" className="w-24 px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
-                    </div>
-                    <button onClick={addMeeting} disabled={!newMeetingClassId} className="px-4 py-2 rounded-lg text-sm font-medium bg-brand-purple/10 text-brand-purple hover:bg-brand-purple/20 transition disabled:opacity-40">
-                      + Add
-                    </button>
-                  </div>
-                ) : (
-                  <p className="text-sm text-text-secondary">Create classes first to add meeting times.</p>
-                )}
-              </div>
-
-              {/* Excluded dates (holidays) */}
-              <div className="border-t border-border pt-4 mt-4">
-                <h4 className="text-xs font-semibold text-text-primary mb-1">Non-School Days</h4>
-                <p className="text-xs text-text-secondary mb-3">Add holidays, PD days, or any dates the cycle skips. These dates won&apos;t count as school days in cycle calculations.</p>
-
-                {excludedDates.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 mb-3">
-                    {excludedDates.map((d, i) => (
-                      <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 text-xs font-medium border border-amber-200">
-                        {d}
-                        <button onClick={() => setExcludedDates(excludedDates.filter((_, j) => j !== i))} className="hover:text-red-600 ml-0.5">✕</button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-
-                <div className="flex items-end gap-2">
-                  <div>
-                    <label className="block text-xs text-text-secondary mb-1">Date</label>
-                    <input type="date" value={newExcludedDate} onChange={(e) => setNewExcludedDate(e.target.value)} className="px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-text-secondary mb-1">Label (opt.)</label>
-                    <input type="text" value={newExcludedLabel} onChange={(e) => setNewExcludedLabel(e.target.value)} placeholder="e.g. Easter Monday" className="w-40 px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
-                  </div>
-                  <button
-                    onClick={() => {
-                      if (!newExcludedDate) return;
-                      const label = newExcludedLabel ? `${newExcludedDate} (${newExcludedLabel})` : newExcludedDate;
-                      if (!excludedDates.includes(newExcludedDate) && !excludedDates.includes(label)) {
-                        setExcludedDates([...excludedDates, newExcludedLabel ? label : newExcludedDate]);
-                      }
-                      setNewExcludedDate("");
-                      setNewExcludedLabel("");
-                    }}
-                    disabled={!newExcludedDate}
-                    className="px-4 py-2 rounded-lg text-sm font-medium bg-amber-50 text-amber-700 hover:bg-amber-100 transition disabled:opacity-40 border border-amber-200"
-                  >
-                    + Add
-                  </button>
-                </div>
-              </div>
-
-              {/* iCal Import */}
-              <div className="border-t border-border pt-4 mt-4">
+              {/* iCal Import — primary path, always visible */}
+              <div className="border-t border-border pt-4 mt-2">
                 <h4 className="text-xs font-semibold text-text-primary mb-1 flex items-center gap-2">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
                   Import from Calendar
                 </h4>
-                <p className="text-xs text-text-secondary mb-3">Paste an iCal feed URL from ManageBac, PowerSchool, Toddle, Google Calendar, or any LMS. StudioLoom will extract class schedules and holidays automatically.</p>
+                <p className="text-xs text-text-secondary mb-3">Paste an iCal feed URL from ManageBac, PowerSchool, Toddle, Google Calendar, or any LMS. StudioLoom will extract class schedules, cycle days, and holidays automatically.</p>
 
                 <div className="flex items-end gap-2 mb-3">
                   <div className="flex-1">
@@ -975,6 +861,153 @@ export default function TeacherSettingsPage() {
                   <p className={`mt-2 text-xs font-medium ${icalMessage.includes("Imported") ? "text-accent-green" : "text-amber-600"}`}>
                     {icalMessage}
                   </p>
+                )}
+              </div>
+
+              {/* Manual setup — collapsed by default */}
+              <div className="border-t border-border pt-4 mt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowManualSetup(!showManualSetup)}
+                  className="flex items-center gap-2 text-xs font-semibold text-text-secondary hover:text-text-primary transition-colors w-full"
+                >
+                  <svg
+                    width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                    className={`transition-transform ${showManualSetup ? "rotate-90" : ""}`}
+                  >
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                  Manual setup
+                  <span className="font-normal text-text-tertiary">— anchor date, class meetings, non-school days</span>
+                </button>
+
+                {showManualSetup && (
+                  <div className="mt-4 space-y-5">
+                    {/* Anchor date + cycle day */}
+                    <div>
+                      <h4 className="text-xs font-semibold text-text-primary mb-3">Cycle anchor</h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                        <div>
+                          <label className="block text-sm font-medium text-text-secondary mb-1">Anchor date</label>
+                          <input type="date" value={anchorDate} onChange={(e) => setAnchorDate(e.target.value)} className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+                          <p className="text-xs text-text-secondary/60 mt-1">A date you know the cycle day of</p>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-text-secondary mb-1">That date was Day...</label>
+                          <select value={anchorCycleDay} onChange={(e) => setAnchorCycleDay(Number(e.target.value))} className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30">
+                            {Array.from({ length: cycleLength }, (_, i) => i + 1).map((d) => (
+                              <option key={d} value={d}>Day {d}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <button type="button" onClick={() => setResetEachTerm(!resetEachTerm)} className={`relative w-11 h-6 rounded-full transition-colors ${resetEachTerm ? "bg-brand-purple" : "bg-gray-300"}`}>
+                          <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${resetEachTerm ? "translate-x-5" : ""}`} />
+                        </button>
+                        <span className="text-sm text-text-secondary">Reset cycle to Day 1 at the start of each term</span>
+                      </div>
+                    </div>
+
+                    {/* Class meetings */}
+                    <div className="border-t border-border pt-4">
+                      <h4 className="text-xs font-semibold text-text-primary mb-3">When do your classes meet?</h4>
+
+                      {classMeetings.length > 0 && (
+                        <div className="space-y-1.5 mb-4">
+                          {classMeetings.map((m, i) => {
+                            const cls = classes.find((c) => c.id === m.class_id);
+                            return (
+                              <div key={i} className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg px-3 py-2">
+                                <span className="font-medium text-text-primary">{cls?.name || m.class_id}</span>
+                                <span className="text-text-secondary">— Day {m.cycle_day}{m.period_number ? `, P${m.period_number}` : ""}{m.room ? ` (${m.room})` : ""}</span>
+                                <button onClick={() => removeMeeting(i)} className="ml-auto text-red-400 hover:text-red-600 text-xs">✕</button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {classes.length > 0 ? (
+                        <div className="flex items-end gap-2 flex-wrap">
+                          <div>
+                            <label className="block text-xs text-text-secondary mb-1">Class</label>
+                            <select value={newMeetingClassId} onChange={(e) => setNewMeetingClassId(e.target.value)} className="px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30">
+                              <option value="">Select class...</option>
+                              {classes.map((c) => (
+                                <option key={c.id} value={c.id}>{c.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs text-text-secondary mb-1">Cycle day</label>
+                            <select value={newMeetingCycleDay} onChange={(e) => setNewMeetingCycleDay(Number(e.target.value))} className="px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30">
+                              {Array.from({ length: cycleLength }, (_, i) => i + 1).map((d) => (
+                                <option key={d} value={d}>Day {d}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs text-text-secondary mb-1">Period (opt.)</label>
+                            <input type="number" value={newMeetingPeriod} onChange={(e) => setNewMeetingPeriod(e.target.value ? Number(e.target.value) : "")} min={1} max={12} placeholder="—" className="w-16 px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+                          </div>
+                          <div>
+                            <label className="block text-xs text-text-secondary mb-1">Room (opt.)</label>
+                            <input type="text" value={newMeetingRoom} onChange={(e) => setNewMeetingRoom(e.target.value)} placeholder="e.g. D201" className="w-24 px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+                          </div>
+                          <button onClick={addMeeting} disabled={!newMeetingClassId} className="px-4 py-2 rounded-lg text-sm font-medium bg-brand-purple/10 text-brand-purple hover:bg-brand-purple/20 transition disabled:opacity-40">
+                            + Add
+                          </button>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-text-secondary">Create classes first to add meeting times.</p>
+                      )}
+                    </div>
+
+                    {/* Excluded dates (holidays) */}
+                    <div className="border-t border-border pt-4">
+                      <h4 className="text-xs font-semibold text-text-primary mb-1">Non-School Days</h4>
+                      <p className="text-xs text-text-secondary mb-3">Add holidays, PD days, or any dates the cycle skips. These dates won&apos;t count as school days in cycle calculations.</p>
+
+                      {excludedDates.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mb-3">
+                          {excludedDates.map((d, i) => (
+                            <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 text-xs font-medium border border-amber-200">
+                              {d}
+                              <button onClick={() => setExcludedDates(excludedDates.filter((_, j) => j !== i))} className="hover:text-red-600 ml-0.5">✕</button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="flex items-end gap-2">
+                        <div>
+                          <label className="block text-xs text-text-secondary mb-1">Date</label>
+                          <input type="date" value={newExcludedDate} onChange={(e) => setNewExcludedDate(e.target.value)} className="px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+                        </div>
+                        <div>
+                          <label className="block text-xs text-text-secondary mb-1">Label (opt.)</label>
+                          <input type="text" value={newExcludedLabel} onChange={(e) => setNewExcludedLabel(e.target.value)} placeholder="e.g. Easter Monday" className="w-40 px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+                        </div>
+                        <button
+                          onClick={() => {
+                            if (!newExcludedDate) return;
+                            const label = newExcludedLabel ? `${newExcludedDate} (${newExcludedLabel})` : newExcludedDate;
+                            if (!excludedDates.includes(newExcludedDate) && !excludedDates.includes(label)) {
+                              setExcludedDates([...excludedDates, newExcludedLabel ? label : newExcludedDate]);
+                            }
+                            setNewExcludedDate("");
+                            setNewExcludedLabel("");
+                          }}
+                          disabled={!newExcludedDate}
+                          className="px-4 py-2 rounded-lg text-sm font-medium bg-amber-50 text-amber-700 hover:bg-amber-100 transition disabled:opacity-40 border border-amber-200"
+                        >
+                          + Add
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 )}
               </div>
 
