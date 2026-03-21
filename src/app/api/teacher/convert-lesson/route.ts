@@ -228,7 +228,11 @@ async function handleGeneration(
     // The teacher's original timing IS the data — we learn from it, not overwrite it.
     const defaultDuration = lessonDurationMinutes || 50;
     const apiKey = creds.apiKey;
-    const modelName = creds.modelName || "claude-sonnet-4-20250514";
+    // Use Haiku for conversion — this is a structured format transformation, not
+    // creative generation. The teacher already wrote the content; we're reshaping
+    // it into JSON + adding scaffolding. Haiku handles this well at ~10x lower cost.
+    // Sonnet is reserved for the wizard (creative lesson generation from scratch).
+    const modelName = "claude-haiku-4-5-20251001";
 
     // Generate ONE page per lesson using lightweight direct API calls.
     // The old approach used generateCriterionPages which generates 3-5 pages per call
@@ -254,7 +258,7 @@ async function handleGeneration(
         const contextPrompt = buildConverterPrompt(lesson, originalText + resourcesText, extraction, defaultDuration);
 
         // Direct single-page generation — much faster than generateCriterionPages
-        const page = await generateSingleLessonPage(apiKey, modelName, contextPrompt, originalText, lesson.title);
+        const page = await generateSingleLessonPage(apiKey, modelName, contextPrompt, lesson.title);
 
         // Record timing observations for learning
         if (extractionLesson) {
@@ -277,6 +281,48 @@ async function handleGeneration(
       console.log(`[convert-lesson] Generated batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(skeleton.lessons.length / BATCH_SIZE)} (${Math.min(i + BATCH_SIZE, skeleton.lessons.length)}/${skeleton.lessons.length} lessons)`);
     }
 
+    // Build content_data in v3 format (journey mode — lessons as sequential pages)
+    const unitPages = skeleton.lessons.map((lesson) => ({
+      id: lesson.lessonId,
+      type: "lesson" as const,
+      title: allPages[lesson.lessonId]?.title || lesson.title,
+      phaseLabel: lesson.phaseLabel,
+      content: allPages[lesson.lessonId],
+    }));
+
+    const contentData = {
+      version: 3,
+      generationModel: "imported",
+      pages: unitPages,
+      lessonLengthMinutes: defaultDuration,
+      assessmentCriteria: skeleton.lessons[0]?.criterionTags || [],
+      importedFrom: extraction?.unitTopic || "Imported lesson plan",
+    };
+
+    // Save to database
+    const db = createAdminClient();
+    const { data: newUnit, error: insertError } = await db
+      .from("units")
+      .insert({
+        title: skeleton.unitTitle || extraction?.unitTopic || "Imported Unit",
+        description: skeleton.narrativeArc || null,
+        content_data: contentData,
+        grade_level: extraction?.gradeLevel || null,
+        duration_weeks: Math.ceil(skeleton.lessons.length / 3),
+        topic: extraction?.subjectArea || null,
+        author_teacher_id: teacherId,
+        teacher_id: teacherId,
+      })
+      .select("id")
+      .single();
+
+    if (insertError) {
+      console.error("[convert-lesson] DB insert failed:", insertError);
+      return NextResponse.json({ error: `Unit generated but failed to save: ${insertError.message}` }, { status: 500 });
+    }
+
+    console.log(`[convert-lesson] Unit saved: ${newUnit.id} (${unitPages.length} lessons)`);
+
     // Fire teacher style profile learning (fire-and-forget)
     if (extraction?.lessons?.[0]) {
       onLessonUploaded(teacherId, {
@@ -291,6 +337,7 @@ async function handleGeneration(
     }
 
     return NextResponse.json({
+      unitId: newUnit.id,
       pages: allPages,
       timingObservations,
       skeleton,
@@ -314,9 +361,10 @@ async function generateSingleLessonPage(
   apiKey: string,
   modelName: string,
   userPrompt: string,
-  originalText: string,
   lessonTitle: string = "Untitled Lesson"
 ): Promise<PageContent> {
+  // System prompt is marked for prompt caching — Anthropic will cache it across
+  // all 12 lesson calls in the batch, so we only pay input tokens for it once.
   const systemPrompt = `You are converting a teacher's existing lesson plan into a structured lesson page.
 Your job is to PRESERVE the teacher's original activities and enhance them with scaffolding.
 
@@ -324,15 +372,12 @@ Return ONLY valid JSON matching this structure (no markdown, no explanation, no 
 {
   "title": "string — lesson title",
   "learningGoal": "string — clear learning objective",
-  "introduction": {
-    "text": "string — brief intro paragraph for students"
-  },
+  "introduction": { "text": "string — brief intro paragraph" },
   "sections": [
     {
-      "prompt": "string — activity instructions for students",
+      "prompt": "string — activity instructions",
       "responseType": "text|upload|voice|link|multi",
       "durationMinutes": number,
-      "exampleResponse": "string — model response (optional)",
       "scaffolding": {
         "ell1": { "sentenceStarters": ["string"], "hints": ["string"] },
         "ell2": { "sentenceStarters": ["string"] },
@@ -343,13 +388,10 @@ Return ONLY valid JSON matching this structure (no markdown, no explanation, no 
   "extensions": [
     { "title": "string", "description": "string", "durationMinutes": number }
   ],
-  "reflection": {
-    "type": "short-response",
-    "items": ["string — reflection prompt"]
-  }
+  "reflection": { "type": "short-response", "items": ["string"] }
 }
 
-CRITICAL: Your entire response must be valid JSON. Do NOT include any text before or after the JSON object. Keep sections concise — aim for 3-6 sections per lesson, with brief scaffolding strings. This ensures the response fits within output limits.
+CRITICAL: Return ONLY valid JSON. No text before or after. Aim for 3-6 sections. Keep scaffolding strings brief.
 
 RULES:
 - PRESERVE the teacher's original activities — convert them into sections, don't replace them
@@ -357,8 +399,7 @@ RULES:
 - Add 3-tier ELL scaffolding (sentence starters for beginners, extension prompts for advanced)
 - Add 2-3 extension activities for early finishers
 - Add one reflection prompt at the end
-- Keep the teacher's sequencing and timing — don't rearrange
-- ${originalText ? "The ORIGINAL TEACHER ACTIVITIES section below is what the teacher actually planned. Use it." : "Generate reasonable activities based on the lesson description."}`;
+- Keep the teacher's sequencing and timing — don't rearrange`;
 
   const MAX_RETRIES = 2;
   let lastError: Error | null = null;
@@ -371,11 +412,12 @@ RULES:
           "Content-Type": "application/json",
           "x-api-key": apiKey,
           "anthropic-version": "2023-06-01",
+          "anthropic-beta": "prompt-caching-2024-07-31",
         },
         body: JSON.stringify({
           model: modelName,
           max_tokens: 8192,
-          system: systemPrompt,
+          system: [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }],
           messages: [{ role: "user", content: userPrompt }],
         }),
       });
@@ -441,7 +483,7 @@ RULES:
     learningGoal: "",
     introduction: { text: `This lesson could not be fully converted. Please review and edit manually.` },
     sections: [{
-      prompt: originalText || "Review the original lesson plan and complete the activities as directed by your teacher.",
+      prompt: "Review the original lesson plan and complete the activities as directed by your teacher.",
       responseType: "text" as const,
       durationMinutes: 30,
       scaffolding: { ell1: { sentenceStarters: [], hints: [] }, ell2: { sentenceStarters: [] }, ell3: { extensionPrompts: [] } },

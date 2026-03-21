@@ -752,10 +752,10 @@ export default function LessonPlanConverter() {
           )}
           <div className="flex items-center justify-center gap-3">
             <Link
-              href="/teacher/units"
+              href={generatedUnit?.unitId ? `/teacher/units/${generatedUnit.unitId}` : "/teacher/units"}
               className="px-5 py-2.5 bg-purple-600 text-white text-sm font-semibold rounded-xl hover:bg-purple-700 transition shadow-sm"
             >
-              View Units
+              {generatedUnit?.unitId ? "View Unit →" : "View Units"}
             </Link>
             <button
               onClick={() => {
