@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireStudentAuth } from "@/lib/auth/student";
-import { rateLimit } from "@/lib/rate-limit";
+import { rateLimit, type RateLimitWindow } from "@/lib/rate-limit";
 import {
   getNextLessons,
   parseDate,
@@ -12,7 +12,9 @@ import {
 } from "@/lib/scheduling/cycle-engine";
 
 // Rate limit: 30 requests per minute per student
-const limiter = rateLimit({ interval: 60_000, maxRequests: 30 });
+const NEXT_CLASS_LIMITS: RateLimitWindow[] = [
+  { maxRequests: 30, windowMs: 60_000 },
+];
 
 // ─────────────────────────────────────────────────────────────
 // GET /api/student/next-class?unitId=X
@@ -38,8 +40,8 @@ async function GET(request: NextRequest) {
   if (auth.error) return auth.error;
 
   // Rate limit
-  const limited = limiter(auth.studentId);
-  if (limited) {
+  const limitResult = rateLimit(auth.studentId, NEXT_CLASS_LIMITS);
+  if (!limitResult.allowed) {
     return NextResponse.json(
       { error: "Too many requests" },
       { status: 429 }
