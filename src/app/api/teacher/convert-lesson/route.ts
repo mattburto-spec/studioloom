@@ -4,8 +4,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { withErrorHandler } from "@/lib/api/error-handler";
 import { extractDocument } from "@/lib/knowledge/extract";
 import { analysePass0 } from "@/lib/knowledge/analyse";
-import { extractLessonStructure } from "@/lib/converter/extract-lesson-structure";
+import { extractLessonStructure, type LessonStructureExtraction, type ExtractedResource, type ExtractedRubric } from "@/lib/converter/extract-lesson-structure";
 import { buildSkeletonFromExtraction } from "@/lib/converter/build-skeleton";
+import { extractImagesFromDocx, isDocx, type ExtractedImage } from "@/lib/converter/extract-images";
 import { resolveCredentials } from "@/lib/ai/resolve-credentials";
 import { createAIProvider } from "@/lib/ai";
 import { UNIT_SYSTEM_PROMPT, getGradeTimingProfile, buildTimingContext, calculateUsableTime, maxInstructionMinutes } from "@/lib/ai/prompts";
@@ -111,6 +112,13 @@ async function handleExtraction(
 
     console.log(`[convert-lesson] Extracted ${extracted.sections.length} sections from "${file.name}" (${extracted.rawText.length} chars)`);
 
+    // Step 1b: Extract images from DOCX files
+    let images: ExtractedImage[] = [];
+    if (isDocx(file.name, file.type)) {
+      images = await extractImagesFromDocx(buffer);
+      console.log(`[convert-lesson] Extracted ${images.length} images from "${file.name}" (${images.reduce((s, i) => s + i.sizeBytes, 0)} bytes total)`);
+    }
+
     // Step 2: Pass 0 classification — confirm it's a lesson plan
     const textPreview = extracted.rawText.length > 2000
       ? extracted.rawText.slice(0, 2000) + "\n\n[...]"
@@ -156,6 +164,18 @@ async function handleExtraction(
         confidence: classification.confidence,
         signals: classification.signals,
       },
+      framework: extraction.framework,
+      layout: extraction.layout,
+      resources: extraction.resources,
+      rubrics: extraction.rubrics,
+      lessonDurationMinutes: extraction.lessonDurationMinutes,
+      totalDuration: extraction.totalDuration,
+      imageCount: images.length,
+      images: images.map(img => ({
+        filename: img.filename,
+        mimeType: img.mimeType,
+        sizeBytes: img.sizeBytes,
+      })),
       mode,
       targetUnitId,
       filename: file.name,
@@ -175,12 +195,14 @@ async function handleGeneration(
   teacherId: string
 ): Promise<NextResponse> {
   const body = await request.json();
-  const { skeleton, rawText, extraction, mode, targetUnitId } = body as {
+  const { skeleton, rawText, extraction, mode, targetUnitId, lessonDurationMinutes, frameworkKey } = body as {
     skeleton: TimelineSkeleton;
     rawText: string;
-    extraction: { unitTopic: string; gradeLevel: string; subjectArea: string; lessons: Array<{ title: string; activities: Array<{ description: string; type: string }>; learningObjective: string }> };
+    extraction: { unitTopic: string; gradeLevel: string; subjectArea: string; lessons: Array<{ title: string; activities: Array<{ description: string; type: string }>; learningObjective: string; resources?: Array<{ url: string; title: string; type: string }> }> };
     mode: "full_unit" | "single_lesson";
     targetUnitId?: string;
+    lessonDurationMinutes?: number;
+    frameworkKey?: string;
   };
 
   if (!skeleton || !skeleton.lessons || skeleton.lessons.length === 0) {
@@ -209,9 +231,10 @@ async function handleGeneration(
       modelName: creds.modelName,
     });
 
-    // Build grade profile for timing validation
+    // Build grade profile for timing validation using actual lesson duration
+    const defaultDuration = lessonDurationMinutes || 50;
     const gradeProfile = getGradeTimingProfile(4); // Default MYP 4, teacher can adjust
-    const timingCtx = buildTimingContext(gradeProfile, 50, true); // 50 min default
+    const timingCtx = buildTimingContext(gradeProfile, defaultDuration, true);
     const usableTime = calculateUsableTime(timingCtx);
     const instructionCap = maxInstructionMinutes(gradeProfile);
 
@@ -226,8 +249,14 @@ async function handleGeneration(
         ? extractionLesson.activities.map((a: { description: string; type: string }) => `- ${a.type}: ${a.description}`).join("\n")
         : "";
 
+      // Include resources for this lesson
+      const lessonResources = extractionLesson?.resources || [];
+      const resourcesText = lessonResources.length > 0
+        ? `\n\nTEACHER RESOURCES FOR THIS LESSON:\n${lessonResources.map((r: { url: string; title: string; type: string }) => `- [${r.type}] ${r.title}: ${r.url}`).join("\n")}\nPRESERVE these resource links in the generated content.`
+        : "";
+
       // Build the context-injected user prompt
-      const contextPrompt = buildConverterPrompt(lesson, originalText, extraction, usableTime, instructionCap);
+      const contextPrompt = buildConverterPrompt(lesson, originalText + resourcesText, extraction, usableTime, instructionCap);
 
       // Generate using existing page generation
       const pages = await provider.generateCriterionPages(
@@ -236,7 +265,7 @@ async function handleGeneration(
           topic: extraction.unitTopic,
           subject: extraction.subjectArea || "Design",
           gradeLevel: extraction.gradeLevel || "Year 9",
-          framework: "myp",
+          framework: frameworkKey || "myp",
           duration: `${lesson.estimatedMinutes} minutes`,
         } as unknown as import("@/types").UnitWizardInput,
         UNIT_SYSTEM_PROMPT + `\n\nCONTEXT: This unit is being converted from the teacher's existing lesson plan.\nThe original lesson plan text for this lesson is:\n---\n${originalText}\n---\nPRESERVE the teacher's original activities and teaching approach.\nENHANCE with: Workshop Model timing, scaffolding tiers, extensions, response types.\nDo NOT replace the teacher's activities with generic alternatives.`,

@@ -1,8 +1,12 @@
 /**
  * Convert lesson structure extraction into a TimelineSkeleton.
  *
- * Maps the AI-extracted lesson structure to the same format the wizard produces,
- * so the existing generation pipeline can consume it directly.
+ * v2.0 — Enhanced with:
+ * - Framework-aware criterion mapping (not just MYP A/B/C/D)
+ * - Resource URLs preserved as activity hints
+ * - Proper duration from header metadata
+ * - Differentiation text preserved
+ * - Rubric data passed through
  */
 
 import type { TimelineLessonSkeleton, TimelineSkeleton, DesignLessonType } from "@/types";
@@ -13,7 +17,6 @@ import type { LessonStructureExtraction, ExtractedLesson } from "./extract-lesso
  */
 function inferLessonType(lesson: ExtractedLesson): DesignLessonType {
   const activityTypes = lesson.activities.map((a) => a.type);
-  const tags = lesson.criterionTags;
 
   // Primary activity determines lesson type
   if (activityTypes.includes("research")) return "research";
@@ -21,19 +24,20 @@ function inferLessonType(lesson: ExtractedLesson): DesignLessonType {
   if (activityTypes.includes("assessment") || activityTypes.includes("reflection")) return "critique";
   if (activityTypes.includes("presentation")) return "critique";
 
-  // Fall back to criterion tags
-  if (tags.includes("A")) return "research";
-  if (tags.includes("B")) return "ideation";
-  if (tags.includes("C")) return "making";
-  if (tags.includes("D")) return "critique";
+  // Fall back to criterion tags — handle both MYP and other frameworks
+  const tags = lesson.criterionTags.map(t => t.toUpperCase());
+  if (tags.includes("A") || tags.includes("AO1") || tags.includes("KU")) return "research";
+  if (tags.includes("B") || tags.includes("AO2")) return "ideation";
+  if (tags.includes("C") || tags.includes("AO3") || tags.includes("P&P")) return "making";
+  if (tags.includes("D") || tags.includes("AO4")) return "critique";
 
   return "skills-demo";
 }
 
 /**
- * Infer the design phase label from criterion tags and lesson type.
+ * Infer the design phase label from lesson type.
  */
-function inferPhaseLabel(lesson: ExtractedLesson, lessonType: DesignLessonType): string {
+function inferPhaseLabel(_lesson: ExtractedLesson, lessonType: DesignLessonType): string {
   const typeToPhase: Record<DesignLessonType, string> = {
     research: "Investigation",
     ideation: "Development",
@@ -46,24 +50,27 @@ function inferPhaseLabel(lesson: ExtractedLesson, lessonType: DesignLessonType):
 }
 
 /**
- * Extract key vocabulary from activity descriptions.
+ * Extract key vocabulary from activity descriptions and materials.
  */
 function extractVocab(lesson: ExtractedLesson): string[] {
   const vocab: string[] = [];
-  // Look for materials that sound like vocabulary/concepts
   for (const mat of lesson.materials) {
     if (mat.length < 30 && !mat.includes("/") && !mat.includes("http")) {
       vocab.push(mat);
     }
   }
-  return vocab.slice(0, 4);
+  // Also extract terms from learning objectives
+  const techTerms = lesson.learningObjective?.match(/\b(?:biomimicry|sustainability|LCA|ergonomic|orthogonal|prototype|iterate|aesthetic)\b/gi);
+  if (techTerms) vocab.push(...techTerms);
+
+  return [...new Set(vocab)].slice(0, 4);
 }
 
 /**
- * Convert activity descriptions to activity hints.
+ * Convert activity descriptions to activity hints, including resource URLs.
  */
 function buildActivityHints(lesson: ExtractedLesson): string[] {
-  return lesson.activities.slice(0, 4).map((a) => {
+  const hints = lesson.activities.slice(0, 4).map((a) => {
     const prefix = a.type === "discussion" ? "Discussion"
       : a.type === "research" ? "Research"
       : a.type === "practical" ? "Practical"
@@ -72,13 +79,24 @@ function buildActivityHints(lesson: ExtractedLesson): string[] {
       : a.type === "reflection" ? "Reflection"
       : "Activity";
 
-    // Truncate long descriptions
     const desc = a.description.length > 60
       ? a.description.slice(0, 57) + "..."
       : a.description;
 
     return `${prefix}: ${desc}`;
   });
+
+  // Add resource count hint if there are resources
+  if (lesson.resources && lesson.resources.length > 0) {
+    const videoCount = lesson.resources.filter(r => r.type === "video").length;
+    const otherCount = lesson.resources.length - videoCount;
+    const parts: string[] = [];
+    if (videoCount > 0) parts.push(`${videoCount} video${videoCount > 1 ? "s" : ""}`);
+    if (otherCount > 0) parts.push(`${otherCount} resource${otherCount > 1 ? "s" : ""}`);
+    hints.push(`📎 ${parts.join(", ")} linked`);
+  }
+
+  return hints;
 }
 
 /**
@@ -88,7 +106,6 @@ function buildKeyQuestion(lesson: ExtractedLesson): string {
   const obj = lesson.learningObjective;
   if (!obj) return `What will we learn in "${lesson.title}"?`;
 
-  // If objective starts with "Students will..." convert to question form
   if (obj.toLowerCase().startsWith("students will")) {
     const action = obj.slice("Students will".length).trim();
     return `How can we ${action.charAt(0).toLowerCase()}${action.slice(1)}?`;
@@ -99,11 +116,13 @@ function buildKeyQuestion(lesson: ExtractedLesson): string {
 
 /**
  * Build a TimelineSkeleton from the extracted lesson structure.
- * This output matches exactly what the wizard's skeleton generation produces.
+ * This output matches what the wizard's skeleton generation produces.
  */
 export function buildSkeletonFromExtraction(
   extraction: LessonStructureExtraction
 ): TimelineSkeleton {
+  const defaultDuration = extraction.lessonDurationMinutes || 50;
+
   const lessons: TimelineLessonSkeleton[] = extraction.lessons.map((lesson, i) => {
     const lessonType = inferLessonType(lesson);
     const phaseLabel = inferPhaseLabel(lesson, lessonType);
@@ -113,7 +132,7 @@ export function buildSkeletonFromExtraction(
       lessonId: `L${String(i + 1).padStart(2, "0")}`,
       title: lesson.title,
       keyQuestion: buildKeyQuestion(lesson),
-      estimatedMinutes: lesson.estimatedMinutes || 50,
+      estimatedMinutes: lesson.estimatedMinutes || defaultDuration,
       phaseLabel,
       criterionTags: lesson.criterionTags.length > 0 ? lesson.criterionTags : ["B"],
       activityHints: buildActivityHints(lesson),
@@ -134,9 +153,12 @@ export function buildSkeletonFromExtraction(
     };
   });
 
-  // Build narrative arc from the extracted structure
+  // Build narrative arc
   const phases = [...new Set(lessons.map((l) => l.phaseLabel))];
-  const narrativeArc = `This ${extraction.totalLessons}-lesson unit on "${extraction.unitTopic}" takes students through ${phases.join(" → ")}. Converted from the teacher's existing lesson plan, preserving their original activities and teaching approach while adding StudioLoom scaffolding and Workshop Model timing.`;
+  const frameworkNote = extraction.framework.confidence !== "low"
+    ? ` (${extraction.framework.frameworkName})`
+    : "";
+  const narrativeArc = `This ${extraction.totalLessons}-lesson unit on "${extraction.unitTopic}"${frameworkNote} takes students through ${phases.join(" → ")}. Converted from the teacher's existing lesson plan, preserving their original activities and teaching approach while adding StudioLoom scaffolding and Workshop Model timing.`;
 
   return {
     lessons,
