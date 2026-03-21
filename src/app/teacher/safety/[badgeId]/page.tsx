@@ -72,6 +72,85 @@ export default function BadgeDetailPage() {
   const [results, setResults] = useState<ResultsData | null>(null);
   const [resultsLoading, setResultsLoading] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
+  const [assignMode, setAssignMode] = useState<"choose" | "unit" | "student">("choose");
+  const [units, setUnits] = useState<Array<{ id: string; title: string }>>([]);
+  const [classes, setClasses] = useState<Array<{ id: string; name: string; students: Array<{ id: string; display_name: string }> }>>([]);
+  const [assignLoading, setAssignLoading] = useState(false);
+  const [assignSuccess, setAssignSuccess] = useState<string | null>(null);
+  const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
+  const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+  const [grantNote, setGrantNote] = useState("");
+
+  // Fetch units for assignment
+  const fetchUnits = async () => {
+    try {
+      const res = await fetch("/api/teacher/dashboard");
+      if (!res.ok) return;
+      const data = await res.json();
+      const allUnits = (data.units || []).map((u: { id: string; title: string }) => ({ id: u.id, title: u.title }));
+      setUnits(allUnits);
+    } catch (e) {
+      console.error("Failed to fetch units:", e);
+    }
+  };
+
+  // Fetch classes + students for granting
+  const fetchClasses = async () => {
+    try {
+      const res = await fetch("/api/teacher/dashboard");
+      if (!res.ok) return;
+      const data = await res.json();
+      const allClasses = (data.classes || []).map((c: { id: string; name: string; students?: Array<{ id: string; display_name: string }> }) => ({
+        id: c.id,
+        name: c.name,
+        students: c.students || [],
+      }));
+      setClasses(allClasses);
+    } catch (e) {
+      console.error("Failed to fetch classes:", e);
+    }
+  };
+
+  // Assign badge to a unit
+  const handleAssignToUnit = async () => {
+    if (!selectedUnitId || !badgeId) return;
+    try {
+      setAssignLoading(true);
+      const res = await fetch(`/api/teacher/badges/${badgeId}/assign`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "unit", unitId: selectedUnitId }),
+      });
+      if (!res.ok) throw new Error("Failed to assign");
+      setAssignSuccess("Badge assigned to unit successfully!");
+      setTimeout(() => { setShowAssignModal(false); setAssignSuccess(null); setAssignMode("choose"); }, 1500);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to assign");
+    } finally {
+      setAssignLoading(false);
+    }
+  };
+
+  // Grant badge to selected students
+  const handleGrantToStudents = async () => {
+    if (selectedStudentIds.length === 0 || !badgeId) return;
+    try {
+      setAssignLoading(true);
+      const res = await fetch(`/api/teacher/badges/${badgeId}/assign`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "students", studentIds: selectedStudentIds, note: grantNote || undefined }),
+      });
+      if (!res.ok) throw new Error("Failed to grant");
+      setAssignSuccess(`Badge granted to ${selectedStudentIds.length} student(s)!`);
+      setTimeout(() => { setShowAssignModal(false); setAssignSuccess(null); setAssignMode("choose"); setSelectedStudentIds([]); setGrantNote(""); }, 1500);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to grant");
+    } finally {
+      setAssignLoading(false);
+    }
+  };
 
   // Fetch badge details on mount
   useEffect(() => {
@@ -685,39 +764,173 @@ export default function BadgeDetailPage() {
         </div>
       </div>
 
-      {/* Assign Modal (placeholder) */}
+      {/* Assign Modal */}
       {showAssignModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg max-w-md w-full p-6">
-            <h2 className="text-lg font-bold text-gray-900 mb-4">
-              Assign Badge
-            </h2>
-            <p className="text-sm text-gray-600 mb-6">
-              Assign this badge to a unit, class, or individual students.
-            </p>
+          <div className="bg-white rounded-lg max-w-md w-full p-6 max-h-[80vh] overflow-y-auto">
 
-            <div className="space-y-3 mb-6">
-              <button className="w-full text-left px-4 py-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                <p className="font-medium text-gray-900">Assign to Unit</p>
-                <p className="text-xs text-gray-500">
-                  Make available as a checkpoint in a unit
-                </p>
-              </button>
+            {/* Success message */}
+            {assignSuccess ? (
+              <div className="text-center py-8">
+                <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <CheckCircleIcon />
+                </div>
+                <p className="font-medium text-emerald-700">{assignSuccess}</p>
+              </div>
+            ) : assignMode === "choose" ? (
+              <>
+                <h2 className="text-lg font-bold text-gray-900 mb-2">Assign Badge</h2>
+                <p className="text-sm text-gray-600 mb-6">Assign this badge to a unit, class, or individual students.</p>
+                <div className="space-y-3 mb-6">
+                  <button
+                    onClick={() => { setAssignMode("unit"); fetchUnits(); }}
+                    className="w-full text-left px-4 py-3 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-purple-300 transition-colors"
+                  >
+                    <p className="font-medium text-gray-900">Assign to Unit</p>
+                    <p className="text-xs text-gray-500">Require this badge before students can access a unit</p>
+                  </button>
+                  <button
+                    onClick={() => { setAssignMode("student"); fetchClasses(); }}
+                    className="w-full text-left px-4 py-3 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-purple-300 transition-colors"
+                  >
+                    <p className="font-medium text-gray-900">Grant to Students</p>
+                    <p className="text-xs text-gray-500">Manually award badge to specific students</p>
+                  </button>
+                </div>
+                <button onClick={() => { setShowAssignModal(false); setAssignMode("choose"); }} className="w-full px-4 py-2 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors">
+                  Cancel
+                </button>
+              </>
+            ) : assignMode === "unit" ? (
+              <>
+                <button onClick={() => setAssignMode("choose")} className="text-sm text-purple-600 hover:text-purple-800 mb-4 flex items-center gap-1">
+                  <BackArrowIcon /> Back
+                </button>
+                <h2 className="text-lg font-bold text-gray-900 mb-2">Assign to Unit</h2>
+                <p className="text-sm text-gray-600 mb-4">Select a unit that will require this badge.</p>
+                {units.length === 0 ? (
+                  <p className="text-sm text-gray-500 py-4 text-center">Loading units...</p>
+                ) : (
+                  <div className="space-y-2 mb-6 max-h-60 overflow-y-auto">
+                    {units.map((u) => (
+                      <button
+                        key={u.id}
+                        onClick={() => setSelectedUnitId(u.id)}
+                        className={`w-full text-left px-4 py-3 border rounded-lg transition-colors ${selectedUnitId === u.id ? "border-purple-500 bg-purple-50" : "border-gray-200 hover:bg-gray-50"}`}
+                      >
+                        <p className="font-medium text-gray-900 text-sm">{u.title}</p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <div className="flex gap-3">
+                  <button onClick={() => { setShowAssignModal(false); setAssignMode("choose"); setSelectedUnitId(null); }} className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors">
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleAssignToUnit}
+                    disabled={!selectedUnitId || assignLoading}
+                    className="flex-1 px-4 py-2 text-white font-medium rounded-lg transition-colors disabled:opacity-50"
+                    style={{ background: selectedUnitId ? "linear-gradient(135deg, #7B2FF2, #5C16C5)" : "#ccc" }}
+                  >
+                    {assignLoading ? "Assigning..." : "Assign"}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <button onClick={() => { setAssignMode("choose"); setSelectedClassId(null); setSelectedStudentIds([]); }} className="text-sm text-purple-600 hover:text-purple-800 mb-4 flex items-center gap-1">
+                  <BackArrowIcon /> Back
+                </button>
+                <h2 className="text-lg font-bold text-gray-900 mb-2">Grant to Students</h2>
+                <p className="text-sm text-gray-600 mb-4">Select a class, then pick students to award this badge.</p>
 
-              <button className="w-full text-left px-4 py-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors">
-                <p className="font-medium text-gray-900">Grant to Students</p>
-                <p className="text-xs text-gray-500">
-                  Manually award badge to specific students
-                </p>
-              </button>
-            </div>
+                {/* Class selector */}
+                {classes.length === 0 ? (
+                  <p className="text-sm text-gray-500 py-4 text-center">Loading classes...</p>
+                ) : (
+                  <>
+                    <div className="mb-4">
+                      <label className="text-xs font-semibold text-gray-600 uppercase mb-1 block">Class</label>
+                      <select
+                        value={selectedClassId || ""}
+                        onChange={(e) => { setSelectedClassId(e.target.value || null); setSelectedStudentIds([]); }}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                      >
+                        <option value="">Select a class...</option>
+                        {classes.map((c) => (
+                          <option key={c.id} value={c.id}>{c.name} ({c.students.length} students)</option>
+                        ))}
+                      </select>
+                    </div>
 
-            <button
-              onClick={() => setShowAssignModal(false)}
-              className="w-full px-4 py-2 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              Cancel
-            </button>
+                    {/* Student checkboxes */}
+                    {selectedClassId && (
+                      <div className="mb-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="text-xs font-semibold text-gray-600 uppercase">Students</label>
+                          <button
+                            onClick={() => {
+                              const classStudents = classes.find(c => c.id === selectedClassId)?.students || [];
+                              setSelectedStudentIds(selectedStudentIds.length === classStudents.length ? [] : classStudents.map(s => s.id));
+                            }}
+                            className="text-xs text-purple-600 hover:text-purple-800"
+                          >
+                            {selectedStudentIds.length === (classes.find(c => c.id === selectedClassId)?.students || []).length ? "Deselect All" : "Select All"}
+                          </button>
+                        </div>
+                        <div className="space-y-1 max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-2">
+                          {(classes.find(c => c.id === selectedClassId)?.students || []).map((s) => (
+                            <label key={s.id} className="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-50 rounded cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={selectedStudentIds.includes(s.id)}
+                                onChange={(e) => {
+                                  setSelectedStudentIds(e.target.checked ? [...selectedStudentIds, s.id] : selectedStudentIds.filter(id => id !== s.id));
+                                }}
+                                className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                              />
+                              <span className="text-sm text-gray-900">{s.display_name}</span>
+                            </label>
+                          ))}
+                          {(classes.find(c => c.id === selectedClassId)?.students || []).length === 0 && (
+                            <p className="text-sm text-gray-500 text-center py-2">No students in this class</p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Optional note */}
+                    {selectedStudentIds.length > 0 && (
+                      <div className="mb-4">
+                        <label className="text-xs font-semibold text-gray-600 uppercase mb-1 block">Note (optional)</label>
+                        <input
+                          type="text"
+                          value={grantNote}
+                          onChange={(e) => setGrantNote(e.target.value)}
+                          placeholder="e.g. Passed practical demonstration"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                        />
+                      </div>
+                    )}
+                  </>
+                )}
+
+                <div className="flex gap-3">
+                  <button onClick={() => { setShowAssignModal(false); setAssignMode("choose"); setSelectedClassId(null); setSelectedStudentIds([]); setGrantNote(""); }} className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors">
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleGrantToStudents}
+                    disabled={selectedStudentIds.length === 0 || assignLoading}
+                    className="flex-1 px-4 py-2 text-white font-medium rounded-lg transition-colors disabled:opacity-50"
+                    style={{ background: selectedStudentIds.length > 0 ? "linear-gradient(135deg, #7B2FF2, #5C16C5)" : "#ccc" }}
+                  >
+                    {assignLoading ? "Granting..." : `Grant to ${selectedStudentIds.length} student${selectedStudentIds.length !== 1 ? "s" : ""}`}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
