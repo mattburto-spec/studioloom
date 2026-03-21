@@ -27,12 +27,32 @@ export default function ToolsLayout({ children }: { children: ReactNode }) {
               Free Teaching Tools
             </span>
           </Link>
-          <Link
-            href="/teacher/login"
-            className="text-sm font-medium text-[#7B2FF2] hover:underline"
-          >
-            Sign in
-          </Link>
+          <nav className="flex items-center gap-4">
+            <Link
+              href="/tools/report-writer"
+              className="text-sm font-medium text-gray-600 hover:text-[#7B2FF2] transition"
+            >
+              Report Writer
+            </Link>
+            <Link
+              href="/tools/safety"
+              className="text-sm font-medium text-gray-600 hover:text-[#7B2FF2] transition"
+            >
+              Safety Badges
+            </Link>
+            <Link
+              href="/toolkit"
+              className="text-sm font-medium text-gray-600 hover:text-[#7B2FF2] transition"
+            >
+              Toolkit
+            </Link>
+            <Link
+              href="/teacher/login"
+              className="text-sm font-medium text-[#7B2FF2] hover:underline"
+            >
+              Sign in
+            </Link>
+          </nav>
         </div>
       </header>
 

@@ -236,6 +236,10 @@ export default function Home() {
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg>
               Free Toolkit
             </Link>
+            <Link href="/tools/safety" className="hidden md:inline-flex items-center gap-1.5 px-4 py-2 text-sm text-white/70 hover:text-white transition">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
+              Safety Badges
+            </Link>
             <Link href="/login" className="hidden sm:inline-block px-4 py-2 text-sm text-white/70 hover:text-white transition">
               Student Login
             </Link>
@@ -651,6 +655,8 @@ export default function Home() {
             <p className="text-xs text-white/30">Design Process Platform — Built for international educators. Works with ManageBac, Canvas, Schoology &amp; more.</p>
             <div className="flex items-center gap-4">
               <Link href="/toolkit" className="text-xs text-white/40 hover:text-white/70 transition">Design Toolkit</Link>
+              <Link href="/tools/safety" className="text-xs text-white/40 hover:text-white/70 transition">Safety Badges</Link>
+              <Link href="/tools/report-writer" className="text-xs text-white/40 hover:text-white/70 transition">Report Writer</Link>
               <Link href="/login" className="text-xs text-white/40 hover:text-white/70 transition">Students</Link>
               <Link href="/teacher/login" className="text-xs text-white/40 hover:text-white/70 transition">Teachers</Link>
             </div>
