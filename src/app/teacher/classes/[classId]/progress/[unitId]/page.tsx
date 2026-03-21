@@ -539,7 +539,12 @@ export default function ProgressTrackingPage({
       )}
 
       {/* Pace Feedback Summary */}
-      <div className="mt-8 p-4 bg-surface-alt rounded-lg border border-border">
+      <div className="mt-8 p-5 bg-white rounded-xl border border-border shadow-sm">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-lg">📊</span>
+          <h2 className="text-base font-semibold text-text-primary">Lesson Pace Feedback</h2>
+          <span className="text-xs text-text-secondary ml-auto">From student post-lesson surveys</span>
+        </div>
         <PaceFeedbackSummary unitId={unitId} />
       </div>
 
