@@ -9,8 +9,7 @@ import { buildSkeletonFromExtraction } from "@/lib/converter/build-skeleton";
 import { extractImagesFromDocx, isDocx, type ExtractedImage } from "@/lib/converter/extract-images";
 import { resolveCredentials } from "@/lib/ai/resolve-credentials";
 import { createAIProvider } from "@/lib/ai";
-import { UNIT_SYSTEM_PROMPT, getGradeTimingProfile, buildTimingContext, calculateUsableTime, maxInstructionMinutes } from "@/lib/ai/prompts";
-import { validateLessonTiming } from "@/lib/ai/timing-validation";
+import { UNIT_SYSTEM_PROMPT } from "@/lib/ai/prompts";
 import { validateGeneratedPages } from "@/lib/ai/validation";
 import { onLessonUploaded } from "@/lib/teacher-style/profile-service";
 import { chunkDocument, type ChunkMetadata } from "@/lib/knowledge/chunk";
@@ -54,6 +53,9 @@ const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
  *   Input: JSON with `skeleton`, `rawText`, `extraction`, `mode`, optional `targetUnitId`
  *   Output: { pages, timingValidation }
  */
+// Allow up to 5 minutes for 12-lesson generation (each AI call ~30-45s)
+export const maxDuration = 300;
+
 export const POST = withErrorHandler("teacher/convert-lesson:POST", async (request: NextRequest) => {
   const supabase = createSupabaseServer(request);
   const { data: { user } } = await supabase.auth.getUser();
@@ -231,66 +233,73 @@ async function handleGeneration(
       modelName: creds.modelName,
     });
 
-    // Build grade profile for timing validation using actual lesson duration
+    // For imported lessons: OBSERVE timing, don't enforce rigid rules.
+    // The teacher's original timing IS the data — we learn from it, not overwrite it.
     const defaultDuration = lessonDurationMinutes || 50;
-    const gradeLevel = extraction?.gradeLevel || "Year 4";
-    const gradeProfile = getGradeTimingProfile(gradeLevel);
-    const timingCtx = buildTimingContext(gradeProfile, defaultDuration, true);
-    const usableTime = calculateUsableTime(timingCtx);
-    const instructionCap = maxInstructionMinutes(gradeProfile);
 
     // Generate pages for each lesson with context injection
+    // Process in parallel batches of 3 to speed up (was sequential = timeout)
     const allPages: Record<string, PageContent> = {};
-    const timingResults: Array<{ lessonId: string; issues: string[] }> = [];
+    const timingObservations: Array<{ lessonId: string; duration: number; activityBreakdown: string[] }> = [];
+    const BATCH_SIZE = 3;
 
-    for (const lesson of skeleton.lessons) {
-      // Find matching extraction lesson for context
-      const extractionLesson = extraction?.lessons?.[lesson.lessonNumber - 1];
-      const originalText = extractionLesson
-        ? extractionLesson.activities.map((a: { description: string; type: string }) => `- ${a.type}: ${a.description}`).join("\n")
-        : "";
+    for (let i = 0; i < skeleton.lessons.length; i += BATCH_SIZE) {
+      const batch = skeleton.lessons.slice(i, i + BATCH_SIZE);
+      const batchResults = await Promise.all(batch.map(async (lesson) => {
+        // Find matching extraction lesson for context
+        const extractionLesson = extraction?.lessons?.[lesson.lessonNumber - 1];
+        const originalText = extractionLesson
+          ? extractionLesson.activities.map((a: { description: string; type: string }) => `- ${a.type}: ${a.description}`).join("\n")
+          : "";
 
-      // Include resources for this lesson
-      const lessonResources = extractionLesson?.resources || [];
-      const resourcesText = lessonResources.length > 0
-        ? `\n\nTEACHER RESOURCES FOR THIS LESSON:\n${lessonResources.map((r: { url: string; title: string; type: string }) => `- [${r.type}] ${r.title}: ${r.url}`).join("\n")}\nPRESERVE these resource links in the generated content.`
-        : "";
+        // Include resources for this lesson
+        const lessonResources = extractionLesson?.resources || [];
+        const resourcesText = lessonResources.length > 0
+          ? `\n\nTEACHER RESOURCES FOR THIS LESSON:\n${lessonResources.map((r: { url: string; title: string; type: string }) => `- [${r.type}] ${r.title}: ${r.url}`).join("\n")}\nPRESERVE these resource links in the generated content.`
+          : "";
 
-      // Build the context-injected user prompt
-      const contextPrompt = buildConverterPrompt(lesson, originalText + resourcesText, extraction, usableTime, instructionCap);
+        // Build the context-injected user prompt — flexible, not rigid
+        const contextPrompt = buildConverterPrompt(lesson, originalText + resourcesText, extraction, defaultDuration);
 
-      // Generate using existing page generation
-      const pages = await provider.generateCriterionPages(
-        (lesson.criterionTags?.[0] || "B") as "A" | "B" | "C" | "D",
-        {
-          topic: extraction.unitTopic,
-          subject: extraction.subjectArea || "Design",
-          gradeLevel: extraction.gradeLevel || "Year 9",
-          framework: frameworkKey || "myp",
-          duration: `${lesson.estimatedMinutes} minutes`,
-        } as unknown as import("@/types").UnitWizardInput,
-        UNIT_SYSTEM_PROMPT + `\n\nCONTEXT: This unit is being converted from the teacher's existing lesson plan.\nThe original lesson plan text for this lesson is:\n---\n${originalText}\n---\nPRESERVE the teacher's original activities and teaching approach.\nENHANCE with: Workshop Model timing, scaffolding tiers, extensions, response types.\nDo NOT replace the teacher's activities with generic alternatives.`,
-        contextPrompt
-      );
+        // Generate using existing page generation
+        const pages = await provider.generateCriterionPages(
+          (lesson.criterionTags?.[0] || "B") as "A" | "B" | "C" | "D",
+          {
+            topic: extraction.unitTopic,
+            subject: extraction.subjectArea || "Design",
+            gradeLevel: extraction.gradeLevel || "Year 9",
+            framework: frameworkKey || "myp",
+            duration: `${lesson.estimatedMinutes} minutes`,
+          } as unknown as import("@/types").UnitWizardInput,
+          UNIT_SYSTEM_PROMPT + `\n\nCONTEXT: This unit is being converted from the teacher's existing lesson plan.\nThe original lesson plan text for this lesson is:\n---\n${originalText}\n---\nPRESERVE the teacher's original activities, timing, and teaching approach.\nENHANCE with: scaffolding tiers, response types, student engagement activities.\nDo NOT force the teacher's lesson into a rigid timing model.\nDo NOT replace the teacher's activities with generic alternatives.`,
+          contextPrompt
+        );
 
-      // Validate timing on each generated page
-      const validation = validateGeneratedPages(pages);
-      for (const [pageId, page] of Object.entries(validation.pages)) {
-        if (page.workshopPhases) {
-          const timingValidation = validateLessonTiming(page, {
-            periodMinutes: lesson.estimatedMinutes || 50,
-            instructionCap,
-            gradeProfile,
+        // Observe timing from the generated page — store as learning data, don't auto-repair
+        const validation = validateGeneratedPages(pages);
+
+        // Record timing observations for the teacher style profile
+        if (extractionLesson) {
+          timingObservations.push({
+            lessonId: lesson.lessonId,
+            duration: extractionLesson.estimatedMinutes || defaultDuration,
+            activityBreakdown: extractionLesson.activities.map((a: { type: string; estimatedMinutes?: number }) =>
+              `${a.type}: ${a.estimatedMinutes || "?"}min`
+            ),
           });
-          if (timingValidation.issues.length > 0) {
-            timingResults.push({ lessonId: lesson.lessonId, issues: timingValidation.issues.map((i: { rule: string; message: string }) => i.message) });
-          }
-          // Apply auto-repaired page
-          allPages[`${lesson.lessonId}_${pageId}`] = timingValidation.repairedPage || page;
-        } else {
-          allPages[`${lesson.lessonId}_${pageId}`] = page;
+        }
+
+        return { lessonId: lesson.lessonId, pages: validation.pages };
+      }));
+
+      // Collect results from batch
+      for (const { lessonId, pages } of batchResults) {
+        for (const [pageId, page] of Object.entries(pages)) {
+          allPages[`${lessonId}_${pageId}`] = page;
         }
       }
+
+      console.log(`[convert-lesson] Generated batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(skeleton.lessons.length / BATCH_SIZE)}`);
     }
 
     // Fire teacher style profile learning (fire-and-forget)
@@ -308,7 +317,7 @@ async function handleGeneration(
 
     return NextResponse.json({
       pages: allPages,
-      timingValidation: timingResults,
+      timingObservations,
       skeleton,
       lessonCount: skeleton.lessons.length,
       mode,
@@ -328,15 +337,14 @@ function buildConverterPrompt(
   lesson: TimelineSkeleton["lessons"][0],
   originalText: string,
   extraction: { unitTopic: string; gradeLevel: string; subjectArea: string },
-  usableTime: number,
-  instructionCap: number
+  lessonDuration: number
 ): string {
   return `Generate a lesson page for:
 
 UNIT: ${extraction.unitTopic}
 LESSON ${lesson.lessonNumber}: ${lesson.title}
 KEY QUESTION: ${lesson.keyQuestion}
-DURATION: ${lesson.estimatedMinutes} minutes (usable: ~${usableTime} minutes)
+DURATION: ${lessonDuration} minutes
 CRITERION FOCUS: ${lesson.criterionTags.join(", ")}
 LESSON TYPE: ${lesson.lessonType || "skills-demo"}
 PHASE: ${lesson.phaseLabel}
@@ -346,13 +354,16 @@ ${originalText || "No specific activities extracted — generate based on lesson
 
 LEARNING INTENTION: ${lesson.learningIntention || ""}
 
-TIMING RULES:
-- Workshop Model: Opening (5-10 min) → Mini-Lesson (max ${instructionCap} min) → Work Time (≥45% of usable time) → Debrief (5-10 min)
-- Include 2-3 extension activities for early finishers
-- Include workshopPhases with durations for each phase
+APPROACH:
+- PRESERVE the teacher's original activities, sequencing, and timing as faithfully as possible
+- Enhance with: scaffolding tiers, response types for student engagement, materials lists
+- Add 2-3 extension activities for early finishers (related to the lesson content)
+- If the teacher's lesson has a natural structure (intro → instruction → activity → wrap-up), keep that structure
+- Do NOT force the lesson into a rigid timing template — respect the teacher's design
+- Include workshopPhases as an observation of the lesson structure (what the teacher planned), not as a mandate
 
-Generate a complete lesson page with sections, scaffolding, and Workshop Model timing.
-PRESERVE the teacher's original activities. ENHANCE with StudioLoom scaffolding.`;
+Generate a complete lesson page with sections and scaffolding.
+The teacher knows their class — trust their timing decisions.`;
 }
 
 /**

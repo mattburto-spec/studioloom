@@ -275,7 +275,8 @@ export default function LessonPlanConverter() {
     if (!editedSkeleton || !result) return;
 
     setScreen("generating");
-    setGenerationProgress("Generating unit pages...");
+    const lessonCount = editedSkeleton.lessons.length;
+    setGenerationProgress(`Converting ${lessonCount} lessons (this may take 1-2 minutes)...`);
 
     try {
       const res = await fetch("/api/teacher/convert-lesson", {
@@ -292,18 +293,29 @@ export default function LessonPlanConverter() {
         }),
       });
 
-      const data = await res.json();
-
+      // Check response status BEFORE parsing JSON — timeout/error returns non-JSON
       if (!res.ok) {
-        setError(data.error || "Generation failed");
+        let errorMsg = "Generation failed";
+        try {
+          const data = await res.json();
+          errorMsg = data.error || errorMsg;
+        } catch {
+          // Response wasn't JSON (e.g. Vercel timeout)
+          const text = await res.text().catch(() => "");
+          errorMsg = res.status === 504
+            ? "Generation timed out — try with fewer lessons or contact support."
+            : text.slice(0, 200) || `Server error (${res.status})`;
+        }
+        setError(errorMsg);
         setScreen("review");
         return;
       }
 
+      const data = await res.json();
       setGeneratedUnit(data);
       setScreen("complete");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Generation failed");
+      setError(err instanceof Error ? err.message : "Generation failed — check your connection and try again.");
       setScreen("review");
     }
   }, [editedSkeleton, result]);
