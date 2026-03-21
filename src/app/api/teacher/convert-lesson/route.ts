@@ -376,7 +376,8 @@ Return ONLY valid JSON matching this structure (no markdown, no explanation, no 
   "sections": [
     {
       "prompt": "string — activity instructions",
-      "responseType": "text|upload|voice|link|multi",
+      "responseType": "text|upload|null",
+      "contentStyle": "activity|speaking|practical|null",
       "durationMinutes": number,
       "scaffolding": {
         "ell1": { "sentenceStarters": ["string"], "hints": ["string"] },
@@ -388,18 +389,24 @@ Return ONLY valid JSON matching this structure (no markdown, no explanation, no 
   "extensions": [
     { "title": "string", "description": "string", "durationMinutes": number }
   ],
-  "reflection": { "type": "short-response", "items": ["string"] }
+  "reflection": { "prompt": "string — one short check-in question" }
 }
 
 CRITICAL: Return ONLY valid JSON. No text before or after. Aim for 3-6 sections. Keep scaffolding strings brief.
 
-RULES:
+ACTIVITY TYPE RULES — this is important:
+- If the activity requires students to WRITE or SUBMIT something digital: set responseType to "text" or "upload"
+- If the activity is SPEAKING (discussion, presentation, debate, peer feedback verbal): set responseType to null, contentStyle to "speaking"
+- If the activity is PRACTICAL (hands-on making, prototyping, drawing, physical): set responseType to null, contentStyle to "practical"
+- If the activity is INSTRUCTION or DEMO (teacher talks, students watch/listen): set responseType to null, contentStyle to "activity"
+- When responseType is null, the section renders as a read-only instruction card — no text input shown
+
+OTHER RULES:
 - PRESERVE the teacher's original activities — convert them into sections, don't replace them
-- Each teacher activity becomes one section with appropriate responseType
-- Add 3-tier ELL scaffolding (sentence starters for beginners, extension prompts for advanced)
+- Add 3-tier ELL scaffolding only on sections WITH a responseType (skip for speaking/practical)
 - Add 2-3 extension activities for early finishers
-- Add one reflection prompt at the end
-- Keep the teacher's sequencing and timing — don't rearrange`;
+- Keep the teacher's sequencing and timing — don't rearrange
+- Reflection must be ONE short question (max 15 words). Keep it simple — "What worked well today?" not a multi-paragraph prompt`;
 
   const MAX_RETRIES = 2;
   let lastError: Error | null = null;
@@ -456,15 +463,45 @@ RULES:
 
       const parsed = JSON.parse(jsonStr);
 
+      // Normalize sections: null responseType → omit (renders as content-only block)
+      const sections = (parsed.sections || []).map((s: Record<string, unknown>) => {
+        const section: Record<string, unknown> = { ...s };
+        if (!section.responseType || section.responseType === "null") {
+          delete section.responseType; // content-only block
+        }
+        if (!section.contentStyle || section.contentStyle === "null") {
+          delete section.contentStyle;
+        }
+        // Skip scaffolding for content-only sections
+        if (!section.responseType) {
+          delete section.scaffolding;
+        }
+        return section;
+      });
+
+      // Normalize reflection: ensure it's a simple { type, items } array
+      let reflection = parsed.reflection;
+      if (reflection?.prompt && !reflection?.items) {
+        // AI returned new format { prompt: "..." } — convert to standard format
+        reflection = { type: "short-response", items: [reflection.prompt] };
+      }
+      reflection = reflection || { type: "short-response", items: ["What worked well today?"] };
+      // Enforce max 3 reflection items
+      if (reflection.items?.length > 3) {
+        reflection.items = reflection.items.slice(0, 3);
+      }
+
       // Ensure minimum structure
       return {
         title: parsed.title || lessonTitle,
         learningGoal: parsed.learningGoal || "",
         introduction: parsed.introduction || { text: "" },
-        sections: parsed.sections || [],
+        sections,
         extensions: parsed.extensions || [],
-        reflection: parsed.reflection || { type: "short-response", items: ["What did you learn today?"] },
+        reflection,
         ...parsed,
+        sections, // override parsed.sections with normalized version
+        reflection, // override parsed.reflection with normalized version
       } as PageContent;
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
@@ -489,7 +526,7 @@ RULES:
       scaffolding: { ell1: { sentenceStarters: [], hints: [] }, ell2: { sentenceStarters: [] }, ell3: { extensionPrompts: [] } },
     }],
     extensions: [],
-    reflection: { type: "short-response", items: ["What did you learn today?"] },
+    reflection: { type: "short-response", items: ["What worked well today?"] },
     _conversionError: lastError?.message,
   } as PageContent;
 }

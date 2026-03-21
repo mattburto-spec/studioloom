@@ -172,7 +172,7 @@ export interface ActivityLink {
   label: string;
 }
 
-export type ContentStyle = "info" | "warning" | "tip" | "context";
+export type ContentStyle = "info" | "warning" | "tip" | "context" | "activity" | "speaking" | "practical";
 
 export interface ActivitySection {
   prompt: string;
