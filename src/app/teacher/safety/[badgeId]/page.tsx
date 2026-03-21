@@ -74,6 +74,8 @@ export default function BadgeDetailPage() {
   const [results, setResults] = useState<ResultsData | null>(null);
   const [resultsLoading, setResultsLoading] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editingSaveLoading, setEditingSaveLoading] = useState(false);
   const [assignMode, setAssignMode] = useState<"choose" | "unit" | "student">("choose");
   const [units, setUnits] = useState<Array<{ id: string; title: string }>>([]);
   const [classes, setClasses] = useState<Array<{ id: string; name: string; students: Array<{ id: string; display_name: string }> }>>([]);
@@ -151,6 +153,36 @@ export default function BadgeDetailPage() {
       setError(e instanceof Error ? e.message : "Failed to grant");
     } finally {
       setAssignLoading(false);
+    }
+  };
+
+  // Save badge edits
+  const handleSaveEdit = async () => {
+    if (!badgeId || !badge) return;
+    try {
+      setEditingSaveLoading(true);
+      setError(null);
+
+      const response = await fetch(`/api/teacher/badges/${badgeId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          description: badge.description,
+          pass_threshold: badge.pass_threshold,
+          expiry_months: badge.expiry_months,
+          retake_cooldown_minutes: badge.retake_cooldown_minutes,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to save changes");
+      }
+
+      setIsEditMode(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save changes");
+    } finally {
+      setEditingSaveLoading(false);
     }
   };
 
@@ -296,22 +328,30 @@ export default function BadgeDetailPage() {
 
             {/* Action Buttons */}
             <div className="flex gap-2">
-              {badge.created_by_teacher_id && (
+              {badge.created_by_teacher_id && !badge.is_built_in && (
+                <>
+                  <button
+                    onClick={() => setIsEditMode(!isEditMode)}
+                    className={`inline-flex items-center gap-2 px-4 py-2 font-medium rounded-lg transition-colors ${
+                      isEditMode
+                        ? "bg-amber-100 hover:bg-amber-200 text-amber-700"
+                        : "bg-gray-100 hover:bg-gray-200 text-gray-700"
+                    }`}
+                  >
+                    <EditIcon />
+                    {isEditMode ? "Cancel Edit" : "Edit"}
+                  </button>
+                </>
+              )}
+              {!isEditMode && (
                 <button
-                  // Edit action would go here
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-colors"
+                  onClick={() => setShowAssignModal(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg transition-colors"
                 >
-                  <EditIcon />
-                  Edit
+                  <PlusIcon />
+                  Assign
                 </button>
               )}
-              <button
-                onClick={() => setShowAssignModal(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg transition-colors"
-              >
-                <PlusIcon />
-                Assign
-              </button>
             </div>
           </div>
           </div>{/* close p-6 */}
@@ -339,27 +379,62 @@ export default function BadgeDetailPage() {
           {/* OVERVIEW TAB */}
           {activeTab === "overview" && (
             <div>
-              <h2 className="text-xl font-bold text-gray-900 mb-6">Overview</h2>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-gray-900">Overview</h2>
+                {isEditMode && (
+                  <button
+                    onClick={() => handleSaveEdit()}
+                    disabled={editingSaveLoading}
+                    className="px-4 py-2 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 disabled:opacity-50 text-white font-medium rounded-lg transition-all"
+                  >
+                    {editingSaveLoading ? "Saving..." : "Save Changes"}
+                  </button>
+                )}
+              </div>
 
-              {/* Description */}
-              {badge.description && (
-                <div className="mb-8 pb-8 border-b border-gray-200">
-                  <h3 className="text-sm font-semibold text-gray-700 mb-2">
-                    Description
-                  </h3>
-                  <p className="text-gray-600">{badge.description}</p>
-                </div>
-              )}
+              {/* Description / Edit */}
+              <div className="mb-8 pb-8 border-b border-gray-200">
+                <h3 className="text-sm font-semibold text-gray-700 mb-2">
+                  Description
+                </h3>
+                {isEditMode ? (
+                  <textarea
+                    defaultValue={badge.description || ""}
+                    onChange={(e) => {
+                      const newBadge = { ...badge, description: e.target.value };
+                      setBadge(newBadge);
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    rows={3}
+                  />
+                ) : (
+                  <p className="text-gray-600">{badge.description || "No description"}</p>
+                )}
+              </div>
 
-              {/* Stats Grid */}
+              {/* Stats Grid / Edit */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
                 <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
                   <p className="text-xs font-semibold text-gray-500 uppercase">
                     Pass Threshold
                   </p>
-                  <p className="text-2xl font-bold text-gray-900 mt-1">
-                    {badge.pass_threshold}%
-                  </p>
+                  {isEditMode ? (
+                    <input
+                      type="number"
+                      min="50"
+                      max="100"
+                      defaultValue={badge.pass_threshold}
+                      onChange={(e) => {
+                        const newBadge = { ...badge, pass_threshold: parseInt(e.target.value) };
+                        setBadge(newBadge);
+                      }}
+                      className="w-full mt-1 px-2 py-1 border border-gray-300 rounded text-sm"
+                    />
+                  ) : (
+                    <p className="text-2xl font-bold text-gray-900 mt-1">
+                      {badge.pass_threshold}%
+                    </p>
+                  )}
                 </div>
 
                 <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
@@ -375,22 +450,54 @@ export default function BadgeDetailPage() {
                   <p className="text-xs font-semibold text-gray-500 uppercase">
                     Retake Cooldown
                   </p>
-                  <p className="text-2xl font-bold text-gray-900 mt-1">
-                    {badge.retake_cooldown_minutes}
-                  </p>
-                  <p className="text-xs text-gray-500">min</p>
+                  {isEditMode ? (
+                    <input
+                      type="number"
+                      min="0"
+                      max="1440"
+                      defaultValue={badge.retake_cooldown_minutes}
+                      onChange={(e) => {
+                        const newBadge = { ...badge, retake_cooldown_minutes: parseInt(e.target.value) };
+                        setBadge(newBadge);
+                      }}
+                      className="w-full mt-1 px-2 py-1 border border-gray-300 rounded text-sm"
+                    />
+                  ) : (
+                    <>
+                      <p className="text-2xl font-bold text-gray-900 mt-1">
+                        {badge.retake_cooldown_minutes}
+                      </p>
+                      <p className="text-xs text-gray-500">min</p>
+                    </>
+                  )}
                 </div>
 
                 <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
                   <p className="text-xs font-semibold text-gray-500 uppercase">
                     Expiry
                   </p>
-                  <p className="text-2xl font-bold text-gray-900 mt-1">
-                    {badge.expiry_months ? badge.expiry_months : "∞"}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    {badge.expiry_months ? "months" : "never"}
-                  </p>
+                  {isEditMode ? (
+                    <input
+                      type="number"
+                      min="0"
+                      max="60"
+                      defaultValue={badge.expiry_months || 0}
+                      onChange={(e) => {
+                        const newBadge = { ...badge, expiry_months: parseInt(e.target.value) || null };
+                        setBadge(newBadge);
+                      }}
+                      className="w-full mt-1 px-2 py-1 border border-gray-300 rounded text-sm"
+                    />
+                  ) : (
+                    <>
+                      <p className="text-2xl font-bold text-gray-900 mt-1">
+                        {badge.expiry_months ? badge.expiry_months : "∞"}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {badge.expiry_months ? "months" : "never"}
+                      </p>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -489,8 +596,14 @@ export default function BadgeDetailPage() {
                     {Math.min(10, badge.question_count)} drawn per test
                   </p>
                 </div>
-                {badge.created_by_teacher_id && (
-                  <button className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg transition-colors">
+                {badge.created_by_teacher_id && !badge.is_built_in && (
+                  <button
+                    onClick={() => {
+                      setIsEditMode(true);
+                      setActiveTab("questions");
+                    }}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg transition-colors"
+                  >
                     <PlusIcon />
                     Add Question
                   </button>
@@ -566,9 +679,23 @@ export default function BadgeDetailPage() {
           {/* LEARN CONTENT TAB */}
           {activeTab === "learn" && (
             <div>
-              <h2 className="text-xl font-bold text-gray-900 mb-6">
-                Learning Resources
-              </h2>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-gray-900">
+                  Learning Resources
+                </h2>
+                {badge.created_by_teacher_id && !badge.is_built_in && (
+                  <button
+                    onClick={() => {
+                      setIsEditMode(true);
+                      setActiveTab("learn");
+                    }}
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg transition-colors"
+                  >
+                    <PlusIcon />
+                    Add Card
+                  </button>
+                )}
+              </div>
 
               {badge.learn_content && badge.learn_content.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

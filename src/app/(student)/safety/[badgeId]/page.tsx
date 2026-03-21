@@ -1,0 +1,762 @@
+"use client";
+
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { useRouter } from "next/navigation";
+import { useStudent } from "../../student-context";
+
+interface LearnCard {
+  title: string;
+  content: string;
+  icon: string;
+}
+
+interface BadgeQuestion {
+  id: string;
+  type: "multiple_choice" | "true_false" | "scenario" | "sequence" | "match";
+  topic: string;
+  prompt: string;
+  options?: string[];
+  match_pairs?: Array<{ left: string; right: string }>;
+  correct_answer: string | string[] | number[];
+  explanation: string;
+  difficulty: "easy" | "medium" | "hard";
+}
+
+interface Badge {
+  id: string;
+  name: string;
+  description: string;
+  icon_name: string;
+  pass_threshold: number;
+  question_count: number;
+  expiry_months: number;
+}
+
+type Screen = "intro" | "quiz" | "results";
+
+interface Answer {
+  question_id: string;
+  selected: string | string[] | number[];
+  time_ms: number;
+}
+
+export default function SafetyBadgeTestPage({
+  params,
+}: {
+  params: { badgeId: string };
+}) {
+  const router = useRouter();
+  const { student } = useStudent();
+  const badgeId = params.badgeId;
+
+  // Badge data
+  const [badge, setBadge] = useState<Badge | null>(null);
+  const [learnCards, setLearnCards] = useState<LearnCard[]>([]);
+  const [questions, setQuestions] = useState<BadgeQuestion[]>([]);
+  const [loadingBadge, setLoadingBadge] = useState(true);
+
+  // Screen state
+  const [screen, setScreen] = useState<Screen>("intro");
+  const [cardsViewed, setCardsViewed] = useState<Set<number>>(new Set());
+  const [currentQuestion, setCurrentQuestion] = useState(0);
+  const [answers, setAnswers] = useState<Answer[]>([]);
+  const [currentAnswer, setCurrentAnswer] = useState<
+    string | string[] | number[] | null
+  >(null);
+  const [questionStartTime, setQuestionStartTime] = useState<number>(
+    Date.now()
+  );
+
+  // Results
+  const [results, setResults] = useState<any>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Load badge data
+  useEffect(() => {
+    async function loadBadge() {
+      if (!student) return;
+      try {
+        const res = await fetch(
+          `/api/student/safety/badges/${badgeId}`
+        );
+        if (res.ok) {
+          const data = await res.json();
+          setBadge(data.badge);
+          setLearnCards(data.learnContent || []);
+          setQuestions(data.questions || []);
+
+          // Check if already earned or on cooldown
+          if (
+            data.studentStatus === "earned" ||
+            data.studentStatus === "cooldown"
+          ) {
+            setScreen("results");
+            setResults({
+              alreadyEarned: data.studentStatus === "earned",
+              earnedAt: data.earnedAt,
+              expiresAt: data.expiresAt,
+            });
+          }
+        } else {
+          router.push("/safety");
+        }
+      } catch (err) {
+        console.error("Error loading badge:", err);
+        router.push("/safety");
+      } finally {
+        setLoadingBadge(false);
+      }
+    }
+    loadBadge();
+  }, [student, badgeId, router]);
+
+  // Track card views
+  const toggleCardView = useCallback((index: number) => {
+    setCardsViewed((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) {
+        next.delete(index);
+      } else {
+        next.add(index);
+      }
+      return next;
+    });
+  }, []);
+
+  const canStartQuiz = useMemo(
+    () => cardsViewed.size >= Math.ceil(learnCards.length * 0.6),
+    [cardsViewed.size, learnCards.length]
+  );
+
+  // Start quiz
+  const handleStartQuiz = () => {
+    if (!canStartQuiz) return;
+    setScreen("quiz");
+    setQuestionStartTime(Date.now());
+    setCurrentAnswer(null);
+  };
+
+  // Navigate quiz
+  const handleNextQuestion = async () => {
+    if (!currentAnswer && currentAnswer !== 0 && currentAnswer !== "false") {
+      return; // Answer not selected
+    }
+
+    // Record answer with time
+    const time_ms = Date.now() - questionStartTime;
+    const newAnswer: Answer = {
+      question_id: questions[currentQuestion].id,
+      selected: currentAnswer,
+      time_ms,
+    };
+    setAnswers([...answers, newAnswer]);
+
+    // Move to next question or submit
+    if (currentQuestion < questions.length - 1) {
+      setCurrentQuestion(currentQuestion + 1);
+      setCurrentAnswer(null);
+      setQuestionStartTime(Date.now());
+    } else {
+      // Submit quiz
+      await submitQuiz([...answers, newAnswer]);
+    }
+  };
+
+  // Submit quiz
+  const submitQuiz = async (finalAnswers: Answer[]) => {
+    setSubmitting(true);
+    try {
+      const res = await fetch(
+        `/api/student/safety/badges/${badgeId}/submit`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            answers: finalAnswers,
+            time_taken_seconds: Math.round(
+              (Date.now() - questionStartTime) / 1000
+            ),
+          }),
+        }
+      );
+
+      if (res.ok) {
+        const data = await res.json();
+        setResults(data);
+        setScreen("results");
+      } else {
+        alert("Failed to submit quiz");
+      }
+    } catch (err) {
+      console.error("Error submitting quiz:", err);
+      alert("Error submitting quiz");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Handle sequence reorder (up/down buttons)
+  const moveSequenceItem = (direction: "up" | "down") => {
+    if (!Array.isArray(currentAnswer)) return;
+
+    const newAnswer = [...currentAnswer];
+    const indices = newAnswer.map(Number);
+
+    if (direction === "up" && indices[0] > 0) {
+      const temp = indices[0];
+      const tempIdx = indices.findIndex((i) => i === temp);
+      indices[tempIdx]--;
+    } else if (direction === "down" && indices[indices.length - 1] < 99) {
+      const temp = indices[indices.length - 1];
+      const tempIdx = indices.findIndex((i) => i === temp);
+      indices[tempIdx]++;
+    }
+
+    setCurrentAnswer(indices);
+  };
+
+  // Loading state
+  if (loadingBadge) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="text-slate-500">Loading badge...</div>
+      </div>
+    );
+  }
+
+  if (!badge || !questions) {
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="text-slate-500">Badge not found</div>
+      </div>
+    );
+  }
+
+  // === INTRO SCREEN ===
+  if (screen === "intro") {
+    return (
+      <div className="min-h-screen bg-white">
+        {/* Header */}
+        <div className="border-b border-slate-200 bg-slate-50">
+          <div className="max-w-2xl mx-auto px-6 py-8">
+            <button
+              onClick={() => router.push("/safety")}
+              className="mb-6 text-indigo-600 hover:text-indigo-700 text-sm font-medium flex items-center gap-1"
+            >
+              ← Back to Badges
+            </button>
+            <div className="flex items-center gap-4 mb-6">
+              <div className="text-5xl">{badge.icon_name}</div>
+              <div>
+                <h1 className="text-3xl font-bold text-slate-900">
+                  {badge.name}
+                </h1>
+                <p className="text-slate-600 mt-1">{badge.description}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="max-w-2xl mx-auto px-6 py-8">
+          {/* Badge info grid */}
+          <div className="grid grid-cols-3 gap-4 mb-8 p-4 bg-indigo-50 rounded-lg">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-indigo-600">
+                {badge.question_count}
+              </div>
+              <div className="text-sm text-slate-600">Questions</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-indigo-600">
+                {badge.pass_threshold}%
+              </div>
+              <div className="text-sm text-slate-600">Pass Threshold</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-indigo-600">
+                ~{Math.max(5, Math.round(badge.question_count * 2))}m
+              </div>
+              <div className="text-sm text-slate-600">Estimated Time</div>
+            </div>
+          </div>
+
+          {/* Learn cards section */}
+          <div className="mb-8">
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">
+              📚 Learn First{" "}
+              <span className="text-sm font-normal text-slate-500">
+                ({cardsViewed.size}/{learnCards.length} read)
+              </span>
+            </h2>
+            <p className="text-slate-600 mb-4 text-sm">
+              Review at least 60% of the learning materials before taking the
+              test.
+            </p>
+            <div className="space-y-3">
+              {learnCards.map((card, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => toggleCardView(idx)}
+                  className={`w-full text-left rounded-lg border-2 p-4 transition ${
+                    cardsViewed.has(idx)
+                      ? "border-indigo-300 bg-indigo-50"
+                      : "border-slate-200 hover:border-slate-300"
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start gap-3">
+                      <span className="text-2xl flex-shrink-0">
+                        {card.icon}
+                      </span>
+                      <div>
+                        <h3 className="font-semibold text-slate-900">
+                          {card.title}
+                        </h3>
+                        {cardsViewed.has(idx) && (
+                          <p className="text-slate-600 text-sm mt-2">
+                            {card.content}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <span className="text-slate-400 flex-shrink-0">
+                      {cardsViewed.has(idx) ? "▼" : "▶"}
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Start button */}
+          <button
+            onClick={handleStartQuiz}
+            disabled={!canStartQuiz}
+            className={`w-full py-3 px-4 rounded-lg font-semibold transition ${
+              canStartQuiz
+                ? "bg-indigo-600 text-white hover:bg-indigo-700"
+                : "bg-slate-200 text-slate-500 cursor-not-allowed"
+            }`}
+          >
+            {canStartQuiz ? "Start Test 🚀" : "Review Materials First"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // === QUIZ SCREEN ===
+  if (screen === "quiz") {
+    const question = questions[currentQuestion];
+    if (!question) return null;
+
+    const progress = ((currentQuestion + 1) / questions.length) * 100;
+
+    return (
+      <div className="min-h-screen bg-white">
+        {/* Progress bar */}
+        <div className="sticky top-0 z-10 border-b border-slate-200 bg-white">
+          <div className="max-w-2xl mx-auto px-6 py-4">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-medium text-slate-600">
+                Question {currentQuestion + 1} of {questions.length}
+              </span>
+              <span className="text-sm font-medium text-slate-600">
+                {Math.round(progress)}%
+              </span>
+            </div>
+            <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-indigo-600 transition-all duration-300"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Question content */}
+        <div className="max-w-2xl mx-auto px-6 py-8">
+          {/* Question meta */}
+          <div className="flex items-center gap-2 mb-6">
+            <span className="px-2 py-1 bg-slate-100 rounded text-xs font-medium text-slate-600">
+              {question.topic}
+            </span>
+            <span className="text-xs text-slate-500">
+              {question.difficulty === "easy" && "🟢 Easy"}
+              {question.difficulty === "medium" && "🟡 Medium"}
+              {question.difficulty === "hard" && "🔴 Hard"}
+            </span>
+          </div>
+
+          {/* Question prompt */}
+          <h2 className="text-xl font-semibold text-slate-900 mb-8">
+            {question.prompt}
+          </h2>
+
+          {/* Question type rendering */}
+          <div className="mb-8">
+            {/* Multiple Choice */}
+            {question.type === "multiple_choice" && question.options && (
+              <div className="space-y-3">
+                {question.options.map((option, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setCurrentAnswer(idx.toString())}
+                    className={`w-full text-left rounded-lg border-2 p-4 transition ${
+                      currentAnswer === idx.toString()
+                        ? "border-indigo-600 bg-indigo-50"
+                        : "border-slate-200 hover:border-slate-300"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                          currentAnswer === idx.toString()
+                            ? "border-indigo-600 bg-indigo-600"
+                            : "border-slate-300"
+                        }`}
+                      >
+                        {currentAnswer === idx.toString() && (
+                          <div className="w-2 h-2 bg-white rounded-full" />
+                        )}
+                      </div>
+                      <span className="text-slate-900">{option}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* True/False */}
+            {question.type === "true_false" && (
+              <div className="grid grid-cols-2 gap-4">
+                {["true", "false"].map((val) => (
+                  <button
+                    key={val}
+                    onClick={() => setCurrentAnswer(val)}
+                    className={`rounded-lg border-2 p-6 font-semibold text-lg transition ${
+                      currentAnswer === val
+                        ? "border-indigo-600 bg-indigo-50 text-indigo-700"
+                        : "border-slate-200 hover:border-slate-300 text-slate-900"
+                    }`}
+                  >
+                    {val === "true" ? "True ✓" : "False ✗"}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Scenario (same as multiple choice) */}
+            {question.type === "scenario" && question.options && (
+              <div className="space-y-3">
+                {question.options.map((option, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setCurrentAnswer(idx.toString())}
+                    className={`w-full text-left rounded-lg border-2 p-4 transition ${
+                      currentAnswer === idx.toString()
+                        ? "border-indigo-600 bg-indigo-50"
+                        : "border-slate-200 hover:border-slate-300"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                          currentAnswer === idx.toString()
+                            ? "border-indigo-600 bg-indigo-600"
+                            : "border-slate-300"
+                        }`}
+                      >
+                        {currentAnswer === idx.toString() && (
+                          <div className="w-2 h-2 bg-white rounded-full" />
+                        )}
+                      </div>
+                      <span className="text-slate-900">{option}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Sequence (order items) */}
+            {question.type === "sequence" && (
+              <div className="space-y-3">
+                <p className="text-sm text-slate-600 mb-4">
+                  Order these steps from first to last:
+                </p>
+                {question.options && (
+                  <div className="space-y-2">
+                    {question.options.map((option, idx) => (
+                      <div
+                        key={idx}
+                        className={`flex items-center gap-2 p-3 rounded-lg border-2 ${
+                          Array.isArray(currentAnswer) &&
+                          currentAnswer.includes(idx)
+                            ? "border-indigo-600 bg-indigo-50"
+                            : "border-slate-200"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={
+                            Array.isArray(currentAnswer) &&
+                            currentAnswer.includes(idx)
+                          }
+                          onChange={(e) => {
+                            const arr = Array.isArray(currentAnswer)
+                              ? [...currentAnswer]
+                              : [];
+                            if (e.target.checked) {
+                              if (!arr.includes(idx)) arr.push(idx);
+                            } else {
+                              const i = arr.indexOf(idx);
+                              if (i > -1) arr.splice(i, 1);
+                            }
+                            setCurrentAnswer(arr.length > 0 ? arr : null);
+                          }}
+                          className="w-4 h-4 rounded"
+                        />
+                        <span className="text-slate-900">{option}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Match (left-right pairs) */}
+            {question.type === "match" && question.match_pairs && (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm font-medium text-slate-600 mb-3">
+                    Left
+                  </p>
+                  <div className="space-y-2">
+                    {question.match_pairs.map((pair, idx) => (
+                      <div
+                        key={idx}
+                        className="p-3 bg-slate-50 rounded-lg text-sm text-slate-900"
+                      >
+                        {pair.left}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-slate-600 mb-3">
+                    Select Match
+                  </p>
+                  <div className="space-y-2">
+                    {question.match_pairs.map((pair, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setCurrentAnswer(idx.toString())}
+                        className={`w-full text-left p-3 rounded-lg border-2 text-sm transition ${
+                          currentAnswer === idx.toString()
+                            ? "border-indigo-600 bg-indigo-50 text-indigo-700"
+                            : "border-slate-200 hover:border-slate-300 text-slate-900"
+                        }`}
+                      >
+                        {pair.right}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Next button */}
+          <button
+            onClick={handleNextQuestion}
+            disabled={
+              !currentAnswer && currentAnswer !== 0 && currentAnswer !== "false"
+            }
+            className={`w-full py-3 px-4 rounded-lg font-semibold transition ${
+              currentAnswer || currentAnswer === 0 || currentAnswer === "false"
+                ? "bg-indigo-600 text-white hover:bg-indigo-700"
+                : "bg-slate-200 text-slate-500 cursor-not-allowed"
+            }`}
+          >
+            {currentQuestion === questions.length - 1
+              ? "Submit Test"
+              : "Next Question"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // === RESULTS SCREEN ===
+  if (screen === "results") {
+    if (!results) return null;
+
+    const { score, passed, total, correct, results: resultsList } = results;
+
+    const confettiPieces = passed
+      ? Array.from({ length: 50 }, (_, i) => ({
+          id: i,
+          left: Math.random() * 100,
+          delay: Math.random() * 0.3,
+          duration: 2 + Math.random() * 1,
+        }))
+      : [];
+
+    return (
+      <div className="min-h-screen bg-white relative overflow-hidden">
+        {/* Confetti */}
+        {confettiPieces.length > 0 && (
+          <div className="fixed inset-0 pointer-events-none">
+            {confettiPieces.map((piece) => (
+              <div
+                key={piece.id}
+                className="absolute w-2 h-2 bg-indigo-600 rounded-full animate-pulse"
+                style={{
+                  left: `${piece.left}%`,
+                  top: "-10px",
+                  animation: `fall ${piece.duration}s linear ${piece.delay}s forwards`,
+                }}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Content */}
+        <div className="max-w-2xl mx-auto px-6 py-12">
+          {/* Score display */}
+          <div className="text-center mb-8">
+            <div className="mb-6">
+              {passed ? (
+                <>
+                  <div className="text-6xl font-bold text-green-600 mb-2">
+                    🎉
+                  </div>
+                  <h1 className="text-3xl font-bold text-slate-900">
+                    You Passed!
+                  </h1>
+                </>
+              ) : (
+                <>
+                  <div className="text-6xl font-bold text-amber-600 mb-2">
+                    📊
+                  </div>
+                  <h1 className="text-3xl font-bold text-slate-900">
+                    Not Quite There
+                  </h1>
+                </>
+              )}
+            </div>
+
+            {/* Big score circle */}
+            <div className="inline-flex items-center justify-center w-32 h-32 rounded-full border-4 border-indigo-600 bg-indigo-50 mb-6">
+              <div className="text-center">
+                <div className="text-5xl font-bold text-indigo-600">
+                  {score}%
+                </div>
+                <div className="text-sm text-slate-600 mt-1">
+                  {correct}/{total}
+                </div>
+              </div>
+            </div>
+
+            {/* Pass threshold info */}
+            <p className="text-slate-600 mb-4">
+              You needed {badge.pass_threshold}% to pass
+            </p>
+
+            {/* Badge award info */}
+            {passed && results.badge_awarded && (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+                <p className="font-semibold text-green-700 mb-1">
+                  ✓ Badge Awarded!
+                </p>
+                <p className="text-sm text-green-600">
+                  {results.badge_expires_at
+                    ? `This badge expires on ${new Date(results.badge_expires_at).toLocaleDateString()}`
+                    : "This badge does not expire"}
+                </p>
+              </div>
+            )}
+
+            {results.alreadyEarned && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                <p className="text-sm text-blue-700">
+                  ℹ️ You have already earned this badge
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Results breakdown */}
+          <div className="mb-8">
+            <h2 className="text-lg font-semibold text-slate-900 mb-4">
+              Question Breakdown
+            </h2>
+            <div className="space-y-3">
+              {resultsList?.map((result: any, idx: number) => (
+                <div
+                  key={idx}
+                  className={`rounded-lg border-2 p-4 ${
+                    result.correct
+                      ? "border-green-200 bg-green-50"
+                      : "border-red-200 bg-red-50"
+                  }`}
+                >
+                  <div className="flex items-start gap-3 mb-2">
+                    <span className="text-2xl flex-shrink-0">
+                      {result.correct ? "✓" : "✗"}
+                    </span>
+                    <div className="flex-1">
+                      <p className="font-medium text-slate-900">
+                        Question {idx + 1}: {result.prompt.substring(0, 80)}
+                        {result.prompt.length > 80 ? "..." : ""}
+                      </p>
+                      <p
+                        className={`text-sm mt-2 ${
+                          result.correct
+                            ? "text-green-700"
+                            : "text-red-700"
+                        }`}
+                      >
+                        {result.explanation}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-3">
+            <button
+              onClick={() => router.push("/safety")}
+              className="flex-1 py-3 px-4 rounded-lg font-semibold text-slate-900 border-2 border-slate-200 hover:border-slate-300 transition"
+            >
+              ← Back to Safety
+            </button>
+            {!passed && (
+              <button
+                onClick={() => router.push(`/safety/${badgeId}`)}
+                className="flex-1 py-3 px-4 rounded-lg font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition"
+              >
+                Retake Test →
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Confetti animation styles */}
+        <style>{`
+          @keyframes fall {
+            to {
+              transform: translateY(100vh) rotate(360deg);
+              opacity: 0;
+            }
+          }
+        `}</style>
+      </div>
+    );
+  }
+}
