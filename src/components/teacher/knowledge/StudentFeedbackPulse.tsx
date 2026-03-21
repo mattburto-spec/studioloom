@@ -1,16 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import type { StudentPostLessonFeedback } from "@/types/lesson-intelligence";
 
 // ---------------------------------------------------------------------------
 // Props
 // ---------------------------------------------------------------------------
 interface StudentFeedbackPulseProps {
-  lessonProfileId?: string;
   unitId?: string;
   pageId?: string;
-  studentId: string;
+  /** @deprecated No longer used — student auth comes from cookie */
+  studentId?: string;
+  /** @deprecated No longer used — feedback goes to student pace route */
+  lessonProfileId?: string;
   onSubmit?: (feedbackId: string) => void;
   onClose?: () => void;
 }
@@ -33,10 +34,8 @@ const PACE_OPTIONS = [
 // The pace field is what matters for the timing learning pipeline.
 // ---------------------------------------------------------------------------
 export default function StudentFeedbackPulse({
-  lessonProfileId,
   unitId,
   pageId,
-  studentId,
   onSubmit,
   onClose,
 }: StudentFeedbackPulseProps) {
@@ -50,25 +49,15 @@ export default function StudentFeedbackPulse({
     setError("");
     setSubmitting(true);
 
-    const feedbackData: StudentPostLessonFeedback = {
-      student_id: studentId,
-      submitted_at: new Date().toISOString(),
-      // Neutral defaults — we're only collecting pace
-      understanding: 3,
-      engagement: 3,
-      pace,
-    };
-
     try {
-      const res = await fetch("/api/teacher/knowledge/feedback", {
+      // Uses student auth route (token session), not teacher auth
+      const res = await fetch("/api/student/pace-feedback", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          feedback_type: "student",
-          lesson_profile_id: lessonProfileId,
           unit_id: unitId,
           page_id: pageId,
-          feedback_data: feedbackData,
+          pace,
         }),
       });
 
