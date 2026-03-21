@@ -517,9 +517,16 @@ export default function UnitPageView({
         studentName={data.studentName || "Student"}
       />
 
-      {/* Save toast */}
+      {/* Save indicator — subtle auto-save status in top bar area */}
+      {saving && (
+        <div className="fixed top-[3.25rem] right-4 z-50 flex items-center gap-1.5 px-3 py-1 bg-gray-100 text-gray-500 text-xs font-medium rounded-full shadow-sm">
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+          Saving...
+        </div>
+      )}
       {showSaveToast && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-accent-green text-white text-sm font-medium rounded-full shadow-lg">
+        <div className="fixed top-[3.25rem] right-4 z-50 flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-600 text-xs font-medium rounded-full shadow-sm">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
           Saved
         </div>
       )}

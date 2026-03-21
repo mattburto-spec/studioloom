@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import type { UnitPage, ActivitySection, StudentProgress } from "@/types";
 import type { UnitPageData } from "./usePageData";
 
@@ -22,9 +22,22 @@ export function usePageResponses(
   const [saving, setSaving] = useState(false);
   const [showSaveToast, setShowSaveToast] = useState(false);
 
-  // Load saved responses when data arrives
+  // Keep a ref to the latest responses so saveProgress doesn't need
+  // responses in its dependency array (prevents re-creation on every keystroke)
+  const responsesRef = useRef(responses);
+  responsesRef.current = responses;
+
+  // Track which pageId we've already loaded responses for,
+  // so we don't overwrite user typing when data ref changes
+  const loadedPageRef = useRef<string | null>(null);
+
+  // Load saved responses when data arrives (only once per page)
   useEffect(() => {
     if (!data) return;
+    // Only load from saved data on initial mount or page change
+    if (loadedPageRef.current === pageId) return;
+    loadedPageRef.current = pageId;
+
     const pageProgress = data.progress.find(
       (p: StudentProgress) => p.page_id === pageId
     );
@@ -40,7 +53,6 @@ export function usePageResponses(
     (sections: ActivitySection[], currentResponses: Record<string, unknown>, pId: string) => {
       for (let i = 0; i < sections.length; i++) {
         if (!sections[i].portfolioCapture) continue;
-        // Use activityId key for v4 timeline units, fall back to section index
         const responseKey = sections[i].activityId ? `activity_${sections[i].activityId}` : `section_${i}`;
         const value = currentResponses[responseKey];
         if (!value || (typeof value === "string" && value.trim() === "")) continue;
@@ -80,9 +92,11 @@ export function usePageResponses(
     [unitId]
   );
 
+  // saveProgress reads from responsesRef so it doesn't recreate on every keystroke
   const saveProgress = useCallback(
     async (newStatus?: string, { silent = false }: { silent?: boolean } = {}) => {
       if (!currentPage) return;
+      const currentResponses = responsesRef.current;
       setSaving(true);
       try {
         const res = await fetch("/api/student/progress", {
@@ -92,7 +106,7 @@ export function usePageResponses(
             unitId,
             pageId: currentPage.id,
             status: newStatus || "in_progress",
-            responses,
+            responses: currentResponses,
           }),
         });
         if (res.ok && !silent) {
@@ -100,14 +114,14 @@ export function usePageResponses(
           setTimeout(() => setShowSaveToast(false), 1500);
           const sections = currentPage.content?.sections;
           if (sections) {
-            syncPortfolioCaptures(sections, responses, currentPage.id);
+            syncPortfolioCaptures(sections, currentResponses, currentPage.id);
           }
         }
       } finally {
         setSaving(false);
       }
     },
-    [unitId, currentPage, responses, syncPortfolioCaptures]
+    [unitId, currentPage, syncPortfolioCaptures]
   );
 
   // Auto-save on response changes (debounced, silent)
@@ -117,7 +131,8 @@ export function usePageResponses(
       saveProgress(undefined, { silent: true });
     }, 2000);
     return () => clearTimeout(timer);
-  }, [responses, data, saveProgress]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [responses, data]);
 
   // Mark page as in_progress on first visit
   useEffect(() => {
@@ -128,7 +143,8 @@ export function usePageResponses(
     if (!pageProgress || pageProgress.status === "not_started") {
       saveProgress("in_progress", { silent: true });
     }
-  }, [data, currentPage, saveProgress]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, currentPage]);
 
   return { responses, setResponses, saving, showSaveToast, saveProgress };
 }

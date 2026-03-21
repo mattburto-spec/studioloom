@@ -64,8 +64,11 @@ export function usePageData(unitId: string, pageId: string): UsePageDataReturn {
   }, [unitId, pageId, router, ctxData]);
 
   // Resolve data source: context first, then local fetch
-  const data: UnitPageData | null = ctxData
-    ? {
+  // IMPORTANT: memoize to prevent creating a new object reference every render,
+  // which would cause usePageResponses to reset typed text on every keystroke
+  const data: UnitPageData | null = useMemo(() => {
+    if (ctxData) {
+      return {
         unit: ctxData.unit,
         lockedPages: ctxData.lockedPages,
         progress: ctxData.progress,
@@ -74,8 +77,10 @@ export function usePageData(unitId: string, pageId: string): UsePageDataReturn {
         pageDueDates: ctxData.pageDueDates,
         pageSettings: ctxData.pageSettings,
         studentName: ctxData.studentName,
-      }
-    : localData;
+      };
+    }
+    return localData;
+  }, [ctxData, localData]);
 
   const loading = ctxData ? (unitNav?.loading ?? false) : localLoading;
 
