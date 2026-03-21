@@ -74,8 +74,23 @@ export default function UnitDetailPage({
     isArchived: boolean;
     nmEnabled: boolean;
     assigned: boolean;
+    termId: string | null;
+    termName: string | null;
+    termDates: string | null;
   }>>([]);
   const [togglingClass, setTogglingClass] = useState<string | null>(null);
+  const [terms, setTerms] = useState<Array<{
+    id: string;
+    academic_year: string;
+    term_name: string;
+    term_order: number;
+    start_date?: string;
+    end_date?: string;
+  }>>([]);
+  // When a class is toggled ON, show inline term picker for that class
+  const [pendingTermClass, setPendingTermClass] = useState<string | null>(null);
+  const [pendingTermId, setPendingTermId] = useState<string | null>(null);
+  const [savingTerm, setSavingTerm] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -87,16 +102,30 @@ export default function UnitDetailPage({
         .single();
       setUnit(data);
 
-      // Fetch ALL teacher's classes + which ones have this unit assigned
-      const [classesRes, classUnitsRes, studentsRes] = await Promise.all([
+      // Fetch ALL teacher's classes + which ones have this unit assigned + terms
+      const [classesRes, classUnitsRes, studentsRes, termsRes] = await Promise.all([
         supabase.from("classes").select("id, name, code, is_archived").order("name"),
-        supabase.from("class_units").select("class_id, nm_config").eq("unit_id", unitId),
+        supabase.from("class_units").select("class_id, nm_config, term_id").eq("unit_id", unitId),
         supabase.from("students").select("class_id"),
+        fetch("/api/teacher/school-calendar").then((r) => (r.ok ? r.json() : Promise.resolve({ terms: [] }))),
       ]);
 
-      const assignedMap = new Map<string, { nm_config?: { enabled?: boolean } }>();
+      // Store terms for the picker
+      const loadedTerms = termsRes?.terms || [];
+      setTerms(loadedTerms);
+
+      // Build a term lookup for display
+      const termLookup = new Map<string, { term_name: string; start_date?: string; end_date?: string }>();
+      for (const t of loadedTerms) {
+        termLookup.set(t.id, { term_name: t.term_name, start_date: t.start_date, end_date: t.end_date });
+      }
+
+      const assignedMap = new Map<string, { nm_config?: { enabled?: boolean }; term_id?: string | null }>();
       for (const cu of classUnitsRes.data || []) {
-        assignedMap.set(cu.class_id, { nm_config: cu.nm_config as { enabled?: boolean } | undefined });
+        assignedMap.set(cu.class_id, {
+          nm_config: cu.nm_config as { enabled?: boolean } | undefined,
+          term_id: cu.term_id || null,
+        });
       }
 
       const countByClass = new Map<string, number>();
@@ -109,6 +138,11 @@ export default function UnitDetailPage({
         .filter((c) => !c.is_archived) // only show active classes in the toggle
         .map((cls) => {
           const cuData = assignedMap.get(cls.id);
+          const termId = cuData?.term_id || null;
+          const termData = termId ? termLookup.get(termId) : null;
+          const termDates = termData?.start_date && termData?.end_date
+            ? `${formatShortDate(termData.start_date)} – ${formatShortDate(termData.end_date)}`
+            : null;
           return {
             id: cls.id,
             name: cls.name,
@@ -117,6 +151,9 @@ export default function UnitDetailPage({
             isArchived: cls.is_archived ?? false,
             nmEnabled: cuData?.nm_config?.enabled ?? unitNmConfig?.enabled ?? false,
             assigned: assignedMap.has(cls.id),
+            termId,
+            termName: termData?.term_name || null,
+            termDates,
           };
         });
 
@@ -132,7 +169,11 @@ export default function UnitDetailPage({
     const supabase = createClient();
 
     if (currentlyAssigned) {
-      // Remove assignment
+      // Remove assignment — also close any pending term picker
+      if (pendingTermClass === classId) {
+        setPendingTermClass(null);
+        setPendingTermId(null);
+      }
       await supabase
         .from("class_units")
         .delete()
@@ -147,15 +188,53 @@ export default function UnitDetailPage({
           unit_id: unitId,
           is_active: true,
         });
+
+      // If teacher has terms set up, show inline term picker
+      if (terms.length > 0) {
+        setPendingTermClass(classId);
+        setPendingTermId(null);
+      }
     }
 
     // Update local state
     setAllClasses((prev) =>
       prev.map((c) =>
-        c.id === classId ? { ...c, assigned: !currentlyAssigned } : c
+        c.id === classId
+          ? { ...c, assigned: !currentlyAssigned, termId: null, termName: null, termDates: null }
+          : c
       )
     );
     setTogglingClass(null);
+  }
+
+  async function assignTermToClass(classId: string, termId: string | null) {
+    setSavingTerm(true);
+    try {
+      const res = await fetch("/api/teacher/class-units", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ classId, unitId, term_id: termId }),
+      });
+      if (res.ok) {
+        const termData = termId ? terms.find((t) => t.id === termId) : null;
+        const termDates = termData?.start_date && termData?.end_date
+          ? `${formatShortDate(termData.start_date)} – ${formatShortDate(termData.end_date)}`
+          : null;
+        setAllClasses((prev) =>
+          prev.map((c) =>
+            c.id === classId
+              ? { ...c, termId, termName: termData?.term_name || null, termDates }
+              : c
+          )
+        );
+      }
+    } catch {
+      // silently fail — teacher can set it later via Settings
+    } finally {
+      setSavingTerm(false);
+      setPendingTermClass(null);
+      setPendingTermId(null);
+    }
   }
 
   if (loading) {
@@ -517,49 +596,117 @@ export default function UnitDetailPage({
         ) : (
           <div className="space-y-2">
             {allClasses.map((cls) => (
-              <div
-                key={cls.id}
-                className={`flex items-center justify-between p-3 rounded-xl border transition-colors ${
-                  cls.assigned
-                    ? "border-purple-200 bg-purple-50/50"
-                    : "border-border bg-white"
-                }`}
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  {/* Toggle switch */}
-                  <button
-                    onClick={() => toggleClassAssignment(cls.id, cls.assigned)}
-                    disabled={togglingClass === cls.id}
-                    className={`relative flex-shrink-0 w-10 h-6 rounded-full transition-colors duration-200 ${
-                      cls.assigned ? "bg-purple-600" : "bg-gray-200"
-                    } ${togglingClass === cls.id ? "opacity-50" : ""}`}
-                  >
-                    <span
-                      className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${
-                        cls.assigned ? "translate-x-4" : ""
-                      }`}
-                    />
-                  </button>
-                  <div className="min-w-0">
-                    <span className="text-sm font-medium text-text-primary truncate block">{cls.name}</span>
-                    <div className="flex items-center gap-3 text-[11px] text-text-tertiary mt-0.5">
-                      <span>{cls.studentCount} student{cls.studentCount !== 1 ? "s" : ""}</span>
-                      {cls.nmEnabled && cls.assigned && (
-                        <>
-                          <span className="text-text-tertiary/40">·</span>
-                          <span className="text-pink-500 font-medium">NM</span>
-                        </>
-                      )}
+              <div key={cls.id}>
+                <div
+                  className={`flex items-center justify-between p-3 rounded-xl border transition-colors ${
+                    cls.assigned
+                      ? "border-purple-200 bg-purple-50/50"
+                      : "border-border bg-white"
+                  } ${pendingTermClass === cls.id ? "rounded-b-none border-b-0" : ""}`}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    {/* Toggle switch */}
+                    <button
+                      onClick={() => toggleClassAssignment(cls.id, cls.assigned)}
+                      disabled={togglingClass === cls.id}
+                      className={`relative flex-shrink-0 w-10 h-6 rounded-full transition-colors duration-200 ${
+                        cls.assigned ? "bg-purple-600" : "bg-gray-200"
+                      } ${togglingClass === cls.id ? "opacity-50" : ""}`}
+                    >
+                      <span
+                        className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${
+                          cls.assigned ? "translate-x-4" : ""
+                        }`}
+                      />
+                    </button>
+                    <div className="min-w-0">
+                      <span className="text-sm font-medium text-text-primary truncate block">{cls.name}</span>
+                      <div className="flex items-center gap-2 text-[11px] text-text-tertiary mt-0.5 flex-wrap">
+                        <span>{cls.studentCount} student{cls.studentCount !== 1 ? "s" : ""}</span>
+                        {cls.nmEnabled && cls.assigned && (
+                          <>
+                            <span className="text-text-tertiary/40">·</span>
+                            <span className="text-pink-500 font-medium">NM</span>
+                          </>
+                        )}
+                        {cls.assigned && cls.termName && (
+                          <>
+                            <span className="text-text-tertiary/40">·</span>
+                            <span className="text-purple-600 font-medium">{cls.termName}</span>
+                            {cls.termDates && (
+                              <span className="text-text-tertiary">{cls.termDates}</span>
+                            )}
+                          </>
+                        )}
+                        {cls.assigned && !cls.termName && terms.length > 0 && (
+                          <>
+                            <span className="text-text-tertiary/40">·</span>
+                            <button
+                              onClick={() => {
+                                setPendingTermClass(cls.id);
+                                setPendingTermId(null);
+                              }}
+                              className="text-amber-600 font-medium hover:text-amber-700 transition-colors"
+                            >
+                              Assign term
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
+                  {cls.assigned && (
+                    <Link
+                      href={`/teacher/units/${unitId}/class/${cls.id}`}
+                      className="text-xs text-purple-600 hover:text-purple-700 px-2 py-1 rounded-lg hover:bg-purple-50 transition flex-shrink-0"
+                    >
+                      Settings →
+                    </Link>
+                  )}
                 </div>
-                {cls.assigned && (
-                  <Link
-                    href={`/teacher/units/${unitId}/class/${cls.id}`}
-                    className="text-xs text-purple-600 hover:text-purple-700 px-2 py-1 rounded-lg hover:bg-purple-50 transition flex-shrink-0"
-                  >
-                    Settings →
-                  </Link>
+
+                {/* Inline term picker — shown after toggling ON or clicking "Assign term" */}
+                {pendingTermClass === cls.id && (
+                  <div className="px-4 py-3 bg-purple-50/80 border border-purple-200 border-t-0 rounded-b-xl flex items-center gap-2 flex-wrap">
+                    <label className="text-xs text-text-secondary flex-shrink-0">Term:</label>
+                    <select
+                      value={pendingTermId || ""}
+                      onChange={(e) => setPendingTermId(e.target.value || null)}
+                      className="text-xs px-2 py-1.5 rounded-lg border border-purple-200 bg-white text-text-primary focus:outline-none focus:ring-2 focus:ring-purple-300 flex-1 min-w-[140px] max-w-[260px]"
+                    >
+                      <option value="">Select a term…</option>
+                      {/* Group by academic year */}
+                      {Array.from(new Set(terms.map((t) => t.academic_year))).map((year) => (
+                        <optgroup key={year} label={year}>
+                          {terms
+                            .filter((t) => t.academic_year === year)
+                            .sort((a, b) => a.term_order - b.term_order)
+                            .map((t) => (
+                              <option key={t.id} value={t.id}>
+                                {t.term_name}
+                                {t.start_date ? ` (${formatShortDate(t.start_date)})` : ""}
+                              </option>
+                            ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => assignTermToClass(cls.id, pendingTermId)}
+                      disabled={savingTerm}
+                      className="text-xs px-3 py-1.5 rounded-lg bg-purple-600 text-white font-medium hover:bg-purple-700 transition-colors disabled:opacity-50 flex-shrink-0"
+                    >
+                      {savingTerm ? "Saving…" : "Save"}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setPendingTermClass(null);
+                        setPendingTermId(null);
+                      }}
+                      className="text-xs text-text-tertiary hover:text-text-secondary transition-colors flex-shrink-0"
+                    >
+                      Skip
+                    </button>
+                  </div>
                 )}
               </div>
             ))}
@@ -687,6 +834,15 @@ function LessonCard({
       </div>
     </div>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Helpers — date formatting
+// ---------------------------------------------------------------------------
+
+function formatShortDate(iso: string): string {
+  const d = new Date(iso + "T00:00:00");
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 // ---------------------------------------------------------------------------
