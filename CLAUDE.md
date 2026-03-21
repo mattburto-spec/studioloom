@@ -289,6 +289,7 @@ Advanced prototype — core platform functional (unit builder, knowledge base, s
 - **Student video upload support** — Roadmap item. Add `video/*` to file accept, skip compressImage for video, add video player preview component. Student lesson page already embeds videos via URL but doesn't support direct upload from device.
 - **Pace feedback testing** — Student completes lesson → pace pulse appears → taps → saves → teacher sees aggregated data on class progress page. Test backward compat (units without pace data render fine).
 - **School calendar testing** — Teacher Settings → School Calendar: create academic year with terms. Unit detail → class → term picker works and saves. Classes/units without terms still work.
+- **Timetable & Scheduling System** — Rotating cycle timetable (8-day, 6-day, etc.) with cycle day calculation engine, manual setup wizard, and iCal import from ManageBac/PowerSchool/Toddle. PIPL-safe: only imports schedule data, never student rosters. Extends school calendar (migration 037). 4 phases (~9-13 days). Spec at `docs/specs/timetable-scheduling-spec.md`.
 - **Skeleton generation debugging** — "AI response missing lessons array. Got keys: []" still occurring. max_tokens increased to dynamic scaling (up to 8192). Detailed logging added. Check server console for `[generateSkeleton]` stop_reason on next failure.
 
 ## Known issues / blockers

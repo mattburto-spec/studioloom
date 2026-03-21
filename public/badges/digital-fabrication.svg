@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="400" y2="300" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#1a1a2e"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="170" y1="80" x2="240" y2="200" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#06b6d4" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#0891b2" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="laser" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f43f5e" stop-opacity="0"/>
+      <stop offset="50%" stop-color="#f43f5e" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#f43f5e" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="blur1"><feGaussianBlur stdDeviation="22"/></filter>
+    <filter id="blur2"><feGaussianBlur stdDeviation="4"/></filter>
+    <filter id="shadow"><feDropShadow dx="0" dy="3" stdDeviation="6" flood-color="#000" flood-opacity="0.4"/></filter>
+    <filter id="laserGlow"><feGaussianBlur stdDeviation="4"/></filter>
+  </defs>
+  <rect width="400" height="300" fill="url(#bg)"/>
+  <ellipse cx="200" cy="140" rx="130" ry="95" fill="url(#glow)" filter="url(#blur1)"/>
+  <!-- Machine bed -->
+  <rect x="50" y="200" width="300" height="70" fill="#1e293b" rx="4"/>
+  <rect x="50" y="200" width="300" height="3" fill="#334155" rx="1"/>
+  <!-- Honeycomb bed pattern -->
+  <g opacity="0.15">
+    <circle cx="100" cy="225" r="8" fill="none" stroke="#475569" stroke-width="0.5"/>
+    <circle cx="120" cy="225" r="8" fill="none" stroke="#475569" stroke-width="0.5"/>
+    <circle cx="140" cy="225" r="8" fill="none" stroke="#475569" stroke-width="0.5"/>
+    <circle cx="160" cy="225" r="8" fill="none" stroke="#475569" stroke-width="0.5"/>
+    <circle cx="180" cy="225" r="8" fill="none" stroke="#475569" stroke-width="0.5"/>
+    <circle cx="200" cy="225" r="8" fill="none" stroke="#475569" stroke-width="0.5"/>
+    <circle cx="220" cy="225" r="8" fill="none" stroke="#475569" stroke-width="0.5"/>
+    <circle cx="240" cy="225" r="8" fill="none" stroke="#475569" stroke-width="0.5"/>
+    <circle cx="260" cy="225" r="8" fill="none" stroke="#475569" stroke-width="0.5"/>
+    <circle cx="280" cy="225" r="8" fill="none" stroke="#475569" stroke-width="0.5"/>
+    <circle cx="300" cy="225" r="8" fill="none" stroke="#475569" stroke-width="0.5"/>
+    <circle cx="110" cy="240" r="8" fill="none" stroke="#475569" stroke-width="0.5"/>
+    <circle cx="130" cy="240" r="8" fill="none" stroke="#475569" stroke-width="0.5"/>
+    <circle cx="150" cy="240" r="8" fill="none" stroke="#475569" stroke-width="0.5"/>
+    <circle cx="170" cy="240" r="8" fill="none" stroke="#475569" stroke-width="0.5"/>
+    <circle cx="190" cy="240" r="8" fill="none" stroke="#475569" stroke-width="0.5"/>
+    <circle cx="210" cy="240" r="8" fill="none" stroke="#475569" stroke-width="0.5"/>
+    <circle cx="230" cy="240" r="8" fill="none" stroke="#475569" stroke-width="0.5"/>
+    <circle cx="250" cy="240" r="8" fill="none" stroke="#475569" stroke-width="0.5"/>
+    <circle cx="270" cy="240" r="8" fill="none" stroke="#475569" stroke-width="0.5"/>
+    <circle cx="290" cy="240" r="8" fill="none" stroke="#475569" stroke-width="0.5"/>
+  </g>
+  <!-- Laser head assembly (main subject) -->
+  <g transform="translate(200,140)" filter="url(#shadow)">
+    <!-- Gantry rail -->
+    <rect x="-120" y="-55" width="240" height="8" rx="3" fill="#475569"/>
+    <rect x="-120" y="-55" width="240" height="2" fill="#64748b" rx="1"/>
+    <!-- Head carriage -->
+    <rect x="-20" y="-52" width="40" height="30" rx="4" fill="#334155"/>
+    <rect x="-18" y="-50" width="36" height="3" rx="1" fill="#475569" opacity="0.5"/>
+    <!-- Lens assembly -->
+    <rect x="-8" y="-22" width="16" height="20" rx="3" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+    <circle cx="0" cy="-12" r="5" fill="#0f172a" stroke="#06b6d4" stroke-width="1"/>
+    <circle cx="0" cy="-12" r="2" fill="#06b6d4" opacity="0.4"/>
+    <!-- Air assist nozzle -->
+    <rect x="-3" y="-2" width="6" height="12" rx="2" fill="#475569"/>
+    <circle cx="0" cy="10" r="3.5" fill="#334155" stroke="#475569" stroke-width="0.5"/>
+    <!-- LASER BEAM -->
+    <line x1="0" y1="14" x2="0" y2="60" stroke="#f43f5e" stroke-width="2" opacity="0.9"/>
+    <line x1="0" y1="14" x2="0" y2="60" stroke="#f43f5e" stroke-width="6" opacity="0.15" filter="url(#laserGlow)"/>
+    <!-- Impact point glow -->
+    <circle cx="0" cy="60" r="4" fill="#f43f5e" opacity="0.8"/>
+    <circle cx="0" cy="60" r="10" fill="#f43f5e" opacity="0.15" filter="url(#laserGlow)"/>
+    <!-- Status LEDs on carriage -->
+    <circle cx="-10" cy="-40" r="2" fill="#22c55e" opacity="0.8"/>
+    <circle cx="-4" cy="-40" r="2" fill="#06b6d4" opacity="0.8"/>
+  </g>
+  <!-- Material being cut (acrylic sheet) -->
+  <g opacity="0.6">
+    <rect x="120" y="205" width="160" height="5" rx="1" fill="#67e8f9" opacity="0.3"/>
+    <!-- Cut line -->
+    <line x1="200" y1="205" x2="200" y2="210" stroke="#f43f5e" stroke-width="1" opacity="0.5"/>
+  </g>
+  <!-- 3D printer (right, blurred background) -->
+  <g transform="translate(340,160)" filter="url(#blur2)" opacity="0.3">
+    <rect x="-20" y="-25" width="40" height="50" rx="3" fill="#334155" stroke="#475569" stroke-width="1"/>
+    <rect x="-15" y="-20" width="30" height="35" rx="2" fill="#1e293b"/>
+  </g>
+  <!-- Particles -->
+  <circle cx="160" cy="90" r="1.5" fill="#06b6d4" opacity="0.5"/>
+  <circle cx="250" cy="100" r="1" fill="#22d3ee" opacity="0.4"/>
+  <circle cx="195" cy="75" r="1" fill="#67e8f9" opacity="0.3"/>
+</svg>

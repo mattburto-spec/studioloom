@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="400" y2="300" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#1a1a2e"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="180" y1="100" x2="230" y2="200" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#f97316" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#dc2626" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="blur1"><feGaussianBlur stdDeviation="20"/></filter>
+    <filter id="blur2"><feGaussianBlur stdDeviation="4"/></filter>
+    <filter id="shadow"><feDropShadow dx="0" dy="3" stdDeviation="6" flood-color="#000" flood-opacity="0.4"/></filter>
+    <filter id="tipglow"><feGaussianBlur stdDeviation="3"/></filter>
+  </defs>
+  <rect width="400" height="300" fill="url(#bg)"/>
+  <ellipse cx="200" cy="150" rx="100" ry="80" fill="url(#glow)" filter="url(#blur1)"/>
+  <!-- Dark anti-static mat -->
+  <rect x="0" y="210" width="400" height="90" fill="#1a1a2e"/>
+  <rect x="0" y="210" width="400" height="3" fill="#312e81"/>
+  <!-- Grid pattern on mat -->
+  <g opacity="0.15">
+    <line x1="40" y1="210" x2="40" y2="300" stroke="#4338ca" stroke-width="0.5"/>
+    <line x1="80" y1="210" x2="80" y2="300" stroke="#4338ca" stroke-width="0.5"/>
+    <line x1="120" y1="210" x2="120" y2="300" stroke="#4338ca" stroke-width="0.5"/>
+    <line x1="160" y1="210" x2="160" y2="300" stroke="#4338ca" stroke-width="0.5"/>
+    <line x1="200" y1="210" x2="200" y2="300" stroke="#4338ca" stroke-width="0.5"/>
+    <line x1="240" y1="210" x2="240" y2="300" stroke="#4338ca" stroke-width="0.5"/>
+    <line x1="280" y1="210" x2="280" y2="300" stroke="#4338ca" stroke-width="0.5"/>
+    <line x1="320" y1="210" x2="320" y2="300" stroke="#4338ca" stroke-width="0.5"/>
+    <line x1="360" y1="210" x2="360" y2="300" stroke="#4338ca" stroke-width="0.5"/>
+    <line x1="0" y1="240" x2="400" y2="240" stroke="#4338ca" stroke-width="0.5"/>
+    <line x1="0" y1="270" x2="400" y2="270" stroke="#4338ca" stroke-width="0.5"/>
+  </g>
+  <!-- Soldering iron (main subject) -->
+  <g transform="translate(200,145) rotate(-25)" filter="url(#shadow)">
+    <!-- Handle body -->
+    <rect x="-10" y="20" width="20" height="80" rx="6" fill="#1e40af"/>
+    <rect x="-8" y="25" width="5" height="70" rx="2" fill="#2563eb" opacity="0.3"/>
+    <!-- Grip rings -->
+    <rect x="-10" y="55" width="20" height="2" rx="1" fill="#1e3a8a" opacity="0.6"/>
+    <rect x="-10" y="65" width="20" height="2" rx="1" fill="#1e3a8a" opacity="0.6"/>
+    <rect x="-10" y="75" width="20" height="2" rx="1" fill="#1e3a8a" opacity="0.6"/>
+    <!-- Metal collar -->
+    <rect x="-8" y="10" width="16" height="12" rx="2" fill="#94a3b8"/>
+    <rect x="-8" y="10" width="16" height="2" fill="#cbd5e1" opacity="0.3"/>
+    <!-- Tip shaft -->
+    <rect x="-3" y="-25" width="6" height="38" rx="1" fill="#94a3b8"/>
+    <!-- Heated tip -->
+    <path d="M-2-25 L0-38 L2-25" fill="#94a3b8"/>
+    <!-- Hot tip glow -->
+    <ellipse cx="0" cy="-35" rx="8" ry="12" fill="#f97316" opacity="0.3" filter="url(#tipglow)"/>
+    <path d="M-1.5-25 L0-36 L1.5-25" fill="#f97316" opacity="0.9"/>
+    <path d="M-1-28 L0-35 L1-28" fill="#fbbf24"/>
+    <!-- LED indicator -->
+    <circle cx="0" cy="30" r="2.5" fill="#22c55e" opacity="0.9"/>
+    <circle cx="0" cy="30" r="4" fill="#22c55e" opacity="0.2"/>
+  </g>
+  <!-- PCB board (below iron, blurred) -->
+  <g transform="translate(210,200)" filter="url(#blur2)" opacity="0.5">
+    <rect x="-30" y="-12" width="60" height="24" rx="2" fill="#065f46"/>
+    <!-- Traces -->
+    <line x1="-20" y1="-5" x2="20" y2="-5" stroke="#34d399" stroke-width="1" opacity="0.6"/>
+    <line x1="-15" y1="0" x2="15" y2="0" stroke="#34d399" stroke-width="0.5" opacity="0.5"/>
+    <line x1="-20" y1="5" x2="20" y2="5" stroke="#34d399" stroke-width="1" opacity="0.6"/>
+    <!-- Solder pads -->
+    <circle cx="-15" cy="-5" r="2" fill="#fbbf24" opacity="0.7"/>
+    <circle cx="0" cy="-5" r="2" fill="#fbbf24" opacity="0.7"/>
+    <circle cx="15" cy="-5" r="2" fill="#fbbf24" opacity="0.7"/>
+    <circle cx="-10" cy="5" r="2" fill="#fbbf24" opacity="0.7"/>
+    <circle cx="10" cy="5" r="2" fill="#fbbf24" opacity="0.7"/>
+  </g>
+  <!-- Solder wire spool (right, blurred) -->
+  <g transform="translate(330,195)" filter="url(#blur2)" opacity="0.4">
+    <circle cx="0" cy="0" r="15" fill="none" stroke="#94a3b8" stroke-width="4"/>
+    <circle cx="0" cy="0" r="6" fill="#475569"/>
+  </g>
+  <!-- Smoke wisps from tip -->
+  <path d="M185 100 Q180 85 185 70" stroke="#94a3b8" stroke-width="0.8" fill="none" opacity="0.2"/>
+  <path d="M190 105 Q187 88 192 72" stroke="#94a3b8" stroke-width="0.5" fill="none" opacity="0.15"/>
+</svg>

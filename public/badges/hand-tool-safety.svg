@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="400" y2="300" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#1a1a2e"/>
+      <stop offset="100%" stop-color="#16213e"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="150" y1="60" x2="260" y2="200" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#059669" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#059669" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="steel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#cbd5e1"/>
+      <stop offset="50%" stop-color="#94a3b8"/>
+      <stop offset="100%" stop-color="#64748b"/>
+    </linearGradient>
+    <filter id="blur1"><feGaussianBlur stdDeviation="20"/></filter>
+    <filter id="blur2"><feGaussianBlur stdDeviation="4"/></filter>
+    <filter id="shadow"><feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000" flood-opacity="0.4"/></filter>
+  </defs>
+  <rect width="400" height="300" fill="url(#bg)"/>
+  <ellipse cx="200" cy="140" rx="130" ry="90" fill="url(#glow)" filter="url(#blur1)"/>
+  <!-- Bench -->
+  <rect x="0" y="215" width="400" height="85" fill="#2d1f0e"/>
+  <rect x="0" y="215" width="400" height="3" fill="#4a3520"/>
+  <line x1="25" y1="235" x2="375" y2="236" stroke="#3d2a16" stroke-width="1" opacity="0.4"/>
+  <line x1="35" y1="260" x2="365" y2="261" stroke="#3d2a16" stroke-width="1" opacity="0.3"/>
+  <!-- Claw hammer (main subject, sharp focus) -->
+  <g transform="translate(200,140) rotate(-30)" filter="url(#shadow)">
+    <!-- Handle -->
+    <rect x="-8" y="10" width="16" height="100" rx="4" fill="#92400e"/>
+    <rect x="-6" y="15" width="4" height="90" rx="2" fill="#a16207" opacity="0.4"/>
+    <!-- Grip texture -->
+    <line x1="-6" y1="70" x2="6" y2="70" stroke="#78350f" stroke-width="1" opacity="0.5"/>
+    <line x1="-6" y1="80" x2="6" y2="80" stroke="#78350f" stroke-width="1" opacity="0.5"/>
+    <line x1="-6" y1="90" x2="6" y2="90" stroke="#78350f" stroke-width="1" opacity="0.5"/>
+    <!-- Head -->
+    <rect x="-28" y="-20" width="56" height="30" rx="3" fill="url(#steel)"/>
+    <!-- Strike face -->
+    <rect x="20" y="-18" width="12" height="26" rx="2" fill="#94a3b8"/>
+    <rect x="28" y="-16" width="3" height="22" rx="1" fill="#cbd5e1" opacity="0.5"/>
+    <!-- Claw -->
+    <path d="M-28-8 L-42-25 C-44-28 -42-30 -40-28 L-30-15" fill="url(#steel)" stroke="#64748b" stroke-width="1"/>
+    <path d="M-28 2 L-38-18 C-40-22 -38-24 -36-22 L-28-8" fill="url(#steel)" stroke="#64748b" stroke-width="1"/>
+    <!-- Highlight on head -->
+    <rect x="-25" y="-18" width="42" height="3" rx="1" fill="white" opacity="0.15"/>
+  </g>
+  <!-- Chisel (left, blurred) -->
+  <g transform="translate(70,190) rotate(-10)" filter="url(#blur2)" opacity="0.5">
+    <rect x="-4" y="-40" width="8" height="50" rx="2" fill="#b45309"/>
+    <rect x="-6" y="-45" width="12" height="10" rx="1" fill="#94a3b8"/>
+    <path d="M-6-45 L0-55 L6-45" fill="#cbd5e1"/>
+  </g>
+  <!-- Screwdriver (right, blurred) -->
+  <g transform="translate(330,185) rotate(15)" filter="url(#blur2)" opacity="0.45">
+    <rect x="-5" y="-30" width="10" height="45" rx="3" fill="#dc2626" opacity="0.8"/>
+    <rect x="-3" y="15" width="6" height="35" rx="1" fill="#94a3b8"/>
+    <rect x="-1.5" y="45" width="3" height="8" fill="#cbd5e1"/>
+  </g>
+  <!-- Light particles -->
+  <circle cx="170" cy="100" r="1.5" fill="#34d399" opacity="0.5"/>
+  <circle cx="240" cy="85" r="1" fill="#6ee7b7" opacity="0.4"/>
+</svg>

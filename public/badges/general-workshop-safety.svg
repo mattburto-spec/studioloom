@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="400" y2="300" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#1a1a2e"/>
+      <stop offset="100%" stop-color="#16213e"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="150" y1="80" x2="250" y2="220" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#059669" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#059669" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="blur1"><feGaussianBlur stdDeviation="20"/></filter>
+    <filter id="blur2"><feGaussianBlur stdDeviation="3"/></filter>
+    <filter id="shadow"><feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#000" flood-opacity="0.3"/></filter>
+  </defs>
+  <!-- Background -->
+  <rect width="400" height="300" fill="url(#bg)"/>
+  <!-- Ambient glow -->
+  <ellipse cx="200" cy="150" rx="140" ry="100" fill="url(#glow)" filter="url(#blur1)"/>
+  <!-- Workshop bench surface -->
+  <rect x="0" y="210" width="400" height="90" fill="#2d1f0e" rx="0"/>
+  <rect x="0" y="210" width="400" height="4" fill="#4a3520" rx="2"/>
+  <!-- Wood grain lines -->
+  <line x1="30" y1="230" x2="370" y2="232" stroke="#3d2a16" stroke-width="1" opacity="0.5"/>
+  <line x1="20" y1="250" x2="380" y2="251" stroke="#3d2a16" stroke-width="1" opacity="0.4"/>
+  <line x1="40" y1="270" x2="360" y2="271" stroke="#3d2a16" stroke-width="1" opacity="0.3"/>
+  <!-- Safety shield icon (main subject) -->
+  <g transform="translate(200,130)" filter="url(#shadow)">
+    <!-- Shield body -->
+    <path d="M0-70 L55-50 L55 10 C55 50 0 80 0 80 C0 80 -55 50 -55 10 L-55-50 Z" fill="#059669" opacity="0.9"/>
+    <path d="M0-70 L55-50 L55 10 C55 50 0 80 0 80 C0 80 -55 50 -55 10 L-55-50 Z" fill="none" stroke="#10b981" stroke-width="2.5"/>
+    <!-- Inner shield highlight -->
+    <path d="M0-55 L42-38 L42 8 C42 40 0 64 0 64 C0 64 -42 40 -42 8 L-42-38 Z" fill="none" stroke="#34d399" stroke-width="1" opacity="0.5"/>
+    <!-- Checkmark -->
+    <path d="M-22 5 L-8 20 L25-15" stroke="white" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  </g>
+  <!-- Safety goggles (left, blurred - DOF effect) -->
+  <g transform="translate(60,180)" filter="url(#blur2)" opacity="0.6">
+    <ellipse cx="0" cy="0" rx="22" ry="14" fill="none" stroke="#94a3b8" stroke-width="2"/>
+    <ellipse cx="35" cy="0" rx="22" ry="14" fill="none" stroke="#94a3b8" stroke-width="2"/>
+    <line x1="-22" y1="-5" x2="-35" y2="-10" stroke="#94a3b8" stroke-width="2"/>
+    <line x1="57" y1="-5" x2="70" y2="-10" stroke="#94a3b8" stroke-width="2"/>
+    <ellipse cx="0" cy="0" rx="18" ry="10" fill="#1e3a5f" opacity="0.4"/>
+    <ellipse cx="35" cy="0" rx="18" ry="10" fill="#1e3a5f" opacity="0.4"/>
+  </g>
+  <!-- Gloves (right, blurred - DOF effect) -->
+  <g transform="translate(320,185)" filter="url(#blur2)" opacity="0.5">
+    <path d="M-15 15 L-15-10 C-15-20 -5-25 0-25 L5-25 L5-35 C5-40 15-40 15-35 L15-25 L20-30 C25-35 30-30 28-25 L22-15 L25-18 C30-22 35-18 32-13 L25 0 L20 15 Z" fill="#d97706" opacity="0.7" stroke="#b45309" stroke-width="1"/>
+  </g>
+  <!-- Subtle light particles -->
+  <circle cx="150" cy="100" r="1.5" fill="#34d399" opacity="0.6"/>
+  <circle cx="250" cy="90" r="1" fill="#34d399" opacity="0.4"/>
+  <circle cx="180" cy="120" r="1" fill="#6ee7b7" opacity="0.3"/>
+</svg>

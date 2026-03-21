@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="400" y2="300" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#1a1a2e"/>
+      <stop offset="100%" stop-color="#16213e"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="150" y1="60" x2="260" y2="220" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#d97706" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#92400e" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="blade" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#94a3b8"/>
+      <stop offset="40%" stop-color="#e2e8f0"/>
+      <stop offset="100%" stop-color="#64748b"/>
+    </linearGradient>
+    <filter id="blur1"><feGaussianBlur stdDeviation="20"/></filter>
+    <filter id="blur2"><feGaussianBlur stdDeviation="4"/></filter>
+    <filter id="shadow"><feDropShadow dx="0" dy="3" stdDeviation="6" flood-color="#000" flood-opacity="0.4"/></filter>
+  </defs>
+  <rect width="400" height="300" fill="url(#bg)"/>
+  <ellipse cx="200" cy="140" rx="140" ry="100" fill="url(#glow)" filter="url(#blur1)"/>
+  <!-- Bench -->
+  <rect x="0" y="210" width="400" height="90" fill="#2d1f0e"/>
+  <rect x="0" y="210" width="400" height="3" fill="#5c3d1e"/>
+  <line x1="20" y1="235" x2="380" y2="236" stroke="#3d2a16" stroke-width="1" opacity="0.5"/>
+  <!-- Wood shavings scattered -->
+  <path d="M100 220 Q110 215 120 222" stroke="#b45309" stroke-width="1.5" fill="none" opacity="0.3"/>
+  <path d="M280 225 Q290 218 300 224" stroke="#a16207" stroke-width="1" fill="none" opacity="0.25"/>
+  <!-- Hand plane (main subject) -->
+  <g transform="translate(200,150)" filter="url(#shadow)">
+    <!-- Body -->
+    <rect x="-70" y="-15" width="140" height="40" rx="4" fill="#1e293b"/>
+    <rect x="-68" y="-13" width="136" height="3" rx="1" fill="#334155" opacity="0.6"/>
+    <!-- Sole -->
+    <rect x="-72" y="25" width="144" height="8" rx="2" fill="#475569"/>
+    <rect x="-72" y="25" width="144" height="2" fill="#64748b" rx="1"/>
+    <!-- Blade emerging from mouth -->
+    <rect x="-5" y="15" width="10" height="18" fill="url(#blade)" transform="rotate(5, 0, 24)"/>
+    <!-- Knob (front) -->
+    <ellipse cx="-50" cy="-18" rx="12" ry="14" fill="#78350f"/>
+    <ellipse cx="-50" cy="-22" rx="10" ry="10" fill="#92400e"/>
+    <ellipse cx="-50" cy="-24" rx="6" ry="6" fill="#a16207" opacity="0.5"/>
+    <!-- Tote (rear handle) -->
+    <path d="M30-15 L35-45 C36-52 45-52 46-45 L48-15" fill="#78350f" stroke="#5c2d0e" stroke-width="1"/>
+    <path d="M33-15 L37-40 C38-46 43-46 44-40 L46-15" fill="#92400e" opacity="0.4"/>
+    <!-- Chip breaker cap -->
+    <rect x="-8" y="-10" width="16" height="25" rx="2" fill="#475569" transform="rotate(5, 0, 0)"/>
+    <circle cx="0" cy="2" r="3" fill="#1e293b" stroke="#64748b" stroke-width="1"/>
+    <!-- Highlight -->
+    <rect x="-65" y="-12" width="130" height="2" rx="1" fill="white" opacity="0.08"/>
+  </g>
+  <!-- Sawdust pile (left, blurred) -->
+  <g filter="url(#blur2)" opacity="0.4">
+    <ellipse cx="70" cy="210" rx="30" ry="8" fill="#a16207"/>
+  </g>
+  <!-- Wood block (right, blurred) -->
+  <g transform="translate(330,195)" filter="url(#blur2)" opacity="0.5">
+    <rect x="-20" y="-12" width="40" height="24" rx="2" fill="#92400e"/>
+    <rect x="-20" y="-12" width="40" height="3" fill="#b45309" rx="1"/>
+    <line x1="-15" y1="-5" x2="15" y2="-4" stroke="#78350f" stroke-width="0.5" opacity="0.6"/>
+  </g>
+  <circle cx="160" cy="95" r="1.5" fill="#fbbf24" opacity="0.4"/>
+  <circle cx="245" cy="80" r="1" fill="#f59e0b" opacity="0.3"/>
+</svg>

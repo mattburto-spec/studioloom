@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import Link from "next/link";
+import { BADGE_THUMBNAILS } from "@/lib/safety/badge-thumbnails";
 // Shield icon as inline SVG (no lucide-react dependency)
 const ShieldIcon = ({ size = 24, className = "" }: { size?: number; className?: string }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -118,23 +120,28 @@ function BadgeCard({ badge }: BadgeCardProps) {
   // Convert icon_name (emoji string) to actual emoji if it's valid
   const icon = badge.icon_name;
 
+  const thumbnail = BADGE_THUMBNAILS[badge.slug];
+
   return (
-    <div className="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-md transition-shadow duration-200">
-      {/* Header: Icon + Name + Tier Dot */}
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex items-start gap-3 flex-1">
-          <div
-            className="w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 text-xl"
-            style={{ backgroundColor: `${badge.color}20` }}
-          >
-            {icon}
-          </div>
-          <div className="flex-1 min-w-0">
+    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden hover:shadow-md transition-shadow duration-200">
+      {/* Thumbnail */}
+      {thumbnail ? (
+        <div className="w-full h-36 relative">
+          <Image src={thumbnail} alt={badge.name} fill className="object-cover" />
+        </div>
+      ) : (
+        <div className="w-full h-36 flex items-center justify-center" style={{ backgroundColor: `${badge.color}15` }}>
+          <span className="text-4xl">{icon}</span>
+        </div>
+      )}
+      <div className="p-5">
+      {/* Header: Name + Tier Dot */}
+      <div className="flex items-start justify-between mb-3">
+        <div className="flex-1 min-w-0">
             <h3 className="font-bold text-gray-900 text-sm leading-tight">
               {badge.name}
             </h3>
             <p className="text-xs text-gray-500 mt-1">{tier.name}</p>
-          </div>
         </div>
         {/* Tier dot */}
         <div
@@ -183,6 +190,7 @@ function BadgeCard({ badge }: BadgeCardProps) {
       >
         View
       </Link>
+      </div>{/* close p-5 */}
     </div>
   );
 }

@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Image from "next/image";
 import Link from "next/link";
 import type { Badge, QuestionPoolItem, LearningCard } from "@/types";
+import { BADGE_THUMBNAILS } from "@/lib/safety/badge-thumbnails";
 
 // ============================================================================
 // SVG Icons (inline, no lucide-react)
@@ -257,17 +259,16 @@ export default function BadgeDetailPage() {
         </div>
 
         {/* Badge Header */}
-        <div className="bg-white border border-gray-200 rounded-xl p-6 mb-6">
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden mb-6">
+          {/* Hero thumbnail */}
+          {BADGE_THUMBNAILS[badge.slug] && (
+            <div className="w-full h-48 relative">
+              <Image src={BADGE_THUMBNAILS[badge.slug]} alt={badge.name} fill className="object-cover" />
+            </div>
+          )}
+          <div className="p-6">
           <div className="flex items-start justify-between mb-4">
             <div className="flex items-start gap-4">
-              {/* Icon */}
-              <div
-                className="w-16 h-16 rounded-lg flex items-center justify-center flex-shrink-0 text-4xl"
-                style={{ backgroundColor: `${badge.color}20` }}
-              >
-                {badge.icon_name}
-              </div>
-
               {/* Title + Info */}
               <div>
                 <div className="flex items-center gap-3 mb-2">
@@ -313,6 +314,7 @@ export default function BadgeDetailPage() {
               </button>
             </div>
           </div>
+          </div>{/* close p-6 */}
         </div>
 
         {/* Tab Navigation */}
