@@ -134,7 +134,7 @@ export function buildSkeletonFromExtraction(
       keyQuestion: buildKeyQuestion(lesson),
       estimatedMinutes: lesson.estimatedMinutes || defaultDuration,
       phaseLabel,
-      criterionTags: lesson.criterionTags.length > 0 ? lesson.criterionTags : ["B"],
+      criterionTags: lesson.criterionTags.length > 0 ? lesson.criterionTags : ["General"],
       activityHints: buildActivityHints(lesson),
       lessonType,
       learningIntention: lesson.learningObjective
@@ -158,7 +158,7 @@ export function buildSkeletonFromExtraction(
   const frameworkNote = extraction.framework.confidence !== "low"
     ? ` (${extraction.framework.frameworkName})`
     : "";
-  const narrativeArc = `This ${extraction.totalLessons}-lesson unit on "${extraction.unitTopic}"${frameworkNote} takes students through ${phases.join(" → ")}. Converted from the teacher's existing lesson plan, preserving their original activities and teaching approach while adding StudioLoom scaffolding and Workshop Model timing.`;
+  const narrativeArc = `This ${extraction.totalLessons}-lesson unit on "${extraction.unitTopic}"${frameworkNote} takes students through ${phases.join(" → ")}. Converted from the teacher's existing lesson plan, preserving their original activities and teaching approach while adding StudioLoom scaffolding and student engagement activities.`;
 
   return {
     lessons,

@@ -261,9 +261,15 @@ async function handleGeneration(
         // Build the context-injected user prompt — flexible, not rigid
         const contextPrompt = buildConverterPrompt(lesson, originalText + resourcesText, extraction, defaultDuration);
 
+        // Sanitize criterion tag for use as Anthropic schema property key
+        // Keys must match ^[a-zA-Z0-9_.-]{1,64}$ — so "P&P" → "P_P", "AO1" stays "AO1"
+        // The original criterion tags are preserved in the prompt context for the AI
+        const rawCriterion = lesson.criterionTags?.[0] || "B";
+        const safeCriterion = rawCriterion.replace(/[^a-zA-Z0-9_.-]/g, "_").slice(0, 64) || "B";
+
         // Generate using existing page generation
         const pages = await provider.generateCriterionPages(
-          (lesson.criterionTags?.[0] || "B") as "A" | "B" | "C" | "D",
+          safeCriterion as "A" | "B" | "C" | "D",
           {
             topic: extraction.unitTopic,
             subject: extraction.subjectArea || "Design",

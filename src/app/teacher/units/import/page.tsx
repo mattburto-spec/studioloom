@@ -726,7 +726,7 @@ export default function LessonPlanConverter() {
           <h2 className="text-lg font-bold text-text-primary mb-2">Generating your unit</h2>
           <p className="text-sm text-text-secondary">{generationProgress}</p>
           <p className="text-xs text-text-secondary mt-2">
-            Converting {editedSkeleton?.lessons.length || 0} lesson{(editedSkeleton?.lessons.length || 0) !== 1 ? "s" : ""} with Workshop Model timing...
+            Converting {editedSkeleton?.lessons.length || 0} lesson{(editedSkeleton?.lessons.length || 0) !== 1 ? "s" : ""} with scaffolding and engagement activities...
           </p>
           {framework && (
             <p className="text-xs text-purple-500 mt-1">
@@ -742,7 +742,7 @@ export default function LessonPlanConverter() {
           <div className="text-5xl mb-4">✅</div>
           <h2 className="text-xl font-bold text-text-primary mb-2">Unit Generated!</h2>
           <p className="text-sm text-text-secondary mb-2">
-            Your {editedSkeleton?.lessons.length || 0} lesson{(editedSkeleton?.lessons.length || 0) !== 1 ? "s" : ""} {editedSkeleton?.lessons.length === 1 ? "has" : "have"} been converted with Workshop Model timing and scaffolding.
+            Your {editedSkeleton?.lessons.length || 0} lesson{(editedSkeleton?.lessons.length || 0) !== 1 ? "s" : ""} {editedSkeleton?.lessons.length === 1 ? "has" : "have"} been converted with scaffolding and student engagement activities.
           </p>
           {totalResourceCount > 0 && (
             <p className="text-xs text-blue-600 mb-1">🔗 {totalResourceCount} resources preserved</p>
