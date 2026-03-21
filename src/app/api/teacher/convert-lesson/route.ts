@@ -233,7 +233,8 @@ async function handleGeneration(
 
     // Build grade profile for timing validation using actual lesson duration
     const defaultDuration = lessonDurationMinutes || 50;
-    const gradeProfile = getGradeTimingProfile(4); // Default MYP 4, teacher can adjust
+    const gradeLevel = extraction?.gradeLevel || "Year 4";
+    const gradeProfile = getGradeTimingProfile(gradeLevel);
     const timingCtx = buildTimingContext(gradeProfile, defaultDuration, true);
     const usableTime = calculateUsableTime(timingCtx);
     const instructionCap = maxInstructionMinutes(gradeProfile);

@@ -143,7 +143,7 @@ const TIMING_PROFILES: Record<number, GradeTimingProfile> = {
  * Returns the timing profile for that year, defaulting to Year 3 if parsing fails.
  */
 export function getGradeTimingProfile(gradeLevel: string, configProfiles?: Record<number, GradeTimingProfile>): GradeTimingProfile {
-  const match = gradeLevel?.match(/Year\s*(\d)/i);
+  const match = gradeLevel?.match(/Year\s*(\d+)/i);
   const year = match ? parseInt(match[1], 10) : 3;
   const profiles = configProfiles || TIMING_PROFILES;
   return profiles[year] || profiles[3] || TIMING_PROFILES[3];
