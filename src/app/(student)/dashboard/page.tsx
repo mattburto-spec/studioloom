@@ -13,6 +13,7 @@ import { JourneyMap } from "@/components/student/JourneyMap";
 import { SkillsCerts, type SkillCert } from "@/components/student/BadgeWall";
 import { StatsStrip } from "@/components/student/StatsStrip";
 import { computeStats, type BadgeInput } from "@/lib/badges/compute-badges";
+import { DueThisWeek } from "@/components/student/DueThisWeek";
 import type { Unit, StudentProgress, PortfolioEntry, UnitPage } from "@/types";
 
 interface ToolSession {
@@ -27,6 +28,7 @@ interface ToolSession {
 
 interface UnitWithProgress extends Unit {
   progress: StudentProgress[];
+  page_due_dates?: Record<string, string>;
 }
 
 export default function StudentDashboard() {
@@ -78,6 +80,16 @@ export default function StudentDashboard() {
     return statuses;
   }, []);
 
+  const loadSafetyCerts = useCallback(async () => {
+    try {
+      const res = await fetch("/api/student/safety-certs");
+      if (res.ok) {
+        const data = await res.json();
+        setSafetyCerts(data.certs || []);
+      }
+    } catch { /* silent */ }
+  }, []);
+
   useEffect(() => {
     async function loadAll() {
       if (!student) return;
@@ -96,7 +108,8 @@ export default function StudentDashboard() {
     loadAll();
     loadPortfolio();
     loadToolSessions();
-  }, [student, loadPortfolio, loadToolSessions, loadOpenStudioStatus]);
+    loadSafetyCerts();
+  }, [student, loadPortfolio, loadToolSessions, loadOpenStudioStatus, loadSafetyCerts]);
 
   // === Helpers ===
 
@@ -184,6 +197,53 @@ export default function StudentDashboard() {
       };
     });
   }, [safetyCerts]);
+
+  // === Due dates computation ===
+
+  const dueItems = useMemo(() => {
+    const now = new Date();
+    const items: Array<{
+      unitId: string;
+      unitTitle: string;
+      pageId: string;
+      pageTitle: string;
+      dueDate: string;
+      isOverdue: boolean;
+      isComplete: boolean;
+    }> = [];
+
+    for (const unit of units) {
+      const dueDates = unit.page_due_dates || {};
+      if (Object.keys(dueDates).length === 0) continue;
+
+      const unitPages = getPageList(unit.content_data);
+
+      for (const [pageId, dateStr] of Object.entries(dueDates)) {
+        if (!dateStr) continue;
+        const dueDate = new Date(dateStr);
+        const diffDays = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+        // Show items due within 14 days or overdue
+        if (diffDays <= 14) {
+          const page = unitPages.find((p) => p.id === pageId);
+          const isComplete = unit.progress.some(
+            (p) => p.page_id === pageId && p.status === "complete"
+          );
+          items.push({
+            unitId: unit.id,
+            unitTitle: unit.title,
+            pageId,
+            pageTitle: page?.title || `Page ${pageId}`,
+            dueDate: dateStr,
+            isOverdue: diffDays < 0 && !isComplete,
+            isComplete,
+          });
+        }
+      }
+    }
+
+    return items;
+  }, [units]);
 
   // === Journey Map zones for the first in-progress (or first) unit ===
 
@@ -298,13 +358,18 @@ export default function StudentDashboard() {
               </div>
             )}
 
-            {/* ============ Stats + Certs ============ */}
+            {/* ============ Stats + Certs + Due Dates ============ */}
             <div className="mb-5">
               <StatsStrip stats={stats} />
             </div>
-            <div className="mb-6">
+            <div className="mb-5">
               <SkillsCerts certs={skillCerts} />
             </div>
+            {dueItems.length > 0 && (
+              <div className="mb-6">
+                <DueThisWeek items={dueItems} />
+              </div>
+            )}
 
             {/* Your Units */}
             <div className="mb-10">

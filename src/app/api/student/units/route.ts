@@ -33,14 +33,14 @@ export async function GET(request: NextRequest) {
 
   const { data: cuNew, error: cuError } = await supabase
     .from("class_units")
-    .select("unit_id, locked_page_ids")
+    .select("unit_id, locked_page_ids, page_due_dates")
     .eq("class_id", student.class_id)
     .eq("is_active", true);
 
   if (cuError && (cuError.message?.includes("does not exist") || cuError.message?.includes("Could not find"))) {
     const { data: cuOld } = await supabase
       .from("class_units")
-      .select("unit_id, locked_pages")
+      .select("unit_id, locked_pages, page_due_dates")
       .eq("class_id", student.class_id)
       .eq("is_active", true);
     classUnits = cuOld as Record<string, unknown>[] | null;
@@ -89,6 +89,7 @@ export async function GET(request: NextRequest) {
       ...unit,
       progress: unitProgress,
       locked_pages: lockedPages,
+      page_due_dates: (cu?.page_due_dates as Record<string, string>) || {},
     };
   });
 

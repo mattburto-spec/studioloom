@@ -4,6 +4,7 @@ import { useState, useEffect, use } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { NMConfigPanel, NMResultsPanel } from "@/components/nm";
+import { CertManager } from "@/components/teacher/CertManager";
 import type { NMUnitConfig } from "@/lib/nm/constants";
 import { DEFAULT_NM_CONFIG } from "@/lib/nm/constants";
 import { getPageList } from "@/lib/unit-adapter";
@@ -30,6 +31,7 @@ export default function ClassUnitSettingsPage({
   const [loading, setLoading] = useState(true);
   const [nmConfig, setNmConfig] = useState<NMUnitConfig>(DEFAULT_NM_CONFIG);
   const [pages, setPages] = useState<Array<{ id: string; title: string }>>([]);
+  const [students, setStudents] = useState<Array<{ student_id: string; display_name: string; username: string }>>([]);
 
   useEffect(() => {
     async function load() {
@@ -38,13 +40,20 @@ export default function ClassUnitSettingsPage({
       const [unitRes, classRes, studentsRes] = await Promise.all([
         supabase.from("units").select("*").eq("id", unitId).single(),
         supabase.from("classes").select("name, code").eq("id", classId).single(),
-        supabase.from("students").select("id").eq("class_id", classId),
+        supabase.from("students").select("id, display_name, username").eq("class_id", classId),
       ]);
 
       setUnit(unitRes.data);
       setClassName(classRes.data?.name || "");
       setClassCode(classRes.data?.code || "");
       setStudentCount(studentsRes.data?.length || 0);
+      setStudents(
+        (studentsRes.data || []).map((s: { id: string; display_name?: string; username?: string }) => ({
+          student_id: s.id,
+          display_name: s.display_name || "",
+          username: s.username || "",
+        }))
+      );
 
       if (unitRes.data) {
         const pageList = getPageList(unitRes.data.content_data);
@@ -197,6 +206,13 @@ export default function ClassUnitSettingsPage({
           <NMResultsPanel unitId={unitId} classId={classId} />
         </div>
       )}
+
+      {/* ----------------------------------------------------------------- */}
+      {/* Workshop Certifications                                            */}
+      {/* ----------------------------------------------------------------- */}
+      <div className="mb-6">
+        <CertManager classId={classId} students={students} />
+      </div>
 
       {/* ----------------------------------------------------------------- */}
       {/* Future: Open Studio, Timing Overrides, etc.                        */}
