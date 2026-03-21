@@ -674,99 +674,95 @@ function UnitProgressRow({
   unit: DashboardClass["units"][0];
   classId: string;
 }) {
-  const total = unit.completedCount + unit.inProgressCount + unit.notStartedCount;
-  const completePct = total > 0 ? (unit.completedCount / total) * 100 : 0;
-  const inProgressPct = total > 0 ? (unit.inProgressCount / total) * 100 : 0;
   const studioCount = unit.openStudioCount ?? 0;
   const nmEnabled = unit.nmEnabled ?? false;
+  const hasActiveStudents = unit.inProgressCount > 0;
+  const isComplete = unit.completionPct === 100;
 
   return (
-    <div className="px-4 py-3 flex items-center gap-3">
-      <div className="w-40 shrink-0">
-        <p className="text-sm font-medium text-text-primary truncate">{unit.unitTitle}</p>
-        <p className="text-xs text-text-secondary mt-0.5">{unit.totalPages} pages</p>
-      </div>
-
+    <div className="px-4 py-3.5 flex items-start gap-3 group/row hover:bg-surface-alt/30 transition">
+      {/* Left: title + stats line */}
       <div className="flex-1 min-w-0">
-        <div className="h-2 rounded-full bg-gray-100 overflow-hidden flex">
-          {completePct > 0 && (
-            <div
-              className="transition-all duration-500 rounded-l-full"
-              style={{ width: `${completePct}%`, background: "#2DA05E" }}
-            />
+        <p className="text-sm font-semibold text-text-primary truncate">{unit.unitTitle}</p>
+        <div className="flex items-center gap-2 mt-1 flex-wrap">
+          {/* Completion — readable text */}
+          <span className={`text-xs font-medium ${isComplete ? "text-emerald-600" : "text-text-secondary"}`}>
+            {isComplete ? (
+              <>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="inline -mt-0.5 mr-0.5">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                Complete
+              </>
+            ) : (
+              <>{unit.completionPct}% · {unit.totalPages} pages</>
+            )}
+          </span>
+
+          {/* Active students chip */}
+          {hasActiveStudents && (
+            <>
+              <span className="text-text-tertiary/40">·</span>
+              <span className="inline-flex items-center gap-1 text-xs font-medium text-blue-600">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                {unit.inProgressCount} working
+              </span>
+            </>
           )}
-          {inProgressPct > 0 && (
-            <div
-              className="transition-all duration-500"
-              style={{ width: `${inProgressPct}%`, background: "#F59E0B" }}
-            />
+
+          {/* Open Studio chip */}
+          {studioCount > 0 && (
+            <>
+              <span className="text-text-tertiary/40">·</span>
+              <span className="text-xs font-medium text-purple-600">
+                {studioCount} in Studio
+              </span>
+            </>
+          )}
+
+          {/* NM badge */}
+          {nmEnabled && (
+            <>
+              <span className="text-text-tertiary/40">·</span>
+              <Link
+                href={`/teacher/units/${unit.unitId}/class/${classId}`}
+                className="inline-flex items-center gap-1 text-xs font-black rounded transition whitespace-nowrap"
+                style={{
+                  background: "#FF2D78",
+                  color: "#fff",
+                  padding: "1px 6px",
+                  borderRadius: "4px",
+                  fontSize: "10px",
+                  letterSpacing: "0.3px",
+                  fontFamily: "'Arial Black', sans-serif",
+                }}
+                title="View NM Results"
+              >
+                NM
+              </Link>
+            </>
           )}
         </div>
       </div>
 
-      <span
-        className="text-sm font-bold w-10 text-right"
-        style={{
-          color: unit.completionPct === 100 ? "#2DA05E" : unit.completionPct > 0 ? "#1A1A2E" : "#9CA3AF",
-        }}
-      >
-        {unit.completionPct}%
-      </span>
-
-      <Link
-        href={`/teacher/classes/${classId}/progress/${unit.unitId}`}
-        className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2 py-1 rounded-lg transition whitespace-nowrap ${
-          studioCount > 0
-            ? "text-purple-700 bg-purple-100 hover:bg-purple-200"
-            : "text-gray-500 bg-gray-50 hover:bg-gray-100"
-        }`}
-        title={studioCount > 0 ? `${studioCount} student${studioCount !== 1 ? "s" : ""} in Open Studio` : "Manage Open Studio"}
-      >
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="10" />
-          {studioCount > 0 ? (
-            <path d="M8 12l2 2 4-4" strokeWidth="2.5" />
-          ) : (
-            <path d="M12 8v4m0 4h.01" />
-          )}
-        </svg>
-        {studioCount > 0 ? `${studioCount} Studio` : "Studio"}
-      </Link>
-
-      {nmEnabled && (
+      {/* Right: action buttons */}
+      <div className="flex items-center gap-2 shrink-0 mt-0.5">
         <Link
-          href={`/teacher/units/${unit.unitId}/class/${classId}`}
-          className="inline-flex items-center gap-1 text-xs font-black px-2 py-1 rounded-lg transition whitespace-nowrap"
-          style={{
-            background: "#FF2D78",
-            color: "#fff",
-            border: "2px solid #1a1a1a",
-            boxShadow: "2px 2px 0 #1a1a1a",
-            fontFamily: "'Arial Black', sans-serif",
-            fontSize: "10px",
-            letterSpacing: "0.5px",
-          }}
-          title="View NM Results"
+          href={`/teacher/teach/${unit.unitId}?classId=${classId}`}
+          className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-purple-600 to-blue-600 text-white text-xs font-semibold hover:from-purple-700 hover:to-blue-700 transition-all shadow-sm flex items-center gap-1.5"
         >
-          <span style={{
-            display: "inline-flex", alignItems: "center", justifyContent: "center",
-            width: "16px", height: "16px", borderRadius: "4px",
-            background: "#FFE135", border: "1.5px solid #1a1a1a",
-            fontSize: "8px", fontWeight: 900, color: "#1a1a1a",
-            lineHeight: 1,
-          }}>
-            NM
-          </span>
-          Results
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="white" stroke="none">
+            <polygon points="6 3 20 12 6 21 6 3" />
+          </svg>
+          Teach
         </Link>
-      )}
-
-      <Link
-        href={`/teacher/classes/${classId}/progress/${unit.unitId}`}
-        className="text-xs text-brand-purple hover:underline whitespace-nowrap font-medium"
-      >
-        View
-      </Link>
+        <Link
+          href={`/teacher/classes/${classId}/progress/${unit.unitId}`}
+          className="px-3 py-1.5 rounded-lg border border-border text-xs font-medium text-text-primary hover:bg-surface-alt transition"
+        >
+          Progress
+        </Link>
+      </div>
     </div>
   );
 }
