@@ -274,13 +274,13 @@ export default function UnitDetailPage({
       </Link>
 
       {/* Title + description */}
-      <h1 className="text-lg font-semibold text-text-primary">{unit.title}</h1>
+      <h1 className="text-2xl font-bold text-text-primary mt-1">{unit.title}</h1>
       {unit.description && (
-        <p className="text-sm text-text-secondary mt-1">{unit.description}</p>
+        <p className="text-base text-text-secondary mt-2 leading-relaxed">{unit.description}</p>
       )}
 
       {/* Stats bar */}
-      <div className="flex items-center gap-4 mb-4 text-xs text-text-tertiary">
+      <div className="flex items-center gap-4 mt-3 mb-5 text-sm text-text-tertiary">
         <span>
           {isTimelineUnit ? lessons.length : pages.length}{" "}
           {isTimelineUnit || isJourneyUnit ? "lessons" : "pages"}
@@ -371,91 +371,14 @@ export default function UnitDetailPage({
       )}
 
       {/* ----------------------------------------------------------------- */}
-      {/* Classes — toggle assignment                                          */}
-      {/* ----------------------------------------------------------------- */}
-      <div className="mb-6">
-        <h2 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
-            <circle cx="9" cy="7" r="4" />
-            <path d="M23 21v-2a4 4 0 00-3-3.87" />
-            <path d="M16 3.13a4 4 0 010 7.75" />
-          </svg>
-          Classes
-          <span className="text-xs font-normal text-text-tertiary ml-1">
-            ({allClasses.filter((c) => c.assigned).length} assigned)
-          </span>
-        </h2>
-
-        {allClasses.length === 0 ? (
-          <div className="p-4 rounded-xl border border-dashed border-border text-center">
-            <p className="text-sm text-text-secondary">No classes yet.</p>
-            <Link href="/teacher/classes" className="text-xs text-purple-600 hover:text-purple-700 mt-1 inline-block">
-              Create a class →
-            </Link>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {allClasses.map((cls) => (
-              <div
-                key={cls.id}
-                className={`flex items-center justify-between p-3 rounded-xl border transition-colors ${
-                  cls.assigned
-                    ? "border-purple-200 bg-purple-50/50"
-                    : "border-border bg-white"
-                }`}
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  {/* Toggle switch */}
-                  <button
-                    onClick={() => toggleClassAssignment(cls.id, cls.assigned)}
-                    disabled={togglingClass === cls.id}
-                    className={`relative flex-shrink-0 w-10 h-6 rounded-full transition-colors duration-200 ${
-                      cls.assigned ? "bg-purple-600" : "bg-gray-200"
-                    } ${togglingClass === cls.id ? "opacity-50" : ""}`}
-                  >
-                    <span
-                      className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${
-                        cls.assigned ? "translate-x-4" : ""
-                      }`}
-                    />
-                  </button>
-                  <div className="min-w-0">
-                    <span className="text-sm font-medium text-text-primary truncate block">{cls.name}</span>
-                    <div className="flex items-center gap-3 text-[11px] text-text-tertiary mt-0.5">
-                      <span>{cls.studentCount} student{cls.studentCount !== 1 ? "s" : ""}</span>
-                      {cls.nmEnabled && cls.assigned && (
-                        <>
-                          <span className="text-text-tertiary/40">·</span>
-                          <span className="text-pink-500 font-medium">NM</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                {cls.assigned && (
-                  <Link
-                    href={`/teacher/units/${unitId}/class/${cls.id}`}
-                    className="text-xs text-purple-600 hover:text-purple-700 px-2 py-1 rounded-lg hover:bg-purple-50 transition flex-shrink-0"
-                  >
-                    Settings →
-                  </Link>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* ----------------------------------------------------------------- */}
       {/* Lesson / page list — collapsible                                   */}
       {/* ----------------------------------------------------------------- */}
       <button
         onClick={() => setShowLessons(!showLessons)}
-        className="w-full flex items-center justify-between px-4 py-3 rounded-xl border border-border bg-white hover:bg-surface-alt transition-colors mb-2"
+        className="w-full flex items-center justify-between px-4 py-3.5 rounded-xl border border-border bg-white hover:bg-surface-alt transition-colors mb-3"
       >
         <div className="text-left">
-          <span className="text-sm font-medium text-text-primary">
+          <span className="text-base font-semibold text-text-primary">
             Unit Plan — {isTimelineUnit ? lessons.length : pages.length}{" "}
             {isTimelineUnit || isJourneyUnit ? "lessons" : "pages"}
           </span>
@@ -566,6 +489,83 @@ export default function UnitDetailPage({
           </Link>
         </div>
       )}
+
+      {/* ----------------------------------------------------------------- */}
+      {/* Classes — toggle assignment                                          */}
+      {/* ----------------------------------------------------------------- */}
+      <div className="mt-8 mb-6">
+        <h2 className="text-base font-semibold text-text-primary mb-3 flex items-center gap-2">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M23 21v-2a4 4 0 00-3-3.87" />
+            <path d="M16 3.13a4 4 0 010 7.75" />
+          </svg>
+          Classes
+          <span className="text-sm font-normal text-text-tertiary ml-1">
+            ({allClasses.filter((c) => c.assigned).length} assigned)
+          </span>
+        </h2>
+
+        {allClasses.length === 0 ? (
+          <div className="p-4 rounded-xl border border-dashed border-border text-center">
+            <p className="text-sm text-text-secondary">No classes yet.</p>
+            <Link href="/teacher/classes" className="text-xs text-purple-600 hover:text-purple-700 mt-1 inline-block">
+              Create a class →
+            </Link>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {allClasses.map((cls) => (
+              <div
+                key={cls.id}
+                className={`flex items-center justify-between p-3 rounded-xl border transition-colors ${
+                  cls.assigned
+                    ? "border-purple-200 bg-purple-50/50"
+                    : "border-border bg-white"
+                }`}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  {/* Toggle switch */}
+                  <button
+                    onClick={() => toggleClassAssignment(cls.id, cls.assigned)}
+                    disabled={togglingClass === cls.id}
+                    className={`relative flex-shrink-0 w-10 h-6 rounded-full transition-colors duration-200 ${
+                      cls.assigned ? "bg-purple-600" : "bg-gray-200"
+                    } ${togglingClass === cls.id ? "opacity-50" : ""}`}
+                  >
+                    <span
+                      className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${
+                        cls.assigned ? "translate-x-4" : ""
+                      }`}
+                    />
+                  </button>
+                  <div className="min-w-0">
+                    <span className="text-sm font-medium text-text-primary truncate block">{cls.name}</span>
+                    <div className="flex items-center gap-3 text-[11px] text-text-tertiary mt-0.5">
+                      <span>{cls.studentCount} student{cls.studentCount !== 1 ? "s" : ""}</span>
+                      {cls.nmEnabled && cls.assigned && (
+                        <>
+                          <span className="text-text-tertiary/40">·</span>
+                          <span className="text-pink-500 font-medium">NM</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                {cls.assigned && (
+                  <Link
+                    href={`/teacher/units/${unitId}/class/${cls.id}`}
+                    className="text-xs text-purple-600 hover:text-purple-700 px-2 py-1 rounded-lg hover:bg-purple-50 transition flex-shrink-0"
+                  >
+                    Settings →
+                  </Link>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </main>
   );
 }
