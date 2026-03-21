@@ -73,7 +73,7 @@ export function ObservationSnap({
       } else {
         const errData = await res.json().catch(() => ({}));
         console.error("Observation save failed:", res.status, errData);
-        setError("Failed to save — try again.");
+        setError(errData.error || `Failed to save (${res.status}) — try again.`);
       }
     } catch (err) {
       console.error("Observation submission failed:", err);

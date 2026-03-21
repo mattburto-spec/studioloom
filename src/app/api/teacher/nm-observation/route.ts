@@ -147,12 +147,14 @@ export async function POST(request: NextRequest) {
   }
 
   if (!nmConfig) {
-    return NextResponse.json({ error: "NM not configured for unit" }, { status: 400 });
+    console.error("[nm-observation] No NM config found for", { classId, unitId });
+    return NextResponse.json({ error: "NM not configured for this class/unit" }, { status: 400 });
   }
 
   const competency = (nmConfig as { competencies?: string[] }).competencies?.[0];
   if (!competency) {
-    return NextResponse.json({ error: "No competency configured for unit" }, { status: 400 });
+    console.error("[nm-observation] NM config has no competencies:", JSON.stringify(nmConfig));
+    return NextResponse.json({ error: "No competency configured — check NM setup" }, { status: 400 });
   }
 
   // Resolve class_id for the assessment record

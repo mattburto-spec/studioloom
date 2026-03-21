@@ -735,7 +735,7 @@ function UnitProgressRow({
 
       {nmEnabled && (
         <Link
-          href={`/teacher/units/${unit.unitId}`}
+          href={`/teacher/units/${unit.unitId}/class/${classId}`}
           className="inline-flex items-center gap-1 text-xs font-black px-2 py-1 rounded-lg transition whitespace-nowrap"
           style={{
             background: "#FF2D78",

@@ -81,7 +81,8 @@ export function NMResultsPanel({ unitId, classId }: NMResultsPanelProps) {
 
   const selfAssessments = assessments.filter(a => a.source === "student_self");
   const teacherObs = assessments.filter(a => a.source === "teacher_observation");
-  const studentIds = [...new Set(selfAssessments.map(a => a.student_id))];
+  // Include ALL students who have any assessment (self OR teacher observation)
+  const studentIds = [...new Set(assessments.map(a => a.student_id))];
   const elements = nmConfig?.elements || [];
 
   // Per-student grouped data
@@ -110,7 +111,11 @@ export function NMResultsPanel({ unitId, classId }: NMResultsPanelProps) {
       ? Object.values(latestSelf).reduce((s, v) => s + v, 0) / Object.values(latestSelf).length
       : null;
 
-    return { sid, name, latestSelf, latestTeacher, selfAvg, totalResponses: studentSelf.length };
+    const teacherAvg = Object.values(latestTeacher).length > 0
+      ? Object.values(latestTeacher).reduce((s, v) => s + v, 0) / Object.values(latestTeacher).length
+      : null;
+
+    return { sid, name, latestSelf, latestTeacher, selfAvg, teacherAvg, totalResponses: studentSelf.length, totalTeacherObs: studentTeacher.length };
   }).sort((a, b) => a.name.localeCompare(b.name));
 
   // Per-element aggregated data
@@ -244,18 +249,31 @@ export function NMResultsPanel({ unitId, classId }: NMResultsPanelProps) {
                         }}>
                           {s.name}
                         </div>
-                        {s.selfAvg !== null && (
-                          <div style={{
-                            padding: "3px 10px", borderRadius: "8px",
-                            border: `2px solid ${POP.black}`,
-                            background: s.selfAvg >= 2.5 ? POP.hotPink : s.selfAvg >= 1.5 ? POP.cyan : POP.electricYellow,
-                            color: s.selfAvg >= 2.5 ? POP.white : POP.black,
-                            fontSize: "11px", fontWeight: 900, fontFamily: "'Arial Black', sans-serif",
-                            boxShadow: `2px 2px 0 ${POP.black}`,
-                          }}>
-                            avg {s.selfAvg.toFixed(1)}
-                          </div>
-                        )}
+                        <div style={{ display: "flex", gap: "4px" }}>
+                          {s.selfAvg !== null && (
+                            <div style={{
+                              padding: "3px 10px", borderRadius: "8px",
+                              border: `2px solid ${POP.black}`,
+                              background: s.selfAvg >= 2.5 ? POP.hotPink : s.selfAvg >= 1.5 ? POP.cyan : POP.electricYellow,
+                              color: s.selfAvg >= 2.5 ? POP.white : POP.black,
+                              fontSize: "11px", fontWeight: 900, fontFamily: "'Arial Black', sans-serif",
+                              boxShadow: `2px 2px 0 ${POP.black}`,
+                            }}>
+                              avg {s.selfAvg.toFixed(1)}
+                            </div>
+                          )}
+                          {s.totalTeacherObs > 0 && (
+                            <div style={{
+                              padding: "3px 10px", borderRadius: "8px",
+                              border: `2px solid ${POP.black}`,
+                              background: POP.purple, color: POP.white,
+                              fontSize: "11px", fontWeight: 900, fontFamily: "'Arial Black', sans-serif",
+                              boxShadow: `2px 2px 0 ${POP.black}`,
+                            }}>
+                              {s.totalTeacherObs} obs
+                            </div>
+                          )}
+                        </div>
                       </div>
                       {/* Element ratings grid */}
                       <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
