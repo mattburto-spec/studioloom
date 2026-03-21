@@ -626,21 +626,6 @@ export default function TeacherUnitsPage() {
                       </div>
                     </Link>
                     <div className="px-4 pb-3 pt-2 flex items-center gap-2 border-t border-border-default mt-auto">
-                      <button
-                        onClick={() => togglePublish(unit)}
-                        disabled={publishing === unit.id}
-                        className={`px-2.5 py-1 text-[10px] font-medium rounded-lg transition ${
-                          unit.is_published
-                            ? "text-accent-green bg-accent-green/10 hover:bg-accent-green/20"
-                            : "text-text-secondary bg-surface-alt hover:bg-gray-200"
-                        }`}
-                      >
-                        {publishing === unit.id
-                          ? "..."
-                          : unit.is_published
-                            ? "Published"
-                            : "Publish"}
-                      </button>
                       <Link
                         href={`/teacher/units/${unit.id}/edit`}
                         className="px-2.5 py-1 text-[10px] font-medium text-brand-purple bg-brand-purple/10 rounded-lg hover:bg-brand-purple/20 transition"

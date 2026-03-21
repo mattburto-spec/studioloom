@@ -293,9 +293,6 @@ export default function UnitDetailPage({
         )}
         {unit.grade_level && <span>Grade {unit.grade_level}</span>}
         {unit.duration_weeks && <span>{unit.duration_weeks} weeks</span>}
-        <span className={unit.is_published ? "text-accent-green" : ""}>
-          {unit.is_published ? "Published" : "Draft"}
-        </span>
       </div>
 
       {/* Action bar */}
