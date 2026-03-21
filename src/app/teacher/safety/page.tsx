@@ -293,10 +293,8 @@ export default function SafetyBadgesPage() {
       setIsSeedLoading(true);
       setError(null);
 
-      const response = await fetch("/api/teacher/badges", {
+      const response = await fetch("/api/teacher/badges/seed", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "seed" }),
       });
 
       if (!response.ok) {
