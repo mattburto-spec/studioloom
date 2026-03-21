@@ -62,6 +62,15 @@ export default function StudentDashboard() {
     earned_at: string;
     expires_at: string | null;
   }>>([]);
+  const [nextClass, setNextClass] = useState<{
+    dateISO: string;
+    dayOfWeek: string;
+    cycleDay: number;
+    periodNumber?: number;
+    room?: string;
+    formatted: string;
+    short: string;
+  } | null>(null);
 
   const loadPortfolio = useCallback(async () => {
     try {
@@ -123,6 +132,16 @@ export default function StudentDashboard() {
     } catch { /* silent */ }
   }, []);
 
+  const loadNextClass = useCallback(async (unitId: string) => {
+    try {
+      const res = await fetch(`/api/student/next-class?unitId=${unitId}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.nextClass) setNextClass(data.nextClass);
+      }
+    } catch { /* silent */ }
+  }, []);
+
   useEffect(() => {
     async function loadAll() {
       if (!student) return;
@@ -133,6 +152,15 @@ export default function StudentDashboard() {
           const unitList = data.units || [];
           setUnits(unitList);
           loadOpenStudioStatus(unitList);
+          // Load next class for the first in-progress unit
+          const inProg = unitList.find((u: UnitWithProgress) => {
+            const pages = getPageList(u.content_data);
+            if (pages.length === 0) return false;
+            const complete = u.progress.filter((p: StudentProgress) => p.status === "complete").length;
+            const pct = Math.round((complete / pages.length) * 100);
+            return pct > 0 && pct < 100;
+          });
+          if (inProg) loadNextClass(inProg.id);
         }
       } finally {
         setLoading(false);
@@ -143,7 +171,7 @@ export default function StudentDashboard() {
     loadToolSessions();
     loadSafetyCerts();
     loadPendingBadges();
-  }, [student, loadPortfolio, loadToolSessions, loadOpenStudioStatus, loadSafetyCerts, loadPendingBadges]);
+  }, [student, loadPortfolio, loadToolSessions, loadOpenStudioStatus, loadSafetyCerts, loadPendingBadges, loadNextClass]);
 
   // === Helpers ===
 
@@ -453,6 +481,25 @@ export default function StudentDashboard() {
                           <p className="text-text-secondary text-sm mb-3 line-clamp-2">
                             {inProgressUnit.description}
                           </p>
+                        )}
+                        {/* Next class indicator */}
+                        {nextClass && (
+                          <div className="flex items-center gap-2 mb-3 text-sm">
+                            <span className="inline-flex items-center gap-1.5 bg-blue-50 text-blue-700 px-3 py-1 rounded-full font-medium border border-blue-200/60">
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                                <line x1="16" y1="2" x2="16" y2="6" />
+                                <line x1="8" y1="2" x2="8" y2="6" />
+                                <line x1="3" y1="10" x2="21" y2="10" />
+                              </svg>
+                              Next: {nextClass.short}
+                            </span>
+                            {nextClass.room && (
+                              <span className="text-text-secondary">
+                                Room {nextClass.room}
+                              </span>
+                            )}
+                          </div>
                         )}
                         {/* Phase progress pills (non-linear) */}
                         {journeyZones.length > 0 && (

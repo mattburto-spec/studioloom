@@ -119,6 +119,13 @@ export default function TeacherSettingsPage() {
   const [timetableError, setTimetableError] = useState("");
   const [classMeetings, setClassMeetings] = useState<Array<{ class_id: string; cycle_day: number; period_number?: number; room?: string }>>([]);
   const [classes, setClasses] = useState<Array<{ id: string; name: string }>>([]);
+  const [excludedDates, setExcludedDates] = useState<string[]>([]);
+  const [newExcludedDate, setNewExcludedDate] = useState("");
+  const [newExcludedLabel, setNewExcludedLabel] = useState("");
+  // iCal import
+  const [icalUrl, setIcalUrl] = useState("");
+  const [icalParsing, setIcalParsing] = useState(false);
+  const [icalMessage, setIcalMessage] = useState("");
   // Temp state for adding a meeting
   const [newMeetingClassId, setNewMeetingClassId] = useState("");
   const [newMeetingCycleDay, setNewMeetingCycleDay] = useState<number>(1);
@@ -239,6 +246,8 @@ export default function TeacherSettingsPage() {
         setAnchorDate(data.timetable.anchor_date || new Date().toISOString().split("T")[0]);
         setAnchorCycleDay(data.timetable.anchor_cycle_day || 1);
         setResetEachTerm(data.timetable.reset_each_term || false);
+        setExcludedDates(data.timetable.excluded_dates || []);
+        setIcalUrl(data.timetable.ical_url || "");
         setTimetableLoaded(true);
       }
       if (data.meetings) {
@@ -257,7 +266,9 @@ export default function TeacherSettingsPage() {
   async function loadClasses() {
     try {
       const supabase = (await import("@/lib/supabase/client")).createClient();
-      const { data } = await supabase.from("classes").select("id, name").order("name");
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase.from("classes").select("id, name").eq("author_teacher_id", user.id).order("name");
       if (data) setClasses(data);
     } catch {
       // silent
@@ -278,6 +289,8 @@ export default function TeacherSettingsPage() {
           anchor_date: anchorDate,
           anchor_cycle_day: anchorCycleDay,
           reset_each_term: resetEachTerm,
+          excluded_dates: excludedDates,
+          ical_url: icalUrl || null,
           meetings: classMeetings,
         }),
       });
@@ -816,6 +829,152 @@ export default function TeacherSettingsPage() {
                   </div>
                 ) : (
                   <p className="text-sm text-text-secondary">Create classes first to add meeting times.</p>
+                )}
+              </div>
+
+              {/* Excluded dates (holidays) */}
+              <div className="border-t border-border pt-4 mt-4">
+                <h4 className="text-xs font-semibold text-text-primary mb-1">Non-School Days</h4>
+                <p className="text-xs text-text-secondary mb-3">Add holidays, PD days, or any dates the cycle skips. These dates won&apos;t count as school days in cycle calculations.</p>
+
+                {excludedDates.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mb-3">
+                    {excludedDates.map((d, i) => (
+                      <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 text-xs font-medium border border-amber-200">
+                        {d}
+                        <button onClick={() => setExcludedDates(excludedDates.filter((_, j) => j !== i))} className="hover:text-red-600 ml-0.5">✕</button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex items-end gap-2">
+                  <div>
+                    <label className="block text-xs text-text-secondary mb-1">Date</label>
+                    <input type="date" value={newExcludedDate} onChange={(e) => setNewExcludedDate(e.target.value)} className="px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-text-secondary mb-1">Label (opt.)</label>
+                    <input type="text" value={newExcludedLabel} onChange={(e) => setNewExcludedLabel(e.target.value)} placeholder="e.g. Easter Monday" className="w-40 px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (!newExcludedDate) return;
+                      const label = newExcludedLabel ? `${newExcludedDate} (${newExcludedLabel})` : newExcludedDate;
+                      if (!excludedDates.includes(newExcludedDate) && !excludedDates.includes(label)) {
+                        setExcludedDates([...excludedDates, newExcludedLabel ? label : newExcludedDate]);
+                      }
+                      setNewExcludedDate("");
+                      setNewExcludedLabel("");
+                    }}
+                    disabled={!newExcludedDate}
+                    className="px-4 py-2 rounded-lg text-sm font-medium bg-amber-50 text-amber-700 hover:bg-amber-100 transition disabled:opacity-40 border border-amber-200"
+                  >
+                    + Add
+                  </button>
+                </div>
+              </div>
+
+              {/* iCal Import */}
+              <div className="border-t border-border pt-4 mt-4">
+                <h4 className="text-xs font-semibold text-text-primary mb-1 flex items-center gap-2">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+                  Import from Calendar
+                </h4>
+                <p className="text-xs text-text-secondary mb-3">Paste an iCal feed URL from ManageBac, PowerSchool, Toddle, Google Calendar, or any LMS. StudioLoom will extract class schedules and holidays automatically.</p>
+
+                <div className="flex items-end gap-2 mb-3">
+                  <div className="flex-1">
+                    <label className="block text-xs text-text-secondary mb-1">iCal feed URL (.ics)</label>
+                    <input type="url" value={icalUrl} onChange={(e) => setIcalUrl(e.target.value)} placeholder="https://school.managebac.com/calendar/feed/abc123.ics" className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+                  </div>
+                  <button
+                    onClick={async () => {
+                      if (!icalUrl) return;
+                      setIcalParsing(true);
+                      setIcalMessage("");
+                      try {
+                        const res = await fetch("/api/teacher/timetable/import-ical", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ ical_url: icalUrl }),
+                        });
+                        const data = await res.json();
+                        if (!res.ok) {
+                          setIcalMessage(data.error || "Import failed");
+                          return;
+                        }
+                        // Apply parsed data
+                        if (data.meetings?.length) {
+                          setClassMeetings((prev) => [...prev, ...data.meetings]);
+                        }
+                        if (data.excludedDates?.length) {
+                          setExcludedDates((prev) => [...new Set([...prev, ...data.excludedDates])]);
+                        }
+                        setIcalMessage(`Imported ${data.meetings?.length || 0} class meetings and ${data.excludedDates?.length || 0} holidays`);
+                        setTimeout(() => setIcalMessage(""), 5000);
+                      } catch {
+                        setIcalMessage("Network error");
+                      } finally {
+                        setIcalParsing(false);
+                      }
+                    }}
+                    disabled={!icalUrl || icalParsing}
+                    className="px-4 py-2 rounded-lg text-sm font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 transition disabled:opacity-40 border border-blue-200 whitespace-nowrap"
+                  >
+                    {icalParsing ? "Parsing..." : "Import"}
+                  </button>
+                </div>
+
+                {/* File upload alternative */}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-text-tertiary">or</span>
+                  <label className="cursor-pointer px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-50 text-text-secondary hover:bg-gray-100 transition border border-gray-200">
+                    Upload .ics file
+                    <input
+                      type="file"
+                      accept=".ics,.ical"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        setIcalParsing(true);
+                        setIcalMessage("");
+                        try {
+                          const text = await file.text();
+                          const res = await fetch("/api/teacher/timetable/import-ical", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ ical_content: text }),
+                          });
+                          const data = await res.json();
+                          if (!res.ok) {
+                            setIcalMessage(data.error || "Import failed");
+                            return;
+                          }
+                          if (data.meetings?.length) {
+                            setClassMeetings((prev) => [...prev, ...data.meetings]);
+                          }
+                          if (data.excludedDates?.length) {
+                            setExcludedDates((prev) => [...new Set([...prev, ...data.excludedDates])]);
+                          }
+                          setIcalMessage(`Imported ${data.meetings?.length || 0} class meetings and ${data.excludedDates?.length || 0} holidays`);
+                          setTimeout(() => setIcalMessage(""), 5000);
+                        } catch {
+                          setIcalMessage("Upload failed");
+                        } finally {
+                          setIcalParsing(false);
+                          e.target.value = "";
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
+
+                {icalMessage && (
+                  <p className={`mt-2 text-xs font-medium ${icalMessage.includes("Imported") ? "text-accent-green" : "text-amber-600"}`}>
+                    {icalMessage}
+                  </p>
                 )}
               </div>
 
