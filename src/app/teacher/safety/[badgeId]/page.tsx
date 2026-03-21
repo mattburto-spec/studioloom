@@ -47,14 +47,17 @@ interface ResultsData {
   total_attempts: number;
   total_passed: number;
   average_score: number;
+  badge_id: string;
   results: Array<{
     student_id: string;
     student_name: string;
     score: number;
     attempt_number: number;
     time_taken_seconds: number | null;
-    status: "active" | "expired" | "revoked";
+    status: "active" | "expired" | "revoked" | "failed";
     awarded_at: string;
+    granted_by: string | null;
+    teacher_note: string | null;
   }>;
 }
 
@@ -85,6 +88,7 @@ export default function BadgeDetailPage() {
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [grantNote, setGrantNote] = useState("");
+  const [resultsClassFilter, setResultsClassFilter] = useState<string>("");
 
   // Fetch units for assignment — units are nested inside classes in the dashboard response
   const fetchUnits = async () => {
@@ -216,14 +220,20 @@ export default function BadgeDetailPage() {
     fetchBadge();
   }, [badgeId]);
 
-  // Fetch results when results tab is clicked
+  // Fetch results when results tab is clicked (or class filter changes)
   useEffect(() => {
     if (activeTab !== "results" || !badgeId) return;
+
+    // Also fetch classes for filter dropdown (reuse classes state if already loaded)
+    if (classes.length === 0) {
+      fetchClasses();
+    }
 
     const fetchResults = async () => {
       try {
         setResultsLoading(true);
-        const response = await fetch(`/api/teacher/badges/${badgeId}/results`);
+        const classParam = resultsClassFilter ? `?classId=${resultsClassFilter}` : "";
+        const response = await fetch(`/api/teacher/badges/${badgeId}/results${classParam}`);
         if (!response.ok) {
           throw new Error("Failed to load results");
         }
@@ -238,7 +248,8 @@ export default function BadgeDetailPage() {
     };
 
     fetchResults();
-  }, [activeTab, badgeId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, badgeId, resultsClassFilter]);
 
   if (isLoading) {
     return (
@@ -765,7 +776,21 @@ export default function BadgeDetailPage() {
           {/* RESULTS TAB */}
           {activeTab === "results" && (
             <div>
-              <h2 className="text-xl font-bold text-gray-900 mb-6">Results</h2>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-gray-900">Results</h2>
+                {classes.length > 0 && (
+                  <select
+                    value={resultsClassFilter}
+                    onChange={(e) => setResultsClassFilter(e.target.value)}
+                    className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-700"
+                  >
+                    <option value="">All Classes</option>
+                    {classes.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
 
               {resultsLoading ? (
                 <div className="text-center py-12">
@@ -865,15 +890,28 @@ export default function BadgeDetailPage() {
                               <span
                                 className={`text-xs font-semibold px-2 py-1 rounded-full border ${
                                   result.status === "active"
-                                    ? "bg-green-50 border-green-200 text-green-700"
+                                    ? result.granted_by
+                                      ? "bg-blue-50 border-blue-200 text-blue-700"
+                                      : "bg-green-50 border-green-200 text-green-700"
                                     : result.status === "expired"
                                     ? "bg-yellow-50 border-yellow-200 text-yellow-700"
+                                    : result.status === "failed"
+                                    ? "bg-red-50 border-red-200 text-red-700"
                                     : "bg-red-50 border-red-200 text-red-700"
                                 }`}
                               >
-                                {result.status.charAt(0).toUpperCase() +
-                                  result.status.slice(1)}
+                                {result.status === "active" && result.granted_by
+                                  ? "Granted"
+                                  : result.status === "active"
+                                  ? "Passed"
+                                  : result.status === "failed"
+                                  ? "Failed"
+                                  : result.status.charAt(0).toUpperCase() +
+                                    result.status.slice(1)}
                               </span>
+                              {result.teacher_note && (
+                                <p className="text-xs text-gray-400 mt-1 italic">{result.teacher_note}</p>
+                              )}
                             </td>
                             <td className="py-3 px-4 text-gray-600 text-xs">
                               {new Date(result.awarded_at).toLocaleDateString()}
@@ -911,22 +949,28 @@ export default function BadgeDetailPage() {
               </div>
             ) : assignMode === "choose" ? (
               <>
-                <h2 className="text-lg font-bold text-gray-900 mb-2">Assign Badge</h2>
-                <p className="text-sm text-gray-600 mb-6">Assign this badge to a unit, class, or individual students.</p>
+                <h2 className="text-lg font-bold text-gray-900 mb-2">Safety Badge Actions</h2>
+                <p className="text-sm text-gray-600 mb-6">Choose how to use this badge with your students.</p>
                 <div className="space-y-3 mb-6">
                   <button
                     onClick={() => { setAssignMode("unit"); fetchUnits(); }}
-                    className="w-full text-left px-4 py-3 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-purple-300 transition-colors"
+                    className="w-full text-left px-4 py-3 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-amber-300 transition-colors"
                   >
-                    <p className="font-medium text-gray-900">Assign to Unit</p>
-                    <p className="text-xs text-gray-500">Require this badge before students can access a unit</p>
+                    <div className="flex items-center gap-2">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
+                      <p className="font-medium text-gray-900">Require for Unit</p>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1 ml-6">Students must pass this test before they can access the unit. The test will appear on their dashboard automatically.</p>
                   </button>
                   <button
                     onClick={() => { setAssignMode("student"); fetchClasses(); }}
-                    className="w-full text-left px-4 py-3 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-purple-300 transition-colors"
+                    className="w-full text-left px-4 py-3 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-emerald-300 transition-colors"
                   >
-                    <p className="font-medium text-gray-900">Grant to Students</p>
-                    <p className="text-xs text-gray-500">Manually award badge to specific students</p>
+                    <div className="flex items-center gap-2">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
+                      <p className="font-medium text-gray-900">Grant Badge Directly</p>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1 ml-6">Manually award this badge to students without requiring them to take the test (e.g. they demonstrated competency in class).</p>
                   </button>
                 </div>
                 <button onClick={() => { setShowAssignModal(false); setAssignMode("choose"); }} className="w-full px-4 py-2 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors">
@@ -938,8 +982,8 @@ export default function BadgeDetailPage() {
                 <button onClick={() => setAssignMode("choose")} className="text-sm text-purple-600 hover:text-purple-800 mb-4 flex items-center gap-1">
                   <BackArrowIcon /> Back
                 </button>
-                <h2 className="text-lg font-bold text-gray-900 mb-2">Assign to Unit</h2>
-                <p className="text-sm text-gray-600 mb-4">Select a unit that will require this badge.</p>
+                <h2 className="text-lg font-bold text-gray-900 mb-2">Require for Unit</h2>
+                <p className="text-sm text-gray-600 mb-4">Students in classes assigned to this unit must pass the safety test before they can access the unit content. The test will appear on their dashboard.</p>
                 {units.length === 0 ? (
                   <p className="text-sm text-gray-500 py-4 text-center">Loading units...</p>
                 ) : (
