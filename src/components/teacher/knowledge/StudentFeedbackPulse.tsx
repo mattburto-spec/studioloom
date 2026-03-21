@@ -98,83 +98,88 @@ export default function StudentFeedbackPulse({
     );
   }
 
-  // ─── Form — one tap + optional text ───
+  // Auto-submit when emoji is tapped
+  async function handleEmojiTap(value: number) {
+    setVibe(value);
+    setError("");
+
+    // Auto-submit after a brief visual feedback
+    setSubmitting(true);
+    const feedbackData: StudentPostLessonFeedback = {
+      student_id: studentId,
+      submitted_at: new Date().toISOString(),
+      understanding: value as 1 | 2 | 3 | 4 | 5,
+      engagement: value as 1 | 2 | 3 | 4 | 5,
+      pace: "just_right",
+    };
+
+    try {
+      const res = await fetch("/api/teacher/knowledge/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          feedback_type: "student",
+          lesson_profile_id: lessonProfileId,
+          unit_id: unitId,
+          page_id: pageId,
+          feedback_data: feedbackData,
+        }),
+      });
+
+      if (!res.ok) throw new Error("Failed to submit");
+      const data = await res.json();
+      setSubmitted(true);
+      onSubmit?.(data.feedbackId);
+    } catch {
+      setError("Couldn't save — tap again");
+      setSubmitting(false);
+    }
+  }
+
+  // ─── Form — just tap an emoji, done ───
   return (
-    <div className="bg-white border border-border rounded-2xl shadow-sm max-w-sm mx-auto overflow-hidden">
-      {/* Header */}
-      <div className="px-5 pt-5 pb-2">
-        <h3 className="text-base font-semibold text-text-primary">
-          How did today go?
-        </h3>
+    <div className="text-center">
+      <p className="text-base font-semibold text-gray-900 mb-1">How did this lesson go?</p>
+      <p className="text-sm text-gray-400 mb-5">Just tap one</p>
+
+      <div className="flex justify-center gap-2">
+        {VIBE_EMOJIS.map((opt) => (
+          <button
+            key={opt.value}
+            type="button"
+            disabled={submitting}
+            onClick={() => handleEmojiTap(opt.value)}
+            className={`w-14 h-14 rounded-2xl text-center transition-all ${
+              vibe === opt.value
+                ? "bg-purple-100 border-2 border-purple-400 scale-110"
+                : "border-2 border-gray-100 hover:border-gray-200 hover:bg-gray-50"
+            } ${submitting ? "opacity-50" : ""}`}
+          >
+            <span className="text-2xl">{opt.emoji}</span>
+          </button>
+        ))}
       </div>
 
-      <div className="px-5 pb-5 space-y-4">
-        {/* Emoji vibe scale */}
-        <div className="flex justify-between gap-1">
-          {VIBE_EMOJIS.map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => {
-                setVibe(opt.value);
-                setError("");
-              }}
-              className={`flex-1 py-3 rounded-xl text-center transition-all ${
-                vibe === opt.value
-                  ? "bg-brand-purple/10 border-2 border-brand-purple scale-110"
-                  : "border-2 border-transparent hover:bg-surface-secondary"
-              }`}
-            >
-              <span className="block text-3xl">{opt.emoji}</span>
-              <span className="block text-[9px] text-text-tertiary mt-1">{opt.label}</span>
-            </button>
-          ))}
-        </div>
-
-        {/* Optional comment — only appears after emoji tap */}
-        {vibe > 0 && (
-          <div className="animate-in fade-in slide-in-from-bottom-2 duration-200">
-            <input
-              type="text"
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              placeholder="Anything else? (optional)"
-              className="w-full px-3 py-2.5 text-sm border border-border rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-purple/30 placeholder:text-text-tertiary"
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleSubmit();
-              }}
-            />
-          </div>
-        )}
-
-        {/* Error */}
-        {error && (
-          <p className="text-xs text-red-600 text-center">{error}</p>
-        )}
-
-        {/* Submit — enabled as soon as an emoji is tapped */}
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={submitting || vibe === 0}
-          className={`w-full py-3 text-white text-sm font-semibold rounded-xl transition-all ${
-            vibe > 0
-              ? "bg-brand-purple hover:bg-brand-purple-dark"
-              : "bg-gray-200 text-gray-400 cursor-not-allowed"
-          }`}
-        >
-          {submitting ? "Sending..." : "Done ✓"}
-        </button>
+      {/* Labels below emojis */}
+      <div className="flex justify-center gap-2 mt-1.5">
+        {VIBE_EMOJIS.map((opt) => (
+          <span key={opt.value} className="w-14 text-[9px] text-gray-400 text-center">
+            {opt.label}
+          </span>
+        ))}
       </div>
 
-      {/* Dismiss area */}
+      {error && (
+        <p className="text-xs text-red-500 mt-3">{error}</p>
+      )}
+
       {onClose && (
         <button
           type="button"
           onClick={onClose}
-          className="w-full py-2 text-xs text-text-tertiary hover:text-text-secondary border-t border-border transition"
+          className="mt-4 text-xs text-gray-400 hover:text-gray-600 transition"
         >
-          Not now
+          Skip
         </button>
       )}
     </div>
