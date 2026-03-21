@@ -16,18 +16,21 @@ interface StudentFeedbackPulseProps {
 }
 
 // ---------------------------------------------------------------------------
-// Single vibe scale — combines understanding + engagement into one question
+// Pace options — the ONE thing worth collecting from students
+// Feeds directly into the timing model for future lesson generation.
 // ---------------------------------------------------------------------------
-const VIBE_EMOJIS = [
-  { value: 1, emoji: "😵", label: "Lost" },
-  { value: 2, emoji: "😕", label: "Struggled" },
-  { value: 3, emoji: "🤔", label: "Okay" },
-  { value: 4, emoji: "😊", label: "Good" },
-  { value: 5, emoji: "🤩", label: "Great" },
-] as const;
+const PACE_OPTIONS = [
+  { value: "too_slow" as const, emoji: "🐢", label: "Too slow" },
+  { value: "just_right" as const, emoji: "👌", label: "Just right" },
+  { value: "too_fast" as const, emoji: "🏃", label: "Too fast" },
+];
 
 // ---------------------------------------------------------------------------
-// Component — one tap required, one optional text field, done
+// Component — one tap, done. Data feeds the timing model.
+//
+// Schema note: StudentPostLessonFeedback requires understanding + engagement
+// fields. We set those to 3 (neutral) since we're not collecting them.
+// The pace field is what matters for the timing learning pipeline.
 // ---------------------------------------------------------------------------
 export default function StudentFeedbackPulse({
   lessonProfileId,
@@ -37,80 +40,23 @@ export default function StudentFeedbackPulse({
   onSubmit,
   onClose,
 }: StudentFeedbackPulseProps) {
-  const [vibe, setVibe] = useState<number>(0);
-  const [comment, setComment] = useState("");
+  const [selected, setSelected] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [submitted, setSubmitted] = useState(false);
 
-  async function handleSubmit() {
-    if (vibe === 0) return;
-
-    setSubmitting(true);
+  async function handleTap(pace: "too_slow" | "just_right" | "too_fast") {
+    setSelected(pace);
     setError("");
+    setSubmitting(true);
 
-    // Map single vibe to the existing schema fields
-    // understanding = vibe, engagement = vibe, pace = "just_right" (default)
     const feedbackData: StudentPostLessonFeedback = {
       student_id: studentId,
       submitted_at: new Date().toISOString(),
-      understanding: vibe as 1 | 2 | 3 | 4 | 5,
-      engagement: vibe as 1 | 2 | 3 | 4 | 5,
-      pace: "just_right",
-      ...(comment.trim() && { highlight: comment.trim() }),
-    };
-
-    try {
-      const res = await fetch("/api/teacher/knowledge/feedback", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          feedback_type: "student",
-          lesson_profile_id: lessonProfileId,
-          unit_id: unitId,
-          page_id: pageId,
-          feedback_data: feedbackData,
-        }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error || "Failed to submit");
-      }
-
-      const data = await res.json();
-      setSubmitted(true);
-      onSubmit?.(data.feedbackId);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to submit");
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  // ─── Success ───
-  if (submitted) {
-    return (
-      <div className="bg-green-50 border border-green-200 rounded-2xl p-6 text-center max-w-sm mx-auto">
-        <div className="text-3xl mb-2">👍</div>
-        <p className="text-sm text-green-700 font-medium">Thanks!</p>
-      </div>
-    );
-  }
-
-  // Auto-submit when emoji is tapped
-  async function handleEmojiTap(value: number) {
-    setVibe(value);
-    setError("");
-
-    // Auto-submit after a brief visual feedback
-    setSubmitting(true);
-    const feedbackData: StudentPostLessonFeedback = {
-      student_id: studentId,
-      submitted_at: new Date().toISOString(),
-      understanding: value as 1 | 2 | 3 | 4 | 5,
-      engagement: value as 1 | 2 | 3 | 4 | 5,
-      pace: "just_right",
+      // Neutral defaults — we're only collecting pace
+      understanding: 3,
+      engagement: 3,
+      pace,
     };
 
     try {
@@ -133,39 +79,42 @@ export default function StudentFeedbackPulse({
     } catch {
       setError("Couldn't save — tap again");
       setSubmitting(false);
+      setSelected(null);
     }
   }
 
-  // ─── Form — just tap an emoji, done ───
+  if (submitted) {
+    return (
+      <div className="text-center py-2">
+        <span className="text-2xl">👍</span>
+        <p className="text-sm text-gray-500 mt-1">Thanks!</p>
+      </div>
+    );
+  }
+
   return (
     <div className="text-center">
-      <p className="text-base font-semibold text-gray-900 mb-1">How did this lesson go?</p>
-      <p className="text-sm text-gray-400 mb-5">Just tap one</p>
+      <p className="text-base font-semibold text-gray-900 mb-1">
+        How was the pace?
+      </p>
+      <p className="text-sm text-gray-400 mb-4">Just tap one</p>
 
-      <div className="flex justify-center gap-2">
-        {VIBE_EMOJIS.map((opt) => (
+      <div className="flex justify-center gap-3">
+        {PACE_OPTIONS.map((opt) => (
           <button
             key={opt.value}
             type="button"
             disabled={submitting}
-            onClick={() => handleEmojiTap(opt.value)}
-            className={`w-14 h-14 rounded-2xl text-center transition-all ${
-              vibe === opt.value
-                ? "bg-purple-100 border-2 border-purple-400 scale-110"
+            onClick={() => handleTap(opt.value)}
+            className={`flex flex-col items-center gap-1.5 px-5 py-3 rounded-2xl transition-all ${
+              selected === opt.value
+                ? "bg-purple-50 border-2 border-purple-400 scale-105"
                 : "border-2 border-gray-100 hover:border-gray-200 hover:bg-gray-50"
             } ${submitting ? "opacity-50" : ""}`}
           >
-            <span className="text-2xl">{opt.emoji}</span>
+            <span className="text-3xl">{opt.emoji}</span>
+            <span className="text-xs font-medium text-gray-500">{opt.label}</span>
           </button>
-        ))}
-      </div>
-
-      {/* Labels below emojis */}
-      <div className="flex justify-center gap-2 mt-1.5">
-        {VIBE_EMOJIS.map((opt) => (
-          <span key={opt.value} className="w-14 text-[9px] text-gray-400 text-center">
-            {opt.label}
-          </span>
         ))}
       </div>
 

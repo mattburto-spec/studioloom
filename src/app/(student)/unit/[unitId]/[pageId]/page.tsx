@@ -351,90 +351,11 @@ export default function UnitPageView({
           </>
         )}
 
-        {/* ── Reflection — quick emoji check-in per item ── */}
-        {pageContent?.reflection && (() => {
-          const REFLECTION_EMOJIS = [
-            { value: 1, emoji: "😵", label: "Lost" },
-            { value: 2, emoji: "😕", label: "Struggled" },
-            { value: 3, emoji: "🤔", label: "Getting there" },
-            { value: 4, emoji: "😊", label: "Good" },
-            { value: 5, emoji: "🤩", label: "Nailed it" },
-          ];
-
-          return (
-            <ScrollReveal>
-              <SectionDivider number={++sectionNum} color={pageColor} />
-              <div
-                className="full-bleed py-10"
-                style={{ backgroundColor: pageColor }}
-              >
-              <div className="max-w-4xl mx-auto px-6">
-                {/* Header */}
-                <div className="flex items-center gap-3 mb-6">
-                  <span className="text-2xl">🪞</span>
-                  <div>
-                    <h2 className="text-lg font-bold text-white">
-                      Quick Reflection
-                    </h2>
-                    <p className="text-sm text-white/50">
-                      Tap how you feel about each one
-                    </p>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  {pageContent.reflection.items.map((item, i) => {
-                    const selectedValue = responses[`reflection_${i}`] ? parseInt(responses[`reflection_${i}`]) : 0;
-                    return (
-                      <div key={i} className="bg-white/10 rounded-xl p-5 border border-white/10">
-                        <p className="text-base text-white font-medium mb-4">{item}</p>
-                        <div className="flex justify-between gap-1">
-                          {REFLECTION_EMOJIS.map((opt) => (
-                            <button
-                              key={opt.value}
-                              type="button"
-                              onClick={() =>
-                                setResponses((prev) => ({
-                                  ...prev,
-                                  [`reflection_${i}`]: String(opt.value),
-                                }))
-                              }
-                              className={`flex-1 py-3 rounded-xl text-center transition-all ${
-                                selectedValue === opt.value
-                                  ? "bg-white/20 border-2 border-white/60 scale-110"
-                                  : "border-2 border-transparent hover:bg-white/10"
-                              }`}
-                            >
-                              <span className="block text-2xl">{opt.emoji}</span>
-                              <span className="block text-[10px] text-white/50 mt-1">{opt.label}</span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Optional: one-line comment */}
-                <div className="mt-4">
-                  <input
-                    type="text"
-                    value={responses["reflection_comment"] || ""}
-                    onChange={(e) =>
-                      setResponses((prev) => ({
-                        ...prev,
-                        reflection_comment: e.target.value,
-                      }))
-                    }
-                    placeholder="Anything you want to add? (optional)"
-                    className="w-full px-4 py-3 bg-white/5 border border-white/20 rounded-xl text-sm text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-white/30"
-                  />
-                </div>
-              </div>
-              </div>
-            </ScrollReveal>
-          );
-        })()}
+        {/* ── Reflection section removed ──
+            Per-question emoji ratings didn't match the question types
+            (comprehension questions paired with feeling scales).
+            Pace feedback is now collected via StudentFeedbackPulse modal
+            on "Complete & Continue" — feeds the timing model. ── */}
 
         {/* ── NM Competency Pulse — above Complete & Continue ── */}
         {nmCheckpoint && !nmCompleted && (
@@ -531,25 +452,10 @@ export default function UnitPageView({
         </div>
       )}
 
-      {/* Student feedback pulse — shown after completing a page */}
+      {/* Pace pulse — shown after completing a page. Feeds timing model. */}
       {showFeedbackPulse && student?.id && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 p-6 animate-pop-in">
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <h3 className="text-lg font-bold text-gray-900">Quick check-in</h3>
-                <p className="text-sm text-gray-500">How did this lesson go? (takes 10 seconds)</p>
-              </div>
-              <button
-                onClick={() => {
-                  setShowFeedbackPulse(false);
-                  if (pendingNavTarget) router.push(pendingNavTarget);
-                }}
-                className="text-gray-400 hover:text-gray-600 text-sm font-medium"
-              >
-                Skip
-              </button>
-            </div>
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full mx-4 p-6 animate-pop-in">
             <StudentFeedbackPulse
               studentId={student.id}
               unitId={unitId}
