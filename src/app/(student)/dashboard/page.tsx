@@ -210,33 +210,21 @@ export default function StudentDashboard() {
 
       <div className="max-w-6xl mx-auto px-6 py-10">
 
-        {/* ============ LAYER 1: Hero + Journey Map ============ */}
-        <div className="mb-8">
-          {/* Greeting */}
-          <div className="mb-4">
-            <p className="text-sm font-semibold text-purple-600 tracking-wider uppercase mb-1">My Design Journey</p>
-            <h1 className="text-3xl md:text-4xl font-bold text-text-primary bg-gradient-to-r from-purple-600 via-blue-600 to-indigo-600 bg-clip-text text-transparent">
-              {student?.display_name || student?.username}
-            </h1>
-            <p className="text-base text-text-secondary mt-1">
-              {classInfo?.name || "Your class"}
-            </p>
-          </div>
-
-          {/* Journey Map */}
-          {journeyUnit && journeyZones.length > 0 && (
-            <JourneyMap
-              zones={journeyZones}
-              studentName={student?.display_name || student?.username || "S"}
-              unitTitle={journeyUnit.title}
-            />
-          )}
+        {/* ============ Greeting ============ */}
+        <div className="mb-6">
+          <p className="text-sm font-semibold text-purple-600 tracking-wider uppercase mb-1">My Design Journey</p>
+          <h1 className="text-3xl md:text-4xl font-bold text-text-primary bg-gradient-to-r from-purple-600 via-blue-600 to-indigo-600 bg-clip-text text-transparent">
+            {student?.display_name || student?.username}
+          </h1>
+          <p className="text-base text-text-secondary mt-1">
+            {classInfo?.name || "Your class"}
+          </p>
         </div>
 
         {loading ? (
           <>
-            <div className="mb-8 h-20 rounded-xl bg-white animate-pulse border border-border shadow-sm" />
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="mb-6 h-40 rounded-2xl bg-white animate-pulse border border-border shadow-sm" />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {[1, 2, 3].map((i) => (
                 <div key={i} className="bg-white rounded-2xl animate-pulse h-56 shadow-sm border border-border" />
               ))}
@@ -244,23 +232,13 @@ export default function StudentDashboard() {
           </>
         ) : (
           <>
-            {/* ============ LAYER 2: Stats + Badges ============ */}
-            <div className="mb-8">
-              <StatsStrip stats={stats} />
-            </div>
-            <div className="mb-8">
-              <BadgeWall badges={badges} />
-            </div>
-
-            {/* ============ LAYER 3: Active Work ============ */}
-
-            {/* Continue Where You Left Off */}
+            {/* ============ Continue Card (primary CTA) ============ */}
             {inProgressUnit && (
-              <div className="mb-10">
-                <div className="rounded-2xl bg-white border-2 border-purple-300/50 overflow-hidden shadow-lg hover:shadow-xl transition-all duration-300">
+              <div className="mb-6">
+                <div className="rounded-2xl bg-white border border-purple-200/60 overflow-hidden shadow-md hover:shadow-lg transition-all duration-300">
                   <div className="md:flex">
-                    <div className="md:w-2/5 flex-shrink-0">
-                      <div className="h-48 md:h-full w-full overflow-hidden bg-gradient-to-br from-purple-200 to-blue-200">
+                    <div className="md:w-1/3 flex-shrink-0">
+                      <div className="h-44 md:h-full w-full overflow-hidden bg-gradient-to-br from-purple-200 to-blue-200">
                         <UnitThumbnail
                           thumbnailUrl={inProgressUnit.thumbnail_url}
                           title={inProgressUnit.title}
@@ -268,31 +246,23 @@ export default function StudentDashboard() {
                         />
                       </div>
                     </div>
-                    <div className="p-8 md:w-3/5 flex flex-col justify-between">
+                    <div className="p-6 md:w-2/3 flex flex-col justify-between">
                       <div>
-                        <p className="text-sm font-semibold text-purple-600 uppercase tracking-wider mb-2">Continue where you left off</p>
-                        <h2 className="text-2xl font-bold text-text-primary mb-3">
+                        <p className="text-xs font-semibold text-purple-600 uppercase tracking-wider mb-1.5">Continue where you left off</p>
+                        <h2 className="text-xl font-bold text-text-primary mb-2">
                           {inProgressUnit.title}
                         </h2>
                         {inProgressUnit.description && (
-                          <p className="text-text-secondary text-base mb-4 line-clamp-2">
+                          <p className="text-text-secondary text-sm mb-3 line-clamp-2">
                             {inProgressUnit.description}
                           </p>
                         )}
-                        <div className="mb-5">
-                          <div className="flex justify-between items-center mb-2">
-                            <p className="text-sm font-medium text-text-secondary">Progress</p>
-                            <p className="text-sm font-bold text-purple-600">
-                              {getCompletionPercent(inProgressUnit, inProgressUnit.progress)}% complete
-                            </p>
+                        {/* Phase progress pills (non-linear) */}
+                        {journeyZones.length > 0 && (
+                          <div className="mb-4">
+                            <JourneyMap zones={journeyZones} />
                           </div>
-                          <div className="h-2.5 rounded-full bg-gray-200 overflow-hidden">
-                            <div
-                              className="h-full rounded-full bg-gradient-to-r from-purple-500 to-blue-500 transition-all duration-500"
-                              style={{ width: `${getCompletionPercent(inProgressUnit, inProgressUnit.progress)}%` }}
-                            />
-                          </div>
-                        </div>
+                        )}
                       </div>
                       <Link
                         href={`/unit/${inProgressUnit.id}/${
@@ -300,7 +270,7 @@ export default function StudentDashboard() {
                             ? getPageList(inProgressUnit.content_data)[0].id
                             : "A1"
                         }`}
-                        className="inline-block bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold py-3 px-8 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl w-fit"
+                        className="inline-block bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold py-2.5 px-6 rounded-xl transition-all duration-200 shadow-md hover:shadow-lg w-fit text-sm"
                       >
                         Continue →
                       </Link>
@@ -309,6 +279,16 @@ export default function StudentDashboard() {
                 </div>
               </div>
             )}
+
+            {/* ============ Stats + Badges row ============ */}
+            <div className="mb-6 flex flex-col md:flex-row gap-4">
+              <div className="flex-1">
+                <StatsStrip stats={stats} />
+              </div>
+            </div>
+            <div className="mb-6">
+              <BadgeWall badges={badges} />
+            </div>
 
             {/* Your Units */}
             <div className="mb-10">
