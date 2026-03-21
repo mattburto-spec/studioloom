@@ -396,10 +396,22 @@ function buildExtractionUserPrompt(
   layout: DocumentLayout,
 ): string {
   // Use more text for table-based layouts (they're dense)
-  const maxChars = layout.type === "week-lesson-grid" ? 12000 : 8000;
-  const text = rawText.length > maxChars
+  // A 12-lesson table plan with columns can easily be 20K+ chars in pandoc output
+  const maxChars = layout.type === "week-lesson-grid" ? 24000 : 12000;
+  const truncated = rawText.length > maxChars;
+  const text = truncated
     ? rawText.slice(0, maxChars) + "\n\n[... document truncated ...]"
     : rawText;
+
+  if (truncated) {
+    console.warn(`[extractLessonStructure] Text truncated from ${rawText.length} to ${maxChars} chars (layout: ${layout.type})`);
+  }
+
+  // Build expected lesson count hint — combine header metadata + layout detection
+  const expectedLessons = headerMeta.totalLessons || layout.totalLessons || 0;
+  const lessonCountHint = expectedLessons > 0
+    ? `\n\nCRITICAL: The document header indicates ${expectedLessons} lessons. You MUST extract ALL ${expectedLessons} lessons. If you can only see part of the document, extract every lesson visible in the text — do not stop at the first few. Each table cell in a lesson column = one lesson.`
+    : "";
 
   return `Analyse this teacher's lesson plan document and extract the structure.
 
@@ -407,8 +419,8 @@ FILENAME: ${filename}
 ${headerMeta.gradeLevel ? `GRADE: ${headerMeta.gradeLevel}` : ""}
 ${headerMeta.subject ? `SUBJECT: ${headerMeta.subject}` : ""}
 ${headerMeta.topic ? `TOPIC: ${headerMeta.topic}` : ""}
-${headerMeta.totalLessons ? `TOTAL LESSONS: ${headerMeta.totalLessons}` : ""}
-${headerMeta.lessonDurationMinutes ? `LESSON DURATION: ${headerMeta.lessonDurationMinutes} minutes each` : ""}
+${headerMeta.totalLessons ? `TOTAL LESSONS: ${headerMeta.totalLessons} (extract ALL of them)` : ""}
+${headerMeta.lessonDurationMinutes ? `LESSON DURATION: ${headerMeta.lessonDurationMinutes} minutes each` : ""}${lessonCountHint}
 
 DOCUMENT TEXT:
 ---
@@ -508,7 +520,7 @@ export async function extractLessonStructure(
     },
     body: JSON.stringify({
       model: "claude-sonnet-4-20250514",
-      max_tokens: 8192,
+      max_tokens: 12288,
       system: systemPrompt,
       messages: [{ role: "user", content: userPrompt }],
     }),
@@ -553,6 +565,12 @@ export async function extractLessonStructure(
     });
 
     parsed.totalLessons = parsed.lessons.length;
+
+    // Warn if lesson count doesn't match expected
+    const expectedCount = headerMeta.totalLessons || layout.totalLessons || 0;
+    if (expectedCount > 0 && parsed.lessons.length < expectedCount) {
+      console.warn(`[extractLessonStructure] ⚠️ LESSON COUNT MISMATCH: expected ${expectedCount}, got ${parsed.lessons.length}. Document may have been truncated or AI missed lessons. Raw text length: ${rawText.length}, max_chars used: ${layout.type === "week-lesson-grid" ? 24000 : 12000}`);
+    }
 
     // Build resources array from both AI extraction and regex URL scan
     const aiResources: ExtractedResource[] = [];
