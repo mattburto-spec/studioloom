@@ -9,6 +9,7 @@ import type { Student, StudentProgress, Unit, UnitPage } from "@/types";
 import type { AssessmentRecordRow } from "@/types/assessment";
 import { OpenStudioUnlock, OpenStudioClassView } from "@/components/open-studio";
 import { ObservationSnap } from "@/components/nm";
+import { PaceFeedbackSummary } from "@/components/teacher/PaceFeedbackSummary";
 import { AGENCY_ELEMENTS, type NMUnitConfig } from "@/lib/nm/constants";
 
 interface ProgressCell {
@@ -536,6 +537,11 @@ export default function ProgressTrackingPage({
           </div>
         </div>
       )}
+
+      {/* Pace Feedback Summary */}
+      <div className="mt-8 p-4 bg-surface-alt rounded-lg border border-border">
+        <PaceFeedbackSummary unitId={unitId} />
+      </div>
 
       {/* Open Studio Management */}
       <div className="mt-8">

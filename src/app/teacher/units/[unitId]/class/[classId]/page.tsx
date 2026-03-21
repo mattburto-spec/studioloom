@@ -32,15 +32,21 @@ export default function ClassUnitSettingsPage({
   const [nmConfig, setNmConfig] = useState<NMUnitConfig>(DEFAULT_NM_CONFIG);
   const [pages, setPages] = useState<Array<{ id: string; title: string }>>([]);
   const [students, setStudents] = useState<Array<{ student_id: string; display_name: string; username: string }>>([]);
+  const [terms, setTerms] = useState<Array<{ id: string; academic_year: string; term_name: string; term_order: number }>>([]);
+  const [selectedTermId, setSelectedTermId] = useState<string | null>(null);
+  const [savingTerm, setSavingTerm] = useState(false);
+  const [termMessage, setTermMessage] = useState("");
 
   useEffect(() => {
     async function load() {
       const supabase = createClient();
 
-      const [unitRes, classRes, studentsRes] = await Promise.all([
+      const [unitRes, classRes, studentsRes, classUnitRes, termsRes] = await Promise.all([
         supabase.from("units").select("*").eq("id", unitId).single(),
         supabase.from("classes").select("name, code").eq("id", classId).single(),
         supabase.from("students").select("id, display_name, username").eq("class_id", classId),
+        supabase.from("class_units").select("term_id").eq("class_id", classId).eq("unit_id", unitId).single(),
+        fetch("/api/teacher/school-calendar").then((r) => (r.ok ? r.json() : Promise.resolve({ terms: [] }))),
       ]);
 
       setUnit(unitRes.data);
@@ -65,6 +71,16 @@ export default function ClassUnitSettingsPage({
         );
       }
 
+      // Load class-unit term_id
+      if (classUnitRes.data) {
+        setSelectedTermId(classUnitRes.data.term_id || null);
+      }
+
+      // Load school calendar terms
+      if (termsRes && termsRes.terms) {
+        setTerms(termsRes.terms);
+      }
+
       // Load class-specific NM config (with fallback to unit-level)
       try {
         const res = await fetch(
@@ -85,6 +101,37 @@ export default function ClassUnitSettingsPage({
     }
     load();
   }, [unitId, classId]);
+
+  async function handleTermChange(termId: string | null) {
+    setSelectedTermId(termId);
+    setSavingTerm(true);
+    setTermMessage("");
+
+    try {
+      const res = await fetch("/api/teacher/class-units", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          classId,
+          unitId,
+          term_id: termId,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        setTermMessage(data.error || "Failed to save term");
+        return;
+      }
+
+      setTermMessage("Term assigned!");
+      setTimeout(() => setTermMessage(""), 3000);
+    } catch {
+      setTermMessage("Network error. Please try again.");
+    } finally {
+      setSavingTerm(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -171,6 +218,62 @@ export default function ClassUnitSettingsPage({
           </svg>
           Teach This Class
         </Link>
+      </div>
+
+      {/* ----------------------------------------------------------------- */}
+      {/* Term Assignment                                                   */}
+      {/* ----------------------------------------------------------------- */}
+      <div className="mb-6 bg-surface-alt rounded-xl p-4 border border-border">
+        <div className="mb-3">
+          <label className="block text-xs font-semibold text-text-primary mb-2">
+            Assign to Term
+          </label>
+          {terms.length === 0 ? (
+            <div className="text-sm text-text-secondary">
+              <p className="mb-2">No school calendar set up yet.</p>
+              <Link
+                href="/teacher/settings?tab=school"
+                className="text-accent-blue text-xs font-medium hover:underline"
+              >
+                Set up your school calendar →
+              </Link>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <select
+                value={selectedTermId || ""}
+                onChange={(e) => handleTermChange(e.target.value || null)}
+                disabled={savingTerm}
+                className="flex-1 px-3 py-2 rounded-lg border border-border bg-white text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50"
+              >
+                <option value="">— No term assigned —</option>
+                {Array.from(new Map(terms.map((t) => [t.academic_year, t])).keys()).map((year) => (
+                  <optgroup key={year} label={year}>
+                    {terms
+                      .filter((t) => t.academic_year === year)
+                      .sort((a, b) => a.term_order - b.term_order)
+                      .map((term) => (
+                        <option key={term.id} value={term.id}>
+                          {term.term_name}
+                        </option>
+                      ))}
+                  </optgroup>
+                ))}
+              </select>
+            </div>
+          )}
+          {termMessage && (
+            <p
+              className={`mt-2 text-xs font-medium ${
+                termMessage.includes("saved") || termMessage.includes("assigned")
+                  ? "text-accent-green"
+                  : "text-amber-600"
+              }`}
+            >
+              {termMessage}
+            </p>
+          )}
+        </div>
       </div>
 
       {/* ----------------------------------------------------------------- */}

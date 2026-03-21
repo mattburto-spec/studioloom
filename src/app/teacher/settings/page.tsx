@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import type { LMSProviderType } from "@/types";
+import { SchoolCalendarSetup } from "@/components/teacher/SchoolCalendarSetup";
 
 type SettingsTab = "general" | "school" | "lms" | "ai";
 
@@ -597,6 +598,9 @@ export default function TeacherSettingsPage() {
             {profileSuccess && <span className="text-sm text-accent-green font-medium">{profileSuccess}</span>}
             {profileError && <span className="text-sm text-red-500">{profileError}</span>}
           </div>
+
+          {/* School Calendar */}
+          <SchoolCalendarSetup />
 
           {/* Info note */}
           <div className="bg-brand-purple/5 border border-brand-purple/15 rounded-xl p-4">
