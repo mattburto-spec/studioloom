@@ -10,9 +10,9 @@ import { QuickCaptureFAB } from "@/components/portfolio/QuickCaptureFAB";
 import { ToolModal } from "@/components/toolkit/ToolModal";
 import { UnitThumbnail } from "@/components/shared/UnitThumbnail";
 import { JourneyMap } from "@/components/student/JourneyMap";
-import { BadgeWall } from "@/components/student/BadgeWall";
+import { SkillsCerts, type SkillCert } from "@/components/student/BadgeWall";
 import { StatsStrip } from "@/components/student/StatsStrip";
-import { computeBadges, computeStats, type BadgeInput } from "@/lib/badges/compute-badges";
+import { computeStats, type BadgeInput } from "@/lib/badges/compute-badges";
 import type { Unit, StudentProgress, PortfolioEntry, UnitPage } from "@/types";
 
 interface ToolSession {
@@ -38,8 +38,6 @@ export default function StudentDashboard() {
   const [selectedToolId, setSelectedToolId] = useState<string | null>(null);
   const [openStudioUnits, setOpenStudioUnits] = useState<Set<string>>(new Set());
   const [safetyCerts, setSafetyCerts] = useState<Array<{ cert_type: string; granted_at: string }>>([]);
-  const [studioSessions, setStudioSessions] = useState<Array<{ productivity_score: string | null; drift_flags: unknown[] }>>([]);
-  const [studioProfiles, setStudioProfiles] = useState<Array<{ completed_at: string | null }>>([]);
 
   const loadPortfolio = useCallback(async () => {
     try {
@@ -128,10 +126,9 @@ export default function StudentDashboard() {
     return percent > 0 && percent < 100;
   });
 
-  // === Badge computation ===
+  // === Stats computation ===
 
-  const badgeInput: BadgeInput = useMemo(() => {
-    // Flatten all unit progress with criterion info
+  const statsInput: BadgeInput = useMemo(() => {
     const allProgress = units.flatMap((unit) => {
       const pages = getPageList(unit.content_data);
       return unit.progress.map((p) => {
@@ -145,7 +142,6 @@ export default function StudentDashboard() {
         };
       });
     });
-
     return {
       progress: allProgress,
       toolSessions: recentToolSessions.map((s) => ({
@@ -154,18 +150,40 @@ export default function StudentDashboard() {
         version: s.version,
         completed_at: s.completed_at || null,
       })),
-      safetyCerts,
-      studioStatus: Array.from(openStudioUnits).map((uid) => ({
-        unit_id: uid,
-        status: "unlocked",
-      })),
-      studioSessions,
-      studioProfiles,
+      safetyCerts: [],
+      studioStatus: [],
+      studioSessions: [],
+      studioProfiles: [],
     };
-  }, [units, recentToolSessions, safetyCerts, openStudioUnits, studioSessions, studioProfiles]);
+  }, [units, recentToolSessions]);
 
-  const badges = useMemo(() => computeBadges(badgeInput), [badgeInput]);
-  const stats = useMemo(() => computeStats(badgeInput), [badgeInput]);
+  const stats = useMemo(() => computeStats(statsInput), [statsInput]);
+
+  // === Workshop skill certs (teacher-granted) ===
+
+  const WORKSHOP_SKILLS: Array<{ id: string; name: string; icon: string }> = [
+    { id: "general-workshop", name: "Workshop Safety", icon: "🛡️" },
+    { id: "laser-cutter", name: "Laser Cutter", icon: "⚡" },
+    { id: "3d-printer", name: "3D Printer", icon: "🖨️" },
+    { id: "soldering", name: "Soldering", icon: "🔥" },
+    { id: "hand-tools", name: "Hand Tools", icon: "🔧" },
+    { id: "power-tools", name: "Power Tools", icon: "⚙️" },
+    { id: "cad-101", name: "CAD Modelling", icon: "📐" },
+    { id: "sewing-machine", name: "Sewing Machine", icon: "🧵" },
+  ];
+
+  const skillCerts: SkillCert[] = useMemo(() => {
+    return WORKSHOP_SKILLS.map((skill) => {
+      const cert = safetyCerts.find((c) => c.cert_type === skill.id);
+      return {
+        id: skill.id,
+        name: skill.name,
+        icon: skill.icon,
+        earned: !!cert,
+        grantedAt: cert?.granted_at || null,
+      };
+    });
+  }, [safetyCerts]);
 
   // === Journey Map zones for the first in-progress (or first) unit ===
 
@@ -280,14 +298,12 @@ export default function StudentDashboard() {
               </div>
             )}
 
-            {/* ============ Stats + Badges row ============ */}
-            <div className="mb-6 flex flex-col md:flex-row gap-4">
-              <div className="flex-1">
-                <StatsStrip stats={stats} />
-              </div>
+            {/* ============ Stats + Certs ============ */}
+            <div className="mb-5">
+              <StatsStrip stats={stats} />
             </div>
             <div className="mb-6">
-              <BadgeWall badges={badges} />
+              <SkillsCerts certs={skillCerts} />
             </div>
 
             {/* Your Units */}
