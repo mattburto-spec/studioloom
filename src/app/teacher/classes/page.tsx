@@ -78,12 +78,20 @@ export default function ClassesPage() {
     setCreating(true);
     const supabase = createClient();
 
+    // Get current teacher's auth ID
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setCreating(false);
+      return;
+    }
+
     // Generate a 6-char class code
     const code = Math.random().toString(36).slice(2, 8).toUpperCase();
 
     const { error } = await supabase.from("classes").insert({
       name: newName.trim(),
       code,
+      teacher_id: user.id,
     });
 
     if (!error) {

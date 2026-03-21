@@ -198,21 +198,38 @@ export default function ClassDetailPage({
     const supabase = createClient();
     const existing = classUnits.find((cu) => cu.unit_id === unitId);
 
+    // Optimistic update for instant feedback
+    setClassUnits((prev) => {
+      const idx = prev.findIndex((cu) => cu.unit_id === unitId);
+      if (idx >= 0) {
+        const updated = [...prev];
+        updated[idx] = { ...updated[idx], is_active: isActive };
+        return updated;
+      }
+      // Add a new entry optimistically
+      return [...prev, { class_id: classId, unit_id: unitId, is_active: isActive } as ClassUnit];
+    });
+
+    let error;
     if (existing) {
-      await supabase
+      ({ error } = await supabase
         .from("class_units")
         .update({ is_active: isActive })
         .eq("class_id", classId)
-        .eq("unit_id", unitId);
+        .eq("unit_id", unitId));
     } else {
-      await supabase.from("class_units").insert({
+      ({ error } = await supabase.from("class_units").insert({
         class_id: classId,
         unit_id: unitId,
         is_active: isActive,
-      });
+      }));
     }
 
-    loadData();
+    if (error) {
+      console.error("toggleUnit error:", error);
+      // Revert optimistic update on failure
+      loadData();
+    }
   }
 
   async function removeStudent(studentId: string) {
