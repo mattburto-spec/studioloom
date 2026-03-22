@@ -50,12 +50,13 @@ export async function GET(
       .maybeSingle();
 
     // Fetch recent failed attempts for cooldown calculation
+    // Failed attempts are stored as student_badges with status='expired'
     const { data: recentResults } = await supabase
-      .from("safety_results")
-      .select("created_at, passed")
+      .from("student_badges")
+      .select("created_at, score")
       .eq("student_id", studentId)
       .eq("badge_id", badgeId)
-      .eq("passed", false)
+      .eq("status", "expired")
       .order("created_at", { ascending: false })
       .limit(1);
 

@@ -31,6 +31,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireStudentAuth } from "@/lib/auth/student";
+import { nanoid } from "nanoid";
 import * as Sentry from "@sentry/nextjs";
 
 interface Answer {
@@ -148,82 +149,92 @@ export async function POST(
     );
     const passed = score >= badge.pass_threshold;
 
-    // Insert result record
-    const { data: resultData, error: insertError } = await supabase
-      .from("safety_results")
-      .insert({
-        student_id: studentId,
-        badge_id: badgeId,
-        score,
-        passed,
-        answers: answers,
-        results,
-        time_taken_seconds,
-      })
-      .select()
-      .single();
+    // NOTE: safety_results table is for the free tool (requires session_id FK).
+    // Authenticated students store results directly in student_badges.
 
-    if (insertError) {
-      Sentry.captureException(insertError);
-      return NextResponse.json(
-        { error: "Failed to save result" },
-        { status: 500 }
-      );
-    }
-
+    const now = new Date();
+    const awarded_at = now.toISOString();
     let badge_awarded = false;
     let badge_awarded_at: string | undefined;
     let badge_expires_at: string | undefined;
 
-    // If passed, award badge
-    if (passed) {
-      const now = new Date();
-      const awarded_at = now.toISOString();
-      let expires_at: string | null = null;
+    // Calculate expiry date if applicable
+    let expires_at: string | null = null;
+    if (passed && badge.expiry_months && badge.expiry_months > 0) {
+      const expiry = new Date(now);
+      expiry.setMonth(expiry.getMonth() + badge.expiry_months);
+      expires_at = expiry.toISOString();
+    }
 
-      // Calculate expiry date if applicable
-      if (badge.expiry_months && badge.expiry_months > 0) {
-        const expiry = new Date(now);
-        expiry.setMonth(expiry.getMonth() + badge.expiry_months);
-        expires_at = expiry.toISOString();
+    // Get current attempt number
+    const { count: prevAttempts } = await supabase
+      .from("student_badges")
+      .select("id", { count: "exact", head: true })
+      .eq("student_id", studentId)
+      .eq("badge_id", badgeId);
+
+    const attemptNumber = (prevAttempts || 0) + 1;
+
+    // Check if student already has an active badge
+    const { data: existingBadge } = await supabase
+      .from("student_badges")
+      .select("id")
+      .eq("student_id", studentId)
+      .eq("badge_id", badgeId)
+      .eq("status", "active")
+      .maybeSingle();
+
+    if (passed && !existingBadge) {
+      // Award badge — store answers + results in student_badges
+      const { error: badgeInsertError } = await supabase
+        .from("student_badges")
+        .insert({
+          id: nanoid(12),
+          student_id: studentId,
+          badge_id: badgeId,
+          awarded_at,
+          expires_at,
+          score,
+          status: "active",
+          attempt_number: attemptNumber,
+          granted_by: "test",
+          answers: answers,
+          time_taken_seconds,
+        });
+
+      if (badgeInsertError) {
+        console.error("[safety/submit] badge insert error:", badgeInsertError);
+        Sentry.captureException(badgeInsertError);
+        return NextResponse.json(
+          { error: "Failed to award badge" },
+          { status: 500 }
+        );
       }
 
-      // Check if student already has an active badge
-      const { data: existingBadge } = await supabase
+      badge_awarded = true;
+      badge_awarded_at = awarded_at;
+      badge_expires_at = expires_at || undefined;
+    } else if (!passed) {
+      // Record failed attempt so we can track retakes and cooldown
+      const { error: failInsertError } = await supabase
         .from("student_badges")
-        .select("id")
-        .eq("student_id", studentId)
-        .eq("badge_id", badgeId)
-        .eq("status", "active")
-        .maybeSingle();
+        .insert({
+          id: nanoid(12),
+          student_id: studentId,
+          badge_id: badgeId,
+          awarded_at,
+          score,
+          status: "expired", // Use 'expired' to indicate a failed attempt
+          attempt_number: attemptNumber,
+          granted_by: "test",
+          answers: answers,
+          time_taken_seconds,
+        });
 
-      if (!existingBadge) {
-        // Insert new student_badge record
-        const { error: badgeInsertError } = await supabase
-          .from("student_badges")
-          .insert({
-            student_id: studentId,
-            badge_id: badgeId,
-            awarded_at,
-            expires_at,
-            score,
-            status: "active",
-          });
-
-        if (badgeInsertError) {
-          Sentry.captureException(badgeInsertError);
-          return NextResponse.json(
-            { error: "Failed to award badge" },
-            { status: 500 }
-          );
-        }
-
-        badge_awarded = true;
-        badge_awarded_at = awarded_at;
-        badge_expires_at = expires_at || undefined;
-      } else {
-        // Already has active badge
-        badge_awarded = false;
+      if (failInsertError) {
+        // Non-critical — log but don't fail the request
+        console.error("[safety/submit] failed attempt insert error:", failInsertError);
+        Sentry.captureException(failInsertError);
       }
     }
 

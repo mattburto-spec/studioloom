@@ -356,21 +356,31 @@ export default function SafetyBadgeTestPage({
     return (
       <div className="min-h-screen bg-white">
         {/* Progress bar */}
-        <div className="sticky top-0 z-10 border-b border-slate-200 bg-white">
+        <div className="sticky top-0 z-10 border-b border-slate-200 bg-white shadow-sm">
           <div className="max-w-2xl mx-auto px-6 py-4">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-medium text-slate-600">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-semibold text-slate-900">
                 Question {currentQuestion + 1} of {questions.length}
               </span>
-              <span className="text-sm font-medium text-slate-600">
-                {Math.round(progress)}%
+              <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full">
+                {Math.round(progress)}% complete
               </span>
             </div>
-            <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-indigo-600 transition-all duration-300"
-                style={{ width: `${progress}%` }}
-              />
+            {/* Step dots */}
+            <div className="flex items-center gap-1 mb-2">
+              {questions.map((_, idx) => (
+                <div
+                  key={idx}
+                  className="flex-1 h-2 rounded-full transition-all duration-300"
+                  style={{
+                    background: idx < currentQuestion
+                      ? "#6366F1"
+                      : idx === currentQuestion
+                      ? "#818CF8"
+                      : "#E2E8F0",
+                  }}
+                />
+              ))}
             </div>
           </div>
         </div>
@@ -571,17 +581,19 @@ export default function SafetyBadgeTestPage({
           <button
             onClick={handleNextQuestion}
             disabled={
-              !currentAnswer && currentAnswer !== 0 && currentAnswer !== "false"
+              submitting || (!currentAnswer && currentAnswer !== 0 && currentAnswer !== "false")
             }
             className={`w-full py-3 px-4 rounded-lg font-semibold transition ${
-              currentAnswer || currentAnswer === 0 || currentAnswer === "false"
+              (currentAnswer || currentAnswer === 0 || currentAnswer === "false") && !submitting
                 ? "bg-indigo-600 text-white hover:bg-indigo-700"
                 : "bg-slate-200 text-slate-500 cursor-not-allowed"
             }`}
           >
-            {currentQuestion === questions.length - 1
+            {submitting
+              ? "Submitting..."
+              : currentQuestion === questions.length - 1
               ? "Submit Test"
-              : "Next Question"}
+              : `Next Question →`}
           </button>
         </div>
       </div>
