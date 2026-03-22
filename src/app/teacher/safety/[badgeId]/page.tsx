@@ -358,13 +358,28 @@ export default function BadgeDetailPage() {
                 </>
               )}
               {!isEditMode && (
-                <button
-                  onClick={() => setShowAssignModal(true)}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg transition-colors"
-                >
-                  <PlusIcon />
-                  Use Badge
-                </button>
+                <>
+                  <button
+                    onClick={() => { setAssignMode("unit"); fetchUnits(); setShowAssignModal(true); }}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 font-semibold rounded-lg transition-colors text-sm"
+                    style={{ background: "#F59E0B", color: "#78350F" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "#D97706")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "#F59E0B")}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
+                    Assign Test
+                  </button>
+                  <button
+                    onClick={() => { setAssignMode("student"); fetchClasses(); setShowAssignModal(true); }}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 font-semibold rounded-lg transition-colors text-sm"
+                    style={{ background: "#10B981", color: "#fff" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "#059669")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "#10B981")}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
+                    Award Badge
+                  </button>
+                </>
               )}
             </div>
           </div>
@@ -947,42 +962,12 @@ export default function BadgeDetailPage() {
                 </div>
                 <p className="font-medium text-emerald-700">{assignSuccess}</p>
               </div>
-            ) : assignMode === "choose" ? (
-              <>
-                <h2 className="text-lg font-bold text-gray-900 mb-2">Safety Badge Actions</h2>
-                <p className="text-sm text-gray-600 mb-6">Choose how to use this badge with your students.</p>
-                <div className="space-y-3 mb-6">
-                  <button
-                    onClick={() => { setAssignMode("unit"); fetchUnits(); }}
-                    className="w-full text-left px-4 py-3 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-amber-300 transition-colors"
-                  >
-                    <div className="flex items-center gap-2">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
-                      <p className="font-medium text-gray-900">Require for Unit</p>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1 ml-6">Students must pass this test before they can access the unit. The test will appear on their dashboard automatically.</p>
-                  </button>
-                  <button
-                    onClick={() => { setAssignMode("student"); fetchClasses(); }}
-                    className="w-full text-left px-4 py-3 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-emerald-300 transition-colors"
-                  >
-                    <div className="flex items-center gap-2">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
-                      <p className="font-medium text-gray-900">Grant Badge Directly</p>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1 ml-6">Manually award this badge to students without requiring them to take the test (e.g. they demonstrated competency in class).</p>
-                  </button>
-                </div>
-                <button onClick={() => { setShowAssignModal(false); setAssignMode("choose"); }} className="w-full px-4 py-2 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors">
-                  Cancel
-                </button>
-              </>
             ) : assignMode === "unit" ? (
               <>
-                <button onClick={() => setAssignMode("choose")} className="text-sm text-purple-600 hover:text-purple-800 mb-4 flex items-center gap-1">
-                  <BackArrowIcon /> Back
-                </button>
-                <h2 className="text-lg font-bold text-gray-900 mb-2">Require for Unit</h2>
+                <h2 className="text-lg font-bold text-gray-900 mb-2 flex items-center gap-2">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
+                  Assign Test to Unit
+                </h2>
                 <p className="text-sm text-gray-600 mb-4">Students in classes assigned to this unit must pass the safety test before they can access the unit content. The test will appear on their dashboard.</p>
                 {units.length === 0 ? (
                   <p className="text-sm text-gray-500 py-4 text-center">Loading units...</p>
@@ -1006,20 +991,20 @@ export default function BadgeDetailPage() {
                   <button
                     onClick={handleAssignToUnit}
                     disabled={!selectedUnitId || assignLoading}
-                    className="flex-1 px-4 py-2 text-white font-medium rounded-lg transition-colors disabled:opacity-50"
-                    style={{ background: selectedUnitId ? "linear-gradient(135deg, #7B2FF2, #5C16C5)" : "#ccc" }}
+                    className="flex-1 px-4 py-2 font-semibold rounded-lg transition-colors disabled:opacity-50"
+                    style={{ background: selectedUnitId ? "#F59E0B" : "#ccc", color: selectedUnitId ? "#78350F" : "#999" }}
                   >
-                    {assignLoading ? "Saving..." : "Require Badge for Unit"}
+                    {assignLoading ? "Saving..." : "Assign Test"}
                   </button>
                 </div>
               </>
             ) : (
               <>
-                <button onClick={() => { setAssignMode("choose"); setSelectedClassId(null); setSelectedStudentIds([]); }} className="text-sm text-purple-600 hover:text-purple-800 mb-4 flex items-center gap-1">
-                  <BackArrowIcon /> Back
-                </button>
-                <h2 className="text-lg font-bold text-gray-900 mb-2">Grant Badge Directly</h2>
-                <p className="text-sm text-gray-600 mb-4">Select a class, then pick students to award this badge to — they won't need to take the test.</p>
+                <h2 className="text-lg font-bold text-gray-900 mb-2 flex items-center gap-2">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
+                  Award Badge to Students
+                </h2>
+                <p className="text-sm text-gray-600 mb-4">Select a class, then pick students — they won't need to take the test.</p>
 
                 {/* Class selector */}
                 {classes.length === 0 ? (
@@ -1099,10 +1084,10 @@ export default function BadgeDetailPage() {
                   <button
                     onClick={handleGrantToStudents}
                     disabled={selectedStudentIds.length === 0 || assignLoading}
-                    className="flex-1 px-4 py-2 text-white font-medium rounded-lg transition-colors disabled:opacity-50"
-                    style={{ background: selectedStudentIds.length > 0 ? "linear-gradient(135deg, #7B2FF2, #5C16C5)" : "#ccc" }}
+                    className="flex-1 px-4 py-2 font-semibold rounded-lg transition-colors disabled:opacity-50"
+                    style={{ background: selectedStudentIds.length > 0 ? "#10B981" : "#ccc", color: "#fff" }}
                   >
-                    {assignLoading ? "Granting..." : `Grant to ${selectedStudentIds.length} student${selectedStudentIds.length !== 1 ? "s" : ""}`}
+                    {assignLoading ? "Awarding..." : `Award to ${selectedStudentIds.length} student${selectedStudentIds.length !== 1 ? "s" : ""}`}
                   </button>
                 </div>
               </>
