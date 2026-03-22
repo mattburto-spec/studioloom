@@ -11,9 +11,10 @@ import { ObservationSnap } from "@/components/nm";
 import { AGENCY_ELEMENT_MAP } from "@/lib/nm/constants";
 import type { NMUnitConfig } from "@/lib/nm/constants";
 import type {
-  Unit, UnitPage, UnitContentDataV4, TimelineActivity,
+  Unit, UnitPage, UnitContentData, UnitContentDataV4, TimelineActivity,
   ComputedLesson, WorkshopPhases, LessonExtension, PageContent,
 } from "@/types";
+import { resolveClassUnitContent } from "@/lib/units/resolve-content";
 
 // =========================================================================
 // Types
@@ -99,6 +100,7 @@ export default function TeachingDashboard({
   const [students, setStudents] = useState<StudentLiveStatus[]>([]);
   const [summary, setSummary] = useState<LiveSummary | null>(null);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
+  const classContentRef = useRef<Record<string, unknown>>({});
 
   // UI state
   const [showNotes, setShowNotes] = useState(true);
@@ -120,24 +122,40 @@ export default function TeachingDashboard({
         supabase.from("units").select("*").eq("id", unitId).single(),
         supabase
           .from("class_units")
-          .select("class_id, classes(id, name, code)")
+          .select("class_id, content_data, classes(id, name, code)")
           .eq("unit_id", unitId),
       ]);
 
       setUnit(unitRes.data);
 
-      const classList = (classesRes.data || [])
+      // Build class list + store class-unit content for resolution
+      const cuList = classesRes.data || [];
+      const classList = cuList
         .map((cu: Record<string, unknown>) => cu.classes as { id: string; name: string; code: string } | null)
         .filter((c): c is { id: string; name: string; code: string } => c !== null);
 
+      // Store class-unit content_data map for resolution
+      const cuContentMap: Record<string, unknown> = {};
+      cuList.forEach((cu: Record<string, unknown>) => {
+        const cls = cu.classes as { id: string } | null;
+        if (cls && cu.content_data) {
+          cuContentMap[cls.id] = cu.content_data;
+        }
+      });
+      classContentRef.current = cuContentMap;
+
       setClasses(classList);
-      if (classList.length > 0 && !initialClassId) {
-        setSelectedClassId(classList[0].id);
+      const effectiveClassId = initialClassId || (classList.length > 0 ? classList[0].id : null);
+      if (effectiveClassId && !initialClassId) {
+        setSelectedClassId(effectiveClassId);
       }
 
-      // Default to first page
+      // Default to first page — use resolved content if class selected
       if (unitRes.data) {
-        const pages = getPageList(unitRes.data.content_data);
+        const masterContent = unitRes.data.content_data as UnitContentData;
+        const classContent = effectiveClassId ? cuContentMap[effectiveClassId] as UnitContentData | undefined : undefined;
+        const resolvedContent = resolveClassUnitContent(masterContent, classContent);
+        const pages = getPageList(resolvedContent);
         if (pages.length > 0) {
           setSelectedPageId(pages[0].id);
         }
@@ -235,8 +253,16 @@ export default function TeachingDashboard({
     );
   }
 
-  const pages = getPageList(unit.content_data);
-  const normalized = normalizeContentData(unit.content_data);
+  // Resolve content: class-local fork if exists, otherwise master
+  const classForkedContent = selectedClassId
+    ? classContentRef.current[selectedClassId] as UnitContentData | undefined
+    : undefined;
+  const resolvedContent = resolveClassUnitContent(
+    unit.content_data as UnitContentData,
+    classForkedContent
+  );
+  const pages = getPageList(resolvedContent);
+  const normalized = normalizeContentData(resolvedContent);
   const isTimeline = isV4(normalized);
 
   let lessons: ComputedLesson[] = [];
@@ -375,7 +401,11 @@ export default function TeachingDashboard({
           {/* Projector button */}
           <button
             onClick={() => {
-              const url = `/teacher/teach/${unitId}/projector${selectedPageId ? `?pageId=${selectedPageId}` : ""}`;
+              const params = new URLSearchParams();
+              if (selectedPageId) params.set("pageId", selectedPageId);
+              if (selectedClassId) params.set("classId", selectedClassId);
+              const qs = params.toString();
+              const url = `/teacher/teach/${unitId}/projector${qs ? `?${qs}` : ""}`;
               window.open(url, "studioloom-projector", "width=1280,height=720");
             }}
             style={{

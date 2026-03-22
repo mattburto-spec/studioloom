@@ -4,7 +4,8 @@ import { useState, useEffect, use } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { getPageList, normalizeContentData } from "@/lib/unit-adapter";
 import PhaseTimer from "@/components/teach/PhaseTimer";
-import type { Unit, PageContent, WorkshopPhases, LessonExtension } from "@/types";
+import type { Unit, UnitContentData, PageContent, WorkshopPhases, LessonExtension } from "@/types";
+import { resolveClassUnitContent } from "@/lib/units/resolve-content";
 
 /**
  * Projector View — opened in a separate window from the Teaching Dashboard.
@@ -23,12 +24,13 @@ export default function ProjectorView({
   searchParams,
 }: {
   params: Promise<{ unitId: string }>;
-  searchParams: Promise<{ pageId?: string }>;
+  searchParams: Promise<{ pageId?: string; classId?: string }>;
 }) {
   const { unitId } = use(params);
-  const { pageId: initialPageId } = use(searchParams);
+  const { pageId: initialPageId, classId } = use(searchParams);
 
   const [unit, setUnit] = useState<Unit | null>(null);
+  const [classUnitContent, setClassUnitContent] = useState<UnitContentData | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedPageId, setSelectedPageId] = useState<string | null>(initialPageId || null);
   const [currentPhaseId, setCurrentPhaseId] = useState<string>("opening");
@@ -37,16 +39,42 @@ export default function ProjectorView({
   useEffect(() => {
     async function load() {
       const supabase = createClient();
-      const { data } = await supabase.from("units").select("*").eq("id", unitId).single();
-      setUnit(data);
-      if (data && !selectedPageId) {
-        const pages = getPageList(data.content_data);
+
+      // Fetch unit + optional class-local content
+      const queries: Promise<unknown>[] = [
+        supabase.from("units").select("*").eq("id", unitId).single(),
+      ];
+      if (classId) {
+        queries.push(
+          supabase.from("class_units").select("content_data").eq("unit_id", unitId).eq("class_id", classId).single()
+        );
+      }
+
+      const [unitResult, cuResult] = await Promise.all(queries);
+      const unitData = (unitResult as { data: Unit | null }).data;
+      setUnit(unitData);
+
+      if (classId && cuResult) {
+        const cuData = (cuResult as { data: { content_data: unknown } | null }).data;
+        if (cuData?.content_data) {
+          setClassUnitContent(cuData.content_data as UnitContentData);
+        }
+      }
+
+      if (unitData && !selectedPageId) {
+        const resolvedContent = resolveClassUnitContent(
+          unitData.content_data as UnitContentData,
+          classId && cuResult
+            ? ((cuResult as { data: { content_data: unknown } | null }).data?.content_data as UnitContentData | undefined)
+            : undefined
+        );
+        const pages = getPageList(resolvedContent);
         if (pages.length > 0) setSelectedPageId(pages[0].id);
       }
       setLoading(false);
     }
     load();
-  }, [unitId, selectedPageId]);
+  }, [unitId, selectedPageId, classId]);
 
   // Listen for messages from the teaching dashboard (same-origin postMessage)
   useEffect(() => {
@@ -76,7 +104,12 @@ export default function ProjectorView({
     );
   }
 
-  const pages = getPageList(unit.content_data);
+  // Resolve content: class-local fork if exists, otherwise master
+  const resolvedContent = resolveClassUnitContent(
+    unit.content_data as UnitContentData,
+    classUnitContent ?? undefined
+  );
+  const pages = getPageList(resolvedContent);
   const currentPage = pages.find((p) => p.id === selectedPageId);
   const content: PageContent | null = currentPage?.content || null;
   const workshopPhases: WorkshopPhases | null = content?.workshopPhases || null;

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireStudentAuth } from "@/lib/auth/student";
+import { resolveClassUnitContent } from "@/lib/units/resolve-content";
 
 // Forward mapping for pre-migration-011 fallback
 const NUMBER_TO_PAGE_ID: Record<number, string> = {
@@ -33,14 +34,14 @@ export async function GET(request: NextRequest) {
 
   const { data: cuNew, error: cuError } = await supabase
     .from("class_units")
-    .select("unit_id, locked_page_ids, page_due_dates")
+    .select("unit_id, locked_page_ids, page_due_dates, content_data")
     .eq("class_id", student.class_id)
     .eq("is_active", true);
 
   if (cuError && (cuError.message?.includes("does not exist") || cuError.message?.includes("Could not find"))) {
     const { data: cuOld } = await supabase
       .from("class_units")
-      .select("unit_id, locked_pages, page_due_dates")
+      .select("unit_id, locked_pages, page_due_dates, content_data")
       .eq("class_id", student.class_id)
       .eq("is_active", true);
     classUnits = cuOld as Record<string, unknown>[] | null;
@@ -85,8 +86,12 @@ export async function GET(request: NextRequest) {
         return p;
       });
 
+    // Resolve content: prefer class-unit fork if it exists, fall back to master
+    const resolvedContentData = resolveClassUnitContent(unit.content_data, cu?.content_data);
+
     return {
       ...unit,
+      content_data: resolvedContentData,
       progress: unitProgress,
       locked_pages: lockedPages,
       page_due_dates: (cu?.page_due_dates as Record<string, string>) || {},

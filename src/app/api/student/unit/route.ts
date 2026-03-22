@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireStudentAuth } from "@/lib/auth/student";
+import { resolveClassUnitContent } from "@/lib/units/resolve-content";
 
 // Forward mapping for pre-migration-011 fallback
 const NUMBER_TO_PAGE_ID: Record<number, string> = {
@@ -50,7 +51,7 @@ export async function GET(request: NextRequest) {
   let classUnit: Record<string, unknown> | null = null;
   const { data: cuFull, error: cuError } = await supabase
     .from("class_units")
-    .select("locked_page_ids, is_active, final_due_date, page_due_dates, page_settings")
+    .select("locked_page_ids, is_active, final_due_date, page_due_dates, page_settings, content_data")
     .eq("class_id", student.class_id)
     .eq("unit_id", unitId)
     .single();
@@ -59,7 +60,7 @@ export async function GET(request: NextRequest) {
     // Columns from migration 011 not yet applied — fall back
     const { data: cuBasic } = await supabase
       .from("class_units")
-      .select("locked_pages, is_active, final_due_date, page_due_dates, page_settings")
+      .select("locked_pages, is_active, final_due_date, page_due_dates, page_settings, content_data")
       .eq("class_id", student.class_id)
       .eq("unit_id", unitId)
       .single();
@@ -68,7 +69,7 @@ export async function GET(request: NextRequest) {
       // Try even more basic (page_due_dates/page_settings may also not exist)
       const { data: cuMinimal } = await supabase
         .from("class_units")
-        .select("locked_pages, is_active")
+        .select("locked_pages, is_active, content_data")
         .eq("class_id", student.class_id)
         .eq("unit_id", unitId)
         .single();
@@ -107,8 +108,14 @@ export async function GET(request: NextRequest) {
     return p;
   });
 
+  // Resolve content: prefer class-unit fork if it exists, fall back to master
+  const resolvedUnit = {
+    ...unit,
+    content_data: resolveClassUnitContent(unit.content_data, cu.content_data),
+  };
+
   return NextResponse.json({
-    unit,
+    unit: resolvedUnit,
     lockedPages,
     progress: normalizedProgress,
     ellLevel: student.ell_level,
