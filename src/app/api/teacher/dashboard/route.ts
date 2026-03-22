@@ -98,7 +98,7 @@ export const GET = withErrorHandler("teacher/dashboard:GET", async (request: Nex
     // Active class_units with unit title + content_data
     supabase
       .from("class_units")
-      .select("class_id, unit_id, nm_config, units!inner(id, title, content_data, nm_config)")
+      .select("class_id, unit_id, nm_config, content_data, units!inner(id, title, content_data, nm_config)")
       .in("class_id", classIds)
       .eq("is_active", true),
     // All students in teacher's classes
@@ -333,6 +333,7 @@ export const GET = withErrorHandler("teacher/dashboard:GET", async (request: Nex
         openStudioCount: osCount,
         nmEnabled: !!nmEnabled,
         badgeRequirementCount: badgeReqByUnit.get(cu.unit_id) || 0,
+        isForked: !!(cu as Record<string, unknown>).content_data,
       };
     });
 

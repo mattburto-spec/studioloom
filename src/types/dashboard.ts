@@ -29,6 +29,8 @@ export interface DashboardUnit {
   nmEnabled?: boolean;
   /** Number of required safety badges for this unit */
   badgeRequirementCount?: number;
+  /** Whether this class-unit has forked content (content_data IS NOT NULL) */
+  isForked?: boolean;
 }
 
 export interface StuckStudent {

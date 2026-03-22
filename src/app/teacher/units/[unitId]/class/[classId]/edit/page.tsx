@@ -35,6 +35,14 @@ export default function ClassUnitEditPage({
   const [forkedAt, setForkedAt] = useState<string | null>(null);
   const [masterVersion, setMasterVersion] = useState(1);
 
+  // P1: version save + reset state
+  const [showVersionModal, setShowVersionModal] = useState(false);
+  const [versionLabel, setVersionLabel] = useState("");
+  const [savingVersion, setSavingVersion] = useState(false);
+  const [versionSaved, setVersionSaved] = useState<number | null>(null);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [resetting, setResetting] = useState(false);
+
   useEffect(() => {
     async function load() {
       try {
@@ -135,6 +143,63 @@ export default function ClassUnitEditPage({
     });
   }
 
+  async function saveAsVersion() {
+    if (!versionLabel.trim()) return;
+    setSavingVersion(true);
+    try {
+      const res = await fetch("/api/teacher/units/versions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ unitId, classId, label: versionLabel.trim() }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setVersionSaved(data.versionNumber);
+        setShowVersionModal(false);
+        setVersionLabel("");
+        setTimeout(() => setVersionSaved(null), 4000);
+      } else {
+        const data = await res.json();
+        setError(data.error || "Failed to save version");
+      }
+    } catch {
+      setError("Failed to save version");
+    }
+    setSavingVersion(false);
+  }
+
+  async function resetToMaster() {
+    setResetting(true);
+    try {
+      const res = await fetch("/api/teacher/class-units/content", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ classId, unitId }),
+      });
+      if (res.ok) {
+        // Reload the page to fetch master content
+        setShowResetConfirm(false);
+        setIsForked(false);
+        setForkedAt(null);
+        // Re-fetch content from API
+        const contentRes = await fetch(`/api/teacher/class-units/content?unitId=${unitId}&classId=${classId}`);
+        if (contentRes.ok) {
+          const contentData = await contentRes.json();
+          setPages(getPageList(contentData.content));
+          setIsForked(contentData.isForked);
+          setForkedAt(contentData.forkedAt);
+          setMasterVersion(contentData.masterVersion ?? 1);
+        }
+      } else {
+        const data = await res.json();
+        setError(data.error || "Failed to reset");
+      }
+    } catch {
+      setError("Failed to reset to master");
+    }
+    setResetting(false);
+  }
+
   // ─── Render ──────────────────────────────────────────────────
 
   if (loading) {
@@ -204,6 +269,36 @@ export default function ClassUnitEditPage({
             </span>
           </div>
         )}
+
+        {/* Version saved toast */}
+        {versionSaved && (
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-50 border border-green-200">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16A34A" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+            <span className="text-xs font-medium text-green-700">Saved as v{versionSaved}</span>
+          </div>
+        )}
+
+        {/* P1 action buttons */}
+        <div className="flex items-center gap-1.5">
+          {isForked && (
+            <button
+              onClick={() => setShowVersionModal(true)}
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-purple-200 text-purple-600 hover:bg-purple-50 transition"
+              title="Save this version to the master unit template"
+            >
+              Save as Version
+            </button>
+          )}
+          {isForked && (
+            <button
+              onClick={() => setShowResetConfirm(true)}
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 transition"
+              title="Discard class changes and revert to master template"
+            >
+              Reset to Master
+            </button>
+          )}
+        </div>
 
         {/* Save button */}
         <button
@@ -376,6 +471,75 @@ export default function ClassUnitEditPage({
       >
         + Add Page
       </button>
+
+      {/* ─── Save as Version Modal ─── */}
+      {showVersionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 p-6">
+            <h3 className="text-lg font-bold text-gray-900 mb-2">Save as Version</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              This saves your class changes as a new version on the master unit. Other classes can then use this version. Your class keeps its current content.
+            </p>
+            <label className="text-xs font-semibold text-gray-500 mb-1 block">Version Label</label>
+            <input
+              type="text"
+              value={versionLabel}
+              onChange={(e) => setVersionLabel(e.target.value)}
+              placeholder={`e.g. "Refined for ${className} 2026"`}
+              maxLength={100}
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300 mb-4"
+              autoFocus
+              onKeyDown={(e) => { if (e.key === "Enter") saveAsVersion(); }}
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => { setShowVersionModal(false); setVersionLabel(""); }}
+                className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveAsVersion}
+                disabled={savingVersion || !versionLabel.trim()}
+                className="px-5 py-2 rounded-xl text-sm font-bold text-white shadow-sm transition hover:opacity-90 disabled:opacity-50"
+                style={{ background: "linear-gradient(135deg, #7C3AED, #6D28D9)" }}
+              >
+                {savingVersion ? "Saving..." : "Save Version"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Reset to Master Confirmation ─── */}
+      {showResetConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 p-6">
+            <h3 className="text-lg font-bold text-gray-900 mb-2">Reset to Master?</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              This will discard all class-specific changes and revert to the master template. Student progress is preserved, but any custom pages or edits will be lost.
+            </p>
+            <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800 mb-4">
+              <strong>Tip:</strong> Save your changes as a version first if you might want them later.
+            </div>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowResetConfirm(false)}
+                className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={resetToMaster}
+                disabled={resetting}
+                className="px-5 py-2 rounded-xl text-sm font-bold text-white bg-red-500 hover:bg-red-600 shadow-sm transition disabled:opacity-50"
+              >
+                {resetting ? "Resetting..." : "Reset to Master"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

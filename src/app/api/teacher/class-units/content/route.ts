@@ -158,14 +158,71 @@ async function PATCH(request: NextRequest) {
 }
 
 // ─────────────────────────────────────────────────────────────────
-// POST /api/teacher/class-units/content/reset
+// POST /api/teacher/class-units/content
 // Reset class-unit content back to master (unfork).
-// Deletes class_units.content_data so it falls back to master.
+// Sets content_data, forked_at, forked_from_version to NULL.
 //
 // Body: { classId: string, unitId: string }
 // ─────────────────────────────────────────────────────────────────
-// Note: Reset is handled via PATCH with content_data = null,
-// but for clarity we can also support a DELETE-like action.
-// For P0 we just handle GET and PATCH.
 
-export { GET, PATCH };
+async function POST(request: NextRequest) {
+  const auth = await requireTeacherAuth(request);
+  if (auth.error) return auth.error;
+
+  try {
+    const body = await request.json();
+    const { classId, unitId } = body as {
+      classId: string;
+      unitId: string;
+    };
+
+    if (!classId || !unitId) {
+      return NextResponse.json(
+        { error: "Missing classId or unitId" },
+        { status: 400 }
+      );
+    }
+
+    const supabase = createAdminClient();
+
+    // Verify unit exists
+    const { data: unit } = await supabase
+      .from("units")
+      .select("id")
+      .eq("id", unitId)
+      .single();
+
+    if (!unit) {
+      return NextResponse.json({ error: "Unit not found" }, { status: 404 });
+    }
+
+    // Reset: set content_data, forked_at, forked_from_version to null
+    const { error: updateErr } = await supabase
+      .from("class_units")
+      .update({
+        content_data: null,
+        forked_at: null,
+        forked_from_version: null,
+      })
+      .eq("unit_id", unitId)
+      .eq("class_id", classId);
+
+    if (updateErr) {
+      console.error("[class-units/content POST reset] error:", updateErr);
+      return NextResponse.json(
+        { error: "Failed to reset content" },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ success: true, isForked: false });
+  } catch (err) {
+    console.error("[class-units/content POST reset]", err);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
+export { GET, PATCH, POST };

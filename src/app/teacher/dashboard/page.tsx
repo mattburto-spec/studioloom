@@ -263,6 +263,7 @@ function TwoColumnDashboard({
     className: string; classCode: string; completionPct: number;
     studentCount: number; inProgressCount: number;
     openStudioCount: number; nmEnabled: boolean; badgeRequirementCount: number;
+    isForked: boolean;
     completedCount: number; notStartedCount: number;
     classIdx: number;
   }> = [];
@@ -280,6 +281,7 @@ function TwoColumnDashboard({
           openStudioCount: u.openStudioCount ?? 0,
           nmEnabled: u.nmEnabled ?? false,
           badgeRequirementCount: u.badgeRequirementCount ?? 0,
+          isForked: u.isForked ?? false,
           completedCount: u.completedCount, notStartedCount: u.notStartedCount,
           classIdx: classIndexMap.get(cls.id) ?? 0,
         });
@@ -493,6 +495,12 @@ function TwoColumnDashboard({
                             <span className="inline-flex items-center gap-0.5 text-xs font-bold text-amber-700">
                               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
                               {u.badgeRequirementCount}
+                            </span>
+                          )}
+                          {u.isForked && (
+                            <span className="inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="18" r="3" /><circle cx="6" cy="6" r="3" /><circle cx="18" cy="6" r="3" /><path d="M18 9v1a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V9" /><path d="M12 12v3" /></svg>
+                              Customized
                             </span>
                           )}
                         </div>

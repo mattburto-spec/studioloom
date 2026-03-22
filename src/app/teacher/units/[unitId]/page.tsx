@@ -74,6 +74,7 @@ export default function UnitDetailPage({
     isArchived: boolean;
     nmEnabled: boolean;
     assigned: boolean;
+    isForked: boolean;
     termId: string | null;
     termName: string | null;
     termDates: string | null;
@@ -92,6 +93,22 @@ export default function UnitDetailPage({
   const [pendingTermId, setPendingTermId] = useState<string | null>(null);
   const [savingTerm, setSavingTerm] = useState(false);
 
+  // Version history
+  const [versions, setVersions] = useState<Array<{
+    version: number;
+    label: string;
+    created_at: string;
+    source_class_id: string | null;
+    sourceClassName: string | null;
+  }>>([]);
+  const [currentVersion, setCurrentVersion] = useState(1);
+  const [forks, setForks] = useState<Array<{
+    classId: string;
+    forkedAt: string | null;
+    forkedFromVersion: number | null;
+  }>>([]);
+  const [showVersions, setShowVersions] = useState(false);
+
   useEffect(() => {
     async function load() {
       const supabase = createClient();
@@ -105,7 +122,7 @@ export default function UnitDetailPage({
       // Fetch ALL teacher's classes + which ones have this unit assigned + terms
       const [classesRes, classUnitsRes, studentsRes, termsRes] = await Promise.all([
         supabase.from("classes").select("id, name, code, is_archived").order("name"),
-        supabase.from("class_units").select("class_id, nm_config, term_id").eq("unit_id", unitId),
+        supabase.from("class_units").select("class_id, nm_config, term_id, content_data, forked_at").eq("unit_id", unitId),
         supabase.from("students").select("class_id"),
         fetch("/api/teacher/school-calendar").then((r) => (r.ok ? r.json() : Promise.resolve({ terms: [] }))),
       ]);
@@ -120,11 +137,13 @@ export default function UnitDetailPage({
         termLookup.set(t.id, { term_name: t.term_name, start_date: t.start_date, end_date: t.end_date });
       }
 
-      const assignedMap = new Map<string, { nm_config?: { enabled?: boolean }; term_id?: string | null }>();
+      const assignedMap = new Map<string, { nm_config?: { enabled?: boolean }; term_id?: string | null; isForked?: boolean; forkedAt?: string | null }>();
       for (const cu of classUnitsRes.data || []) {
         assignedMap.set(cu.class_id, {
           nm_config: cu.nm_config as { enabled?: boolean } | undefined,
           term_id: cu.term_id || null,
+          isForked: !!(cu as Record<string, unknown>).content_data,
+          forkedAt: (cu as Record<string, unknown>).forked_at as string | null,
         });
       }
 
@@ -151,6 +170,7 @@ export default function UnitDetailPage({
             isArchived: cls.is_archived ?? false,
             nmEnabled: cuData?.nm_config?.enabled ?? unitNmConfig?.enabled ?? false,
             assigned: assignedMap.has(cls.id),
+            isForked: cuData?.isForked ?? false,
             termId,
             termName: termData?.term_name || null,
             termDates,
@@ -158,6 +178,19 @@ export default function UnitDetailPage({
         });
 
       setAllClasses(classes);
+
+      // Fetch version history
+      try {
+        const versionsRes = await fetch(`/api/teacher/units/versions?unitId=${unitId}`);
+        if (versionsRes.ok) {
+          const vData = await versionsRes.json();
+          setVersions(vData.versions || []);
+          setCurrentVersion(vData.currentVersion ?? 1);
+          setForks(vData.forks || []);
+        }
+      } catch {
+        // Non-critical — versions section just won't show data
+      }
 
       setLoading(false);
     }
@@ -570,6 +603,90 @@ export default function UnitDetailPage({
       )}
 
       {/* ----------------------------------------------------------------- */}
+      {/* Version History (P1)                                                  */}
+      {/* ----------------------------------------------------------------- */}
+      {(versions.length > 0 || forks.length > 0) && (
+        <div className="mt-8 mb-6">
+          <button
+            onClick={() => setShowVersions(!showVersions)}
+            className="text-base font-semibold text-text-primary mb-3 flex items-center gap-2 hover:text-purple-700 transition"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+            </svg>
+            Versions
+            <span className="text-sm font-normal text-text-tertiary ml-1">
+              (v{currentVersion}{forks.length > 0 ? `, ${forks.length} fork${forks.length !== 1 ? "s" : ""}` : ""})
+            </span>
+            <svg
+              width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+              className={`ml-auto text-gray-400 transition-transform ${showVersions ? "rotate-180" : ""}`}
+            >
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+          </button>
+
+          {showVersions && (
+            <div className="space-y-2">
+              {/* Original version (always present) */}
+              <div className="flex items-center gap-3 p-3 rounded-xl border border-gray-200 bg-white">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-gray-100 text-xs font-bold text-gray-600">v1</div>
+                <div className="flex-1 min-w-0">
+                  <span className="text-sm font-medium text-text-primary">Original</span>
+                  <span className="text-xs text-text-tertiary ml-2">Created with unit</span>
+                </div>
+                {currentVersion === 1 && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200">Current</span>
+                )}
+              </div>
+
+              {/* Saved versions */}
+              {versions
+                .filter((v) => v.version > 1)
+                .sort((a, b) => b.version - a.version)
+                .map((v) => (
+                  <div key={v.version} className="flex items-center gap-3 p-3 rounded-xl border border-gray-200 bg-white">
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-purple-50 text-xs font-bold text-purple-700">v{v.version}</div>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm font-medium text-text-primary">{v.label}</span>
+                      <div className="text-xs text-text-tertiary mt-0.5">
+                        {v.sourceClassName && (
+                          <span>From <span className="font-medium">{v.sourceClassName}</span> &middot; </span>
+                        )}
+                        {v.created_at && new Date(v.created_at).toLocaleDateString()}
+                      </div>
+                    </div>
+                    {v.version === currentVersion && (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200">Current</span>
+                    )}
+                  </div>
+                ))}
+
+              {/* Active forks */}
+              {forks.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-gray-100">
+                  <p className="text-xs font-semibold text-text-tertiary mb-2 uppercase tracking-wide">Active Class Forks</p>
+                  {forks.map((f) => {
+                    const cls = allClasses.find((c) => c.id === f.classId);
+                    return (
+                      <div key={f.classId} className="flex items-center gap-2 py-1.5 text-xs">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="18" r="3" /><circle cx="6" cy="6" r="3" /><circle cx="18" cy="6" r="3" /><path d="M18 9v1a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V9" /><path d="M12 12v3" /></svg>
+                        <span className="font-medium text-text-primary">{cls?.name || f.classId}</span>
+                        <span className="text-text-tertiary">
+                          forked from v{f.forkedFromVersion || 1}
+                          {f.forkedAt && ` on ${new Date(f.forkedAt).toLocaleDateString()}`}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ----------------------------------------------------------------- */}
       {/* Classes — toggle assignment                                          */}
       {/* ----------------------------------------------------------------- */}
       <div className="mt-8 mb-6">
@@ -627,6 +744,12 @@ export default function UnitDetailPage({
                           <>
                             <span className="text-text-tertiary/40">·</span>
                             <span className="text-pink-500 font-medium">NM</span>
+                          </>
+                        )}
+                        {cls.isForked && cls.assigned && (
+                          <>
+                            <span className="text-text-tertiary/40">·</span>
+                            <span className="text-amber-600 font-medium">Customized</span>
                           </>
                         )}
                         {cls.assigned && cls.termName && (
