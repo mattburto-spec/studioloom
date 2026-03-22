@@ -793,13 +793,17 @@ export default function TeacherSettingsPage() {
                           setIcalMessage(data.error || "Import failed");
                           return;
                         }
-                        // Apply parsed data
-                        if (data.meetings?.length) {
-                          setClassMeetings((prev) => [...prev, ...data.meetings]);
+                        // Overwrite previous settings with imported data
+                        setClassMeetings(data.meetings || []);
+                        setExcludedDates(data.excludedDates || []);
+
+                        // Auto-detect anchor from first class event or first non-holiday weekday
+                        if (data.classEventDates?.length) {
+                          const sorted = [...data.classEventDates].sort((a: {date:string}, b: {date:string}) => a.date.localeCompare(b.date));
+                          setAnchorDate(sorted[0].date);
+                          setAnchorCycleDay(1);
                         }
-                        if (data.excludedDates?.length) {
-                          setExcludedDates((prev) => [...new Set([...prev, ...data.excludedDates])]);
-                        }
+
                         setIcalMessage(`Imported ${data.totalEvents || 0} events — see preview below`);
                         setIcalPreviewData(data as ICalImportData);
                       } catch {
@@ -841,12 +845,17 @@ export default function TeacherSettingsPage() {
                             setIcalMessage(data.error || "Import failed");
                             return;
                           }
-                          if (data.meetings?.length) {
-                            setClassMeetings((prev) => [...prev, ...data.meetings]);
+                          // Overwrite previous settings with imported data
+                          setClassMeetings(data.meetings || []);
+                          setExcludedDates(data.excludedDates || []);
+
+                          // Auto-detect anchor from first class event
+                          if (data.classEventDates?.length) {
+                            const sorted = [...data.classEventDates].sort((a: {date:string}, b: {date:string}) => a.date.localeCompare(b.date));
+                            setAnchorDate(sorted[0].date);
+                            setAnchorCycleDay(1);
                           }
-                          if (data.excludedDates?.length) {
-                            setExcludedDates((prev) => [...new Set([...prev, ...data.excludedDates])]);
-                          }
+
                           setIcalMessage(`Imported ${data.totalEvents || 0} events — see preview below`);
                           setIcalPreviewData(data as ICalImportData);
                         } catch {
@@ -1033,6 +1042,22 @@ export default function TeacherSettingsPage() {
               <div className="flex items-center gap-3 mt-5">
                 <button onClick={handleSaveTimetable} disabled={savingTimetable} className="px-5 py-2 rounded-lg text-sm font-medium bg-brand-purple text-white hover:bg-brand-purple/90 transition disabled:opacity-50">
                   {savingTimetable ? "Saving..." : timetableLoaded ? "Update Timetable" : "Save Timetable"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setClassMeetings([]);
+                    setExcludedDates([]);
+                    setAnchorDate(new Date().toISOString().split("T")[0]);
+                    setAnchorCycleDay(1);
+                    setIcalUrl("");
+                    setIcalPreviewData(null);
+                    setIcalMessage("");
+                    setShowManualSetup(false);
+                  }}
+                  className="px-4 py-2 rounded-lg text-sm font-medium text-text-tertiary hover:text-red-600 hover:bg-red-50 transition border border-transparent hover:border-red-200"
+                >
+                  Clear all
                 </button>
                 {timetableSuccess && <span className="text-sm text-accent-green font-medium">{timetableSuccess}</span>}
                 {timetableError && <span className="text-sm text-red-500">{timetableError}</span>}
