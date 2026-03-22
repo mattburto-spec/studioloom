@@ -1,6 +1,6 @@
 # Unit Forking: Class-Local Content with Version History
 
-**Status:** Approved
+**Status:** Phase 1 COMPLETE (22 March 2026) — copy-on-write forking, class-local editor, content resolution chain, dashboard 3-button layout, tabbed Manage page. Migration 040 APPLIED. P1 remaining: version history UI, reset-to-master, diff viewer.
 **Author:** Matt Burton + Claude
 **Date:** 22 March 2026
 **Priority:** High — resolves core UX confusion on teacher dashboard
