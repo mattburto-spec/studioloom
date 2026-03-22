@@ -139,21 +139,6 @@ export default function KeyConceptBlockComponent({ block, onComplete }: KeyConce
   };
 
   return (
-    <>
-    <style>{`
-      @keyframes fadeIn {
-        from { opacity: 0; }
-        to { opacity: 1; }
-      }
-      @keyframes slideUp {
-        from { opacity: 0; transform: translateY(8px); }
-        to { opacity: 1; transform: translateY(0); }
-      }
-      @keyframes pulse {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.7; }
-      }
-    `}
     <div
       style={{
         background: "#fff",
@@ -434,7 +419,20 @@ export default function KeyConceptBlockComponent({ block, onComplete }: KeyConce
           <span style={{ fontWeight: 600 }}>All content explored</span>
         </div>
       )}
+      <style>{`
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes slideUp {
+          from { opacity: 0; transform: translateY(8px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.7; }
+        }
+      `}</style>
     </div>
-    </>
   );
 }
