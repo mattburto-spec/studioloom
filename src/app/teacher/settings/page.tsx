@@ -797,8 +797,14 @@ export default function TeacherSettingsPage() {
                         if (data.excludedDates?.length) {
                           setExcludedDates((prev) => [...new Set([...prev, ...data.excludedDates])]);
                         }
-                        setIcalMessage(`Imported ${data.meetings?.length || 0} class meetings and ${data.excludedDates?.length || 0} holidays`);
-                        setTimeout(() => setIcalMessage(""), 5000);
+                        let msg = `Imported ${data.meetings?.length || 0} class meetings and ${data.excludedDates?.length || 0} holidays (${data.totalEvents || 0} total events)`;
+                        if (data.unmatchedEvents?.length) {
+                          msg += `. ${data.unmatchedEvents.length} events didn't match any class: ${data.unmatchedEvents.slice(0, 5).join(", ")}${data.unmatchedEvents.length > 5 ? "..." : ""}`;
+                        }
+                        setIcalMessage(msg);
+                        if (!data.unmatchedEvents?.length) {
+                          setTimeout(() => setIcalMessage(""), 5000);
+                        }
                       } catch {
                         setIcalMessage("Network error");
                       } finally {
@@ -844,8 +850,14 @@ export default function TeacherSettingsPage() {
                           if (data.excludedDates?.length) {
                             setExcludedDates((prev) => [...new Set([...prev, ...data.excludedDates])]);
                           }
-                          setIcalMessage(`Imported ${data.meetings?.length || 0} class meetings and ${data.excludedDates?.length || 0} holidays`);
-                          setTimeout(() => setIcalMessage(""), 5000);
+                          let msg = `Imported ${data.meetings?.length || 0} class meetings and ${data.excludedDates?.length || 0} holidays (${data.totalEvents || 0} total events)`;
+                          if (data.unmatchedEvents?.length) {
+                            msg += `. ${data.unmatchedEvents.length} events didn't match any class: ${data.unmatchedEvents.slice(0, 5).join(", ")}${data.unmatchedEvents.length > 5 ? "..." : ""}`;
+                          }
+                          setIcalMessage(msg);
+                          if (!data.unmatchedEvents?.length) {
+                            setTimeout(() => setIcalMessage(""), 5000);
+                          }
                         } catch {
                           setIcalMessage("Upload failed");
                         } finally {

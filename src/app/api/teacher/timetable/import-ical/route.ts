@@ -27,9 +27,19 @@ async function POST(request: NextRequest) {
       icalText = body.ical_content;
     } else if (body.ical_url) {
       // Fetch from URL
-      const url = body.ical_url as string;
+      let url = body.ical_url as string;
       if (!url.startsWith("http://") && !url.startsWith("https://")) {
         return NextResponse.json({ error: "Invalid URL" }, { status: 400 });
+      }
+
+      // Auto-detect Outlook published calendar HTML URLs and convert to .ics
+      // Pattern: outlook.office365.com/owa/calendar/.../.../calendar.html
+      if (url.includes("outlook.office365.com") && url.endsWith("/calendar.html")) {
+        url = url.replace(/\/calendar\.html$/, "/calendar.ics");
+      }
+      // Also handle reachcalendar.html, S.html, or other Outlook variants
+      if (url.includes("outlook.office365.com") && url.endsWith(".html")) {
+        url = url.replace(/\.html$/, ".ics");
       }
 
       try {

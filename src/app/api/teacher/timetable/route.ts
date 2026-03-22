@@ -89,13 +89,14 @@ interface MeetingInput {
 
 interface TimetableRequest {
   cycle_length: number;
-  cycle_type: "weekday" | "calendar";
-  anchor_date: string;
-  anchor_cycle_day: number;
+  cycle_type?: "weekday" | "calendar";
+  anchor_date?: string;
+  anchor_cycle_day?: number;
   reset_each_term?: boolean;
   periods?: Array<{ number: number; label: string; start: string; end: string }>;
   excluded_dates?: string[];
-  meetings: MeetingInput[];
+  ical_url?: string | null;
+  meetings?: MeetingInput[];
 }
 
 async function POST(request: NextRequest) {
@@ -105,16 +106,10 @@ async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as TimetableRequest;
 
-    // Validate required fields
-    if (
-      !body.cycle_length ||
-      !body.cycle_type ||
-      !body.anchor_date ||
-      !body.anchor_cycle_day ||
-      !Array.isArray(body.meetings)
-    ) {
+    // Only cycle_length is truly required — everything else has sensible defaults
+    if (!body.cycle_length) {
       return NextResponse.json(
-        { error: "Missing required fields: cycle_length, cycle_type, anchor_date, anchor_cycle_day, meetings" },
+        { error: "Missing required field: cycle_length" },
         { status: 400 }
       );
     }
@@ -126,7 +121,13 @@ async function POST(request: NextRequest) {
       );
     }
 
-    if (body.anchor_cycle_day < 1 || body.anchor_cycle_day > body.cycle_length) {
+    // Default anchor to today / Day 1 if not provided
+    const anchorDate = body.anchor_date || new Date().toISOString().split("T")[0];
+    const anchorCycleDay = body.anchor_cycle_day || 1;
+    const cycleType = body.cycle_type || "weekday";
+    const meetings = body.meetings || [];
+
+    if (anchorCycleDay < 1 || anchorCycleDay > body.cycle_length) {
       return NextResponse.json(
         { error: `anchor_cycle_day must be between 1 and ${body.cycle_length}` },
         { status: 400 }
@@ -150,13 +151,14 @@ async function POST(request: NextRequest) {
         .from("school_timetable")
         .update({
           cycle_length: body.cycle_length,
-          cycle_type: body.cycle_type,
-          anchor_date: body.anchor_date,
-          anchor_cycle_day: body.anchor_cycle_day,
+          cycle_type: cycleType,
+          anchor_date: anchorDate,
+          anchor_cycle_day: anchorCycleDay,
           reset_each_term: body.reset_each_term ?? false,
           periods: body.periods || [],
           excluded_dates: body.excluded_dates || [],
-          source: "manual",
+          ical_url: body.ical_url ?? null,
+          source: body.ical_url ? "ical" : "manual",
         })
         .eq("teacher_id", auth.teacherId)
         .select("id")
@@ -191,13 +193,14 @@ async function POST(request: NextRequest) {
         .insert({
           teacher_id: auth.teacherId,
           cycle_length: body.cycle_length,
-          cycle_type: body.cycle_type,
-          anchor_date: body.anchor_date,
-          anchor_cycle_day: body.anchor_cycle_day,
+          cycle_type: cycleType,
+          anchor_date: anchorDate,
+          anchor_cycle_day: anchorCycleDay,
           reset_each_term: body.reset_each_term ?? false,
           periods: body.periods || [],
           excluded_dates: body.excluded_dates || [],
-          source: "manual",
+          ical_url: body.ical_url ?? null,
+          source: body.ical_url ? "ical" : "manual",
         })
         .select("id")
         .single();
@@ -213,8 +216,8 @@ async function POST(request: NextRequest) {
     }
 
     // Insert class meetings
-    if (body.meetings.length > 0) {
-      const meetingsToInsert = body.meetings.map((m) => ({
+    if (meetings.length > 0) {
+      const meetingsToInsert = meetings.map((m) => ({
         timetable_id: timetableId,
         class_id: m.class_id,
         cycle_day: m.cycle_day,

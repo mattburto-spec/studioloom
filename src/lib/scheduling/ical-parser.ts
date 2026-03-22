@@ -94,7 +94,12 @@ export function parseICal(icalText: string): ICalParseResult {
 
   for (const event of events) {
     const summaryLower = event.summary.toLowerCase();
-    const isHoliday = event.isAllDay || HOLIDAY_KEYWORDS.some((kw) => summaryLower.includes(kw));
+    const matchesHolidayKeyword = HOLIDAY_KEYWORDS.some((kw) => summaryLower.includes(kw));
+
+    // Holiday = must match a keyword. All-day events without keywords are
+    // just school events (assemblies, staff meetings, etc.), not holidays.
+    // Timed events with holiday keywords are also flagged (e.g. "Holiday - No School" as a timed entry).
+    const isHoliday = matchesHolidayKeyword;
 
     if (isHoliday) {
       holidays.push(event.dtstart);
@@ -109,9 +114,11 @@ export function parseICal(icalText: string): ICalParseResult {
           d.setDate(d.getDate() + 1);
         }
       }
-    } else {
+    } else if (!event.isAllDay) {
+      // Only timed events are potential class meetings
       classEvents.push(event);
     }
+    // All-day events that aren't holidays are silently skipped (assemblies, etc.)
   }
 
   return {
