@@ -6,6 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import type { Badge, QuestionPoolItem, LearningCard } from "@/types";
 import { BADGE_THUMBNAILS } from "@/lib/safety/badge-thumbnails";
+import TeachTab from "@/components/safety/TeachTab";
 
 // ============================================================================
 // SVG Icons (inline, no lucide-react)
@@ -41,7 +42,7 @@ const PlusIcon = () => (
 // Types
 // ============================================================================
 
-type TabType = "overview" | "questions" | "learn" | "results";
+type TabType = "overview" | "questions" | "learn" | "teach" | "results";
 
 interface ResultsData {
   total_attempts: number;
@@ -408,7 +409,7 @@ export default function BadgeDetailPage() {
 
         {/* Tab Navigation */}
         <div className="flex gap-1 mb-6 border-b border-gray-200 bg-white rounded-t-lg px-6">
-          {(["overview", "questions", "learn", "results"] as const).map((tab) => (
+          {(["overview", "questions", "learn", "teach", "results"] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -806,6 +807,11 @@ export default function BadgeDetailPage() {
                 </div>
               )}
             </div>
+          )}
+
+          {/* TEACH TAB */}
+          {activeTab === "teach" && badge && (
+            <TeachTab badge={badge} />
           )}
 
           {/* RESULTS TAB */}
