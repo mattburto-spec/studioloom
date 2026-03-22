@@ -458,27 +458,36 @@ function TwoColumnDashboard({
         ) : (
           classCards.map((u) => {
             const c = getClassColor(u.classIdx);
+            // Derive a darker shade for gradient end
+            const darkerFill = c.fill + "CC";
             return (
               <div
                 key={`card-${u.unitId}-${u.classId}`}
-                className="bg-white rounded-2xl border border-gray-200 overflow-hidden hover:shadow-md transition-shadow"
+                className="bg-white rounded-2xl border border-gray-200 overflow-hidden hover:shadow-lg transition-all duration-200"
               >
-                {/* Top band: class color with class name */}
                 <div className="flex items-stretch">
+                  {/* Class identity panel — gradient with subtle pattern */}
                   <div
-                    className="w-36 shrink-0 flex flex-col items-center justify-center py-5 text-white"
-                    style={{ background: c.fill }}
+                    className="w-44 shrink-0 flex flex-col items-center justify-center py-6 text-white relative overflow-hidden"
+                    style={{
+                      background: `linear-gradient(160deg, ${c.fill}, ${darkerFill})`,
+                    }}
                   >
-                    <p className="text-base font-bold leading-tight text-center px-2">{u.className}</p>
-                    <p className="text-[11px] opacity-80 mt-1">{u.studentCount} student{u.studentCount !== 1 ? "s" : ""}</p>
+                    {/* Decorative circles */}
+                    <div className="absolute -top-6 -left-6 w-24 h-24 rounded-full opacity-10" style={{ background: "#fff" }} />
+                    <div className="absolute -bottom-4 -right-4 w-20 h-20 rounded-full opacity-10" style={{ background: "#fff" }} />
+                    <div className="absolute top-3 right-3 w-8 h-8 rounded-full opacity-5" style={{ background: "#fff" }} />
+                    <p className="text-lg font-extrabold leading-tight text-center px-3 relative z-10 drop-shadow-sm">{u.className}</p>
+                    <p className="text-xs opacity-75 mt-1.5 relative z-10 font-medium">{u.studentCount} student{u.studentCount !== 1 ? "s" : ""}</p>
                   </div>
 
-                  <div className="flex-1 px-5 py-4">
-                    {/* Unit title + badges */}
+                  <div className="flex-1 px-5 py-4 flex flex-col">
+                    {/* Unit title — bigger and bolder */}
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <h3 className="text-base font-bold text-text-primary leading-snug">{u.unitTitle}</h3>
-                        <div className="flex items-center gap-2.5 mt-1.5 flex-wrap">
+                        <h3 className="text-xl font-extrabold text-text-primary leading-snug tracking-tight">{u.unitTitle}</h3>
+                        {/* Live stats row */}
+                        <div className="flex items-center gap-3 mt-2 flex-wrap">
                           {u.inProgressCount > 0 && (
                             <span className="inline-flex items-center gap-1 text-xs font-medium text-blue-600">
                               <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
@@ -486,15 +495,9 @@ function TwoColumnDashboard({
                             </span>
                           )}
                           {u.openStudioCount > 0 && (
-                            <span className="text-xs font-medium text-purple-600">{u.openStudioCount} in Studio</span>
-                          )}
-                          {u.nmEnabled && (
-                            <span className="text-[10px] font-black px-1.5 py-0.5 rounded" style={{ background: "#FF2D78", color: "#fff", fontFamily: "'Arial Black', sans-serif" }}>NM</span>
-                          )}
-                          {u.badgeRequirementCount > 0 && (
-                            <span className="inline-flex items-center gap-0.5 text-xs font-bold text-amber-700">
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
-                              {u.badgeRequirementCount}
+                            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-purple-600">
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                              {u.openStudioCount}
                             </span>
                           )}
                           {u.isForked && (
@@ -507,40 +510,64 @@ function TwoColumnDashboard({
                       </div>
 
                       {/* Progress ring */}
-                      <div className="relative w-12 h-12 flex-shrink-0">
-                        <svg viewBox="0 0 36 36" className="w-12 h-12 -rotate-90">
+                      <div className="relative w-14 h-14 flex-shrink-0">
+                        <svg viewBox="0 0 36 36" className="w-14 h-14 -rotate-90">
                           <circle cx="18" cy="18" r="15" fill="none" stroke="#f3f4f6" strokeWidth="2.5" />
                           <circle cx="18" cy="18" r="15" fill="none" strokeWidth="2.5" stroke={c.fill} strokeDasharray={`${u.completionPct * 0.942} 94.2`} strokeLinecap="round" />
                         </svg>
-                        <span className="absolute inset-0 flex items-center justify-center text-[11px] font-bold text-text-secondary">{Math.round(u.completionPct)}%</span>
+                        <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-text-secondary">{Math.round(u.completionPct)}%</span>
                       </div>
                     </div>
 
-                    {/* Action buttons — 3 primary actions */}
-                    <div className="flex items-center gap-2 mt-4 flex-wrap">
-                      <Link
-                        href={`/teacher/teach/${u.unitId}?classId=${u.classId}`}
-                        className="inline-flex items-center gap-1.5 text-sm font-bold px-4 py-2 rounded-xl text-white shadow-sm transition hover:opacity-90"
-                        style={{ background: "linear-gradient(135deg, #7C3AED, #6D28D9)" }}
-                      >
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="white" stroke="none"><polygon points="6 3 20 12 6 21 6 3" /></svg>
-                        Teach
-                      </Link>
-                      <Link
-                        href={`/teacher/units/${u.unitId}/class/${u.classId}`}
-                        className="inline-flex items-center gap-1.5 text-sm font-bold px-4 py-2 rounded-xl text-white shadow-sm transition hover:opacity-90"
-                        style={{ background: c.fill }}
-                      >
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg>
-                        Manage
-                      </Link>
-                      <Link
-                        href={`/teacher/units/${u.unitId}/class/${u.classId}/edit`}
-                        className="inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl border-2 border-gray-200 text-text-secondary transition hover:bg-gray-50"
-                      >
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
-                        Edit Unit
-                      </Link>
+                    {/* Bottom row — action buttons + feature badges */}
+                    <div className="flex items-center justify-between gap-3 mt-auto pt-4">
+                      {/* Action buttons */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Link
+                          href={`/teacher/teach/${u.unitId}?classId=${u.classId}`}
+                          className="inline-flex items-center gap-1.5 text-sm font-bold px-4 py-2 rounded-xl text-white shadow-sm transition hover:opacity-90"
+                          style={{ background: "linear-gradient(135deg, #7C3AED, #6D28D9)" }}
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="white" stroke="none"><polygon points="6 3 20 12 6 21 6 3" /></svg>
+                          Teach
+                        </Link>
+                        <Link
+                          href={`/teacher/units/${u.unitId}/class/${u.classId}`}
+                          className="inline-flex items-center gap-1.5 text-sm font-bold px-4 py-2 rounded-xl text-white shadow-sm transition hover:opacity-90"
+                          style={{ background: c.fill }}
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /></svg>
+                          Manage
+                        </Link>
+                        <Link
+                          href={`/teacher/units/${u.unitId}/class/${u.classId}/edit`}
+                          className="inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl border-2 border-gray-200 text-text-secondary transition hover:bg-gray-50"
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+                          Edit Unit
+                        </Link>
+                      </div>
+
+                      {/* Feature badges — right side, bigger */}
+                      <div className="flex items-center gap-2 shrink-0">
+                        {u.nmEnabled && (
+                          <span
+                            className="inline-flex items-center justify-center text-xs font-black px-2.5 py-1.5 rounded-lg shadow-sm"
+                            style={{ background: "#FF2D78", color: "#fff", fontFamily: "'Arial Black', sans-serif", letterSpacing: "0.02em" }}
+                          >
+                            NM
+                          </span>
+                        )}
+                        {u.badgeRequirementCount > 0 && (
+                          <span
+                            className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1.5 rounded-lg shadow-sm"
+                            style={{ background: "#FEF3C7", color: "#92400E", border: "1px solid #FDE68A" }}
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="#F59E0B" stroke="#92400E" strokeWidth="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
+                            {u.badgeRequirementCount}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
