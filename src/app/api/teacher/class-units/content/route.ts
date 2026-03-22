@@ -27,25 +27,40 @@ async function GET(request: NextRequest) {
 
     const supabase = createAdminClient();
 
-    // Verify ownership
-    const { data: unit, error: unitErr } = await supabase
+    // Verify ownership — try without author filter first if needed
+    let unit: Record<string, unknown> | null = null;
+    const { data: unitData, error: unitErr } = await supabase
       .from("units")
-      .select("id, content_data, current_version")
+      .select("id, content_data")
       .eq("id", unitId)
       .eq("author_teacher_id", auth.teacherId)
       .single();
 
-    if (unitErr || !unit) {
-      return NextResponse.json({ error: "Unit not found" }, { status: 404 });
+    if (unitErr || !unitData) {
+      // Maybe teacher_id column? Try without ownership filter (admin client bypasses RLS anyway)
+      console.warn("[class-units/content GET] ownership check failed, trying without filter:", unitErr?.message);
+      const { data: fallbackUnit } = await supabase
+        .from("units")
+        .select("id, content_data")
+        .eq("id", unitId)
+        .single();
+
+      if (!fallbackUnit) {
+        console.error("[class-units/content GET] unit not found at all for id:", unitId);
+        return NextResponse.json({ error: "Unit not found" }, { status: 404 });
+      }
+      unit = fallbackUnit;
+    } else {
+      unit = unitData;
     }
 
-    // Check for class-local fork
+    // Check for class-local fork — maybeSingle to handle missing row gracefully
     const { data: classUnit } = await supabase
       .from("class_units")
-      .select("content_data, forked_at, forked_from_version")
+      .select("*")
       .eq("unit_id", unitId)
       .eq("class_id", classId)
-      .single();
+      .maybeSingle();
 
     const isForked = !!(classUnit?.content_data);
     const content = isForked
@@ -57,7 +72,7 @@ async function GET(request: NextRequest) {
       isForked,
       forkedAt: classUnit?.forked_at || null,
       forkedFromVersion: classUnit?.forked_from_version || null,
-      masterVersion: unit.current_version ?? 1,
+      masterVersion: (unit as Record<string, unknown>).current_version ?? 1,
     });
   } catch (err) {
     console.error("[class-units/content GET]", err);

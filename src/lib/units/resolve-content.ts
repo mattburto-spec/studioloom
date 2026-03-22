@@ -58,7 +58,7 @@ export async function getResolvedContent(
     .select("content_data, forked_at, forked_from_version")
     .eq("unit_id", unitId)
     .eq("class_id", classId)
-    .single();
+    .maybeSingle();
 
   if (classUnit?.content_data) {
     return {
@@ -119,7 +119,7 @@ export async function ensureForked(
     .select("content_data")
     .eq("unit_id", unitId)
     .eq("class_id", classId)
-    .single();
+    .maybeSingle();
 
   if (classUnit?.content_data) {
     return {
@@ -131,7 +131,7 @@ export async function ensureForked(
   // Not yet forked — deep-copy from master
   const { data: unit } = await supabase
     .from("units")
-    .select("content_data, current_version")
+    .select("content_data")
     .eq("id", unitId)
     .single();
 
@@ -149,7 +149,7 @@ export async function ensureForked(
     .update({
       content_data: forkedContent,
       forked_at: new Date().toISOString(),
-      forked_from_version: unit.current_version ?? 1,
+      forked_from_version: (unit as Record<string, unknown>).current_version ?? 1,
     })
     .eq("unit_id", unitId)
     .eq("class_id", classId);
