@@ -486,27 +486,15 @@ function TwoColumnDashboard({
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <h3 className="text-xl font-extrabold text-text-primary leading-snug tracking-tight">{u.unitTitle}</h3>
-                        {/* Live stats row */}
-                        <div className="flex items-center gap-3 mt-2 flex-wrap">
-                          {u.inProgressCount > 0 && (
-                            <span className="inline-flex items-center gap-1 text-xs font-medium text-blue-600">
-                              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-                              {u.inProgressCount} working
-                            </span>
-                          )}
-                          {u.openStudioCount > 0 && (
-                            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-purple-600">
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                              {u.openStudioCount}
-                            </span>
-                          )}
-                          {u.isForked && (
+                        {/* Status badges */}
+                        {u.isForked && (
+                          <div className="mt-2">
                             <span className="inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
                               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="18" r="3" /><circle cx="6" cy="6" r="3" /><circle cx="18" cy="6" r="3" /><path d="M18 9v1a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V9" /><path d="M12 12v3" /></svg>
                               Customized
                             </span>
-                          )}
-                        </div>
+                          </div>
+                        )}
                       </div>
 
                       {/* Progress ring */}
@@ -545,6 +533,14 @@ function TwoColumnDashboard({
                         >
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
                           Edit Unit
+                        </Link>
+                        <Link
+                          href={`/teacher/classes/${u.classId}/progress/${u.unitId}`}
+                          className="inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl border-2 transition hover:bg-purple-50"
+                          style={{ borderColor: u.openStudioCount > 0 ? "#C4B5FD" : "#E5E7EB", color: u.openStudioCount > 0 ? "#7C3AED" : "#6B7280" }}
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                          Studio{u.openStudioCount > 0 && <span className="text-xs font-bold bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-md ml-0.5">{u.openStudioCount}</span>}
                         </Link>
                       </div>
 
