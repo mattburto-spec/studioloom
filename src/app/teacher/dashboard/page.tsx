@@ -420,8 +420,35 @@ function PageBadge({ pageId }: { pageId: string }) {
 }
 
 // ---------------------------------------------------------------------------
-// Three-Column Dashboard — Prepare / Deliver / Review
+// Three-Column Dashboard — Today / Deliver / Review
 // ---------------------------------------------------------------------------
+
+// Class color palette — deterministic per class index
+const CLASS_COLORS = [
+  { fill: "#3B82F6", light: "#EFF6FF" },  // blue
+  { fill: "#10B981", light: "#ECFDF5" },  // emerald
+  { fill: "#F59E0B", light: "#FFFBEB" },  // amber
+  { fill: "#8B5CF6", light: "#F5F3FF" },  // purple
+  { fill: "#EC4899", light: "#FDF2F8" },  // pink
+  { fill: "#06B6D4", light: "#ECFEFF" },  // cyan
+  { fill: "#F97316", light: "#FFF7ED" },  // orange
+  { fill: "#6366F1", light: "#EEF2FF" },  // indigo
+];
+
+function getClassColor(classIdx: number) {
+  return CLASS_COLORS[classIdx % CLASS_COLORS.length];
+}
+
+interface ScheduleEntry {
+  date: string;
+  cycleDay: number;
+  period?: number;
+  room?: string;
+  classId: string;
+  className: string;
+  unitId: string;
+  unitTitle: string;
+}
 
 function ThreeColumnDashboard({
   data,
@@ -430,6 +457,14 @@ function ThreeColumnDashboard({
   data: DashboardData;
   styleProfile: TeacherStyleProfile | null;
 }) {
+  const [schedule, setSchedule] = useState<ScheduleEntry[]>([]);
+  const [scheduleLoading, setScheduleLoading] = useState(true);
+  const [hasTimetable, setHasTimetable] = useState(false);
+
+  // Build class index map for consistent colors
+  const classIndexMap = new Map<string, number>();
+  data.classes.forEach((cls, idx) => classIndexMap.set(cls.id, idx));
+
   // Build flat list of all class-unit pairs
   const allItems: Array<{
     unitId: string; unitTitle: string; classId: string;
@@ -437,6 +472,7 @@ function ThreeColumnDashboard({
     studentCount: number; inProgressCount: number; totalPages: number;
     openStudioCount: number; nmEnabled: boolean; badgeRequirementCount: number;
     completedCount: number; notStartedCount: number;
+    classIdx: number;
   }> = [];
   const seen = new Set<string>();
   for (const cls of data.classes) {
@@ -453,151 +489,182 @@ function ThreeColumnDashboard({
           nmEnabled: u.nmEnabled ?? false,
           badgeRequirementCount: u.badgeRequirementCount ?? 0,
           completedCount: u.completedCount, notStartedCount: u.notStartedCount,
+          classIdx: classIndexMap.get(cls.id) ?? 0,
         });
       }
     }
   }
-
-  // Prepare column: units that need attention (low completion, badges, NM config)
-  const prepareItems = allItems.filter(
-    (u) => u.completionPct < 100
-  );
 
   // Deliver column: all teachable units (sorted by active students first)
   const deliverItems = [...allItems].sort(
     (a, b) => b.inProgressCount - a.inProgressCount
   );
 
-  // Review column: units with progress to review
+  // Review column: all units with any activity
   const reviewItems = allItems.filter(
     (u) => u.completionPct > 0 || u.inProgressCount > 0
   );
 
-  const COL_STYLES = {
-    prepare: {
-      headerBg: "linear-gradient(135deg, #3B82F6, #2563EB)",
-      headerIcon: (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-          <polyline points="14 2 14 8 20 8" />
-          <line x1="12" y1="18" x2="12" y2="12" />
-          <line x1="9" y1="15" x2="15" y2="15" />
-        </svg>
-      ),
-      accentColor: "#3B82F6",
-      lightBg: "#EFF6FF",
-      borderColor: "#BFDBFE",
-    },
-    deliver: {
-      headerBg: "linear-gradient(135deg, #7C3AED, #6D28D9)",
-      headerIcon: (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="2" y="3" width="20" height="14" rx="2" />
-          <path d="M8 21h8" />
-          <path d="M12 17v4" />
-          <polygon points="10 8 16 11 10 14" fill="white" stroke="none" />
-        </svg>
-      ),
-      accentColor: "#7C3AED",
-      lightBg: "#F5F3FF",
-      borderColor: "#DDD6FE",
-    },
-    review: {
-      headerBg: "linear-gradient(135deg, #10B981, #059669)",
-      headerIcon: (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
-        </svg>
-      ),
-      accentColor: "#10B981",
-      lightBg: "#ECFDF5",
-      borderColor: "#A7F3D0",
-    },
-  };
+  // Fetch today's schedule
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/teacher/timetable");
+        if (!res.ok) { setScheduleLoading(false); return; }
+        const tt = await res.json();
+        if (!tt.timetable) { setScheduleLoading(false); return; }
+        setHasTimetable(true);
+
+        // Get next 5 class dates
+        const schedRes = await fetch("/api/teacher/schedule/lessons?mode=calendar&days=7");
+        if (schedRes.ok) {
+          const schedData = await schedRes.json();
+          setSchedule(schedData.entries || []);
+        }
+      } catch {
+        // Timetable not set up — that's fine
+      } finally {
+        setScheduleLoading(false);
+      }
+    })();
+  }, []);
+
+  // Group schedule by date
+  const today = new Date().toISOString().split("T")[0];
+  const todayEntries = schedule.filter((e) => e.date === today);
+  const upcomingEntries = schedule.filter((e) => e.date > today).slice(0, 6);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
       {/* ═══════════════════════════════════════════════════════════════ */}
-      {/* PREPARE COLUMN                                                 */}
+      {/* TODAY'S SCHEDULE COLUMN                                        */}
       {/* ═══════════════════════════════════════════════════════════════ */}
       <div className="space-y-3">
-        <div
-          className="rounded-xl px-4 py-3 flex items-center gap-3"
-          style={{ background: COL_STYLES.prepare.headerBg }}
-        >
-          {COL_STYLES.prepare.headerIcon}
+        <div className="rounded-xl px-4 py-3 flex items-center gap-3" style={{ background: "linear-gradient(135deg, #3B82F6, #2563EB)" }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="4" width="18" height="18" rx="2" />
+            <line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
+          </svg>
           <div>
-            <h2 className="text-base font-bold text-white">Prepare</h2>
-            <p className="text-blue-100 text-xs">Set up & configure</p>
+            <h2 className="text-base font-bold text-white">Today</h2>
+            <p className="text-blue-100 text-xs">{new Date().toLocaleDateString("en-AU", { weekday: "long", day: "numeric", month: "short" })}</p>
           </div>
         </div>
 
-        {prepareItems.length === 0 ? (
-          <div className="bg-white rounded-xl border border-border p-6 text-center">
-            <p className="text-sm text-text-secondary">All units set up</p>
+        {scheduleLoading ? (
+          <div className="bg-white rounded-xl border border-border p-6">
+            <div className="animate-pulse space-y-3">
+              <div className="h-12 bg-gray-100 rounded-lg" />
+              <div className="h-12 bg-gray-100 rounded-lg" />
+            </div>
+          </div>
+        ) : !hasTimetable ? (
+          <div className="bg-white rounded-xl border border-blue-200 p-5 text-center">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="1.5" className="mx-auto mb-2">
+              <rect x="3" y="4" width="18" height="18" rx="2" />
+              <line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
+              <line x1="12" y1="14" x2="12" y2="18" /><line x1="10" y1="16" x2="14" y2="16" />
+            </svg>
+            <p className="text-sm font-semibold text-text-primary mb-1">Set up your timetable</p>
+            <p className="text-xs text-text-secondary mb-3">Add your class schedule to see today{"'"}s lessons here.</p>
+            <Link
+              href="/teacher/settings"
+              className="text-xs font-semibold px-4 py-2 rounded-lg text-white inline-block"
+              style={{ background: "#3B82F6" }}
+            >
+              Go to Settings
+            </Link>
+          </div>
+        ) : todayEntries.length === 0 && upcomingEntries.length === 0 ? (
+          <div className="bg-white rounded-xl border border-border p-5 text-center">
+            <p className="text-sm text-text-secondary">No classes scheduled today</p>
           </div>
         ) : (
-          prepareItems.map((u) => (
-            <div
-              key={`prep-${u.unitId}-${u.classId}`}
-              className="bg-white rounded-xl border overflow-hidden"
-              style={{ borderColor: COL_STYLES.prepare.borderColor }}
-            >
-              <div className="px-4 py-3">
-                <p className="text-sm font-semibold text-text-primary truncate">{u.unitTitle}</p>
-                <p className="text-xs text-text-secondary mt-0.5">{u.className} · {u.totalPages} pages</p>
-                <div className="flex items-center gap-2 mt-2 flex-wrap">
-                  {u.badgeRequirementCount > 0 && (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-bold rounded px-1.5 py-0.5" style={{ background: "#FEF3C7", color: "#92400E" }}>
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
-                      {u.badgeRequirementCount} badge{u.badgeRequirementCount !== 1 ? "s" : ""}
-                    </span>
-                  )}
-                  {u.nmEnabled && (
-                    <span className="inline-flex items-center text-[10px] font-black rounded px-1.5 py-0.5" style={{ background: "#FF2D78", color: "#fff", fontFamily: "'Arial Black', sans-serif" }}>
-                      NM
-                    </span>
-                  )}
-                  {u.openStudioCount > 0 && (
-                    <span className="text-[10px] font-medium text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded">
-                      {u.openStudioCount} in Studio
-                    </span>
-                  )}
+          <>
+            {/* Today's classes */}
+            {todayEntries.length > 0 && (
+              <div className="space-y-2">
+                {todayEntries.map((entry, idx) => {
+                  const cIdx = classIndexMap.get(entry.classId) ?? idx;
+                  const c = getClassColor(cIdx);
+                  return (
+                    <Link
+                      key={`today-${idx}`}
+                      href={`/teacher/teach/${entry.unitId}?classId=${entry.classId}`}
+                      className="flex rounded-xl overflow-hidden border border-gray-200 hover:shadow-md transition-all group"
+                    >
+                      <div className="w-20 flex flex-col items-center justify-center py-3 text-white" style={{ background: c.fill }}>
+                        {entry.period && <p className="text-[10px] font-semibold uppercase opacity-80">P{entry.period}</p>}
+                        <p className="text-sm font-bold">{entry.className}</p>
+                        {entry.room && <p className="text-[10px] opacity-70">{entry.room}</p>}
+                      </div>
+                      <div className="flex-1 px-3 py-2.5 bg-white group-hover:bg-gray-50 transition flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-text-primary truncate">{entry.unitTitle}</p>
+                          <p className="text-[11px] text-text-secondary">Day {entry.cycleDay}</p>
+                        </div>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2.5" className="shrink-0 opacity-0 group-hover:opacity-100 transition">
+                          <polygon points="6 3 20 12 6 21 6 3" fill="#7C3AED" stroke="none" />
+                        </svg>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Upcoming */}
+            {upcomingEntries.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-text-secondary mb-2 uppercase tracking-wide">Coming Up</p>
+                <div className="space-y-1.5">
+                  {upcomingEntries.map((entry, idx) => {
+                    const cIdx = classIndexMap.get(entry.classId) ?? idx;
+                    const c = getClassColor(cIdx);
+                    const d = new Date(entry.date + "T00:00:00");
+                    const dayName = d.toLocaleDateString("en-AU", { weekday: "short" });
+                    return (
+                      <div key={`up-${idx}`} className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-white border border-gray-100">
+                        <div className="w-2 h-8 rounded-full" style={{ background: c.fill }} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-text-primary truncate">{entry.className} — {entry.unitTitle}</p>
+                        </div>
+                        <span className="text-[11px] text-text-secondary whitespace-nowrap">{dayName}{entry.period ? ` P${entry.period}` : ""}</span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
-              <div className="px-4 py-2.5 flex gap-2 border-t" style={{ borderColor: COL_STYLES.prepare.borderColor, background: COL_STYLES.prepare.lightBg }}>
-                <Link
-                  href={`/teacher/units/${u.unitId}`}
-                  className="text-xs font-semibold px-3 py-1.5 rounded-lg transition hover:opacity-80"
-                  style={{ background: COL_STYLES.prepare.accentColor, color: "#fff" }}
-                >
-                  Edit Unit
-                </Link>
-                <Link
-                  href={`/teacher/units/${u.unitId}/class/${u.classId}`}
-                  className="text-xs font-medium px-3 py-1.5 rounded-lg border transition hover:bg-white"
-                  style={{ borderColor: COL_STYLES.prepare.borderColor, color: COL_STYLES.prepare.accentColor }}
-                >
-                  Class Settings
-                </Link>
-              </div>
-            </div>
-          ))
+            )}
+          </>
+        )}
+
+        {/* Teaching DNA at bottom of schedule column */}
+        {styleProfile && (
+          <CollapsibleSection
+            title="Teaching DNA"
+            icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" /><path d="M2 12h20" /></svg>}
+            subtitle={getArchetypeSummary(styleProfile)}
+            defaultOpen={false}
+          >
+            <TeachingDNA profile={styleProfile} />
+          </CollapsibleSection>
         )}
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════ */}
-      {/* DELIVER COLUMN                                                 */}
+      {/* DELIVER COLUMN — class color banner + unit title + actions     */}
       {/* ═══════════════════════════════════════════════════════════════ */}
       <div className="space-y-3">
-        <div
-          className="rounded-xl px-4 py-3 flex items-center gap-3"
-          style={{ background: COL_STYLES.deliver.headerBg }}
-        >
-          {COL_STYLES.deliver.headerIcon}
+        <div className="rounded-xl px-4 py-3 flex items-center gap-3" style={{ background: "linear-gradient(135deg, #7C3AED, #6D28D9)" }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="2" y="3" width="20" height="14" rx="2" />
+            <path d="M8 21h8" /><path d="M12 17v4" />
+            <polygon points="10 8 16 11 10 14" fill="white" stroke="none" />
+          </svg>
           <div>
             <h2 className="text-base font-bold text-white">Deliver</h2>
-            <p className="text-purple-100 text-xs">Teach & present</p>
+            <p className="text-purple-100 text-xs">Teach & manage</p>
           </div>
         </div>
 
@@ -606,69 +673,96 @@ function ThreeColumnDashboard({
             <p className="text-sm text-text-secondary">No units to teach yet</p>
           </div>
         ) : (
-          deliverItems.map((u) => (
-            <div
-              key={`deliver-${u.unitId}-${u.classId}`}
-              className="bg-white rounded-xl border overflow-hidden"
-              style={{ borderColor: COL_STYLES.deliver.borderColor }}
-            >
-              <div className="px-4 py-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-text-primary truncate">{u.unitTitle}</p>
-                    <p className="text-xs text-text-secondary mt-0.5">
-                      {u.className} · {u.studentCount} student{u.studentCount !== 1 ? "s" : ""}
-                    </p>
+          deliverItems.map((u) => {
+            const c = getClassColor(u.classIdx);
+            return (
+              <div
+                key={`deliver-${u.unitId}-${u.classId}`}
+                className="rounded-xl overflow-hidden border border-gray-200 hover:shadow-sm transition-shadow"
+              >
+                {/* Class color banner + unit title */}
+                <div className="flex">
+                  <div className="w-24 flex flex-col items-center justify-center py-3 text-white shrink-0" style={{ background: c.fill }}>
+                    <p className="text-xs font-bold leading-tight text-center px-1">{u.className}</p>
+                    <p className="text-[10px] opacity-75 mt-0.5">{u.studentCount} student{u.studentCount !== 1 ? "s" : ""}</p>
                   </div>
-                  {/* Mini progress ring */}
-                  <div className="relative w-9 h-9 flex-shrink-0">
-                    <svg viewBox="0 0 36 36" className="w-9 h-9 -rotate-90">
-                      <circle cx="18" cy="18" r="15" fill="none" stroke="#f3f4f6" strokeWidth="3" />
-                      <circle
-                        cx="18" cy="18" r="15" fill="none" strokeWidth="3"
-                        stroke={COL_STYLES.deliver.accentColor}
-                        strokeDasharray={`${u.completionPct * 0.942} 94.2`}
-                        strokeLinecap="round"
-                      />
-                    </svg>
-                    <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-text-secondary">
-                      {Math.round(u.completionPct)}%
-                    </span>
+                  <div className="flex-1 px-3 py-2.5 bg-white flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-text-primary truncate">{u.unitTitle}</p>
+                      <div className="flex items-center gap-2 mt-1 flex-wrap">
+                        {u.inProgressCount > 0 && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-medium text-blue-600">
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                            {u.inProgressCount} working
+                          </span>
+                        )}
+                        {u.openStudioCount > 0 && (
+                          <span className="text-[10px] font-medium text-purple-600">{u.openStudioCount} in Studio</span>
+                        )}
+                        {u.nmEnabled && (
+                          <span className="text-[9px] font-black px-1 py-0.5 rounded" style={{ background: "#FF2D78", color: "#fff", fontFamily: "'Arial Black', sans-serif" }}>NM</span>
+                        )}
+                        {u.badgeRequirementCount > 0 && (
+                          <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-700">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
+                            {u.badgeRequirementCount}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {/* Progress ring */}
+                    <div className="relative w-9 h-9 flex-shrink-0">
+                      <svg viewBox="0 0 36 36" className="w-9 h-9 -rotate-90">
+                        <circle cx="18" cy="18" r="15" fill="none" stroke="#f3f4f6" strokeWidth="3" />
+                        <circle cx="18" cy="18" r="15" fill="none" strokeWidth="3" stroke={c.fill} strokeDasharray={`${u.completionPct * 0.942} 94.2`} strokeLinecap="round" />
+                      </svg>
+                      <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-text-secondary">{Math.round(u.completionPct)}%</span>
+                    </div>
                   </div>
                 </div>
-                {u.inProgressCount > 0 && (
-                  <div className="mt-2 flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-                    <span className="text-xs font-medium text-blue-600">{u.inProgressCount} working now</span>
-                  </div>
-                )}
+                {/* Action buttons row */}
+                <div className="px-3 py-2 bg-gray-50 border-t border-gray-100 flex items-center gap-2">
+                  <Link
+                    href={`/teacher/teach/${u.unitId}?classId=${u.classId}`}
+                    className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg text-white shadow-sm transition hover:opacity-90"
+                    style={{ background: "linear-gradient(135deg, #7C3AED, #6D28D9)" }}
+                  >
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="white" stroke="none"><polygon points="6 3 20 12 6 21 6 3" /></svg>
+                    Teach
+                  </Link>
+                  <Link
+                    href={`/teacher/units/${u.unitId}`}
+                    className="text-xs font-medium px-3 py-1.5 rounded-lg border border-gray-200 text-text-secondary hover:bg-white transition"
+                  >
+                    Edit
+                  </Link>
+                  <Link
+                    href={`/teacher/units/${u.unitId}/class/${u.classId}`}
+                    className="text-xs font-medium px-3 py-1.5 rounded-lg border border-gray-200 text-text-secondary hover:bg-white transition"
+                  >
+                    Settings
+                  </Link>
+                  <Link
+                    href={`/teacher/classes/${u.classId}/progress/${u.unitId}`}
+                    className="text-xs font-medium px-3 py-1.5 rounded-lg border border-gray-200 text-text-secondary hover:bg-white transition ml-auto"
+                  >
+                    Progress
+                  </Link>
+                </div>
               </div>
-              <div className="px-4 py-2.5 border-t" style={{ borderColor: COL_STYLES.deliver.borderColor, background: COL_STYLES.deliver.lightBg }}>
-                <Link
-                  href={`/teacher/teach/${u.unitId}?classId=${u.classId}`}
-                  className="inline-flex items-center gap-2 text-sm font-bold px-4 py-2 rounded-lg transition hover:opacity-90 shadow-sm"
-                  style={{ background: COL_STYLES.deliver.headerBg, color: "#fff" }}
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="white" stroke="none">
-                    <polygon points="6 3 20 12 6 21 6 3" />
-                  </svg>
-                  Teach Now
-                </Link>
-              </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════ */}
-      {/* REVIEW COLUMN                                                  */}
+      {/* REVIEW COLUMN — progress + NM + pace + badges + activity      */}
       {/* ═══════════════════════════════════════════════════════════════ */}
       <div className="space-y-3">
-        <div
-          className="rounded-xl px-4 py-3 flex items-center gap-3"
-          style={{ background: COL_STYLES.review.headerBg }}
-        >
-          {COL_STYLES.review.headerIcon}
+        <div className="rounded-xl px-4 py-3 flex items-center gap-3" style={{ background: "linear-gradient(135deg, #10B981, #059669)" }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+          </svg>
           <div>
             <h2 className="text-base font-bold text-white">Review</h2>
             <p className="text-emerald-100 text-xs">Track & assess</p>
@@ -711,50 +805,54 @@ function ThreeColumnDashboard({
             <p className="text-sm text-text-secondary">No progress to review yet</p>
           </div>
         ) : (
-          reviewItems.map((u) => (
-            <div
-              key={`review-${u.unitId}-${u.classId}`}
-              className="bg-white rounded-xl border overflow-hidden"
-              style={{ borderColor: COL_STYLES.review.borderColor }}
-            >
-              <div className="px-4 py-3">
-                <p className="text-sm font-semibold text-text-primary truncate">{u.unitTitle}</p>
-                <p className="text-xs text-text-secondary mt-0.5">{u.className}</p>
-                {/* Progress bar */}
-                <div className="mt-2.5 flex items-center gap-2.5">
-                  <div className="flex-1 h-2 rounded-full bg-gray-100 overflow-hidden">
-                    <div
-                      className="h-2 rounded-full transition-all duration-700"
-                      style={{
-                        width: `${u.completionPct}%`,
-                        background: u.completionPct === 100
-                          ? COL_STYLES.review.accentColor
-                          : `linear-gradient(90deg, ${COL_STYLES.review.accentColor}, #34D399)`,
-                      }}
-                    />
+          reviewItems.map((u) => {
+            const c = getClassColor(u.classIdx);
+            return (
+              <div
+                key={`review-${u.unitId}-${u.classId}`}
+                className="bg-white rounded-xl border border-gray-200 overflow-hidden"
+              >
+                {/* Class + unit header */}
+                <div className="flex items-center gap-0">
+                  <div className="w-2 self-stretch" style={{ background: c.fill }} />
+                  <div className="flex-1 px-3 py-2.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded text-white" style={{ background: c.fill }}>{u.className}</span>
+                      <p className="text-sm font-semibold text-text-primary truncate">{u.unitTitle}</p>
+                    </div>
+                    {/* Progress bar */}
+                    <div className="mt-2 flex items-center gap-2.5">
+                      <div className="flex-1 h-2 rounded-full bg-gray-100 overflow-hidden">
+                        <div
+                          className="h-2 rounded-full transition-all duration-700"
+                          style={{
+                            width: `${u.completionPct}%`,
+                            background: u.completionPct === 100 ? "#10B981" : c.fill,
+                          }}
+                        />
+                      </div>
+                      <span className="text-xs font-bold" style={{ color: u.completionPct === 100 ? "#10B981" : "#6B7280" }}>
+                        {Math.round(u.completionPct)}%
+                      </span>
+                    </div>
+                    {/* Stats + badges row */}
+                    <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                      <span className="text-[11px] text-text-secondary">{u.completedCount} done · {u.inProgressCount} active · {u.notStartedCount} waiting</span>
+                      {u.nmEnabled && (
+                        <Link href={`/teacher/units/${u.unitId}/class/${u.classId}`} className="text-[9px] font-black px-1 py-0.5 rounded" style={{ background: "#FF2D78", color: "#fff", fontFamily: "'Arial Black', sans-serif" }}>NM</Link>
+                      )}
+                      {u.badgeRequirementCount > 0 && (
+                        <span className="inline-flex items-center gap-0.5 text-[10px] font-bold text-amber-700">
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
+                          {u.badgeRequirementCount}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <span className="text-xs font-bold" style={{ color: u.completionPct === 100 ? COL_STYLES.review.accentColor : "#6B7280" }}>
-                    {Math.round(u.completionPct)}%
-                  </span>
-                </div>
-                {/* Stats row */}
-                <div className="flex items-center gap-3 mt-2 text-[11px] text-text-secondary">
-                  <span>{u.completedCount} done</span>
-                  <span>{u.inProgressCount} active</span>
-                  <span>{u.notStartedCount} not started</span>
                 </div>
               </div>
-              <div className="px-4 py-2.5 border-t" style={{ borderColor: COL_STYLES.review.borderColor, background: COL_STYLES.review.lightBg }}>
-                <Link
-                  href={`/teacher/classes/${u.classId}/progress/${u.unitId}`}
-                  className="text-xs font-semibold px-3 py-1.5 rounded-lg transition hover:opacity-80"
-                  style={{ background: COL_STYLES.review.accentColor, color: "#fff" }}
-                >
-                  View Progress
-                </Link>
-              </div>
-            </div>
-          ))
+            );
+          })
         )}
 
         {/* Recent Activity */}
@@ -766,14 +864,8 @@ function ThreeColumnDashboard({
             </div>
             <div className="max-h-[200px] overflow-y-auto divide-y divide-border/50">
               {data.recentActivity.slice(0, 6).map((e, i) => (
-                <div
-                  key={`act-${e.studentId}-${e.pageId}-${i}`}
-                  className="px-4 py-2 flex items-center gap-2 text-xs"
-                >
-                  <span
-                    className="w-1.5 h-1.5 rounded-full shrink-0"
-                    style={{ background: e.status === "complete" ? "#10B981" : "#F59E0B" }}
-                  />
+                <div key={`act-${e.studentId}-${e.pageId}-${i}`} className="px-4 py-2 flex items-center gap-2 text-xs">
+                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: e.status === "complete" ? "#10B981" : "#F59E0B" }} />
                   <span className="font-medium text-text-primary truncate">{e.studentName}</span>
                   <span className="text-text-secondary truncate">{e.status === "complete" ? "completed" : "saved"}</span>
                   <span className="text-text-secondary ml-auto whitespace-nowrap">{timeAgo(e.updatedAt)}</span>
@@ -781,18 +873,6 @@ function ThreeColumnDashboard({
               ))}
             </div>
           </div>
-        )}
-
-        {/* Teaching DNA */}
-        {styleProfile && (
-          <CollapsibleSection
-            title="Teaching DNA"
-            icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" /><path d="M2 12h20" /></svg>}
-            subtitle={getArchetypeSummary(styleProfile)}
-            defaultOpen={false}
-          >
-            <TeachingDNA profile={styleProfile} />
-          </CollapsibleSection>
         )}
       </div>
     </div>
