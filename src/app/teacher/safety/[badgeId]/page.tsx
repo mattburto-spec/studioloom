@@ -362,7 +362,20 @@ export default function BadgeDetailPage() {
             </div>
 
             {/* Action Buttons */}
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2 items-center">
+              {/* BIG Teach Button — primary CTA for teachers */}
+              {!isEditMode && (
+                <button
+                  onClick={() => setActiveTab("teach")}
+                  className="inline-flex items-center gap-2.5 px-6 py-3 font-bold rounded-xl text-white text-base shadow-lg transition-all hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
+                  style={{ background: "linear-gradient(135deg, #7C3AED, #6D28D9, #5B21B6)" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "linear-gradient(135deg, #6D28D9, #5B21B6, #4C1D95)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "linear-gradient(135deg, #7C3AED, #6D28D9, #5B21B6)")}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="2" y="3" width="20" height="14" rx="2" /><path d="M8 21h8" /><path d="M12 17v4" /><polygon points="10 8 16 11 10 14" fill="currentColor" stroke="none" /></svg>
+                  Teach This
+                </button>
+              )}
               {badge.created_by_teacher_id && !badge.is_built_in && (
                 <>
                   <button
