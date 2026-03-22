@@ -89,21 +89,69 @@ async function POST(request: NextRequest) {
 
     const meetings = extractMeetings(result.classEvents, classes || []);
 
+    // Build enriched holiday list with labels (find original event name for each date)
+    const holidayDetails: Array<{ date: string; label: string }> = [];
+    const holidayDateSet = new Set<string>();
+    for (const event of result.events) {
+      const summaryLower = event.summary.toLowerCase();
+      const matchesKeyword = ["holiday", "break", "no school", "no classes", "public holiday",
+        "staff day", "pd day", "professional development", "inset day",
+        "teacher only", "pupil free", "student free", "vacation",
+        "mid-term", "midterm", "half term", "reading week"
+      ].some((kw) => summaryLower.includes(kw));
+      if (!matchesKeyword) continue;
+      const startDate = event.dtstart.split("T")[0];
+      if (!holidayDateSet.has(startDate)) {
+        holidayDateSet.add(startDate);
+        holidayDetails.push({ date: startDate, label: event.summary });
+      }
+      // Multi-day: add range dates with same label
+      if (event.dtend) {
+        const endDate = event.dtend.split("T")[0];
+        const s = new Date(startDate);
+        const e = new Date(endDate);
+        const d = new Date(s);
+        d.setDate(d.getDate() + 1);
+        while (d < e) {
+          const ds = d.toISOString().split("T")[0];
+          if (!holidayDateSet.has(ds)) {
+            holidayDateSet.add(ds);
+            holidayDetails.push({ date: ds, label: event.summary });
+          }
+          d.setDate(d.getDate() + 1);
+        }
+      }
+    }
+    holidayDetails.sort((a, b) => a.date.localeCompare(b.date));
+
+    // Build unmatched events with dates
+    const unmatchedWithDates = result.classEvents
+      .filter((e) => {
+        const summaryLower = e.summary.toLowerCase();
+        return !(classes || []).some((c) => {
+          const nameLower = c.name.toLowerCase();
+          return summaryLower.includes(nameLower) || nameLower.includes(summaryLower);
+        });
+      })
+      .map((e) => ({ summary: e.summary, date: e.dtstart.split("T")[0] }));
+
+    // Deduplicate unmatched by summary for the summary list
+    const unmatchedUnique = unmatchedWithDates
+      .map((e) => e.summary)
+      .filter((v, i, a) => a.indexOf(v) === i)
+      .slice(0, 20);
+
     return NextResponse.json({
       totalEvents: result.events.length,
       meetings,
       excludedDates: result.holidays,
-      unmatchedEvents: result.classEvents
-        .filter((e) => {
-          const summaryLower = e.summary.toLowerCase();
-          return !(classes || []).some((c) => {
-            const nameLower = c.name.toLowerCase();
-            return summaryLower.includes(nameLower) || nameLower.includes(summaryLower);
-          });
-        })
-        .map((e) => e.summary)
-        .filter((v, i, a) => a.indexOf(v) === i) // unique
-        .slice(0, 20),
+      holidayDetails,
+      unmatchedEvents: unmatchedUnique,
+      unmatchedWithDates: unmatchedWithDates.slice(0, 50),
+      // Class events summary for calendar preview
+      classEventDates: result.classEvents
+        .map((e) => ({ date: e.dtstart.split("T")[0], summary: e.summary }))
+        .slice(0, 200),
     });
   } catch (err) {
     console.error("[import-ical POST]", err);

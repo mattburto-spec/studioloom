@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import type { LMSProviderType } from "@/types";
 import { SchoolCalendarSetup } from "@/components/teacher/SchoolCalendarSetup";
+import ICalPreview from "@/components/teacher/ICalPreview";
+import type { ICalImportData } from "@/components/teacher/ICalPreview";
 
 type SettingsTab = "general" | "school" | "workshop" | "lms" | "ai";
 
@@ -127,6 +129,7 @@ export default function TeacherSettingsPage() {
   const [icalUrl, setIcalUrl] = useState("");
   const [icalParsing, setIcalParsing] = useState(false);
   const [icalMessage, setIcalMessage] = useState("");
+  const [icalPreviewData, setIcalPreviewData] = useState<ICalImportData | null>(null);
   // Temp state for adding a meeting
   const [newMeetingClassId, setNewMeetingClassId] = useState("");
   const [newMeetingCycleDay, setNewMeetingCycleDay] = useState<number>(1);
@@ -797,14 +800,8 @@ export default function TeacherSettingsPage() {
                         if (data.excludedDates?.length) {
                           setExcludedDates((prev) => [...new Set([...prev, ...data.excludedDates])]);
                         }
-                        let msg = `Imported ${data.meetings?.length || 0} class meetings and ${data.excludedDates?.length || 0} holidays (${data.totalEvents || 0} total events)`;
-                        if (data.unmatchedEvents?.length) {
-                          msg += `. ${data.unmatchedEvents.length} events didn't match any class: ${data.unmatchedEvents.slice(0, 5).join(", ")}${data.unmatchedEvents.length > 5 ? "..." : ""}`;
-                        }
-                        setIcalMessage(msg);
-                        if (!data.unmatchedEvents?.length) {
-                          setTimeout(() => setIcalMessage(""), 5000);
-                        }
+                        setIcalMessage(`Imported ${data.totalEvents || 0} events — see preview below`);
+                        setIcalPreviewData(data as ICalImportData);
                       } catch {
                         setIcalMessage("Network error");
                       } finally {
@@ -850,14 +847,8 @@ export default function TeacherSettingsPage() {
                           if (data.excludedDates?.length) {
                             setExcludedDates((prev) => [...new Set([...prev, ...data.excludedDates])]);
                           }
-                          let msg = `Imported ${data.meetings?.length || 0} class meetings and ${data.excludedDates?.length || 0} holidays (${data.totalEvents || 0} total events)`;
-                          if (data.unmatchedEvents?.length) {
-                            msg += `. ${data.unmatchedEvents.length} events didn't match any class: ${data.unmatchedEvents.slice(0, 5).join(", ")}${data.unmatchedEvents.length > 5 ? "..." : ""}`;
-                          }
-                          setIcalMessage(msg);
-                          if (!data.unmatchedEvents?.length) {
-                            setTimeout(() => setIcalMessage(""), 5000);
-                          }
+                          setIcalMessage(`Imported ${data.totalEvents || 0} events — see preview below`);
+                          setIcalPreviewData(data as ICalImportData);
                         } catch {
                           setIcalMessage("Upload failed");
                         } finally {
@@ -870,9 +861,18 @@ export default function TeacherSettingsPage() {
                 </div>
 
                 {icalMessage && (
-                  <p className={`mt-2 text-xs font-medium ${icalMessage.includes("Imported") ? "text-accent-green" : "text-amber-600"}`}>
+                  <p className={`mt-2 text-xs font-medium ${icalMessage.includes("Imported") || icalMessage.includes("events") ? "text-accent-green" : "text-amber-600"}`}>
                     {icalMessage}
                   </p>
+                )}
+
+                {/* Calendar preview after import */}
+                {icalPreviewData && (
+                  <ICalPreview
+                    data={icalPreviewData}
+                    classNames={classes}
+                    onClose={() => setIcalPreviewData(null)}
+                  />
                 )}
               </div>
 
