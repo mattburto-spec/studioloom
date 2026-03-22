@@ -966,9 +966,9 @@ export default function BadgeDetailPage() {
               <>
                 <h2 className="text-lg font-bold text-gray-900 mb-2 flex items-center gap-2">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
-                  Assign Test to Unit
+                  Assign Test to Active Unit
                 </h2>
-                <p className="text-sm text-gray-600 mb-4">Students in classes assigned to this unit must pass the safety test before they can access the unit content. The test will appear on their dashboard.</p>
+                <p className="text-sm text-gray-600 mb-4">These are your active units (currently assigned to a class). Students will see the safety test on their dashboard and can complete it at any time — unit content stays accessible.</p>
                 {units.length === 0 ? (
                   <p className="text-sm text-gray-500 py-4 text-center">Loading units...</p>
                 ) : (

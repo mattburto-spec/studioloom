@@ -53,24 +53,8 @@ export default function UnitPageView({
   const [nmCheckpoint, setNmCheckpoint] = useState<{ elements: Array<{ id: string; name: string; studentDescription: string; definition: string; color: string }> } | null>(null);
   const [showNmPulse, setShowNmPulse] = useState(false);
   const [nmCompleted, setNmCompleted] = useState(false);
-  const [badgeGateBlocked, setBadgeGateBlocked] = useState(false);
-  const [unmetBadges, setUnmetBadges] = useState<Array<{ badge_id: string; badge_name: string }>>([]);
-
-  // Check badge requirements for this unit
-  useEffect(() => {
-    fetch(`/api/student/safety/check-requirements?unitId=${unitId}`)
-      .then((r) => r.ok ? r.json() : null)
-      .then((d) => {
-        if (d && !d.all_met) {
-          const unmet = (d.requirements || []).filter((r: any) => r.is_required && !r.student_has);
-          if (unmet.length > 0) {
-            setUnmetBadges(unmet.map((r: any) => ({ badge_id: r.badge_id, badge_name: r.badge_name })));
-            setBadgeGateBlocked(true);
-          }
-        }
-      })
-      .catch(() => {});
-  }, [unitId]);
+  // Safety badge requirements are tracked but do NOT block lesson access.
+  // Teachers check completion status on their dashboard instead.
 
   // Fetch NM checkpoint config for this page
   useEffect(() => {
@@ -84,42 +68,6 @@ export default function UnitPageView({
 
   if (loading || !data || !currentPage) {
     return null; // Layout handles the loading state
-  }
-
-  // Badge gate — block access if safety requirements not met
-  if (badgeGateBlocked) {
-    return (
-      <div style={{ minHeight: "100vh", background: "#FFFBEB", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <div style={{ maxWidth: 480, width: "100%", padding: "32px 24px", textAlign: "center" }}>
-          <div style={{ width: 64, height: 64, borderRadius: "50%", background: "#FDE68A", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
-          </div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: "#92400E", marginBottom: 8 }}>Safety Tests Required</h1>
-          <p style={{ fontSize: 14, color: "#A16207", marginBottom: 24 }}>
-            You need to pass the following safety tests before you can access this unit.
-          </p>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 24 }}>
-            {unmetBadges.map((b) => (
-              <a
-                key={b.badge_id}
-                href={`/safety/${b.badge_id}`}
-                style={{
-                  display: "flex", alignItems: "center", justifyContent: "space-between",
-                  padding: "12px 16px", background: "white", borderRadius: 12,
-                  border: "2px solid #FDE68A", textDecoration: "none",
-                }}
-              >
-                <span style={{ fontWeight: 600, color: "#1F2937", fontSize: 14 }}>{b.badge_name}</span>
-                <span style={{ fontSize: 12, fontWeight: 600, color: "#D97706", background: "#FEF3C7", padding: "4px 10px", borderRadius: 6 }}>Take Test</span>
-              </a>
-            ))}
-          </div>
-          <a href="/dashboard" style={{ fontSize: 14, color: "#7C3AED", textDecoration: "none", fontWeight: 500 }}>
-            ← Back to Dashboard
-          </a>
-        </div>
-      </div>
-    );
   }
 
   const journeyMode = isV3(data.unit.content_data);
