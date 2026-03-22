@@ -134,7 +134,7 @@ export default function BadgeDetailPage() {
         body: JSON.stringify({ type: "unit", unitId: selectedUnitId }),
       });
       if (!res.ok) throw new Error("Failed to assign");
-      setAssignSuccess("Badge assigned to unit successfully!");
+      setAssignSuccess("Badge now required for this unit! Students will see the test on their dashboard.");
       setTimeout(() => { setShowAssignModal(false); setAssignSuccess(null); setAssignMode("choose"); }, 1500);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to assign");
@@ -363,7 +363,7 @@ export default function BadgeDetailPage() {
                   className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg transition-colors"
                 >
                   <PlusIcon />
-                  Assign
+                  Use Badge
                 </button>
               )}
             </div>
@@ -1009,7 +1009,7 @@ export default function BadgeDetailPage() {
                     className="flex-1 px-4 py-2 text-white font-medium rounded-lg transition-colors disabled:opacity-50"
                     style={{ background: selectedUnitId ? "linear-gradient(135deg, #7B2FF2, #5C16C5)" : "#ccc" }}
                   >
-                    {assignLoading ? "Assigning..." : "Assign"}
+                    {assignLoading ? "Saving..." : "Require Badge for Unit"}
                   </button>
                 </div>
               </>
@@ -1018,8 +1018,8 @@ export default function BadgeDetailPage() {
                 <button onClick={() => { setAssignMode("choose"); setSelectedClassId(null); setSelectedStudentIds([]); }} className="text-sm text-purple-600 hover:text-purple-800 mb-4 flex items-center gap-1">
                   <BackArrowIcon /> Back
                 </button>
-                <h2 className="text-lg font-bold text-gray-900 mb-2">Grant to Students</h2>
-                <p className="text-sm text-gray-600 mb-4">Select a class, then pick students to award this badge.</p>
+                <h2 className="text-lg font-bold text-gray-900 mb-2">Grant Badge Directly</h2>
+                <p className="text-sm text-gray-600 mb-4">Select a class, then pick students to award this badge to — they won't need to take the test.</p>
 
                 {/* Class selector */}
                 {classes.length === 0 ? (

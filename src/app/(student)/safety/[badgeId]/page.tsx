@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, use } from "react";
 import { useRouter } from "next/navigation";
 import { useStudent } from "../../student-context";
 
@@ -43,11 +43,11 @@ interface Answer {
 export default function SafetyBadgeTestPage({
   params,
 }: {
-  params: { badgeId: string };
+  params: Promise<{ badgeId: string }>;
 }) {
   const router = useRouter();
   const { student } = useStudent();
-  const badgeId = params.badgeId;
+  const { badgeId } = use(params);
 
   // Badge data
   const [badge, setBadge] = useState<Badge | null>(null);

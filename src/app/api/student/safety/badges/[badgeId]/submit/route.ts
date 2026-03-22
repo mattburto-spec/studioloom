@@ -71,12 +71,12 @@ function answersMatch(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { badgeId: string } }
+  { params }: { params: Promise<{ badgeId: string }> }
 ) {
   const auth = await requireStudentAuth(request);
   if (auth.error) return auth.error;
   const studentId = auth.studentId;
-  const { badgeId } = params;
+  const { badgeId } = await params;
 
   try {
     const body = await request.json() as {

@@ -20,12 +20,12 @@ import * as Sentry from "@sentry/nextjs";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { badgeId: string } }
+  { params }: { params: Promise<{ badgeId: string }> }
 ) {
   const auth = await requireStudentAuth(request);
   if (auth.error) return auth.error;
   const studentId = auth.studentId;
-  const { badgeId } = params;
+  const { badgeId } = await params;
 
   try {
     const supabase = createAdminClient();
