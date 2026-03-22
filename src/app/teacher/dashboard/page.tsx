@@ -155,93 +155,6 @@ export default function TeacherDashboard() {
         </button>
       </div>
 
-      {/* ================================================================= */}
-      {/* Row 2 — Needs Attention bar (compact, single-line alerts)         */}
-      {/* Replaces the old 50%-width panel. Scannable in <2 seconds.        */}
-      {/* ================================================================= */}
-      {hasClasses && (
-        <AttentionBar stuckStudents={data!.stuckStudents} />
-      )}
-
-      {/* ================================================================= */}
-      {/* Row 3 — Teach Now cards                                            */}
-      {/* ================================================================= */}
-      {hasClasses && (() => {
-        const teachableUnits: Array<{
-          unitId: string; unitTitle: string; classId: string;
-          className: string; classCode: string; completionPct: number;
-          studentCount: number; inProgressCount: number;
-        }> = [];
-        const seenUnits = new Set<string>();
-        for (const cls of data!.classes) {
-          for (const u of cls.units) {
-            const key = `${u.unitId}-${cls.id}`;
-            if (!seenUnits.has(key)) {
-              seenUnits.add(key);
-              teachableUnits.push({
-                unitId: u.unitId,
-                unitTitle: u.unitTitle,
-                classId: cls.id,
-                className: cls.name,
-                classCode: cls.code,
-                completionPct: u.completionPct,
-                studentCount: cls.studentCount,
-                inProgressCount: u.inProgressCount,
-              });
-            }
-          }
-        }
-        if (teachableUnits.length === 0) return null;
-        return (
-          <div className="mb-6">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-sm font-bold text-text-primary">Teach Now</span>
-              <span className="text-xs text-text-secondary">One click to start</span>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {teachableUnits.map((u) => (
-                <Link
-                  key={`${u.unitId}-${u.classId}`}
-                  href={`/teacher/teach/${u.unitId}?classId=${u.classId}`}
-                  className="group bg-white rounded-xl border border-border p-3.5 hover:border-purple-300 hover:shadow-md transition-all flex items-center gap-3"
-                >
-                  <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="white" stroke="none">
-                      <polygon points="6 3 20 12 6 21 6 3" />
-                    </svg>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-text-primary truncate group-hover:text-purple-700 transition-colors">
-                      {u.unitTitle}
-                    </p>
-                    <p className="text-[11px] text-text-secondary truncate">
-                      {u.className} · {u.studentCount} student{u.studentCount !== 1 ? "s" : ""}
-                      {u.inProgressCount > 0 && (
-                        <span className="text-blue-500 font-medium"> · {u.inProgressCount} working</span>
-                      )}
-                    </p>
-                  </div>
-                  {/* Mini progress ring */}
-                  <div className="relative w-8 h-8 flex-shrink-0">
-                    <svg viewBox="0 0 36 36" className="w-8 h-8 -rotate-90">
-                      <circle cx="18" cy="18" r="15" fill="none" stroke="#f3f4f6" strokeWidth="3" />
-                      <circle
-                        cx="18" cy="18" r="15" fill="none" stroke="#7C3AED" strokeWidth="3"
-                        strokeDasharray={`${u.completionPct * 0.942} 94.2`}
-                        strokeLinecap="round"
-                      />
-                    </svg>
-                    <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-text-secondary">
-                      {Math.round(u.completionPct)}%
-                    </span>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </div>
-        );
-      })()}
-
       {!hasClasses ? (
         <div className="bg-white rounded-2xl p-16 text-center border border-border shadow-sm">
           <div className="w-16 h-16 rounded-2xl bg-brand-purple/10 flex items-center justify-center mx-auto mb-4">
@@ -255,38 +168,7 @@ export default function TeacherDashboard() {
           </p>
         </div>
       ) : (
-        <>
-          {/* ============================================================= */}
-          {/* Row 4 — Class Overview (main content)                         */}
-          {/* ============================================================= */}
-          <ClassOverviewSection classes={data!.classes} />
-
-          {/* ============================================================= */}
-          {/* Row 5 — Secondary panels: Activity + Teaching DNA (compact)   */}
-          {/* Collapsed by default. Teachers expand if they need them.      */}
-          {/* ============================================================= */}
-          <div className="mt-6 space-y-3">
-            <CollapsibleSection
-              title="Recent Activity"
-              icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2E86AB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>}
-              count={data!.recentActivity.length}
-              defaultOpen={false}
-            >
-              <CompactActivityFeed events={data!.recentActivity} />
-            </CollapsibleSection>
-
-            {styleProfile && (
-              <CollapsibleSection
-                title="Your Teaching DNA"
-                icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7B2FF2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" /><path d="M2 12h20" /></svg>}
-                subtitle={getArchetypeSummary(styleProfile)}
-                defaultOpen={false}
-              >
-                <TeachingDNA profile={styleProfile} />
-              </CollapsibleSection>
-            )}
-          </div>
-        </>
+        <ThreeColumnDashboard data={data!} styleProfile={styleProfile} />
       )}
 
       {/* Create class modal */}
@@ -534,6 +416,386 @@ function PageBadge({ pageId }: { pageId: string }) {
     <span className={`inline-block px-1.5 py-0.5 rounded-md text-[11px] font-mono font-semibold ${classes}`}>
       {pageId}
     </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Three-Column Dashboard — Prepare / Deliver / Review
+// ---------------------------------------------------------------------------
+
+function ThreeColumnDashboard({
+  data,
+  styleProfile,
+}: {
+  data: DashboardData;
+  styleProfile: TeacherStyleProfile | null;
+}) {
+  // Build flat list of all class-unit pairs
+  const allItems: Array<{
+    unitId: string; unitTitle: string; classId: string;
+    className: string; classCode: string; completionPct: number;
+    studentCount: number; inProgressCount: number; totalPages: number;
+    openStudioCount: number; nmEnabled: boolean; badgeRequirementCount: number;
+    completedCount: number; notStartedCount: number;
+  }> = [];
+  const seen = new Set<string>();
+  for (const cls of data.classes) {
+    for (const u of cls.units) {
+      const key = `${u.unitId}-${cls.id}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        allItems.push({
+          unitId: u.unitId, unitTitle: u.unitTitle,
+          classId: cls.id, className: cls.name, classCode: cls.code,
+          completionPct: u.completionPct, studentCount: cls.studentCount,
+          inProgressCount: u.inProgressCount, totalPages: u.totalPages,
+          openStudioCount: u.openStudioCount ?? 0,
+          nmEnabled: u.nmEnabled ?? false,
+          badgeRequirementCount: u.badgeRequirementCount ?? 0,
+          completedCount: u.completedCount, notStartedCount: u.notStartedCount,
+        });
+      }
+    }
+  }
+
+  // Prepare column: units that need attention (low completion, badges, NM config)
+  const prepareItems = allItems.filter(
+    (u) => u.completionPct < 100
+  );
+
+  // Deliver column: all teachable units (sorted by active students first)
+  const deliverItems = [...allItems].sort(
+    (a, b) => b.inProgressCount - a.inProgressCount
+  );
+
+  // Review column: units with progress to review
+  const reviewItems = allItems.filter(
+    (u) => u.completionPct > 0 || u.inProgressCount > 0
+  );
+
+  const COL_STYLES = {
+    prepare: {
+      headerBg: "linear-gradient(135deg, #3B82F6, #2563EB)",
+      headerIcon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+          <line x1="12" y1="18" x2="12" y2="12" />
+          <line x1="9" y1="15" x2="15" y2="15" />
+        </svg>
+      ),
+      accentColor: "#3B82F6",
+      lightBg: "#EFF6FF",
+      borderColor: "#BFDBFE",
+    },
+    deliver: {
+      headerBg: "linear-gradient(135deg, #7C3AED, #6D28D9)",
+      headerIcon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="2" y="3" width="20" height="14" rx="2" />
+          <path d="M8 21h8" />
+          <path d="M12 17v4" />
+          <polygon points="10 8 16 11 10 14" fill="white" stroke="none" />
+        </svg>
+      ),
+      accentColor: "#7C3AED",
+      lightBg: "#F5F3FF",
+      borderColor: "#DDD6FE",
+    },
+    review: {
+      headerBg: "linear-gradient(135deg, #10B981, #059669)",
+      headerIcon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+        </svg>
+      ),
+      accentColor: "#10B981",
+      lightBg: "#ECFDF5",
+      borderColor: "#A7F3D0",
+    },
+  };
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* PREPARE COLUMN                                                 */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      <div className="space-y-3">
+        <div
+          className="rounded-xl px-4 py-3 flex items-center gap-3"
+          style={{ background: COL_STYLES.prepare.headerBg }}
+        >
+          {COL_STYLES.prepare.headerIcon}
+          <div>
+            <h2 className="text-base font-bold text-white">Prepare</h2>
+            <p className="text-blue-100 text-xs">Set up & configure</p>
+          </div>
+        </div>
+
+        {prepareItems.length === 0 ? (
+          <div className="bg-white rounded-xl border border-border p-6 text-center">
+            <p className="text-sm text-text-secondary">All units set up</p>
+          </div>
+        ) : (
+          prepareItems.map((u) => (
+            <div
+              key={`prep-${u.unitId}-${u.classId}`}
+              className="bg-white rounded-xl border overflow-hidden"
+              style={{ borderColor: COL_STYLES.prepare.borderColor }}
+            >
+              <div className="px-4 py-3">
+                <p className="text-sm font-semibold text-text-primary truncate">{u.unitTitle}</p>
+                <p className="text-xs text-text-secondary mt-0.5">{u.className} · {u.totalPages} pages</p>
+                <div className="flex items-center gap-2 mt-2 flex-wrap">
+                  {u.badgeRequirementCount > 0 && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-bold rounded px-1.5 py-0.5" style={{ background: "#FEF3C7", color: "#92400E" }}>
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
+                      {u.badgeRequirementCount} badge{u.badgeRequirementCount !== 1 ? "s" : ""}
+                    </span>
+                  )}
+                  {u.nmEnabled && (
+                    <span className="inline-flex items-center text-[10px] font-black rounded px-1.5 py-0.5" style={{ background: "#FF2D78", color: "#fff", fontFamily: "'Arial Black', sans-serif" }}>
+                      NM
+                    </span>
+                  )}
+                  {u.openStudioCount > 0 && (
+                    <span className="text-[10px] font-medium text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded">
+                      {u.openStudioCount} in Studio
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="px-4 py-2.5 flex gap-2 border-t" style={{ borderColor: COL_STYLES.prepare.borderColor, background: COL_STYLES.prepare.lightBg }}>
+                <Link
+                  href={`/teacher/units/${u.unitId}`}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-lg transition hover:opacity-80"
+                  style={{ background: COL_STYLES.prepare.accentColor, color: "#fff" }}
+                >
+                  Edit Unit
+                </Link>
+                <Link
+                  href={`/teacher/units/${u.unitId}/class/${u.classId}`}
+                  className="text-xs font-medium px-3 py-1.5 rounded-lg border transition hover:bg-white"
+                  style={{ borderColor: COL_STYLES.prepare.borderColor, color: COL_STYLES.prepare.accentColor }}
+                >
+                  Class Settings
+                </Link>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* DELIVER COLUMN                                                 */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      <div className="space-y-3">
+        <div
+          className="rounded-xl px-4 py-3 flex items-center gap-3"
+          style={{ background: COL_STYLES.deliver.headerBg }}
+        >
+          {COL_STYLES.deliver.headerIcon}
+          <div>
+            <h2 className="text-base font-bold text-white">Deliver</h2>
+            <p className="text-purple-100 text-xs">Teach & present</p>
+          </div>
+        </div>
+
+        {deliverItems.length === 0 ? (
+          <div className="bg-white rounded-xl border border-border p-6 text-center">
+            <p className="text-sm text-text-secondary">No units to teach yet</p>
+          </div>
+        ) : (
+          deliverItems.map((u) => (
+            <div
+              key={`deliver-${u.unitId}-${u.classId}`}
+              className="bg-white rounded-xl border overflow-hidden"
+              style={{ borderColor: COL_STYLES.deliver.borderColor }}
+            >
+              <div className="px-4 py-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-text-primary truncate">{u.unitTitle}</p>
+                    <p className="text-xs text-text-secondary mt-0.5">
+                      {u.className} · {u.studentCount} student{u.studentCount !== 1 ? "s" : ""}
+                    </p>
+                  </div>
+                  {/* Mini progress ring */}
+                  <div className="relative w-9 h-9 flex-shrink-0">
+                    <svg viewBox="0 0 36 36" className="w-9 h-9 -rotate-90">
+                      <circle cx="18" cy="18" r="15" fill="none" stroke="#f3f4f6" strokeWidth="3" />
+                      <circle
+                        cx="18" cy="18" r="15" fill="none" strokeWidth="3"
+                        stroke={COL_STYLES.deliver.accentColor}
+                        strokeDasharray={`${u.completionPct * 0.942} 94.2`}
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                    <span className="absolute inset-0 flex items-center justify-center text-[9px] font-bold text-text-secondary">
+                      {Math.round(u.completionPct)}%
+                    </span>
+                  </div>
+                </div>
+                {u.inProgressCount > 0 && (
+                  <div className="mt-2 flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                    <span className="text-xs font-medium text-blue-600">{u.inProgressCount} working now</span>
+                  </div>
+                )}
+              </div>
+              <div className="px-4 py-2.5 border-t" style={{ borderColor: COL_STYLES.deliver.borderColor, background: COL_STYLES.deliver.lightBg }}>
+                <Link
+                  href={`/teacher/teach/${u.unitId}?classId=${u.classId}`}
+                  className="inline-flex items-center gap-2 text-sm font-bold px-4 py-2 rounded-lg transition hover:opacity-90 shadow-sm"
+                  style={{ background: COL_STYLES.deliver.headerBg, color: "#fff" }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="white" stroke="none">
+                    <polygon points="6 3 20 12 6 21 6 3" />
+                  </svg>
+                  Teach Now
+                </Link>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      {/* REVIEW COLUMN                                                  */}
+      {/* ═══════════════════════════════════════════════════════════════ */}
+      <div className="space-y-3">
+        <div
+          className="rounded-xl px-4 py-3 flex items-center gap-3"
+          style={{ background: COL_STYLES.review.headerBg }}
+        >
+          {COL_STYLES.review.headerIcon}
+          <div>
+            <h2 className="text-base font-bold text-white">Review</h2>
+            <p className="text-emerald-100 text-xs">Track & assess</p>
+          </div>
+        </div>
+
+        {/* Stuck students alert */}
+        {data.stuckStudents.length > 0 && (
+          <div className="bg-amber-50 rounded-xl border border-amber-200 px-4 py-3">
+            <div className="flex items-center gap-2 mb-2">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+              <span className="text-xs font-bold text-amber-800">{data.stuckStudents.length} student{data.stuckStudents.length !== 1 ? "s" : ""} stuck</span>
+            </div>
+            <div className="space-y-1.5">
+              {data.stuckStudents.slice(0, 4).map((s) => (
+                <Link
+                  key={`stuck-${s.studentId}-${s.unitId}`}
+                  href={`/teacher/classes/${s.classId}/progress/${s.unitId}`}
+                  className="flex items-center gap-2 text-xs hover:bg-amber-100/60 rounded-lg px-2 py-1.5 transition"
+                >
+                  <div className="w-5 h-5 rounded-full bg-amber-200 text-amber-800 flex items-center justify-center text-[10px] font-bold shrink-0">
+                    {(s.studentName[0] || "?").toUpperCase()}
+                  </div>
+                  <span className="text-amber-900 font-medium truncate">{s.studentName}</span>
+                  <span className="text-amber-600 ml-auto whitespace-nowrap">{formatStuckTime(s.hoursSinceUpdate)}</span>
+                </Link>
+              ))}
+              {data.stuckStudents.length > 4 && (
+                <p className="text-[10px] text-amber-600 text-center">+{data.stuckStudents.length - 4} more</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {reviewItems.length === 0 && data.stuckStudents.length === 0 ? (
+          <div className="bg-white rounded-xl border border-border p-6 text-center">
+            <p className="text-sm text-text-secondary">No progress to review yet</p>
+          </div>
+        ) : (
+          reviewItems.map((u) => (
+            <div
+              key={`review-${u.unitId}-${u.classId}`}
+              className="bg-white rounded-xl border overflow-hidden"
+              style={{ borderColor: COL_STYLES.review.borderColor }}
+            >
+              <div className="px-4 py-3">
+                <p className="text-sm font-semibold text-text-primary truncate">{u.unitTitle}</p>
+                <p className="text-xs text-text-secondary mt-0.5">{u.className}</p>
+                {/* Progress bar */}
+                <div className="mt-2.5 flex items-center gap-2.5">
+                  <div className="flex-1 h-2 rounded-full bg-gray-100 overflow-hidden">
+                    <div
+                      className="h-2 rounded-full transition-all duration-700"
+                      style={{
+                        width: `${u.completionPct}%`,
+                        background: u.completionPct === 100
+                          ? COL_STYLES.review.accentColor
+                          : `linear-gradient(90deg, ${COL_STYLES.review.accentColor}, #34D399)`,
+                      }}
+                    />
+                  </div>
+                  <span className="text-xs font-bold" style={{ color: u.completionPct === 100 ? COL_STYLES.review.accentColor : "#6B7280" }}>
+                    {Math.round(u.completionPct)}%
+                  </span>
+                </div>
+                {/* Stats row */}
+                <div className="flex items-center gap-3 mt-2 text-[11px] text-text-secondary">
+                  <span>{u.completedCount} done</span>
+                  <span>{u.inProgressCount} active</span>
+                  <span>{u.notStartedCount} not started</span>
+                </div>
+              </div>
+              <div className="px-4 py-2.5 border-t" style={{ borderColor: COL_STYLES.review.borderColor, background: COL_STYLES.review.lightBg }}>
+                <Link
+                  href={`/teacher/classes/${u.classId}/progress/${u.unitId}`}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-lg transition hover:opacity-80"
+                  style={{ background: COL_STYLES.review.accentColor, color: "#fff" }}
+                >
+                  View Progress
+                </Link>
+              </div>
+            </div>
+          ))
+        )}
+
+        {/* Recent Activity */}
+        {data.recentActivity.length > 0 && (
+          <div className="bg-white rounded-xl border border-border overflow-hidden">
+            <div className="px-4 py-2.5 border-b border-border flex items-center gap-2">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>
+              <span className="text-xs font-semibold text-text-primary">Recent Activity</span>
+            </div>
+            <div className="max-h-[200px] overflow-y-auto divide-y divide-border/50">
+              {data.recentActivity.slice(0, 6).map((e, i) => (
+                <div
+                  key={`act-${e.studentId}-${e.pageId}-${i}`}
+                  className="px-4 py-2 flex items-center gap-2 text-xs"
+                >
+                  <span
+                    className="w-1.5 h-1.5 rounded-full shrink-0"
+                    style={{ background: e.status === "complete" ? "#10B981" : "#F59E0B" }}
+                  />
+                  <span className="font-medium text-text-primary truncate">{e.studentName}</span>
+                  <span className="text-text-secondary truncate">{e.status === "complete" ? "completed" : "saved"}</span>
+                  <span className="text-text-secondary ml-auto whitespace-nowrap">{timeAgo(e.updatedAt)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Teaching DNA */}
+        {styleProfile && (
+          <CollapsibleSection
+            title="Teaching DNA"
+            icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" /><path d="M2 12h20" /></svg>}
+            subtitle={getArchetypeSummary(styleProfile)}
+            defaultOpen={false}
+          >
+            <TeachingDNA profile={styleProfile} />
+          </CollapsibleSection>
+        )}
+      </div>
+    </div>
   );
 }
 
