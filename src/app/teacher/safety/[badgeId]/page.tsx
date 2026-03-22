@@ -106,9 +106,9 @@ export default function BadgeDetailPage() {
           studentMap.set(c.id, c.students || []);
         }
         const merged = (dashData.classes || []).map((cls: any) => ({
-          id: cls.classId,
-          name: cls.className,
-          students: studentMap.get(cls.classId) || [],
+          id: cls.id,
+          name: cls.name,
+          students: studentMap.get(cls.id) || [],
           units: (cls.units || []).map((u: any) => ({ unitId: u.unitId, unitTitle: u.unitTitle })),
         }));
         setClassesWithUnits(merged);
