@@ -15,6 +15,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/tools") ||
     pathname.startsWith("/toolkit") ||
     pathname.startsWith("/safety/projector") ||
+    pathname.startsWith("/api/public/") ||
     pathname.startsWith("/_next/") ||
     pathname.startsWith("/favicon")
   ) {
