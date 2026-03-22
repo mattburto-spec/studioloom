@@ -334,86 +334,83 @@ export default function BadgeDetailPage() {
             </div>
           )}
           <div className="p-6">
-          <div className="flex items-start justify-between mb-4">
-            <div className="flex items-start gap-4">
-              {/* Title + Info */}
-              <div>
-                <div className="flex items-center gap-3 mb-2">
-                  <h1 className="text-3xl font-bold text-gray-900">
-                    {badge.name}
-                  </h1>
-                  <span className={`text-xs font-semibold px-3 py-1 rounded-full border ${
-                    badge.category === "safety"
-                      ? "bg-red-50 border-red-200 text-red-700"
-                      : badge.category === "skill"
-                      ? "bg-blue-50 border-blue-200 text-blue-700"
-                      : "bg-purple-50 border-purple-200 text-purple-700"
-                  }`}>
-                    {badge.category.charAt(0).toUpperCase() + badge.category.slice(1)}
-                  </span>
-                  <span className="text-xs font-semibold px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700">
-                    Tier {badge.tier}
-                  </span>
-                </div>
-                {badge.description && (
-                  <p className="text-gray-600">{badge.description}</p>
-                )}
-              </div>
+          <div className="mb-4">
+            {/* Title + Tags */}
+            <div className="flex items-center gap-3 mb-2">
+              <h1 className="text-3xl font-bold text-gray-900">
+                {badge.name}
+              </h1>
+              <span className={`text-xs font-semibold px-3 py-1 rounded-full border ${
+                badge.category === "safety"
+                  ? "bg-red-50 border-red-200 text-red-700"
+                  : badge.category === "skill"
+                  ? "bg-blue-50 border-blue-200 text-blue-700"
+                  : "bg-purple-50 border-purple-200 text-purple-700"
+              }`}>
+                {badge.category.charAt(0).toUpperCase() + badge.category.slice(1)}
+              </span>
+              <span className="text-xs font-semibold px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-700">
+                Tier {badge.tier}
+              </span>
             </div>
+            {badge.description && (
+              <p className="text-gray-600 mb-4">{badge.description}</p>
+            )}
 
-            {/* Action Buttons */}
-            <div className="flex flex-wrap gap-2 items-center">
-              {/* BIG Teach Button — primary CTA for teachers */}
+            {/* Action Buttons — horizontal row below description */}
+            <div className="flex flex-wrap gap-2.5 items-center">
+              {/* Teach This — primary CTA */}
               {!isEditMode && (
                 <button
                   onClick={() => setActiveTab("teach")}
-                  className="inline-flex items-center gap-2.5 px-6 py-3 font-bold rounded-xl text-white text-base shadow-lg transition-all hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
+                  className="inline-flex items-center gap-2.5 px-6 py-2.5 font-bold rounded-xl text-white text-sm shadow-md transition-all hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]"
                   style={{ background: "linear-gradient(135deg, #7C3AED, #6D28D9, #5B21B6)" }}
                   onMouseEnter={(e) => (e.currentTarget.style.background = "linear-gradient(135deg, #6D28D9, #5B21B6, #4C1D95)")}
                   onMouseLeave={(e) => (e.currentTarget.style.background = "linear-gradient(135deg, #7C3AED, #6D28D9, #5B21B6)")}
                 >
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="2" y="3" width="20" height="14" rx="2" /><path d="M8 21h8" /><path d="M12 17v4" /><polygon points="10 8 16 11 10 14" fill="currentColor" stroke="none" /></svg>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="2" y="3" width="20" height="14" rx="2" /><path d="M8 21h8" /><path d="M12 17v4" /><polygon points="10 8 16 11 10 14" fill="currentColor" stroke="none" /></svg>
                   Teach This
                 </button>
               )}
-              {badge.created_by_teacher_id && !badge.is_built_in && (
-                <>
-                  <button
-                    onClick={() => setIsEditMode(!isEditMode)}
-                    className={`inline-flex items-center gap-2 px-4 py-2 font-medium rounded-lg transition-colors ${
-                      isEditMode
-                        ? "bg-amber-100 hover:bg-amber-200 text-amber-700"
-                        : "bg-gray-100 hover:bg-gray-200 text-gray-700"
-                    }`}
-                  >
-                    <EditIcon />
-                    {isEditMode ? "Cancel Edit" : "Edit"}
-                  </button>
-                </>
-              )}
+              {/* Assign Test */}
               {!isEditMode && (
-                <>
-                  <button
-                    onClick={() => { setAssignMode("unit"); fetchClassesWithUnits(); setShowAssignModal(true); }}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 font-semibold rounded-lg transition-colors text-sm"
-                    style={{ background: "#F59E0B", color: "#78350F" }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = "#D97706")}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = "#F59E0B")}
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
-                    Assign Test
-                  </button>
-                  <button
-                    onClick={() => { setAssignMode("student"); fetchClassesWithUnits(); setShowAssignModal(true); }}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 font-semibold rounded-lg transition-colors text-sm"
-                    style={{ background: "#10B981", color: "#fff" }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = "#059669")}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = "#10B981")}
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
-                    Award Badge
-                  </button>
-                </>
+                <button
+                  onClick={() => { setAssignMode("unit"); fetchClassesWithUnits(); setShowAssignModal(true); }}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 font-semibold rounded-lg transition-colors text-sm"
+                  style={{ background: "#F59E0B", color: "#78350F" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "#D97706")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "#F59E0B")}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
+                  Assign Test
+                </button>
+              )}
+              {/* Award Badge */}
+              {!isEditMode && (
+                <button
+                  onClick={() => { setAssignMode("student"); fetchClassesWithUnits(); setShowAssignModal(true); }}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 font-semibold rounded-lg transition-colors text-sm"
+                  style={{ background: "#10B981", color: "#fff" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "#059669")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "#10B981")}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
+                  Award Badge
+                </button>
+              )}
+              {/* Edit */}
+              {badge.created_by_teacher_id && !badge.is_built_in && (
+                <button
+                  onClick={() => setIsEditMode(!isEditMode)}
+                  className={`inline-flex items-center gap-2 px-4 py-2.5 font-medium rounded-lg transition-colors text-sm ${
+                    isEditMode
+                      ? "bg-amber-100 hover:bg-amber-200 text-amber-700"
+                      : "bg-gray-100 hover:bg-gray-200 text-gray-700"
+                  }`}
+                >
+                  <EditIcon />
+                  {isEditMode ? "Cancel Edit" : "Edit"}
+                </button>
               )}
             </div>
           </div>
