@@ -183,13 +183,31 @@ function BadgeCard({ badge }: BadgeCardProps) {
         )}
       </div>
 
-      {/* View button */}
-      <Link
-        href={`/teacher/safety/${badge.id}`}
-        className="block w-full text-center bg-gray-50 hover:bg-gray-100 text-gray-900 font-medium py-2 px-4 rounded-lg transition-colors duration-150"
-      >
-        View
-      </Link>
+      {/* Action buttons */}
+      <div className="space-y-2">
+        <Link
+          href={`/teacher/safety/${badge.id}`}
+          className="block w-full text-center bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2.5 px-4 rounded-lg transition-colors duration-150"
+        >
+          View Badge
+        </Link>
+        <div className="grid grid-cols-2 gap-2">
+          <Link
+            href={`/teacher/safety/${badge.id}?tab=results&action=assign`}
+            className="flex items-center justify-center gap-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 font-medium py-2 px-3 rounded-lg transition-colors duration-150 text-xs border border-amber-200"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="M9 12l2 2 4-4" /></svg>
+            Assign Test
+          </Link>
+          <Link
+            href={`/teacher/safety/${badge.id}?tab=results&action=award`}
+            className="flex items-center justify-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-medium py-2 px-3 rounded-lg transition-colors duration-150 text-xs border border-emerald-200"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="6" /><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11" /></svg>
+            Award Badge
+          </Link>
+        </div>
+      </div>
       </div>{/* close p-5 */}
     </div>
   );
