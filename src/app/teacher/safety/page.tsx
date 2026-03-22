@@ -1,9 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Image from "next/image";
 import Link from "next/link";
-import { BADGE_THUMBNAILS } from "@/lib/safety/badge-thumbnails";
 // Shield icon as inline SVG (no lucide-react dependency)
 const ShieldIcon = ({ size = 24, className = "" }: { size?: number; className?: string }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -11,6 +9,40 @@ const ShieldIcon = ({ size = 24, className = "" }: { size?: number; className?: 
   </svg>
 );
 import type { Badge, BadgeTier } from "@/types";
+
+// ---------------------------------------------------------------------------
+// Badge Icon — maps icon_name to inline SVG
+// ---------------------------------------------------------------------------
+
+function BadgeIcon({ name, color }: { name: string; color: string }) {
+  const s = 56; // size
+  const sw = "1.5"; // strokeWidth
+  const props = { width: s, height: s, viewBox: "0 0 24 24", fill: "none", stroke: color, strokeWidth: sw, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+
+  switch (name?.toLowerCase()) {
+    case "flame":
+      return <svg {...props}><path d="M8.5 14.5A2.5 2.5 0 0011 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 11-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 002.5 2.5z" /></svg>;
+    case "zap":
+      return <svg {...props}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></svg>;
+    case "cpu":
+      return <svg {...props}><rect x="4" y="4" width="16" height="16" rx="2" ry="2" /><rect x="9" y="9" width="6" height="6" /><line x1="9" y1="1" x2="9" y2="4" /><line x1="15" y1="1" x2="15" y2="4" /><line x1="9" y1="20" x2="9" y2="23" /><line x1="15" y1="20" x2="15" y2="23" /><line x1="20" y1="9" x2="23" y2="9" /><line x1="20" y1="14" x2="23" y2="14" /><line x1="1" y1="9" x2="4" y2="9" /><line x1="1" y1="14" x2="4" y2="14" /></svg>;
+    case "flask-conical":
+      return <svg {...props}><path d="M10 2v7.527a2 2 0 01-.211.896L4.72 20.55a1 1 0 00.9 1.45h12.76a1 1 0 00.9-1.45l-5.069-10.127A2 2 0 0114 9.527V2" /><line x1="8.5" y1="2" x2="15.5" y2="2" /></svg>;
+    case "tree-pine":
+      return <svg {...props}><path d="M17 14l3 3.3a1 1 0 01-.7 1.7H4.7a1 1 0 01-.7-1.7L7 14" /><path d="M17 9l3 3.3a1 1 0 01-.7 1.7H4.7a1 1 0 01-.7-1.7L7 9" /><path d="M17 4l3 3.3a1 1 0 01-.7 1.7H4.7a1 1 0 01-.7-1.7L7 4" /><line x1="12" y1="19" x2="12" y2="22" /></svg>;
+    case "hammer":
+      return <svg {...props}><path d="M15 12l-8.5 8.5c-.83.83-2.17.83-3 0 0 0 0 0 0 0a2.12 2.12 0 010-3L12 9" /><path d="M17.64 15L22 10.64" /><path d="M20.91 11.7l-1.25-1.25c-.6-.6-.93-1.4-.93-2.25V6.5L14.5 2.14 12 4.64l2 2v1.86L10.36 12" /></svg>;
+    case "wrench":
+      return <svg {...props}><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z" /></svg>;
+    case "scissors":
+      return <svg {...props}><circle cx="6" cy="6" r="3" /><circle cx="6" cy="18" r="3" /><line x1="20" y1="4" x2="8.12" y2="15.88" /><line x1="14.47" y1="14.48" x2="20" y2="20" /><line x1="8.12" y1="8.12" x2="12" y2="12" /></svg>;
+    case "hard-hat":
+    case "shield":
+    default:
+      // Default shield icon
+      return <svg {...props}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -117,23 +149,17 @@ function BadgeCard({ badge }: BadgeCardProps) {
   const categoryColor =
     CATEGORY_COLORS[badge.category as keyof typeof CATEGORY_COLORS];
 
-  // Convert icon_name (emoji string) to actual emoji if it's valid
-  const icon = badge.icon_name;
-
-  const thumbnail = BADGE_THUMBNAILS[badge.slug];
+  const bgColor = badge.color || "#6366f1";
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl overflow-hidden hover:shadow-md transition-shadow duration-200">
-      {/* Thumbnail */}
-      {thumbnail ? (
-        <div className="w-full h-36 relative">
-          <Image src={thumbnail} alt={badge.name} fill className="object-cover" />
-        </div>
-      ) : (
-        <div className="w-full h-36 flex items-center justify-center" style={{ backgroundColor: `${badge.color}15` }}>
-          <span className="text-4xl">{icon}</span>
-        </div>
-      )}
+      {/* Thumbnail — gradient with inline SVG icon */}
+      <div
+        className="w-full h-36 flex items-center justify-center"
+        style={{ background: `linear-gradient(135deg, ${bgColor}20 0%, ${bgColor}08 100%)` }}
+      >
+        <BadgeIcon name={badge.icon_name} color={bgColor} />
+      </div>
       <div className="p-5">
       {/* Header: Name + Tier Dot */}
       <div className="flex items-start justify-between mb-3">
