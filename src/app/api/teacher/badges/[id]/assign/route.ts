@@ -47,7 +47,7 @@ export async function POST(
     }
 
     const body = await request.json();
-    const { studentIds = [], unitId, classId, note } = body;
+    const { type, studentIds = [], unitId, classId, targetStudentIds, note } = body;
 
     // Use admin client for write access
     const admin = createAdminClient();
@@ -69,9 +69,9 @@ export async function POST(
       errors: [] as string[],
     };
 
-    // If studentIds provided, create student_badges for each
-    if (Array.isArray(studentIds) && studentIds.length > 0) {
-      const studentBadges = studentIds.map((studentId) => ({
+    // Grant badge directly to students (no test required)
+    if (type === "students" && Array.isArray(studentIds) && studentIds.length > 0) {
+      const studentBadges = studentIds.map((studentId: string) => ({
         id: nanoid(12),
         student_id: studentId,
         badge_id: id,
@@ -81,7 +81,7 @@ export async function POST(
         score: null,
         attempt_number: 1,
         awarded_at: new Date().toISOString(),
-        expires_at: null, // Will be set by badge expiry logic if needed
+        expires_at: null,
       }));
 
       const { data, error } = await admin
@@ -97,10 +97,17 @@ export async function POST(
       }
     }
 
-    // If unitId provided, create unit_badge_requirement
-    if (unitId) {
+    // Assign badge as unit requirement (scoped to a class, optionally to specific students)
+    if (type === "unit" && unitId) {
+      if (!classId) {
+        return NextResponse.json(
+          { error: "classId is required when assigning to a unit" },
+          { status: 400 }
+        );
+      }
+
       // Get the next display_order for this unit
-      const { data: existing, error: orderError } = await admin
+      const { data: existing } = await admin
         .from("unit_badge_requirements")
         .select("display_order")
         .eq("unit_id", unitId)
@@ -109,17 +116,23 @@ export async function POST(
 
       const nextOrder = existing && existing.length > 0 ? (existing[0].display_order || 0) + 1 : 0;
 
+      const insertRow: Record<string, unknown> = {
+        id: nanoid(12),
+        unit_id: unitId,
+        badge_id: id,
+        class_id: classId,
+        is_required: true,
+        display_order: nextOrder,
+      };
+
+      // Optional: target specific students (e.g. late arrivals)
+      if (Array.isArray(targetStudentIds) && targetStudentIds.length > 0) {
+        insertRow.target_student_ids = targetStudentIds;
+      }
+
       const { data, error } = await admin
         .from("unit_badge_requirements")
-        .insert([
-          {
-            id: nanoid(12),
-            unit_id: unitId,
-            badge_id: id,
-            is_required: true,
-            display_order: nextOrder,
-          },
-        ])
+        .insert([insertRow])
         .select();
 
       if (error) {
@@ -130,10 +143,10 @@ export async function POST(
       }
     }
 
-    // If neither studentIds nor unitId provided, return error
-    if (studentIds.length === 0 && !unitId) {
+    // If neither type provided, return error
+    if (type !== "students" && type !== "unit") {
       return NextResponse.json(
-        { error: "Must provide either studentIds or unitId" },
+        { error: "Must provide type: 'students' or 'unit'" },
         { status: 400 }
       );
     }

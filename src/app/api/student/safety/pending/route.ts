@@ -69,18 +69,34 @@ export async function GET(request: NextRequest) {
     }
 
     // 3. Get badge requirements for those units
-    const { data: requirements } = await db
+    //    Filter by class_id: NULL (all classes) OR matching student's class
+    //    Then filter by target_student_ids: NULL (all students) OR includes this student
+    const { data: allRequirements } = await db
       .from("unit_badge_requirements")
       .select(`
         unit_id,
         badge_id,
         is_required,
+        class_id,
+        target_student_ids,
         badges (
           id, name, slug, description, icon_name, color, tier,
           pass_threshold, question_count, retake_cooldown_minutes
         )
       `)
       .in("unit_id", unitIds);
+
+    // Filter requirements: only those targeting this student's class (or all classes)
+    // and targeting this student (or all students)
+    const requirements = (allRequirements || []).filter((req: any) => {
+      // class_id NULL = applies to all classes; otherwise must match student's class
+      if (req.class_id && req.class_id !== student.class_id) return false;
+      // target_student_ids NULL/empty = all students; otherwise must include this student
+      if (req.target_student_ids && Array.isArray(req.target_student_ids) && req.target_student_ids.length > 0) {
+        if (!req.target_student_ids.includes(studentId)) return false;
+      }
+      return true;
+    });
 
     if (!requirements || requirements.length === 0) {
       return NextResponse.json({ pending: [], earned: [] });
@@ -104,12 +120,13 @@ export async function GET(request: NextRequest) {
       .eq("student_id", studentId)
       .in("badge_id", badgeIds);
 
-    // 6. Get recent failures for cooldown
+    // 6. Get recent failures for cooldown (failed attempts stored as status='expired' in student_badges)
     const { data: recentFailures } = await db
-      .from("safety_results")
+      .from("student_badges")
       .select("badge_id, created_at")
       .eq("student_id", studentId)
-      .eq("passed", false)
+      .eq("status", "expired")
+      .in("badge_id", badgeIds)
       .order("created_at", { ascending: false })
       .limit(50);
 
