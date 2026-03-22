@@ -536,11 +536,23 @@ function TwoColumnDashboard({
                         </Link>
                         <Link
                           href={`/teacher/classes/${u.classId}/progress/${u.unitId}`}
-                          className="inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl border-2 transition hover:bg-purple-50"
-                          style={{ borderColor: u.openStudioCount > 0 ? "#C4B5FD" : "#E5E7EB", color: u.openStudioCount > 0 ? "#7C3AED" : "#6B7280" }}
+                          className="inline-flex items-center gap-1.5 text-sm font-bold px-4 py-2 rounded-xl text-white shadow-sm transition hover:shadow-md hover:scale-[1.02] active:scale-[0.98]"
+                          style={{
+                            background: u.openStudioCount > 0
+                              ? "linear-gradient(135deg, #8B5CF6, #6D28D9, #4C1D95)"
+                              : "linear-gradient(135deg, #A78BFA, #7C3AED)",
+                            boxShadow: u.openStudioCount > 0
+                              ? "0 2px 8px rgba(124, 58, 237, 0.35), inset 0 1px 0 rgba(255,255,255,0.15)"
+                              : "0 1px 4px rgba(124, 58, 237, 0.2)",
+                          }}
                         >
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                          Studio{u.openStudioCount > 0 && <span className="text-xs font-bold bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-md ml-0.5">{u.openStudioCount}</span>}
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                          Studio
+                          {u.openStudioCount > 0 && (
+                            <span className="text-xs font-extrabold px-1.5 py-0.5 rounded-md ml-0.5" style={{ background: "rgba(255,255,255,0.25)", backdropFilter: "blur(4px)" }}>
+                              {u.openStudioCount}
+                            </span>
+                          )}
                         </Link>
                       </div>
 
