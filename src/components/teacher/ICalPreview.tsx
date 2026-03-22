@@ -29,6 +29,12 @@ interface Meeting {
   room?: string;
 }
 
+interface CycleDayEvent {
+  date: string;
+  cycleDay: number;
+  summary: string;
+}
+
 export interface ICalImportData {
   totalEvents: number;
   meetings: Meeting[];
@@ -37,6 +43,7 @@ export interface ICalImportData {
   unmatchedEvents: string[];
   unmatchedWithDates: UnmatchedEvent[];
   classEventDates: ClassEventDate[];
+  cycleDayEvents?: CycleDayEvent[];
 }
 
 export interface CycleConfig {
@@ -142,6 +149,14 @@ export default function ICalPreview({ data, classNames = [], cycleConfig, onClos
             <span className="font-semibold text-amber-700">{data.unmatchedEvents.length}</span> unmatched
           </span>
         </div>
+        {(data.cycleDayEvents?.length ?? 0) > 0 && (
+          <div className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded-sm bg-violet-100 border border-violet-300 inline-block" />
+            <span className="text-xs text-text-secondary">
+              <span className="font-semibold text-violet-700">{data.cycleDayEvents!.length}</span> cycle day markers
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Tab bar */}
@@ -173,6 +188,7 @@ export default function ICalPreview({ data, classNames = [], cycleConfig, onClos
             holidayMap={holidayMap}
             classEventMap={classEventMap}
             cycleConfig={cycleConfig}
+            importedCycleDays={data.cycleDayEvents}
             dayHeaders={DAY_HEADERS}
             monthNames={MONTH_NAMES}
           />
@@ -200,6 +216,7 @@ function CalendarGrid({
   holidayMap,
   classEventMap,
   cycleConfig,
+  importedCycleDays,
   dayHeaders,
   monthNames,
 }: {
@@ -207,15 +224,28 @@ function CalendarGrid({
   holidayMap: Map<string, string>;
   classEventMap: Map<string, string[]>;
   cycleConfig?: CycleConfig;
+  importedCycleDays?: CycleDayEvent[];
   dayHeaders: string[];
   monthNames: string[];
 }) {
   const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null);
 
-  // Pre-compute cycle days for all dates if cycle config is available
+  // Pre-compute cycle days for all dates
+  // Priority: imported cycle day events (direct from calendar) > computed from anchor
   const cycleDayMap = useMemo(() => {
-    if (!cycleConfig || !cycleConfig.anchorDate || cycleConfig.cycleLength < 2) return null;
+    if (!cycleConfig || cycleConfig.cycleLength < 2) return null;
     const map = new Map<string, number>(); // dateStr → cycle day (1-based)
+
+    // If we have imported cycle day events, use them directly — they're authoritative
+    if (importedCycleDays && importedCycleDays.length > 0) {
+      for (const e of importedCycleDays) {
+        map.set(e.date, e.cycleDay);
+      }
+      return map;
+    }
+
+    // Fallback: compute from anchor config
+    if (!cycleConfig.anchorDate) return null;
     const excludedSet = new Set(cycleConfig.excludedDates);
     // Also add holidays from the import as excluded
     for (const [date] of holidayMap) {
@@ -236,7 +266,7 @@ function CalendarGrid({
       }
     }
     return map;
-  }, [cycleConfig, months, holidayMap]);
+  }, [cycleConfig, months, holidayMap, importedCycleDays]);
 
   const hasCycleDays = cycleDayMap !== null && cycleDayMap.size > 0;
 

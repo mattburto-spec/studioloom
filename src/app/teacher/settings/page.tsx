@@ -797,14 +797,31 @@ export default function TeacherSettingsPage() {
                         setClassMeetings(data.meetings || []);
                         setExcludedDates(data.excludedDates || []);
 
-                        // Auto-detect anchor from first class event or first non-holiday weekday
-                        if (data.classEventDates?.length) {
+                        // Auto-detect anchor from cycle day markers in calendar (e.g. "Day 1" events)
+                        if (data.cycleDayEvents?.length) {
+                          // Use first cycle day event as anchor — it tells us exactly which date = which cycle day
+                          const first = data.cycleDayEvents[0];
+                          setAnchorDate(first.date);
+                          setAnchorCycleDay(first.cycleDay);
+                          // Also auto-detect cycle length from max cycle day found
+                          const maxDay = Math.max(...data.cycleDayEvents.map((e: { cycleDay: number }) => e.cycleDay));
+                          if (maxDay >= 2 && maxDay <= 20) {
+                            setCycleLength(maxDay);
+                          }
+                        } else if (data.classEventDates?.length) {
+                          // Fallback: use first class event as Day 1
                           const sorted = [...data.classEventDates].sort((a: {date:string}, b: {date:string}) => a.date.localeCompare(b.date));
                           setAnchorDate(sorted[0].date);
                           setAnchorCycleDay(1);
                         }
 
-                        setIcalMessage(`Imported ${data.totalEvents || 0} events — see preview below`);
+                        const cycleDayCount = data.cycleDayEvents?.length || 0;
+                        let msg = `Imported ${data.totalEvents || 0} events`;
+                        if (cycleDayCount > 0) {
+                          msg += ` — found ${cycleDayCount} cycle day markers`;
+                        }
+                        msg += " — see preview below";
+                        setIcalMessage(msg);
                         setIcalPreviewData(data as ICalImportData);
                       } catch {
                         setIcalMessage("Network error");
@@ -849,14 +866,28 @@ export default function TeacherSettingsPage() {
                           setClassMeetings(data.meetings || []);
                           setExcludedDates(data.excludedDates || []);
 
-                          // Auto-detect anchor from first class event
-                          if (data.classEventDates?.length) {
+                          // Auto-detect anchor from cycle day markers
+                          if (data.cycleDayEvents?.length) {
+                            const first = data.cycleDayEvents[0];
+                            setAnchorDate(first.date);
+                            setAnchorCycleDay(first.cycleDay);
+                            const maxDay = Math.max(...data.cycleDayEvents.map((e: { cycleDay: number }) => e.cycleDay));
+                            if (maxDay >= 2 && maxDay <= 20) {
+                              setCycleLength(maxDay);
+                            }
+                          } else if (data.classEventDates?.length) {
                             const sorted = [...data.classEventDates].sort((a: {date:string}, b: {date:string}) => a.date.localeCompare(b.date));
                             setAnchorDate(sorted[0].date);
                             setAnchorCycleDay(1);
                           }
 
-                          setIcalMessage(`Imported ${data.totalEvents || 0} events — see preview below`);
+                          const cycleDayCount = data.cycleDayEvents?.length || 0;
+                          let msg = `Imported ${data.totalEvents || 0} events`;
+                          if (cycleDayCount > 0) {
+                            msg += ` — found ${cycleDayCount} cycle day markers`;
+                          }
+                          msg += " — see preview below";
+                          setIcalMessage(msg);
                           setIcalPreviewData(data as ICalImportData);
                         } catch {
                           setIcalMessage("Upload failed");

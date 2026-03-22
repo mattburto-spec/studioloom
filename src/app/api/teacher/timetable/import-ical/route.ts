@@ -152,6 +152,8 @@ async function POST(request: NextRequest) {
       classEventDates: result.classEvents
         .map((e) => ({ date: e.dtstart.split("T")[0], summary: e.summary }))
         .slice(0, 200),
+      // Cycle day markers found in calendar (e.g. "Day 1", "Day 8" all-day events)
+      cycleDayEvents: result.cycleDayEvents,
     });
   } catch (err) {
     console.error("[import-ical POST]", err);

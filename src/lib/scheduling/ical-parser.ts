@@ -21,10 +21,17 @@ export interface ParsedEvent {
   rrule?: string;
 }
 
+export interface CycleDayEvent {
+  date: string;      // YYYY-MM-DD
+  cycleDay: number;  // 1-based
+  summary: string;   // original event summary
+}
+
 export interface ICalParseResult {
   events: ParsedEvent[];
   holidays: string[]; // YYYY-MM-DD dates
   classEvents: ParsedEvent[]; // Timed (non-holiday) events
+  cycleDayEvents: CycleDayEvent[]; // All-day events matching "Day N" pattern
 }
 
 // Keywords that indicate a non-school day
@@ -91,6 +98,17 @@ export function parseICal(icalText: string): ICalParseResult {
   // Classify events
   const holidays: string[] = [];
   const classEvents: ParsedEvent[] = [];
+  const cycleDayEvents: CycleDayEvent[] = [];
+
+  // Regex patterns for cycle day detection in event summaries
+  // Matches: "Day 1", "Day 8", "Cycle Day 3", "D1", "D8", "Day1", etc.
+  const CYCLE_DAY_PATTERNS = [
+    /^day\s*(\d+)$/i,              // "Day 1", "Day 8", "Day1"
+    /^cycle\s*day\s*(\d+)$/i,      // "Cycle Day 3"
+    /^d(\d+)$/i,                   // "D1", "D8"
+    /^day\s*(\d+)\s*[-–]\s*/i,     // "Day 1 - Monday", "Day 3 – Wednesday"
+    /\bday\s*(\d+)\b/i,            // "Day 1" anywhere in summary
+  ];
 
   for (const event of events) {
     const summaryLower = event.summary.toLowerCase();
@@ -118,13 +136,43 @@ export function parseICal(icalText: string): ICalParseResult {
       // Only timed events are potential class meetings
       classEvents.push(event);
     }
-    // All-day events that aren't holidays are silently skipped (assemblies, etc.)
+
+    // Check for cycle day markers (typically all-day events like "Day 1", "Day 8")
+    // These can be all-day OR timed events — check regardless
+    if (!isHoliday) {
+      const summaryTrimmed = event.summary.trim();
+      for (const pattern of CYCLE_DAY_PATTERNS) {
+        const match = summaryTrimmed.match(pattern);
+        if (match) {
+          const cycleDay = parseInt(match[1], 10);
+          if (cycleDay >= 1 && cycleDay <= 20) { // Sanity check: cycles rarely exceed 20
+            const dateStr = event.dtstart.split("T")[0];
+            cycleDayEvents.push({
+              date: dateStr,
+              cycleDay,
+              summary: event.summary,
+            });
+          }
+          break; // First pattern match wins
+        }
+      }
+    }
   }
+
+  // Deduplicate cycle day events by date (keep first occurrence per date)
+  const seenCycleDates = new Set<string>();
+  const uniqueCycleDayEvents = cycleDayEvents.filter((e) => {
+    if (seenCycleDates.has(e.date)) return false;
+    seenCycleDates.add(e.date);
+    return true;
+  });
+  uniqueCycleDayEvents.sort((a, b) => a.date.localeCompare(b.date));
 
   return {
     events,
     holidays: [...new Set(holidays)].sort(),
     classEvents,
+    cycleDayEvents: uniqueCycleDayEvents,
   };
 }
 
