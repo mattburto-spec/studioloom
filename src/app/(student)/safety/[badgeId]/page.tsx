@@ -3,6 +3,9 @@
 import { useState, useEffect, useCallback, useMemo, use } from "react";
 import { useRouter } from "next/navigation";
 import { useStudent } from "../../student-context";
+import { ModuleRenderer } from "@/components/safety/blocks";
+import type { ContentBlock } from "@/lib/safety/content-blocks";
+import { getBlocksFromBadge } from "@/lib/safety/content-blocks";
 
 interface LearnCard {
   title: string;
@@ -52,12 +55,14 @@ export default function SafetyBadgeTestPage({
   // Badge data
   const [badge, setBadge] = useState<Badge | null>(null);
   const [learnCards, setLearnCards] = useState<LearnCard[]>([]);
+  const [learningBlocks, setLearningBlocks] = useState<ContentBlock[]>([]);
   const [questions, setQuestions] = useState<BadgeQuestion[]>([]);
   const [loadingBadge, setLoadingBadge] = useState(true);
 
   // Screen state
   const [screen, setScreen] = useState<Screen>("intro");
   const [cardsViewed, setCardsViewed] = useState<Set<number>>(new Set());
+  const [moduleCompleted, setModuleCompleted] = useState(false);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [answers, setAnswers] = useState<Answer[]>([]);
   const [currentAnswer, setCurrentAnswer] = useState<
@@ -83,6 +88,15 @@ export default function SafetyBadgeTestPage({
           const data = await res.json();
           setBadge(data.badge);
           setLearnCards(data.learnContent || []);
+
+          // Extract learning blocks (new format) or convert from old learnContent
+          const badgeObj = {
+            learning_blocks: data.learningBlocks,
+            learn_content: data.learnContent,
+          };
+          const blocks = getBlocksFromBadge(badgeObj);
+          setLearningBlocks(blocks);
+
           setQuestions(data.questions || []);
 
           // Check if already earned or on cooldown
@@ -124,8 +138,15 @@ export default function SafetyBadgeTestPage({
   }, []);
 
   const canStartQuiz = useMemo(
-    () => cardsViewed.size >= Math.ceil(learnCards.length * 0.6),
-    [cardsViewed.size, learnCards.length]
+    () => {
+      // If using ModuleRenderer, require module completion
+      if (learningBlocks.length > 0) {
+        return moduleCompleted;
+      }
+      // Backward compat: if using old learn cards, require 60% viewed
+      return cardsViewed.size >= Math.ceil(learnCards.length * 0.6);
+    },
+    [moduleCompleted, learningBlocks.length, cardsViewed.size, learnCards.length]
   );
 
   // Start quiz
@@ -281,52 +302,70 @@ export default function SafetyBadgeTestPage({
             </div>
           </div>
 
-          {/* Learn cards section */}
+          {/* Learn section — ModuleRenderer or fallback to old cards */}
           <div className="mb-8">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">
-              📚 Learn First{" "}
-              <span className="text-sm font-normal text-slate-500">
-                ({cardsViewed.size}/{learnCards.length} read)
-              </span>
-            </h2>
-            <p className="text-slate-600 mb-4 text-sm">
-              Review at least 60% of the learning materials before taking the
-              test.
-            </p>
-            <div className="space-y-3">
-              {learnCards.map((card, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => toggleCardView(idx)}
-                  className={`w-full text-left rounded-lg border-2 p-4 transition ${
-                    cardsViewed.has(idx)
-                      ? "border-indigo-300 bg-indigo-50"
-                      : "border-slate-200 hover:border-slate-300"
-                  }`}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start gap-3">
-                      <span className="text-2xl flex-shrink-0">
-                        {card.icon}
-                      </span>
-                      <div>
-                        <h3 className="font-semibold text-slate-900">
-                          {card.title}
-                        </h3>
-                        {cardsViewed.has(idx) && (
-                          <p className="text-slate-600 text-sm mt-2">
-                            {card.content}
-                          </p>
-                        )}
+            {learningBlocks.length > 0 ? (
+              <>
+                <h2 className="text-lg font-semibold text-slate-900 mb-4">
+                  📚 Learn First
+                </h2>
+                <p className="text-slate-600 mb-4 text-sm">
+                  Complete all learning modules before taking the test.
+                </p>
+                <ModuleRenderer
+                  blocks={learningBlocks}
+                  onModuleComplete={() => setModuleCompleted(true)}
+                  showProgress={true}
+                />
+              </>
+            ) : (
+              <>
+                <h2 className="text-lg font-semibold text-slate-900 mb-4">
+                  📚 Learn First{" "}
+                  <span className="text-sm font-normal text-slate-500">
+                    ({cardsViewed.size}/{learnCards.length} read)
+                  </span>
+                </h2>
+                <p className="text-slate-600 mb-4 text-sm">
+                  Review at least 60% of the learning materials before taking the
+                  test.
+                </p>
+                <div className="space-y-3">
+                  {learnCards.map((card, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => toggleCardView(idx)}
+                      className={`w-full text-left rounded-lg border-2 p-4 transition ${
+                        cardsViewed.has(idx)
+                          ? "border-indigo-300 bg-indigo-50"
+                          : "border-slate-200 hover:border-slate-300"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start gap-3">
+                          <span className="text-2xl flex-shrink-0">
+                            {card.icon}
+                          </span>
+                          <div>
+                            <h3 className="font-semibold text-slate-900">
+                              {card.title}
+                            </h3>
+                            {cardsViewed.has(idx) && (
+                              <p className="text-slate-600 text-sm mt-2">
+                                {card.content}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <span className="text-slate-400 flex-shrink-0">
+                          {cardsViewed.has(idx) ? "▼" : "▶"}
+                        </span>
                       </div>
-                    </div>
-                    <span className="text-slate-400 flex-shrink-0">
-                      {cardsViewed.has(idx) ? "▼" : "▶"}
-                    </span>
-                  </div>
-                </button>
-              ))}
-            </div>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
 
           {/* Start button */}
