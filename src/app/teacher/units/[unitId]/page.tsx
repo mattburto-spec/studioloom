@@ -712,8 +712,21 @@ export default function UnitDetailPage({
           </div>
         ) : (
           <div className="space-y-2">
-            {allClasses.map((cls) => (
-              <div key={cls.id}>
+            {/* Show assigned classes first, then unassigned */}
+            {(() => {
+              const sorted = [...allClasses].sort((a, b) => (a.assigned === b.assigned ? 0 : a.assigned ? -1 : 1));
+              const assignedCount = sorted.filter((c) => c.assigned).length;
+              const unassignedCount = sorted.length - assignedCount;
+              return sorted.map((cls, idx) => (
+                <div key={cls.id}>
+                  {/* Divider between assigned and unassigned */}
+                  {idx === assignedCount && unassignedCount > 0 && assignedCount > 0 && (
+                    <div className="flex items-center gap-2 py-2 mt-2">
+                      <div className="flex-1 h-px bg-gray-200" />
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-text-tertiary">Toggle to assign</span>
+                      <div className="flex-1 h-px bg-gray-200" />
+                    </div>
+                  )}
                 <div
                   className={`flex items-center justify-between p-3 rounded-xl border transition-colors ${
                     cls.assigned
@@ -832,7 +845,8 @@ export default function UnitDetailPage({
                   </div>
                 )}
               </div>
-            ))}
+              ));
+            })()}
           </div>
         )}
       </div>
