@@ -39,15 +39,23 @@ export interface ICalImportData {
   classEventDates: ClassEventDate[];
 }
 
+export interface CycleConfig {
+  cycleLength: number;
+  anchorDate: string; // YYYY-MM-DD
+  anchorCycleDay: number;
+  excludedDates: string[]; // YYYY-MM-DD dates to skip
+}
+
 interface ICalPreviewProps {
   data: ICalImportData;
   classNames?: Array<{ id: string; name: string }>;
+  cycleConfig?: CycleConfig;
   onClose?: () => void;
 }
 
 type ViewTab = "calendar" | "holidays" | "events";
 
-export default function ICalPreview({ data, classNames = [], onClose }: ICalPreviewProps) {
+export default function ICalPreview({ data, classNames = [], cycleConfig, onClose }: ICalPreviewProps) {
   const [activeTab, setActiveTab] = useState<ViewTab>("calendar");
 
   // Determine date range from all events
@@ -164,6 +172,7 @@ export default function ICalPreview({ data, classNames = [], onClose }: ICalPrev
             months={months}
             holidayMap={holidayMap}
             classEventMap={classEventMap}
+            cycleConfig={cycleConfig}
             dayHeaders={DAY_HEADERS}
             monthNames={MONTH_NAMES}
           />
@@ -190,24 +199,72 @@ function CalendarGrid({
   months,
   holidayMap,
   classEventMap,
+  cycleConfig,
   dayHeaders,
   monthNames,
 }: {
   months: Array<{ year: number; month: number }>;
   holidayMap: Map<string, string>;
   classEventMap: Map<string, string[]>;
+  cycleConfig?: CycleConfig;
   dayHeaders: string[];
   monthNames: string[];
 }) {
   const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null);
 
+  // Pre-compute cycle days for all dates if cycle config is available
+  const cycleDayMap = useMemo(() => {
+    if (!cycleConfig || !cycleConfig.anchorDate || cycleConfig.cycleLength < 2) return null;
+    const map = new Map<string, number>(); // dateStr → cycle day (1-based)
+    const excludedSet = new Set(cycleConfig.excludedDates);
+    // Also add holidays from the import as excluded
+    for (const [date] of holidayMap) {
+      excludedSet.add(date);
+    }
+
+    // Calculate for all months in range
+    for (const { year, month } of months) {
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      for (let d = 1; d <= daysInMonth; d++) {
+        const mm = String(month + 1).padStart(2, "0");
+        const dd = String(d).padStart(2, "0");
+        const dateStr = `${year}-${mm}-${dd}`;
+        const cycleDay = computeCycleDay(dateStr, cycleConfig, excludedSet);
+        if (cycleDay !== null) {
+          map.set(dateStr, cycleDay);
+        }
+      }
+    }
+    return map;
+  }, [cycleConfig, months, holidayMap]);
+
+  const hasCycleDays = cycleDayMap !== null && cycleDayMap.size > 0;
+
   if (months.length === 0) {
     return <p className="text-xs text-text-tertiary italic">No events found in calendar.</p>;
   }
 
+  // Cycle day colors — repeating palette for visual distinction
+  const CYCLE_COLORS = [
+    "text-violet-600", "text-blue-600", "text-teal-600", "text-emerald-600",
+    "text-amber-600", "text-orange-600", "text-rose-600", "text-pink-600",
+    "text-indigo-600", "text-cyan-600",
+  ];
+
   return (
     <div className="relative">
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 max-h-[420px] overflow-y-auto pr-1">
+      {hasCycleDays && (
+        <div className="flex items-center gap-2 mb-3 flex-wrap">
+          <span className="text-[10px] font-semibold text-text-secondary">Cycle days:</span>
+          {Array.from({ length: cycleConfig!.cycleLength }, (_, i) => i + 1).map((d) => (
+            <span key={d} className={`text-[10px] font-bold ${CYCLE_COLORS[(d - 1) % CYCLE_COLORS.length]}`}>
+              D{d}
+            </span>
+          ))}
+          <span className="text-[10px] text-text-tertiary ml-1">({cycleConfig!.cycleLength}-day cycle)</span>
+        </div>
+      )}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 max-h-[480px] overflow-y-auto pr-1">
         {months.map(({ year, month }) => {
           const firstDay = new Date(year, month, 1);
           const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -238,13 +295,14 @@ function CalendarGrid({
                 ))}
                 {cells.map((cell, idx) => {
                   if (cell.day === null) {
-                    return <div key={`e-${idx}`} className="h-5" />;
+                    return <div key={`e-${idx}`} className={hasCycleDays ? "h-8" : "h-5"} />;
                   }
 
                   const isHoliday = holidayMap.has(cell.dateStr);
                   const events = classEventMap.get(cell.dateStr);
                   const hasEvents = events && events.length > 0;
                   const holidayLabel = holidayMap.get(cell.dateStr);
+                  const cycleDay = cycleDayMap?.get(cell.dateStr) ?? null;
 
                   // Weekend check (Sat/Sun are cols 5,6 in Mon-start grid)
                   const colIndex = idx % 7;
@@ -262,16 +320,24 @@ function CalendarGrid({
                     textClass = "text-gray-300";
                   }
 
-                  const tooltipText = isHoliday
-                    ? `🔴 ${holidayLabel}`
-                    : hasEvents
-                    ? `🔵 ${events.slice(0, 3).join(", ")}${events.length > 3 ? ` +${events.length - 3} more` : ""}`
-                    : "";
+                  const cycleDayColor = cycleDay ? CYCLE_COLORS[(cycleDay - 1) % CYCLE_COLORS.length] : "";
+
+                  let tooltipText = "";
+                  if (isHoliday) {
+                    tooltipText = `🔴 ${holidayLabel}`;
+                  } else if (cycleDay) {
+                    tooltipText = `Day ${cycleDay}`;
+                    if (hasEvents) {
+                      tooltipText += ` — ${events.slice(0, 3).join(", ")}${events.length > 3 ? ` +${events.length - 3} more` : ""}`;
+                    }
+                  } else if (hasEvents) {
+                    tooltipText = events.slice(0, 3).join(", ");
+                  }
 
                   return (
                     <div
                       key={cell.dateStr}
-                      className={`h-5 flex items-center justify-center rounded text-[10px] cursor-default transition-colors ${bgClass} ${textClass}`}
+                      className={`${hasCycleDays ? "h-8" : "h-5"} flex flex-col items-center justify-center rounded text-[10px] cursor-default transition-colors ${bgClass} ${textClass}`}
                       onMouseEnter={(e) => {
                         if (tooltipText) {
                           const rect = e.currentTarget.getBoundingClientRect();
@@ -280,7 +346,12 @@ function CalendarGrid({
                       }}
                       onMouseLeave={() => setTooltip(null)}
                     >
-                      {cell.day}
+                      <span className="leading-none">{cell.day}</span>
+                      {hasCycleDays && cycleDay && !isHoliday && (
+                        <span className={`text-[7px] font-bold leading-none mt-px ${cycleDayColor}`}>
+                          D{cycleDay}
+                        </span>
+                      )}
                     </div>
                   );
                 })}
@@ -417,4 +488,64 @@ function EventList({
 function formatDisplayDate(dateStr: string): string {
   const d = new Date(dateStr + "T12:00:00"); // Avoid timezone shift
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+/**
+ * Client-side cycle day calculation.
+ * Mirrors the logic from src/lib/scheduling/cycle-engine.ts getCycleDay()
+ * but runs entirely on the client without importing server modules.
+ *
+ * Returns 1-based cycle day, or null if the date is not a school day.
+ */
+function computeCycleDay(
+  dateStr: string,
+  config: CycleConfig,
+  excludedSet: Set<string>
+): number | null {
+  // Parse dates as UTC to avoid timezone issues
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  const dayOfWeek = date.getUTCDay(); // 0=Sun, 6=Sat
+
+  // Skip weekends
+  if (dayOfWeek === 0 || dayOfWeek === 6) return null;
+  // Skip excluded dates (holidays etc)
+  if (excludedSet.has(dateStr)) return null;
+
+  // Parse anchor date
+  const [ay, am, ad] = config.anchorDate.split("-").map(Number);
+  const anchor = new Date(Date.UTC(ay, am - 1, ad));
+
+  // Count school days between anchor and target (exclusive of anchor, inclusive of target)
+  const targetMs = date.getTime();
+  const anchorMs = anchor.getTime();
+
+  if (targetMs === anchorMs) return config.anchorCycleDay;
+
+  const forward = targetMs > anchorMs;
+  const step = forward ? 1 : -1;
+  let count = 0;
+  const current = new Date(anchor.getTime());
+
+  // Safety: max 2000 iterations (~5 years)
+  for (let i = 0; i < 2000; i++) {
+    current.setUTCDate(current.getUTCDate() + step);
+    const curMs = current.getTime();
+
+    // Check if this day is a school day
+    const dow = current.getUTCDay();
+    if (dow !== 0 && dow !== 6) {
+      const curStr = `${current.getUTCFullYear()}-${String(current.getUTCMonth() + 1).padStart(2, "0")}-${String(current.getUTCDate()).padStart(2, "0")}`;
+      if (!excludedSet.has(curStr)) {
+        count += step;
+      }
+    }
+
+    if (forward && curMs >= targetMs) break;
+    if (!forward && curMs <= targetMs) break;
+  }
+
+  // Modular arithmetic: map school day offset to cycle day
+  const mod = ((config.anchorCycleDay - 1 + count) % config.cycleLength + config.cycleLength) % config.cycleLength;
+  return mod + 1;
 }

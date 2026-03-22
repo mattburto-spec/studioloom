@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import type { LMSProviderType } from "@/types";
 import { SchoolCalendarSetup } from "@/components/teacher/SchoolCalendarSetup";
 import ICalPreview from "@/components/teacher/ICalPreview";
-import type { ICalImportData } from "@/components/teacher/ICalPreview";
+import type { ICalImportData, CycleConfig } from "@/components/teacher/ICalPreview";
 
 type SettingsTab = "general" | "school" | "workshop" | "lms" | "ai";
 
@@ -871,6 +871,12 @@ export default function TeacherSettingsPage() {
                   <ICalPreview
                     data={icalPreviewData}
                     classNames={classes}
+                    cycleConfig={{
+                      cycleLength,
+                      anchorDate,
+                      anchorCycleDay,
+                      excludedDates,
+                    }}
                     onClose={() => setIcalPreviewData(null)}
                   />
                 )}
