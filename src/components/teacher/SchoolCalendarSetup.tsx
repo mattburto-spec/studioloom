@@ -192,33 +192,31 @@ export function SchoolCalendarSetup() {
         />
       </div>
 
-      {/* Quick Templates */}
-      {!hasExisting && (
-        <div className="mb-6">
-          <label className="block text-xs font-medium text-text-primary mb-3">
-            Quick Setup
-          </label>
-          <div className="flex flex-wrap gap-2">
-            {(
-              Object.keys(CALENDAR_TEMPLATES) as Array<keyof typeof CALENDAR_TEMPLATES>
-            )
-              .filter((k) => k !== "custom")
-              .map((type) => (
-                <button
-                  key={type}
-                  onClick={() => handleTemplateSelect(type)}
-                  className="px-3 py-1.5 rounded-lg bg-white border border-border text-xs font-medium text-text-primary hover:bg-surface-alt transition-colors"
-                >
-                  {type === "4-terms"
-                    ? "4 Terms"
-                    : type === "2-semesters"
-                      ? "2 Semesters"
-                      : "3 Trimesters"}
-                </button>
-              ))}
-          </div>
+      {/* Quick Templates — always visible so teachers can reset structure */}
+      <div className="mb-6">
+        <label className="block text-xs font-medium text-text-primary mb-3">
+          {terms.length > 0 ? "Change Structure" : "Quick Setup"}
+        </label>
+        <div className="flex flex-wrap gap-2">
+          {(
+            Object.keys(CALENDAR_TEMPLATES) as Array<keyof typeof CALENDAR_TEMPLATES>
+          )
+            .filter((k) => k !== "custom")
+            .map((type) => (
+              <button
+                key={type}
+                onClick={() => handleTemplateSelect(type)}
+                className="px-3 py-1.5 rounded-lg bg-white border border-border text-xs font-medium text-text-primary hover:bg-surface-alt transition-colors"
+              >
+                {type === "4-terms"
+                  ? "4 Terms"
+                  : type === "2-semesters"
+                    ? "2 Semesters"
+                    : "3 Trimesters"}
+              </button>
+            ))}
         </div>
-      )}
+      </div>
 
       {/* Terms List */}
       <div className="mb-6 space-y-3">

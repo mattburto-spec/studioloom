@@ -6,6 +6,8 @@ import type { LMSProviderType } from "@/types";
 import { SchoolCalendarSetup } from "@/components/teacher/SchoolCalendarSetup";
 import ICalPreview from "@/components/teacher/ICalPreview";
 import type { ICalImportData, CycleConfig } from "@/components/teacher/ICalPreview";
+import { TimetableGrid } from "@/components/teacher/TimetableGrid";
+import type { ClassMeetingEntry } from "@/components/teacher/TimetableGrid";
 
 type SettingsTab = "general" | "school" | "workshop" | "lms" | "ai";
 
@@ -968,56 +970,18 @@ export default function TeacherSettingsPage() {
                       </div>
                     </div>
 
-                    {/* Class meetings */}
+                    {/* Class meetings — visual timetable grid */}
                     <div className="border-t border-border pt-4">
-                      <h4 className="text-xs font-semibold text-text-primary mb-3">When do your classes meet?</h4>
-
-                      {classMeetings.length > 0 && (
-                        <div className="space-y-1.5 mb-4">
-                          {classMeetings.map((m, i) => {
-                            const cls = classes.find((c) => c.id === m.class_id);
-                            return (
-                              <div key={i} className="flex items-center gap-2 text-sm bg-gray-50 rounded-lg px-3 py-2">
-                                <span className="font-medium text-text-primary">{cls?.name || m.class_id}</span>
-                                <span className="text-text-secondary">— Day {m.cycle_day}{m.period_number ? `, P${m.period_number}` : ""}{m.room ? ` (${m.room})` : ""}</span>
-                                <button onClick={() => removeMeeting(i)} className="ml-auto text-red-400 hover:text-red-600 text-xs">✕</button>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
+                      <h4 className="text-xs font-semibold text-text-primary mb-1">When do your classes meet?</h4>
+                      <p className="text-xs text-text-secondary mb-3">Click any cell to add or remove a class. Or use the quick-add row below the grid.</p>
 
                       {classes.length > 0 ? (
-                        <div className="flex items-end gap-2 flex-wrap">
-                          <div>
-                            <label className="block text-xs text-text-secondary mb-1">Class</label>
-                            <select value={newMeetingClassId} onChange={(e) => setNewMeetingClassId(e.target.value)} className="px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30">
-                              <option value="">Select class...</option>
-                              {classes.map((c) => (
-                                <option key={c.id} value={c.id}>{c.name}</option>
-                              ))}
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-xs text-text-secondary mb-1">Cycle day</label>
-                            <select value={newMeetingCycleDay} onChange={(e) => setNewMeetingCycleDay(Number(e.target.value))} className="px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30">
-                              {Array.from({ length: cycleLength }, (_, i) => i + 1).map((d) => (
-                                <option key={d} value={d}>Day {d}</option>
-                              ))}
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-xs text-text-secondary mb-1">Period (opt.)</label>
-                            <input type="number" value={newMeetingPeriod} onChange={(e) => setNewMeetingPeriod(e.target.value ? Number(e.target.value) : "")} min={1} max={12} placeholder="—" className="w-16 px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
-                          </div>
-                          <div>
-                            <label className="block text-xs text-text-secondary mb-1">Room (opt.)</label>
-                            <input type="text" value={newMeetingRoom} onChange={(e) => setNewMeetingRoom(e.target.value)} placeholder="e.g. D201" className="w-24 px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
-                          </div>
-                          <button onClick={addMeeting} disabled={!newMeetingClassId} className="px-4 py-2 rounded-lg text-sm font-medium bg-brand-purple/10 text-brand-purple hover:bg-brand-purple/20 transition disabled:opacity-40">
-                            + Add
-                          </button>
-                        </div>
+                        <TimetableGrid
+                          cycleLength={cycleLength}
+                          meetings={classMeetings as ClassMeetingEntry[]}
+                          classes={classes}
+                          onMeetingsChange={(newMeetings) => setClassMeetings(newMeetings)}
+                        />
                       ) : (
                         <p className="text-sm text-text-secondary">Create classes first to add meeting times.</p>
                       )}

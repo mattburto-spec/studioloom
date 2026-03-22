@@ -50,6 +50,17 @@ CREATE POLICY "Teachers delete own calendar terms" ON school_calendar_terms FOR 
 CREATE POLICY "Service role full access calendar" ON school_calendar_terms FOR ALL USING (auth.role() = 'service_role');
 
 -- ═══════════════════════════════════════════════════════════════
+-- 3b. CLASS_UNITS — schedule overrides for lesson scheduling
+-- ═══════════════════════════════════════════════════════════════
+
+-- Stores teacher adjustments to the auto-computed lesson schedule.
+-- Shape: { "extra_sessions": { "pageId": 1 }, "skip_dates": ["2025-09-15"], "notes": { "pageId": "Ran overtime" } }
+-- extra_sessions: how many additional class periods a lesson needs (default 0 = 1 period)
+-- skip_dates: class-specific dates to skip (e.g. field trip, assembly) beyond global excluded_dates
+-- notes: per-lesson notes from the teacher
+ALTER TABLE class_units ADD COLUMN IF NOT EXISTS schedule_overrides JSONB DEFAULT '{}';
+
+-- ═══════════════════════════════════════════════════════════════
 -- 4. INDEXES for common queries
 -- ═══════════════════════════════════════════════════════════════
 

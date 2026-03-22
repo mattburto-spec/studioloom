@@ -9,14 +9,22 @@ import { requireTeacherAuth } from "@/lib/auth/verify-teacher-unit";
 // Body: {
 //   classId: string,
 //   unitId: string,
-//   term_id?: string (null to clear)
+//   term_id?: string (null to clear),
+//   schedule_overrides?: object (lesson schedule adjustments)
 // }
 // ─────────────────────────────────────────────────────────────────
+
+interface ScheduleOverrides {
+  extra_sessions?: Record<string, number>;
+  skip_dates?: string[];
+  notes?: Record<string, string>;
+}
 
 interface UpdateRequest {
   classId: string;
   unitId: string;
   term_id?: string | null;
+  schedule_overrides?: ScheduleOverrides;
 }
 
 async function PATCH(request: NextRequest) {
@@ -59,9 +67,12 @@ async function PATCH(request: NextRequest) {
     }
 
     // Update class_units record
-    const updateData: any = {};
+    const updateData: Record<string, unknown> = {};
     if (body.term_id !== undefined) {
       updateData.term_id = body.term_id;
+    }
+    if (body.schedule_overrides !== undefined) {
+      updateData.schedule_overrides = body.schedule_overrides;
     }
 
     const { data, error } = await supabase
@@ -90,4 +101,51 @@ async function PATCH(request: NextRequest) {
   }
 }
 
-export { PATCH };
+// ─────────────────────────────────────────────────────────────────
+// GET /api/teacher/class-units?classId=...&unitId=...
+// Returns the class-unit record including schedule_overrides
+// ─────────────────────────────────────────────────────────────────
+
+async function GET(request: NextRequest) {
+  const auth = await requireTeacherAuth(request);
+  if (auth.error) return auth.error;
+
+  try {
+    const url = new URL(request.url);
+    const classId = url.searchParams.get("classId");
+    const unitId = url.searchParams.get("unitId");
+
+    if (!classId || !unitId) {
+      return NextResponse.json(
+        { error: "Missing classId or unitId" },
+        { status: 400 }
+      );
+    }
+
+    const supabase = createAdminClient();
+
+    const { data, error } = await supabase
+      .from("class_units")
+      .select("*")
+      .eq("class_id", classId)
+      .eq("unit_id", unitId)
+      .single();
+
+    if (error) {
+      return NextResponse.json(
+        { error: "Class-unit not found" },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({ classUnit: data });
+  } catch (err) {
+    console.error("[class-units GET]", err);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
+export { GET, PATCH };

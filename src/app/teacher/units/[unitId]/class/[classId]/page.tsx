@@ -5,6 +5,8 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { NMConfigPanel, NMResultsPanel } from "@/components/nm";
 import { CertManager } from "@/components/teacher/CertManager";
+import { LessonSchedule } from "@/components/teacher/LessonSchedule";
+import type { ScheduleOverrides } from "@/components/teacher/LessonSchedule";
 import type { NMUnitConfig } from "@/lib/nm/constants";
 import { DEFAULT_NM_CONFIG } from "@/lib/nm/constants";
 import { getPageList } from "@/lib/unit-adapter";
@@ -51,6 +53,7 @@ export default function ClassUnitSettingsPage({
     reason?: string;
   } | null>(null);
   const [scheduleLoading, setScheduleLoading] = useState(false);
+  const [scheduleOverrides, setScheduleOverrides] = useState<ScheduleOverrides>({});
 
   useEffect(() => {
     async function load() {
@@ -60,7 +63,7 @@ export default function ClassUnitSettingsPage({
         supabase.from("units").select("*").eq("id", unitId).single(),
         supabase.from("classes").select("name, code").eq("id", classId).single(),
         supabase.from("students").select("id, display_name, username").eq("class_id", classId),
-        supabase.from("class_units").select("term_id").eq("class_id", classId).eq("unit_id", unitId).single(),
+        supabase.from("class_units").select("term_id, schedule_overrides").eq("class_id", classId).eq("unit_id", unitId).single(),
         fetch("/api/teacher/school-calendar").then((r) => (r.ok ? r.json() : Promise.resolve({ terms: [] }))),
       ]);
 
@@ -86,9 +89,12 @@ export default function ClassUnitSettingsPage({
         );
       }
 
-      // Load class-unit term_id
+      // Load class-unit term_id + schedule overrides
       if (classUnitRes.data) {
         setSelectedTermId(classUnitRes.data.term_id || null);
+        if (classUnitRes.data.schedule_overrides) {
+          setScheduleOverrides(classUnitRes.data.schedule_overrides as ScheduleOverrides);
+        }
       }
 
       // Load school calendar terms
@@ -421,6 +427,42 @@ export default function ClassUnitSettingsPage({
           )}
         </div>
       )}
+
+      {/* ----------------------------------------------------------------- */}
+      {/* Lesson Schedule                                                    */}
+      {/* ----------------------------------------------------------------- */}
+      {(() => {
+        const term = terms.find((t) => t.id === selectedTermId);
+        const termWithDates = term as typeof term & { start_date?: string; end_date?: string } | undefined;
+        return (
+          <div className="mb-6">
+            <LessonSchedule
+              unitId={unitId}
+              classId={classId}
+              pages={pages}
+              termStart={termWithDates?.start_date}
+              termEnd={termWithDates?.end_date}
+              overrides={scheduleOverrides}
+              onOverridesChange={setScheduleOverrides}
+              onSave={async (newOverrides) => {
+                const res = await fetch("/api/teacher/class-units", {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    classId,
+                    unitId,
+                    schedule_overrides: newOverrides,
+                  }),
+                });
+                if (!res.ok) {
+                  const data = await res.json().catch(() => ({}));
+                  throw new Error(data.error || "Save failed");
+                }
+              }}
+            />
+          </div>
+        );
+      })()}
 
       {/* ----------------------------------------------------------------- */}
       {/* NM Config & Results (only when global NM toggle is on)             */}
