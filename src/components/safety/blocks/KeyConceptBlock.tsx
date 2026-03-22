@@ -433,6 +433,6 @@ export default function KeyConceptBlockComponent({ block, onComplete }: KeyConce
           <span style={{ fontWeight: 600 }}>All content explored</span>
         </div>
       )}
-    </div>;
+    </div>
   );
 }
