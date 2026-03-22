@@ -139,6 +139,7 @@ export default function KeyConceptBlockComponent({ block, onComplete }: KeyConce
   };
 
   return (
+    <>
     <style>{`
       @keyframes fadeIn {
         from { opacity: 0; }
@@ -434,5 +435,6 @@ export default function KeyConceptBlockComponent({ block, onComplete }: KeyConce
         </div>
       )}
     </div>
+    </>
   );
 }
