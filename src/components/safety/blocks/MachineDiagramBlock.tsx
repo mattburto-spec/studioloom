@@ -59,7 +59,7 @@ export default function MachineDiagramBlockComponent({ block, onComplete }: Mach
     <div style={{ background: "#1a1a2e", borderRadius: "16px", overflow: "hidden" }}>
       {/* Header */}
       <div style={{ padding: "20px 24px 12px" }}>
-        <h3 style={{ color: "#fff", fontSize: "18px", fontWeight: 700", margin: 0 }}>
+        <h3 style={{ color: "#fff", fontSize: "18px", fontWeight: 700, margin: 0 }}>
           🔧 {block.title}
         </h3>
         <p style={{ color: "#94a3b8", fontSize: "13px", marginTop: "4px", margin: "4px 0 0" }}>
