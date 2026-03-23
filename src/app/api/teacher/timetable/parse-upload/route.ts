@@ -74,15 +74,12 @@ export async function POST(request: NextRequest) {
         };
 
     // Call Claude Sonnet with the image/PDF
-    // PDF support requires the pdfs beta header
+    // PDF support is GA — no beta header needed
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       "x-api-key": apiKey,
       "anthropic-version": "2023-06-01",
     };
-    if (isPdf) {
-      headers["anthropic-beta"] = "pdfs-2024-09-25";
-    }
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",

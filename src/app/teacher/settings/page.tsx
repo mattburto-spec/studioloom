@@ -772,8 +772,13 @@ export default function TeacherSettingsPage() {
             </div>
           </section>
 
-          {/* ── 3. School Calendar ── */}
-          <SchoolCalendarSetup />
+          {/* ── 3. Academic Calendar (Terms / Semesters) ── */}
+          <div>
+            <div className="mb-2 px-1">
+              <p className="text-xs text-text-tertiary">Define <strong>when your terms or semesters start and end</strong>. This is different from your class timetable — set that up in the <button onClick={() => setActiveTab("timetable")} className="text-brand-purple hover:underline font-medium">Timetable</button> tab.</p>
+            </div>
+            <SchoolCalendarSetup />
+          </div>
 
           {/* ── 4. New Metrics ── */}
           <section className="bg-white rounded-xl p-6 border border-border">
@@ -1100,18 +1105,19 @@ export default function TeacherSettingsPage() {
             )}
           </section>
 
-          {/* ── 2. iCal Import ── */}
+          {/* ── 2. iCal Class Schedule Import ── */}
           <section className="bg-white rounded-xl p-6 border border-border">
             <h2 className="text-lg font-semibold text-text-primary mb-1 flex items-center gap-2">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
-              Import from Calendar
+              Import Class Schedule from Calendar Feed
             </h2>
-            <p className="text-sm text-text-secondary mb-4">Paste an iCal feed URL from ManageBac, PowerSchool, Toddle, Google Calendar, or any LMS.</p>
+            <p className="text-sm text-text-secondary mb-1">Import your <strong>class timetable</strong> from an iCal feed — this tells StudioLoom which classes you teach on which days.</p>
+            <p className="text-xs text-text-tertiary mb-4">This is <em>not</em> your academic calendar (terms/semesters). Set that up in the <button onClick={() => setActiveTab("school")} className="text-brand-purple hover:underline font-medium">School &amp; Teaching</button> tab.</p>
 
             <div className="flex items-end gap-2 mb-3">
               <div className="flex-1">
-                <label className="block text-xs text-text-secondary mb-1">iCal feed URL (.ics)</label>
-                <input type="url" value={icalUrl} onChange={(e) => setIcalUrl(e.target.value)} placeholder="https://school.managebac.com/calendar/feed/abc123.ics" className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+                <label className="block text-xs text-text-secondary mb-1">Timetable / class schedule iCal feed URL (.ics)</label>
+                <input type="url" value={icalUrl} onChange={(e) => setIcalUrl(e.target.value)} placeholder="https://school.managebac.com/calendar/feed/timetable.ics" className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
               </div>
               <button
                 onClick={async () => {
