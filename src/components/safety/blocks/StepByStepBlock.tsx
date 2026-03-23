@@ -207,7 +207,6 @@ export default function StepByStepBlockComponent({ block, onComplete }: StepBySt
                     {step.instruction}
                   </p>
                 </div>
-              }
               </div>
 
               {/* Step content (revealed only when current or completed) */}
