@@ -73,9 +73,12 @@ export default function ClassDetailPage({
   const [newUsername, setNewUsername] = useState("");
   const [newDisplayName, setNewDisplayName] = useState("");
   const [adding, setAdding] = useState(false);
-  const [addMode, setAddMode] = useState<"single" | "bulk">("single");
+  const [addMode, setAddMode] = useState<"existing" | "single" | "bulk">("existing");
   const [bulkText, setBulkText] = useState("");
   const [bulkResult, setBulkResult] = useState<{ added: number; skipped: string[] } | null>(null);
+  const [rosterStudents, setRosterStudents] = useState<Array<{ id: string; username: string; display_name: string | null }>>([]);
+  const [rosterSearch, setRosterSearch] = useState("");
+  const [enrollingIds, setEnrollingIds] = useState<Set<string>>(new Set());
 
   // Student enrichment data
   const [studioMap, setStudioMap] = useState<Map<string, string>>(new Map());
@@ -395,6 +398,33 @@ export default function ClassDetailPage({
     setRemovingId(null);
   }
 
+  async function loadRosterStudents() {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { data: allStudents } = await supabase
+      .from("students")
+      .select("id, username, display_name")
+      .eq("author_teacher_id", user.id)
+      .order("display_name");
+    setRosterStudents(allStudents || []);
+  }
+
+  async function enrollExisting(sid: string) {
+    setEnrollingIds((prev) => new Set(prev).add(sid));
+    const supabase = createClient();
+    await supabase.from("class_students").upsert({
+      student_id: sid,
+      class_id: classId,
+      is_active: true,
+      enrolled_at: new Date().toISOString(),
+      unenrolled_at: null,
+    }, { onConflict: "student_id,class_id" });
+    await supabase.from("students").update({ class_id: classId }).eq("id", sid);
+    setEnrollingIds((prev) => { const n = new Set(prev); n.delete(sid); return n; });
+    loadData();
+  }
+
   async function checkIntegration() {
     try {
       const res = await fetch("/api/teacher/integrations");
@@ -584,7 +614,7 @@ export default function ClassDetailPage({
             <span className="text-sm font-normal text-gray-400">({students.length})</span>
           </h2>
           <button
-            onClick={() => setShowAddStudent(true)}
+            onClick={() => { setShowAddStudent(true); setAddMode("existing"); loadRosterStudents(); }}
             className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-xl shadow-sm hover:opacity-90 transition"
             style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)" }}
           >
@@ -617,6 +647,16 @@ export default function ClassDetailPage({
               {/* Mode tabs */}
               <div className="flex gap-1 bg-surface-alt rounded-lg p-1 mb-4">
                 <button
+                  onClick={() => { setAddMode("existing"); setBulkResult(null); loadRosterStudents(); }}
+                  className={`flex-1 py-1.5 text-sm font-medium rounded-md transition ${
+                    addMode === "existing"
+                      ? "bg-white text-text-primary shadow-sm"
+                      : "text-text-secondary hover:text-text-primary"
+                  }`}
+                >
+                  Existing
+                </button>
+                <button
                   onClick={() => { setAddMode("single"); setBulkResult(null); }}
                   className={`flex-1 py-1.5 text-sm font-medium rounded-md transition ${
                     addMode === "single"
@@ -624,7 +664,7 @@ export default function ClassDetailPage({
                       : "text-text-secondary hover:text-text-primary"
                   }`}
                 >
-                  Single
+                  New
                 </button>
                 <button
                   onClick={() => { setAddMode("bulk"); setBulkResult(null); }}
@@ -634,11 +674,62 @@ export default function ClassDetailPage({
                       : "text-text-secondary hover:text-text-primary"
                   }`}
                 >
-                  Bulk Add
+                  Bulk
                 </button>
               </div>
 
-              {addMode === "single" ? (
+              {addMode === "existing" ? (
+                <>
+                  <input
+                    type="text"
+                    value={rosterSearch}
+                    onChange={(e) => setRosterSearch(e.target.value)}
+                    placeholder="Search your students..."
+                    className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-300 focus:border-transparent mb-3"
+                    autoFocus
+                  />
+                  <div className="max-h-64 overflow-y-auto space-y-1">
+                    {(() => {
+                      const currentIds = new Set(students.map((s) => s.id));
+                      const q = rosterSearch.toLowerCase();
+                      const filtered = rosterStudents.filter((s) =>
+                        !currentIds.has(s.id) &&
+                        (s.username.toLowerCase().includes(q) || (s.display_name || "").toLowerCase().includes(q))
+                      );
+                      if (filtered.length === 0) {
+                        return (
+                          <p className="text-sm text-gray-500 text-center py-4">
+                            {rosterStudents.length === 0 ? "No students in your roster yet." : "No matching students found."}
+                          </p>
+                        );
+                      }
+                      return filtered.map((s) => (
+                        <div key={s.id} className="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-gray-50 transition">
+                          <div>
+                            <span className="text-sm font-medium text-gray-900">{s.display_name || s.username}</span>
+                            {s.display_name && <span className="text-xs text-gray-400 ml-1.5">@{s.username}</span>}
+                          </div>
+                          <button
+                            onClick={() => enrollExisting(s.id)}
+                            disabled={enrollingIds.has(s.id)}
+                            className="px-3 py-1 text-xs font-semibold text-purple-600 bg-purple-50 hover:bg-purple-100 rounded-lg transition disabled:opacity-50"
+                          >
+                            {enrollingIds.has(s.id) ? "Adding..." : "Add"}
+                          </button>
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                  <div className="flex justify-end mt-4">
+                    <button
+                      onClick={() => { setShowAddStudent(false); setBulkResult(null); setAddMode("existing"); setRosterSearch(""); }}
+                      className="px-4 py-2 border border-border rounded-lg text-sm text-text-secondary hover:bg-surface-alt transition"
+                    >
+                      Done
+                    </button>
+                  </div>
+                </>
+              ) : addMode === "single" ? (
                 <>
                   <div className="space-y-3">
                     <div>

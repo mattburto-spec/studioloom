@@ -44,47 +44,77 @@ export default function TeacherStudentView({
   params: Promise<{ studentId: string }>;
 }) {
   const { studentId } = use(params);
-  const [student, setStudent] = useState<{ display_name: string; username: string; class_id: string } | null>(null);
-  const [className, setClassName] = useState("");
+  const [student, setStudent] = useState<{ display_name: string; username: string; class_id: string | null } | null>(null);
+  const [enrollments, setEnrollments] = useState<Array<{ class_id: string; class_name: string; is_active: boolean; enrolled_at: string; unenrolled_at: string | null }>>([]);
+  const [allClasses, setAllClasses] = useState<Array<{ id: string; name: string }>>([]);
   const [units, setUnits] = useState<UnitWithProgress[]>([]);
   const [safetyCerts, setSafetyCerts] = useState<Array<{ cert_type: string; granted_at: string }>>([]);
   const [loading, setLoading] = useState(true);
+  const [showAssign, setShowAssign] = useState(false);
+  const [assignClassId, setAssignClassId] = useState("");
+  const [assigning, setAssigning] = useState(false);
 
-  useEffect(() => {
-    async function load() {
-      const supabase = createClient();
+  async function loadAll() {
+    const supabase = createClient();
 
-      // Get student info
-      const { data: studentData } = await supabase
-        .from("students")
-        .select("display_name, username, class_id")
-        .eq("id", studentId)
-        .single();
+    // Get student info
+    const { data: studentData } = await supabase
+      .from("students")
+      .select("display_name, username, class_id")
+      .eq("id", studentId)
+      .single();
 
-      if (!studentData) {
-        setLoading(false);
-        return;
-      }
+    if (!studentData) {
+      setLoading(false);
+      return;
+    }
 
-      setStudent(studentData);
+    setStudent(studentData);
 
-      // Get class name
-      const { data: classData } = await supabase
+    // Get all enrollments for this student (active + past)
+    const { data: enrollmentRows } = await supabase
+      .from("class_students")
+      .select("class_id, is_active, enrolled_at, unenrolled_at, classes(name)")
+      .eq("student_id", studentId)
+      .order("enrolled_at", { ascending: false });
+
+    const parsedEnrollments = (enrollmentRows || []).map((row: any) => ({
+      class_id: row.class_id,
+      class_name: (row.classes as any)?.name || "Unknown",
+      is_active: row.is_active,
+      enrolled_at: row.enrolled_at,
+      unenrolled_at: row.unenrolled_at,
+    }));
+    setEnrollments(parsedEnrollments);
+
+    // Get all teacher's classes (for assign dropdown)
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data: classes } = await supabase
         .from("classes")
-        .select("name")
-        .eq("id", studentData.class_id)
-        .single();
+        .select("id, name")
+        .eq("teacher_id", user.id)
+        .order("name");
+      setAllClasses(classes || []);
+    }
 
-      setClassName(classData?.name || "");
+    // Get units from ALL active enrollments
+    const activeClassIds = parsedEnrollments
+      .filter((e: any) => e.is_active)
+      .map((e: any) => e.class_id);
+    // Also include legacy class_id
+    if (studentData.class_id && !activeClassIds.includes(studentData.class_id)) {
+      activeClassIds.push(studentData.class_id);
+    }
 
-      // Get units assigned to this class
-      const { data: classUnits } = await supabase
+    if (activeClassIds.length > 0) {
+      const { data: classUnitsData } = await supabase
         .from("class_units")
         .select("unit_id")
-        .eq("class_id", studentData.class_id)
+        .in("class_id", activeClassIds)
         .eq("is_active", true);
 
-      const unitIds = (classUnits || []).map((cu: { unit_id: string }) => cu.unit_id);
+      const unitIds = [...new Set((classUnitsData || []).map((cu: { unit_id: string }) => cu.unit_id))];
 
       if (unitIds.length > 0) {
         const [unitsRes, progressRes] = await Promise.all([
@@ -99,18 +129,63 @@ export default function TeacherStudentView({
 
         setUnits(unitsWithProgress);
       }
-
-      // Get safety certs
-      const { data: certs } = await supabase
-        .from("safety_certifications")
-        .select("cert_type, granted_at")
-        .eq("student_id", studentId);
-
-      setSafetyCerts(certs || []);
-      setLoading(false);
     }
-    load();
+
+    // Get safety certs
+    const { data: certs } = await supabase
+      .from("safety_certifications")
+      .select("cert_type, granted_at")
+      .eq("student_id", studentId);
+
+    setSafetyCerts(certs || []);
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    loadAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studentId]);
+
+  async function assignToClass() {
+    if (!assignClassId) return;
+    setAssigning(true);
+    const supabase = createClient();
+    await supabase.from("class_students").upsert({
+      student_id: studentId,
+      class_id: assignClassId,
+      is_active: true,
+      enrolled_at: new Date().toISOString(),
+      unenrolled_at: null,
+    }, { onConflict: "student_id,class_id" });
+    // Update legacy class_id
+    await supabase.from("students").update({ class_id: assignClassId }).eq("id", studentId);
+    setAssigning(false);
+    setShowAssign(false);
+    setAssignClassId("");
+    loadAll();
+  }
+
+  async function unenrollFromClass(classId: string) {
+    const supabase = createClient();
+    await supabase
+      .from("class_students")
+      .update({ is_active: false, unenrolled_at: new Date().toISOString() })
+      .eq("student_id", studentId)
+      .eq("class_id", classId);
+    // Update legacy class_id to next active or null
+    const { data: activeEnrollments } = await supabase
+      .from("class_students")
+      .select("class_id")
+      .eq("student_id", studentId)
+      .eq("is_active", true)
+      .neq("class_id", classId)
+      .limit(1);
+    await supabase
+      .from("students")
+      .update({ class_id: activeEnrollments?.[0]?.class_id || null })
+      .eq("id", studentId);
+    loadAll();
+  }
 
   // Stats computation
   const stats = useMemo(() => {
@@ -208,16 +283,120 @@ export default function TeacherStudentView({
       <div className="mb-6 flex items-start justify-between">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <h1 className="text-2xl font-bold text-text-primary">
+            <h1 className="text-2xl font-extrabold text-gray-900">
               {student.display_name || student.username}
             </h1>
             <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-purple-100 text-purple-600 rounded-full">
               Teacher View
             </span>
           </div>
-          <p className="text-sm text-text-secondary">{className}</p>
+          <p className="text-sm text-gray-500">@{student.username}</p>
         </div>
       </div>
+
+      {/* Class Enrollments */}
+      <div className="mb-6">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-base font-bold text-gray-900">Classes</h2>
+          <button
+            onClick={() => setShowAssign(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white rounded-lg transition"
+            style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)" }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Assign to Class
+          </button>
+        </div>
+
+        {enrollments.length === 0 ? (
+          <div className="bg-white border border-gray-200 rounded-2xl p-5 text-center">
+            <p className="text-sm text-gray-500">Not enrolled in any classes yet.</p>
+            <button
+              onClick={() => setShowAssign(true)}
+              className="mt-2 text-sm font-medium text-purple-600 hover:text-purple-700 transition"
+            >
+              Assign to a class →
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {enrollments.map((e) => (
+              <div
+                key={e.class_id}
+                className={`bg-white border rounded-xl px-4 py-3 flex items-center justify-between ${e.is_active ? "border-gray-200" : "border-gray-100 opacity-60"}`}
+              >
+                <div className="flex items-center gap-3">
+                  <Link
+                    href={`/teacher/classes/${e.class_id}`}
+                    className="font-semibold text-sm text-gray-900 hover:text-purple-600 transition"
+                  >
+                    {e.class_name}
+                  </Link>
+                  {e.is_active ? (
+                    <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-green-100 text-green-700 rounded-full">Active</span>
+                  ) : (
+                    <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-gray-100 text-gray-500 rounded-full">Past</span>
+                  )}
+                  <span className="text-xs text-gray-400">
+                    {new Date(e.enrolled_at).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}
+                    {e.unenrolled_at && ` — ${new Date(e.unenrolled_at).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}`}
+                  </span>
+                </div>
+                {e.is_active && (
+                  <button
+                    onClick={() => unenrollFromClass(e.class_id)}
+                    className="text-xs text-red-500 hover:text-red-700 font-medium transition"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Assign to Class Modal */}
+      {showAssign && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowAssign(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-extrabold text-gray-900 mb-1">Assign to Class</h3>
+            <p className="text-sm text-gray-500 mb-4">Choose a class to enroll {student.display_name || student.username} in.</p>
+
+            {(() => {
+              const enrolledIds = new Set(enrollments.filter((e) => e.is_active).map((e) => e.class_id));
+              const available = allClasses.filter((c) => !enrolledIds.has(c.id));
+              if (available.length === 0) {
+                return <p className="text-sm text-gray-500">Already enrolled in all your classes.</p>;
+              }
+              return (
+                <select
+                  value={assignClassId}
+                  onChange={(e) => setAssignClassId(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-400 mb-4"
+                >
+                  <option value="">Select a class...</option>
+                  {available.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              );
+            })()}
+
+            <div className="flex items-center justify-end gap-2">
+              <button onClick={() => { setShowAssign(false); setAssignClassId(""); }} className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 transition">Cancel</button>
+              <button
+                disabled={!assignClassId || assigning}
+                onClick={assignToClass}
+                className="px-4 py-2 rounded-xl text-sm font-semibold text-white transition disabled:opacity-50"
+                style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)" }}
+              >
+                {assigning ? "Enrolling..." : "Enroll"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Stats Strip */}
       <div className="mb-5">
@@ -269,12 +448,17 @@ export default function TeacherStudentView({
                       <h3 className="font-semibold text-text-primary">{unit.title}</h3>
                       <p className="text-xs text-text-secondary mt-0.5">{percent}% complete</p>
                     </div>
-                    <Link
-                      href={`/teacher/classes/${student.class_id}/progress/${unit.id}`}
-                      className="text-xs text-purple-600 hover:text-purple-700 font-medium"
-                    >
-                      Full progress →
-                    </Link>
+                    {(() => {
+                      const activeClassId = enrollments.find((e) => e.is_active)?.class_id || student.class_id;
+                      return activeClassId ? (
+                        <Link
+                          href={`/teacher/classes/${activeClassId}/progress/${unit.id}`}
+                          className="text-xs text-purple-600 hover:text-purple-700 font-medium"
+                        >
+                          Full progress →
+                        </Link>
+                      ) : null;
+                    })()}
                   </div>
                   <JourneyMap zones={zones} />
                 </div>
