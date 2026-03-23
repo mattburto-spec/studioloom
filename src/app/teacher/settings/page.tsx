@@ -9,7 +9,7 @@ import type { ICalImportData, CycleConfig } from "@/components/teacher/ICalPrevi
 import { TimetableGrid } from "@/components/teacher/TimetableGrid";
 import type { ClassMeetingEntry } from "@/components/teacher/TimetableGrid";
 
-type SettingsTab = "general" | "school" | "timetable" | "workshop" | "lms" | "ai";
+type SettingsTab = "general" | "school" | "timetable" | "workshop" | "personalisation" | "lms" | "ai";
 
 /* ── Common D&T tools/machines (checkbox presets) ── */
 const COMMON_TOOLS: { category: string; items: string[] }[] = [
@@ -43,6 +43,7 @@ const TABS: { key: SettingsTab; label: string; icon: string }[] = [
   { key: "school", label: "School & Teaching", icon: "M3 21h18M3 7v1a3 3 0 006 0V7m0 1a3 3 0 006 0V7m0 1a3 3 0 006 0V7H3l2-4h14l2 4M5 21V10.5M19 21V10.5" },
   { key: "timetable", label: "Timetable", icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" },
   { key: "workshop", label: "Workshop & Equipment", icon: "M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z" },
+  { key: "personalisation", label: "Personalisation", icon: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z" },
   { key: "lms", label: "LMS Integration", icon: "M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.66 0 3-4.03 3-9s-1.34-9-3-9m0 18c-1.66 0-3-4.03-3-9s1.34-9 3-9" },
   { key: "ai", label: "AI Generator", icon: "M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" },
 ];
@@ -781,7 +782,7 @@ export default function TeacherSettingsPage() {
                 <input type="text" value={subjectsTaught} onChange={(e) => setSubjectsTaught(e.target.value)} placeholder="Or type custom subjects, comma-separated" className="w-full mt-1.5 px-3 py-1.5 border border-border rounded-lg text-xs text-text-secondary focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
               </div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
               <div>
                 <label className="block text-sm font-medium text-text-secondary mb-1">Year/grade levels taught</label>
                 {(() => {
@@ -791,7 +792,6 @@ export default function TeacherSettingsPage() {
                     if (selected.includes(yr)) {
                       setGradeLevelsTaught(selected.filter(s => s !== yr).join(", "));
                     } else {
-                      // Keep sorted
                       const next = [...selected, yr].sort((a, b) => {
                         const numA = parseInt(a.replace(/\D/g, "")) || 0;
                         const numB = parseInt(b.replace(/\D/g, "")) || 0;
@@ -831,35 +831,35 @@ export default function TeacherSettingsPage() {
                 <p className="text-xs text-text-secondary/60 mt-1">Used for instruction caps (1+age rule)</p>
               </div>
             </div>
-          </section>
 
-          {/* ── 2. Period Lengths ── */}
-          <section className="bg-white rounded-xl p-6 border border-border">
-            <h2 className="text-lg font-semibold text-text-primary mb-1">Period Lengths</h2>
-            <p className="text-sm text-text-secondary mb-5">Drives lesson timing — how long is each class period?</p>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-              <div>
-                <label className="block text-sm font-medium text-text-secondary mb-1">Single period (minutes)</label>
-                <input type="number" value={periodMinutes} onChange={(e) => setPeriodMinutes(Number(e.target.value))} min={20} max={120} className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-text-secondary mb-1">Double periods?</label>
-                <div className="flex items-center gap-3 mt-1.5">
-                  <button type="button" onClick={() => setHasDoubles(!hasDoubles)} className={`relative w-11 h-6 rounded-full transition-colors ${hasDoubles ? "bg-brand-purple" : "bg-gray-300"}`}>
-                    <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${hasDoubles ? "translate-x-5" : ""}`} />
-                  </button>
-                  <span className="text-sm text-text-secondary">{hasDoubles ? "Yes" : "No"}</span>
+            {/* Period lengths — inline in School Context */}
+            <div className="border-t border-border pt-4">
+              <h3 className="text-sm font-medium text-text-primary mb-3">Period Lengths</h3>
+              <div className="flex items-end gap-4 flex-wrap">
+                <div>
+                  <label className="block text-xs text-text-secondary mb-1">Single period</label>
+                  <div className="flex items-center gap-1.5">
+                    <input type="number" value={periodMinutes} onChange={(e) => setPeriodMinutes(Number(e.target.value))} min={20} max={120} className="w-20 px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+                    <span className="text-xs text-text-secondary">min</span>
+                  </div>
                 </div>
+                <div className="flex items-center gap-2 pb-1">
+                  <button type="button" onClick={() => setHasDoubles(!hasDoubles)} className={`relative w-10 h-5 rounded-full transition-colors ${hasDoubles ? "bg-brand-purple" : "bg-gray-300"}`}>
+                    <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${hasDoubles ? "translate-x-5" : ""}`} />
+                  </button>
+                  <span className="text-xs text-text-secondary">Doubles</span>
+                </div>
+                {hasDoubles && (
+                  <div>
+                    <label className="block text-xs text-text-secondary mb-1">Double period</label>
+                    <div className="flex items-center gap-1.5">
+                      <input type="number" value={doublePeriodMinutes} onChange={(e) => setDoublePeriodMinutes(Number(e.target.value))} min={40} max={240} className="w-20 px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+                      <span className="text-xs text-text-secondary">min</span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
-            {hasDoubles && (
-              <div>
-                <label className="block text-sm font-medium text-text-secondary mb-1">Double period length (minutes)</label>
-                <input type="number" value={doublePeriodMinutes} onChange={(e) => setDoublePeriodMinutes(Number(e.target.value))} min={40} max={240} className="w-48 px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
-                <p className="text-xs text-text-secondary/60 mt-1">Often not exactly 2x — e.g. 50 min singles = 95 min doubles</p>
-              </div>
-            )}
           </section>
 
           {/* ── 3. Academic Calendar (Terms / Semesters) ── */}
@@ -1219,22 +1219,6 @@ export default function TeacherSettingsPage() {
             )}
           </section>
 
-          {/* ── 8. Teaching Style ── */}
-          <section className="bg-white rounded-xl p-6 border border-border">
-            <h2 className="text-lg font-semibold text-text-primary mb-1">Teaching Style</h2>
-            <p className="text-sm text-text-secondary mb-5">Helps the AI match your approach.</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-text-secondary mb-1">Years of experience</label>
-                <input type="number" value={yearsExperience} onChange={(e) => setYearsExperience(e.target.value ? Number(e.target.value) : "")} min={0} max={50} placeholder="e.g. 8" className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-text-secondary mb-1">Classroom management style</label>
-                <input type="text" value={teachingStyle} onChange={(e) => setTeachingStyle(e.target.value)} placeholder="e.g. Relaxed workshop, Structured rotations" className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
-              </div>
-            </div>
-          </section>
-
           {/* ── Save ── */}
           <div className="flex items-center gap-3">
             <button onClick={handleSaveProfile} disabled={savingProfile} className="px-6 py-2.5 gradient-cta text-white rounded-lg text-sm font-medium shadow-md shadow-brand-pink/20 hover:opacity-90 transition disabled:opacity-50">
@@ -1250,7 +1234,7 @@ export default function TeacherSettingsPage() {
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7B2FF2" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 mt-0.5"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></svg>
               <div className="text-sm text-text-secondary">
                 <p className="font-medium text-text-primary mb-1">Why this matters</p>
-                <p>Everything here feeds the AI. Period lengths and cycle settings drive lesson timing. The school calendar enables term-based scheduling. New Metrics controls whether competency assessment appears across the platform. Workshop equipment is in its own tab.</p>
+                <p>Everything here feeds the AI. Period lengths drive lesson timing. The school calendar enables term-based scheduling. New Metrics controls whether competency assessment appears across the platform. Teaching style preferences live in the Personalisation tab.</p>
               </div>
             </div>
           </div>
@@ -1924,6 +1908,50 @@ export default function TeacherSettingsPage() {
                 <p>Equipment lists ensure the AI only suggests activities using tools you actually have. Safety badge requirements gate student access to workshops.</p>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== PERSONALISATION TAB ==================== */}
+      {activeTab === "personalisation" && (
+        <div className="space-y-6">
+
+          {/* Teaching Style */}
+          <section className="bg-white rounded-xl p-6 border border-border">
+            <h2 className="text-lg font-semibold text-text-primary mb-1">Teaching Style</h2>
+            <p className="text-sm text-text-secondary mb-5">Helps the AI match your approach when generating lessons and giving feedback.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-text-secondary mb-1">Years of experience</label>
+                <input type="number" value={yearsExperience} onChange={(e) => setYearsExperience(e.target.value ? Number(e.target.value) : "")} min={0} max={50} placeholder="e.g. 8" className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-text-secondary mb-1">Classroom management style</label>
+                <input type="text" value={teachingStyle} onChange={(e) => setTeachingStyle(e.target.value)} placeholder="e.g. Relaxed workshop, Structured rotations" className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+              </div>
+            </div>
+          </section>
+
+          {/* Preferences placeholder */}
+          <section className="bg-white rounded-xl p-6 border border-border">
+            <h2 className="text-lg font-semibold text-text-primary mb-1">Preferences</h2>
+            <p className="text-sm text-text-secondary mb-5">Personal settings that control how StudioLoom looks and feels for you.</p>
+            <div className="text-center py-6 text-text-tertiary">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-2 opacity-40">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" />
+              </svg>
+              <p className="text-xs">Theme colours, dashboard layout, and notification preferences coming soon.</p>
+            </div>
+          </section>
+
+          {/* Save — reuses profile save handler */}
+          <div className="flex items-center gap-3">
+            <button onClick={handleSaveProfile} disabled={savingProfile} className="px-6 py-2.5 gradient-cta text-white rounded-lg text-sm font-medium shadow-md shadow-brand-pink/20 hover:opacity-90 transition disabled:opacity-50">
+              {savingProfile ? "Saving..." : "Save Preferences"}
+            </button>
+            {profileSuccess && <span className="text-sm text-accent-green font-medium">{profileSuccess}</span>}
+            {profileError && <span className="text-sm text-red-500">{profileError}</span>}
           </div>
         </div>
       )}
