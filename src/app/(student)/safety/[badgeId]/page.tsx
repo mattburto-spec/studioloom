@@ -76,6 +76,13 @@ export default function SafetyBadgeTestPage({
   const [results, setResults] = useState<any>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // Quiz enhancements
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [feedbackCorrect, setFeedbackCorrect] = useState(false);
+  const [streak, setStreak] = useState(0);
+  const [reviewMode, setReviewMode] = useState(false);
+  const [reviewQuestions, setReviewQuestions] = useState<number[]>([]);
+
   // Load badge data
   useEffect(() => {
     async function loadBadge() {
@@ -157,20 +164,66 @@ export default function SafetyBadgeTestPage({
     setCurrentAnswer(null);
   };
 
-  // Navigate quiz
-  const handleNextQuestion = async () => {
+  // Check if answer is correct
+  const isAnswerCorrect = useCallback((): boolean => {
+    const question = questions[currentQuestion];
+    if (!question) return false;
+
+    const correct = question.correct_answer;
+
+    // Handle multiple choice, scenario, match
+    if (typeof correct === "string") {
+      return currentAnswer === correct;
+    }
+
+    // Handle true/false
+    if (correct === "true" || correct === "false") {
+      return currentAnswer === correct;
+    }
+
+    // Handle arrays (sequence)
+    if (Array.isArray(correct)) {
+      if (!Array.isArray(currentAnswer)) return false;
+      if (currentAnswer.length !== correct.length) return false;
+      return JSON.stringify([...currentAnswer].sort()) === JSON.stringify([...correct].sort());
+    }
+
+    return false;
+  }, [currentQuestion, currentAnswer, questions]);
+
+  // Navigate quiz — show feedback first
+  const handleAnswerSelection = async () => {
     if (!currentAnswer && currentAnswer !== 0 && currentAnswer !== "false") {
       return; // Answer not selected
     }
 
-    // Record answer with time
+    // Check correctness
+    const isCorrect = isAnswerCorrect();
+    setFeedbackCorrect(isCorrect);
+    setShowFeedback(true);
+
+    // Update streak
+    if (isCorrect) {
+      setStreak(streak + 1);
+    } else {
+      setStreak(0);
+    }
+  };
+
+  // Continue after feedback
+  const handleContinueAfterFeedback = async () => {
     const time_ms = Date.now() - questionStartTime;
     const newAnswer: Answer = {
       question_id: questions[currentQuestion].id,
       selected: currentAnswer,
       time_ms,
     };
-    setAnswers([...answers, newAnswer]);
+    const updatedAnswers = [...answers, newAnswer];
+    setAnswers(updatedAnswers);
+
+    // Reset feedback
+    setShowFeedback(false);
+    setFeedbackCorrect(false);
 
     // Move to next question or submit
     if (currentQuestion < questions.length - 1) {
@@ -179,7 +232,7 @@ export default function SafetyBadgeTestPage({
       setQuestionStartTime(Date.now());
     } else {
       // Submit quiz
-      await submitQuiz([...answers, newAnswer]);
+      await submitQuiz(updatedAnswers);
     }
   };
 
@@ -427,15 +480,26 @@ export default function SafetyBadgeTestPage({
         {/* Question content */}
         <div className="max-w-2xl mx-auto px-6 py-8">
           {/* Question meta */}
-          <div className="flex items-center gap-2 mb-6">
-            <span className="px-2 py-1 bg-slate-100 rounded text-xs font-medium text-slate-600">
-              {question.topic}
-            </span>
-            <span className="text-xs text-slate-500">
-              {question.difficulty === "easy" && "🟢 Easy"}
-              {question.difficulty === "medium" && "🟡 Medium"}
-              {question.difficulty === "hard" && "🔴 Hard"}
-            </span>
+          <div className="flex items-center gap-2 mb-6 justify-between">
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-1 bg-slate-100 rounded text-xs font-medium text-slate-600">
+                {question.topic}
+              </span>
+              <span className={`px-2 py-1 rounded text-xs font-medium ${
+                question.difficulty === "easy" ? "bg-green-100 text-green-700" :
+                question.difficulty === "medium" ? "bg-yellow-100 text-yellow-700" :
+                "bg-red-100 text-red-700"
+              }`}>
+                {question.difficulty === "easy" && "🟢 Easy"}
+                {question.difficulty === "medium" && "🟡 Medium"}
+                {question.difficulty === "hard" && "🔴 Hard"}
+              </span>
+            </div>
+            {streak >= 2 && (
+              <span className="text-sm font-semibold text-orange-500">
+                🔥 {streak}
+              </span>
+            )}
           </div>
 
           {/* Question prompt */}
@@ -616,24 +680,80 @@ export default function SafetyBadgeTestPage({
             )}
           </div>
 
-          {/* Next button */}
-          <button
-            onClick={handleNextQuestion}
-            disabled={
-              submitting || (!currentAnswer && currentAnswer !== 0 && currentAnswer !== "false")
-            }
-            className={`w-full py-3 px-4 rounded-lg font-semibold transition ${
-              (currentAnswer || currentAnswer === 0 || currentAnswer === "false") && !submitting
-                ? "bg-indigo-600 text-white hover:bg-indigo-700"
-                : "bg-slate-200 text-slate-500 cursor-not-allowed"
-            }`}
-          >
-            {submitting
-              ? "Submitting..."
-              : currentQuestion === questions.length - 1
-              ? "Submit Test"
-              : `Next Question →`}
-          </button>
+          {/* Feedback Section */}
+          {showFeedback && (
+            <div className={`mb-8 p-6 rounded-lg border-2 ${
+              feedbackCorrect
+                ? "bg-green-50 border-green-200"
+                : "bg-red-50 border-red-200"
+            }`}>
+              <div className="flex items-start gap-3 mb-4">
+                <span className="text-3xl flex-shrink-0">
+                  {feedbackCorrect ? "✓" : "✗"}
+                </span>
+                <div className="flex-1">
+                  <h3 className={`font-semibold text-lg ${
+                    feedbackCorrect ? "text-green-700" : "text-red-700"
+                  }`}>
+                    {feedbackCorrect ? "Correct!" : "Not quite right"}
+                  </h3>
+                  <p className={`text-sm mt-2 ${
+                    feedbackCorrect ? "text-green-600" : "text-red-600"
+                  }`}>
+                    {question.explanation}
+                  </p>
+                </div>
+              </div>
+
+              {!feedbackCorrect && (
+                <div className="mt-4 p-3 bg-white rounded border border-red-100">
+                  <p className="text-xs font-medium text-slate-600 mb-2">
+                    Correct answer:
+                  </p>
+                  <p className="text-sm font-semibold text-slate-900">
+                    {Array.isArray(question.correct_answer)
+                      ? question.options?.[question.correct_answer[0] as number] ||
+                        JSON.stringify(question.correct_answer)
+                      : question.options?.[parseInt(question.correct_answer as string)] ||
+                        (question.correct_answer === "true"
+                          ? "True"
+                          : question.correct_answer === "false"
+                          ? "False"
+                          : question.correct_answer)}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Action buttons */}
+          <div className="flex gap-3">
+            {!showFeedback ? (
+              <button
+                onClick={handleAnswerSelection}
+                disabled={
+                  submitting || (!currentAnswer && currentAnswer !== 0 && currentAnswer !== "false")
+                }
+                className={`w-full py-3 px-4 rounded-lg font-semibold transition ${
+                  (currentAnswer || currentAnswer === 0 || currentAnswer === "false") && !submitting
+                    ? "bg-indigo-600 text-white hover:bg-indigo-700"
+                    : "bg-slate-200 text-slate-500 cursor-not-allowed"
+                }`}
+              >
+                {submitting ? "Submitting..." : "Check Answer"}
+              </button>
+            ) : (
+              <button
+                onClick={handleContinueAfterFeedback}
+                disabled={submitting}
+                className="w-full py-3 px-4 rounded-lg font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition"
+              >
+                {currentQuestion === questions.length - 1
+                  ? "See Results →"
+                  : "Next Question →"}
+              </button>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -644,6 +764,15 @@ export default function SafetyBadgeTestPage({
     if (!results) return null;
 
     const { score, passed, total, correct, results: resultsList } = results;
+
+    // Calculate mistakes for review mode
+    const mistakeIndices = resultsList
+      ?.map((result: any, idx: number) => (result.correct ? null : idx))
+      .filter((idx: number | null) => idx !== null) || [];
+
+    const displayResults = reviewMode
+      ? resultsList?.filter((_: any, idx: number) => mistakeIndices.includes(idx))
+      : resultsList;
 
     const confettiPieces = passed
       ? Array.from({ length: 50 }, (_, i) => ({
@@ -741,41 +870,74 @@ export default function SafetyBadgeTestPage({
 
           {/* Results breakdown */}
           <div className="mb-8">
-            <h2 className="text-lg font-semibold text-slate-900 mb-4">
-              Question Breakdown
-            </h2>
-            <div className="space-y-3">
-              {resultsList?.map((result: any, idx: number) => (
-                <div
-                  key={idx}
-                  className={`rounded-lg border-2 p-4 ${
-                    result.correct
-                      ? "border-green-200 bg-green-50"
-                      : "border-red-200 bg-red-50"
-                  }`}
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-slate-900">
+                {reviewMode ? "Your Mistakes" : "Question Breakdown"}
+              </h2>
+              {!passed && mistakeIndices.length > 0 && !reviewMode && (
+                <button
+                  onClick={() => setReviewMode(true)}
+                  className="text-sm font-medium text-indigo-600 hover:text-indigo-700 underline"
                 >
-                  <div className="flex items-start gap-3 mb-2">
-                    <span className="text-2xl flex-shrink-0">
-                      {result.correct ? "✓" : "✗"}
-                    </span>
-                    <div className="flex-1">
-                      <p className="font-medium text-slate-900">
-                        Question {idx + 1}: {result.prompt.substring(0, 80)}
-                        {result.prompt.length > 80 ? "..." : ""}
-                      </p>
-                      <p
-                        className={`text-sm mt-2 ${
-                          result.correct
-                            ? "text-green-700"
-                            : "text-red-700"
-                        }`}
-                      >
-                        {result.explanation}
-                      </p>
+                  Review Mistakes ({mistakeIndices.length})
+                </button>
+              )}
+              {reviewMode && (
+                <button
+                  onClick={() => setReviewMode(false)}
+                  className="text-sm font-medium text-indigo-600 hover:text-indigo-700 underline"
+                >
+                  View All
+                </button>
+              )}
+            </div>
+            <div className="space-y-3">
+              {displayResults?.map((result: any, idx: number) => {
+                const actualIdx = reviewMode
+                  ? resultsList.findIndex((r: any) => r === result)
+                  : idx;
+                return (
+                  <div
+                    key={actualIdx}
+                    className={`rounded-lg border-2 p-4 ${
+                      result.correct
+                        ? "border-green-200 bg-green-50"
+                        : "border-red-200 bg-red-50"
+                    }`}
+                  >
+                    <div className="flex items-start gap-3 mb-2">
+                      <span className="text-2xl flex-shrink-0">
+                        {result.correct ? "✓" : "✗"}
+                      </span>
+                      <div className="flex-1">
+                        <p className="font-medium text-slate-900">
+                          Question {actualIdx + 1}: {result.prompt.substring(0, 80)}
+                          {result.prompt.length > 80 ? "..." : ""}
+                        </p>
+                        <p
+                          className={`text-sm mt-2 ${
+                            result.correct
+                              ? "text-green-700"
+                              : "text-red-700"
+                          }`}
+                        >
+                          {result.explanation}
+                        </p>
+                        {!result.correct && result.correct_answer && (
+                          <div className="mt-3 p-2 bg-white rounded text-sm border border-red-100">
+                            <p className="text-xs font-medium text-slate-600 mb-1">
+                              Correct answer:
+                            </p>
+                            <p className="font-semibold text-slate-900">
+                              {result.correct_answer}
+                            </p>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 

@@ -2,8 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { SpotTheHazard } from '@/components/safety/blocks';
+import { SpotTheHazard, ModuleRenderer } from '@/components/safety/blocks';
+import { BadgePathVisualization } from '@/components/safety';
 import { WOODWORK_SCENE, METALWORK_SCENE, GENERAL_SCENE, SCENE_LIST } from '@/lib/safety/scenes';
+import { GENERAL_WORKSHOP_MODULE } from '@/lib/safety/modules';
+import type { LearningModule } from '@/lib/safety/content-blocks';
 
 interface Question {
   id: string;
@@ -42,6 +45,12 @@ export default function SafetyToolsPage() {
   const [quizComplete, setQuizComplete] = useState(false);
   const [score, setScore] = useState(0);
   const [activeScene, setActiveScene] = useState(WOODWORK_SCENE);
+  const [moduleCompleted, setModuleCompleted] = useState(false);
+
+  // Map badge slugs/names to rich learning modules (when available)
+  const MODULE_MAP: Record<string, LearningModule> = {
+    'general-workshop-safety': GENERAL_WORKSHOP_MODULE,
+  };
 
   useEffect(() => {
     async function loadBadges() {
@@ -69,6 +78,7 @@ export default function SafetyToolsPage() {
     setSelectedAnswers({});
     setQuizComplete(false);
     setScore(0);
+    setModuleCompleted(false);
   }
 
   function goToQuiz() {
@@ -378,6 +388,21 @@ export default function SafetyToolsPage() {
               </div>
             </div>
 
+            {/* Badge Skill Tree */}
+            <div style={{ marginBottom: 'clamp(48px, 6vw, 72px)' }}>
+              <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+                <h2 style={{ fontSize: 'clamp(24px, 4vw, 36px)', fontWeight: '700', color: '#e8eaf0', margin: '0 0 12px 0' }}>
+                  Badge Progression Path
+                </h2>
+                <p style={{ fontSize: '14px', color: '#a8adc7', margin: 0 }}>
+                  23 badges across 4 tiers — from foundations to machine-specific certification
+                </p>
+              </div>
+              <div style={{ background: 'rgba(30,27,75,0.6)', border: '1px solid #404860', borderRadius: '16px', padding: 'clamp(24px, 4vw, 40px)', backdropFilter: 'blur(10px)' }}>
+                <BadgePathVisualization earnedBadgeIds={[]} theme="dark" />
+              </div>
+            </div>
+
             {/* Feature Highlights */}
             <div style={{ marginBottom: 'clamp(48px, 6vw, 72px)' }}>
               <div style={{ textAlign: 'center', marginBottom: '40px' }}>
@@ -661,6 +686,9 @@ export default function SafetyToolsPage() {
 
   // Learn view
   if (viewMode === 'learn' && selectedBadge) {
+    // Check if a rich learning module exists for this badge
+    const richModule = MODULE_MAP[selectedBadge.slug];
+
     return (
       <div style={{ background: '#06060f', color: '#e8eaf0', minHeight: '100vh', fontFamily: 'Inter, -apple-system, sans-serif' }}>
         <div style={{ maxWidth: '800px', margin: '0 auto', padding: '48px 24px' }}>
@@ -699,49 +727,102 @@ export default function SafetyToolsPage() {
               {selectedBadge.description}
             </p>
           </div>
-          {selectedBadge.learn_content?.sections?.map((section, idx) => (
-            <div
-              key={idx}
-              style={{
-                background: 'rgba(30,27,75,0.6)',
-                border: '1px solid #404860',
-                borderRadius: '12px',
-                padding: '24px',
-                marginBottom: '16px',
-              }}
-            >
-              <h2 style={{ fontSize: '18px', fontWeight: '600', color: '#e8eaf0', margin: '0 0 12px 0' }}>
-                {section.title}
-              </h2>
-              <div style={{ fontSize: '14px', color: '#a8adc7', lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>
-                {section.content}
+
+          {richModule ? (
+            <>
+              {/* Rich interactive learning module */}
+              <div style={{ marginBottom: '24px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', padding: '16px 20px', background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.3)', borderRadius: '10px' }}>
+                  <span style={{ fontSize: '24px' }}>📚</span>
+                  <div>
+                    <p style={{ fontSize: '14px', fontWeight: '600', color: '#e8eaf0', margin: '0 0 4px 0' }}>
+                      Interactive Learning Module — ~{richModule.estimated_minutes} min
+                    </p>
+                    <p style={{ fontSize: '12px', color: '#a8adc7', margin: 0 }}>
+                      {richModule.learning_objectives.length} learning objectives • Complete all sections to unlock the quiz
+                    </p>
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
-          <button
-            onClick={goToQuiz}
-            style={{
-              width: '100%',
-              padding: '14px 24px',
-              background: 'linear-gradient(135deg, #818cf8 0%, #a855f7 100%)',
-              color: 'white',
-              border: 'none',
-              borderRadius: '8px',
-              fontSize: '16px',
-              fontWeight: '600',
-              cursor: 'pointer',
-              marginTop: '32px',
-              transition: 'opacity 0.2s',
-            }}
-            onMouseEnter={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.opacity = '0.9';
-            }}
-            onMouseLeave={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.opacity = '1';
-            }}
-          >
-            Take Quiz →
-          </button>
+              <ModuleRenderer
+                module={richModule}
+                onModuleComplete={() => setModuleCompleted(true)}
+                showProgress={true}
+              />
+              <button
+                onClick={goToQuiz}
+                disabled={!moduleCompleted}
+                style={{
+                  width: '100%',
+                  padding: '14px 24px',
+                  background: moduleCompleted ? 'linear-gradient(135deg, #818cf8 0%, #a855f7 100%)' : '#374151',
+                  color: moduleCompleted ? 'white' : '#6b7280',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontSize: '16px',
+                  fontWeight: '600',
+                  cursor: moduleCompleted ? 'pointer' : 'not-allowed',
+                  marginTop: '32px',
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={(e) => {
+                  if (moduleCompleted) (e.currentTarget as HTMLButtonElement).style.opacity = '0.9';
+                }}
+                onMouseLeave={(e) => {
+                  if (moduleCompleted) (e.currentTarget as HTMLButtonElement).style.opacity = '1';
+                }}
+              >
+                {moduleCompleted ? 'Take Quiz →' : 'Complete All Sections First'}
+              </button>
+            </>
+          ) : (
+            <>
+              {/* Fallback: flat learn content sections */}
+              {selectedBadge.learn_content?.sections?.map((section, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    background: 'rgba(30,27,75,0.6)',
+                    border: '1px solid #404860',
+                    borderRadius: '12px',
+                    padding: '24px',
+                    marginBottom: '16px',
+                  }}
+                >
+                  <h2 style={{ fontSize: '18px', fontWeight: '600', color: '#e8eaf0', margin: '0 0 12px 0' }}>
+                    {section.title}
+                  </h2>
+                  <div style={{ fontSize: '14px', color: '#a8adc7', lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>
+                    {section.content}
+                  </div>
+                </div>
+              ))}
+              <button
+                onClick={goToQuiz}
+                style={{
+                  width: '100%',
+                  padding: '14px 24px',
+                  background: 'linear-gradient(135deg, #818cf8 0%, #a855f7 100%)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontSize: '16px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  marginTop: '32px',
+                  transition: 'opacity 0.2s',
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.opacity = '0.9';
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.opacity = '1';
+                }}
+              >
+                Take Quiz →
+              </button>
+            </>
+          )}
         </div>
       </div>
     );

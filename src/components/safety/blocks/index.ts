@@ -10,5 +10,7 @@ export { default as ScenarioBlock } from "./ScenarioBlock";
 export { default as BeforeAfterBlock } from "./BeforeAfterBlock";
 export { default as KeyConceptBlock } from "./KeyConceptBlock";
 export { default as ComprehensionCheckBlock } from "./ComprehensionCheckBlock";
+export { default as VideoEmbedBlock } from "./VideoEmbedBlock";
+export { default as MachineDiagramBlock } from "./MachineDiagramBlock";
 export { default as ModuleRenderer } from "./ModuleRenderer";
 export type { ModuleResults } from "./ModuleRenderer";

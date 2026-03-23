@@ -8,6 +8,10 @@ import ScenarioBlock from "./ScenarioBlock";
 import BeforeAfterBlock from "./BeforeAfterBlock";
 import KeyConceptBlock from "./KeyConceptBlock";
 import ComprehensionCheckBlock from "./ComprehensionCheckBlock";
+import VideoEmbedBlock from "./VideoEmbedBlock";
+import MachineDiagramBlock from "./MachineDiagramBlock";
+import MicroStoryBlock from "./MicroStoryBlock";
+import StepByStepBlock from "./StepByStepBlock";
 
 // ============================================================================
 // Types
@@ -461,43 +465,14 @@ function renderBlock(
           onComplete={(correct) => onComplete({ correct })}
         />
       );
-    // Future block types render a placeholder
-    case "micro_story":
-    case "step_by_step":
-    case "machine_diagram":
     case "video_embed":
-      return (
-        <div style={{
-          padding: 32,
-          textAlign: "center",
-          color: "#94a3b8",
-          border: "1px dashed #334155",
-          borderRadius: 12,
-          margin: 16,
-        }}>
-          <p style={{ fontSize: 16, marginBottom: 8 }}>
-            {blockTypeLabel(block.type)}
-          </p>
-          <p style={{ fontSize: 13 }}>
-            This activity type is coming soon.
-          </p>
-          <button
-            onClick={() => onComplete()}
-            style={{
-              marginTop: 16,
-              padding: "8px 20px",
-              borderRadius: 8,
-              border: "1px solid #4f46e5",
-              background: "transparent",
-              color: "#818cf8",
-              cursor: "pointer",
-              fontSize: 14,
-            }}
-          >
-            Skip for now
-          </button>
-        </div>
-      );
+      return <VideoEmbedBlock block={block} onComplete={() => onComplete()} />;
+    case "machine_diagram":
+      return <MachineDiagramBlock block={block} onComplete={() => onComplete()} />;
+    case "micro_story":
+      return <MicroStoryBlock block={block} onComplete={() => onComplete()} />;
+    case "step_by_step":
+      return <StepByStepBlock block={block} onComplete={() => onComplete()} />;
     default:
       return null;
   }
