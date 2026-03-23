@@ -2,22 +2,14 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-// Shield icon as inline SVG (no lucide-react dependency)
-const ShieldIcon = ({ size = 24, className = "" }: { size?: number; className?: string }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-  </svg>
-);
 import type { Badge, BadgeTier } from "@/types";
 
 // ---------------------------------------------------------------------------
 // Badge Icon — maps icon_name to inline SVG
 // ---------------------------------------------------------------------------
 
-function BadgeIcon({ name, color }: { name: string; color: string }) {
-  const s = 56; // size
-  const sw = "1.5"; // strokeWidth
-  const props = { width: s, height: s, viewBox: "0 0 24 24", fill: "none", stroke: color, strokeWidth: sw, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
+function BadgeIcon({ name, color, size = 28 }: { name: string; color: string; size?: number }) {
+  const props = { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: color, strokeWidth: "1.5" as const, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
 
   switch (name?.toLowerCase()) {
     case "flame":
@@ -39,268 +31,28 @@ function BadgeIcon({ name, color }: { name: string; color: string }) {
     case "hard-hat":
     case "shield":
     default:
-      // Default shield icon
       return <svg {...props}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>;
   }
-}
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-type TierInfo = {
-  number: BadgeTier;
-  name: string;
-  accent: string;
-  description: string;
-};
-
-interface BadgeCardProps {
-  badge: Badge;
-}
-
-interface BadgeSectionProps {
-  tier: TierInfo;
-  badges: Badge[];
 }
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
+type TierInfo = { number: BadgeTier; name: string; color: string; bg: string; border: string; description: string };
+
 const TIER_INFO: Record<BadgeTier, TierInfo> = {
-  1: {
-    number: 1,
-    name: "Fundamentals",
-    accent: "emerald",
-    description: "Build core competency",
-  },
-  2: {
-    number: 2,
-    name: "Specialty",
-    accent: "blue",
-    description: "Develop specialized skills",
-  },
-  3: {
-    number: 3,
-    name: "Advanced",
-    accent: "purple",
-    description: "Master advanced techniques",
-  },
-  4: {
-    number: 4,
-    name: "Expert",
-    accent: "amber",
-    description: "Achieve expert mastery",
-  },
+  1: { number: 1, name: "Fundamentals", color: "#059669", bg: "#D1FAE5", border: "#A7F3D0", description: "Build core competency" },
+  2: { number: 2, name: "Specialty", color: "#2563EB", bg: "#DBEAFE", border: "#BFDBFE", description: "Develop specialized skills" },
+  3: { number: 3, name: "Advanced", color: "#7C3AED", bg: "#F3E8FF", border: "#E9D5FF", description: "Master advanced techniques" },
+  4: { number: 4, name: "Expert", color: "#D97706", bg: "#FEF3C7", border: "#FDE68A", description: "Achieve expert mastery" },
 };
 
-const CATEGORY_COLORS = {
-  safety: "bg-red-50 border-red-200 text-red-700",
-  skill: "bg-blue-50 border-blue-200 text-blue-700",
-  software: "bg-purple-50 border-purple-200 text-purple-700",
+const CATEGORY_STYLES: Record<string, { bg: string; color: string; border: string }> = {
+  safety: { bg: "#FEE2E2", color: "#991B1B", border: "#FECACA" },
+  skill: { bg: "#DBEAFE", color: "#1E40AF", border: "#BFDBFE" },
+  software: { bg: "#F3E8FF", color: "#6B21A8", border: "#E9D5FF" },
 };
-
-const ACCENT_COLORS = {
-  emerald: "#10b981",
-  blue: "#3b82f6",
-  purple: "#8b5cf6",
-  amber: "#f59e0b",
-};
-
-// ---------------------------------------------------------------------------
-// Skeleton Loader
-// ---------------------------------------------------------------------------
-
-function BadgeCardSkeleton() {
-  return (
-    <div className="bg-white border border-gray-200 rounded-xl p-6 animate-pulse">
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex items-start gap-3 flex-1">
-          <div className="w-10 h-10 bg-gray-200 rounded-lg" />
-          <div className="flex-1">
-            <div className="w-32 h-5 bg-gray-200 rounded mb-2" />
-            <div className="w-20 h-4 bg-gray-100 rounded" />
-          </div>
-        </div>
-        <div className="w-6 h-6 bg-gray-200 rounded-full" />
-      </div>
-      <div className="w-48 h-4 bg-gray-100 rounded mb-4" />
-      <div className="space-y-3 mb-4">
-        <div className="w-full h-3 bg-gray-100 rounded" />
-        <div className="w-3/4 h-3 bg-gray-100 rounded" />
-      </div>
-      <div className="flex gap-2 mb-4">
-        <div className="w-16 h-6 bg-gray-100 rounded" />
-        <div className="w-16 h-6 bg-gray-100 rounded" />
-        <div className="w-16 h-6 bg-gray-100 rounded" />
-      </div>
-      <div className="w-full h-9 bg-gray-100 rounded-lg" />
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Badge Card Component
-// ---------------------------------------------------------------------------
-
-function BadgeCard({ badge }: BadgeCardProps) {
-  const tier = TIER_INFO[badge.tier as BadgeTier];
-  const categoryColor =
-    CATEGORY_COLORS[badge.category as keyof typeof CATEGORY_COLORS];
-
-  const bgColor = badge.color || "#6366f1";
-
-  return (
-    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden hover:shadow-md transition-shadow duration-200">
-      {/* Thumbnail — gradient with inline SVG icon */}
-      <div
-        className="w-full h-36 flex items-center justify-center"
-        style={{ background: `linear-gradient(135deg, ${bgColor}20 0%, ${bgColor}08 100%)` }}
-      >
-        <BadgeIcon name={badge.icon_name} color={bgColor} />
-      </div>
-      <div className="p-5">
-      {/* Header: Name + Tier Dot */}
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex-1 min-w-0">
-            <h3 className="font-bold text-gray-900 text-sm leading-tight">
-              {badge.name}
-            </h3>
-            <p className="text-xs text-gray-500 mt-1">{tier.name}</p>
-        </div>
-        {/* Tier dot */}
-        <div
-          className="w-3 h-3 rounded-full flex-shrink-0 mt-1"
-          style={{ backgroundColor: ACCENT_COLORS[tier.accent as keyof typeof ACCENT_COLORS] }}
-          title={tier.name}
-        />
-      </div>
-
-      {/* Category pill */}
-      <div className="mb-3">
-        <span
-          className={`inline-block text-xs font-medium px-2.5 py-1 rounded-full border capitalize ${categoryColor}`}
-        >
-          {badge.category}
-        </span>
-      </div>
-
-      {/* Description */}
-      <p className="text-sm text-gray-600 line-clamp-2 mb-4">
-        {badge.description || "No description provided"}
-      </p>
-
-      {/* Stats row */}
-      <div className="flex gap-4 text-xs text-gray-500 mb-4 pb-4 border-b border-gray-100">
-        <div className="flex items-center gap-1">
-          <span className="font-medium text-gray-700">{badge.question_count}</span>
-          <span>Questions</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <span className="font-medium text-gray-700">{badge.pass_threshold}%</span>
-          <span>Pass</span>
-        </div>
-        {badge.expiry_months && (
-          <div className="flex items-center gap-1">
-            <span className="font-medium text-gray-700">{badge.expiry_months}mo</span>
-            <span>Expires</span>
-          </div>
-        )}
-      </div>
-
-      {/* Action buttons */}
-      <div className="space-y-2">
-        <Link
-          href={`/teacher/safety/${badge.id}`}
-          className="block w-full text-center bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2.5 px-4 rounded-lg transition-colors duration-150"
-        >
-          View Badge
-        </Link>
-        <div className="grid grid-cols-2 gap-2">
-          <Link
-            href={`/teacher/safety/${badge.id}?tab=results&action=assign`}
-            className="flex items-center justify-center gap-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 font-medium py-2 px-3 rounded-lg transition-colors duration-150 text-xs border border-amber-200"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="M9 12l2 2 4-4" /></svg>
-            Assign Test
-          </Link>
-          <Link
-            href={`/teacher/safety/${badge.id}?tab=results&action=award`}
-            className="flex items-center justify-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-medium py-2 px-3 rounded-lg transition-colors duration-150 text-xs border border-emerald-200"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="8" r="6" /><path d="M15.477 12.89L17 22l-5-3-5 3 1.523-9.11" /></svg>
-            Award Badge
-          </Link>
-        </div>
-      </div>
-      </div>{/* close p-5 */}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Badge Section (per tier)
-// ---------------------------------------------------------------------------
-
-function BadgeSection({ tier, badges }: BadgeSectionProps) {
-  if (badges.length === 0) return null;
-
-  const accentMap = {
-    emerald: "border-l-4 border-l-emerald-500 bg-emerald-50",
-    blue: "border-l-4 border-l-blue-500 bg-blue-50",
-    purple: "border-l-4 border-l-purple-500 bg-purple-50",
-    amber: "border-l-4 border-l-amber-500 bg-amber-50",
-  };
-
-  return (
-    <section className="mb-12">
-      <div className={`p-4 rounded-lg mb-6 ${accentMap[tier.accent as keyof typeof accentMap]}`}>
-        <h2 className="text-lg font-bold text-gray-900">
-          Tier {tier.number}: {tier.name}
-        </h2>
-        <p className="text-sm text-gray-600 mt-1">{tier.description}</p>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {badges.map((badge) => (
-          <BadgeCard key={badge.id} badge={badge} />
-        ))}
-      </div>
-    </section>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Empty State
-// ---------------------------------------------------------------------------
-
-function EmptyState({
-  onSeed,
-  isSeedLoading,
-}: {
-  onSeed: () => void;
-  isSeedLoading: boolean;
-}) {
-  return (
-    <div className="text-center py-16">
-      <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4">
-        <ShieldIcon size={32} className="text-gray-400" />
-      </div>
-      <h3 className="text-lg font-bold text-gray-900 mb-2">No badges yet</h3>
-      <p className="text-gray-600 mb-6">
-        Get started by seeding the built-in safety and skill badges.
-      </p>
-      <button
-        onClick={onSeed}
-        disabled={isSeedLoading}
-        className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white font-medium rounded-lg transition-colors duration-150"
-      >
-        {isSeedLoading ? "Seeding..." : "Seed Built-in Badges"}
-      </button>
-    </div>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Main Page Component
@@ -311,51 +63,35 @@ export default function SafetyBadgesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSeedLoading, setIsSeedLoading] = useState(false);
+  const [search, setSearch] = useState("");
+  const [filterCategory, setFilterCategory] = useState<string>("all");
+  const [filterTier, setFilterTier] = useState<string>("all");
 
-  // Fetch badges on mount
   useEffect(() => {
     const fetchBadges = async () => {
       try {
         setIsLoading(true);
         setError(null);
-
         const response = await fetch("/api/teacher/badges");
-        if (!response.ok) {
-          throw new Error("Failed to load badges");
-        }
-
+        if (!response.ok) throw new Error("Failed to load badges");
         const data = await response.json();
         setBadges(data.badges || []);
       } catch (err) {
         console.error("[SafetyBadgesPage] Fetch error:", err);
-        setError(
-          err instanceof Error ? err.message : "Failed to load badges"
-        );
+        setError(err instanceof Error ? err.message : "Failed to load badges");
       } finally {
         setIsLoading(false);
       }
     };
-
     fetchBadges();
   }, []);
 
-  // Handle seed built-in badges
   const handleSeedBadges = async () => {
     try {
       setIsSeedLoading(true);
       setError(null);
-
-      const response = await fetch("/api/teacher/badges/seed", {
-        method: "POST",
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to seed badges");
-      }
-
-      const data = await response.json();
-
-      // Refresh badge list
+      const response = await fetch("/api/teacher/badges/seed", { method: "POST" });
+      if (!response.ok) throw new Error("Failed to seed badges");
       const refreshResponse = await fetch("/api/teacher/badges");
       if (refreshResponse.ok) {
         const refreshData = await refreshResponse.json();
@@ -363,99 +99,341 @@ export default function SafetyBadgesPage() {
       }
     } catch (err) {
       console.error("[SafetyBadgesPage] Seed error:", err);
-      setError(
-        err instanceof Error ? err.message : "Failed to seed badges"
-      );
+      setError(err instanceof Error ? err.message : "Failed to seed badges");
     } finally {
       setIsSeedLoading(false);
     }
   };
 
-  // Group badges by tier
-  const badgesByTier: Record<BadgeTier, Badge[]> = {
-    1: badges.filter((b) => b.tier === 1),
-    2: badges.filter((b) => b.tier === 2),
-    3: badges.filter((b) => b.tier === 3),
-    4: badges.filter((b) => b.tier === 4),
-  };
+  // Filtering
+  const filtered = badges.filter((b) => {
+    if (filterCategory !== "all" && b.category !== filterCategory) return false;
+    if (filterTier !== "all" && String(b.tier) !== filterTier) return false;
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      const hay = [b.name, b.description, b.category].filter(Boolean).join(" ").toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
 
+  // Group by tier
+  const byTier: Record<BadgeTier, Badge[]> = { 1: [], 2: [], 3: [], 4: [] };
+  for (const b of filtered) {
+    const t = b.tier as BadgeTier;
+    if (byTier[t]) byTier[t].push(b);
+  }
+
+  // Stats
+  const categories = [...new Set(badges.map((b) => b.category))];
+  const safetyCount = badges.filter((b) => b.category === "safety").length;
+  const skillCount = badges.filter((b) => b.category === "skill").length;
+  const softwareCount = badges.filter((b) => b.category === "software").length;
   const hasBadges = badges.length > 0;
 
   return (
-    <main className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-6 py-8">
-        {/* Page Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                <ShieldIcon size={24} className="text-purple-600" />
-              </div>
-              <h1 className="text-3xl font-bold text-gray-900">
-                Safety & Skills
-              </h1>
+    <main className="max-w-6xl mx-auto px-4 py-8">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-3xl font-extrabold text-gray-900">Safety & Skills</h1>
+          <p className="text-gray-500 mt-1">Manage workshop certifications, safety tests, and skill badges</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {hasBadges && !isLoading && (
+            <button
+              onClick={handleSeedBadges}
+              disabled={isSeedLoading}
+              className="inline-flex items-center gap-1.5 px-4 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-50 transition disabled:opacity-50"
+            >
+              {isSeedLoading ? "Seeding..." : "Seed More"}
+            </button>
+          )}
+          <Link
+            href="/teacher/safety/create"
+            className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white rounded-xl shadow-md hover:shadow-lg hover:opacity-90 transition-all"
+            style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)" }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14" /><path d="M5 12h14" /></svg>
+            Create Badge
+          </Link>
+        </div>
+      </div>
+
+      {/* Summary strip */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        {[
+          { icon: (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>), value: badges.length, label: "Total Badges", bg: "#F3E8FF", border: "#E9D5FF" },
+          { icon: (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="M12 8v4" /><path d="M12 16h.01" /></svg>), value: safetyCount, label: "Safety", bg: "#FEE2E2", border: "#FECACA" },
+          { icon: (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z" /></svg>), value: skillCount, label: "Skill", bg: "#DBEAFE", border: "#BFDBFE" },
+          { icon: (<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="4" width="16" height="16" rx="2" ry="2" /><rect x="9" y="9" width="6" height="6" /></svg>), value: softwareCount, label: "Software", bg: "#F3E8FF", border: "#E9D5FF" },
+        ].map((stat, i) => (
+          <div key={i} className="flex items-center gap-3 rounded-2xl px-4 py-3" style={{ background: stat.bg, border: `1px solid ${stat.border}` }}>
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "white" }}>
+              {stat.icon}
             </div>
-            <div className="flex gap-3">
-              {hasBadges && !isLoading && (
-                <button
-                  onClick={handleSeedBadges}
-                  disabled={isSeedLoading}
-                  className="px-4 py-2 border border-gray-300 bg-white hover:bg-gray-50 text-gray-900 font-medium rounded-lg transition-colors duration-150 disabled:opacity-50"
-                >
-                  {isSeedLoading ? "Seeding..." : "Seed More Badges"}
-                </button>
-              )}
-              <Link
-                href="/teacher/safety/create"
-                className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white font-medium rounded-lg transition-all duration-150"
-              >
-                <span>+</span>
-                <span>Create Badge</span>
-              </Link>
+            <div>
+              <p className="text-xl font-extrabold text-gray-900">{stat.value}</p>
+              <p className="text-[11px] text-gray-500 font-medium">{stat.label}</p>
             </div>
           </div>
-          <p className="text-gray-600">
-            Manage workshop certifications, safety tests, and skill badges
+        ))}
+      </div>
+
+      {/* Search + Filter bar */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 mb-6">
+        <div className="px-4 py-3 flex items-center gap-3 flex-wrap">
+          <div className="relative flex-1 min-w-[200px]">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search badges..."
+              className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-300 focus:border-transparent"
+            />
+          </div>
+          {/* Category pills */}
+          <div className="flex items-center gap-1.5">
+            {["all", ...categories].map((cat) => {
+              const isActive = filterCategory === cat;
+              const style = cat === "all" ? null : CATEGORY_STYLES[cat];
+              return (
+                <button
+                  key={cat}
+                  onClick={() => setFilterCategory(cat)}
+                  className="px-3 py-1.5 rounded-full text-xs font-semibold transition capitalize"
+                  style={isActive ? {
+                    background: cat === "all" ? "linear-gradient(135deg, #7B2FF2, #5C16C5)" : (style?.color || "#7B2FF2"),
+                    color: "white",
+                  } : {
+                    background: style?.bg || "#F3F4F6",
+                    color: style?.color || "#6B7280",
+                  }}
+                >
+                  {cat}
+                </button>
+              );
+            })}
+          </div>
+          {/* Tier filter */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-gray-400 font-medium">Tier:</span>
+            {["all", "1", "2", "3", "4"].map((t) => {
+              const isActive = filterTier === t;
+              const tier = t !== "all" ? TIER_INFO[Number(t) as BadgeTier] : null;
+              return (
+                <button
+                  key={t}
+                  onClick={() => setFilterTier(t)}
+                  className="w-7 h-7 rounded-full text-[11px] font-bold transition flex items-center justify-center"
+                  style={isActive ? {
+                    background: tier?.color || "linear-gradient(135deg, #7B2FF2, #5C16C5)",
+                    color: "white",
+                  } : {
+                    background: tier?.bg || "#F3F4F6",
+                    color: tier?.color || "#6B7280",
+                  }}
+                  title={tier ? `Tier ${t}: ${tier.name}` : "All tiers"}
+                >
+                  {t === "all" ? "*" : t}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Error */}
+      {error && !isLoading && (
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-2xl">
+          <p className="text-red-700 text-sm font-medium">Error: {error}</p>
+        </div>
+      )}
+
+      {/* Loading */}
+      {isLoading && (
+        <div className="space-y-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="bg-white rounded-2xl border border-gray-100 animate-pulse h-20" />
+          ))}
+        </div>
+      )}
+
+      {/* Empty */}
+      {!isLoading && !hasBadges && (
+        <div className="bg-white rounded-2xl p-12 text-center border border-gray-100">
+          <div className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: "#F3E8FF" }}>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
+          </div>
+          <p className="text-gray-700 text-lg font-semibold">No badges yet</p>
+          <p className="text-gray-400 text-sm mt-1 max-w-sm mx-auto">
+            Get started by seeding the built-in safety and skill badges, or create your own.
+          </p>
+          <div className="flex items-center justify-center gap-3 mt-5">
+            <button
+              onClick={handleSeedBadges}
+              disabled={isSeedLoading}
+              className="px-5 py-2.5 text-sm font-semibold text-white rounded-xl disabled:opacity-50"
+              style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)" }}
+            >
+              {isSeedLoading ? "Seeding..." : "Seed Built-in Badges"}
+            </button>
+            <Link
+              href="/teacher/safety/create"
+              className="px-5 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50"
+            >
+              Create Custom
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {/* Badge list by tier */}
+      {!isLoading && hasBadges && (
+        <div className="space-y-8">
+          {([1, 2, 3, 4] as BadgeTier[]).map((tierNum) => {
+            const tierBadges = byTier[tierNum];
+            if (tierBadges.length === 0) return null;
+            const tier = TIER_INFO[tierNum];
+
+            return (
+              <section key={tierNum}>
+                {/* Tier header */}
+                <div className="flex items-center gap-3 mb-3">
+                  <div
+                    className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold text-white"
+                    style={{ background: tier.color }}
+                  >
+                    {tierNum}
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold text-gray-900">{tier.name}</h2>
+                    <p className="text-xs text-gray-400">{tier.description}</p>
+                  </div>
+                  <span className="text-xs text-gray-400 ml-auto">{tierBadges.length} badge{tierBadges.length !== 1 ? "s" : ""}</span>
+                </div>
+
+                {/* Compact badge rows */}
+                <div className="space-y-2">
+                  {tierBadges.map((badge) => {
+                    const bgColor = badge.color || "#6366f1";
+                    const catStyle = CATEGORY_STYLES[badge.category as keyof typeof CATEGORY_STYLES] || CATEGORY_STYLES.skill;
+
+                    return (
+                      <div
+                        key={badge.id}
+                        className="bg-white rounded-2xl border border-gray-100 hover:shadow-sm transition-shadow group"
+                      >
+                        <div className="flex items-center gap-4 px-4 py-3">
+                          {/* Icon */}
+                          <div
+                            className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
+                            style={{ background: `${bgColor}15` }}
+                          >
+                            <BadgeIcon name={badge.icon_name} color={bgColor} size={22} />
+                          </div>
+
+                          {/* Name + description */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <Link
+                                href={`/teacher/safety/${badge.id}`}
+                                className="font-semibold text-gray-900 text-sm hover:text-purple-700 transition truncate"
+                              >
+                                {badge.name}
+                              </Link>
+                              <span
+                                className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 capitalize"
+                                style={{ background: catStyle.bg, color: catStyle.color, border: `1px solid ${catStyle.border}` }}
+                              >
+                                {badge.category}
+                              </span>
+                            </div>
+                            {badge.description && (
+                              <p className="text-xs text-gray-400 truncate mt-0.5">{badge.description}</p>
+                            )}
+                          </div>
+
+                          {/* Stats */}
+                          <div className="hidden md:flex items-center gap-4 flex-shrink-0">
+                            <div className="text-center">
+                              <p className="text-sm font-bold text-gray-900">{badge.question_count}</p>
+                              <p className="text-[10px] text-gray-400">Questions</p>
+                            </div>
+                            <div className="text-center">
+                              <p className="text-sm font-bold text-gray-900">{badge.pass_threshold}%</p>
+                              <p className="text-[10px] text-gray-400">Pass</p>
+                            </div>
+                            {badge.expiry_months && (
+                              <div className="text-center">
+                                <p className="text-sm font-bold text-gray-900">{badge.expiry_months}mo</p>
+                                <p className="text-[10px] text-gray-400">Expiry</p>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Actions */}
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            <Link
+                              href={`/teacher/safety/${badge.id}?tab=results&action=assign`}
+                              className="px-3 py-1.5 text-[11px] font-semibold rounded-lg transition"
+                              style={{ background: "#FEF3C7", color: "#92400E" }}
+                              title="Assign as unit prerequisite"
+                            >
+                              Assign
+                            </Link>
+                            <Link
+                              href={`/teacher/safety/${badge.id}?tab=results&action=award`}
+                              className="px-3 py-1.5 text-[11px] font-semibold rounded-lg transition"
+                              style={{ background: "#D1FAE5", color: "#065F46" }}
+                              title="Award directly to students"
+                            >
+                              Award
+                            </Link>
+                            <Link
+                              href={`/teacher/safety/${badge.id}`}
+                              className="px-3 py-1.5 text-[11px] font-semibold rounded-lg transition"
+                              style={{ background: "#F3E8FF", color: "#7C3AED" }}
+                            >
+                              View
+                            </Link>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </section>
+            );
+          })}
+
+          {/* No results after filter */}
+          {filtered.length === 0 && (
+            <div className="bg-white rounded-2xl p-8 text-center border border-gray-100">
+              <p className="text-gray-500 text-sm">No badges match your filters.</p>
+              <button
+                onClick={() => { setSearch(""); setFilterCategory("all"); setFilterTier("all"); }}
+                className="text-purple-600 text-sm font-medium mt-2 hover:underline"
+              >
+                Clear filters
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tip */}
+      {hasBadges && !isLoading && (
+        <div className="mt-8 bg-purple-50 border border-purple-100 rounded-2xl px-5 py-3 flex items-start gap-3">
+          <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "#E9D5FF" }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+          </div>
+          <p className="text-xs text-purple-700 leading-relaxed pt-1.5">
+            <span className="font-semibold">Tip:</span> Assign badges as unit prerequisites to gate access until students pass the safety test. Students see pending tests on their dashboard and take a 3-screen flow: learn cards, quiz, results.
           </p>
         </div>
-
-        {/* Error state */}
-        {error && !isLoading && (
-          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-red-700 font-medium">Error: {error}</p>
-          </div>
-        )}
-
-        {/* Loading state */}
-        {isLoading && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-12">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <BadgeCardSkeleton key={i} />
-            ))}
-          </div>
-        )}
-
-        {/* Empty state */}
-        {!isLoading && !hasBadges && (
-          <EmptyState
-            onSeed={handleSeedBadges}
-            isSeedLoading={isSeedLoading}
-          />
-        )}
-
-        {/* Badges by tier */}
-        {!isLoading && hasBadges && (
-          <div>
-            {(Object.keys(TIER_INFO) as unknown as BadgeTier[]).map((tier) => (
-              <BadgeSection
-                key={tier}
-                tier={TIER_INFO[tier]}
-                badges={badgesByTier[tier]}
-              />
-            ))}
-          </div>
-        )}
-      </div>
+      )}
     </main>
   );
 }
