@@ -711,7 +711,24 @@ export default function TeacherSettingsPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-text-secondary mb-1">Country</label>
-                <input type="text" value={country} onChange={(e) => setCountry(e.target.value)} placeholder="e.g. UAE, UK, Australia" className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+                <select value={country} onChange={(e) => setCountry(e.target.value)} className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30">
+                  <option value="">Select...</option>
+                  {[
+                    "Australia", "Bahrain", "Bangladesh", "Brazil", "Brunei", "Cambodia", "Canada", "Chile",
+                    "China", "Colombia", "Czech Republic", "Denmark", "Ecuador", "Egypt", "Finland", "France",
+                    "Germany", "Ghana", "Greece", "Hong Kong", "Hungary", "India", "Indonesia", "Ireland",
+                    "Israel", "Italy", "Japan", "Jordan", "Kenya", "Kuwait", "Laos", "Lebanon",
+                    "Malaysia", "Mexico", "Morocco", "Myanmar", "Nepal", "Netherlands", "New Zealand",
+                    "Nigeria", "Norway", "Oman", "Pakistan", "Peru", "Philippines", "Poland", "Portugal",
+                    "Qatar", "Romania", "Saudi Arabia", "Singapore", "South Africa", "South Korea", "Spain",
+                    "Sri Lanka", "Sweden", "Switzerland", "Taiwan", "Tanzania", "Thailand", "Turkey",
+                    "UAE", "Uganda", "UK", "USA", "Vietnam", "Zambia",
+                  ].map(c => <option key={c} value={c}>{c}</option>)}
+                  <option value="OTHER">Other</option>
+                </select>
+                {country === "OTHER" && (
+                  <input type="text" placeholder="Enter country..." onChange={(e) => setCountry(e.target.value)} className="w-full mt-1.5 px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+                )}
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
@@ -731,22 +748,83 @@ export default function TeacherSettingsPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-text-secondary mb-1">Subjects taught</label>
-                <input type="text" value={subjectsTaught} onChange={(e) => setSubjectsTaught(e.target.value)} placeholder="Product Design, Textiles, Digital Design" className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
-                <p className="text-xs text-text-secondary/60 mt-1">Comma-separated</p>
+                {(() => {
+                  const SUBJECT_OPTIONS = [
+                    "Product Design", "Digital Design", "Textiles", "Robotics", "Food Technology",
+                    "Graphic Design", "Architecture", "Electronics", "Woodwork", "Metalwork",
+                    "3D Printing / CAD", "Fashion Design", "Systems Engineering",
+                  ];
+                  const selected = subjectsTaught ? subjectsTaught.split(",").map(s => s.trim()).filter(Boolean) : [];
+                  const toggle = (subj: string) => {
+                    if (selected.includes(subj)) {
+                      setSubjectsTaught(selected.filter(s => s !== subj).join(", "));
+                    } else {
+                      setSubjectsTaught([...selected, subj].join(", "));
+                    }
+                  };
+                  return (
+                    <div className="flex flex-wrap gap-1.5">
+                      {SUBJECT_OPTIONS.map(s => (
+                        <button key={s} type="button" onClick={() => toggle(s)}
+                          className={`px-2.5 py-1 rounded-full text-xs font-medium border transition ${
+                            selected.includes(s)
+                              ? "bg-brand-purple/10 border-brand-purple/30 text-brand-purple"
+                              : "bg-gray-50 border-gray-200 text-text-tertiary hover:border-gray-300"
+                          }`}
+                        >{s}</button>
+                      ))}
+                    </div>
+                  );
+                })()}
+                {/* Allow custom subjects too */}
+                <input type="text" value={subjectsTaught} onChange={(e) => setSubjectsTaught(e.target.value)} placeholder="Or type custom subjects, comma-separated" className="w-full mt-1.5 px-3 py-1.5 border border-border rounded-lg text-xs text-text-secondary focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-text-secondary mb-1">Year/grade levels</label>
-                <input type="text" value={gradeLevelsTaught} onChange={(e) => setGradeLevelsTaught(e.target.value)} placeholder="Year 7, Year 8, MYP 4" className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
-                <p className="text-xs text-text-secondary/60 mt-1">Comma-separated</p>
+                <label className="block text-sm font-medium text-text-secondary mb-1">Year/grade levels taught</label>
+                {(() => {
+                  const YEAR_OPTIONS = ["Year 6", "Year 7", "Year 8", "Year 9", "Year 10", "Year 11", "Year 12", "Year 13"];
+                  const selected = gradeLevelsTaught ? gradeLevelsTaught.split(",").map(s => s.trim()).filter(Boolean) : [];
+                  const toggle = (yr: string) => {
+                    if (selected.includes(yr)) {
+                      setGradeLevelsTaught(selected.filter(s => s !== yr).join(", "));
+                    } else {
+                      // Keep sorted
+                      const next = [...selected, yr].sort((a, b) => {
+                        const numA = parseInt(a.replace(/\D/g, "")) || 0;
+                        const numB = parseInt(b.replace(/\D/g, "")) || 0;
+                        return numA - numB;
+                      });
+                      setGradeLevelsTaught(next.join(", "));
+                    }
+                  };
+                  return (
+                    <div className="flex flex-wrap gap-1.5">
+                      {YEAR_OPTIONS.map(y => (
+                        <button key={y} type="button" onClick={() => toggle(y)}
+                          className={`px-2.5 py-1 rounded-full text-xs font-medium border transition ${
+                            selected.includes(y)
+                              ? "bg-blue-50 border-blue-300 text-blue-700"
+                              : "bg-gray-50 border-gray-200 text-text-tertiary hover:border-gray-300"
+                          }`}
+                        >{y}</button>
+                      ))}
+                    </div>
+                  );
+                })()}
+                <input type="text" value={gradeLevelsTaught} onChange={(e) => setGradeLevelsTaught(e.target.value)} placeholder="Or type custom levels" className="w-full mt-1.5 px-3 py-1.5 border border-border rounded-lg text-xs text-text-secondary focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-text-secondary mb-1">Student age range</label>
                 <div className="flex items-center gap-2">
-                  <input type="number" value={studentAgeMin} onChange={(e) => setStudentAgeMin(Number(e.target.value))} min={5} max={20} className="w-20 px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+                  <select value={studentAgeMin} onChange={(e) => setStudentAgeMin(Number(e.target.value))} className="w-20 px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30">
+                    {Array.from({ length: 14 }, (_, i) => i + 5).map(a => <option key={a} value={a}>{a}</option>)}
+                  </select>
                   <span className="text-text-secondary text-sm">to</span>
-                  <input type="number" value={studentAgeMax} onChange={(e) => setStudentAgeMax(Number(e.target.value))} min={5} max={20} className="w-20 px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+                  <select value={studentAgeMax} onChange={(e) => setStudentAgeMax(Number(e.target.value))} className="w-20 px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30">
+                    {Array.from({ length: 14 }, (_, i) => i + 5).map(a => <option key={a} value={a}>{a}</option>)}
+                  </select>
                   <span className="text-xs text-text-secondary/60">years</span>
                 </div>
                 <p className="text-xs text-text-secondary/60 mt-1">Used for instruction caps (1+age rule)</p>
@@ -949,6 +1027,85 @@ export default function TeacherSettingsPage() {
                   cycleConfig={{ cycleLength, anchorDate, anchorCycleDay, excludedDates }}
                   onClose={() => setIcalPreviewData(null)}
                 />
+              )}
+
+              {/* Persistent calendar view — shows after import even when preview is dismissed */}
+              {!icalPreviewData && excludedDates.length > 0 && (
+                <details className="mt-3 border border-border rounded-lg overflow-hidden">
+                  <summary className="px-4 py-2.5 bg-gray-50 cursor-pointer text-sm font-medium text-text-primary hover:bg-gray-100 transition flex items-center gap-2">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+                    View calendar ({excludedDates.length} non-school day{excludedDates.length === 1 ? "" : "s"})
+                  </summary>
+                  <div className="p-4 border-t border-border">
+                    {/* Mini calendar showing months with excluded dates highlighted */}
+                    {(() => {
+                      // Build months from excluded dates
+                      const dates = excludedDates.filter(d => d).sort();
+                      if (dates.length === 0) return null;
+                      const start = new Date(dates[0]);
+                      const end = new Date(dates[dates.length - 1]);
+                      const excludedSet = new Set(dates);
+
+                      const months: Array<{ year: number; month: number }> = [];
+                      const cur = new Date(start.getFullYear(), start.getMonth(), 1);
+                      while (cur <= end) {
+                        months.push({ year: cur.getFullYear(), month: cur.getMonth() });
+                        cur.setMonth(cur.getMonth() + 1);
+                      }
+
+                      const DAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
+                      const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                      const today = new Date().toISOString().split("T")[0];
+
+                      return (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                          {months.map(({ year, month }) => {
+                            const firstDay = new Date(year, month, 1);
+                            const daysInMonth = new Date(year, month + 1, 0).getDate();
+                            // Monday = 0, Sunday = 6
+                            const startDay = (firstDay.getDay() + 6) % 7;
+
+                            return (
+                              <div key={`${year}-${month}`} className="text-center">
+                                <p className="text-xs font-semibold text-text-primary mb-1">{MONTH_NAMES[month]} {year}</p>
+                                <div className="grid grid-cols-7 gap-px text-[10px]">
+                                  {DAYS.map(d => <div key={d} className="text-text-tertiary font-medium py-0.5">{d}</div>)}
+                                  {Array.from({ length: startDay }).map((_, i) => <div key={`pad-${i}`} />)}
+                                  {Array.from({ length: daysInMonth }).map((_, i) => {
+                                    const day = i + 1;
+                                    const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                                    const isExcluded = excludedSet.has(dateStr);
+                                    const isToday = dateStr === today;
+                                    const dayOfWeek = (startDay + i) % 7; // 0=Mon ... 6=Sun
+                                    const isWeekend = dayOfWeek >= 5;
+                                    return (
+                                      <div
+                                        key={day}
+                                        className={`py-0.5 rounded text-[10px] ${
+                                          isExcluded ? "bg-amber-100 text-amber-800 font-bold" :
+                                          isToday ? "bg-brand-purple text-white font-bold" :
+                                          isWeekend ? "text-text-tertiary/40" :
+                                          "text-text-secondary"
+                                        }`}
+                                        title={isExcluded ? `Non-school day: ${dateStr}` : dateStr}
+                                      >
+                                        {day}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+                    <div className="flex items-center gap-4 mt-3 text-[10px] text-text-tertiary">
+                      <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-amber-100 border border-amber-200" /> Non-school day</span>
+                      <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-brand-purple" /> Today</span>
+                    </div>
+                  </div>
+                </details>
               )}
             </div>
 
