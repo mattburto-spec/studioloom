@@ -284,11 +284,26 @@ export default function TeacherSettingsPage() {
     try {
       const supabase = (await import("@/lib/supabase/client")).createClient();
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data } = await supabase.from("classes").select("id, name").eq("author_teacher_id", user.id).order("name");
+      if (!user) {
+        console.warn("[loadClasses] No authenticated user found");
+        return;
+      }
+      // classes table uses teacher_id, NOT author_teacher_id
+      const { data, error } = await supabase
+        .from("classes")
+        .select("id, name")
+        .eq("teacher_id", user.id)
+        .order("name");
+      if (error) {
+        console.error("[loadClasses] Query error:", error.message);
+        // Fallback: rely on RLS
+        const { data: fallbackData } = await supabase.from("classes").select("id, name").order("name");
+        if (fallbackData) setClasses(fallbackData);
+        return;
+      }
       if (data) setClasses(data);
-    } catch {
-      // silent
+    } catch (err) {
+      console.error("[loadClasses] Exception:", err);
     }
   }
 
