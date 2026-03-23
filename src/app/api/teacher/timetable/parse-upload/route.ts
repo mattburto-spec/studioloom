@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
       headers,
       body: JSON.stringify({
         model: SONNET_MODEL,
-        max_tokens: 4096,
+        max_tokens: 16384,
         temperature: 0,
         system: TIMETABLE_PARSER_SYSTEM_PROMPT,
         messages: [
@@ -151,8 +151,10 @@ export async function POST(request: NextRequest) {
       }
     } catch (parseErr) {
       console.error("[timetable-parse] JSON parse error:", parseErr, "Raw text (first 1000 chars):", rawText.slice(0, 1000));
+      const stopReason = data.stop_reason || "unknown";
+      const hint = stopReason === "max_tokens" ? " (response was truncated — try a simpler timetable image)" : "";
       return NextResponse.json(
-        { error: `Could not parse AI response as JSON. AI said: "${rawText.slice(0, 300)}${rawText.length > 300 ? "..." : ""}"` },
+        { error: `Could not parse AI response as JSON${hint}. Stop reason: ${stopReason}. AI said: "${rawText.slice(0, 200)}..."` },
         { status: 422 }
       );
     }

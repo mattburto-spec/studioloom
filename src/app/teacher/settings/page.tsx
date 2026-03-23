@@ -127,7 +127,7 @@ export default function TeacherSettingsPage() {
   const [excludedDates, setExcludedDates] = useState<string[]>([]);
   const [newExcludedDate, setNewExcludedDate] = useState("");
   const [newExcludedLabel, setNewExcludedLabel] = useState("");
-  const [showManualSetup, setShowManualSetup] = useState(false);
+  // showManualSetup removed — class meetings grid now always visible in timetable tab
   // iCal import
   const [icalUrl, setIcalUrl] = useState("");
   const [icalParsing, setIcalParsing] = useState(false);
@@ -273,10 +273,7 @@ export default function TeacherSettingsPage() {
           period_number: m.period_number,
           room: m.room,
         })));
-        // Auto-expand manual section if meetings or custom anchor exist
-        if (data.meetings.length > 0 || (data.timetable?.anchor_date && !data.timetable?.ical_url)) {
-          setShowManualSetup(true);
-        }
+        // No auto-expand needed — class meetings grid is always visible in timetable tab
       }
     } catch {
       // silent — table might not exist yet
@@ -738,7 +735,7 @@ export default function TeacherSettingsPage() {
           {/* ── 2. Period Lengths ── */}
           <section className="bg-white rounded-xl p-6 border border-border">
             <h2 className="text-lg font-semibold text-text-primary mb-1">Period Lengths</h2>
-            <p className="text-sm text-text-secondary mb-5">Period lengths drive lesson timing. Full timetable setup is in the Timetable tab.</p>
+            <p className="text-sm text-text-secondary mb-5">Drives lesson timing — how long is each class period?</p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
               <div>
@@ -762,14 +759,6 @@ export default function TeacherSettingsPage() {
                 <p className="text-xs text-text-secondary/60 mt-1">Often not exactly 2x — e.g. 50 min singles = 95 min doubles</p>
               </div>
             )}
-
-            <div className="mt-4 flex items-center gap-2">
-              <button onClick={() => setActiveTab("timetable")} className="text-sm text-brand-purple hover:text-brand-purple/80 font-medium transition flex items-center gap-1.5">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                Set up your timetable
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
-              </button>
-            </div>
           </section>
 
           {/* ── 3. Academic Calendar (Terms / Semesters) ── */}
@@ -780,7 +769,50 @@ export default function TeacherSettingsPage() {
             <SchoolCalendarSetup />
           </div>
 
-          {/* ── 4. New Metrics ── */}
+          {/* ── 4. Rotating Cycle ── */}
+          <section className="bg-white rounded-xl p-6 border border-border">
+            <h2 className="text-lg font-semibold text-text-primary mb-1">Rotating Cycle</h2>
+            <p className="text-sm text-text-secondary mb-5">How many days in your school&apos;s timetable rotation? This drives lesson date calculations.</p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+              <div>
+                <label className="block text-sm font-medium text-text-secondary mb-1">Cycle length (days)</label>
+                <input type="number" value={cycleLength} onChange={(e) => { setCycleLength(Number(e.target.value)); if (anchorCycleDay > Number(e.target.value)) setAnchorCycleDay(1); }} min={2} max={20} className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+                <p className="text-xs text-text-secondary/60 mt-1">5 = standard week, 6/8/10 = rotating</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-text-secondary mb-1">Reset cycle each term?</label>
+                <div className="flex items-center gap-3 mt-1.5">
+                  <button type="button" onClick={() => setResetEachTerm(!resetEachTerm)} className={`relative w-11 h-6 rounded-full transition-colors ${resetEachTerm ? "bg-brand-purple" : "bg-gray-300"}`}>
+                    <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${resetEachTerm ? "translate-x-5" : ""}`} />
+                  </button>
+                  <span className="text-sm text-text-secondary">{resetEachTerm ? "Yes — Day 1 at each term start" : "No — continuous"}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Anchor date — collapsible */}
+            <details className="text-sm">
+              <summary className="cursor-pointer text-xs font-medium text-text-tertiary hover:text-text-secondary">Advanced: Set anchor date</summary>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3">
+                <div>
+                  <label className="block text-sm font-medium text-text-secondary mb-1">Anchor date</label>
+                  <input type="date" value={anchorDate} onChange={(e) => setAnchorDate(e.target.value)} className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+                  <p className="text-xs text-text-secondary/60 mt-1">A date you know the cycle day of</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-text-secondary mb-1">That date was Day...</label>
+                  <select value={anchorCycleDay} onChange={(e) => setAnchorCycleDay(Number(e.target.value))} className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30">
+                    {Array.from({ length: cycleLength }, (_, i) => i + 1).map((d) => (
+                      <option key={d} value={d}>Day {d}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </details>
+          </section>
+
+          {/* ── 5. New Metrics ── */}
           <section className="bg-white rounded-xl p-6 border border-border">
             <div className="flex items-center justify-between">
               <div>
@@ -1248,120 +1280,61 @@ export default function TeacherSettingsPage() {
             )}
           </section>
 
-          {/* ── 3. Cycle & Manual Setup ── */}
+          {/* ── 3. Class Meetings & Non-School Days ── */}
           <section className="bg-white rounded-xl p-6 border border-border">
-            <h2 className="text-lg font-semibold text-text-primary mb-1">Cycle Configuration</h2>
-            <p className="text-sm text-text-secondary mb-5">Set your school&apos;s rotating cycle. This lets StudioLoom calculate lesson dates.</p>
+            <h2 className="text-lg font-semibold text-text-primary mb-1">Class Meetings</h2>
+            <p className="text-sm text-text-secondary mb-5">Which classes meet on which days of your {cycleLength}-day cycle? <button onClick={() => setActiveTab("school")} className="text-brand-purple hover:underline font-medium">Change cycle length</button></p>
 
-            <div className="max-w-xs mb-5">
-              <label className="block text-sm font-medium text-text-secondary mb-1">Cycle length (days)</label>
-              <input type="number" value={cycleLength} onChange={(e) => { setCycleLength(Number(e.target.value)); if (anchorCycleDay > Number(e.target.value)) setAnchorCycleDay(1); }} min={2} max={20} className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
-              <p className="text-xs text-text-secondary/60 mt-1">5 = standard week, 6/8/10 = rotating</p>
-            </div>
+            {classes.length > 0 ? (
+              <TimetableGrid
+                cycleLength={cycleLength}
+                meetings={classMeetings as ClassMeetingEntry[]}
+                classes={classes}
+                onMeetingsChange={(newMeetings) => setClassMeetings(newMeetings)}
+              />
+            ) : (
+              <p className="text-sm text-text-secondary">Create classes first to add meeting times.</p>
+            )}
 
-            {/* Manual setup — collapsed by default */}
-            <div className="border-t border-border pt-4">
-              <button
-                type="button"
-                onClick={() => setShowManualSetup(!showManualSetup)}
-                className="flex items-center gap-2 text-xs font-semibold text-text-secondary hover:text-text-primary transition-colors w-full"
-              >
-                <svg
-                  width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                  className={`transition-transform ${showManualSetup ? "rotate-90" : ""}`}
-                >
-                  <polyline points="9 18 15 12 9 6" />
-                </svg>
-                {showManualSetup ? "Hide" : "Show"} manual setup
-                <span className="font-normal text-text-tertiary">— anchor date, class meetings, non-school days</span>
-              </button>
-
-              {showManualSetup && (
-                <div className="mt-4 space-y-5">
-                  {/* Anchor date + cycle day */}
-                  <div>
-                    <h4 className="text-xs font-semibold text-text-primary mb-3">Cycle anchor</h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                      <div>
-                        <label className="block text-sm font-medium text-text-secondary mb-1">Anchor date</label>
-                        <input type="date" value={anchorDate} onChange={(e) => setAnchorDate(e.target.value)} className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
-                        <p className="text-xs text-text-secondary/60 mt-1">A date you know the cycle day of</p>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-text-secondary mb-1">That date was Day...</label>
-                        <select value={anchorCycleDay} onChange={(e) => setAnchorCycleDay(Number(e.target.value))} className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30">
-                          {Array.from({ length: cycleLength }, (_, i) => i + 1).map((d) => (
-                            <option key={d} value={d}>Day {d}</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <button type="button" onClick={() => setResetEachTerm(!resetEachTerm)} className={`relative w-11 h-6 rounded-full transition-colors ${resetEachTerm ? "bg-brand-purple" : "bg-gray-300"}`}>
-                        <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${resetEachTerm ? "translate-x-5" : ""}`} />
-                      </button>
-                      <span className="text-sm text-text-secondary">Reset cycle to Day 1 at the start of each term</span>
-                    </div>
-                  </div>
-
-                  {/* Class meetings — visual timetable grid */}
-                  <div className="border-t border-border pt-4">
-                    <h4 className="text-xs font-semibold text-text-primary mb-1">When do your classes meet?</h4>
-                    <p className="text-xs text-text-secondary mb-3">Click any cell to add or remove a class. Or use the quick-add row below the grid.</p>
-                    {classes.length > 0 ? (
-                      <TimetableGrid
-                        cycleLength={cycleLength}
-                        meetings={classMeetings as ClassMeetingEntry[]}
-                        classes={classes}
-                        onMeetingsChange={(newMeetings) => setClassMeetings(newMeetings)}
-                      />
-                    ) : (
-                      <p className="text-sm text-text-secondary">Create classes first to add meeting times.</p>
-                    )}
-                  </div>
-
-                  {/* Excluded dates (holidays) */}
-                  <div className="border-t border-border pt-4">
-                    <h4 className="text-xs font-semibold text-text-primary mb-1">Non-School Days</h4>
-                    <p className="text-xs text-text-secondary mb-3">Add holidays, PD days, or any dates the cycle skips.</p>
-                    {excludedDates.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 mb-3">
-                        {excludedDates.map((d, i) => (
-                          <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 text-xs font-medium border border-amber-200">
-                            {d}
-                            <button onClick={() => setExcludedDates(excludedDates.filter((_, j) => j !== i))} className="hover:text-red-600 ml-0.5">✕</button>
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                    <div className="flex items-end gap-2">
-                      <div>
-                        <label className="block text-xs text-text-secondary mb-1">Date</label>
-                        <input type="date" value={newExcludedDate} onChange={(e) => setNewExcludedDate(e.target.value)} className="px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-text-secondary mb-1">Label (opt.)</label>
-                        <input type="text" value={newExcludedLabel} onChange={(e) => setNewExcludedLabel(e.target.value)} placeholder="e.g. Easter Monday" className="w-40 px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
-                      </div>
-                      <button
-                        onClick={() => {
-                          if (!newExcludedDate) return;
-                          const label = newExcludedLabel ? `${newExcludedDate} (${newExcludedLabel})` : newExcludedDate;
-                          if (!excludedDates.includes(newExcludedDate) && !excludedDates.includes(label)) {
-                            setExcludedDates([...excludedDates, newExcludedLabel ? label : newExcludedDate]);
-                          }
-                          setNewExcludedDate("");
-                          setNewExcludedLabel("");
-                        }}
-                        disabled={!newExcludedDate}
-                        className="px-4 py-2 rounded-lg text-sm font-medium bg-amber-50 text-amber-700 hover:bg-amber-100 transition disabled:opacity-40 border border-amber-200"
-                      >
-                        + Add
-                      </button>
-                    </div>
-                  </div>
+            {/* Excluded dates (holidays) */}
+            <div className="border-t border-border pt-4 mt-5">
+              <h4 className="text-xs font-semibold text-text-primary mb-1">Non-School Days</h4>
+              <p className="text-xs text-text-secondary mb-3">Add holidays, PD days, or any dates the cycle skips.</p>
+              {excludedDates.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-3">
+                  {excludedDates.map((d, i) => (
+                    <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 text-xs font-medium border border-amber-200">
+                      {d}
+                      <button onClick={() => setExcludedDates(excludedDates.filter((_, j) => j !== i))} className="hover:text-red-600 ml-0.5">✕</button>
+                    </span>
+                  ))}
                 </div>
               )}
+              <div className="flex items-end gap-2">
+                <div>
+                  <label className="block text-xs text-text-secondary mb-1">Date</label>
+                  <input type="date" value={newExcludedDate} onChange={(e) => setNewExcludedDate(e.target.value)} className="px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+                </div>
+                <div>
+                  <label className="block text-xs text-text-secondary mb-1">Label (opt.)</label>
+                  <input type="text" value={newExcludedLabel} onChange={(e) => setNewExcludedLabel(e.target.value)} placeholder="e.g. Easter Monday" className="w-40 px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+                </div>
+                <button
+                  onClick={() => {
+                    if (!newExcludedDate) return;
+                    const label = newExcludedLabel ? `${newExcludedDate} (${newExcludedLabel})` : newExcludedDate;
+                    if (!excludedDates.includes(newExcludedDate) && !excludedDates.includes(label)) {
+                      setExcludedDates([...excludedDates, newExcludedLabel ? label : newExcludedDate]);
+                    }
+                    setNewExcludedDate("");
+                    setNewExcludedLabel("");
+                  }}
+                  disabled={!newExcludedDate}
+                  className="px-4 py-2 rounded-lg text-sm font-medium bg-amber-50 text-amber-700 hover:bg-amber-100 transition disabled:opacity-40 border border-amber-200"
+                >
+                  + Add
+                </button>
+              </div>
             </div>
 
             {/* Save timetable */}
@@ -1374,12 +1347,9 @@ export default function TeacherSettingsPage() {
                 onClick={() => {
                   setClassMeetings([]);
                   setExcludedDates([]);
-                  setAnchorDate(new Date().toISOString().split("T")[0]);
-                  setAnchorCycleDay(1);
                   setIcalUrl("");
                   setIcalPreviewData(null);
                   setIcalMessage("");
-                  setShowManualSetup(false);
                 }}
                 className="px-4 py-2 rounded-lg text-sm font-medium text-text-tertiary hover:text-red-600 hover:bg-red-50 transition border border-transparent hover:border-red-200"
               >
