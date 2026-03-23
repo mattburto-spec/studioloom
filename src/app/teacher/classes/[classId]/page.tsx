@@ -104,12 +104,29 @@ export default function ClassDetailPage({
 
     const [classRes, studentsRes, unitsRes, classUnitsRes] = await Promise.all([
       supabase.from("classes").select("*").eq("id", classId).single(),
-      supabase.from("students").select("*").eq("class_id", classId).order("username"),
+      // Fetch students via class_students junction (migration 041), with legacy fallback
+      supabase.from("class_students").select("student_id, ell_level_override, students(*)").eq("class_id", classId).eq("is_active", true),
       supabase.from("units").select("*").order("title"),
       supabase.from("class_units").select("*").eq("class_id", classId),
     ]);
 
-    const studentList: Student[] = studentsRes.data || [];
+    // Map junction results to Student[] (with ELL override)
+    let studentList: Student[] = [];
+    if (studentsRes.data && studentsRes.data.length > 0) {
+      studentList = studentsRes.data
+        .filter((row: any) => row.students)
+        .map((row: any) => {
+          const s = row.students as Student;
+          if (row.ell_level_override != null) s.ell_level = row.ell_level_override;
+          return s;
+        });
+    }
+    // Legacy fallback: if junction returned nothing, try old class_id query
+    if (studentList.length === 0 && !studentsRes.error) {
+      const supabase2 = createClient();
+      const { data: legacyStudents } = await supabase2.from("students").select("*").eq("class_id", classId).order("username");
+      if (legacyStudents && legacyStudents.length > 0) studentList = legacyStudents as Student[];
+    }
     setClassInfo(classRes.data);
     setStudents(studentList);
     setAllUnits(unitsRes.data || []);
@@ -157,19 +174,51 @@ export default function ClassDetailPage({
     setAdding(true);
 
     const supabase = createClient();
-    const { error } = await supabase.from("students").insert({
-      username: newUsername.trim().toLowerCase(),
-      display_name: newDisplayName.trim() || null,
-      class_id: classId,
-    });
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setAdding(false); return; }
 
-    if (!error) {
-      setNewUsername("");
-      setNewDisplayName("");
-      setShowAddStudent(false);
-      loadData();
+    // Check if student already exists for this teacher
+    const { data: existing } = await supabase
+      .from("students")
+      .select("id")
+      .eq("author_teacher_id", user.id)
+      .eq("username", newUsername.trim().toLowerCase())
+      .maybeSingle();
+
+    if (existing) {
+      // Student exists — just enroll in this class
+      await supabase.from("class_students").upsert({
+        student_id: existing.id,
+        class_id: classId,
+        is_active: true,
+        enrolled_at: new Date().toISOString(),
+        unenrolled_at: null,
+      }, { onConflict: "student_id,class_id" });
+      // Update legacy class_id
+      await supabase.from("students").update({ class_id: classId }).eq("id", existing.id);
+    } else {
+      // Create new student + enroll
+      const { data: student, error } = await supabase.from("students").insert({
+        username: newUsername.trim().toLowerCase(),
+        display_name: newDisplayName.trim() || null,
+        class_id: classId,
+        author_teacher_id: user.id,
+      }).select().single();
+
+      if (error || !student) { setAdding(false); return; }
+
+      // Create enrollment
+      await supabase.from("class_students").insert({
+        student_id: student.id,
+        class_id: classId,
+        is_active: true,
+      });
     }
 
+    setNewUsername("");
+    setNewDisplayName("");
+    setShowAddStudent(false);
+    loadData();
     setAdding(false);
   }
 
@@ -183,9 +232,11 @@ export default function ClassDetailPage({
       .map((l) => l.trim())
       .filter((l) => l.length > 0);
 
+    const { data: { user } } = await createClient().auth.getUser();
+    const teacherId = user?.id;
     const existingUsernames = new Set(students.map((s) => s.username.toLowerCase()));
     const skipped: string[] = [];
-    const toInsert: { username: string; display_name: string | null; class_id: string }[] = [];
+    const toInsert: { username: string; display_name: string | null; class_id: string; author_teacher_id: string | null }[] = [];
 
     for (const line of lines) {
       // Support formats:
@@ -228,16 +279,27 @@ export default function ClassDetailPage({
         username,
         display_name: displayName || null,
         class_id: classId,
+        author_teacher_id: teacherId || null,
       });
     }
 
     if (toInsert.length > 0) {
       const supabase = createClient();
-      const { error } = await supabase.from("students").insert(toInsert);
+      const { data: inserted, error } = await supabase.from("students").insert(toInsert).select("id");
       if (error) {
         setBulkResult({ added: 0, skipped: [`Database error: ${error.message}`] });
         setAdding(false);
         return;
+      }
+      // Create enrollments for all newly inserted students
+      if (inserted && inserted.length > 0) {
+        await supabase.from("class_students").insert(
+          inserted.map((s: { id: string }) => ({
+            student_id: s.id,
+            class_id: classId,
+            is_active: true,
+          }))
+        );
       }
     }
 
@@ -312,7 +374,23 @@ export default function ClassDetailPage({
 
   async function removeStudent(studentId: string) {
     const supabase = createClient();
-    await supabase.from("students").delete().eq("id", studentId);
+    // Soft unenroll — student persists in teacher roster
+    await supabase
+      .from("class_students")
+      .update({ is_active: false, unenrolled_at: new Date().toISOString() })
+      .eq("student_id", studentId)
+      .eq("class_id", classId);
+    // Update legacy class_id to next active enrollment (or null)
+    const { data: activeEnrollments } = await supabase
+      .from("class_students")
+      .select("class_id")
+      .eq("student_id", studentId)
+      .eq("is_active", true)
+      .limit(1);
+    await supabase
+      .from("students")
+      .update({ class_id: activeEnrollments?.[0]?.class_id || null })
+      .eq("id", studentId);
     setStudents((prev) => prev.filter((s) => s.id !== studentId));
     setRemovingId(null);
   }

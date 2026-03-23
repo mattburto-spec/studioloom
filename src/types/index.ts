@@ -24,12 +24,27 @@ export interface Student {
   username: string;
   display_name: string | null;
   avatar_url: string | null;
-  class_id: string;
+  class_id: string | null; // DEPRECATED — use class_students junction. Nullable since migration 041.
+  author_teacher_id: string | null; // Teacher who owns this student record (migration 041)
   ell_level: EllLevel;
   created_at: string;
   // LMS integration (provider-agnostic)
   external_id: string | null;
   external_provider: string | null;
+}
+
+// --- Class-Student Enrollment (many-to-many, migration 041) ---
+
+export interface ClassStudent {
+  student_id: string;
+  class_id: string;
+  enrolled_at: string;
+  unenrolled_at: string | null; // null = currently enrolled
+  is_active: boolean;
+  ell_level_override: EllLevel | null; // per-enrollment ELL override
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface StudentSession {

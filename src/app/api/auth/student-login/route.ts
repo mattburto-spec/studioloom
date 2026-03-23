@@ -46,15 +46,50 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Look up the student by username within that class
-  const { data: student, error: studentError } = await supabase
-    .from("students")
-    .select("id, username, display_name, ell_level")
-    .eq("class_id", classData.id)
-    .eq("username", username.trim().toLowerCase())
-    .single();
+  // Look up the student via class_students junction (migration 041)
+  // Try junction table first, fall back to legacy class_id
+  let student: { id: string; username: string; display_name: string | null; ell_level: number } | null = null;
 
-  if (studentError || !student) {
+  // New path: class_students junction
+  const { data: enrollment } = await supabase
+    .from("class_students")
+    .select("student_id, ell_level_override, students(id, username, display_name, ell_level)")
+    .eq("class_id", classData.id)
+    .eq("is_active", true)
+    .not("students", "is", null);
+
+  if (enrollment && enrollment.length > 0) {
+    // Find matching student by username
+    const match = enrollment.find((e: any) => {
+      const s = e.students;
+      return s && s.username === username.trim().toLowerCase();
+    });
+    if (match) {
+      const s = (match as any).students;
+      student = {
+        id: s.id,
+        username: s.username,
+        display_name: s.display_name,
+        ell_level: (match as any).ell_level_override ?? s.ell_level,
+      };
+    }
+  }
+
+  // Legacy fallback: students.class_id (for pre-migration data)
+  if (!student) {
+    const { data: legacyStudent } = await supabase
+      .from("students")
+      .select("id, username, display_name, ell_level")
+      .eq("class_id", classData.id)
+      .eq("username", username.trim().toLowerCase())
+      .maybeSingle();
+
+    if (legacyStudent) {
+      student = legacyStudent;
+    }
+  }
+
+  if (!student) {
     return NextResponse.json(
       { error: "Student not found in this class" },
       { status: 401 }

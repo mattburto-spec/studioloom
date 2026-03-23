@@ -10,9 +10,12 @@ interface StudentRow {
   id: string;
   username: string;
   display_name: string | null;
-  class_id: string;
+  class_id: string | null; // Legacy — may be null for students created post-migration 041
+  author_teacher_id: string | null;
   ell_level?: number;
   created_at: string;
+  // Populated from class_students junction
+  enrolledClassIds?: string[];
 }
 
 interface ClassRow {
@@ -101,6 +104,13 @@ export default function TeacherStudentsPage() {
   const [sortBy, setSortBy] = useState<"name" | "class" | "progress" | "recent">("name");
   const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
 
+  const [enrollmentMap, setEnrollmentMap] = useState<Map<string, string[]>>(new Map()); // student_id → class_ids
+  const [showAddStudent, setShowAddStudent] = useState(false);
+  const [newUsername, setNewUsername] = useState("");
+  const [newDisplayName, setNewDisplayName] = useState("");
+  const [addError, setAddError] = useState("");
+  const [adding, setAdding] = useState(false);
+
   const loadData = useCallback(async () => {
     const supabase = createClient();
     const {
@@ -108,7 +118,8 @@ export default function TeacherStudentsPage() {
     } = await supabase.auth.getUser();
     if (!user) return;
 
-    const [classesRes, studentsRes] = await Promise.all([
+    // Fetch classes + students owned by this teacher + enrollment data
+    const [classesRes, studentsRes, enrollmentsRes] = await Promise.all([
       supabase
         .from("classes")
         .select("id, name, code")
@@ -117,15 +128,33 @@ export default function TeacherStudentsPage() {
         .order("name"),
       supabase
         .from("students")
-        .select("id, username, display_name, class_id, ell_level, created_at")
+        .select("id, username, display_name, class_id, author_teacher_id, ell_level, created_at")
+        .eq("author_teacher_id", user.id)
         .order("display_name"),
+      supabase
+        .from("class_students")
+        .select("student_id, class_id")
+        .eq("is_active", true),
     ]);
 
     const allClasses = (classesRes.data || []) as ClassRow[];
     const classIds = new Set(allClasses.map((c) => c.id));
-    const teacherStudents = ((studentsRes.data || []) as StudentRow[]).filter((s) =>
-      classIds.has(s.class_id)
-    );
+
+    // Build enrollment map (student_id → array of class_ids they're in)
+    const eMap = new Map<string, string[]>();
+    for (const row of (enrollmentsRes.data || []) as { student_id: string; class_id: string }[]) {
+      if (!classIds.has(row.class_id)) continue; // Only include teacher's classes
+      const arr = eMap.get(row.student_id) || [];
+      arr.push(row.class_id);
+      eMap.set(row.student_id, arr);
+    }
+    setEnrollmentMap(eMap);
+
+    // Include ALL teacher's students (even unassigned ones)
+    const teacherStudents = ((studentsRes.data || []) as StudentRow[]).map((s) => ({
+      ...s,
+      enrolledClassIds: eMap.get(s.id) || [],
+    }));
 
     setClasses(allClasses);
     setStudents(teacherStudents);
@@ -187,19 +216,27 @@ export default function TeacherStudentsPage() {
 
   const filtered = useMemo(() => {
     let list = students;
-    if (classFilter !== "all") list = list.filter((s) => s.class_id === classFilter);
+    if (classFilter === "unassigned") {
+      list = list.filter((s) => !s.enrolledClassIds || s.enrolledClassIds.length === 0);
+    } else if (classFilter !== "all") {
+      list = list.filter((s) => s.enrolledClassIds?.includes(classFilter));
+    }
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(
         (s) =>
           (s.display_name || "").toLowerCase().includes(q) ||
           s.username.toLowerCase().includes(q) ||
-          (classNameMap.get(s.class_id) || "").toLowerCase().includes(q)
+          (s.enrolledClassIds || []).some((cid) => (classNameMap.get(cid) || "").toLowerCase().includes(q))
       );
     }
     list = [...list].sort((a, b) => {
       if (sortBy === "name") return (a.display_name || a.username).localeCompare(b.display_name || b.username);
-      if (sortBy === "class") return (classNameMap.get(a.class_id) || "").localeCompare(classNameMap.get(b.class_id) || "");
+      if (sortBy === "class") {
+        const aClass = classNameMap.get(a.enrolledClassIds?.[0] || "") || "";
+        const bClass = classNameMap.get(b.enrolledClassIds?.[0] || "") || "";
+        return aClass.localeCompare(bClass);
+      }
       if (sortBy === "progress") {
         const pa = progressMap.get(a.id);
         const pb = progressMap.get(b.id);
@@ -241,13 +278,102 @@ export default function TeacherStudentsPage() {
       {/* ── Header ── */}
       <div className="flex items-start justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-extrabold text-text-primary tracking-tight">Students</h1>
-          <p className="text-sm text-text-secondary mt-1">
+          <h1 className="text-2xl font-extrabold text-gray-900 tracking-tight">Students</h1>
+          <p className="text-sm text-gray-500 mt-1">
             {students.length} student{students.length !== 1 ? "s" : ""} across{" "}
             {classes.length} class{classes.length !== 1 ? "es" : ""}
           </p>
         </div>
+        <button
+          onClick={() => setShowAddStudent(true)}
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all"
+          style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)" }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+            <path d="M12 5v14m-7-7h14" />
+          </svg>
+          Add Student
+        </button>
       </div>
+
+      {/* ── Add Student Modal ── */}
+      {showAddStudent && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => { setShowAddStudent(false); setAddError(""); }}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-extrabold text-gray-900 mb-1">Add Student</h2>
+            <p className="text-sm text-gray-500 mb-5">Create a student in your roster. You can assign them to classes later.</p>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-semibold text-gray-600 block mb-1">Username *</label>
+                <input
+                  type="text"
+                  value={newUsername}
+                  onChange={(e) => setNewUsername(e.target.value)}
+                  placeholder="e.g. jsmith"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-400"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-600 block mb-1">Display Name</label>
+                <input
+                  type="text"
+                  value={newDisplayName}
+                  onChange={(e) => setNewDisplayName(e.target.value)}
+                  placeholder="e.g. John Smith"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-400"
+                />
+              </div>
+            </div>
+
+            {addError && (
+              <p className="text-xs text-red-600 mt-3 bg-red-50 px-3 py-2 rounded-lg">{addError}</p>
+            )}
+
+            <div className="flex items-center justify-end gap-2 mt-5">
+              <button onClick={() => { setShowAddStudent(false); setAddError(""); setNewUsername(""); setNewDisplayName(""); }} className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 transition">Cancel</button>
+              <button
+                disabled={adding || !newUsername.trim()}
+                onClick={async () => {
+                  setAdding(true);
+                  setAddError("");
+                  const supabase = createClient();
+                  const { data: { user } } = await supabase.auth.getUser();
+                  if (!user) { setAddError("Not authenticated"); setAdding(false); return; }
+
+                  const { data: student, error } = await supabase
+                    .from("students")
+                    .insert({
+                      username: newUsername.trim().toLowerCase(),
+                      display_name: newDisplayName.trim() || null,
+                      ell_level: 3,
+                      author_teacher_id: user.id,
+                      class_id: null,
+                    })
+                    .select()
+                    .single();
+
+                  if (error) {
+                    setAddError(error.code === "23505" ? "A student with this username already exists." : error.message);
+                    setAdding(false);
+                    return;
+                  }
+
+                  setShowAddStudent(false);
+                  setNewUsername("");
+                  setNewDisplayName("");
+                  setAdding(false);
+                  loadData();
+                }}
+                className="px-4 py-2 rounded-xl text-sm font-semibold text-white transition disabled:opacity-50"
+                style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)" }}
+              >
+                {adding ? "Adding..." : "Add Student"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Summary strip ── */}
       {students.length > 0 && (
@@ -307,6 +433,7 @@ export default function TeacherStudentsPage() {
           className="px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/30"
         >
           <option value="all">All classes</option>
+          <option value="unassigned">Unassigned</option>
           {classes.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
@@ -387,13 +514,13 @@ export default function TeacherStudentsPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map((student) => {
             const name = student.display_name || student.username;
-            const cls = classNameMap.get(student.class_id) || "—";
+            const enrolledIds = student.enrolledClassIds || [];
             const prog = progressMap.get(student.id);
             const pct = prog && prog.total > 0 ? Math.round((prog.completed / prog.total) * 100) : 0;
             const studioUnits = studioMap.get(student.id) || 0;
             const badges = badgeMap.get(student.id) || 0;
             const ell = student.ell_level ? ELL_LABELS[student.ell_level] : null;
-            const cc = getClassColor(student.class_id, classes);
+            const firstClassId = enrolledIds[0] || student.class_id;
 
             return (
               <div
@@ -412,24 +539,36 @@ export default function TeacherStudentsPage() {
                     <div className="min-w-0 flex-1">
                       <Link
                         href={`/teacher/students/${student.id}`}
-                        className="text-sm font-bold text-text-primary hover:text-purple-600 transition leading-snug block truncate"
+                        className="text-sm font-bold text-gray-900 hover:text-purple-600 transition leading-snug block truncate"
                       >
                         {name}
                       </Link>
-                      <span className="text-[11px] text-text-tertiary">{student.username}</span>
+                      <span className="text-[11px] text-gray-400">{student.username}</span>
                     </div>
                   </div>
 
                   {/* Badges row */}
                   <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
-                    {/* Class pill */}
-                    <span
-                      className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full"
-                      style={{ background: cc.light, color: cc.text }}
-                    >
-                      <span className="w-1.5 h-1.5 rounded-full" style={{ background: cc.fill }} />
-                      {cls}
-                    </span>
+                    {/* Class pills — show ALL enrolled classes */}
+                    {enrolledIds.length > 0 ? (
+                      enrolledIds.map((cid) => {
+                        const cc = getClassColor(cid, classes);
+                        return (
+                          <span
+                            key={cid}
+                            className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                            style={{ background: cc.light, color: cc.text }}
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full" style={{ background: cc.fill }} />
+                            {classNameMap.get(cid) || "—"}
+                          </span>
+                        );
+                      })
+                    ) : (
+                      <span className="text-[10px] text-gray-400 italic px-2 py-0.5 rounded-full bg-gray-50 border border-dashed border-gray-200">
+                        No class assigned
+                      </span>
+                    )}
 
                     {/* ELL badge */}
                     {ell && (
@@ -486,12 +625,12 @@ export default function TeacherStudentsPage() {
                         }}
                       />
                     </div>
-                    <span className="text-[11px] font-semibold text-text-secondary w-10 text-right">
+                    <span className="text-[11px] font-semibold text-gray-500 w-10 text-right">
                       {pct}%
                     </span>
                   </div>
                   {prog && prog.total > 0 && (
-                    <p className="text-[10px] text-text-tertiary mt-1">
+                    <p className="text-[10px] text-gray-400 mt-1">
                       {prog.completed}/{prog.total} pages complete
                     </p>
                   )}
@@ -509,17 +648,19 @@ export default function TeacherStudentsPage() {
                     </svg>
                     Profile
                   </Link>
-                  <Link
-                    href={`/teacher/classes/${student.class_id}/progress`}
-                    className="inline-flex items-center gap-1 text-[11px] font-semibold px-3 py-1.5 rounded-lg text-text-secondary border border-gray-200 hover:bg-gray-50 transition"
-                  >
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
-                    </svg>
-                    Progress
-                  </Link>
+                  {firstClassId && (
+                    <Link
+                      href={`/teacher/classes/${firstClassId}/progress`}
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold px-3 py-1.5 rounded-lg text-gray-500 border border-gray-200 hover:bg-gray-50 transition"
+                    >
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
+                      </svg>
+                      Progress
+                    </Link>
+                  )}
                   {studioUnits > 0 && (
-                    <span className="ml-auto text-[10px] text-text-tertiary italic">working independently</span>
+                    <span className="ml-auto text-[10px] text-gray-400 italic">working independently</span>
                   )}
                 </div>
               </div>
@@ -544,13 +685,13 @@ export default function TeacherStudentsPage() {
           <div className="divide-y divide-gray-100">
             {filtered.map((student) => {
               const name = student.display_name || student.username;
-              const cls = classNameMap.get(student.class_id) || "—";
+              const enrolledIds = student.enrolledClassIds || [];
               const prog = progressMap.get(student.id);
               const pct = prog && prog.total > 0 ? Math.round((prog.completed / prog.total) * 100) : 0;
               const studioUnits = studioMap.get(student.id) || 0;
               const badges = badgeMap.get(student.id) || 0;
               const ell = student.ell_level ? ELL_LABELS[student.ell_level] : null;
-              const cc = getClassColor(student.class_id, classes);
+              const firstClassId = enrolledIds[0] || student.class_id;
 
               return (
                 <div
@@ -576,14 +717,23 @@ export default function TeacherStudentsPage() {
                     </div>
                   </div>
 
-                  {/* Class pill */}
-                  <span
-                    className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full w-fit"
-                    style={{ background: cc.light, color: cc.text }}
-                  >
-                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: cc.fill }} />
-                    {cls}
-                  </span>
+                  {/* Class pills */}
+                  <div className="flex flex-wrap gap-1">
+                    {enrolledIds.length > 0 ? enrolledIds.slice(0, 2).map((cid) => {
+                      const cc = getClassColor(cid, classes);
+                      return (
+                        <span key={cid} className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: cc.light, color: cc.text }}>
+                          <span className="w-1.5 h-1.5 rounded-full" style={{ background: cc.fill }} />
+                          {classNameMap.get(cid) || "—"}
+                        </span>
+                      );
+                    }) : (
+                      <span className="text-[10px] text-gray-400 italic">None</span>
+                    )}
+                    {enrolledIds.length > 2 && (
+                      <span className="text-[10px] text-gray-400">+{enrolledIds.length - 2}</span>
+                    )}
+                  </div>
 
                   {/* ELL */}
                   <div>
@@ -644,12 +794,14 @@ export default function TeacherStudentsPage() {
                     >
                       Profile
                     </Link>
-                    <Link
-                      href={`/teacher/classes/${student.class_id}/progress`}
-                      className="px-2.5 py-1 text-[11px] font-semibold text-text-secondary border border-gray-200 rounded-lg hover:bg-gray-50 transition"
-                    >
-                      Progress
-                    </Link>
+                    {firstClassId && (
+                      <Link
+                        href={`/teacher/classes/${firstClassId}/progress`}
+                        className="px-2.5 py-1 text-[11px] font-semibold text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50 transition"
+                      >
+                        Progress
+                      </Link>
+                    )}
                   </div>
                 </div>
               );
