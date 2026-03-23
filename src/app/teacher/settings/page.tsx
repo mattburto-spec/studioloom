@@ -144,10 +144,7 @@ export default function TeacherSettingsPage() {
   // Class mapping step: AI class name → teacher's class ID
   const [aiClassMapping, setAiClassMapping] = useState<Record<string, string>>({});
   const [showClassMapping, setShowClassMapping] = useState(false);
-  // Unmapped classes preserved from AI import (class_name → entries array)
-  const [unmappedClasses, setUnmappedClasses] = useState<Record<string, Array<{ day: number; period: number; room?: string }>>>({});
-  const [showUnmappedMapping, setShowUnmappedMapping] = useState(false);
-  const [unmappedMapping, setUnmappedMapping] = useState<Record<string, string>>({});
+  // (unmapped classes state removed — auto-create handles this now)
 
   // Temp state for adding a meeting
   const [newMeetingClassId, setNewMeetingClassId] = useState("");
@@ -1480,7 +1477,7 @@ export default function TeacherSettingsPage() {
                   <div className="space-y-4">
                     <div>
                       <h3 className="text-sm font-semibold text-text-primary mb-1">Match to your classes</h3>
-                      <p className="text-xs text-text-secondary mb-3">The AI found these class names in your timetable. Match each one to a class you&apos;ve created in StudioLoom, or leave as &quot;Skip&quot; to ignore.</p>
+                      <p className="text-xs text-text-secondary mb-3">Each teaching class is matched to an existing class or will be created automatically. Change any mapping, or set to &quot;Skip&quot; to exclude.</p>
                     </div>
 
                     {(() => {
@@ -1491,87 +1488,145 @@ export default function TeacherSettingsPage() {
                       const counts: Record<string, number> = {};
                       teachingEntries.forEach((e: { class_name: string }) => { counts[e.class_name] = (counts[e.class_name] || 0) + 1; });
 
+                      // Count how many will be created vs matched vs skipped
+                      const createCount = uniqueNames.filter(n => aiClassMapping[n] === "__create__").length;
+                      const matchCount = uniqueNames.filter(n => aiClassMapping[n] && aiClassMapping[n] !== "__create__" && aiClassMapping[n] !== "__skip__").length;
+                      const skipCount = uniqueNames.filter(n => aiClassMapping[n] === "__skip__").length;
+
                       return (
-                        <div className="border border-border rounded-lg divide-y divide-border">
-                          {uniqueNames.map(name => (
-                            <div key={name} className="flex items-center gap-3 px-4 py-3">
-                              <div className="flex-1 min-w-0">
-                                <span className="text-sm font-medium text-text-primary">{name}</span>
-                                <span className="ml-2 text-xs text-text-tertiary">({counts[name]} period{counts[name] === 1 ? "" : "s"}/cycle)</span>
-                              </div>
-                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
-                              <select
-                                value={aiClassMapping[name] || ""}
-                                onChange={(e) => setAiClassMapping(prev => ({ ...prev, [name]: e.target.value }))}
-                                className="px-3 py-1.5 border border-border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-purple/30 min-w-[180px]"
-                              >
-                                <option value="">— Skip —</option>
-                                {classes.map(c => (
-                                  <option key={c.id} value={c.id}>{c.name}</option>
-                                ))}
-                              </select>
-                            </div>
-                          ))}
-                        </div>
+                        <>
+                          {/* Summary pills */}
+                          <div className="flex flex-wrap gap-2 text-xs">
+                            {matchCount > 0 && <span className="px-2.5 py-1 rounded-full bg-green-50 text-green-700 border border-green-200 font-medium">{matchCount} matched</span>}
+                            {createCount > 0 && <span className="px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200 font-medium">{createCount} will be created</span>}
+                            {skipCount > 0 && <span className="px-2.5 py-1 rounded-full bg-gray-100 text-text-tertiary border border-gray-200 font-medium">{skipCount} skipped</span>}
+                          </div>
+
+                          <div className="border border-border rounded-lg divide-y divide-border">
+                            {uniqueNames.map(name => {
+                              const val = aiClassMapping[name] || "__create__";
+                              const isCreate = val === "__create__";
+                              const isSkip = val === "__skip__";
+                              return (
+                                <div key={name} className={`flex items-center gap-3 px-4 py-3 ${isSkip ? "opacity-50" : ""}`}>
+                                  <div className="flex-1 min-w-0">
+                                    <span className="text-sm font-medium text-text-primary">{name}</span>
+                                    <span className="ml-2 text-xs text-text-tertiary">({counts[name]} period{counts[name] === 1 ? "" : "s"}/cycle)</span>
+                                    {isCreate && <span className="ml-2 text-xs text-blue-600 font-medium">+ new class</span>}
+                                  </div>
+                                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
+                                  <select
+                                    value={val}
+                                    onChange={(e) => setAiClassMapping(prev => ({ ...prev, [name]: e.target.value }))}
+                                    className={`px-3 py-1.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30 min-w-[200px] ${
+                                      isCreate ? "border-blue-300 bg-blue-50 text-blue-700 font-medium" :
+                                      isSkip ? "border-gray-200 bg-gray-50 text-text-tertiary" :
+                                      "border-border bg-white"
+                                    }`}
+                                  >
+                                    <option value="__create__">+ Create &quot;{name}&quot;</option>
+                                    {classes.map(c => (
+                                      <option key={c.id} value={c.id}>{c.name}</option>
+                                    ))}
+                                    <option value="__skip__">— Skip —</option>
+                                  </select>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </>
                       );
                     })()}
 
-                    {/* Apply mapped classes */}
+                    {/* Apply — creates new classes + maps all */}
                     <div className="flex items-center gap-3">
                       <button
-                        onClick={() => {
-                          // Apply parsed data to timetable state
+                        onClick={async () => {
+                          setAiConfirming(true);
+                          const supabase = createClient();
+                          const { data: { user } } = await supabase.auth.getUser();
+                          if (!user) { setAiConfirming(false); return; }
+
+                          // Apply parsed cycle/period data
                           if (aiParseResult.cycle_length) setCycleLength(aiParseResult.cycle_length);
                           if (aiParseResult.periods?.length > 0) {
                             const firstPeriod = aiParseResult.periods[0];
                             if (firstPeriod.duration_minutes) setPeriodMinutes(firstPeriod.duration_minutes);
                           }
 
-                          // Build meetings from mapped classes only
                           const teachingEntries = aiParseResult.entries?.filter((_: unknown, i: number) => aiClassOverrides[i]) || [];
+                          const uniqueNames = [...new Set(teachingEntries.map((e: { class_name: string }) => e.class_name))] as string[];
+
+                          // Create new classes for any "__create__" mappings
+                          const finalMapping: Record<string, string> = { ...aiClassMapping };
+                          let createdCount = 0;
+
+                          for (const name of uniqueNames) {
+                            if (finalMapping[name] === "__create__") {
+                              // Detect grade level from entries if available
+                              const entry = teachingEntries.find((e: { class_name: string }) => e.class_name === name);
+                              const gradeLevel = entry?.grade_level || null;
+
+                              const { data: newClass, error } = await supabase.from("classes").insert({
+                                name,
+                                teacher_id: user.id,
+                                grade_level: gradeLevel,
+                              }).select("id, name").single();
+
+                              if (newClass && !error) {
+                                finalMapping[name] = newClass.id;
+                                createdCount++;
+                              } else {
+                                console.error("Failed to create class:", name, error);
+                                finalMapping[name] = "__skip__"; // Fall back to skip on error
+                              }
+                            }
+                          }
+
+                          // Build meetings from all non-skipped classes
                           const newMeetings = teachingEntries
-                            .filter((e: { class_name: string }) => aiClassMapping[e.class_name])
+                            .filter((e: { class_name: string }) => finalMapping[e.class_name] && finalMapping[e.class_name] !== "__skip__")
                             .map((e: { class_name: string; day: number; period: number; room?: string }) => ({
-                              class_id: aiClassMapping[e.class_name],
+                              class_id: finalMapping[e.class_name],
                               cycle_day: e.day,
                               period_number: e.period,
                               room: e.room || undefined,
                             }));
 
                           setClassMeetings(newMeetings);
+                          // All classes handled — no unmapped leftovers
 
-                          // Preserve unmapped teaching entries so teacher can create classes and map later
-                          const skippedEntries: Record<string, Array<{ day: number; period: number; room?: string }>> = {};
-                          const teachingNames = [...new Set(teachingEntries.map((e: { class_name: string }) => e.class_name))] as string[];
-                          for (const name of teachingNames) {
-                            if (!aiClassMapping[name]) {
-                              skippedEntries[name] = teachingEntries
-                                .filter((e: { class_name: string }) => e.class_name === name)
-                                .map((e: { day: number; period: number; room?: string }) => ({
-                                  day: e.day, period: e.period, room: e.room,
-                                }));
-                            }
-                          }
-                          setUnmappedClasses(skippedEntries);
-
-                          const mappedCount = Object.values(aiClassMapping).filter(Boolean).length;
-                          const skippedCount = teachingNames.length - mappedCount;
+                          const mappedCount = uniqueNames.filter(n => finalMapping[n] && finalMapping[n] !== "__skip__").length;
+                          const skipCount = uniqueNames.filter(n => finalMapping[n] === "__skip__").length;
 
                           setTimetableSuccess(
                             `Applied ${newMeetings.length} meetings from ${mappedCount} class${mappedCount === 1 ? "" : "es"}` +
-                            (skippedCount > 0 ? `. ${skippedCount} unmapped class${skippedCount === 1 ? "" : "es"} preserved below — create the class first, then map it.` : "") +
-                            ` Remember to Save below!`
+                            (createdCount > 0 ? ` (${createdCount} new class${createdCount === 1 ? "" : "es"} created)` : "") +
+                            (skipCount > 0 ? `, ${skipCount} skipped` : "") +
+                            `. Remember to Save below!`
                           );
+
+                          // Refresh classes list to include newly created ones
+                          if (createdCount > 0) {
+                            const { data: refreshed } = await supabase
+                              .from("classes")
+                              .select("id, name")
+                              .eq("teacher_id", user.id)
+                              .order("name");
+                            if (refreshed) setClasses(refreshed);
+                          }
 
                           // Clear AI state
                           setAiParseResult(null);
                           setAiClassOverrides({});
                           setAiClassMapping({});
                           setShowClassMapping(false);
+                          setAiConfirming(false);
                         }}
-                        className="px-5 py-2.5 rounded-lg text-sm font-medium bg-brand-purple text-white hover:bg-brand-purple/90 transition"
+                        disabled={aiConfirming}
+                        className="px-5 py-2.5 rounded-lg text-sm font-medium bg-brand-purple text-white hover:bg-brand-purple/90 transition disabled:opacity-50"
                       >
-                        Apply to Schedule
+                        {aiConfirming ? "Creating classes..." : "Apply to Schedule"}
                       </button>
                       <button
                         onClick={() => setShowClassMapping(false)}
@@ -1596,7 +1651,8 @@ export default function TeacherSettingsPage() {
                             c.name.toLowerCase().includes(name.toLowerCase()) ||
                             name.toLowerCase().includes(c.name.toLowerCase())
                           );
-                          if (match) autoMapping[name] = match.id;
+                          // Auto-match existing classes, default unmatched to "create new"
+                          autoMapping[name] = match ? match.id : "__create__";
                         }
                         setAiClassMapping(autoMapping);
                         setShowClassMapping(true);
@@ -1644,100 +1700,6 @@ export default function TeacherSettingsPage() {
               <div className="p-6 rounded-lg bg-gray-50 border border-gray-200 text-center">
                 <p className="text-sm text-text-secondary mb-2">No classes created yet.</p>
                 <p className="text-xs text-text-tertiary">Create your classes first (on the <button onClick={() => setActiveTab("general")} className="text-brand-purple hover:underline font-medium">General tab</button>), then come back here to set up when each class meets.</p>
-              </div>
-            )}
-
-            {/* Unmapped classes from AI import — preserved for later mapping */}
-            {Object.keys(unmappedClasses).length > 0 && (
-              <div className="mt-4 p-4 rounded-lg bg-amber-50 border border-amber-200">
-                <div className="flex items-center justify-between mb-2">
-                  <div>
-                    <h3 className="text-sm font-semibold text-amber-900">Unmapped classes from import</h3>
-                    <p className="text-xs text-amber-700 mt-0.5">These classes were detected in your timetable but not yet matched. Create the class first, then map it here.</p>
-                  </div>
-                  <button
-                    onClick={() => setUnmappedClasses({})}
-                    className="text-xs text-amber-600 hover:text-amber-800 underline"
-                  >
-                    Dismiss
-                  </button>
-                </div>
-                {showUnmappedMapping ? (
-                  <div className="space-y-3">
-                    <div className="border border-amber-200 rounded-lg divide-y divide-amber-100 bg-white">
-                      {Object.entries(unmappedClasses).map(([name, entries]) => (
-                        <div key={name} className="flex items-center gap-3 px-4 py-3">
-                          <div className="flex-1 min-w-0">
-                            <span className="text-sm font-medium text-text-primary">{name}</span>
-                            <span className="ml-2 text-xs text-text-tertiary">({entries.length} period{entries.length === 1 ? "" : "s"}/cycle)</span>
-                          </div>
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
-                          <select
-                            value={unmappedMapping[name] || ""}
-                            onChange={(e) => setUnmappedMapping(prev => ({ ...prev, [name]: e.target.value }))}
-                            className="px-3 py-1.5 border border-border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-purple/30 min-w-[180px]"
-                          >
-                            <option value="">— Skip for now —</option>
-                            {classes.map(c => (
-                              <option key={c.id} value={c.id}>{c.name}</option>
-                            ))}
-                          </select>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => {
-                          // Add newly mapped classes to meetings
-                          const newMeetings = [...classMeetings];
-                          const stillUnmapped: Record<string, Array<{ day: number; period: number; room?: string }>> = {};
-                          for (const [name, entries] of Object.entries(unmappedClasses)) {
-                            if (unmappedMapping[name]) {
-                              for (const e of entries) {
-                                newMeetings.push({
-                                  class_id: unmappedMapping[name],
-                                  cycle_day: e.day,
-                                  period_number: e.period,
-                                  room: e.room || undefined,
-                                });
-                              }
-                            } else {
-                              stillUnmapped[name] = entries;
-                            }
-                          }
-                          setClassMeetings(newMeetings);
-                          setUnmappedClasses(stillUnmapped);
-                          setUnmappedMapping({});
-                          setShowUnmappedMapping(false);
-                          const addedCount = Object.values(unmappedMapping).filter(Boolean).length;
-                          if (addedCount > 0) {
-                            setTimetableSuccess(`Added ${addedCount} class${addedCount === 1 ? "" : "es"} to schedule. Remember to Save!`);
-                          }
-                        }}
-                        className="px-4 py-2 rounded-lg text-sm font-medium bg-amber-600 text-white hover:bg-amber-700 transition"
-                      >
-                        Apply Mappings
-                      </button>
-                      <button onClick={() => setShowUnmappedMapping(false)} className="px-3 py-1.5 text-sm text-text-tertiary hover:text-text-primary">
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {Object.entries(unmappedClasses).map(([name, entries]) => (
-                      <span key={name} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white border border-amber-200 text-sm text-amber-900">
-                        {name} <span className="text-xs text-amber-600">({entries.length}×)</span>
-                      </span>
-                    ))}
-                    <button
-                      onClick={() => { setShowUnmappedMapping(true); setUnmappedMapping({}); }}
-                      className="px-3 py-1.5 rounded-lg text-sm font-medium text-amber-700 bg-amber-100 hover:bg-amber-200 transition"
-                    >
-                      Map now →
-                    </button>
-                  </div>
-                )}
               </div>
             )}
 
