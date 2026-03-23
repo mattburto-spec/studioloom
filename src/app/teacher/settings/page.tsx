@@ -1543,85 +1543,95 @@ export default function TeacherSettingsPage() {
                       <button
                         onClick={async () => {
                           setAiConfirming(true);
-                          const supabase = createClient();
-                          const { data: { user } } = await supabase.auth.getUser();
-                          if (!user) { setAiConfirming(false); return; }
+                          try {
+                            const supabase = (await import("@/lib/supabase/client")).createClient();
+                            const { data: { user } } = await supabase.auth.getUser();
+                            if (!user) { setAiConfirming(false); return; }
 
-                          // Apply parsed cycle/period data
-                          if (aiParseResult.cycle_length) setCycleLength(aiParseResult.cycle_length);
-                          if (aiParseResult.periods?.length > 0) {
-                            const firstPeriod = aiParseResult.periods[0];
-                            if (firstPeriod.duration_minutes) setPeriodMinutes(firstPeriod.duration_minutes);
-                          }
+                            // Apply parsed cycle/period data
+                            if (aiParseResult.cycle_length) setCycleLength(aiParseResult.cycle_length);
+                            if (aiParseResult.periods?.length > 0) {
+                              const firstPeriod = aiParseResult.periods[0];
+                              if (firstPeriod.duration_minutes) setPeriodMinutes(firstPeriod.duration_minutes);
+                            }
 
-                          const teachingEntries = aiParseResult.entries?.filter((_: unknown, i: number) => aiClassOverrides[i]) || [];
-                          const uniqueNames = [...new Set(teachingEntries.map((e: { class_name: string }) => e.class_name))] as string[];
+                            const teachingEntries = aiParseResult.entries?.filter((_: unknown, i: number) => aiClassOverrides[i]) || [];
+                            const uniqueNames = [...new Set(teachingEntries.map((e: { class_name: string }) => e.class_name))] as string[];
 
-                          // Create new classes for any "__create__" mappings
-                          const finalMapping: Record<string, string> = { ...aiClassMapping };
-                          let createdCount = 0;
+                            // Create new classes for any "__create__" mappings
+                            const finalMapping: Record<string, string> = { ...aiClassMapping };
+                            let createdCount = 0;
 
-                          for (const name of uniqueNames) {
-                            if (finalMapping[name] === "__create__") {
-                              // Detect grade level from entries if available
-                              const entry = teachingEntries.find((e: { class_name: string }) => e.class_name === name);
-                              const gradeLevel = entry?.grade_level || null;
+                            for (const name of uniqueNames) {
+                              if (finalMapping[name] === "__create__") {
+                                // Detect grade level from entries if available
+                                const entry = teachingEntries.find((e: { class_name: string }) => e.class_name === name);
+                                const gradeLevel = entry?.grade_level || null;
 
-                              const { data: newClass, error } = await supabase.from("classes").insert({
-                                name,
-                                teacher_id: user.id,
-                                grade_level: gradeLevel,
-                              }).select("id, name").single();
+                                // Generate a unique class code (6-char alphanumeric)
+                                const classCode = name.replace(/[^a-zA-Z0-9]/g, "").slice(0, 3).toUpperCase()
+                                  + Math.random().toString(36).slice(2, 5).toUpperCase();
 
-                              if (newClass && !error) {
-                                finalMapping[name] = newClass.id;
-                                createdCount++;
-                              } else {
-                                console.error("Failed to create class:", name, error);
-                                finalMapping[name] = "__skip__"; // Fall back to skip on error
+                                const { data: newClass, error } = await supabase.from("classes").insert({
+                                  name,
+                                  code: classCode,
+                                  teacher_id: user.id,
+                                  grade_level: gradeLevel,
+                                }).select("id, name").single();
+
+                                if (newClass && !error) {
+                                  finalMapping[name] = newClass.id;
+                                  createdCount++;
+                                } else {
+                                  console.error("Failed to create class:", name, error);
+                                  finalMapping[name] = "__skip__";
+                                }
                               }
                             }
+
+                            // Build meetings from all non-skipped classes
+                            const newMeetings = teachingEntries
+                              .filter((e: { class_name: string }) => finalMapping[e.class_name] && finalMapping[e.class_name] !== "__skip__")
+                              .map((e: { class_name: string; day: number; period: number; room?: string }) => ({
+                                class_id: finalMapping[e.class_name],
+                                cycle_day: e.day,
+                                period_number: e.period,
+                                room: e.room || undefined,
+                              }));
+
+                            setClassMeetings(newMeetings);
+
+                            const mappedCount = uniqueNames.filter(n => finalMapping[n] && finalMapping[n] !== "__skip__").length;
+                            const skipCount = uniqueNames.filter(n => finalMapping[n] === "__skip__").length;
+
+                            setTimetableSuccess(
+                              `Applied ${newMeetings.length} meetings from ${mappedCount} class${mappedCount === 1 ? "" : "es"}` +
+                              (createdCount > 0 ? ` (${createdCount} new class${createdCount === 1 ? "" : "es"} created)` : "") +
+                              (skipCount > 0 ? `, ${skipCount} skipped` : "") +
+                              `. Remember to Save below!`
+                            );
+
+                            // Refresh classes list to include newly created ones
+                            if (createdCount > 0) {
+                              const { data: refreshed } = await supabase
+                                .from("classes")
+                                .select("id, name")
+                                .eq("teacher_id", user.id)
+                                .order("name");
+                              if (refreshed) setClasses(refreshed);
+                            }
+
+                            // Clear AI state
+                            setAiParseResult(null);
+                            setAiClassOverrides({});
+                            setAiClassMapping({});
+                            setShowClassMapping(false);
+                          } catch (err) {
+                            console.error("Apply to schedule failed:", err);
+                            setTimetableSuccess("");
+                          } finally {
+                            setAiConfirming(false);
                           }
-
-                          // Build meetings from all non-skipped classes
-                          const newMeetings = teachingEntries
-                            .filter((e: { class_name: string }) => finalMapping[e.class_name] && finalMapping[e.class_name] !== "__skip__")
-                            .map((e: { class_name: string; day: number; period: number; room?: string }) => ({
-                              class_id: finalMapping[e.class_name],
-                              cycle_day: e.day,
-                              period_number: e.period,
-                              room: e.room || undefined,
-                            }));
-
-                          setClassMeetings(newMeetings);
-                          // All classes handled — no unmapped leftovers
-
-                          const mappedCount = uniqueNames.filter(n => finalMapping[n] && finalMapping[n] !== "__skip__").length;
-                          const skipCount = uniqueNames.filter(n => finalMapping[n] === "__skip__").length;
-
-                          setTimetableSuccess(
-                            `Applied ${newMeetings.length} meetings from ${mappedCount} class${mappedCount === 1 ? "" : "es"}` +
-                            (createdCount > 0 ? ` (${createdCount} new class${createdCount === 1 ? "" : "es"} created)` : "") +
-                            (skipCount > 0 ? `, ${skipCount} skipped` : "") +
-                            `. Remember to Save below!`
-                          );
-
-                          // Refresh classes list to include newly created ones
-                          if (createdCount > 0) {
-                            const { data: refreshed } = await supabase
-                              .from("classes")
-                              .select("id, name")
-                              .eq("teacher_id", user.id)
-                              .order("name");
-                            if (refreshed) setClasses(refreshed);
-                          }
-
-                          // Clear AI state
-                          setAiParseResult(null);
-                          setAiClassOverrides({});
-                          setAiClassMapping({});
-                          setShowClassMapping(false);
-                          setAiConfirming(false);
                         }}
                         disabled={aiConfirming}
                         className="px-5 py-2.5 rounded-lg text-sm font-medium bg-brand-purple text-white hover:bg-brand-purple/90 transition disabled:opacity-50"
