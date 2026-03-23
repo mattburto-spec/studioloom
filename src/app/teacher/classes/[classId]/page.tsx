@@ -72,12 +72,15 @@ export default function ClassDetailPage({
   const [showAddStudent, setShowAddStudent] = useState(false);
   const [newUsername, setNewUsername] = useState("");
   const [newDisplayName, setNewDisplayName] = useState("");
+  const [newGradYear, setNewGradYear] = useState<string>("");
   const [adding, setAdding] = useState(false);
   const [addMode, setAddMode] = useState<"existing" | "single" | "bulk">("existing");
   const [bulkText, setBulkText] = useState("");
   const [bulkResult, setBulkResult] = useState<{ added: number; skipped: string[] } | null>(null);
-  const [rosterStudents, setRosterStudents] = useState<Array<{ id: string; username: string; display_name: string | null }>>([]);
+  const [rosterStudents, setRosterStudents] = useState<Array<{ id: string; username: string; display_name: string | null; graduation_year: number | null; last_class_name: string | null; last_class_id: string | null }>>([]);
   const [rosterSearch, setRosterSearch] = useState("");
+  const [rosterGradFilter, setRosterGradFilter] = useState<string>("all"); // "all" or graduation year string
+  const [rosterGroupBy, setRosterGroupBy] = useState<"class" | "year" | "none">("class");
   const [enrollingIds, setEnrollingIds] = useState<Set<string>>(new Set());
 
   // Cohort / term state
@@ -218,6 +221,7 @@ export default function ClassDetailPage({
       const { data: student, error } = await supabase.from("students").insert({
         username: newUsername.trim().toLowerCase(),
         display_name: newDisplayName.trim() || null,
+        graduation_year: newGradYear ? Number(newGradYear) : null,
         class_id: classId,
         author_teacher_id: user.id,
       }).select().single();
@@ -417,12 +421,44 @@ export default function ClassDetailPage({
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
+
+    // Fetch all students owned by this teacher
     const { data: allStudents } = await supabase
       .from("students")
-      .select("id, username, display_name")
+      .select("id, username, display_name, graduation_year")
       .eq("author_teacher_id", user.id)
       .order("display_name");
-    setRosterStudents(allStudents || []);
+
+    if (!allStudents || allStudents.length === 0) {
+      setRosterStudents([]);
+      return;
+    }
+
+    // Fetch most recent active enrollment per student to get "last class" info
+    // Using class_students join with classes to get class name
+    const studentIds = allStudents.map(s => s.id);
+    const { data: enrollments } = await supabase
+      .from("class_students")
+      .select("student_id, class_id, enrolled_at, classes(name)")
+      .in("student_id", studentIds)
+      .eq("is_active", true)
+      .order("enrolled_at", { ascending: false });
+
+    // Build map: student_id → most recent class info (first enrollment per student since ordered desc)
+    const lastClassMap = new Map<string, { name: string; id: string }>();
+    if (enrollments) {
+      for (const e of enrollments as Array<{ student_id: string; class_id: string; classes: { name: string } | null }>) {
+        if (!lastClassMap.has(e.student_id) && e.classes) {
+          lastClassMap.set(e.student_id, { name: e.classes.name, id: e.class_id });
+        }
+      }
+    }
+
+    setRosterStudents(allStudents.map(s => ({
+      ...s,
+      last_class_name: lastClassMap.get(s.id)?.name || null,
+      last_class_id: lastClassMap.get(s.id)?.id || null,
+    })));
   }
 
   async function enrollExisting(sid: string) {
@@ -1063,22 +1099,74 @@ export default function ClassDetailPage({
 
               {addMode === "existing" ? (
                 <>
-                  <input
-                    type="text"
-                    value={rosterSearch}
-                    onChange={(e) => setRosterSearch(e.target.value)}
-                    placeholder="Search your students..."
-                    className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-300 focus:border-transparent mb-3"
-                    autoFocus
-                  />
-                  <div className="max-h-64 overflow-y-auto space-y-1">
+                  {/* Search + filters */}
+                  <div className="space-y-2 mb-3">
+                    <input
+                      type="text"
+                      value={rosterSearch}
+                      onChange={(e) => setRosterSearch(e.target.value)}
+                      placeholder="Search by name or username..."
+                      className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-300 focus:border-transparent"
+                      autoFocus
+                    />
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {/* Graduation year filter */}
+                      {(() => {
+                        const years = [...new Set(rosterStudents.map(s => s.graduation_year).filter((y): y is number => y != null))].sort();
+                        if (years.length === 0) return null;
+                        return (
+                          <select
+                            value={rosterGradFilter}
+                            onChange={(e) => setRosterGradFilter(e.target.value)}
+                            className="px-2.5 py-1.5 border border-border rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-purple-300"
+                          >
+                            <option value="all">All years</option>
+                            {years.map(y => (
+                              <option key={y} value={String(y)}>Class of {y}</option>
+                            ))}
+                            <option value="unset">No year set</option>
+                          </select>
+                        );
+                      })()}
+                      {/* Group by toggle */}
+                      <div className="flex items-center bg-gray-100 rounded-lg p-0.5 text-xs">
+                        <button
+                          onClick={() => setRosterGroupBy("class")}
+                          className={`px-2.5 py-1 rounded-md transition ${rosterGroupBy === "class" ? "bg-white shadow-sm text-text-primary font-medium" : "text-text-tertiary"}`}
+                        >
+                          By class
+                        </button>
+                        <button
+                          onClick={() => setRosterGroupBy("year")}
+                          className={`px-2.5 py-1 rounded-md transition ${rosterGroupBy === "year" ? "bg-white shadow-sm text-text-primary font-medium" : "text-text-tertiary"}`}
+                        >
+                          By year
+                        </button>
+                        <button
+                          onClick={() => setRosterGroupBy("none")}
+                          className={`px-2.5 py-1 rounded-md transition ${rosterGroupBy === "none" ? "bg-white shadow-sm text-text-primary font-medium" : "text-text-tertiary"}`}
+                        >
+                          All
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Student list — grouped */}
+                  <div className="max-h-72 overflow-y-auto">
                     {(() => {
                       const currentIds = new Set(students.map((s) => s.id));
                       const q = rosterSearch.toLowerCase();
-                      const filtered = rosterStudents.filter((s) =>
-                        !currentIds.has(s.id) &&
-                        (s.username.toLowerCase().includes(q) || (s.display_name || "").toLowerCase().includes(q))
-                      );
+
+                      // Apply filters
+                      let filtered = rosterStudents.filter((s) => {
+                        if (currentIds.has(s.id)) return false;
+                        if (q && !s.username.toLowerCase().includes(q) && !(s.display_name || "").toLowerCase().includes(q)) return false;
+                        if (rosterGradFilter === "unset") return s.graduation_year == null;
+                        if (rosterGradFilter !== "all") return s.graduation_year === Number(rosterGradFilter);
+                        return true;
+                      });
+
                       if (filtered.length === 0) {
                         return (
                           <p className="text-sm text-gray-500 text-center py-4">
@@ -1086,26 +1174,77 @@ export default function ClassDetailPage({
                           </p>
                         );
                       }
-                      return filtered.map((s) => (
-                        <div key={s.id} className="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-gray-50 transition">
-                          <div>
+
+                      // Group students
+                      const groups = new Map<string, typeof filtered>();
+                      if (rosterGroupBy === "class") {
+                        for (const s of filtered) {
+                          const key = s.last_class_name || "No class";
+                          if (!groups.has(key)) groups.set(key, []);
+                          groups.get(key)!.push(s);
+                        }
+                      } else if (rosterGroupBy === "year") {
+                        for (const s of filtered) {
+                          const key = s.graduation_year ? `Class of ${s.graduation_year}` : "No year set";
+                          if (!groups.has(key)) groups.set(key, []);
+                          groups.get(key)!.push(s);
+                        }
+                      } else {
+                        groups.set("", filtered);
+                      }
+
+                      // Render function for a student row
+                      const renderStudent = (s: typeof filtered[0]) => (
+                        <div key={s.id} className="flex items-center justify-between px-3 py-2 rounded-lg hover:bg-gray-50 transition group">
+                          <div className="min-w-0 flex-1">
                             <span className="text-sm font-medium text-gray-900">{s.display_name || s.username}</span>
                             {s.display_name && <span className="text-xs text-gray-400 ml-1.5">@{s.username}</span>}
+                            {rosterGroupBy !== "year" && s.graduation_year && (
+                              <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 font-medium">{s.graduation_year}</span>
+                            )}
+                            {rosterGroupBy !== "class" && s.last_class_name && (
+                              <span className="ml-1.5 text-[10px] text-text-tertiary">{s.last_class_name}</span>
+                            )}
                           </div>
                           <button
                             onClick={() => enrollExisting(s.id)}
                             disabled={enrollingIds.has(s.id)}
-                            className="px-3 py-1 text-xs font-semibold text-purple-600 bg-purple-50 hover:bg-purple-100 rounded-lg transition disabled:opacity-50"
+                            className="px-3 py-1 text-xs font-semibold text-purple-600 bg-purple-50 hover:bg-purple-100 rounded-lg transition disabled:opacity-50 flex-shrink-0"
                           >
                             {enrollingIds.has(s.id) ? "Adding..." : "Add"}
                           </button>
                         </div>
+                      );
+
+                      // Render groups
+                      return Array.from(groups.entries()).map(([groupName, groupStudents]) => (
+                        <div key={groupName || "all"}>
+                          {groupName && (
+                            <div className="flex items-center gap-2 px-3 py-1.5 mt-1 first:mt-0">
+                              <span className="text-xs font-semibold text-text-secondary uppercase tracking-wide">{groupName}</span>
+                              <span className="text-[10px] text-text-tertiary">({groupStudents.length})</span>
+                              {/* Add all button for groups */}
+                              {groupStudents.length > 1 && (
+                                <button
+                                  onClick={() => groupStudents.forEach(s => { if (!enrollingIds.has(s.id)) enrollExisting(s.id); })}
+                                  className="ml-auto text-[10px] text-purple-500 hover:text-purple-700 font-medium transition"
+                                >
+                                  Add all
+                                </button>
+                              )}
+                            </div>
+                          )}
+                          <div className="space-y-0.5">
+                            {groupStudents.map(renderStudent)}
+                          </div>
+                        </div>
                       ));
                     })()}
                   </div>
+
                   <div className="flex justify-end mt-4">
                     <button
-                      onClick={() => { setShowAddStudent(false); setBulkResult(null); setAddMode("existing"); setRosterSearch(""); }}
+                      onClick={() => { setShowAddStudent(false); setBulkResult(null); setAddMode("existing"); setRosterSearch(""); setRosterGradFilter("all"); }}
                       className="px-4 py-2 border border-border rounded-lg text-sm text-text-secondary hover:bg-surface-alt transition"
                     >
                       Done
@@ -1138,10 +1277,25 @@ export default function ClassDetailPage({
                         onChange={(e) => setNewDisplayName(e.target.value)}
                         placeholder="e.g. John Smith"
                         className="w-full px-4 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-blue focus:border-transparent"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-text-secondary mb-1">
+                        Graduation Year (optional)
+                      </label>
+                      <input
+                        type="number"
+                        value={newGradYear}
+                        onChange={(e) => setNewGradYear(e.target.value)}
+                        placeholder={`e.g. ${new Date().getFullYear() + 2}`}
+                        min={new Date().getFullYear()}
+                        max={new Date().getFullYear() + 10}
+                        className="w-full px-4 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-blue focus:border-transparent"
                         onKeyDown={(e) => {
                           if (e.key === "Enter") addStudent();
                         }}
                       />
+                      <p className="text-xs text-text-tertiary mt-1">Class of 20XX — stays the same as they move through year levels</p>
                     </div>
                   </div>
                   <div className="flex gap-2 mt-4">

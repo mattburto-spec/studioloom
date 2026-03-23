@@ -26,6 +26,7 @@ export interface Student {
   avatar_url: string | null;
   class_id: string | null; // DEPRECATED — use class_students junction. Nullable since migration 041.
   author_teacher_id: string | null; // Teacher who owns this student record (migration 041)
+  graduation_year: number | null; // Class of 20XX — stable identifier (migration 043)
   ell_level: EllLevel;
   created_at: string;
   // LMS integration (provider-agnostic)
