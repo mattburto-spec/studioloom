@@ -26,13 +26,8 @@ FROM classes c
 WHERE s.class_id = c.id
   AND s.author_teacher_id IS NULL;
 
--- For any orphaned students (shouldn't exist, but safety), try author_teacher_id on classes
-UPDATE students s
-SET author_teacher_id = c.author_teacher_id
-FROM classes c
-WHERE s.class_id = c.id
-  AND s.author_teacher_id IS NULL
-  AND c.author_teacher_id IS NOT NULL;
+-- Note: classes table only has teacher_id (not author_teacher_id).
+-- The backfill above using c.teacher_id covers all cases.
 
 -- ═══════════════════════════════════════════════════════════════════════════
 -- 2. Create class_students junction table
@@ -107,7 +102,6 @@ CREATE POLICY "Teachers manage class_students"
     class_id IN (
       SELECT id FROM classes
       WHERE teacher_id = auth.uid()
-         OR author_teacher_id = auth.uid()
     )
   );
 
@@ -136,7 +130,6 @@ CREATE POLICY "Teachers manage students"
     class_id IN (
       SELECT id FROM classes
       WHERE teacher_id = auth.uid()
-         OR author_teacher_id = auth.uid()
     )
     OR
     -- New path: teacher directly owns the student
@@ -147,7 +140,6 @@ CREATE POLICY "Teachers manage students"
       SELECT cs.student_id FROM class_students cs
       JOIN classes c ON cs.class_id = c.id
       WHERE c.teacher_id = auth.uid()
-         OR c.author_teacher_id = auth.uid()
     )
   );
 
