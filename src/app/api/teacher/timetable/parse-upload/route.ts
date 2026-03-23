@@ -105,10 +105,10 @@ export async function POST(request: NextRequest) {
     });
 
     if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      console.error("[timetable-parse] Claude API error:", response.status, errData);
+      const errText = await response.text();
+      console.error("[timetable-parse] Claude API error:", response.status, errText);
       return NextResponse.json(
-        { error: `AI parsing failed (${response.status})` },
+        { error: `AI parsing failed (${response.status}). Details: ${errText.slice(0, 200)}` },
         { status: 502 }
       );
     }
@@ -119,9 +119,10 @@ export async function POST(request: NextRequest) {
     const rawText = textBlock?.text || "";
 
     if (!rawText) {
-      console.error("[timetable-parse] Empty text response. Content blocks:", JSON.stringify(data.content?.map((b: { type: string }) => b.type)));
+      const blockTypes = data.content?.map((b: { type: string }) => b.type) || [];
+      console.error("[timetable-parse] Empty text response. Content blocks:", JSON.stringify(blockTypes), "Full response:", JSON.stringify(data).slice(0, 500));
       return NextResponse.json(
-        { error: "AI returned empty response. Try a different file format (PNG screenshot works best)." },
+        { error: `AI returned empty text. Content block types: [${blockTypes.join(", ")}]. Stop reason: ${data.stop_reason || "unknown"}. Try a PNG screenshot instead.` },
         { status: 422 }
       );
     }
@@ -151,7 +152,7 @@ export async function POST(request: NextRequest) {
     } catch (parseErr) {
       console.error("[timetable-parse] JSON parse error:", parseErr, "Raw text (first 1000 chars):", rawText.slice(0, 1000));
       return NextResponse.json(
-        { error: "Could not parse AI response. Try a clearer image." },
+        { error: `Could not parse AI response as JSON. AI said: "${rawText.slice(0, 300)}${rawText.length > 300 ? "..." : ""}"` },
         { status: 422 }
       );
     }

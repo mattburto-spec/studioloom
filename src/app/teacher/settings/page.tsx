@@ -1117,7 +1117,17 @@ export default function TeacherSettingsPage() {
             <div className="flex items-end gap-2 mb-3">
               <div className="flex-1">
                 <label className="block text-xs text-text-secondary mb-1">Timetable / class schedule iCal feed URL (.ics)</label>
-                <input type="url" value={icalUrl} onChange={(e) => setIcalUrl(e.target.value)} placeholder="https://school.managebac.com/calendar/feed/timetable.ics" className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+                <div className="relative">
+                  <input type="url" value={icalUrl} onChange={(e) => setIcalUrl(e.target.value)} placeholder="https://school.managebac.com/calendar/feed/timetable.ics" className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30 pr-8" />
+                  {icalUrl && (
+                    <button onClick={() => setIcalUrl("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-red-500 transition" title="Clear URL">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                    </button>
+                  )}
+                </div>
+                {icalUrl && !icalUrl.includes(".ics") && (
+                  <p className="text-xs text-amber-600 mt-1">This URL doesn&apos;t look like an .ics calendar feed. Make sure it&apos;s your <strong>timetable</strong> feed, not a general school calendar.</p>
+                )}
               </div>
               <button
                 onClick={async () => {
