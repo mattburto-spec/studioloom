@@ -41,10 +41,14 @@ export async function GET(request: NextRequest) {
       { status: 401 }
     );
     response.cookies.delete(SESSION_COOKIE_NAME);
+    response.headers.set("Cache-Control", "private, no-cache, no-store, must-revalidate");
     return response;
   }
 
-  return NextResponse.json({ student: session.students });
+  const response = NextResponse.json({ student: session.students });
+  // Prevent Vercel CDN from caching session responses
+  response.headers.set("Cache-Control", "private, no-cache, no-store, must-revalidate");
+  return response;
 }
 
 // DELETE: Logout — clear session
@@ -58,5 +62,7 @@ export async function DELETE(request: NextRequest) {
 
   const response = NextResponse.json({ success: true });
   response.cookies.delete(SESSION_COOKIE_NAME);
+  // Prevent Vercel CDN from caching/stripping cookie-clearing header
+  response.headers.set("Cache-Control", "private, no-cache, no-store, must-revalidate");
   return response;
 }

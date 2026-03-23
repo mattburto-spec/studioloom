@@ -135,5 +135,10 @@ export async function POST(request: NextRequest) {
     maxAge: SESSION_DURATION_DAYS * 24 * 60 * 60,
   });
 
+  // Vercel CDN strips Set-Cookie from responses with Cache-Control: public.
+  // Next.js defaults Route Handlers to "public, max-age=0, must-revalidate".
+  // Force private so the cookie actually reaches the browser.
+  response.headers.set("Cache-Control", "private, no-cache, no-store, must-revalidate");
+
   return response;
 }

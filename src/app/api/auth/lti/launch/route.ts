@@ -113,6 +113,9 @@ export async function POST(request: NextRequest) {
       maxAge: SESSION_DURATION_DAYS * 24 * 60 * 60,
     });
 
+    // Prevent Vercel CDN from stripping Set-Cookie
+    response.headers.set("Cache-Control", "private, no-cache, no-store, must-revalidate");
+
     return response;
   } catch (error) {
     console.error("LTI launch error:", error);
