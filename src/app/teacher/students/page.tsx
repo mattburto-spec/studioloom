@@ -535,102 +535,93 @@ export default function TeacherStudentsPage() {
 
       {/* ── Card view ── */}
       {filtered.length > 0 && viewMode === "cards" && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
           {filtered.map((student) => {
             const name = student.display_name || student.username;
             const enrolledIds = student.enrolledClassIds || [];
-            const prog = progressMap.get(student.id);
-            const pct = prog && prog.total > 0 ? Math.round((prog.completed / prog.total) * 100) : 0;
             const studioUnits = studioMap.get(student.id) || 0;
             const badges = badgeMap.get(student.id) || 0;
             const ell = student.ell_level ? ELL_LABELS[student.ell_level] : null;
-            const firstClassId = enrolledIds[0] || student.class_id;
+            const ylNum = getYearLevelNumber(student.graduation_year);
 
             return (
-              <div
+              <Link
                 key={student.id}
-                className="bg-white rounded-2xl border border-gray-200 overflow-hidden hover:shadow-md hover:border-gray-300 transition-all group"
+                href={`/teacher/students/${student.id}`}
+                className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-md hover:border-gray-300 transition-all group block"
               >
-                {/* Top band with avatar + name */}
-                <div className="px-4 pt-4 pb-3 relative">
-                  {/* Year level number — top right */}
-                  {(() => {
-                    const ylNum = getYearLevelNumber(student.graduation_year);
-                    return ylNum ? (
-                      <span className="absolute top-2.5 right-3 text-[11px] font-bold text-indigo-400" title={`Year ${ylNum}`}>
-                        {ylNum}
-                      </span>
-                    ) : null;
-                  })()}
-                  <div className="flex items-start gap-3">
+                <div className="px-3 pt-3 pb-2.5 relative">
+                  {/* Year level — top right, bigger */}
+                  {ylNum ? (
+                    <span className="absolute top-2 right-2.5 text-base font-extrabold text-indigo-400/80" title={`Year ${ylNum}`}>
+                      {ylNum}
+                    </span>
+                  ) : null}
+
+                  {/* Avatar + name */}
+                  <div className="flex items-center gap-2.5">
                     <div
-                      className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-extrabold text-sm shrink-0 shadow-sm"
+                      className="w-9 h-9 rounded-lg flex items-center justify-center text-white font-extrabold text-sm shrink-0"
                       style={{ background: avatarGradient(name) }}
                     >
                       {name.charAt(0).toUpperCase()}
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <Link
-                        href={`/teacher/students/${student.id}`}
-                        className="text-sm font-bold text-gray-900 hover:text-purple-600 transition leading-snug block truncate"
-                      >
+                    <div className="min-w-0 flex-1 pr-6">
+                      <span className="text-sm font-bold text-gray-900 group-hover:text-purple-600 transition leading-tight block truncate">
                         {name}
-                      </Link>
-                      <span className="text-[11px] text-gray-400">{student.username}</span>
+                      </span>
+                      <span className="text-[10px] text-gray-400 block truncate">{student.username}</span>
                     </div>
                   </div>
 
-                  {/* Badges row */}
-                  <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
-                    {/* Class pills — show ALL enrolled classes */}
+                  {/* Badges row — compact */}
+                  <div className="flex items-center gap-1 mt-2 flex-wrap">
                     {enrolledIds.length > 0 ? (
-                      enrolledIds.map((cid) => {
+                      enrolledIds.slice(0, 2).map((cid) => {
                         const cc = getClassColor(cid, classes);
                         return (
                           <span
                             key={cid}
-                            className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                            className="inline-flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
                             style={{ background: cc.light, color: cc.text }}
                           >
-                            <span className="w-1.5 h-1.5 rounded-full" style={{ background: cc.fill }} />
+                            <span className="w-1 h-1 rounded-full" style={{ background: cc.fill }} />
                             {classNameMap.get(cid) || "—"}
                           </span>
                         );
                       })
                     ) : (
-                      <span className="text-[10px] text-gray-400 italic px-2 py-0.5 rounded-full bg-gray-50 border border-dashed border-gray-200">
-                        No class assigned
-                      </span>
+                      <span className="text-[9px] text-gray-400 italic">No class</span>
+                    )}
+                    {enrolledIds.length > 2 && (
+                      <span className="text-[9px] text-gray-400">+{enrolledIds.length - 2}</span>
                     )}
 
-                    {/* ELL badge */}
                     {ell && (
                       <span
-                        className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                        className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
                         style={{ background: ell.bg, color: ell.color }}
                       >
                         {ell.label}
                       </span>
                     )}
 
-                    {/* Studio badge */}
                     {studioUnits > 0 && (
                       <span
-                        className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full text-white"
+                        className="inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full text-white"
                         style={{ background: "linear-gradient(135deg, #06B6D4, #8B5CF6, #EC4899)" }}
                       >
-                        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M12 19l7-7 3 3-7 7-3-3z"/>
                           <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/>
                         </svg>
-                        Studio{studioUnits > 1 ? ` ×${studioUnits}` : ""}
+                        Studio
                       </span>
                     )}
 
-                    {/* Safety badges count */}
                     {badges > 0 && (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-                        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <span className="inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                        <svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
                         </svg>
                         {badges}
@@ -638,65 +629,7 @@ export default function TeacherStudentsPage() {
                     )}
                   </div>
                 </div>
-
-                {/* Progress section */}
-                <div className="px-4 pb-3">
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full transition-all duration-500"
-                        style={{
-                          width: `${pct}%`,
-                          background:
-                            pct === 100
-                              ? "linear-gradient(90deg, #10B981, #059669)"
-                              : pct > 60
-                              ? "linear-gradient(90deg, #7C3AED, #6D28D9)"
-                              : pct > 30
-                              ? "linear-gradient(90deg, #3B82F6, #2563EB)"
-                              : "#D1D5DB",
-                        }}
-                      />
-                    </div>
-                    <span className="text-[11px] font-semibold text-gray-500 w-10 text-right">
-                      {pct}%
-                    </span>
-                  </div>
-                  {prog && prog.total > 0 && (
-                    <p className="text-[10px] text-gray-400 mt-1">
-                      {prog.completed}/{prog.total} pages complete
-                    </p>
-                  )}
-                </div>
-
-                {/* Actions footer */}
-                <div className="px-4 py-2.5 bg-gray-50/80 border-t border-gray-100 flex items-center gap-1.5">
-                  <Link
-                    href={`/teacher/students/${student.id}`}
-                    className="inline-flex items-center gap-1 text-[11px] font-semibold px-3 py-1.5 rounded-lg text-purple-700 bg-purple-50 hover:bg-purple-100 transition"
-                  >
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                      <circle cx="12" cy="12" r="3"/>
-                    </svg>
-                    Profile
-                  </Link>
-                  {firstClassId && (
-                    <Link
-                      href={`/teacher/classes/${firstClassId}/progress`}
-                      className="inline-flex items-center gap-1 text-[11px] font-semibold px-3 py-1.5 rounded-lg text-gray-500 border border-gray-200 hover:bg-gray-50 transition"
-                    >
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
-                      </svg>
-                      Progress
-                    </Link>
-                  )}
-                  {studioUnits > 0 && (
-                    <span className="ml-auto text-[10px] text-gray-400 italic">working independently</span>
-                  )}
-                </div>
-              </div>
+              </Link>
             );
           })}
         </div>
