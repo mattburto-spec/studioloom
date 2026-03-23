@@ -235,30 +235,56 @@ Analyse the timetable and return a JSON object with this exact structure:
 }
 \`\`\`
 
+## Handling complex timetables
+
+Real school timetables are messy. You MUST handle these complications:
+
+1. **Rotating cycles (5-10 day):** The timetable may show Day 1 through Day 8 (or more) as columns. Count ALL day columns for cycle_length, not just Mon-Fri.
+
+2. **Varying schedules per weekday:** Some weekdays may have different period times or structures. For example:
+   - Mon/Wed/Thu might have 5 periods starting at 8:00
+   - Tuesday might skip advisory and end early at 2:30pm
+   - Friday might start with 40 minutes of assembly or extended advisory
+   - Period start/end times may differ across days — extract the times that appear in EACH cell, not just from a single header row
+
+3. **Assembly / Chapel / Extended Advisory blocks:** These appear as time blocks that replace or precede normal periods on certain days. Mark them as NON-TEACHING.
+
+4. **Service Learning / Service as Action:** Usually a recurring weekly block (e.g. every Day 5 Period 3). Mark as BORDERLINE — is_teaching: true but flag in classification_reason.
+
+5. **Split period numbers:** Some timetables show "Block 3" or "Period 3" with different content on different days of the cycle. Each day-period combination is a separate entry.
+
+6. **Merged cells / multi-period blocks:** If a class spans multiple periods, create an entry for EACH period it occupies.
+
+7. **The teacher only teaches SOME periods:** Most cells may be empty or show non-teaching activities. The goal is to identify the teacher's actual teaching classes among everything else.
+
 ## Classification rules
 
 For each entry, determine if it's a TEACHING class or NON-TEACHING activity:
 
 **NON-TEACHING (is_teaching: false):**
-- Advisory / Homeroom / Tutor group / Form time
+- Advisory / Homeroom / Tutor group / Form time / Extended Advisory
 - Duty / Yard duty / Supervision / Bus duty
 - Planning / PLC / Professional learning / Meeting / Staff meeting
 - Recess / Lunch / Break (these won't usually appear but if they do)
-- Assembly / Chapel
+- Assembly / Chapel / Extended Assembly
+- Free / Unassigned / PPA / Non-contact / Release
 
 **TEACHING (is_teaching: true):**
-- Any entry with a subject name + grade level (e.g. "7 Design", "10 Science")
-- Classes in specific teaching rooms
+- Any entry with a subject name + grade level (e.g. "7 Design", "10 Science", "Grade 8 Art")
+- Classes in specific teaching rooms with subject-like names
+- Electives / Options with a subject name
 
 **BORDERLINE (is_teaching: true but flag in classification_reason):**
-- "Service as Action" / "Service Learning" — these are supervised student programs, treat as teaching but note it
+- "Service as Action" / "Service Learning" — supervised student programs, treat as teaching but note it
 - "Planning Design" with a grade range (e.g. "6-10 Planning Design") — this is likely a class, treat as teaching
+- Any ambiguous entry where you're unsure — mark as teaching and explain in classification_reason so the teacher can toggle it off
 
 ## Key rules:
-1. Count the number of day columns to determine cycle_length
+1. Count the number of day columns to determine cycle_length. An 8-day cycle has 8 columns labeled Day 1-8.
 2. Period numbers are usually shown in the leftmost column
-3. Extract exact times from each entry if shown
+3. Extract exact times from each entry if shown. If times vary per day, use the time shown in that specific cell.
 4. The same class may appear multiple times across different days — group them in detected_classes
 5. Use the grade level text (e.g. "Grade 6", "Grade 9") to determine grade, NOT the number prefix in the class name (though they usually match)
 6. If a cell is empty, don't create an entry for it
-7. Return ONLY the JSON — no explanation text before or after`;
+7. When in doubt, INCLUDE the entry rather than skipping it — the teacher can toggle it off
+8. Return ONLY the JSON — no explanation text before or after`;

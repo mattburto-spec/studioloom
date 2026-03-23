@@ -1181,53 +1181,111 @@ export default function TeacherSettingsPage() {
                   </div>
                 )}
 
-                {/* Entries table with teaching/non-teaching toggles */}
+                {/* Day×Period Grid — visual timetable review */}
                 <div>
-                  <h3 className="text-sm font-semibold text-text-primary mb-1">Schedule entries</h3>
-                  <p className="text-xs text-text-secondary mb-3">Review the AI classifications below. Toggle entries to mark them as teaching classes or non-teaching activities.</p>
+                  <h3 className="text-sm font-semibold text-text-primary mb-1">Your timetable</h3>
+                  <p className="text-xs text-text-secondary mb-3">Click any cell to toggle between teaching class (purple) and non-teaching (gray). Only purple cells will be saved as your class meetings.</p>
 
-                  <div className="border border-border rounded-lg overflow-hidden">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="bg-gray-50 border-b border-border">
-                          <th className="px-3 py-2 text-left text-xs font-semibold text-text-secondary">Day</th>
-                          <th className="px-3 py-2 text-left text-xs font-semibold text-text-secondary">Period</th>
-                          <th className="px-3 py-2 text-left text-xs font-semibold text-text-secondary">Entry</th>
-                          <th className="px-3 py-2 text-left text-xs font-semibold text-text-secondary">Time</th>
-                          <th className="px-3 py-2 text-left text-xs font-semibold text-text-secondary">Room</th>
-                          <th className="px-3 py-2 text-center text-xs font-semibold text-text-secondary">Teaching?</th>
-                          <th className="px-3 py-2 text-left text-xs font-semibold text-text-secondary">AI Reason</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {aiParseResult.entries?.map((entry: { day: number; period: number; class_name: string; grade_level?: string; room?: string; start_time?: string; end_time?: string; is_teaching: boolean; classification_reason?: string }, idx: number) => {
-                          const isTeaching = aiClassOverrides[idx] ?? entry.is_teaching;
-                          return (
-                            <tr key={idx} className={`border-b border-border last:border-b-0 ${isTeaching ? "bg-white" : "bg-gray-50/50"}`}>
-                              <td className="px-3 py-2 text-text-secondary">Day {entry.day}</td>
-                              <td className="px-3 py-2 text-text-secondary">P{entry.period}</td>
-                              <td className="px-3 py-2 font-medium text-text-primary">
-                                {entry.class_name}
-                                {entry.grade_level && <span className="ml-1.5 text-xs text-text-secondary">({entry.grade_level})</span>}
-                              </td>
-                              <td className="px-3 py-2 text-text-secondary text-xs">
-                                {entry.start_time && entry.end_time ? `${entry.start_time}–${entry.end_time}` : "—"}
-                              </td>
-                              <td className="px-3 py-2 text-text-secondary text-xs">{entry.room || "—"}</td>
-                              <td className="px-3 py-2 text-center">
-                                <button
-                                  onClick={() => setAiClassOverrides(prev => ({ ...prev, [idx]: !isTeaching }))}
-                                  className={`relative w-10 h-5 rounded-full transition-colors ${isTeaching ? "bg-brand-purple" : "bg-gray-300"}`}
-                                >
-                                  <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${isTeaching ? "translate-x-5" : ""}`} />
-                                </button>
-                              </td>
-                              <td className="px-3 py-2 text-xs text-text-tertiary max-w-[200px] truncate">{entry.classification_reason || "—"}</td>
+                  {(() => {
+                    // Build grid data: days as columns, periods as rows
+                    const entries = aiParseResult.entries || [];
+                    const maxDay = Math.max(aiParseResult.cycle_length || 1, ...entries.map((e: { day: number }) => e.day));
+                    const maxPeriod = Math.max(1, ...entries.map((e: { period: number }) => e.period));
+                    // Build lookup: `${day}-${period}` → { entry, index }
+                    const cellMap: Record<string, { entry: { day: number; period: number; class_name: string; grade_level?: string; room?: string; start_time?: string; end_time?: string; is_teaching: boolean; classification_reason?: string }; idx: number }[]> = {};
+                    entries.forEach((entry: { day: number; period: number; class_name: string; grade_level?: string; room?: string; start_time?: string; end_time?: string; is_teaching: boolean; classification_reason?: string }, idx: number) => {
+                      const key = `${entry.day}-${entry.period}`;
+                      if (!cellMap[key]) cellMap[key] = [];
+                      cellMap[key].push({ entry, idx });
+                    });
+
+                    // Period time lookup from periods array
+                    const periodTimes: Record<number, { start: string; end: string }> = {};
+                    (aiParseResult.periods || []).forEach((p: { period_number: number; start_time?: string; end_time?: string }) => {
+                      if (p.start_time && p.end_time) periodTimes[p.period_number] = { start: p.start_time, end: p.end_time };
+                    });
+
+                    // Abbreviate class name (first 12 chars, or initials if long)
+                    const abbrev = (name: string) => {
+                      if (name.length <= 14) return name;
+                      // Try initials of each word
+                      const words = name.split(/\s+/);
+                      if (words.length >= 2) {
+                        const initials = words.map(w => w[0]).join("").toUpperCase();
+                        if (initials.length <= 6) return initials;
+                      }
+                      return name.slice(0, 12) + "…";
+                    };
+
+                    return (
+                      <div className="border border-border rounded-lg overflow-x-auto">
+                        <table className="w-full text-xs border-collapse min-w-[600px]">
+                          <thead>
+                            <tr className="bg-gray-50">
+                              <th className="px-2 py-2 text-left font-semibold text-text-secondary border-b border-r border-border w-16">Period</th>
+                              {Array.from({ length: maxDay }, (_, i) => i + 1).map(day => (
+                                <th key={day} className="px-2 py-2 text-center font-semibold text-text-secondary border-b border-r border-border last:border-r-0">
+                                  Day {day}
+                                </th>
+                              ))}
                             </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                          </thead>
+                          <tbody>
+                            {Array.from({ length: maxPeriod }, (_, i) => i + 1).map(period => (
+                              <tr key={period} className="border-b border-border last:border-b-0">
+                                <td className="px-2 py-1.5 font-semibold text-text-secondary border-r border-border bg-gray-50/50">
+                                  <div>P{period}</div>
+                                  {periodTimes[period] && (
+                                    <div className="text-[10px] text-text-tertiary font-normal">{periodTimes[period].start}–{periodTimes[period].end}</div>
+                                  )}
+                                </td>
+                                {Array.from({ length: maxDay }, (_, i) => i + 1).map(day => {
+                                  const cellEntries = cellMap[`${day}-${period}`] || [];
+                                  if (cellEntries.length === 0) {
+                                    return <td key={day} className="px-1 py-1 border-r border-border last:border-r-0 bg-white" />;
+                                  }
+                                  return (
+                                    <td key={day} className="px-1 py-1 border-r border-border last:border-r-0">
+                                      {cellEntries.map(({ entry, idx }) => {
+                                        const isTeaching = aiClassOverrides[idx] ?? entry.is_teaching;
+                                        return (
+                                          <button
+                                            key={idx}
+                                            onClick={() => setAiClassOverrides(prev => ({ ...prev, [idx]: !isTeaching }))}
+                                            title={`${entry.class_name}${entry.room ? ` — ${entry.room}` : ""}${entry.classification_reason ? `\n${entry.classification_reason}` : ""}\n\nClick to toggle teaching/non-teaching`}
+                                            className={`w-full px-1.5 py-1 rounded text-[11px] font-medium leading-tight text-left transition-all cursor-pointer border ${
+                                              isTeaching
+                                                ? "bg-brand-purple/10 border-brand-purple/30 text-brand-purple hover:bg-brand-purple/20"
+                                                : "bg-gray-100 border-gray-200 text-text-tertiary hover:bg-gray-200 line-through decoration-1"
+                                            }`}
+                                          >
+                                            {abbrev(entry.class_name)}
+                                            {entry.room && <span className={`block text-[9px] font-normal ${isTeaching ? "text-brand-purple/60" : "text-text-tertiary/50"}`}>{entry.room}</span>}
+                                          </button>
+                                        );
+                                      })}
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Legend + stats */}
+                  <div className="flex items-center gap-4 mt-2 text-[11px] text-text-secondary">
+                    <span className="flex items-center gap-1.5">
+                      <span className="inline-block w-3 h-3 rounded bg-brand-purple/10 border border-brand-purple/30" />
+                      Teaching class ({Object.values(aiClassOverrides).filter(Boolean).length || aiParseResult.entries?.filter((e: { is_teaching: boolean }) => e.is_teaching).length || 0})
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="inline-block w-3 h-3 rounded bg-gray-100 border border-gray-200" />
+                      Non-teaching ({(aiParseResult.entries?.length || 0) - (Object.values(aiClassOverrides).filter(Boolean).length || aiParseResult.entries?.filter((e: { is_teaching: boolean }) => e.is_teaching).length || 0)})
+                    </span>
+                    <span className="text-text-tertiary">Click any cell to toggle</span>
                   </div>
                 </div>
 
@@ -1291,9 +1349,6 @@ export default function TeacherSettingsPage() {
                         }
                         setTimeout(() => setTimetableSuccess(""), 8000);
 
-                        // Auto-expand manual setup so teacher can see the result
-                        setShowManualSetup(true);
-
                         // Clear the AI result
                         setAiParseResult(null);
                         setAiClassOverrides({});
@@ -1317,10 +1372,17 @@ export default function TeacherSettingsPage() {
             )}
           </section>
 
-          {/* ── 2. Class Meetings ── */}
+          {/* ── 2. Your Teaching Schedule ── */}
           <section className="bg-white rounded-xl p-6 border border-border">
-            <h2 className="text-lg font-semibold text-text-primary mb-1">Class Meetings</h2>
-            <p className="text-sm text-text-secondary mb-5">Which classes meet on which days of your {cycleLength}-day cycle? <button onClick={() => setActiveTab("school")} className="text-brand-purple hover:underline font-medium">Change cycle length</button></p>
+            <h2 className="text-lg font-semibold text-text-primary mb-1">Your Teaching Schedule</h2>
+            <p className="text-sm text-text-secondary mb-1">This is your confirmed timetable — which of your classes meet on which days of your {cycleLength}-day cycle.</p>
+            <p className="text-xs text-text-tertiary mb-5">
+              {classMeetings.length > 0
+                ? `${classMeetings.length} class meeting${classMeetings.length === 1 ? "" : "s"} across your cycle. Edit directly in the grid below, or use Smart Import above to re-scan your timetable.`
+                : "Use Smart Import above to auto-detect from a timetable image, or add classes manually in the grid below."
+              }
+              {" "}<button onClick={() => setActiveTab("school")} className="text-brand-purple hover:underline font-medium">Change cycle length</button>
+            </p>
 
             {classes.length > 0 ? (
               <TimetableGrid
@@ -1330,7 +1392,10 @@ export default function TeacherSettingsPage() {
                 onMeetingsChange={(newMeetings) => setClassMeetings(newMeetings)}
               />
             ) : (
-              <p className="text-sm text-text-secondary">Create classes first to add meeting times.</p>
+              <div className="p-6 rounded-lg bg-gray-50 border border-gray-200 text-center">
+                <p className="text-sm text-text-secondary mb-2">No classes created yet.</p>
+                <p className="text-xs text-text-tertiary">Create your classes first (on the <button onClick={() => setActiveTab("general")} className="text-brand-purple hover:underline font-medium">General tab</button>), then come back here to set up when each class meets.</p>
+              </div>
             )}
 
             {/* Save timetable */}
@@ -1360,9 +1425,11 @@ export default function TeacherSettingsPage() {
           <div className="bg-brand-purple/5 border border-brand-purple/15 rounded-xl p-4">
             <div className="flex gap-3">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7B2FF2" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 mt-0.5"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></svg>
-              <div className="text-sm text-text-secondary">
-                <p className="font-medium text-text-primary mb-1">How timetable import works</p>
-                <p>Upload a timetable image/PDF and AI will detect your cycle length, period structure, and classes. It automatically identifies teaching classes vs non-teaching activities (advisory, duty, etc.). You can override any classification before saving. The schedule is used to calculate lesson dates across your units.</p>
+              <div className="text-sm text-text-secondary space-y-1.5">
+                <p className="font-medium text-text-primary">How this works</p>
+                <p><strong>Smart Import</strong> uses AI to scan your timetable image/PDF and identify your teaching classes. It handles complex schedules — rotating cycles, varying period times across days, assembly blocks, and more. Review the grid, toggle any misclassified entries, then confirm.</p>
+                <p><strong>Your Teaching Schedule</strong> below shows the confirmed result. You can edit it directly anytime — add, remove, or move classes in the grid without re-uploading. This schedule drives lesson date calculations across your units.</p>
+                <p className="text-xs text-text-tertiary">Tip: You only need to re-import if your timetable changes significantly (e.g. new school year). For small tweaks, just edit the grid directly.</p>
               </div>
             </div>
           </div>
