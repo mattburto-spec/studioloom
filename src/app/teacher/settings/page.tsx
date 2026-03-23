@@ -1561,13 +1561,6 @@ export default function TeacherSettingsPage() {
                             const mappedCount = uniqueNames.filter(n => finalMapping[n] && finalMapping[n] !== "__skip__").length;
                             const skipCount = uniqueNames.filter(n => finalMapping[n] === "__skip__").length;
 
-                            setTimetableSuccess(
-                              `Applied ${newMeetings.length} meetings from ${mappedCount} class${mappedCount === 1 ? "" : "es"}` +
-                              (createdCount > 0 ? ` (${createdCount} new class${createdCount === 1 ? "" : "es"} created)` : "") +
-                              (skipCount > 0 ? `, ${skipCount} skipped` : "") +
-                              `. Remember to Save below!`
-                            );
-
                             // Refresh classes list to include newly created ones
                             if (createdCount > 0) {
                               const { data: refreshed } = await supabase
@@ -1576,6 +1569,43 @@ export default function TeacherSettingsPage() {
                                 .eq("teacher_id", user.id)
                                 .order("name");
                               if (refreshed) setClasses(refreshed);
+                            }
+
+                            // Auto-save timetable to DB so data persists on navigation
+                            try {
+                              const saveRes = await fetch("/api/teacher/timetable", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                  cycle_length: cycleLength,
+                                  anchor_date: anchorDate,
+                                  anchor_cycle_day: anchorCycleDay,
+                                  reset_each_term: resetEachTerm,
+                                  excluded_dates: excludedDates,
+                                  ical_url: icalUrl || null,
+                                  meetings: newMeetings,
+                                }),
+                              });
+                              if (saveRes.ok) {
+                                setTimetableLoaded(true);
+                                setTimetableSuccess(
+                                  `Saved ${newMeetings.length} meetings from ${mappedCount} class${mappedCount === 1 ? "" : "es"}` +
+                                  (createdCount > 0 ? ` (${createdCount} new class${createdCount === 1 ? "" : "es"} created)` : "") +
+                                  (skipCount > 0 ? `, ${skipCount} skipped` : "")
+                                );
+                              } else {
+                                setTimetableSuccess(
+                                  `Applied ${newMeetings.length} meetings` +
+                                  (createdCount > 0 ? ` (${createdCount} new)` : "") +
+                                  ` — but auto-save failed. Click "Update Timetable" below to save.`
+                                );
+                              }
+                            } catch {
+                              setTimetableSuccess(
+                                `Applied ${newMeetings.length} meetings` +
+                                (createdCount > 0 ? ` (${createdCount} new)` : "") +
+                                ` — but auto-save failed. Click "Update Timetable" below to save.`
+                              );
                             }
 
                             // Clear AI state
