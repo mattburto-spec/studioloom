@@ -53,14 +53,40 @@ export async function POST(request: NextRequest) {
     // Determine media type for the API
     const mediaType = file.type === "application/pdf" ? "application/pdf" : file.type;
 
+    // Build content block based on file type
+    const isPdf = file.type === "application/pdf";
+    const contentBlock = isPdf
+      ? {
+          type: "document" as const,
+          source: {
+            type: "base64" as const,
+            media_type: "application/pdf" as const,
+            data: base64,
+          },
+        }
+      : {
+          type: "image" as const,
+          source: {
+            type: "base64" as const,
+            media_type: mediaType as "image/png" | "image/jpeg" | "image/webp",
+            data: base64,
+          },
+        };
+
     // Call Claude Sonnet with the image/PDF
+    // PDF support requires the pdfs beta header
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    };
+    if (isPdf) {
+      headers["anthropic-beta"] = "pdfs-2024-09-25";
+    }
+
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
+      headers,
       body: JSON.stringify({
         model: SONNET_MODEL,
         max_tokens: 4096,
@@ -70,17 +96,10 @@ export async function POST(request: NextRequest) {
           {
             role: "user",
             content: [
-              {
-                type: file.type === "application/pdf" ? "document" : "image",
-                source: {
-                  type: "base64",
-                  media_type: mediaType,
-                  data: base64,
-                },
-              },
+              contentBlock,
               {
                 type: "text",
-                text: "Extract the complete timetable from this document. Return the structured JSON as specified in your instructions.",
+                text: "Extract the complete timetable from this document. Return ONLY the JSON object — no markdown, no explanation, no code fences. Start directly with { and end with }.",
               },
             ],
           },
@@ -98,17 +117,42 @@ export async function POST(request: NextRequest) {
     }
 
     const data = await response.json();
+    console.log("[timetable-parse] API response status:", response.status, "stop_reason:", data.stop_reason, "model:", data.model, "usage:", JSON.stringify(data.usage));
     const textBlock = data.content?.find((b: { type: string }) => b.type === "text");
     const rawText = textBlock?.text || "";
 
-    // Extract JSON from the response (may be wrapped in ```json blocks)
+    if (!rawText) {
+      console.error("[timetable-parse] Empty text response. Content blocks:", JSON.stringify(data.content?.map((b: { type: string }) => b.type)));
+      return NextResponse.json(
+        { error: "AI returned empty response. Try a different file format (PNG screenshot works best)." },
+        { status: 422 }
+      );
+    }
+
+    // Extract JSON from the response — try multiple strategies
     let parsed;
     try {
-      const jsonMatch = rawText.match(/```json\s*([\s\S]*?)\s*```/) || rawText.match(/(\{[\s\S]*\})/);
-      if (!jsonMatch) throw new Error("No JSON found in response");
-      parsed = JSON.parse(jsonMatch[1]);
+      // Strategy 1: Direct JSON parse (if response is clean JSON)
+      try {
+        parsed = JSON.parse(rawText.trim());
+      } catch {
+        // Strategy 2: Extract from ```json code fence
+        const fenceMatch = rawText.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+        if (fenceMatch) {
+          parsed = JSON.parse(fenceMatch[1].trim());
+        } else {
+          // Strategy 3: Find the outermost { ... } in the text
+          const firstBrace = rawText.indexOf("{");
+          const lastBrace = rawText.lastIndexOf("}");
+          if (firstBrace !== -1 && lastBrace > firstBrace) {
+            parsed = JSON.parse(rawText.slice(firstBrace, lastBrace + 1));
+          } else {
+            throw new Error("No JSON object found in response");
+          }
+        }
+      }
     } catch (parseErr) {
-      console.error("[timetable-parse] JSON parse error:", parseErr, "Raw:", rawText.slice(0, 500));
+      console.error("[timetable-parse] JSON parse error:", parseErr, "Raw text (first 1000 chars):", rawText.slice(0, 1000));
       return NextResponse.json(
         { error: "Could not parse AI response. Try a clearer image." },
         { status: 422 }
