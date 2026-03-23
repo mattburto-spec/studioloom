@@ -517,33 +517,21 @@ export default function KnowledgeLibraryPage() {
   const queueFailed = uploadQueue.filter((e) => e.status === "failed").length;
 
   return (
-    <main className="max-w-5xl mx-auto px-6 py-8">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+    <main className="max-w-6xl mx-auto px-6 py-8">
+      {/* ── Header ── */}
+      <div className="flex items-start justify-between mb-6">
         <div>
-          <div className="flex items-center gap-3 mb-1">
-            <Link
-              href="/teacher/dashboard"
-              className="text-text-secondary hover:text-text-primary transition"
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M15 18l-6-6 6-6" />
-              </svg>
-            </Link>
-            <h1 className="text-2xl font-bold text-text-primary">
-              Knowledge Library
-            </h1>
-          </div>
-          <p className="text-text-secondary text-sm ml-8">
-            Browse, create, and manage your teaching resources. Items feed both human browsing and AI generation.
+          <h1 className="text-2xl font-extrabold text-text-primary tracking-tight">Knowledge Library</h1>
+          <p className="text-sm text-text-secondary mt-1">
+            Your teaching resources power AI generation and student browsing.
           </p>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => headerFileInputRef.current?.click()}
-            className="px-4 py-2.5 border border-brand-purple text-brand-purple rounded-full text-sm font-medium hover:bg-brand-purple/5 transition flex items-center gap-2"
+            className="inline-flex items-center gap-2 px-4 py-2.5 border border-gray-200 text-text-primary rounded-xl text-sm font-semibold hover:bg-gray-50 transition"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
               <polyline points="17 8 12 3 7 8" />
               <line x1="12" y1="3" x2="12" y2="15" />
@@ -566,97 +554,131 @@ export default function KnowledgeLibraryPage() {
               setEditingItem(null);
               setShowForm(true);
             }}
-            className="px-4 py-2.5 gradient-cta text-white rounded-full text-sm font-medium shadow-md shadow-brand-pink/20 hover:opacity-90 transition flex items-center gap-2"
+            className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white rounded-xl shadow-sm transition hover:shadow-md hover:scale-[1.02] active:scale-[0.98]"
+            style={{ background: "linear-gradient(135deg, #7C3AED, #6D28D9)" }}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
+              <path d="M12 5v14m-7-7h14" />
             </svg>
             New Item
           </button>
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-4 mb-8">
-        <div className="bg-white rounded-xl border border-border p-4">
-          {loading ? (
-            <div className="h-8 w-16 bg-gray-200 rounded animate-pulse" />
-          ) : (
-            <div className="text-2xl font-bold text-brand-purple">{items.length}</div>
-          )}
-          <div className="text-xs text-text-secondary mt-1">Library items</div>
-        </div>
-        <div className="bg-white rounded-xl border border-border p-4">
-          {loading ? (
-            <div className="h-8 w-16 bg-gray-200 rounded animate-pulse" />
-          ) : (
-            <div className="text-2xl font-bold text-accent-blue">{totalChunks}</div>
-          )}
-          <div className="text-xs text-text-secondary mt-1">Knowledge chunks</div>
-        </div>
-        <div className="bg-white rounded-xl border border-border p-4">
-          {loading ? (
-            <div className="h-8 w-16 bg-gray-200 rounded animate-pulse" />
-          ) : (
-            <div className="text-2xl font-bold text-accent-green">
-              {uploads.filter((u) => u.status === "complete").length}
-            </div>
-          )}
-          <div className="text-xs text-text-secondary mt-1">Documents uploaded</div>
-        </div>
-      </div>
-
-      {/* Tab bar */}
-      <div className="flex items-center gap-1 overflow-x-auto pb-1 mb-4 -mx-1 px-1">
-        {TABS.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition ${
-              activeTab === tab.key
-                ? "bg-brand-purple text-white"
-                : "text-text-secondary hover:bg-gray-100 hover:text-text-primary"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Search (for non-upload tabs) */}
-      {activeTab !== "uploads" && (
-        <div className="mb-6">
-          <div className="relative">
-            <svg
-              width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF"
-              strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-              className="absolute left-3 top-1/2 -translate-y-1/2"
-            >
-              <circle cx="11" cy="11" r="8" />
-              <line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search items by title, description, or tags..."
-              className="w-full border border-border rounded-lg pl-9 pr-3 py-2 text-sm text-text-primary placeholder:text-text-secondary/40 focus:outline-none focus:ring-2 focus:ring-brand-purple/30"
-            />
-            {search && (
-              <button
-                onClick={() => setSearch("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary/40 hover:text-text-primary"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              </button>
+      {/* ── Stats strip ── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+        <div className="bg-white rounded-xl border border-gray-200 px-4 py-3 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: "#7C3AED14", color: "#7C3AED" }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z"/><path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z"/></svg>
+          </div>
+          <div>
+            {loading ? (
+              <div className="h-5 w-10 bg-gray-200 rounded animate-pulse" />
+            ) : (
+              <p className="text-lg font-extrabold text-text-primary leading-none">{items.length}</p>
             )}
+            <p className="text-[10px] text-text-tertiary font-medium mt-0.5">Library Items</p>
           </div>
         </div>
-      )}
+        <div className="bg-white rounded-xl border border-gray-200 px-4 py-3 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: "#3B82F614", color: "#3B82F6" }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+          </div>
+          <div>
+            {loading ? (
+              <div className="h-5 w-10 bg-gray-200 rounded animate-pulse" />
+            ) : (
+              <p className="text-lg font-extrabold text-text-primary leading-none">{totalChunks}</p>
+            )}
+            <p className="text-[10px] text-text-tertiary font-medium mt-0.5">AI Chunks</p>
+          </div>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 px-4 py-3 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: "#10B98114", color: "#10B981" }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          </div>
+          <div>
+            {loading ? (
+              <div className="h-5 w-10 bg-gray-200 rounded animate-pulse" />
+            ) : (
+              <p className="text-lg font-extrabold text-text-primary leading-none">
+                {uploads.filter((u) => u.status === "complete").length}
+              </p>
+            )}
+            <p className="text-[10px] text-text-tertiary font-medium mt-0.5">Docs Uploaded</p>
+          </div>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 px-4 py-3 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: "#F59E0B14", color: "#F59E0B" }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          </div>
+          <div>
+            {loading ? (
+              <div className="h-5 w-10 bg-gray-200 rounded animate-pulse" />
+            ) : (
+              <p className="text-lg font-extrabold text-text-primary leading-none">
+                {uploads.filter((u) => !!u.lesson_profile_id).length}
+              </p>
+            )}
+            <p className="text-[10px] text-text-tertiary font-medium mt-0.5">AI Analysed</p>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Tab bar + search ── */}
+      <div className="bg-white rounded-2xl border border-gray-200 px-4 py-3 mb-6">
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Tabs */}
+          <div className="flex items-center gap-1 overflow-x-auto flex-1 min-w-0">
+            {TABS.map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition ${
+                  activeTab === tab.key
+                    ? "text-white shadow-sm"
+                    : "text-text-secondary hover:bg-gray-100 hover:text-text-primary"
+                }`}
+                style={activeTab === tab.key ? { background: "linear-gradient(135deg, #7C3AED, #6D28D9)" } : undefined}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Inline search */}
+          {activeTab !== "uploads" && (
+            <div className="relative w-64 shrink-0">
+              <svg
+                width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF"
+                strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                className="absolute left-3 top-1/2 -translate-y-1/2"
+              >
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search..."
+                className="w-full border border-gray-200 rounded-lg pl-9 pr-8 py-1.5 text-sm text-text-primary placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500/30"
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-text-primary"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Create / Edit form */}
       {showForm && (
@@ -706,28 +728,40 @@ export default function KnowledgeLibraryPage() {
           ))}
         </div>
       ) : items.length === 0 ? (
-        <div className="bg-white rounded-xl border border-border p-12 text-center">
-          <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <div className="text-center py-16 bg-white rounded-2xl border-2 border-dashed border-gray-200">
+          <div className="w-14 h-14 rounded-2xl bg-purple-50 flex items-center justify-center mx-auto mb-4">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M2 3h6a4 4 0 014 4v14a3 3 0 00-3-3H2z" />
               <path d="M22 3h-6a4 4 0 00-4 4v14a3 3 0 013-3h7z" />
             </svg>
           </div>
-          <p className="text-text-secondary mb-4">
+          <p className="text-base font-semibold text-text-primary mb-1">
+            {debouncedSearch ? `No results for "${debouncedSearch}"` : "Your knowledge library is empty"}
+          </p>
+          <p className="text-sm text-text-secondary mb-5 max-w-md mx-auto">
             {debouncedSearch
-              ? `No items matching "${debouncedSearch}"`
-              : "No knowledge items yet. Create your first resource or upload files to get started."}
+              ? "Try a different search term or browse a different category."
+              : "Upload lesson plans, textbooks, or rubrics — the AI analyses them and uses the patterns to generate better units."}
           </p>
           {!debouncedSearch && (
-            <button
-              onClick={() => {
-                setEditingItem(null);
-                setShowForm(true);
-              }}
-              className="px-4 py-2 gradient-cta text-white rounded-lg text-sm font-medium shadow-md shadow-brand-pink/20 hover:opacity-90 transition"
-            >
-              Create First Item
-            </button>
+            <div className="flex items-center justify-center gap-3">
+              <button
+                onClick={() => headerFileInputRef.current?.click()}
+                className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white rounded-xl transition"
+                style={{ background: "linear-gradient(135deg, #7C3AED, #6D28D9)" }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
+                </svg>
+                Upload Files
+              </button>
+              <button
+                onClick={() => { setEditingItem(null); setShowForm(true); }}
+                className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold border border-gray-200 text-text-secondary rounded-xl hover:bg-gray-50 transition"
+              >
+                Create Manually
+              </button>
+            </div>
           )}
         </div>
       ) : (
@@ -1266,26 +1300,27 @@ function UploadsSection({
       </div>
 
       {/* Info callout */}
-      <div className="bg-brand-purple/5 border border-brand-purple/15 rounded-xl p-4 mb-8">
-        <div className="flex gap-3">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7B2FF2" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 mt-0.5">
-            <circle cx="12" cy="12" r="10" />
-            <path d="M12 16v-4M12 8h.01" />
-          </svg>
-          <div className="text-sm text-text-secondary">
-            <p className="font-medium text-text-primary mb-1">How uploads work</p>
-            <p>Each file goes through visual analysis (diagrams, charts, images) and AI analysis (structure, pedagogy, workshop readiness), then is broken into searchable chunks. Upload multiple files at once — they process sequentially with individual progress tracking.</p>
-          </div>
-        </div>
+      <div className="bg-purple-50 border border-purple-100 rounded-xl px-4 py-3 mb-8">
+        <p className="text-xs text-purple-700">
+          <span className="font-semibold">How it works:</span> Files are visually scanned (diagrams, charts), AI-analysed (structure, pedagogy), then broken into searchable chunks for unit generation. Upload multiple files at once.
+        </p>
       </div>
 
-      {/* Upload list */}
+      {/* Upload list header */}
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold text-text-primary">Uploaded Files</h2>
+        <h2 className="text-base font-bold text-text-primary flex items-center gap-2">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/>
+          </svg>
+          Uploaded Files
+          {uploads.length > 0 && (
+            <span className="text-sm font-normal text-text-tertiary">({uploads.length})</span>
+          )}
+        </h2>
         {uploads.length > 0 && (
           <button
             onClick={handleBatchReanalyse}
-            className="px-3 py-1.5 rounded-lg border border-border text-text-secondary text-xs font-medium hover:bg-gray-50 transition flex items-center gap-1.5"
+            className="px-3 py-1.5 rounded-lg border border-gray-200 text-text-secondary text-xs font-semibold hover:bg-gray-50 transition flex items-center gap-1.5"
             title="Re-analyse all files with latest AI prompts"
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10" /><polyline points="1 20 1 14 7 14" /><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" /></svg>
