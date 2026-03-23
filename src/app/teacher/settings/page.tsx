@@ -791,9 +791,148 @@ export default function TeacherSettingsPage() {
               </div>
             </div>
 
+            {/* Import school calendar to detect cycle days */}
+            <div className="border-t border-border pt-4 mt-4">
+              <h3 className="text-sm font-semibold text-text-primary mb-1 flex items-center gap-2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
+                Import School Calendar
+              </h3>
+              <p className="text-sm text-text-secondary mb-3">Paste your school&apos;s calendar feed to auto-detect which date is which cycle day, plus holidays and non-school days.</p>
+
+              <div className="flex items-end gap-2 mb-3">
+                <div className="flex-1">
+                  <label className="block text-xs text-text-secondary mb-1">School calendar iCal feed URL (.ics)</label>
+                  <div className="relative">
+                    <input type="url" value={icalUrl} onChange={(e) => setIcalUrl(e.target.value)} placeholder="https://outlook.office365.com/owa/calendar/..." className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30 pr-8" />
+                    {icalUrl && (
+                      <button onClick={() => setIcalUrl("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-red-500 transition" title="Clear URL">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={async () => {
+                    if (!icalUrl) return;
+                    setIcalParsing(true);
+                    setIcalMessage("");
+                    try {
+                      const res = await fetch("/api/teacher/timetable/import-ical", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ ical_url: icalUrl }),
+                      });
+                      const data = await res.json();
+                      if (!res.ok) {
+                        setIcalMessage(data.error || "Import failed");
+                        return;
+                      }
+                      setClassMeetings(data.meetings || []);
+                      setExcludedDates(data.excludedDates || []);
+                      if (data.cycleDayEvents?.length) {
+                        const first = data.cycleDayEvents[0];
+                        setAnchorDate(first.date);
+                        setAnchorCycleDay(first.cycleDay);
+                        const maxDay = Math.max(...data.cycleDayEvents.map((e: { cycleDay: number }) => e.cycleDay));
+                        if (maxDay >= 2 && maxDay <= 20) setCycleLength(maxDay);
+                      } else if (data.classEventDates?.length) {
+                        const sorted = [...data.classEventDates].sort((a: {date:string}, b: {date:string}) => a.date.localeCompare(b.date));
+                        setAnchorDate(sorted[0].date);
+                        setAnchorCycleDay(1);
+                      }
+                      const cycleDayCount = data.cycleDayEvents?.length || 0;
+                      let msg = `Imported ${data.totalEvents || 0} events`;
+                      if (cycleDayCount > 0) msg += ` — found ${cycleDayCount} cycle day markers`;
+                      msg += " — see preview below";
+                      setIcalMessage(msg);
+                      setIcalPreviewData(data as ICalImportData);
+                    } catch {
+                      setIcalMessage("Network error");
+                    } finally {
+                      setIcalParsing(false);
+                    }
+                  }}
+                  disabled={!icalUrl || icalParsing}
+                  className="px-4 py-2 rounded-lg text-sm font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 transition disabled:opacity-40 border border-blue-200 whitespace-nowrap"
+                >
+                  {icalParsing ? "Parsing..." : "Import"}
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-text-tertiary">or</span>
+                <label className="cursor-pointer px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-50 text-text-secondary hover:bg-gray-100 transition border border-gray-200">
+                  Upload .ics file
+                  <input
+                    type="file"
+                    accept=".ics,.ical"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setIcalParsing(true);
+                      setIcalMessage("");
+                      try {
+                        const text = await file.text();
+                        const res = await fetch("/api/teacher/timetable/import-ical", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ ical_content: text }),
+                        });
+                        const data = await res.json();
+                        if (!res.ok) {
+                          setIcalMessage(data.error || "Import failed");
+                          return;
+                        }
+                        setClassMeetings(data.meetings || []);
+                        setExcludedDates(data.excludedDates || []);
+                        if (data.cycleDayEvents?.length) {
+                          const first = data.cycleDayEvents[0];
+                          setAnchorDate(first.date);
+                          setAnchorCycleDay(first.cycleDay);
+                          const maxDay = Math.max(...data.cycleDayEvents.map((e: { cycleDay: number }) => e.cycleDay));
+                          if (maxDay >= 2 && maxDay <= 20) setCycleLength(maxDay);
+                        } else if (data.classEventDates?.length) {
+                          const sorted = [...data.classEventDates].sort((a: {date:string}, b: {date:string}) => a.date.localeCompare(b.date));
+                          setAnchorDate(sorted[0].date);
+                          setAnchorCycleDay(1);
+                        }
+                        const cycleDayCount = data.cycleDayEvents?.length || 0;
+                        let msg = `Imported ${data.totalEvents || 0} events`;
+                        if (cycleDayCount > 0) msg += ` — found ${cycleDayCount} cycle day markers`;
+                        msg += " — see preview below";
+                        setIcalMessage(msg);
+                        setIcalPreviewData(data as ICalImportData);
+                      } catch {
+                        setIcalMessage("Upload failed");
+                      } finally {
+                        setIcalParsing(false);
+                        e.target.value = "";
+                      }
+                    }}
+                  />
+                </label>
+              </div>
+
+              {icalMessage && (
+                <p className={`mt-2 text-xs font-medium ${icalMessage.includes("Imported") || icalMessage.includes("events") ? "text-accent-green" : "text-amber-600"}`}>
+                  {icalMessage}
+                </p>
+              )}
+
+              {icalPreviewData && (
+                <ICalPreview
+                  data={icalPreviewData}
+                  classNames={classes}
+                  cycleConfig={{ cycleLength, anchorDate, anchorCycleDay, excludedDates }}
+                  onClose={() => setIcalPreviewData(null)}
+                />
+              )}
+            </div>
+
             {/* Anchor date — collapsible */}
-            <details className="text-sm">
-              <summary className="cursor-pointer text-xs font-medium text-text-tertiary hover:text-text-secondary">Advanced: Set anchor date</summary>
+            <details className="text-sm mt-4">
+              <summary className="cursor-pointer text-xs font-medium text-text-tertiary hover:text-text-secondary">Advanced: Set anchor date manually</summary>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3">
                 <div>
                   <label className="block text-sm font-medium text-text-secondary mb-1">Anchor date</label>
@@ -1137,150 +1276,7 @@ export default function TeacherSettingsPage() {
             )}
           </section>
 
-          {/* ── 2. iCal Class Schedule Import ── */}
-          <section className="bg-white rounded-xl p-6 border border-border">
-            <h2 className="text-lg font-semibold text-text-primary mb-1 flex items-center gap-2">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>
-              Import Class Schedule from Calendar Feed
-            </h2>
-            <p className="text-sm text-text-secondary mb-1">Import your <strong>class timetable</strong> from an iCal feed — this tells StudioLoom which classes you teach on which days.</p>
-            <p className="text-xs text-text-tertiary mb-4">This is <em>not</em> your academic calendar (terms/semesters). Set that up in the <button onClick={() => setActiveTab("school")} className="text-brand-purple hover:underline font-medium">School &amp; Teaching</button> tab.</p>
-
-            <div className="flex items-end gap-2 mb-3">
-              <div className="flex-1">
-                <label className="block text-xs text-text-secondary mb-1">Timetable / class schedule iCal feed URL (.ics)</label>
-                <div className="relative">
-                  <input type="url" value={icalUrl} onChange={(e) => setIcalUrl(e.target.value)} placeholder="https://school.managebac.com/calendar/feed/timetable.ics" className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30 pr-8" />
-                  {icalUrl && (
-                    <button onClick={() => setIcalUrl("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-red-500 transition" title="Clear URL">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
-                    </button>
-                  )}
-                </div>
-                {icalUrl && !icalUrl.includes(".ics") && (
-                  <p className="text-xs text-amber-600 mt-1">This URL doesn&apos;t look like an .ics calendar feed. Make sure it&apos;s your <strong>timetable</strong> feed, not a general school calendar.</p>
-                )}
-              </div>
-              <button
-                onClick={async () => {
-                  if (!icalUrl) return;
-                  setIcalParsing(true);
-                  setIcalMessage("");
-                  try {
-                    const res = await fetch("/api/teacher/timetable/import-ical", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ ical_url: icalUrl }),
-                    });
-                    const data = await res.json();
-                    if (!res.ok) {
-                      setIcalMessage(data.error || "Import failed");
-                      return;
-                    }
-                    setClassMeetings(data.meetings || []);
-                    setExcludedDates(data.excludedDates || []);
-                    if (data.cycleDayEvents?.length) {
-                      const first = data.cycleDayEvents[0];
-                      setAnchorDate(first.date);
-                      setAnchorCycleDay(first.cycleDay);
-                      const maxDay = Math.max(...data.cycleDayEvents.map((e: { cycleDay: number }) => e.cycleDay));
-                      if (maxDay >= 2 && maxDay <= 20) setCycleLength(maxDay);
-                    } else if (data.classEventDates?.length) {
-                      const sorted = [...data.classEventDates].sort((a: {date:string}, b: {date:string}) => a.date.localeCompare(b.date));
-                      setAnchorDate(sorted[0].date);
-                      setAnchorCycleDay(1);
-                    }
-                    const cycleDayCount = data.cycleDayEvents?.length || 0;
-                    let msg = `Imported ${data.totalEvents || 0} events`;
-                    if (cycleDayCount > 0) msg += ` — found ${cycleDayCount} cycle day markers`;
-                    msg += " — see preview below";
-                    setIcalMessage(msg);
-                    setIcalPreviewData(data as ICalImportData);
-                  } catch {
-                    setIcalMessage("Network error");
-                  } finally {
-                    setIcalParsing(false);
-                  }
-                }}
-                disabled={!icalUrl || icalParsing}
-                className="px-4 py-2 rounded-lg text-sm font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 transition disabled:opacity-40 border border-blue-200 whitespace-nowrap"
-              >
-                {icalParsing ? "Parsing..." : "Import"}
-              </button>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-text-tertiary">or</span>
-              <label className="cursor-pointer px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-50 text-text-secondary hover:bg-gray-100 transition border border-gray-200">
-                Upload .ics file
-                <input
-                  type="file"
-                  accept=".ics,.ical"
-                  className="hidden"
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    setIcalParsing(true);
-                    setIcalMessage("");
-                    try {
-                      const text = await file.text();
-                      const res = await fetch("/api/teacher/timetable/import-ical", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ ical_content: text }),
-                      });
-                      const data = await res.json();
-                      if (!res.ok) {
-                        setIcalMessage(data.error || "Import failed");
-                        return;
-                      }
-                      setClassMeetings(data.meetings || []);
-                      setExcludedDates(data.excludedDates || []);
-                      if (data.cycleDayEvents?.length) {
-                        const first = data.cycleDayEvents[0];
-                        setAnchorDate(first.date);
-                        setAnchorCycleDay(first.cycleDay);
-                        const maxDay = Math.max(...data.cycleDayEvents.map((e: { cycleDay: number }) => e.cycleDay));
-                        if (maxDay >= 2 && maxDay <= 20) setCycleLength(maxDay);
-                      } else if (data.classEventDates?.length) {
-                        const sorted = [...data.classEventDates].sort((a: {date:string}, b: {date:string}) => a.date.localeCompare(b.date));
-                        setAnchorDate(sorted[0].date);
-                        setAnchorCycleDay(1);
-                      }
-                      const cycleDayCount = data.cycleDayEvents?.length || 0;
-                      let msg = `Imported ${data.totalEvents || 0} events`;
-                      if (cycleDayCount > 0) msg += ` — found ${cycleDayCount} cycle day markers`;
-                      msg += " — see preview below";
-                      setIcalMessage(msg);
-                      setIcalPreviewData(data as ICalImportData);
-                    } catch {
-                      setIcalMessage("Upload failed");
-                    } finally {
-                      setIcalParsing(false);
-                      e.target.value = "";
-                    }
-                  }}
-                />
-              </label>
-            </div>
-
-            {icalMessage && (
-              <p className={`mt-2 text-xs font-medium ${icalMessage.includes("Imported") || icalMessage.includes("events") ? "text-accent-green" : "text-amber-600"}`}>
-                {icalMessage}
-              </p>
-            )}
-
-            {icalPreviewData && (
-              <ICalPreview
-                data={icalPreviewData}
-                classNames={classes}
-                cycleConfig={{ cycleLength, anchorDate, anchorCycleDay, excludedDates }}
-                onClose={() => setIcalPreviewData(null)}
-              />
-            )}
-          </section>
-
-          {/* ── 3. Class Meetings & Non-School Days ── */}
+          {/* ── 2. Class Meetings & Non-School Days ── */}
           <section className="bg-white rounded-xl p-6 border border-border">
             <h2 className="text-lg font-semibold text-text-primary mb-1">Class Meetings</h2>
             <p className="text-sm text-text-secondary mb-5">Which classes meet on which days of your {cycleLength}-day cycle? <button onClick={() => setActiveTab("school")} className="text-brand-purple hover:underline font-medium">Change cycle length</button></p>
