@@ -252,13 +252,16 @@ function CalendarGrid({
       excludedSet.add(date);
     }
 
-    // Calculate for all months in range
+    // Calculate for all months in range — only from anchor date onward
+    const anchorStr = cycleConfig.anchorDate;
     for (const { year, month } of months) {
       const daysInMonth = new Date(year, month + 1, 0).getDate();
       for (let d = 1; d <= daysInMonth; d++) {
         const mm = String(month + 1).padStart(2, "0");
         const dd = String(d).padStart(2, "0");
         const dateStr = `${year}-${mm}-${dd}`;
+        // Don't show cycle days before the anchor (school hasn't started)
+        if (dateStr < anchorStr) continue;
         const cycleDay = computeCycleDay(dateStr, cycleConfig, excludedSet);
         if (cycleDay !== null) {
           map.set(dateStr, cycleDay);

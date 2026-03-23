@@ -1589,12 +1589,15 @@ export default function TeacherSettingsPage() {
                             }
 
                             // Auto-save timetable to DB so data persists on navigation
+                            // Use aiParseResult values (freshest) with fallback to current state
+                            // (React setState hasn't committed yet in this handler)
+                            const saveCycleLength = aiParseResult.cycle_length || cycleLength;
                             try {
                               const saveRes = await fetch("/api/teacher/timetable", {
                                 method: "POST",
                                 headers: { "Content-Type": "application/json" },
                                 body: JSON.stringify({
-                                  cycle_length: cycleLength,
+                                  cycle_length: saveCycleLength,
                                   anchor_date: anchorDate,
                                   anchor_cycle_day: anchorCycleDay,
                                   reset_each_term: resetEachTerm,
