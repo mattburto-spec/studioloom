@@ -295,17 +295,11 @@ function TwoColumnDashboard({
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch("/api/teacher/timetable");
+        const res = await fetch("/api/teacher/schedule/today?days=7");
         if (!res.ok) { setScheduleLoading(false); return; }
-        const tt = await res.json();
-        if (!tt.timetable) { setScheduleLoading(false); return; }
-        setHasTimetable(true);
-
-        const schedRes = await fetch("/api/teacher/schedule/lessons?mode=calendar&days=7");
-        if (schedRes.ok) {
-          const schedData = await schedRes.json();
-          setSchedule(schedData.entries || []);
-        }
+        const schedData = await res.json();
+        setHasTimetable(schedData.hasTimetable ?? false);
+        setSchedule(schedData.entries || []);
       } catch {
         // fine
       } finally {

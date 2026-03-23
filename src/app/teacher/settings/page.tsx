@@ -1026,82 +1026,39 @@ export default function TeacherSettingsPage() {
                 />
               )}
 
-              {/* Persistent calendar view — shows after import even when preview is dismissed */}
+              {/* Persistent calendar view — reuses ICalPreview with synthesized data from saved state */}
               {!icalPreviewData && excludedDates.length > 0 && (
-                <details className="mt-3 border border-border rounded-lg overflow-hidden">
-                  <summary className="px-4 py-2.5 bg-gray-50 cursor-pointer text-sm font-medium text-text-primary hover:bg-gray-100 transition flex items-center gap-2">
+                <details className="mt-3">
+                  <summary className="px-4 py-2.5 bg-gray-50 border border-border rounded-lg cursor-pointer text-sm font-medium text-text-primary hover:bg-gray-100 transition flex items-center gap-2">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
                     View calendar ({excludedDates.length} non-school day{excludedDates.length === 1 ? "" : "s"})
                   </summary>
-                  <div className="p-4 border-t border-border">
-                    {/* Mini calendar showing months with excluded dates highlighted */}
-                    {(() => {
-                      // Build months from excluded dates
-                      const dates = excludedDates.filter(d => d).sort();
-                      if (dates.length === 0) return null;
-                      const start = new Date(dates[0]);
-                      const end = new Date(dates[dates.length - 1]);
-                      const excludedSet = new Set(dates);
-
-                      const months: Array<{ year: number; month: number }> = [];
-                      const cur = new Date(start.getFullYear(), start.getMonth(), 1);
-                      while (cur <= end) {
-                        months.push({ year: cur.getFullYear(), month: cur.getMonth() });
-                        cur.setMonth(cur.getMonth() + 1);
-                      }
-
-                      const DAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
-                      const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-                      const today = new Date().toISOString().split("T")[0];
-
-                      return (
-                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                          {months.map(({ year, month }) => {
-                            const firstDay = new Date(year, month, 1);
-                            const daysInMonth = new Date(year, month + 1, 0).getDate();
-                            // Monday = 0, Sunday = 6
-                            const startDay = (firstDay.getDay() + 6) % 7;
-
-                            return (
-                              <div key={`${year}-${month}`} className="text-center">
-                                <p className="text-xs font-semibold text-text-primary mb-1">{MONTH_NAMES[month]} {year}</p>
-                                <div className="grid grid-cols-7 gap-px text-[10px]">
-                                  {DAYS.map(d => <div key={d} className="text-text-tertiary font-medium py-0.5">{d}</div>)}
-                                  {Array.from({ length: startDay }).map((_, i) => <div key={`pad-${i}`} />)}
-                                  {Array.from({ length: daysInMonth }).map((_, i) => {
-                                    const day = i + 1;
-                                    const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-                                    const isExcluded = excludedSet.has(dateStr);
-                                    const isToday = dateStr === today;
-                                    const dayOfWeek = (startDay + i) % 7; // 0=Mon ... 6=Sun
-                                    const isWeekend = dayOfWeek >= 5;
-                                    return (
-                                      <div
-                                        key={day}
-                                        className={`py-0.5 rounded text-[10px] ${
-                                          isExcluded ? "bg-amber-100 text-amber-800 font-bold" :
-                                          isToday ? "bg-brand-purple text-white font-bold" :
-                                          isWeekend ? "text-text-tertiary/40" :
-                                          "text-text-secondary"
-                                        }`}
-                                        title={isExcluded ? `Non-school day: ${dateStr}` : dateStr}
-                                      >
-                                        {day}
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      );
-                    })()}
-                    <div className="flex items-center gap-4 mt-3 text-[10px] text-text-tertiary">
-                      <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-amber-100 border border-amber-200" /> Non-school day</span>
-                      <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded bg-brand-purple" /> Today</span>
-                    </div>
-                  </div>
+                  <ICalPreview
+                    data={{
+                      totalEvents: excludedDates.length,
+                      meetings: classMeetings.map(m => ({
+                        class_id: m.class_id,
+                        cycle_day: m.cycle_day,
+                        period_number: m.period_number,
+                        room: m.room,
+                      })),
+                      excludedDates: excludedDates.map(d => d.split(" (")[0]), // strip labels
+                      holidayDetails: excludedDates.map(d => {
+                        const parts = d.match(/^(\d{4}-\d{2}-\d{2})\s*(?:\((.+)\))?$/);
+                        return { date: parts?.[1] || d.split(" (")[0], label: parts?.[2] || "Non-school day" };
+                      }),
+                      unmatchedEvents: [],
+                      unmatchedWithDates: [],
+                      classEventDates: [],
+                    }}
+                    classNames={classes}
+                    cycleConfig={{
+                      cycleLength,
+                      anchorDate,
+                      anchorCycleDay,
+                      excludedDates: excludedDates.map(d => d.split(" (")[0]),
+                    }}
+                  />
                 </details>
               )}
             </div>
