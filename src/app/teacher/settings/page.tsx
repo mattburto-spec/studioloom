@@ -141,6 +141,9 @@ export default function TeacherSettingsPage() {
   // Track teacher overrides on AI classification (entry index → boolean)
   const [aiClassOverrides, setAiClassOverrides] = useState<Record<number, boolean>>({});
   const [aiConfirming, setAiConfirming] = useState(false);
+  // Class mapping step: AI class name → teacher's class ID
+  const [aiClassMapping, setAiClassMapping] = useState<Record<string, string>>({});
+  const [showClassMapping, setShowClassMapping] = useState(false);
 
   // Temp state for adding a meeting
   const [newMeetingClassId, setNewMeetingClassId] = useState("");
@@ -1311,78 +1314,135 @@ export default function TeacherSettingsPage() {
                   </div>
                 )}
 
-                {/* Confirm & Apply button */}
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={async () => {
-                      setAiConfirming(true);
-                      try {
-                        // Apply parsed data to timetable state
-                        if (aiParseResult.cycle_length) setCycleLength(aiParseResult.cycle_length);
+                {/* Step 2: Class Mapping — match AI names to your classes */}
+                {showClassMapping ? (
+                  <div className="space-y-4">
+                    <div>
+                      <h3 className="text-sm font-semibold text-text-primary mb-1">Match to your classes</h3>
+                      <p className="text-xs text-text-secondary mb-3">The AI found these class names in your timetable. Match each one to a class you&apos;ve created in StudioLoom, or leave as &quot;Skip&quot; to ignore.</p>
+                    </div>
 
-                        // Set period duration from first period if available
-                        if (aiParseResult.periods?.length > 0) {
-                          const firstPeriod = aiParseResult.periods[0];
-                          if (firstPeriod.duration_minutes) setPeriodMinutes(firstPeriod.duration_minutes);
-                        }
+                    {(() => {
+                      // Get unique teaching class names
+                      const teachingEntries = aiParseResult.entries?.filter((_: unknown, i: number) => aiClassOverrides[i]) || [];
+                      const uniqueNames = [...new Set(teachingEntries.map((e: { class_name: string }) => e.class_name))] as string[];
+                      // Count occurrences per class
+                      const counts: Record<string, number> = {};
+                      teachingEntries.forEach((e: { class_name: string }) => { counts[e.class_name] = (counts[e.class_name] || 0) + 1; });
 
-                        // Build class meetings from teaching entries only
+                      return (
+                        <div className="border border-border rounded-lg divide-y divide-border">
+                          {uniqueNames.map(name => (
+                            <div key={name} className="flex items-center gap-3 px-4 py-3">
+                              <div className="flex-1 min-w-0">
+                                <span className="text-sm font-medium text-text-primary">{name}</span>
+                                <span className="ml-2 text-xs text-text-tertiary">({counts[name]} period{counts[name] === 1 ? "" : "s"}/cycle)</span>
+                              </div>
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
+                              <select
+                                value={aiClassMapping[name] || ""}
+                                onChange={(e) => setAiClassMapping(prev => ({ ...prev, [name]: e.target.value }))}
+                                className="px-3 py-1.5 border border-border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-purple/30 min-w-[180px]"
+                              >
+                                <option value="">— Skip —</option>
+                                {classes.map(c => (
+                                  <option key={c.id} value={c.id}>{c.name}</option>
+                                ))}
+                              </select>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
+
+                    {/* Apply mapped classes */}
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => {
+                          // Apply parsed data to timetable state
+                          if (aiParseResult.cycle_length) setCycleLength(aiParseResult.cycle_length);
+                          if (aiParseResult.periods?.length > 0) {
+                            const firstPeriod = aiParseResult.periods[0];
+                            if (firstPeriod.duration_minutes) setPeriodMinutes(firstPeriod.duration_minutes);
+                          }
+
+                          // Build meetings from mapped classes only
+                          const teachingEntries = aiParseResult.entries?.filter((_: unknown, i: number) => aiClassOverrides[i]) || [];
+                          const newMeetings = teachingEntries
+                            .filter((e: { class_name: string }) => aiClassMapping[e.class_name])
+                            .map((e: { class_name: string; day: number; period: number; room?: string }) => ({
+                              class_id: aiClassMapping[e.class_name],
+                              cycle_day: e.day,
+                              period_number: e.period,
+                              room: e.room || undefined,
+                            }));
+
+                          setClassMeetings(newMeetings);
+
+                          const mappedCount = Object.values(aiClassMapping).filter(Boolean).length;
+                          const teachingNames = [...new Set(teachingEntries.map((e: { class_name: string }) => e.class_name))] as string[];
+                          const skippedCount = teachingNames.length - mappedCount;
+
+                          setTimetableSuccess(
+                            `Applied ${newMeetings.length} meetings from ${mappedCount} class${mappedCount === 1 ? "" : "es"}` +
+                            (skippedCount > 0 ? ` (${skippedCount} skipped)` : "") +
+                            `. Remember to Save below!`
+                          );
+
+                          // Clear AI state
+                          setAiParseResult(null);
+                          setAiClassOverrides({});
+                          setAiClassMapping({});
+                          setShowClassMapping(false);
+                        }}
+                        className="px-5 py-2.5 rounded-lg text-sm font-medium bg-brand-purple text-white hover:bg-brand-purple/90 transition"
+                      >
+                        Apply to Schedule
+                      </button>
+                      <button
+                        onClick={() => setShowClassMapping(false)}
+                        className="px-4 py-2 rounded-lg text-sm font-medium text-text-tertiary hover:text-text-primary transition"
+                      >
+                        Back to grid
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  /* Step 1: Confirm grid — proceed to mapping */
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => {
+                        // Auto-match what we can, then show mapping UI for confirmation
                         const teachingEntries = aiParseResult.entries?.filter((_: unknown, i: number) => aiClassOverrides[i]) || [];
+                        const uniqueNames = [...new Set(teachingEntries.map((e: { class_name: string }) => e.class_name))] as string[];
 
-                        // Group unique class names from teaching entries
-                        const uniqueClassNames = [...new Set(teachingEntries.map((e: { class_name: string }) => e.class_name))] as string[];
-
-                        // Match to existing classes or inform about unmatched
-                        const classNameToId: Record<string, string> = {};
-                        for (const name of uniqueClassNames) {
-                          // Try to match by name (case-insensitive partial match)
+                        const autoMapping: Record<string, string> = {};
+                        for (const name of uniqueNames) {
                           const match = classes.find(c =>
                             c.name.toLowerCase().includes(name.toLowerCase()) ||
                             name.toLowerCase().includes(c.name.toLowerCase())
                           );
-                          if (match) classNameToId[name] = match.id;
+                          if (match) autoMapping[name] = match.id;
                         }
-
-                        // Build meetings array
-                        const newMeetings = teachingEntries
-                          .filter((e: { class_name: string }) => classNameToId[e.class_name])
-                          .map((e: { class_name: string; day: number; period: number; room?: string }) => ({
-                            class_id: classNameToId[e.class_name],
-                            cycle_day: e.day,
-                            period_number: e.period,
-                            room: e.room || undefined,
-                          }));
-
-                        setClassMeetings(newMeetings);
-
-                        // Unmatched classes warning
-                        const unmatched = uniqueClassNames.filter(n => !classNameToId[n]);
-                        if (unmatched.length > 0) {
-                          setTimetableSuccess(`Applied! ${unmatched.length} class(es) not matched to existing classes: ${unmatched.join(", ")}. Create them first, then re-import.`);
-                        } else {
-                          setTimetableSuccess(`Applied ${newMeetings.length} class meetings from ${uniqueClassNames.length} classes across ${aiParseResult.cycle_length}-day cycle!`);
-                        }
-                        setTimeout(() => setTimetableSuccess(""), 8000);
-
-                        // Clear the AI result
-                        setAiParseResult(null);
-                        setAiClassOverrides({});
-                      } finally {
-                        setAiConfirming(false);
-                      }
-                    }}
-                    disabled={aiConfirming}
-                    className="px-5 py-2.5 rounded-lg text-sm font-medium bg-brand-purple text-white hover:bg-brand-purple/90 transition disabled:opacity-50"
-                  >
-                    {aiConfirming ? "Applying..." : "Confirm & Apply to Timetable"}
-                  </button>
-                  <button
-                    onClick={() => { setAiParseResult(null); setAiClassOverrides({}); }}
-                    className="px-4 py-2 rounded-lg text-sm font-medium text-text-tertiary hover:text-text-primary transition"
-                  >
-                    Cancel
-                  </button>
-                </div>
+                        setAiClassMapping(autoMapping);
+                        setShowClassMapping(true);
+                      }}
+                      disabled={aiConfirming || Object.values(aiClassOverrides).filter(Boolean).length === 0}
+                      className="px-5 py-2.5 rounded-lg text-sm font-medium bg-brand-purple text-white hover:bg-brand-purple/90 transition disabled:opacity-50"
+                    >
+                      Next: Match to Classes →
+                    </button>
+                    <button
+                      onClick={() => { setAiParseResult(null); setAiClassOverrides({}); setShowClassMapping(false); }}
+                      className="px-4 py-2 rounded-lg text-sm font-medium text-text-tertiary hover:text-text-primary transition"
+                    >
+                      Cancel
+                    </button>
+                    {Object.values(aiClassOverrides).filter(Boolean).length === 0 && (
+                      <span className="text-xs text-amber-600">Toggle at least one teaching class in the grid above</span>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </section>
