@@ -930,6 +930,47 @@ export default function TeacherSettingsPage() {
               )}
             </div>
 
+            {/* Non-school days */}
+            <div className="border-t border-border pt-4 mt-4">
+              <h3 className="text-sm font-semibold text-text-primary mb-1">Non-School Days</h3>
+              <p className="text-xs text-text-secondary mb-3">Holidays, PD days, or any dates the cycle skips. These are also auto-detected from the calendar import above.</p>
+              {excludedDates.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-3">
+                  {excludedDates.map((d, i) => (
+                    <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 text-xs font-medium border border-amber-200">
+                      {d}
+                      <button onClick={() => setExcludedDates(excludedDates.filter((_, j) => j !== i))} className="hover:text-red-600 ml-0.5">✕</button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <div className="flex items-end gap-2">
+                <div>
+                  <label className="block text-xs text-text-secondary mb-1">Date</label>
+                  <input type="date" value={newExcludedDate} onChange={(e) => setNewExcludedDate(e.target.value)} className="px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+                </div>
+                <div>
+                  <label className="block text-xs text-text-secondary mb-1">Label (opt.)</label>
+                  <input type="text" value={newExcludedLabel} onChange={(e) => setNewExcludedLabel(e.target.value)} placeholder="e.g. Easter Monday" className="w-40 px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+                </div>
+                <button
+                  onClick={() => {
+                    if (!newExcludedDate) return;
+                    const label = newExcludedLabel ? `${newExcludedDate} (${newExcludedLabel})` : newExcludedDate;
+                    if (!excludedDates.includes(newExcludedDate) && !excludedDates.includes(label)) {
+                      setExcludedDates([...excludedDates, newExcludedLabel ? label : newExcludedDate]);
+                    }
+                    setNewExcludedDate("");
+                    setNewExcludedLabel("");
+                  }}
+                  disabled={!newExcludedDate}
+                  className="px-4 py-2 rounded-lg text-sm font-medium bg-amber-50 text-amber-700 hover:bg-amber-100 transition disabled:opacity-40 border border-amber-200"
+                >
+                  + Add
+                </button>
+              </div>
+            </div>
+
             {/* Anchor date — collapsible */}
             <details className="text-sm mt-4">
               <summary className="cursor-pointer text-xs font-medium text-text-tertiary hover:text-text-secondary">Advanced: Set anchor date manually</summary>
@@ -1276,7 +1317,7 @@ export default function TeacherSettingsPage() {
             )}
           </section>
 
-          {/* ── 2. Class Meetings & Non-School Days ── */}
+          {/* ── 2. Class Meetings ── */}
           <section className="bg-white rounded-xl p-6 border border-border">
             <h2 className="text-lg font-semibold text-text-primary mb-1">Class Meetings</h2>
             <p className="text-sm text-text-secondary mb-5">Which classes meet on which days of your {cycleLength}-day cycle? <button onClick={() => setActiveTab("school")} className="text-brand-purple hover:underline font-medium">Change cycle length</button></p>
@@ -1291,47 +1332,6 @@ export default function TeacherSettingsPage() {
             ) : (
               <p className="text-sm text-text-secondary">Create classes first to add meeting times.</p>
             )}
-
-            {/* Excluded dates (holidays) */}
-            <div className="border-t border-border pt-4 mt-5">
-              <h4 className="text-xs font-semibold text-text-primary mb-1">Non-School Days</h4>
-              <p className="text-xs text-text-secondary mb-3">Add holidays, PD days, or any dates the cycle skips.</p>
-              {excludedDates.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mb-3">
-                  {excludedDates.map((d, i) => (
-                    <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 text-xs font-medium border border-amber-200">
-                      {d}
-                      <button onClick={() => setExcludedDates(excludedDates.filter((_, j) => j !== i))} className="hover:text-red-600 ml-0.5">✕</button>
-                    </span>
-                  ))}
-                </div>
-              )}
-              <div className="flex items-end gap-2">
-                <div>
-                  <label className="block text-xs text-text-secondary mb-1">Date</label>
-                  <input type="date" value={newExcludedDate} onChange={(e) => setNewExcludedDate(e.target.value)} className="px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
-                </div>
-                <div>
-                  <label className="block text-xs text-text-secondary mb-1">Label (opt.)</label>
-                  <input type="text" value={newExcludedLabel} onChange={(e) => setNewExcludedLabel(e.target.value)} placeholder="e.g. Easter Monday" className="w-40 px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
-                </div>
-                <button
-                  onClick={() => {
-                    if (!newExcludedDate) return;
-                    const label = newExcludedLabel ? `${newExcludedDate} (${newExcludedLabel})` : newExcludedDate;
-                    if (!excludedDates.includes(newExcludedDate) && !excludedDates.includes(label)) {
-                      setExcludedDates([...excludedDates, newExcludedLabel ? label : newExcludedDate]);
-                    }
-                    setNewExcludedDate("");
-                    setNewExcludedLabel("");
-                  }}
-                  disabled={!newExcludedDate}
-                  className="px-4 py-2 rounded-lg text-sm font-medium bg-amber-50 text-amber-700 hover:bg-amber-100 transition disabled:opacity-40 border border-amber-200"
-                >
-                  + Add
-                </button>
-              </div>
-            </div>
 
             {/* Save timetable */}
             <div className="flex items-center gap-3 mt-5">
