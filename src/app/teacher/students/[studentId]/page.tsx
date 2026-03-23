@@ -45,7 +45,7 @@ export default function TeacherStudentView({
 }) {
   const { studentId } = use(params);
   const [student, setStudent] = useState<{ display_name: string; username: string; class_id: string | null } | null>(null);
-  const [enrollments, setEnrollments] = useState<Array<{ class_id: string; class_name: string; is_active: boolean; enrolled_at: string; unenrolled_at: string | null }>>([]);
+  const [enrollments, setEnrollments] = useState<Array<{ class_id: string; class_name: string; is_active: boolean; enrolled_at: string; unenrolled_at: string | null; term_id: string | null; term_name: string | null; academic_year: string | null }>>([]);
   const [allClasses, setAllClasses] = useState<Array<{ id: string; name: string }>>([]);
   const [units, setUnits] = useState<UnitWithProgress[]>([]);
   const [safetyCerts, setSafetyCerts] = useState<Array<{ cert_type: string; granted_at: string }>>([]);
@@ -71,10 +71,10 @@ export default function TeacherStudentView({
 
     setStudent(studentData);
 
-    // Get all enrollments for this student (active + past)
+    // Get all enrollments for this student (active + past) with term info
     const { data: enrollmentRows } = await supabase
       .from("class_students")
-      .select("class_id, is_active, enrolled_at, unenrolled_at, classes(name)")
+      .select("class_id, is_active, enrolled_at, unenrolled_at, term_id, classes(name), school_calendar_terms(term_name, academic_year)")
       .eq("student_id", studentId)
       .order("enrolled_at", { ascending: false });
 
@@ -84,6 +84,9 @@ export default function TeacherStudentView({
       is_active: row.is_active,
       enrolled_at: row.enrolled_at,
       unenrolled_at: row.unenrolled_at,
+      term_id: row.term_id || null,
+      term_name: (row.school_calendar_terms as any)?.term_name || null,
+      academic_year: (row.school_calendar_terms as any)?.academic_year || null,
     }));
     setEnrollments(parsedEnrollments);
 
@@ -294,10 +297,10 @@ export default function TeacherStudentView({
         </div>
       </div>
 
-      {/* Class Enrollments */}
+      {/* Enrollment History Timeline */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-base font-bold text-gray-900">Classes</h2>
+          <h2 className="text-base font-bold text-gray-900">Enrollment History</h2>
           <button
             onClick={() => setShowAssign(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white rounded-lg transition"
@@ -319,39 +322,67 @@ export default function TeacherStudentView({
             </button>
           </div>
         ) : (
-          <div className="space-y-2">
-            {enrollments.map((e) => (
-              <div
-                key={e.class_id}
-                className={`bg-white border rounded-xl px-4 py-3 flex items-center justify-between ${e.is_active ? "border-gray-200" : "border-gray-100 opacity-60"}`}
-              >
-                <div className="flex items-center gap-3">
-                  <Link
-                    href={`/teacher/classes/${e.class_id}`}
-                    className="font-semibold text-sm text-gray-900 hover:text-purple-600 transition"
-                  >
-                    {e.class_name}
-                  </Link>
-                  {e.is_active ? (
-                    <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-green-100 text-green-700 rounded-full">Active</span>
-                  ) : (
-                    <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-gray-100 text-gray-500 rounded-full">Past</span>
-                  )}
-                  <span className="text-xs text-gray-400">
-                    {new Date(e.enrolled_at).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}
-                    {e.unenrolled_at && ` — ${new Date(e.unenrolled_at).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}`}
-                  </span>
-                </div>
-                {e.is_active && (
-                  <button
-                    onClick={() => unenrollFromClass(e.class_id)}
-                    className="text-xs text-red-500 hover:text-red-700 font-medium transition"
-                  >
-                    Remove
-                  </button>
-                )}
-              </div>
-            ))}
+          <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100 bg-gray-50/50">
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Term</th>
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Class</th>
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Dates</th>
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                  <th className="px-4 py-2.5" />
+                </tr>
+              </thead>
+              <tbody>
+                {enrollments.map((e, idx) => (
+                  <tr key={`${e.class_id}-${idx}`} className={`border-b border-gray-50 last:border-0 ${!e.is_active ? "opacity-60" : ""}`}>
+                    <td className="px-4 py-3">
+                      {e.term_name ? (
+                        <div>
+                          <span className="font-medium text-gray-800">{e.term_name}</span>
+                          {e.academic_year && (
+                            <span className="block text-[11px] text-gray-400">{e.academic_year}</span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-gray-400 text-xs">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <Link
+                        href={`/teacher/classes/${e.class_id}`}
+                        className="font-semibold text-gray-900 hover:text-purple-600 transition"
+                      >
+                        {e.class_name}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-gray-500">
+                      {new Date(e.enrolled_at).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}
+                      {e.unenrolled_at && (
+                        <span> — {new Date(e.unenrolled_at).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      {e.is_active ? (
+                        <span className="inline-flex px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-green-100 text-green-700 rounded-full">Active</span>
+                      ) : (
+                        <span className="inline-flex px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-gray-100 text-gray-500 rounded-full">Completed</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      {e.is_active && (
+                        <button
+                          onClick={() => unenrollFromClass(e.class_id)}
+                          className="text-xs text-red-500 hover:text-red-700 font-medium transition"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>

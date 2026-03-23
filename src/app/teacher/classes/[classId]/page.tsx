@@ -80,6 +80,18 @@ export default function ClassDetailPage({
   const [rosterSearch, setRosterSearch] = useState("");
   const [enrollingIds, setEnrollingIds] = useState<Set<string>>(new Set());
 
+  // Cohort / term state
+  const [terms, setTerms] = useState<Array<{ id: string; academic_year: string; term_name: string; term_order: number; start_date: string | null; end_date: string | null }>>([]);
+  const [currentTermId, setCurrentTermId] = useState<string | null>(null); // active term for this class's enrollments
+  const [showNewCohort, setShowNewCohort] = useState(false);
+  const [newCohortTermId, setNewCohortTermId] = useState("");
+  const [newTermName, setNewTermName] = useState("");
+  const [newTermYear, setNewTermYear] = useState(new Date().getFullYear().toString());
+  const [showCreateTerm, setShowCreateTerm] = useState(false);
+  const [rotating, setRotating] = useState(false);
+  const [pastCohorts, setPastCohorts] = useState<Array<{ term_id: string | null; term_name: string; academic_year: string; students: Array<{ id: string; username: string; display_name: string | null; enrolled_at: string; unenrolled_at: string | null }> }>>([]);
+  const [showPastCohorts, setShowPastCohorts] = useState(false);
+
   // Student enrichment data
   const [studioMap, setStudioMap] = useState<Map<string, string>>(new Map());
   const [badgeMap, setBadgeMap] = useState<Map<string, number>>(new Map());
@@ -99,6 +111,7 @@ export default function ClassDetailPage({
   useEffect(() => {
     loadData();
     checkIntegration();
+    loadTermsAndCohorts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [classId]);
 
@@ -196,6 +209,7 @@ export default function ClassDetailPage({
         is_active: true,
         enrolled_at: new Date().toISOString(),
         unenrolled_at: null,
+        term_id: currentTermId,
       }, { onConflict: "student_id,class_id" });
       // Update legacy class_id
       await supabase.from("students").update({ class_id: classId }).eq("id", existing.id);
@@ -215,6 +229,7 @@ export default function ClassDetailPage({
         student_id: student.id,
         class_id: classId,
         is_active: true,
+        term_id: currentTermId,
       });
     }
 
@@ -419,6 +434,176 @@ export default function ClassDetailPage({
       is_active: true,
       enrolled_at: new Date().toISOString(),
       unenrolled_at: null,
+      term_id: currentTermId,
+    }, { onConflict: "student_id,class_id" });
+    await supabase.from("students").update({ class_id: classId }).eq("id", sid);
+    setEnrollingIds((prev) => { const n = new Set(prev); n.delete(sid); return n; });
+    loadData();
+  }
+
+  async function loadTermsAndCohorts() {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    // Load all terms for this teacher
+    const { data: termsData } = await supabase
+      .from("school_calendar_terms")
+      .select("*")
+      .eq("teacher_id", user.id)
+      .order("academic_year", { ascending: false })
+      .order("term_order");
+    setTerms(termsData || []);
+
+    // Find current term: the term_id of active enrollments in this class
+    const { data: activeEnrollment } = await supabase
+      .from("class_students")
+      .select("term_id")
+      .eq("class_id", classId)
+      .eq("is_active", true)
+      .not("term_id", "is", null)
+      .limit(1);
+    setCurrentTermId(activeEnrollment?.[0]?.term_id || null);
+
+    // Load past cohorts: inactive enrollments grouped by term
+    const { data: pastEnrollments } = await supabase
+      .from("class_students")
+      .select("term_id, enrolled_at, unenrolled_at, students(id, username, display_name)")
+      .eq("class_id", classId)
+      .eq("is_active", false)
+      .order("unenrolled_at", { ascending: false });
+
+    if (pastEnrollments && pastEnrollments.length > 0) {
+      // Group by term_id
+      const groupMap = new Map<string, typeof pastCohorts[0]>();
+      for (const row of pastEnrollments as any[]) {
+        const tid = row.term_id || "no-term";
+        if (!groupMap.has(tid)) {
+          // Find term name
+          const term = (termsData || []).find((t: any) => t.id === row.term_id);
+          groupMap.set(tid, {
+            term_id: row.term_id,
+            term_name: term?.term_name || "Untagged",
+            academic_year: term?.academic_year || "",
+            students: [],
+          });
+        }
+        const group = groupMap.get(tid)!;
+        if (row.students) {
+          group.students.push({
+            ...(row.students as any),
+            enrolled_at: row.enrolled_at,
+            unenrolled_at: row.unenrolled_at,
+          });
+        }
+      }
+      setPastCohorts(Array.from(groupMap.values()));
+    } else {
+      setPastCohorts([]);
+    }
+  }
+
+  async function createTermAndReturn(): Promise<string | null> {
+    if (!newTermName.trim() || !newTermYear.trim()) return null;
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    const { data: term, error } = await supabase
+      .from("school_calendar_terms")
+      .insert({
+        teacher_id: user.id,
+        academic_year: newTermYear.trim(),
+        term_name: newTermName.trim(),
+        term_order: terms.length + 1,
+      })
+      .select()
+      .single();
+
+    if (error || !term) return null;
+    setTerms((prev) => [term, ...prev]);
+    setNewTermName("");
+    setShowCreateTerm(false);
+    return term.id;
+  }
+
+  async function rotateCohort() {
+    let termId = newCohortTermId;
+
+    // If creating a new term inline, do that first
+    if (showCreateTerm) {
+      const created = await createTermAndReturn();
+      if (!created) return;
+      termId = created;
+    }
+
+    if (!termId) return;
+    setRotating(true);
+
+    const supabase = createClient();
+
+    // 1. Tag all current active enrollments with the current term (if they don't have one)
+    if (currentTermId) {
+      // Already tagged — skip
+    } else {
+      // Find which term the old cohort belonged to, or leave as-is
+    }
+
+    // 2. Unenroll ALL active students from this class
+    await supabase
+      .from("class_students")
+      .update({ is_active: false, unenrolled_at: new Date().toISOString() })
+      .eq("class_id", classId)
+      .eq("is_active", true);
+
+    // 3. Update legacy class_id to null for those students
+    const currentStudentIds = students.map((s) => s.id);
+    if (currentStudentIds.length > 0) {
+      // For each, set class_id to their next active enrollment or null
+      for (const sid of currentStudentIds) {
+        const { data: otherActive } = await supabase
+          .from("class_students")
+          .select("class_id")
+          .eq("student_id", sid)
+          .eq("is_active", true)
+          .neq("class_id", classId)
+          .limit(1);
+        await supabase
+          .from("students")
+          .update({ class_id: otherActive?.[0]?.class_id || null })
+          .eq("id", sid);
+      }
+    }
+
+    // 4. Set the new term as current
+    setCurrentTermId(termId);
+    setNewCohortTermId("");
+    setShowNewCohort(false);
+    setRotating(false);
+
+    // Refresh everything
+    loadData();
+    loadTermsAndCohorts();
+
+    // Open the Add Student modal so teacher can add the new batch
+    setTimeout(() => {
+      setShowAddStudent(true);
+      setAddMode("existing");
+      loadRosterStudents();
+    }, 300);
+  }
+
+  // Set term_id on new enrollments
+  async function enrollExistingWithTerm(sid: string) {
+    setEnrollingIds((prev) => new Set(prev).add(sid));
+    const supabase = createClient();
+    await supabase.from("class_students").upsert({
+      student_id: sid,
+      class_id: classId,
+      is_active: true,
+      enrolled_at: new Date().toISOString(),
+      unenrolled_at: null,
+      term_id: currentTermId,
     }, { onConflict: "student_id,class_id" });
     await supabase.from("students").update({ class_id: classId }).eq("id", sid);
     setEnrollingIds((prev) => { const n = new Set(prev); n.delete(sid); return n; });
@@ -527,6 +712,204 @@ export default function ClassDetailPage({
           </div>
         </div>
       </div>
+
+      {/* Cohort / Term Banner */}
+      <section className="mb-6 bg-white rounded-2xl border border-gray-200 px-5 py-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ background: "#F3E8FF" }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold text-gray-900">
+                  {currentTermId
+                    ? (() => { const t = terms.find((t) => t.id === currentTermId); return t ? `${t.term_name} ${t.academic_year}` : "Current Cohort"; })()
+                    : "No term set"}
+                </span>
+                {students.length > 0 && (
+                  <span className="text-xs text-gray-400">{students.length} student{students.length !== 1 ? "s" : ""}</span>
+                )}
+              </div>
+              {!currentTermId && terms.length > 0 && (
+                <p className="text-xs text-gray-400 mt-0.5">Assign a term to track cohort history</p>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {/* Term selector if no term set yet */}
+            {!currentTermId && terms.length > 0 && (
+              <select
+                onChange={async (e) => {
+                  const tid = e.target.value;
+                  if (!tid) return;
+                  setCurrentTermId(tid);
+                  // Update all active enrollments with this term
+                  const supabase = createClient();
+                  await supabase
+                    .from("class_students")
+                    .update({ term_id: tid })
+                    .eq("class_id", classId)
+                    .eq("is_active", true);
+                }}
+                className="text-xs px-2 py-1.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-300"
+                defaultValue=""
+              >
+                <option value="">Set term...</option>
+                {terms.map((t) => (
+                  <option key={t.id} value={t.id}>{t.term_name} {t.academic_year}</option>
+                ))}
+              </select>
+            )}
+            <button
+              onClick={() => setShowNewCohort(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition border border-purple-200 text-purple-600 hover:bg-purple-50"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 12a9 9 0 11-6.219-8.56"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              New Semester
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* New Cohort Modal */}
+      {showNewCohort && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowNewCohort(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-extrabold text-gray-900 mb-1">Start New Semester</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              This will unenroll all {students.length} current student{students.length !== 1 ? "s" : ""} (their data is preserved) and let you add the next cohort.
+            </p>
+
+            {!showCreateTerm ? (
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 block mb-1">Select term for the new cohort</label>
+                  <select
+                    value={newCohortTermId}
+                    onChange={(e) => setNewCohortTermId(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-400"
+                  >
+                    <option value="">Choose a term...</option>
+                    {terms.map((t) => (
+                      <option key={t.id} value={t.id}>{t.term_name} {t.academic_year}</option>
+                    ))}
+                  </select>
+                </div>
+                <button
+                  onClick={() => setShowCreateTerm(true)}
+                  className="text-xs text-purple-600 hover:text-purple-700 font-medium"
+                >
+                  + Create a new term
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3 bg-purple-50 rounded-xl p-4">
+                <p className="text-xs font-bold text-purple-700">New Term</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-xs font-semibold text-gray-600 block mb-1">Name</label>
+                    <input
+                      type="text"
+                      value={newTermName}
+                      onChange={(e) => setNewTermName(e.target.value)}
+                      placeholder="e.g. Semester 2"
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
+                      autoFocus
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-gray-600 block mb-1">Year</label>
+                    <input
+                      type="text"
+                      value={newTermYear}
+                      onChange={(e) => setNewTermYear(e.target.value)}
+                      placeholder="2026"
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
+                    />
+                  </div>
+                </div>
+                <button
+                  onClick={() => { setShowCreateTerm(false); setNewTermName(""); }}
+                  className="text-xs text-gray-500 hover:text-gray-700"
+                >
+                  ← Pick existing term instead
+                </button>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2 mt-5">
+              <button onClick={() => { setShowNewCohort(false); setShowCreateTerm(false); setNewCohortTermId(""); }} className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 transition">Cancel</button>
+              <button
+                disabled={rotating || (!newCohortTermId && !showCreateTerm) || (showCreateTerm && !newTermName.trim())}
+                onClick={rotateCohort}
+                className="px-4 py-2.5 rounded-xl text-sm font-semibold text-white transition disabled:opacity-50"
+                style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)" }}
+              >
+                {rotating ? "Rotating..." : `Unenroll ${students.length} & Start Fresh`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Past Cohorts */}
+      {pastCohorts.length > 0 && (
+        <section className="mb-6">
+          <button
+            onClick={() => setShowPastCohorts(!showPastCohorts)}
+            className="flex items-center gap-2 text-sm font-semibold text-gray-500 hover:text-gray-700 transition mb-3"
+          >
+            <svg
+              width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+              strokeLinecap="round" strokeLinejoin="round"
+              className={`transition-transform duration-200 ${showPastCohorts ? "rotate-90" : ""}`}
+            >
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5 }}>
+              <circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" />
+            </svg>
+            Past Cohorts
+            <span className="text-xs font-normal text-gray-400">({pastCohorts.length} semester{pastCohorts.length !== 1 ? "s" : ""})</span>
+          </button>
+
+          {showPastCohorts && (
+            <div className="space-y-3">
+              {pastCohorts.map((cohort, idx) => (
+                <div key={cohort.term_id || idx} className="bg-gray-50 rounded-2xl border border-gray-100 overflow-hidden">
+                  <div className="px-5 py-3 flex items-center justify-between border-b border-gray-100">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-gray-700">{cohort.term_name}</span>
+                      {cohort.academic_year && <span className="text-xs text-gray-400">{cohort.academic_year}</span>}
+                    </div>
+                    <span className="text-xs text-gray-400">{cohort.students.length} student{cohort.students.length !== 1 ? "s" : ""}</span>
+                  </div>
+                  <div className="px-5 py-2">
+                    <div className="flex flex-wrap gap-1.5 py-1">
+                      {cohort.students.map((s) => (
+                        <Link
+                          key={s.id}
+                          href={`/teacher/students/${s.id}`}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 bg-white border border-gray-200 rounded-lg text-xs font-medium text-gray-700 hover:border-purple-300 hover:text-purple-600 transition"
+                        >
+                          {s.display_name || s.username}
+                        </Link>
+                      ))}
+                    </div>
+                    {cohort.students[0]?.enrolled_at && (
+                      <p className="text-[10px] text-gray-400 mt-1 pb-1">
+                        {new Date(cohort.students[0].enrolled_at).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}
+                        {cohort.students[0].unenrolled_at && ` — ${new Date(cohort.students[0].unenrolled_at).toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}`}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       {/* LMS Sync Section */}
       {hasIntegration && (
