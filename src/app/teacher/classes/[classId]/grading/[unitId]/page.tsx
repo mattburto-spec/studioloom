@@ -18,6 +18,7 @@ import type {
   AssessmentTarget,
   AssessmentRecordRow,
 } from "@/types/assessment";
+import { getYearLevelDisplay } from "@/lib/utils/year-level";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -425,8 +426,16 @@ export default function GradingPage({
                           : "hover:bg-surface-alt border-l-2 border-transparent"
                       }`}
                     >
-                      <span className="text-sm font-medium text-text-primary truncate flex-1">
+                      <span className="text-sm font-medium text-text-primary truncate flex-1 flex items-center gap-1.5">
                         {s.display_name || s.username}
+                        {(() => {
+                          const yl = getYearLevelDisplay(s.graduation_year);
+                          return yl ? (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-200 whitespace-nowrap">
+                              {yl}
+                            </span>
+                          ) : null;
+                        })()}
                       </span>
                       <StatusBadge status={status} />
                     </button>
@@ -462,6 +471,14 @@ export default function GradingPage({
                   <h2 className="text-lg font-semibold text-text-primary">
                     {selectedStudent.display_name || selectedStudent.username}
                   </h2>
+                  {(() => {
+                    const yl = getYearLevelDisplay(selectedStudent.graduation_year);
+                    return yl ? (
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                        {yl}
+                      </span>
+                    ) : null;
+                  })()}
                   <StatusBadge status={getStudentStatus(selectedStudent.id)} />
                 </div>
 

@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { getYearLevelDisplay, yearLevelToGraduationYear, YEAR_LEVEL_OPTIONS } from "@/lib/utils/year-level";
 
 // ── Types ──
 
@@ -13,6 +14,7 @@ interface StudentRow {
   class_id: string | null; // Legacy — may be null for students created post-migration 041
   author_teacher_id: string | null;
   ell_level?: number;
+  graduation_year?: number | null;
   created_at: string;
   // Populated from class_students junction
   enrolledClassIds?: string[];
@@ -101,13 +103,14 @@ export default function TeacherStudentsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [classFilter, setClassFilter] = useState<string>("all");
-  const [sortBy, setSortBy] = useState<"name" | "class" | "progress" | "recent">("name");
+  const [sortBy, setSortBy] = useState<"name" | "class" | "progress" | "recent" | "year">("name");
   const [viewMode, setViewMode] = useState<"cards" | "table">("cards");
 
   const [enrollmentMap, setEnrollmentMap] = useState<Map<string, string[]>>(new Map()); // student_id → class_ids
   const [showAddStudent, setShowAddStudent] = useState(false);
   const [newUsername, setNewUsername] = useState("");
   const [newDisplayName, setNewDisplayName] = useState("");
+  const [newYearLevel, setNewYearLevel] = useState<number | "">("");
   const [addError, setAddError] = useState("");
   const [adding, setAdding] = useState(false);
 
@@ -128,7 +131,7 @@ export default function TeacherStudentsPage() {
         .order("name"),
       supabase
         .from("students")
-        .select("id, username, display_name, class_id, author_teacher_id, ell_level, created_at")
+        .select("id, username, display_name, class_id, author_teacher_id, ell_level, graduation_year, created_at")
         .eq("author_teacher_id", user.id)
         .order("display_name"),
       supabase
@@ -242,6 +245,11 @@ export default function TeacherStudentsPage() {
         const pb = progressMap.get(b.id);
         return (pb && pb.total > 0 ? pb.completed / pb.total : 0) - (pa && pa.total > 0 ? pa.completed / pa.total : 0);
       }
+      if (sortBy === "year") {
+        const aYear = a.graduation_year || 9999;
+        const bYear = b.graduation_year || 9999;
+        return aYear - bYear; // Earlier graduation = higher year level = first
+      }
       if (sortBy === "recent") return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       return 0;
     });
@@ -324,6 +332,19 @@ export default function TeacherStudentsPage() {
                   className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-400"
                 />
               </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-600 block mb-1">Year Level</label>
+                <select
+                  value={newYearLevel}
+                  onChange={(e) => setNewYearLevel(e.target.value ? Number(e.target.value) : "")}
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-400"
+                >
+                  <option value="">Not set</option>
+                  {YEAR_LEVEL_OPTIONS.map((yl) => (
+                    <option key={yl} value={yl}>Year {yl}</option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             {addError && (
@@ -331,7 +352,7 @@ export default function TeacherStudentsPage() {
             )}
 
             <div className="flex items-center justify-end gap-2 mt-5">
-              <button onClick={() => { setShowAddStudent(false); setAddError(""); setNewUsername(""); setNewDisplayName(""); }} className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 transition">Cancel</button>
+              <button onClick={() => { setShowAddStudent(false); setAddError(""); setNewUsername(""); setNewDisplayName(""); setNewYearLevel(""); }} className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 transition">Cancel</button>
               <button
                 disabled={adding || !newUsername.trim()}
                 onClick={async () => {
@@ -349,6 +370,7 @@ export default function TeacherStudentsPage() {
                       ell_level: 3,
                       author_teacher_id: user.id,
                       class_id: null,
+                      graduation_year: newYearLevel ? yearLevelToGraduationYear(newYearLevel as number) : null,
                     })
                     .select()
                     .single();
@@ -362,6 +384,7 @@ export default function TeacherStudentsPage() {
                   setShowAddStudent(false);
                   setNewUsername("");
                   setNewDisplayName("");
+                  setNewYearLevel("");
                   setAdding(false);
                   loadData();
                 }}
@@ -449,6 +472,7 @@ export default function TeacherStudentsPage() {
         >
           <option value="name">Sort: Name</option>
           <option value="class">Sort: Class</option>
+          <option value="year">Sort: Year Level</option>
           <option value="progress">Sort: Progress</option>
           <option value="recent">Sort: Newest</option>
         </select>
@@ -570,6 +594,16 @@ export default function TeacherStudentsPage() {
                       </span>
                     )}
 
+                    {/* Year level badge */}
+                    {(() => {
+                      const yl = getYearLevelDisplay(student.graduation_year);
+                      return yl ? (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                          {yl}
+                        </span>
+                      ) : null;
+                    })()}
+
                     {/* ELL badge */}
                     {ell && (
                       <span
@@ -673,9 +707,10 @@ export default function TeacherStudentsPage() {
       {filtered.length > 0 && viewMode === "table" && (
         <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
           {/* Header */}
-          <div className="grid grid-cols-[1fr_120px_70px_100px_60px_150px] gap-2 px-5 py-3 bg-gray-50 border-b border-gray-100 text-[10px] font-semibold text-text-secondary uppercase tracking-wider">
+          <div className="grid grid-cols-[1fr_120px_60px_70px_100px_60px_150px] gap-2 px-5 py-3 bg-gray-50 border-b border-gray-100 text-[10px] font-semibold text-text-secondary uppercase tracking-wider">
             <span>Student</span>
             <span>Class</span>
+            <span>Year</span>
             <span>ELL</span>
             <span>Progress</span>
             <span className="text-center">Status</span>
@@ -696,7 +731,7 @@ export default function TeacherStudentsPage() {
               return (
                 <div
                   key={student.id}
-                  className="grid grid-cols-[1fr_120px_70px_100px_60px_150px] gap-2 px-5 py-3 items-center hover:bg-gray-50/50 transition-colors"
+                  className="grid grid-cols-[1fr_120px_60px_70px_100px_60px_150px] gap-2 px-5 py-3 items-center hover:bg-gray-50/50 transition-colors"
                 >
                   {/* Name + avatar */}
                   <div className="flex items-center gap-2.5 min-w-0">
@@ -733,6 +768,20 @@ export default function TeacherStudentsPage() {
                     {enrolledIds.length > 2 && (
                       <span className="text-[10px] text-gray-400">+{enrolledIds.length - 2}</span>
                     )}
+                  </div>
+
+                  {/* Year level */}
+                  <div>
+                    {(() => {
+                      const yl = getYearLevelDisplay(student.graduation_year);
+                      return yl ? (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700">
+                          {yl}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-text-tertiary">—</span>
+                      );
+                    })()}
                   </div>
 
                   {/* ELL */}

@@ -10,6 +10,7 @@ import { SkillsCerts, type SkillCert } from "@/components/student/BadgeWall";
 import { StatsStrip } from "@/components/student/StatsStrip";
 import { computeStats, type BadgeInput } from "@/lib/badges/compute-badges";
 import type { Unit, StudentProgress, UnitPage } from "@/types";
+import { getYearLevelDisplay, getYearLevelNumber, yearLevelToGraduationYear, YEAR_LEVEL_OPTIONS } from "@/lib/utils/year-level";
 
 /**
  * Teacher Per-Student Dashboard View
@@ -44,7 +45,7 @@ export default function TeacherStudentView({
   params: Promise<{ studentId: string }>;
 }) {
   const { studentId } = use(params);
-  const [student, setStudent] = useState<{ display_name: string; username: string; class_id: string | null } | null>(null);
+  const [student, setStudent] = useState<{ display_name: string; username: string; class_id: string | null; graduation_year: number | null } | null>(null);
   const [enrollments, setEnrollments] = useState<Array<{ class_id: string; class_name: string; is_active: boolean; enrolled_at: string; unenrolled_at: string | null; term_id: string | null; term_name: string | null; academic_year: string | null }>>([]);
   const [allClasses, setAllClasses] = useState<Array<{ id: string; name: string }>>([]);
   const [units, setUnits] = useState<UnitWithProgress[]>([]);
@@ -60,7 +61,7 @@ export default function TeacherStudentView({
     // Get student info
     const { data: studentData } = await supabase
       .from("students")
-      .select("display_name, username, class_id")
+      .select("display_name, username, class_id, graduation_year")
       .eq("id", studentId)
       .single();
 
@@ -289,11 +290,41 @@ export default function TeacherStudentView({
             <h1 className="text-2xl font-extrabold text-gray-900">
               {student.display_name || student.username}
             </h1>
+            {getYearLevelDisplay(student.graduation_year) && (
+              <span className="px-2.5 py-0.5 text-xs font-bold bg-indigo-50 text-indigo-700 rounded-full border border-indigo-200">
+                {getYearLevelDisplay(student.graduation_year)}
+              </span>
+            )}
             <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-purple-100 text-purple-600 rounded-full">
               Teacher View
             </span>
           </div>
           <p className="text-sm text-gray-500">@{student.username}</p>
+        </div>
+
+        {/* Year level picker */}
+        <div className="flex items-center gap-2">
+          <label className="text-xs font-semibold text-gray-500">Year Level</label>
+          <select
+            value={getYearLevelNumber(student.graduation_year) || ""}
+            onChange={async (e) => {
+              const yearLevel = Number(e.target.value);
+              if (!yearLevel) return;
+              const gradYear = yearLevelToGraduationYear(yearLevel);
+              const supabase = createClient();
+              await supabase
+                .from("students")
+                .update({ graduation_year: gradYear })
+                .eq("id", studentId);
+              setStudent({ ...student, graduation_year: gradYear });
+            }}
+            className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-400"
+          >
+            <option value="">Not set</option>
+            {YEAR_LEVEL_OPTIONS.map((yl) => (
+              <option key={yl} value={yl}>Year {yl}</option>
+            ))}
+          </select>
         </div>
       </div>
 
