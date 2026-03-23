@@ -87,6 +87,12 @@ interface MeetingInput {
   room?: string;
 }
 
+interface CycleDayEventInput {
+  date: string;
+  cycleDay: number;
+  summary?: string;
+}
+
 interface TimetableRequest {
   cycle_length: number;
   cycle_type?: "weekday" | "calendar";
@@ -97,6 +103,7 @@ interface TimetableRequest {
   excluded_dates?: string[];
   ical_url?: string | null;
   meetings?: MeetingInput[];
+  cycle_day_events?: CycleDayEventInput[];
 }
 
 async function POST(request: NextRequest) {
@@ -159,6 +166,7 @@ async function POST(request: NextRequest) {
           excluded_dates: body.excluded_dates || [],
           ical_url: body.ical_url ?? null,
           source: body.ical_url ? "ical" : "manual",
+          cycle_day_events: body.cycle_day_events || [],
         })
         .eq("teacher_id", auth.teacherId)
         .select("id")
@@ -201,6 +209,7 @@ async function POST(request: NextRequest) {
           excluded_dates: body.excluded_dates || [],
           ical_url: body.ical_url ?? null,
           source: body.ical_url ? "ical" : "manual",
+          cycle_day_events: body.cycle_day_events || [],
         })
         .select("id")
         .single();

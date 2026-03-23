@@ -133,6 +133,8 @@ export default function TeacherSettingsPage() {
   const [icalParsing, setIcalParsing] = useState(false);
   const [icalMessage, setIcalMessage] = useState("");
   const [icalPreviewData, setIcalPreviewData] = useState<ICalImportData | null>(null);
+  // Saved cycle day events from DB — authoritative markers from iCal import
+  const [savedCycleDayEvents, setSavedCycleDayEvents] = useState<Array<{ date: string; cycleDay: number; summary?: string }>>([]);
   // AI timetable upload state
   const [aiUploading, setAiUploading] = useState(false);
   const [aiUploadError, setAiUploadError] = useState("");
@@ -268,6 +270,7 @@ export default function TeacherSettingsPage() {
         setResetEachTerm(data.timetable.reset_each_term || false);
         setExcludedDates(data.timetable.excluded_dates || []);
         setIcalUrl(data.timetable.ical_url || "");
+        setSavedCycleDayEvents(data.timetable.cycle_day_events || []);
         setTimetableLoaded(true);
       }
       if (data.meetings) {
@@ -328,6 +331,7 @@ export default function TeacherSettingsPage() {
           excluded_dates: excludedDates,
           ical_url: icalUrl || null,
           meetings: classMeetings,
+          cycle_day_events: savedCycleDayEvents,
         }),
       });
 
@@ -938,6 +942,9 @@ export default function TeacherSettingsPage() {
                         setAnchorCycleDay(1);
                       }
                       const cycleDayCount = data.cycleDayEvents?.length || 0;
+                      if (data.cycleDayEvents?.length) {
+                        setSavedCycleDayEvents(data.cycleDayEvents);
+                      }
                       let msg = `Imported ${data.totalEvents || 0} events`;
                       if (cycleDayCount > 0) msg += ` — found ${cycleDayCount} cycle day markers`;
                       msg += " — see preview below";
@@ -995,6 +1002,9 @@ export default function TeacherSettingsPage() {
                           setAnchorCycleDay(1);
                         }
                         const cycleDayCount = data.cycleDayEvents?.length || 0;
+                        if (data.cycleDayEvents?.length) {
+                          setSavedCycleDayEvents(data.cycleDayEvents);
+                        }
                         let msg = `Imported ${data.totalEvents || 0} events`;
                         if (cycleDayCount > 0) msg += ` — found ${cycleDayCount} cycle day markers`;
                         msg += " — see preview below";
@@ -1066,6 +1076,11 @@ export default function TeacherSettingsPage() {
                         unmatchedEvents: [],
                         unmatchedWithDates: [],
                         classEventDates: boundaryEvents,
+                        cycleDayEvents: savedCycleDayEvents.length > 0 ? savedCycleDayEvents.map(e => ({
+                          date: e.date,
+                          cycleDay: e.cycleDay,
+                          summary: e.summary || `Day ${e.cycleDay}`,
+                        })) : undefined,
                       }}
                       classNames={classes}
                       cycleConfig={{
@@ -1604,6 +1619,7 @@ export default function TeacherSettingsPage() {
                                   excluded_dates: excludedDates,
                                   ical_url: icalUrl || null,
                                   meetings: newMeetings,
+                                  cycle_day_events: savedCycleDayEvents,
                                 }),
                               });
                               if (saveRes.ok) {
