@@ -44,8 +44,6 @@ const TABS: { key: SettingsTab; label: string; icon: string }[] = [
   { key: "timetable", label: "Timetable", icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" },
   { key: "workshop", label: "Workshop & Equipment", icon: "M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z" },
   { key: "personalisation", label: "Personalisation", icon: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z" },
-  { key: "lms", label: "LMS Integration", icon: "M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.66 0 3-4.03 3-9s-1.34-9-3-9m0 18c-1.66 0-3-4.03-3-9s1.34-9 3-9" },
-  { key: "ai", label: "AI Generator", icon: "M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" },
 ];
 
 interface IntegrationConfig {
@@ -733,9 +731,9 @@ export default function TeacherSettingsPage() {
                 )}
               </div>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
               <div>
-                <label className="block text-sm font-medium text-text-secondary mb-1">Curriculum framework</label>
+                <label className="block text-sm font-medium text-text-secondary mb-1">Framework</label>
                 <select value={curriculumFramework} onChange={(e) => setCurriculumFramework(e.target.value)} className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30">
                   <option value="">Select...</option>
                   <option value="IB_MYP">IB MYP</option>
@@ -749,42 +747,7 @@ export default function TeacherSettingsPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-text-secondary mb-1">Subjects taught</label>
-                {(() => {
-                  const SUBJECT_OPTIONS = [
-                    "Product Design", "Digital Design", "Textiles", "Robotics", "Food Technology",
-                    "Graphic Design", "Architecture", "Electronics", "Woodwork", "Metalwork",
-                    "3D Printing / CAD", "Fashion Design", "Systems Engineering",
-                  ];
-                  const selected = subjectsTaught ? subjectsTaught.split(",").map(s => s.trim()).filter(Boolean) : [];
-                  const toggle = (subj: string) => {
-                    if (selected.includes(subj)) {
-                      setSubjectsTaught(selected.filter(s => s !== subj).join(", "));
-                    } else {
-                      setSubjectsTaught([...selected, subj].join(", "));
-                    }
-                  };
-                  return (
-                    <div className="flex flex-wrap gap-1.5">
-                      {SUBJECT_OPTIONS.map(s => (
-                        <button key={s} type="button" onClick={() => toggle(s)}
-                          className={`px-2.5 py-1 rounded-full text-xs font-medium border transition ${
-                            selected.includes(s)
-                              ? "bg-brand-purple/10 border-brand-purple/30 text-brand-purple"
-                              : "bg-gray-50 border-gray-200 text-text-tertiary hover:border-gray-300"
-                          }`}
-                        >{s}</button>
-                      ))}
-                    </div>
-                  );
-                })()}
-                {/* Allow custom subjects too */}
-                <input type="text" value={subjectsTaught} onChange={(e) => setSubjectsTaught(e.target.value)} placeholder="Or type custom subjects, comma-separated" className="w-full mt-1.5 px-3 py-1.5 border border-border rounded-lg text-xs text-text-secondary focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
-              </div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-              <div>
-                <label className="block text-sm font-medium text-text-secondary mb-1">Year/grade levels taught</label>
+                <label className="block text-sm font-medium text-text-secondary mb-1">Year/grade levels</label>
                 {(() => {
                   const YEAR_OPTIONS = ["Year 6", "Year 7", "Year 8", "Year 9", "Year 10", "Year 11", "Year 12", "Year 13"];
                   const selected = gradeLevelsTaught ? gradeLevelsTaught.split(",").map(s => s.trim()).filter(Boolean) : [];
@@ -830,6 +793,40 @@ export default function TeacherSettingsPage() {
                 </div>
                 <p className="text-xs text-text-secondary/60 mt-1">Used for instruction caps (1+age rule)</p>
               </div>
+            </div>
+
+            {/* Subjects taught — full width */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-text-secondary mb-1.5">Subjects taught</label>
+              {(() => {
+                const SUBJECT_OPTIONS = [
+                  "Product Design", "Digital Design", "Textiles", "Robotics", "Food Technology",
+                  "Graphic Design", "Architecture", "Electronics", "Woodwork", "Metalwork",
+                  "3D Printing / CAD", "Fashion Design", "Systems Engineering",
+                ];
+                const selected = subjectsTaught ? subjectsTaught.split(",").map(s => s.trim()).filter(Boolean) : [];
+                const toggle = (subj: string) => {
+                  if (selected.includes(subj)) {
+                    setSubjectsTaught(selected.filter(s => s !== subj).join(", "));
+                  } else {
+                    setSubjectsTaught([...selected, subj].join(", "));
+                  }
+                };
+                return (
+                  <div className="flex flex-wrap gap-1.5">
+                    {SUBJECT_OPTIONS.map(s => (
+                      <button key={s} type="button" onClick={() => toggle(s)}
+                        className={`px-2.5 py-1 rounded-full text-xs font-medium border transition ${
+                          selected.includes(s)
+                            ? "bg-brand-purple/10 border-brand-purple/30 text-brand-purple"
+                            : "bg-gray-50 border-gray-200 text-text-tertiary hover:border-gray-300"
+                        }`}
+                      >{s}</button>
+                    ))}
+                  </div>
+                );
+              })()}
+              <input type="text" value={subjectsTaught} onChange={(e) => setSubjectsTaught(e.target.value)} placeholder="Or type custom subjects, comma-separated" className="w-full mt-1.5 px-3 py-1.5 border border-border rounded-lg text-xs text-text-secondary focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
             </div>
 
             {/* Period lengths — inline in School Context */}
@@ -1130,46 +1127,54 @@ export default function TeacherSettingsPage() {
               })()}
             </div>
 
-            {/* Non-school days */}
-            <div className="border-t border-border pt-4 mt-4">
-              <h3 className="text-sm font-semibold text-text-primary mb-1">Non-School Days</h3>
-              <p className="text-xs text-text-secondary mb-3">Holidays, PD days, or any dates the cycle skips. These are also auto-detected from the calendar import above.</p>
-              {excludedDates.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mb-3">
-                  {excludedDates.map((d, i) => (
-                    <span key={i} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 text-xs font-medium border border-amber-200">
-                      {d}
-                      <button onClick={() => setExcludedDates(excludedDates.filter((_, j) => j !== i))} className="hover:text-red-600 ml-0.5">✕</button>
-                    </span>
-                  ))}
+            {/* Non-school days — collapsible */}
+            <details className="border-t border-border pt-4 mt-4 group">
+              <summary className="cursor-pointer flex items-center gap-2 text-sm font-semibold text-text-primary select-none">
+                <svg className="w-3.5 h-3.5 text-text-tertiary transition-transform group-open:rotate-90" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
+                Non-School Days
+                {excludedDates.length > 0 && (
+                  <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-bold">{excludedDates.length}</span>
+                )}
+              </summary>
+              <div className="mt-3">
+                <p className="text-xs text-text-secondary mb-3">Holidays, PD days, or any dates the cycle skips. Also auto-detected from calendar import.</p>
+                {excludedDates.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mb-3">
+                    {excludedDates.map((d, i) => (
+                      <span key={i} className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 text-[10px] font-medium border border-amber-200">
+                        {d}
+                        <button onClick={() => setExcludedDates(excludedDates.filter((_, j) => j !== i))} className="hover:text-red-600 ml-0.5 text-[10px]">✕</button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <div className="flex items-end gap-2">
+                  <div>
+                    <label className="block text-xs text-text-secondary mb-1">Date</label>
+                    <input type="date" value={newExcludedDate} onChange={(e) => setNewExcludedDate(e.target.value)} className="px-2.5 py-1.5 border border-border rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-text-secondary mb-1">Label (opt.)</label>
+                    <input type="text" value={newExcludedLabel} onChange={(e) => setNewExcludedLabel(e.target.value)} placeholder="e.g. Easter Monday" className="w-36 px-2.5 py-1.5 border border-border rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (!newExcludedDate) return;
+                      const label = newExcludedLabel ? `${newExcludedDate} (${newExcludedLabel})` : newExcludedDate;
+                      if (!excludedDates.includes(newExcludedDate) && !excludedDates.includes(label)) {
+                        setExcludedDates([...excludedDates, newExcludedLabel ? label : newExcludedDate]);
+                      }
+                      setNewExcludedDate("");
+                      setNewExcludedLabel("");
+                    }}
+                    disabled={!newExcludedDate}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-50 text-amber-700 hover:bg-amber-100 transition disabled:opacity-40 border border-amber-200"
+                  >
+                    + Add
+                  </button>
                 </div>
-              )}
-              <div className="flex items-end gap-2">
-                <div>
-                  <label className="block text-xs text-text-secondary mb-1">Date</label>
-                  <input type="date" value={newExcludedDate} onChange={(e) => setNewExcludedDate(e.target.value)} className="px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
-                </div>
-                <div>
-                  <label className="block text-xs text-text-secondary mb-1">Label (opt.)</label>
-                  <input type="text" value={newExcludedLabel} onChange={(e) => setNewExcludedLabel(e.target.value)} placeholder="e.g. Easter Monday" className="w-40 px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/30" />
-                </div>
-                <button
-                  onClick={() => {
-                    if (!newExcludedDate) return;
-                    const label = newExcludedLabel ? `${newExcludedDate} (${newExcludedLabel})` : newExcludedDate;
-                    if (!excludedDates.includes(newExcludedDate) && !excludedDates.includes(label)) {
-                      setExcludedDates([...excludedDates, newExcludedLabel ? label : newExcludedDate]);
-                    }
-                    setNewExcludedDate("");
-                    setNewExcludedLabel("");
-                  }}
-                  disabled={!newExcludedDate}
-                  className="px-4 py-2 rounded-lg text-sm font-medium bg-amber-50 text-amber-700 hover:bg-amber-100 transition disabled:opacity-40 border border-amber-200"
-                >
-                  + Add
-                </button>
               </div>
-            </div>
+            </details>
 
             {/* Anchor date — collapsible */}
             <details className="text-sm mt-4">
@@ -1228,16 +1233,6 @@ export default function TeacherSettingsPage() {
             {profileError && <span className="text-sm text-red-500">{profileError}</span>}
           </div>
 
-          {/* Info note */}
-          <div className="bg-brand-purple/5 border border-brand-purple/15 rounded-xl p-4">
-            <div className="flex gap-3">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7B2FF2" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 mt-0.5"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></svg>
-              <div className="text-sm text-text-secondary">
-                <p className="font-medium text-text-primary mb-1">Why this matters</p>
-                <p>Everything here feeds the AI. Period lengths drive lesson timing. The school calendar enables term-based scheduling. New Metrics controls whether competency assessment appears across the platform. Teaching style preferences live in the Personalisation tab.</p>
-              </div>
-            </div>
-          </div>
         </div>
       )}
 
@@ -1900,15 +1895,6 @@ export default function TeacherSettingsPage() {
             {profileError && <span className="text-sm text-red-500">{profileError}</span>}
           </div>
 
-          <div className="bg-brand-purple/5 border border-brand-purple/15 rounded-xl p-4">
-            <div className="flex gap-3">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7B2FF2" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 mt-0.5"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></svg>
-              <div className="text-sm text-text-secondary">
-                <p className="font-medium text-text-primary mb-1">Why this matters</p>
-                <p>Equipment lists ensure the AI only suggests activities using tools you actually have. Safety badge requirements gate student access to workshops.</p>
-              </div>
-            </div>
-          </div>
         </div>
       )}
 
