@@ -91,12 +91,43 @@ async function GET(request: NextRequest) {
     };
 
     const entries: Entry[] = [];
-    const now = new Date();
+
+    // Use client-provided timezone offset to compute the correct local date.
+    // Without this, Vercel (UTC) computes "today" as a UTC date which can be
+    // yesterday in UTC+N timezones like China (UTC+8).
+    const tzParam = url.searchParams.get("tz"); // e.g. "Asia/Shanghai" or offset like "480"
+    const dateParam = url.searchParams.get("date"); // explicit "YYYY-MM-DD" override
+    let startDateStr: string;
+    if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+      startDateStr = dateParam;
+    } else if (tzParam) {
+      // Try as IANA timezone name first, then as minute offset
+      try {
+        const formatter = new Intl.DateTimeFormat("en-CA", {
+          timeZone: tzParam,
+          year: "numeric", month: "2-digit", day: "2-digit",
+        });
+        startDateStr = formatter.format(new Date()); // "YYYY-MM-DD" in en-CA locale
+      } catch {
+        // Fallback: treat as minute offset (e.g. "480" for UTC+8)
+        const offsetMin = parseInt(tzParam, 10);
+        if (!isNaN(offsetMin)) {
+          const local = new Date(Date.now() + offsetMin * 60_000);
+          startDateStr = local.toISOString().split("T")[0];
+        } else {
+          startDateStr = new Date().toISOString().split("T")[0];
+        }
+      }
+    } else {
+      startDateStr = new Date().toISOString().split("T")[0]; // UTC fallback
+    }
+
+    const startDate = parseDate(startDateStr);
 
     for (let i = 0; i < days; i++) {
-      const d = new Date(now);
-      d.setDate(d.getDate() + i);
-      const dateStr = d.toISOString().split("T")[0];
+      const d = new Date(startDate.getTime());
+      d.setUTCDate(d.getUTCDate() + i);
+      const dateStr = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
       const dateObj = parseDate(dateStr);
 
       // getCycleDay checks authoritative iCal events first, then falls back to computed
@@ -105,6 +136,7 @@ async function GET(request: NextRequest) {
 
       // Find all meetings on this cycle day
       const dayMeetings = meetings.filter((m) => m.cycle_day === cycleDay);
+
       for (const m of dayMeetings) {
         const cu = classUnitMap.get(m.class_id);
         entries.push({
@@ -126,7 +158,26 @@ async function GET(request: NextRequest) {
       return (a.period ?? 99) - (b.period ?? 99);
     });
 
-    return NextResponse.json({ hasTimetable: true, entries });
+    return NextResponse.json({
+      hasTimetable: true,
+      entries,
+      _debug: {
+        serverTimeUTC: new Date().toISOString(),
+        resolvedStartDate: startDateStr,
+        tzParam: tzParam || "(none)",
+        dateParam: dateParam || "(none)",
+        timetableConfig: {
+          cycle_length: tt.cycle_length,
+          anchor_date: tt.anchor_date,
+          anchor_cycle_day: tt.anchor_cycle_day,
+          cycle_type: tt.cycle_type,
+          excluded_dates_count: tt.excluded_dates?.length ?? 0,
+          cycle_day_events_count: tt.cycle_day_events?.length ?? 0,
+          source: tt.source,
+        },
+        totalMeetingsInDb: meetings.length,
+      },
+    });
   } catch (err) {
     console.error("[schedule/today GET]", err);
     return NextResponse.json({ hasTimetable: false, entries: [] });

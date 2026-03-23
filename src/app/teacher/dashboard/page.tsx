@@ -289,7 +289,8 @@ function TwoColumnDashboard({
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch("/api/teacher/schedule/today?days=7");
+        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        const res = await fetch(`/api/teacher/schedule/today?days=7&tz=${encodeURIComponent(tz)}`);
         if (!res.ok) { setScheduleLoading(false); return; }
         const schedData = await res.json();
         setHasTimetable(schedData.hasTimetable ?? false);
@@ -302,7 +303,8 @@ function TwoColumnDashboard({
     })();
   }, []);
 
-  const today = new Date().toISOString().split("T")[0];
+  // Use local date (not UTC) so "today" matches the tz-aware API response
+  const today = new Date().toLocaleDateString("en-CA"); // "YYYY-MM-DD" in local timezone
   const todayEntries = schedule.filter((e) => e.date === today);
   const upcomingEntries = schedule.filter((e) => e.date > today).slice(0, 5);
 
