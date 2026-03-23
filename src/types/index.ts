@@ -72,6 +72,9 @@ export interface ClassUnit {
   page_due_dates: PageDueDatesMap;
   // Per-page settings
   page_settings: PageSettingsMap;
+  // Timestamps (migration 033)
+  created_at?: string;
+  updated_at?: string;
 }
 
 // --- Per-Page Due Dates Types ---
