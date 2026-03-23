@@ -1,8 +1,10 @@
 -- Migration 043: Add graduation_year to students
--- Enables filtering students by graduation year when adding to classes.
--- Graduation year is stable (never changes) unlike grade level which shifts yearly.
--- Example: a student graduating in 2028 is always "Class of 2028" regardless of
--- whether they're currently in Year 7, Year 8, or Grade 9.
+-- Stores the year a student will graduate secondary school (e.g. 2028).
+-- This is auto-calculated from the year level the teacher selects (e.g. Year 9)
+-- using the formula: graduation_year = academic_end_year + (13 - year_level).
+-- The graduation_year is the STABLE anchor — it never changes. The displayed
+-- year level is derived from it each academic year, so students auto-advance.
+-- Teachers pick "Year 9" in the UI; the system stores graduation_year = 2030.
 
 -- 1. Add graduation_year column (nullable — teachers set it gradually)
 ALTER TABLE students ADD COLUMN IF NOT EXISTS graduation_year INTEGER;

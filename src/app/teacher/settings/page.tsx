@@ -144,6 +144,10 @@ export default function TeacherSettingsPage() {
   // Class mapping step: AI class name → teacher's class ID
   const [aiClassMapping, setAiClassMapping] = useState<Record<string, string>>({});
   const [showClassMapping, setShowClassMapping] = useState(false);
+  // Unmapped classes preserved from AI import (class_name → entries array)
+  const [unmappedClasses, setUnmappedClasses] = useState<Record<string, Array<{ day: number; period: number; room?: string }>>>({});
+  const [showUnmappedMapping, setShowUnmappedMapping] = useState(false);
+  const [unmappedMapping, setUnmappedMapping] = useState<Record<string, string>>({});
 
   // Temp state for adding a meeting
   const [newMeetingClassId, setNewMeetingClassId] = useState("");
@@ -1379,14 +1383,27 @@ export default function TeacherSettingsPage() {
 
                           setClassMeetings(newMeetings);
 
-                          const mappedCount = Object.values(aiClassMapping).filter(Boolean).length;
+                          // Preserve unmapped teaching entries so teacher can create classes and map later
+                          const skippedEntries: Record<string, Array<{ day: number; period: number; room?: string }>> = {};
                           const teachingNames = [...new Set(teachingEntries.map((e: { class_name: string }) => e.class_name))] as string[];
+                          for (const name of teachingNames) {
+                            if (!aiClassMapping[name]) {
+                              skippedEntries[name] = teachingEntries
+                                .filter((e: { class_name: string }) => e.class_name === name)
+                                .map((e: { day: number; period: number; room?: string }) => ({
+                                  day: e.day, period: e.period, room: e.room,
+                                }));
+                            }
+                          }
+                          setUnmappedClasses(skippedEntries);
+
+                          const mappedCount = Object.values(aiClassMapping).filter(Boolean).length;
                           const skippedCount = teachingNames.length - mappedCount;
 
                           setTimetableSuccess(
                             `Applied ${newMeetings.length} meetings from ${mappedCount} class${mappedCount === 1 ? "" : "es"}` +
-                            (skippedCount > 0 ? ` (${skippedCount} skipped)` : "") +
-                            `. Remember to Save below!`
+                            (skippedCount > 0 ? `. ${skippedCount} unmapped class${skippedCount === 1 ? "" : "es"} preserved below — create the class first, then map it.` : "") +
+                            ` Remember to Save below!`
                           );
 
                           // Clear AI state
@@ -1470,6 +1487,100 @@ export default function TeacherSettingsPage() {
               <div className="p-6 rounded-lg bg-gray-50 border border-gray-200 text-center">
                 <p className="text-sm text-text-secondary mb-2">No classes created yet.</p>
                 <p className="text-xs text-text-tertiary">Create your classes first (on the <button onClick={() => setActiveTab("general")} className="text-brand-purple hover:underline font-medium">General tab</button>), then come back here to set up when each class meets.</p>
+              </div>
+            )}
+
+            {/* Unmapped classes from AI import — preserved for later mapping */}
+            {Object.keys(unmappedClasses).length > 0 && (
+              <div className="mt-4 p-4 rounded-lg bg-amber-50 border border-amber-200">
+                <div className="flex items-center justify-between mb-2">
+                  <div>
+                    <h3 className="text-sm font-semibold text-amber-900">Unmapped classes from import</h3>
+                    <p className="text-xs text-amber-700 mt-0.5">These classes were detected in your timetable but not yet matched. Create the class first, then map it here.</p>
+                  </div>
+                  <button
+                    onClick={() => setUnmappedClasses({})}
+                    className="text-xs text-amber-600 hover:text-amber-800 underline"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+                {showUnmappedMapping ? (
+                  <div className="space-y-3">
+                    <div className="border border-amber-200 rounded-lg divide-y divide-amber-100 bg-white">
+                      {Object.entries(unmappedClasses).map(([name, entries]) => (
+                        <div key={name} className="flex items-center gap-3 px-4 py-3">
+                          <div className="flex-1 min-w-0">
+                            <span className="text-sm font-medium text-text-primary">{name}</span>
+                            <span className="ml-2 text-xs text-text-tertiary">({entries.length} period{entries.length === 1 ? "" : "s"}/cycle)</span>
+                          </div>
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0"><path d="M5 12h14M12 5l7 7-7 7" /></svg>
+                          <select
+                            value={unmappedMapping[name] || ""}
+                            onChange={(e) => setUnmappedMapping(prev => ({ ...prev, [name]: e.target.value }))}
+                            className="px-3 py-1.5 border border-border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-purple/30 min-w-[180px]"
+                          >
+                            <option value="">— Skip for now —</option>
+                            {classes.map(c => (
+                              <option key={c.id} value={c.id}>{c.name}</option>
+                            ))}
+                          </select>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          // Add newly mapped classes to meetings
+                          const newMeetings = [...classMeetings];
+                          const stillUnmapped: Record<string, Array<{ day: number; period: number; room?: string }>> = {};
+                          for (const [name, entries] of Object.entries(unmappedClasses)) {
+                            if (unmappedMapping[name]) {
+                              for (const e of entries) {
+                                newMeetings.push({
+                                  class_id: unmappedMapping[name],
+                                  cycle_day: e.day,
+                                  period_number: e.period,
+                                  room: e.room || undefined,
+                                });
+                              }
+                            } else {
+                              stillUnmapped[name] = entries;
+                            }
+                          }
+                          setClassMeetings(newMeetings);
+                          setUnmappedClasses(stillUnmapped);
+                          setUnmappedMapping({});
+                          setShowUnmappedMapping(false);
+                          const addedCount = Object.values(unmappedMapping).filter(Boolean).length;
+                          if (addedCount > 0) {
+                            setTimetableSuccess(`Added ${addedCount} class${addedCount === 1 ? "" : "es"} to schedule. Remember to Save!`);
+                          }
+                        }}
+                        className="px-4 py-2 rounded-lg text-sm font-medium bg-amber-600 text-white hover:bg-amber-700 transition"
+                      >
+                        Apply Mappings
+                      </button>
+                      <button onClick={() => setShowUnmappedMapping(false)} className="px-3 py-1.5 text-sm text-text-tertiary hover:text-text-primary">
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {Object.entries(unmappedClasses).map(([name, entries]) => (
+                      <span key={name} className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white border border-amber-200 text-sm text-amber-900">
+                        {name} <span className="text-xs text-amber-600">({entries.length}×)</span>
+                      </span>
+                    ))}
+                    <button
+                      onClick={() => { setShowUnmappedMapping(true); setUnmappedMapping({}); }}
+                      className="px-3 py-1.5 rounded-lg text-sm font-medium text-amber-700 bg-amber-100 hover:bg-amber-200 transition"
+                    >
+                      Map now →
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 

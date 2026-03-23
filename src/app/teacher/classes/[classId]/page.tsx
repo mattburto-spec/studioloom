@@ -24,6 +24,31 @@ function avatarGradient(name: string): string {
   return AVATAR_GRADIENTS[Math.abs(hash) % AVATAR_GRADIENTS.length];
 }
 
+// Year level ↔ graduation year conversion
+// Assumes a student in Year N finishes secondary school at Year 12/13 (depends on system).
+// For simplicity, we use Year 13 as the final year (IB MYP/DP system, also works for AU Year 12).
+// The "current academic year" is derived from today's date — after July we're in the next academic year.
+const FINAL_YEAR = 13; // MYP/DP: Year 13 is final. AU: Year 12. We use 13 for IB schools.
+const YEAR_LEVELS = [6, 7, 8, 9, 10, 11, 12, 13]; // MYP starts at Year 6
+
+function currentAcademicEndYear(): number {
+  const now = new Date();
+  // If we're past July, the current academic year ends next calendar year
+  return now.getMonth() >= 6 ? now.getFullYear() + 1 : now.getFullYear();
+}
+
+function yearLevelToGradYear(yearLevel: number): number {
+  const endYear = currentAcademicEndYear();
+  return endYear + (FINAL_YEAR - yearLevel);
+}
+
+function gradYearToYearLevel(gradYear: number): number | null {
+  const endYear = currentAcademicEndYear();
+  const level = FINAL_YEAR - (gradYear - endYear);
+  if (level < 1 || level > FINAL_YEAR) return null;
+  return level;
+}
+
 const ELL_COLORS: Record<number, { bg: string; color: string; label: string }> = {
   1: { bg: "#DBEAFE", color: "#1E40AF", label: "ELL 1 — Entering" },
   2: { bg: "#FEF3C7", color: "#92400E", label: "ELL 2 — Developing" },
@@ -72,7 +97,7 @@ export default function ClassDetailPage({
   const [showAddStudent, setShowAddStudent] = useState(false);
   const [newUsername, setNewUsername] = useState("");
   const [newDisplayName, setNewDisplayName] = useState("");
-  const [newGradYear, setNewGradYear] = useState<string>("");
+  const [newYearLevel, setNewYearLevel] = useState<string>("");
   const [adding, setAdding] = useState(false);
   const [addMode, setAddMode] = useState<"existing" | "single" | "bulk">("existing");
   const [bulkText, setBulkText] = useState("");
@@ -221,7 +246,7 @@ export default function ClassDetailPage({
       const { data: student, error } = await supabase.from("students").insert({
         username: newUsername.trim().toLowerCase(),
         display_name: newDisplayName.trim() || null,
-        graduation_year: newGradYear ? Number(newGradYear) : null,
+        graduation_year: newYearLevel ? yearLevelToGradYear(Number(newYearLevel)) : null,
         class_id: classId,
         author_teacher_id: user.id,
       }).select().single();
@@ -1112,17 +1137,20 @@ export default function ClassDetailPage({
                     <div className="flex items-center gap-2 flex-wrap">
                       {/* Graduation year filter */}
                       {(() => {
-                        const years = [...new Set(rosterStudents.map(s => s.graduation_year).filter((y): y is number => y != null))].sort();
-                        if (years.length === 0) return null;
+                        const gradYears = [...new Set(rosterStudents.map(s => s.graduation_year).filter((y): y is number => y != null))].sort();
+                        if (gradYears.length === 0) return null;
+                        // Convert to year levels for display
+                        const yearOptions = gradYears.map(gy => ({ gradYear: gy, level: gradYearToYearLevel(gy) })).filter(o => o.level != null);
+                        if (yearOptions.length === 0) return null;
                         return (
                           <select
                             value={rosterGradFilter}
                             onChange={(e) => setRosterGradFilter(e.target.value)}
                             className="px-2.5 py-1.5 border border-border rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-purple-300"
                           >
-                            <option value="all">All years</option>
-                            {years.map(y => (
-                              <option key={y} value={String(y)}>Class of {y}</option>
+                            <option value="all">All year levels</option>
+                            {yearOptions.map(o => (
+                              <option key={o.gradYear} value={String(o.gradYear)}>Year {o.level}</option>
                             ))}
                             <option value="unset">No year set</option>
                           </select>
@@ -1185,7 +1213,8 @@ export default function ClassDetailPage({
                         }
                       } else if (rosterGroupBy === "year") {
                         for (const s of filtered) {
-                          const key = s.graduation_year ? `Class of ${s.graduation_year}` : "No year set";
+                          const level = s.graduation_year ? gradYearToYearLevel(s.graduation_year) : null;
+                          const key = level ? `Year ${level}` : "No year set";
                           if (!groups.has(key)) groups.set(key, []);
                           groups.get(key)!.push(s);
                         }
@@ -1199,8 +1228,8 @@ export default function ClassDetailPage({
                           <div className="min-w-0 flex-1">
                             <span className="text-sm font-medium text-gray-900">{s.display_name || s.username}</span>
                             {s.display_name && <span className="text-xs text-gray-400 ml-1.5">@{s.username}</span>}
-                            {rosterGroupBy !== "year" && s.graduation_year && (
-                              <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 font-medium">{s.graduation_year}</span>
+                            {rosterGroupBy !== "year" && s.graduation_year && gradYearToYearLevel(s.graduation_year) && (
+                              <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-600 font-medium">Yr {gradYearToYearLevel(s.graduation_year)}</span>
                             )}
                             {rosterGroupBy !== "class" && s.last_class_name && (
                               <span className="ml-1.5 text-[10px] text-text-tertiary">{s.last_class_name}</span>
@@ -1281,21 +1310,19 @@ export default function ClassDetailPage({
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-text-secondary mb-1">
-                        Graduation Year (optional)
+                        Current Year Level (optional)
                       </label>
-                      <input
-                        type="number"
-                        value={newGradYear}
-                        onChange={(e) => setNewGradYear(e.target.value)}
-                        placeholder={`e.g. ${new Date().getFullYear() + 2}`}
-                        min={new Date().getFullYear()}
-                        max={new Date().getFullYear() + 10}
-                        className="w-full px-4 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-blue focus:border-transparent"
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") addStudent();
-                        }}
-                      />
-                      <p className="text-xs text-text-tertiary mt-1">Class of 20XX — stays the same as they move through year levels</p>
+                      <select
+                        value={newYearLevel}
+                        onChange={(e) => setNewYearLevel(e.target.value)}
+                        className="w-full px-4 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-blue focus:border-transparent text-sm"
+                      >
+                        <option value="">— Select —</option>
+                        {YEAR_LEVELS.map(y => (
+                          <option key={y} value={String(y)}>Year {y}</option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-text-tertiary mt-1">Auto-advances each academic year based on your school calendar</p>
                     </div>
                   </div>
                   <div className="flex gap-2 mt-4">
