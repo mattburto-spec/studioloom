@@ -10,7 +10,7 @@ import { SkillsCerts, type SkillCert } from "@/components/student/BadgeWall";
 import { StatsStrip } from "@/components/student/StatsStrip";
 import { computeStats, type BadgeInput } from "@/lib/badges/compute-badges";
 import type { Unit, StudentProgress, UnitPage } from "@/types";
-import { getYearLevelDisplay, getYearLevelNumber, yearLevelToGraduationYear, YEAR_LEVEL_OPTIONS } from "@/lib/utils/year-level";
+import { getYearLevelNumber, yearLevelToGraduationYear, YEAR_LEVEL_OPTIONS } from "@/lib/utils/year-level";
 
 /**
  * Teacher Per-Student Dashboard View
@@ -290,9 +290,9 @@ export default function TeacherStudentView({
             <h1 className="text-2xl font-extrabold text-gray-900">
               {student.display_name || student.username}
             </h1>
-            {getYearLevelDisplay(student.graduation_year) && (
-              <span className="px-2.5 py-0.5 text-xs font-bold bg-indigo-50 text-indigo-700 rounded-full border border-indigo-200">
-                {getYearLevelDisplay(student.graduation_year)}
+            {getYearLevelNumber(student.graduation_year) && (
+              <span className="text-sm font-bold text-indigo-400" title={`Year ${getYearLevelNumber(student.graduation_year)}`}>
+                {getYearLevelNumber(student.graduation_year)}
               </span>
             )}
             <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-purple-100 text-purple-600 rounded-full">

@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { getYearLevelDisplay, yearLevelToGraduationYear, YEAR_LEVEL_OPTIONS } from "@/lib/utils/year-level";
+import { getYearLevelDisplay, getYearLevelNumber, yearLevelToGraduationYear, YEAR_LEVEL_OPTIONS } from "@/lib/utils/year-level";
 
 // ── Types ──
 
@@ -552,7 +552,16 @@ export default function TeacherStudentsPage() {
                 className="bg-white rounded-2xl border border-gray-200 overflow-hidden hover:shadow-md hover:border-gray-300 transition-all group"
               >
                 {/* Top band with avatar + name */}
-                <div className="px-4 pt-4 pb-3">
+                <div className="px-4 pt-4 pb-3 relative">
+                  {/* Year level number — top right */}
+                  {(() => {
+                    const ylNum = getYearLevelNumber(student.graduation_year);
+                    return ylNum ? (
+                      <span className="absolute top-2.5 right-3 text-[11px] font-bold text-indigo-400" title={`Year ${ylNum}`}>
+                        {ylNum}
+                      </span>
+                    ) : null;
+                  })()}
                   <div className="flex items-start gap-3">
                     <div
                       className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-extrabold text-sm shrink-0 shadow-sm"
@@ -593,16 +602,6 @@ export default function TeacherStudentsPage() {
                         No class assigned
                       </span>
                     )}
-
-                    {/* Year level badge */}
-                    {(() => {
-                      const yl = getYearLevelDisplay(student.graduation_year);
-                      return yl ? (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
-                          {yl}
-                        </span>
-                      ) : null;
-                    })()}
 
                     {/* ELL badge */}
                     {ell && (
@@ -773,10 +772,10 @@ export default function TeacherStudentsPage() {
                   {/* Year level */}
                   <div>
                     {(() => {
-                      const yl = getYearLevelDisplay(student.graduation_year);
-                      return yl ? (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700">
-                          {yl}
+                      const ylNum = getYearLevelNumber(student.graduation_year);
+                      return ylNum ? (
+                        <span className="text-xs font-bold text-indigo-500">
+                          {ylNum}
                         </span>
                       ) : (
                         <span className="text-[10px] text-text-tertiary">—</span>

@@ -11,7 +11,7 @@ import { OpenStudioUnlock, OpenStudioClassView } from "@/components/open-studio"
 import { ObservationSnap } from "@/components/nm";
 import { PaceFeedbackSummary } from "@/components/teacher/PaceFeedbackSummary";
 import { AGENCY_ELEMENTS, type NMUnitConfig } from "@/lib/nm/constants";
-import { getYearLevelDisplay } from "@/lib/utils/year-level";
+import { getYearLevelNumber } from "@/lib/utils/year-level";
 
 interface ProgressCell {
   status: "not_started" | "in_progress" | "complete";
@@ -359,10 +359,10 @@ export default function ProgressTrackingPage({
                           <span className="text-sm font-medium text-text-primary truncate max-w-[140px] flex items-center gap-1.5">
                             {student.display_name || student.username}
                             {(() => {
-                              const yl = getYearLevelDisplay(student.graduation_year);
-                              return yl ? (
-                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-200 whitespace-nowrap">
-                                  {yl}
+                              const ylNum = getYearLevelNumber(student.graduation_year);
+                              return ylNum ? (
+                                <span className="text-[9px] font-bold text-indigo-400" title={`Year ${ylNum}`}>
+                                  {ylNum}
                                 </span>
                               ) : null;
                             })()}

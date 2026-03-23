@@ -18,7 +18,7 @@ import type {
   AssessmentTarget,
   AssessmentRecordRow,
 } from "@/types/assessment";
-import { getYearLevelDisplay } from "@/lib/utils/year-level";
+import { getYearLevelNumber } from "@/lib/utils/year-level";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -429,10 +429,10 @@ export default function GradingPage({
                       <span className="text-sm font-medium text-text-primary truncate flex-1 flex items-center gap-1.5">
                         {s.display_name || s.username}
                         {(() => {
-                          const yl = getYearLevelDisplay(s.graduation_year);
-                          return yl ? (
-                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-200 whitespace-nowrap">
-                              {yl}
+                          const ylNum = getYearLevelNumber(s.graduation_year);
+                          return ylNum ? (
+                            <span className="text-[9px] font-bold text-indigo-400" title={`Year ${ylNum}`}>
+                              {ylNum}
                             </span>
                           ) : null;
                         })()}
@@ -472,10 +472,10 @@ export default function GradingPage({
                     {selectedStudent.display_name || selectedStudent.username}
                   </h2>
                   {(() => {
-                    const yl = getYearLevelDisplay(selectedStudent.graduation_year);
-                    return yl ? (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
-                        {yl}
+                    const ylNum = getYearLevelNumber(selectedStudent.graduation_year);
+                    return ylNum ? (
+                      <span className="text-sm font-bold text-indigo-400" title={`Year ${ylNum}`}>
+                        {ylNum}
                       </span>
                     ) : null;
                   })()}
