@@ -945,6 +945,24 @@ export default function TeacherSettingsPage() {
                       if (data.cycleDayEvents?.length) {
                         setSavedCycleDayEvents(data.cycleDayEvents);
                       }
+                      // Auto-save cycle day events to DB immediately (don't wait for "Apply" or "Update Timetable")
+                      // Use fresh data from response, not React state (which hasn't committed yet)
+                      if (data.cycleDayEvents?.length && timetableLoaded) {
+                        fetch("/api/teacher/timetable", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            cycle_length: data.cycleDayEvents?.length ? Math.max(...data.cycleDayEvents.map((e: { cycleDay: number }) => e.cycleDay)) : cycleLength,
+                            anchor_date: data.cycleDayEvents?.[0]?.date || anchorDate,
+                            anchor_cycle_day: data.cycleDayEvents?.[0]?.cycleDay || anchorCycleDay,
+                            reset_each_term: resetEachTerm,
+                            excluded_dates: data.excludedDates || excludedDates,
+                            ical_url: icalUrl || null,
+                            meetings: classMeetings,
+                            cycle_day_events: data.cycleDayEvents,
+                          }),
+                        }).catch(() => { /* silent — user can still click Update Timetable */ });
+                      }
                       let msg = `Imported ${data.totalEvents || 0} events`;
                       if (cycleDayCount > 0) msg += ` — found ${cycleDayCount} cycle day markers`;
                       msg += " — see preview below";
@@ -1004,6 +1022,23 @@ export default function TeacherSettingsPage() {
                         const cycleDayCount = data.cycleDayEvents?.length || 0;
                         if (data.cycleDayEvents?.length) {
                           setSavedCycleDayEvents(data.cycleDayEvents);
+                        }
+                        // Auto-save cycle day events to DB immediately (don't wait for "Apply" or "Update Timetable")
+                        if (data.cycleDayEvents?.length && timetableLoaded) {
+                          fetch("/api/teacher/timetable", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              cycle_length: data.cycleDayEvents?.length ? Math.max(...data.cycleDayEvents.map((e: { cycleDay: number }) => e.cycleDay)) : cycleLength,
+                              anchor_date: data.cycleDayEvents?.[0]?.date || anchorDate,
+                              anchor_cycle_day: data.cycleDayEvents?.[0]?.cycleDay || anchorCycleDay,
+                              reset_each_term: resetEachTerm,
+                              excluded_dates: data.excludedDates || excludedDates,
+                              ical_url: icalUrl || null,
+                              meetings: classMeetings,
+                              cycle_day_events: data.cycleDayEvents,
+                            }),
+                          }).catch(() => { /* silent — user can still click Update Timetable */ });
                         }
                         let msg = `Imported ${data.totalEvents || 0} events`;
                         if (cycleDayCount > 0) msg += ` — found ${cycleDayCount} cycle day markers`;
