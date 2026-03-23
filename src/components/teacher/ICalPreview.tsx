@@ -246,7 +246,7 @@ function CalendarGrid({
 
     // Fallback: compute from anchor config
     if (!cycleConfig.anchorDate) return null;
-    const excludedSet = new Set(cycleConfig.excludedDates);
+    const excludedSet = new Set(cycleConfig.excludedDates.map(d => d.split(" ")[0]));
     // Also add holidays from the import as excluded
     for (const [date] of holidayMap) {
       excludedSet.add(date);

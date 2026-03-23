@@ -99,9 +99,10 @@ function addDays(date: Date, n: number): Date {
   return result;
 }
 
-/** Build a Set of excluded date strings for O(1) lookup */
+/** Build a Set of excluded date strings for O(1) lookup.
+ *  Handles both plain ISO dates ("2025-09-29") and labeled dates ("2025-09-29 (National Day)"). */
 function buildExcludedSet(excluded: string[]): Set<string> {
-  return new Set(excluded);
+  return new Set(excluded.map(d => d.split(" ")[0]));
 }
 
 /**

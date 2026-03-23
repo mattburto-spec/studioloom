@@ -1027,40 +1027,57 @@ export default function TeacherSettingsPage() {
               )}
 
               {/* Persistent calendar view — reuses ICalPreview with synthesized data from saved state */}
-              {!icalPreviewData && excludedDates.length > 0 && (
-                <details className="mt-3">
-                  <summary className="px-4 py-2.5 bg-gray-50 border border-border rounded-lg cursor-pointer text-sm font-medium text-text-primary hover:bg-gray-100 transition flex items-center gap-2">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
-                    View calendar ({excludedDates.length} non-school day{excludedDates.length === 1 ? "" : "s"})
-                  </summary>
-                  <ICalPreview
-                    data={{
-                      totalEvents: excludedDates.length,
-                      meetings: classMeetings.map(m => ({
-                        class_id: m.class_id,
-                        cycle_day: m.cycle_day,
-                        period_number: m.period_number,
-                        room: m.room,
-                      })),
-                      excludedDates: excludedDates.map(d => d.split(" (")[0]), // strip labels
-                      holidayDetails: excludedDates.map(d => {
-                        const parts = d.match(/^(\d{4}-\d{2}-\d{2})\s*(?:\((.+)\))?$/);
-                        return { date: parts?.[1] || d.split(" (")[0], label: parts?.[2] || "Non-school day" };
-                      }),
-                      unmatchedEvents: [],
-                      unmatchedWithDates: [],
-                      classEventDates: [],
-                    }}
-                    classNames={classes}
-                    cycleConfig={{
-                      cycleLength,
-                      anchorDate,
-                      anchorCycleDay,
-                      excludedDates: excludedDates.map(d => d.split(" (")[0]),
-                    }}
-                  />
-                </details>
-              )}
+              {!icalPreviewData && excludedDates.length > 0 && (() => {
+                // Compute academic year range from excluded dates + anchor
+                const cleanDates = excludedDates.map(d => d.split(" (")[0]).filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
+                const allDatesForRange = [...cleanDates];
+                if (anchorDate) allDatesForRange.push(anchorDate);
+                allDatesForRange.sort();
+                // Extend range: start from Aug of earliest year, end at Jun of latest year + 1
+                const earliest = allDatesForRange[0] ? new Date(allDatesForRange[0]) : new Date();
+                const latest = allDatesForRange[allDatesForRange.length - 1] ? new Date(allDatesForRange[allDatesForRange.length - 1]) : new Date();
+                const startYear = earliest.getMonth() >= 7 ? earliest.getFullYear() : earliest.getFullYear() - 1; // Aug start
+                const endYear = latest.getMonth() <= 5 ? latest.getFullYear() : latest.getFullYear() + 1; // Jun end
+                // Create boundary events so ICalPreview spans the full academic year
+                const boundaryEvents = [
+                  { date: `${startYear}-08-01`, summary: "__range_start__" },
+                  { date: `${endYear}-06-30`, summary: "__range_end__" },
+                ];
+                return (
+                  <details className="mt-3">
+                    <summary className="px-4 py-2.5 bg-gray-50 border border-border rounded-lg cursor-pointer text-sm font-medium text-text-primary hover:bg-gray-100 transition flex items-center gap-2">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+                      View calendar ({cleanDates.length} non-school day{cleanDates.length === 1 ? "" : "s"})
+                    </summary>
+                    <ICalPreview
+                      data={{
+                        totalEvents: cleanDates.length + classMeetings.length,
+                        meetings: classMeetings.map(m => ({
+                          class_id: m.class_id,
+                          cycle_day: m.cycle_day,
+                          period_number: m.period_number,
+                          room: m.room,
+                        })),
+                        excludedDates: cleanDates,
+                        holidayDetails: excludedDates.map(d => {
+                          const parts = d.match(/^(\d{4}-\d{2}-\d{2})\s*(?:\((.+)\))?$/);
+                          return { date: parts?.[1] || d.split(" (")[0], label: parts?.[2] || "Non-school day" };
+                        }),
+                        unmatchedEvents: [],
+                        unmatchedWithDates: [],
+                        classEventDates: boundaryEvents,
+                      }}
+                      classNames={classes}
+                      cycleConfig={{
+                        cycleLength,
+                        anchorDate,
+                        anchorCycleDay,
+                        excludedDates: cleanDates,
+                      }}
+                    />
+                  </details>
+                );
+              })()}
             </div>
 
             {/* Non-school days */}

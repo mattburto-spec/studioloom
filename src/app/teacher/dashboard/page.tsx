@@ -142,13 +142,7 @@ export default function TeacherDashboard() {
             Updated {timeAgo(lastRefresh.toISOString())}
           </p>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="px-4 py-2.5 text-white rounded-xl text-sm font-semibold hover:opacity-90 transition shadow-sm"
-          style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)" }}
-        >
-          + New Class
-        </button>
+        {/* Class creation moved to Classes page */}
       </div>
 
       {!hasClasses ? (
