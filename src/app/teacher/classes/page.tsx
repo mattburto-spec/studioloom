@@ -38,6 +38,7 @@ export default function ClassesPage() {
   const [newName, setNewName] = useState("");
   const [creating, setCreating] = useState(false);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [archiving, setArchiving] = useState<string | null>(null);
 
   const loadClasses = useCallback(async () => {
     const supabase = createClient();
@@ -118,6 +119,17 @@ export default function ClassesPage() {
     navigator.clipboard.writeText(code);
     setCopiedCode(code);
     setTimeout(() => setCopiedCode(null), 2000);
+  }
+
+  async function toggleArchive(classId: string, currentlyArchived: boolean) {
+    setArchiving(classId);
+    const supabase = createClient();
+    await supabase
+      .from("classes")
+      .update({ is_archived: !currentlyArchived })
+      .eq("id", classId);
+    await loadClasses();
+    setArchiving(null);
   }
 
   const active = classes.filter((c) => !c.is_archived);
@@ -332,6 +344,33 @@ export default function ClassesPage() {
                       </Link>
                     </div>
 
+                    {/* ── Archived action buttons ── */}
+                    {isArchived && (
+                      <div className="flex items-center gap-2 mt-3">
+                        <Link
+                          href={`/teacher/classes/${cls.id}`}
+                          className="inline-flex items-center gap-1.5 text-xs font-semibold px-3.5 py-1.5 rounded-lg border border-gray-200 text-text-secondary hover:bg-gray-50 transition"
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                            <circle cx="12" cy="12" r="3" />
+                          </svg>
+                          View
+                        </Link>
+                        <button
+                          onClick={() => toggleArchive(cls.id, true)}
+                          disabled={archiving === cls.id}
+                          className="inline-flex items-center gap-1.5 text-xs font-semibold px-3.5 py-1.5 rounded-lg border border-gray-200 text-green-600 hover:bg-green-50 hover:border-green-200 transition"
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="1 4 1 10 7 10" />
+                            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+                          </svg>
+                          {archiving === cls.id ? "Restoring..." : "Restore"}
+                        </button>
+                      </div>
+                    )}
+
                     {/* ── Action buttons ── */}
                     {!isArchived && (
                       <div className="flex items-center gap-2 mt-3 flex-wrap">
@@ -373,6 +412,21 @@ export default function ClassesPage() {
                             <line x1="12" y1="2" x2="12" y2="15" />
                           </svg>
                           {copiedCode === cls.code ? "Copied!" : "Share Code"}
+                        </button>
+
+                        {/* Archive */}
+                        <button
+                          onClick={() => toggleArchive(cls.id, false)}
+                          disabled={archiving === cls.id}
+                          className="inline-flex items-center gap-1.5 text-xs font-semibold px-3.5 py-1.5 rounded-lg border border-gray-200 text-text-tertiary hover:text-amber-600 hover:border-amber-200 hover:bg-amber-50 transition"
+                          title="Archive this class"
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="21 8 21 21 3 21 3 8" />
+                            <rect x="1" y="3" width="22" height="5" />
+                            <line x1="10" y1="12" x2="14" y2="12" />
+                          </svg>
+                          {archiving === cls.id ? "..." : "Archive"}
                         </button>
 
                         {/* Spacer + quick unit count link */}
