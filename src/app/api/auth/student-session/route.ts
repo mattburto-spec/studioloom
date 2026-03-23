@@ -37,7 +37,16 @@ export async function GET(request: NextRequest) {
 
   if (error || !session) {
     const response = NextResponse.json(
-      { error: "Invalid or expired session" },
+      {
+        error: "Invalid or expired session",
+        // Temporary debug — remove after fixing login issue
+        debug: {
+          supabaseError: error?.message || null,
+          supabaseCode: error?.code || null,
+          tokenLength: token?.length || 0,
+          hasSession: !!session,
+        }
+      },
       { status: 401 }
     );
     response.cookies.delete(SESSION_COOKIE_NAME);
