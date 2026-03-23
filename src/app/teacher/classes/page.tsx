@@ -134,7 +134,6 @@ export default function ClassesPage() {
 
   const active = classes.filter((c) => !c.is_archived);
   const archived = classes.filter((c) => c.is_archived);
-  const displayClasses = showArchived ? [...active, ...archived] : active;
 
   // ── Loading ──
   if (loading) {
@@ -156,14 +155,6 @@ export default function ClassesPage() {
           <h1 className="text-2xl font-extrabold text-text-primary tracking-tight">Classes</h1>
           <p className="text-sm text-text-secondary mt-1">
             {active.length} active class{active.length !== 1 ? "es" : ""}
-            {archived.length > 0 && (
-              <button
-                onClick={() => setShowArchived(!showArchived)}
-                className="ml-2 text-purple-600 hover:text-purple-700 font-medium transition"
-              >
-                {showArchived ? "hide" : `+ ${archived.length} archived`}
-              </button>
-            )}
           </p>
         </div>
 
@@ -213,7 +204,7 @@ export default function ClassesPage() {
       )}
 
       {/* ── Empty state ── */}
-      {displayClasses.length === 0 && (
+      {active.length === 0 && archived.length === 0 && (
         <div className="text-center py-20 bg-white border-2 border-dashed border-gray-200 rounded-2xl">
           <div className="w-16 h-16 rounded-2xl bg-purple-50 flex items-center justify-center mx-auto mb-4">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -238,18 +229,16 @@ export default function ClassesPage() {
         </div>
       )}
 
-      {/* ── Class cards ── */}
-      {displayClasses.length > 0 && (
+      {/* ── Active class cards ── */}
+      {active.length > 0 && (
         <div className="grid gap-4">
-          {displayClasses.map((cls, idx) => {
+          {active.map((cls, idx) => {
             const color = getClassColor(idx);
-            const isArchived = !!cls.is_archived;
 
             return (
               <div
                 key={cls.id}
                 className="bg-white rounded-2xl border border-gray-200 overflow-hidden transition-shadow hover:shadow-md"
-                style={isArchived ? { opacity: 0.55 } : undefined}
               >
                 <div className="flex">
                   {/* ── Colour sidebar ── */}
@@ -277,11 +266,6 @@ export default function ClassesPage() {
                             >
                               {cls.name}
                             </Link>
-                            {isArchived && (
-                              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200">
-                                Archived
-                              </span>
-                            )}
                           </div>
                           {/* Stats row */}
                           <div className="flex items-center gap-3 mt-0.5">
@@ -344,36 +328,8 @@ export default function ClassesPage() {
                       </Link>
                     </div>
 
-                    {/* ── Archived action buttons ── */}
-                    {isArchived && (
-                      <div className="flex items-center gap-2 mt-3">
-                        <Link
-                          href={`/teacher/classes/${cls.id}`}
-                          className="inline-flex items-center gap-1.5 text-xs font-semibold px-3.5 py-1.5 rounded-lg border border-gray-200 text-text-secondary hover:bg-gray-50 transition"
-                        >
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                            <circle cx="12" cy="12" r="3" />
-                          </svg>
-                          View
-                        </Link>
-                        <button
-                          onClick={() => toggleArchive(cls.id, true)}
-                          disabled={archiving === cls.id}
-                          className="inline-flex items-center gap-1.5 text-xs font-semibold px-3.5 py-1.5 rounded-lg border border-gray-200 text-green-600 hover:bg-green-50 hover:border-green-200 transition"
-                        >
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="1 4 1 10 7 10" />
-                            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
-                          </svg>
-                          {archiving === cls.id ? "Restoring..." : "Restore"}
-                        </button>
-                      </div>
-                    )}
-
                     {/* ── Action buttons ── */}
-                    {!isArchived && (
-                      <div className="flex items-center gap-2 mt-3 flex-wrap">
+                    <div className="flex items-center gap-2 mt-3 flex-wrap">
                         {/* Manage */}
                         <Link
                           href={`/teacher/classes/${cls.id}`}
@@ -439,12 +395,103 @@ export default function ClassesPage() {
                           </Link>
                         )}
                       </div>
-                    )}
                   </div>
                 </div>
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* ── Archived section ── */}
+      {archived.length > 0 && (
+        <div className="mt-10">
+          <button
+            onClick={() => setShowArchived(!showArchived)}
+            className="flex items-center gap-2 mb-4 group"
+          >
+            <svg
+              width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+              className="transition-transform"
+              style={{ transform: showArchived ? "rotate(90deg)" : "rotate(0deg)" }}
+            >
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+            <span className="text-sm font-semibold text-gray-400 group-hover:text-gray-600 transition">
+              Archived Classes ({archived.length})
+            </span>
+          </button>
+
+          {showArchived && (
+            <div className="grid gap-3">
+              {archived.map((cls, idx) => {
+                const color = getClassColor(active.length + idx);
+                return (
+                  <div
+                    key={cls.id}
+                    className="bg-white rounded-2xl border border-gray-200 overflow-hidden"
+                    style={{ opacity: 0.6 }}
+                  >
+                    <div className="flex">
+                      <div className="w-2 shrink-0 bg-gray-300" />
+                      <div className="flex-1 px-5 py-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div
+                              className="w-11 h-11 rounded-xl flex items-center justify-center text-white font-extrabold text-sm shrink-0"
+                              style={{ background: "linear-gradient(135deg, #9CA3AF, #6B7280)" }}
+                            >
+                              {cls.name.slice(0, 2).toUpperCase()}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <Link
+                                  href={`/teacher/classes/${cls.id}`}
+                                  className="text-base font-bold text-text-primary hover:text-purple-700 transition leading-snug"
+                                >
+                                  {cls.name}
+                                </Link>
+                                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 border border-gray-200">
+                                  Archived
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-3 mt-0.5">
+                                <span className="text-xs text-text-secondary">{cls.studentCount} student{cls.studentCount !== 1 ? "s" : ""}</span>
+                                <span className="text-xs text-text-secondary">{cls.unitCount} unit{cls.unitCount !== 1 ? "s" : ""}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 mt-3">
+                          <Link
+                            href={`/teacher/classes/${cls.id}`}
+                            className="inline-flex items-center gap-1.5 text-xs font-semibold px-3.5 py-1.5 rounded-lg border border-gray-200 text-text-secondary hover:bg-gray-50 transition"
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                              <circle cx="12" cy="12" r="3" />
+                            </svg>
+                            View
+                          </Link>
+                          <button
+                            onClick={() => toggleArchive(cls.id, true)}
+                            disabled={archiving === cls.id}
+                            className="inline-flex items-center gap-1.5 text-xs font-semibold px-3.5 py-1.5 rounded-lg border border-gray-200 text-green-600 hover:bg-green-50 hover:border-green-200 transition"
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="1 4 1 10 7 10" />
+                              <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+                            </svg>
+                            {archiving === cls.id ? "Restoring..." : "Restore"}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
