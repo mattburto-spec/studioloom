@@ -48,6 +48,7 @@ async function GET(request: NextRequest) {
     }
 
     const meetings = (allMeetings || []) as ClassMeeting[];
+    // Cast timetable — cycle_day_events flows through from DB automatically
     const tt = timetable as SchoolTimetable;
 
     // Fetch class names for display
@@ -98,6 +99,7 @@ async function GET(request: NextRequest) {
       const dateStr = d.toISOString().split("T")[0];
       const dateObj = parseDate(dateStr);
 
+      // getCycleDay checks authoritative iCal events first, then falls back to computed
       const cycleDay = getCycleDay(dateObj, tt);
       if (cycleDay === null) continue; // weekend, holiday, or excluded
 

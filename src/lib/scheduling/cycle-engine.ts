@@ -12,6 +12,12 @@
 // Types
 // ─────────────────────────────────────────────────────────────
 
+export interface CycleDayEvent {
+  date: string;      // "YYYY-MM-DD"
+  cycleDay: number;  // 1-based
+  summary?: string;
+}
+
 export interface SchoolTimetable {
   id: string;
   teacher_id: string;
@@ -25,6 +31,7 @@ export interface SchoolTimetable {
   source: "manual" | "ical";
   ical_url?: string;
   last_synced_at?: string;
+  cycle_day_events?: CycleDayEvent[];  // Authoritative cycle days from iCal import
 }
 
 export interface PeriodDefinition {
@@ -103,6 +110,22 @@ function addDays(date: Date, n: number): Date {
  *  Handles both plain ISO dates ("2025-09-29") and labeled dates ("2025-09-29 (National Day)"). */
 function buildExcludedSet(excluded: string[]): Set<string> {
   return new Set(excluded.map(d => d.split(" ")[0]));
+}
+
+/** Build a Map from date→cycleDay for authoritative iCal events. Cached per timetable instance. */
+const cycleDayEventsCacheKey = new WeakMap<object, Map<string, number>>();
+function getCycleDayEventsMap(timetable: SchoolTimetable): Map<string, number> {
+  const events = timetable.cycle_day_events;
+  if (!events || events.length === 0) return new Map();
+  // Use WeakMap keyed on the events array for cheap caching within a request
+  let cached = cycleDayEventsCacheKey.get(events as unknown as object);
+  if (cached) return cached;
+  cached = new Map<string, number>();
+  for (const e of events) {
+    cached.set(e.date, e.cycleDay);
+  }
+  cycleDayEventsCacheKey.set(events as unknown as object, cached);
+  return cached;
 }
 
 /**
@@ -190,6 +213,15 @@ export function getCycleDay(
   // Not a school day → null
   if (!isSchoolDay(date, timetable.cycle_type, excludedSet)) {
     return null;
+  }
+
+  // Check authoritative cycle day events first (from iCal import)
+  // These are the ground truth — computed modular arithmetic can drift
+  if (timetable.cycle_day_events && timetable.cycle_day_events.length > 0) {
+    const dateStr = formatDate(date);
+    const map = getCycleDayEventsMap(timetable);
+    const authoritative = map.get(dateStr);
+    if (authoritative !== undefined) return authoritative;
   }
 
   // Determine effective anchor
