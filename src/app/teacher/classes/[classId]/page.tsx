@@ -632,76 +632,287 @@ export default function ClassDetailPage({
         )}
       </section>
 
-      {/* Units Section */}
-      <section>
-        <h2 className="text-lg font-semibold text-text-primary mb-4">
-          Assigned Units
-        </h2>
-        {allUnits.length === 0 ? (
-          <div className="bg-white rounded-xl p-8 text-center">
-            <p className="text-text-secondary">
-              No units available. Upload units in the Units tab.
-            </p>
+      {/* Units Section — Current + History */}
+      <UnitsSection
+        allUnits={allUnits}
+        classUnits={classUnits}
+        classId={classId}
+        onToggle={toggleUnit}
+      />
+    </main>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Units Section — Current Units + Unit History
+// ---------------------------------------------------------------------------
+
+function UnitsSection({
+  allUnits,
+  classUnits,
+  classId,
+  onToggle,
+}: {
+  allUnits: Unit[];
+  classUnits: ClassUnit[];
+  classId: string;
+  onToggle: (unitId: string, isActive: boolean) => void;
+}) {
+  const [showHistory, setShowHistory] = useState(false);
+
+  // Split into current (active class_units) and inactive/unassigned
+  const currentUnits: Array<{ unit: Unit; cu: ClassUnit }> = [];
+  const historyUnits: Array<{ unit: Unit; cu?: ClassUnit }> = [];
+
+  for (const unit of allUnits) {
+    const cu = classUnits.find((c) => c.unit_id === unit.id);
+    if (cu?.is_active) {
+      currentUnits.push({ unit, cu });
+    } else if (cu) {
+      // Was assigned but now inactive — history
+      historyUnits.push({ unit, cu });
+    }
+    // Units never assigned to this class are not shown
+  }
+
+  // Unassigned units (never had a class_units record) — for the "Add Unit" picker
+  const unassignedUnits = allUnits.filter(
+    (u) => !classUnits.some((cu) => cu.unit_id === u.id)
+  );
+
+  return (
+    <section className="space-y-6">
+      {/* ── Current Units ── */}
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-bold text-text-primary flex items-center gap-2">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+            </svg>
+            Current Units
+            {currentUnits.length > 0 && (
+              <span className="text-sm font-normal text-text-tertiary ml-1">({currentUnits.length})</span>
+            )}
+          </h2>
+        </div>
+
+        {currentUnits.length === 0 ? (
+          <div className="bg-white rounded-xl border border-dashed border-gray-300 p-8 text-center">
+            <div className="w-12 h-12 rounded-xl bg-purple-50 flex items-center justify-center mx-auto mb-3">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 5v14m-7-7h14" />
+              </svg>
+            </div>
+            <p className="text-sm text-text-secondary mb-1">No active units for this class.</p>
+            <p className="text-xs text-text-tertiary">Activate a unit below or assign one from the Units page.</p>
           </div>
         ) : (
           <div className="space-y-3">
-            {allUnits.map((unit) => {
-              const cu = classUnits.find((c) => c.unit_id === unit.id);
-              const isActive = cu?.is_active ?? false;
+            {currentUnits.map(({ unit, cu }) => (
+              <div
+                key={unit.id}
+                className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-md transition-shadow"
+              >
+                <div className="px-5 py-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-base font-bold text-text-primary leading-snug">{unit.title}</h3>
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                          Active
+                        </span>
+                      </div>
+                      {unit.description && (
+                        <p className="text-sm text-text-secondary mt-1 line-clamp-2">{unit.description}</p>
+                      )}
+                      {/* Meta row */}
+                      <div className="flex items-center gap-3 mt-2 text-xs text-text-tertiary">
+                        {(unit as Record<string, unknown>).grade_level && (
+                          <span>{(unit as Record<string, unknown>).grade_level as string}</span>
+                        )}
+                        {(unit as Record<string, unknown>).estimated_duration && (
+                          <span>{(unit as Record<string, unknown>).estimated_duration as string}</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
 
-              return (
+                  {/* Action buttons */}
+                  <div className="flex items-center gap-2 mt-4 flex-wrap">
+                    <Link
+                      href={`/teacher/teach/${unit.id}?classId=${classId}`}
+                      className="inline-flex items-center gap-1.5 text-sm font-bold px-4 py-2 rounded-xl text-white shadow-sm transition hover:opacity-90"
+                      style={{ background: "linear-gradient(135deg, #7C3AED, #6D28D9)" }}
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="white" stroke="none"><polygon points="6 3 20 12 6 21 6 3" /></svg>
+                      Teach
+                    </Link>
+                    <Link
+                      href={`/teacher/units/${unit.id}/class/${classId}`}
+                      className="inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl border border-gray-200 text-text-secondary transition hover:bg-gray-50"
+                    >
+                      Manage
+                    </Link>
+                    <Link
+                      href={`/teacher/classes/${classId}/progress/${unit.id}`}
+                      className="inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl border border-gray-200 text-text-secondary transition hover:bg-gray-50"
+                    >
+                      Progress
+                    </Link>
+                    <Link
+                      href={`/teacher/classes/${classId}/grading/${unit.id}`}
+                      className="inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl border border-gray-200 text-text-secondary transition hover:bg-gray-50"
+                    >
+                      Grade
+                    </Link>
+                    <Link
+                      href={`/teacher/units/${unit.id}/class/${classId}/edit`}
+                      className="inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl border border-gray-200 text-text-secondary transition hover:bg-gray-50"
+                    >
+                      Edit
+                    </Link>
+                    <div className="ml-auto">
+                      <button
+                        onClick={() => onToggle(unit.id, false)}
+                        className="text-xs text-text-tertiary hover:text-red-500 transition px-2 py-1"
+                      >
+                        Deactivate
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Add Unit ── */}
+      {unassignedUnits.length > 0 && (
+        <AddUnitPicker units={unassignedUnits} onActivate={(unitId) => onToggle(unitId, true)} />
+      )}
+
+      {/* ── Unit History ── */}
+      {historyUnits.length > 0 && (
+        <div>
+          <button
+            onClick={() => setShowHistory(!showHistory)}
+            className="flex items-center gap-2 text-sm font-semibold text-text-secondary hover:text-text-primary transition mb-3"
+          >
+            <svg
+              width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+              strokeLinecap="round" strokeLinejoin="round"
+              className={`transition-transform duration-200 ${showHistory ? "rotate-90" : ""}`}
+            >
+              <path d="M9 18l6-6-6-6" />
+            </svg>
+            Unit History
+            <span className="text-xs font-normal text-text-tertiary">({historyUnits.length} past unit{historyUnits.length !== 1 ? "s" : ""})</span>
+          </button>
+
+          {showHistory && (
+            <div className="space-y-2 pl-1">
+              {historyUnits.map(({ unit }) => (
                 <div
                   key={unit.id}
-                  className="bg-white rounded-xl px-5 py-4 flex items-center justify-between"
+                  className="bg-gray-50 rounded-xl px-5 py-3 flex items-center justify-between border border-gray-100"
                 >
-                  <div>
-                    <p className="font-medium text-text-primary">{unit.title}</p>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-text-secondary">{unit.title}</p>
                     {unit.description && (
-                      <p className="text-sm text-text-secondary mt-0.5">
-                        {unit.description}
-                      </p>
+                      <p className="text-xs text-text-tertiary mt-0.5 line-clamp-1">{unit.description}</p>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    {isActive && (
-                      <>
-                        <Link
-                          href={`/teacher/classes/${classId}/settings/${unit.id}`}
-                          className="px-3 py-1.5 rounded-lg text-sm font-medium bg-gray-100 text-text-secondary hover:bg-gray-200 transition"
-                        >
-                          Settings
-                        </Link>
-                        <Link
-                          href={`/teacher/classes/${classId}/progress/${unit.id}`}
-                          className="px-3 py-1.5 rounded-lg text-sm font-medium bg-accent-blue/10 text-accent-blue hover:bg-accent-blue/20 transition"
-                        >
-                          View Progress
-                        </Link>
-                        <Link
-                          href={`/teacher/classes/${classId}/grading/${unit.id}`}
-                          className="px-3 py-1.5 rounded-lg text-sm font-medium bg-accent-purple/10 text-accent-purple hover:bg-accent-purple/20 transition"
-                        >
-                          Grade
-                        </Link>
-                      </>
-                    )}
-                    <button
-                      onClick={() => toggleUnit(unit.id, !isActive)}
-                      className={`px-4 py-1.5 rounded-lg text-sm font-medium transition ${
-                        isActive
-                          ? "bg-accent-green/10 text-accent-green hover:bg-accent-green/20"
-                          : "bg-gray-100 text-text-secondary hover:bg-gray-200"
-                      }`}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Link
+                      href={`/teacher/classes/${classId}/progress/${unit.id}`}
+                      className="text-xs text-text-tertiary hover:text-text-secondary transition px-2 py-1"
                     >
-                      {isActive ? "Active" : "Inactive"}
+                      View Progress
+                    </Link>
+                    <Link
+                      href={`/teacher/classes/${classId}/grading/${unit.id}`}
+                      className="text-xs text-text-tertiary hover:text-text-secondary transition px-2 py-1"
+                    >
+                      Grades
+                    </Link>
+                    <button
+                      onClick={() => onToggle(unit.id, true)}
+                      className="text-xs font-medium text-purple-600 hover:text-purple-700 transition px-2 py-1"
+                    >
+                      Reactivate
                     </button>
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </section>
-    </main>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Add Unit Picker — collapsible dropdown to assign new units
+// ---------------------------------------------------------------------------
+
+function AddUnitPicker({
+  units,
+  onActivate,
+}: {
+  units: Unit[];
+  onActivate: (unitId: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div>
+      <button
+        onClick={() => setOpen(!open)}
+        className="inline-flex items-center gap-1.5 text-sm font-semibold text-purple-600 hover:text-purple-700 transition px-1"
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+          <path d="M12 5v14m-7-7h14" />
+        </svg>
+        Add a unit to this class
+        <svg
+          width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+          strokeLinecap="round" strokeLinejoin="round"
+          className={`transition-transform duration-200 ${open ? "rotate-90" : ""}`}
+        >
+          <path d="M9 18l6-6-6-6" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="mt-2 space-y-1.5">
+          {units.map((unit) => (
+            <div
+              key={unit.id}
+              className="bg-white rounded-lg border border-gray-200 px-4 py-3 flex items-center justify-between hover:border-purple-200 transition"
+            >
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-text-primary">{unit.title}</p>
+                {unit.description && (
+                  <p className="text-xs text-text-tertiary mt-0.5 line-clamp-1">{unit.description}</p>
+                )}
+              </div>
+              <button
+                onClick={() => {
+                  onActivate(unit.id);
+                  setOpen(false);
+                }}
+                className="text-sm font-semibold text-purple-600 hover:text-purple-700 transition px-3 py-1.5 rounded-lg hover:bg-purple-50 shrink-0"
+              >
+                + Assign
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
