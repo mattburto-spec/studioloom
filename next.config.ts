@@ -18,6 +18,14 @@ const nextConfig: NextConfig = {
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
         ],
       },
+      // Auth API routes MUST NOT have Cache-Control: public — Vercel CDN strips
+      // Set-Cookie headers from "public" responses, breaking session cookies.
+      {
+        source: "/api/auth/:path*",
+        headers: [
+          { key: "Cache-Control", value: "private, no-cache, no-store, must-revalidate" },
+        ],
+      },
     ];
   },
   // Keep heavy server-only packages out of the webpack bundle
