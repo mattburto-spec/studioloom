@@ -110,8 +110,7 @@ CREATE POLICY "Students read own enrollments"
   ON class_students FOR SELECT
   USING (
     student_id IN (
-      SELECT s.id FROM students s
-      JOIN student_sessions ss ON ss.student_id = s.id
+      SELECT ss.student_id FROM student_sessions ss
       WHERE ss.expires_at > NOW()
     )
   );
