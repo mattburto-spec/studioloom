@@ -418,56 +418,60 @@ export default function SafetyBadgeTestPage({
                 );
               }
 
+              // Fallback to flat learn cards
+              if (learnCards.length > 0) {
+                return (
+                  <>
+                    <h2 className="text-lg font-semibold text-slate-900 mb-4">
+                      📚 Learn First{" "}
+                      <span className="text-sm font-normal text-slate-500">
+                        ({cardsViewed.size}/{learnCards.length} read)
+                      </span>
+                    </h2>
+                    <p className="text-slate-600 mb-4 text-sm">
+                      Review at least 60% of the learning materials before taking the
+                      test.
+                    </p>
+                    <div className="space-y-3">
+                      {learnCards.map((card, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => toggleCardView(idx)}
+                          className={`w-full text-left rounded-lg border-2 p-4 transition ${
+                            cardsViewed.has(idx)
+                              ? "border-indigo-300 bg-indigo-50"
+                              : "border-slate-200 hover:border-slate-300"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-start gap-3">
+                              <span className="text-2xl flex-shrink-0">
+                                {card.icon}
+                              </span>
+                              <div>
+                                <h3 className="font-semibold text-slate-900">
+                                  {card.title}
+                                </h3>
+                                {cardsViewed.has(idx) && (
+                                  <p className="text-slate-600 text-sm mt-2">
+                                    {card.content}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                            <span className="text-slate-400 flex-shrink-0">
+                              {cardsViewed.has(idx) ? "▼" : "▶"}
+                            </span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                );
+              }
+
               return null;
             })()}
-            ) : (
-              <>
-                <h2 className="text-lg font-semibold text-slate-900 mb-4">
-                  📚 Learn First{" "}
-                  <span className="text-sm font-normal text-slate-500">
-                    ({cardsViewed.size}/{learnCards.length} read)
-                  </span>
-                </h2>
-                <p className="text-slate-600 mb-4 text-sm">
-                  Review at least 60% of the learning materials before taking the
-                  test.
-                </p>
-                <div className="space-y-3">
-                  {learnCards.map((card, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => toggleCardView(idx)}
-                      className={`w-full text-left rounded-lg border-2 p-4 transition ${
-                        cardsViewed.has(idx)
-                          ? "border-indigo-300 bg-indigo-50"
-                          : "border-slate-200 hover:border-slate-300"
-                      }`}
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-start gap-3">
-                          <span className="text-2xl flex-shrink-0">
-                            {card.icon}
-                          </span>
-                          <div>
-                            <h3 className="font-semibold text-slate-900">
-                              {card.title}
-                            </h3>
-                            {cardsViewed.has(idx) && (
-                              <p className="text-slate-600 text-sm mt-2">
-                                {card.content}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                        <span className="text-slate-400 flex-shrink-0">
-                          {cardsViewed.has(idx) ? "▼" : "▶"}
-                        </span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
           </div>
 
           {/* Start button */}
