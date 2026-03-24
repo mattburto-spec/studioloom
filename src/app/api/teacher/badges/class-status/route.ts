@@ -95,13 +95,14 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Get students in this class
-    const { data: students } = await db
-      .from("students")
-      .select("id")
-      .eq("class_id", classId);
+    // Get students in this class via class_students junction (migration 041)
+    const { data: enrollments } = await db
+      .from("class_students")
+      .select("student_id")
+      .eq("class_id", classId)
+      .eq("is_active", true);
 
-    const studentIds = (students || []).map((s: { id: string }) => s.id);
+    const studentIds = (enrollments || []).map((e: { student_id: string }) => e.student_id);
     if (studentIds.length === 0) {
       return NextResponse.json({
         requirements: requirements.map((r: any) => ({

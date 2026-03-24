@@ -1018,6 +1018,24 @@ Units are now content templates assignable to multiple classes with per-class co
 - **Per-unit materials list**: Teacher can pre-assign recommended materials to a unit, students see a suggested shopping list when they reach C1
 - **Usage tracking over time**: Which materials get used most, which need restocking — useful for budget planning and ordering
 
+### Materials Planning & Purchase Lists
+- Each unit can have a **materials list** — teacher defines materials/consumables needed per student (e.g., "1x A3 foamboard, 2x dowel rods, hot glue sticks")
+- **Purchase list generator**: Given a unit (or set of units for a term/semester), expected student counts per class, and a configurable spare percentage (e.g., +10%), generate a consolidated purchase list
+- Scopes: per-unit, per-term, per-semester, per-year — teacher picks the time range and the system aggregates across all assigned class-units
+- Integrates with the existing unit content editor (materials list as a new section alongside lesson pages)
+- Connects to **Inventory & Materials Management** above — cross-reference purchase list against current stock to generate a "need to order" list
+- Export as CSV/PDF for procurement departments or school admin
+- Future: suggested materials based on unit type/activities (AI-assisted), supplier price lookups, budget tracking
+
+### AI Compliance Assistant
+- Teacher uploads compliance documents for their country/region's Design & Technology curriculum requirements (e.g., Australian Work Health & Safety Act, UK D&T Health & Safety guidelines, IB MYP safety requirements, local workshop regulations)
+- Documents are ingested into a **compliance knowledge base** (separate from the teaching knowledge base) using the existing 3-pass analysis pipeline
+- **Compliance checker**: Teacher asks natural language questions — "Do I need a risk assessment for laser cutting with Year 8?", "What PPE is required for soldering in Australia?", "What are the supervision ratios for woodwork?"
+- **Unit compliance scan**: AI reviews a unit's activities against uploaded compliance docs and flags potential gaps — "Lesson 4 involves soldering but no PPE requirement is mentioned", "Hot glue gun activity may require risk assessment under [regulation]"
+- **Per-country compliance profiles**: Teacher selects their jurisdiction(s), system applies the right regulatory lens
+- Integrates with **Safety Badge System** — compliance docs can auto-suggest which safety badges should be prerequisites for specific activities
+- Future: auto-generate risk assessments from unit activities, compliance update alerts when new regulations are uploaded, cross-school compliance sharing
+
 ---
 
 ## Cross-Cutting Concerns (address progressively across all phases)

@@ -40,7 +40,7 @@ interface StudentRow {
   id: string;
   username: string;
   display_name: string | null;
-  class_id: string;
+  class_id: string; // Resolved from class_students junction
 }
 
 interface ClassUnitRow {
@@ -101,11 +101,12 @@ export const GET = withErrorHandler("teacher/dashboard:GET", async (request: Nex
       .select("class_id, unit_id, nm_config, content_data, units!inner(id, title, content_data, nm_config)")
       .in("class_id", classIds)
       .eq("is_active", true),
-    // All students in teacher's classes
+    // All students in teacher's classes (via class_students junction — migration 041)
     supabase
-      .from("students")
-      .select("id, username, display_name, class_id")
-      .in("class_id", classIds),
+      .from("class_students")
+      .select("student_id, class_id, students(id, username, display_name)")
+      .in("class_id", classIds)
+      .eq("is_active", true),
     // All progress for students in these classes (no responses JSONB — just metadata)
     supabase
       .from("student_progress")
@@ -126,7 +127,15 @@ export const GET = withErrorHandler("teacher/dashboard:GET", async (request: Nex
   ]);
 
   const classUnits = (classUnitsRes.data || []) as unknown as ClassUnitRow[];
-  const students = (studentsRes.data || []) as StudentRow[];
+  // Map junction rows to StudentRow shape (class_students → students nested)
+  const students: StudentRow[] = ((studentsRes.data || []) as any[])
+    .filter((row: any) => row.students) // skip if nested student is null
+    .map((row: any) => ({
+      id: row.students.id,
+      username: row.students.username,
+      display_name: row.students.display_name,
+      class_id: row.class_id, // from junction, not from students table
+    }));
   const globalNmEnabled = !!(teacherProfileRes.data as { school_context?: { use_new_metrics?: boolean } } | null)?.school_context?.use_new_metrics;
 
   // Now fetch progress with actual student IDs (couldn't do in parallel above)

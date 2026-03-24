@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { nanoid } from "nanoid";
+import { BUILT_IN_BADGES } from "@/lib/safety/badge-definitions";
 
 function createSupabaseServer(request: NextRequest) {
   return createServerClient(
@@ -52,15 +53,41 @@ export async function POST(
     // Use admin client for write access
     const admin = createAdminClient();
 
-    // Verify badge exists
-    const { data: badgeExists, error: badgeError } = await admin
+    // Verify badge exists — check DB first, then auto-seed from BUILT_IN_BADGES if needed
+    const { data: badgeExists } = await admin
       .from("badges")
       .select("id")
       .eq("id", id)
-      .single();
+      .maybeSingle();
 
-    if (badgeError || !badgeExists) {
-      return NextResponse.json({ error: "Badge not found" }, { status: 404 });
+    if (!badgeExists) {
+      // Try to find in built-in badges and auto-seed to DB
+      const builtIn = BUILT_IN_BADGES.find(b => b.id === id || b.slug === id);
+      if (!builtIn) {
+        return NextResponse.json({ error: "Badge not found" }, { status: 404 });
+      }
+      // Auto-seed this built-in badge to the DB so FK constraints work
+      const { error: seedErr } = await admin.from("badges").upsert({
+        id: builtIn.id,
+        slug: builtIn.slug,
+        name: builtIn.name,
+        description: builtIn.description,
+        category: builtIn.category || "safety",
+        tier: builtIn.tier,
+        icon_name: builtIn.icon_name,
+        color: builtIn.color,
+        is_built_in: true,
+        pass_threshold: builtIn.pass_threshold,
+        expiry_months: builtIn.expiry_months || null,
+        retake_cooldown_minutes: builtIn.retake_cooldown_minutes,
+        question_count: builtIn.question_count,
+        question_pool: JSON.stringify(builtIn.question_pool),
+        learn_content: JSON.stringify(builtIn.learn_content),
+      }, { onConflict: "id" });
+      if (seedErr) {
+        console.error("[badges/[id]/assign] Auto-seed error:", seedErr);
+        return NextResponse.json({ error: "Failed to prepare badge" }, { status: 500 });
+      }
     }
 
     const results = {

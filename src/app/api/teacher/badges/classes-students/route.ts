@@ -52,13 +52,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ classes: [] });
     }
 
-    // Get students in those classes
+    // Get students in those classes via class_students junction (migration 041)
     const classIds = classes.map((c: { id: string }) => c.id);
-    const { data: students, error: studentError } = await admin
-      .from("students")
-      .select("id, display_name, class_id")
+    const { data: enrollments, error: studentError } = await admin
+      .from("class_students")
+      .select("student_id, class_id, students(id, display_name)")
       .in("class_id", classIds)
-      .order("display_name");
+      .eq("is_active", true);
 
     if (studentError) {
       console.error("[badges/classes-students] Students error:", studentError);
@@ -67,10 +67,11 @@ export async function GET(request: NextRequest) {
 
     // Group students by class
     const studentsByClass = new Map<string, Array<{ id: string; display_name: string }>>();
-    for (const s of students || []) {
-      const arr = studentsByClass.get(s.class_id) || [];
-      arr.push({ id: s.id, display_name: s.display_name });
-      studentsByClass.set(s.class_id, arr);
+    for (const row of (enrollments || []) as any[]) {
+      if (!row.students) continue;
+      const arr = studentsByClass.get(row.class_id) || [];
+      arr.push({ id: row.students.id, display_name: row.students.display_name });
+      studentsByClass.set(row.class_id, arr);
     }
 
     const result = classes.map((c: { id: string; name: string; code: string }) => ({

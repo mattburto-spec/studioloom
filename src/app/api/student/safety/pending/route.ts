@@ -46,22 +46,34 @@ export async function GET(request: NextRequest) {
   try {
     const db = createAdminClient();
 
-    // 1. Get student's class_id
-    const { data: student, error: studentErr } = await db
-      .from("students")
+    // 1. Get student's class(es) via class_students junction (migration 041)
+    const { data: enrollments, error: enrollErr } = await db
+      .from("class_students")
       .select("class_id")
-      .eq("id", studentId)
-      .single();
+      .eq("student_id", studentId)
+      .eq("is_active", true);
 
-    if (studentErr || !student) {
-      return NextResponse.json({ pending: [], earned: [] });
+    let studentClassIds: string[] = (enrollments || []).map((e: { class_id: string }) => e.class_id);
+
+    if (enrollErr || studentClassIds.length === 0) {
+      // Legacy fallback: try students.class_id
+      const { data: student } = await db
+        .from("students")
+        .select("class_id")
+        .eq("id", studentId)
+        .single();
+
+      if (!student?.class_id) {
+        return NextResponse.json({ pending: [], earned: [] });
+      }
+      studentClassIds = [student.class_id];
     }
 
-    // 2. Get unit IDs assigned to this class via class_units
+    // 2. Get unit IDs assigned to this student's classes via class_units
     const { data: classUnits } = await db
       .from("class_units")
       .select("unit_id")
-      .eq("class_id", student.class_id);
+      .in("class_id", studentClassIds);
 
     const unitIds = (classUnits || []).map((cu: { unit_id: string }) => cu.unit_id);
     if (unitIds.length === 0) {
@@ -86,11 +98,12 @@ export async function GET(request: NextRequest) {
       `)
       .in("unit_id", unitIds);
 
-    // Filter requirements: only those targeting this student's class (or all classes)
+    // Filter requirements: only those targeting this student's class(es) (or all classes)
     // and targeting this student (or all students)
+    const studentClassIdSet = new Set(studentClassIds);
     const requirements = (allRequirements || []).filter((req: any) => {
-      // class_id NULL = applies to all classes; otherwise must match student's class
-      if (req.class_id && req.class_id !== student.class_id) return false;
+      // class_id NULL = applies to all classes; otherwise must match one of student's classes
+      if (req.class_id && !studentClassIdSet.has(req.class_id)) return false;
       // target_student_ids NULL/empty = all students; otherwise must include this student
       if (req.target_student_ids && Array.isArray(req.target_student_ids) && req.target_student_ids.length > 0) {
         if (!req.target_student_ids.includes(studentId)) return false;
