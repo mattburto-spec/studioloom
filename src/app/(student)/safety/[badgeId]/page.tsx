@@ -333,7 +333,7 @@ export default function SafetyBadgeTestPage({
   if (loadingBadge) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="text-slate-500">Loading badge...</div>
+        <div className="text-gray-500">Loading badge...</div>
       </div>
     );
   }
@@ -341,7 +341,7 @@ export default function SafetyBadgeTestPage({
   if (!badge || !questions) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="text-slate-500">Badge not found</div>
+        <div className="text-gray-500">Badge not found</div>
       </div>
     );
   }
@@ -352,229 +352,223 @@ export default function SafetyBadgeTestPage({
     const builtIn = BUILT_IN_BADGES.find(b => b.id === badgeId || b.slug === badgeId);
     const richModule = builtIn ? MODULE_MAP[builtIn.slug] : undefined;
     const badgeColor = builtIn?.color || "#4F46E5";
+    let sectionNum = 0;
 
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col">
-        {/* ── Sticky top nav bar (matches lesson page) ── */}
+      <div className="min-h-screen bg-white">
+        {/* ── Sticky top nav bar (matches lesson page exactly) ── */}
         <div className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-100 shadow-sm">
-          <div className="max-w-5xl mx-auto px-4 py-2 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => router.push("/dashboard")}
-                className="flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 transition"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="15 18 9 12 15 6" />
-                </svg>
-                Dashboard
-              </button>
-              <span className="text-gray-300">|</span>
-              <span className="text-sm font-semibold text-gray-800 truncate max-w-[200px] sm:max-w-xs">
+          <div className="max-w-4xl mx-auto px-4 py-2 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-gray-700 truncate max-w-[50%]">
                 {badge.name}
               </span>
             </div>
-            <div className="flex items-center gap-3 text-xs text-gray-500">
-              <span className="hidden sm:inline">{badge.question_count} questions</span>
-              <span className="hidden sm:inline">•</span>
-              <span className="hidden sm:inline">{badge.pass_threshold}% to pass</span>
+            <button
+              onClick={() => router.push("/dashboard")}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 rounded-lg transition"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                <polyline points="9 22 9 12 15 12 15 22" />
+              </svg>
+              Dashboard
+            </button>
+          </div>
+        </div>
+
+        {/* ── Hero header — dark-to-color gradient (matches lesson page) ── */}
+        <div className="w-full" style={{ background: `linear-gradient(135deg, #1A1A2E 0%, ${badgeColor} 100%)` }}>
+          <div className="max-w-4xl mx-auto px-6 pt-6 pb-10">
+            <p className="text-sm text-white/70 font-medium mb-3 uppercase tracking-wider">
+              Safety Certification
+            </p>
+            <h1 className="text-4xl md:text-5xl font-extrabold text-white leading-tight">
+              {badge.name}
+            </h1>
+            <div className="flex items-center gap-2 mt-5 flex-wrap">
+              <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-white/20 text-white">
+                <span className="w-2 h-2 rounded-full bg-white/60" />
+                {badge.question_count} Questions
+              </span>
+              <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-white/20 text-white">
+                <span className="w-2 h-2 rounded-full bg-white/60" />
+                {badge.pass_threshold}% to Pass
+              </span>
+              <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-white/20 text-white">
+                <span className="w-2 h-2 rounded-full bg-white/60" />
+                ~{richModule ? richModule.estimated_minutes : Math.max(5, Math.round(badge.question_count * 2))} min
+              </span>
             </div>
           </div>
         </div>
 
-        {/* ── Hero header with badge color gradient ── */}
-        <div
-          className="relative overflow-hidden"
-          style={{
-            background: `linear-gradient(135deg, ${badgeColor}dd 0%, ${badgeColor}88 50%, ${badgeColor}44 100%)`,
-          }}
-        >
-          <div className="max-w-5xl mx-auto px-6 py-8 sm:py-10">
-            <div className="flex items-start gap-5">
-              <div className="flex-shrink-0 bg-white/20 backdrop-blur-sm rounded-2xl w-20 h-20 flex items-center justify-center">
-                <BadgeIcon iconName={badge.icon_name} size={44} color="white" />
-              </div>
-              <div className="min-w-0">
-                <h1 className="text-2xl sm:text-3xl font-bold text-white leading-tight">
-                  {badge.name}
-                </h1>
-                <p className="text-white/80 mt-2 text-sm sm:text-base leading-relaxed max-w-2xl">
-                  {badge.description}
-                </p>
-                {/* Stats strip */}
-                <div className="flex flex-wrap gap-3 mt-4">
-                  <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-white/20 text-white">
-                    <span className="w-2 h-2 rounded-full bg-white/60" />
-                    {badge.question_count} Questions
-                  </span>
-                  <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-white/20 text-white">
-                    <span className="w-2 h-2 rounded-full bg-white/60" />
-                    {badge.pass_threshold}% Pass
-                  </span>
-                  <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-white/20 text-white">
-                    <span className="w-2 h-2 rounded-full bg-white/60" />
-                    ~{richModule ? richModule.estimated_minutes : Math.max(5, Math.round(badge.question_count * 2))}min
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        {/* ── Main content — white background, same width as lesson page ── */}
+        <main className="max-w-4xl mx-auto px-6 py-10 pb-28">
 
-        {/* ── Main content area (wide, like lesson page) ── */}
-        <div className="flex-1">
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-            <div className="flex gap-6">
-              {/* ── Left sidebar: learning objectives (hidden on mobile) ── */}
-              {richModule && (
-                <aside className="hidden lg:block w-56 flex-shrink-0">
-                  <div className="sticky top-16">
-                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Learning Objectives</h3>
-                    <ol className="space-y-2">
-                      {richModule.learning_objectives.map((obj, i) => (
-                        <li key={i} className="flex items-start gap-2 text-xs text-gray-600">
-                          <span
-                            className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white mt-0.5"
-                            style={{ backgroundColor: badgeColor }}
-                          >
-                            {i + 1}
-                          </span>
-                          <span className="leading-relaxed">{obj}</span>
-                        </li>
-                      ))}
-                    </ol>
-                    <div className="mt-6 pt-4 border-t border-gray-200">
-                      <button
-                        onClick={handleStartQuiz}
-                        disabled={!canStartQuiz}
-                        className={`w-full py-2.5 px-4 rounded-lg text-sm font-semibold transition ${
-                          canStartQuiz
-                            ? "text-white hover:opacity-90 shadow-sm"
-                            : "bg-gray-200 text-gray-400 cursor-not-allowed"
-                        }`}
-                        style={canStartQuiz ? { backgroundColor: badgeColor } : undefined}
-                      >
-                        {canStartQuiz ? "Start Test →" : "Complete Learning"}
-                      </button>
-                    </div>
-                  </div>
-                </aside>
-              )}
+          {/* Description block */}
+          <p className="text-lg text-gray-700 leading-relaxed mb-2">
+            {badge.description}
+          </p>
 
-              {/* ── Main content column ── */}
-              <div className="flex-1 min-w-0">
-                {/* Learn section — Rich module, ModuleRenderer blocks, or fallback to old cards */}
-                <div className="mb-8 bg-white rounded-xl border border-gray-200/60 shadow-sm overflow-hidden">
-                  <div className="p-5 sm:p-6">
-                    {(() => {
-                      if (richModule) {
-                        return (
-                          <>
-                            <h2 className="text-lg font-semibold text-gray-900 mb-1">
-                              Interactive Learning — ~{richModule.estimated_minutes} min
-                            </h2>
-                            <p className="text-gray-500 mb-5 text-sm">
-                              {richModule.learning_objectives.length} learning objectives. Complete all sections to unlock the test.
-                            </p>
-                            <ModuleRenderer
-                              module={richModule}
-                              onModuleComplete={() => setModuleCompleted(true)}
-                              showProgress={true}
-                            />
-                          </>
-                        );
-                      }
-
-                      if (learningBlocks.length > 0) {
-                        return (
-                          <>
-                            <h2 className="text-lg font-semibold text-gray-900 mb-1">
-                              Learn First
-                            </h2>
-                            <p className="text-gray-500 mb-5 text-sm">
-                              Complete all learning modules before taking the test.
-                            </p>
-                            <ModuleRenderer
-                              blocks={learningBlocks}
-                              onModuleComplete={() => setModuleCompleted(true)}
-                              showProgress={true}
-                            />
-                          </>
-                        );
-                      }
-
-                      // Fallback to flat learn cards
-                      if (learnCards.length > 0) {
-                        return (
-                          <>
-                            <h2 className="text-lg font-semibold text-gray-900 mb-1">
-                              Learn First{" "}
-                              <span className="text-sm font-normal text-gray-400">
-                                ({cardsViewed.size}/{learnCards.length} read)
-                              </span>
-                            </h2>
-                            <p className="text-gray-500 mb-5 text-sm">
-                              Review at least 60% of the learning materials before taking the test.
-                            </p>
-                            <div className="space-y-3">
-                              {learnCards.map((card, idx) => (
-                                <button
-                                  key={idx}
-                                  onClick={() => toggleCardView(idx)}
-                                  className={`w-full text-left rounded-lg border-2 p-4 transition ${
-                                    cardsViewed.has(idx)
-                                      ? "border-indigo-300 bg-indigo-50"
-                                      : "border-gray-200 hover:border-gray-300"
-                                  }`}
-                                >
-                                  <div className="flex items-start justify-between">
-                                    <div className="flex items-start gap-3">
-                                      <span className="text-2xl flex-shrink-0">
-                                        {card.icon}
-                                      </span>
-                                      <div>
-                                        <h3 className="font-semibold text-gray-900">
-                                          {card.title}
-                                        </h3>
-                                        {cardsViewed.has(idx) && (
-                                          <p className="text-gray-600 text-sm mt-2">
-                                            {card.content}
-                                          </p>
-                                        )}
-                                      </div>
-                                    </div>
-                                    <span className="text-gray-400 flex-shrink-0">
-                                      {cardsViewed.has(idx) ? "▼" : "▶"}
-                                    </span>
-                                  </div>
-                                </button>
-                              ))}
-                            </div>
-                          </>
-                        );
-                      }
-
-                      return null;
-                    })()}
-                  </div>
-                </div>
-
-                {/* Start button (mobile / bottom of content) */}
-                <button
-                  onClick={handleStartQuiz}
-                  disabled={!canStartQuiz}
-                  className={`w-full py-3.5 px-4 rounded-xl font-semibold text-base transition shadow-sm ${
-                    canStartQuiz
-                      ? "text-white hover:opacity-90"
-                      : "bg-gray-200 text-gray-400 cursor-not-allowed"
-                  }`}
-                  style={canStartQuiz ? { backgroundColor: badgeColor } : undefined}
+          {/* Learning objectives (if rich module) */}
+          {richModule && richModule.learning_objectives.length > 0 && (
+            <>
+              {/* Divider */}
+              <div className="flex items-center gap-4 my-8">
+                <div className="flex-1 h-px bg-gray-200" />
+                <div
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-sm"
+                  style={{ backgroundColor: badgeColor }}
                 >
-                  {canStartQuiz ? "Start Test →" : "Complete Learning First"}
-                </button>
+                  {++sectionNum}
+                </div>
+                <div className="flex-1 h-px bg-gray-200" />
               </div>
+
+              <div
+                className="rounded-2xl p-6 md:p-8 mb-2"
+                style={{ backgroundColor: badgeColor + "12" }}
+              >
+                <h2 className="text-sm font-bold uppercase tracking-widest mb-4" style={{ color: badgeColor }}>
+                  Learning Objectives
+                </h2>
+                <ol className="space-y-3">
+                  {richModule.learning_objectives.map((obj, i) => (
+                    <li key={i} className="flex items-start gap-3">
+                      <span
+                        className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white mt-0.5"
+                        style={{ backgroundColor: badgeColor }}
+                      >
+                        {i + 1}
+                      </span>
+                      <span className="text-gray-700 leading-relaxed">{obj}</span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            </>
+          )}
+
+          {/* Divider before learning content */}
+          <div className="flex items-center gap-4 my-8">
+            <div className="flex-1 h-px bg-gray-200" />
+            <div
+              className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-sm"
+              style={{ backgroundColor: badgeColor }}
+            >
+              {++sectionNum}
             </div>
+            <div className="flex-1 h-px bg-gray-200" />
           </div>
-        </div>
+
+          {/* Learn section — Rich module, ModuleRenderer blocks, or fallback to old cards */}
+          {(() => {
+            if (richModule) {
+              return (
+                <div className="mb-8">
+                  <h2 className="text-lg font-semibold text-gray-900 mb-1">
+                    Interactive Learning
+                  </h2>
+                  <p className="text-gray-500 mb-6 text-sm leading-relaxed">
+                    {richModule.learning_objectives.length} learning objectives — complete all sections to unlock the test.
+                  </p>
+                  <ModuleRenderer
+                    module={richModule}
+                    onModuleComplete={() => setModuleCompleted(true)}
+                    showProgress={true}
+                  />
+                </div>
+              );
+            }
+
+            if (learningBlocks.length > 0) {
+              return (
+                <div className="mb-8">
+                  <h2 className="text-lg font-semibold text-gray-900 mb-1">
+                    Learn First
+                  </h2>
+                  <p className="text-gray-500 mb-6 text-sm leading-relaxed">
+                    Complete all learning modules before taking the test.
+                  </p>
+                  <ModuleRenderer
+                    blocks={learningBlocks}
+                    onModuleComplete={() => setModuleCompleted(true)}
+                    showProgress={true}
+                  />
+                </div>
+              );
+            }
+
+            // Fallback to flat learn cards
+            if (learnCards.length > 0) {
+              return (
+                <div className="mb-8">
+                  <h2 className="text-lg font-semibold text-gray-900 mb-1">
+                    Learn First{" "}
+                    <span className="text-sm font-normal text-gray-400">
+                      ({cardsViewed.size}/{learnCards.length} read)
+                    </span>
+                  </h2>
+                  <p className="text-gray-500 mb-6 text-sm leading-relaxed">
+                    Review at least 60% of the learning materials before taking the test.
+                  </p>
+                  <div className="space-y-3">
+                    {learnCards.map((card, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => toggleCardView(idx)}
+                        className={`w-full text-left rounded-lg border-2 p-4 transition ${
+                          cardsViewed.has(idx)
+                            ? "border-opacity-40 bg-opacity-10"
+                            : "border-gray-200 hover:border-gray-300"
+                        }`}
+                        style={cardsViewed.has(idx) ? { borderColor: badgeColor, backgroundColor: badgeColor + "10" } : undefined}
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-start gap-3">
+                            <span className="text-2xl flex-shrink-0">
+                              {card.icon}
+                            </span>
+                            <div>
+                              <h3 className="font-semibold text-gray-900">
+                                {card.title}
+                              </h3>
+                              {cardsViewed.has(idx) && (
+                                <p className="text-gray-600 text-sm mt-2 leading-relaxed">
+                                  {card.content}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          <span className="text-gray-400 flex-shrink-0">
+                            {cardsViewed.has(idx) ? "▼" : "▶"}
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            }
+
+            return null;
+          })()}
+
+          {/* Start Test button */}
+          <button
+            onClick={handleStartQuiz}
+            disabled={!canStartQuiz}
+            className={`w-full py-3.5 px-4 rounded-xl font-semibold text-base transition shadow-sm ${
+              canStartQuiz
+                ? "text-white hover:opacity-90"
+                : "bg-gray-200 text-gray-400 cursor-not-allowed"
+            }`}
+            style={canStartQuiz ? { backgroundColor: badgeColor } : undefined}
+          >
+            {canStartQuiz ? "Start Test →" : "Complete Learning First"}
+          </button>
+        </main>
       </div>
     );
   }
@@ -583,19 +577,23 @@ export default function SafetyBadgeTestPage({
   if (screen === "quiz") {
     const question = questions[currentQuestion];
     if (!question) return null;
+    const quizBadgeColor = BUILT_IN_BADGES.find(b => b.id === badgeId || b.slug === badgeId)?.color || "#4F46E5";
 
     const progress = ((currentQuestion + 1) / questions.length) * 100;
 
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-white">
         {/* Progress bar */}
-        <div className="sticky top-0 z-10 border-b border-gray-200 bg-white/95 backdrop-blur-sm shadow-sm">
+        <div className="sticky top-0 z-50 border-b border-gray-100 bg-white/95 backdrop-blur-sm shadow-sm">
           <div className="max-w-4xl mx-auto px-6 py-4">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-semibold text-slate-900">
+              <span className="text-sm font-semibold text-gray-900">
                 Question {currentQuestion + 1} of {questions.length}
               </span>
-              <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-1 rounded-full">
+              <span
+                className="text-xs font-medium px-2 py-1 rounded-full"
+                style={{ color: quizBadgeColor, backgroundColor: quizBadgeColor + "15" }}
+              >
                 {Math.round(progress)}% complete
               </span>
             </div>
@@ -607,9 +605,9 @@ export default function SafetyBadgeTestPage({
                   className="flex-1 h-2 rounded-full transition-all duration-300"
                   style={{
                     background: idx < currentQuestion
-                      ? "#6366F1"
+                      ? quizBadgeColor
                       : idx === currentQuestion
-                      ? "#818CF8"
+                      ? quizBadgeColor + "80"
                       : "#E2E8F0",
                   }}
                 />
@@ -623,7 +621,7 @@ export default function SafetyBadgeTestPage({
           {/* Question meta */}
           <div className="flex items-center gap-2 mb-6 justify-between">
             <div className="flex items-center gap-2">
-              <span className="px-2 py-1 bg-slate-100 rounded text-xs font-medium text-slate-600">
+              <span className="px-2 py-1 bg-gray-100 rounded text-xs font-medium text-gray-600">
                 {question.topic}
               </span>
               <span className={`px-2 py-1 rounded text-xs font-medium ${
@@ -644,7 +642,7 @@ export default function SafetyBadgeTestPage({
           </div>
 
           {/* Question prompt */}
-          <h2 className="text-xl font-semibold text-slate-900 mb-8">
+          <h2 className="text-xl font-semibold text-gray-900 mb-8">
             {question.prompt}
           </h2>
 
@@ -659,23 +657,23 @@ export default function SafetyBadgeTestPage({
                     onClick={() => setCurrentAnswer(option)}
                     className={`w-full text-left rounded-lg border-2 p-4 transition ${
                       currentAnswer === option
-                        ? "border-indigo-600 bg-indigo-50"
-                        : "border-slate-200 hover:border-slate-300"
+                        ? "border-purple-600 bg-purple-50"
+                        : "border-gray-200 hover:border-gray-300"
                     }`}
                   >
                     <div className="flex items-center gap-3">
                       <div
                         className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
                           currentAnswer === option
-                            ? "border-indigo-600 bg-indigo-600"
-                            : "border-slate-300"
+                            ? "border-purple-600 bg-purple-600"
+                            : "border-gray-300"
                         }`}
                       >
                         {currentAnswer === option && (
                           <div className="w-2 h-2 bg-white rounded-full" />
                         )}
                       </div>
-                      <span className="text-slate-900">{option}</span>
+                      <span className="text-gray-900">{option}</span>
                     </div>
                   </button>
                 ))}
@@ -691,8 +689,8 @@ export default function SafetyBadgeTestPage({
                     onClick={() => setCurrentAnswer(val)}
                     className={`rounded-lg border-2 p-6 font-semibold text-lg transition ${
                       currentAnswer === val
-                        ? "border-indigo-600 bg-indigo-50 text-indigo-700"
-                        : "border-slate-200 hover:border-slate-300 text-slate-900"
+                        ? "border-purple-600 bg-purple-50 text-purple-700"
+                        : "border-gray-200 hover:border-gray-300 text-gray-900"
                     }`}
                   >
                     {val === "true" ? "True ✓" : "False ✗"}
@@ -710,23 +708,23 @@ export default function SafetyBadgeTestPage({
                     onClick={() => setCurrentAnswer(option)}
                     className={`w-full text-left rounded-lg border-2 p-4 transition ${
                       currentAnswer === option
-                        ? "border-indigo-600 bg-indigo-50"
-                        : "border-slate-200 hover:border-slate-300"
+                        ? "border-purple-600 bg-purple-50"
+                        : "border-gray-200 hover:border-gray-300"
                     }`}
                   >
                     <div className="flex items-center gap-3">
                       <div
                         className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
                           currentAnswer === option
-                            ? "border-indigo-600 bg-indigo-600"
-                            : "border-slate-300"
+                            ? "border-purple-600 bg-purple-600"
+                            : "border-gray-300"
                         }`}
                       >
                         {currentAnswer === option && (
                           <div className="w-2 h-2 bg-white rounded-full" />
                         )}
                       </div>
-                      <span className="text-slate-900">{option}</span>
+                      <span className="text-gray-900">{option}</span>
                     </div>
                   </button>
                 ))}
@@ -736,7 +734,7 @@ export default function SafetyBadgeTestPage({
             {/* Sequence (order items) */}
             {question.type === "sequence" && (
               <div className="space-y-3">
-                <p className="text-sm text-slate-600 mb-4">
+                <p className="text-sm text-gray-600 mb-4">
                   Order these steps from first to last:
                 </p>
                 {question.options && (
@@ -747,8 +745,8 @@ export default function SafetyBadgeTestPage({
                         className={`flex items-center gap-2 p-3 rounded-lg border-2 ${
                           Array.isArray(currentAnswer) &&
                           currentAnswer.includes(idx)
-                            ? "border-indigo-600 bg-indigo-50"
-                            : "border-slate-200"
+                            ? "border-purple-600 bg-purple-50"
+                            : "border-gray-200"
                         }`}
                       >
                         <input
@@ -771,7 +769,7 @@ export default function SafetyBadgeTestPage({
                           }}
                           className="w-4 h-4 rounded"
                         />
-                        <span className="text-slate-900">{option}</span>
+                        <span className="text-gray-900">{option}</span>
                       </div>
                     ))}
                   </div>
@@ -783,14 +781,14 @@ export default function SafetyBadgeTestPage({
             {question.type === "match" && question.match_pairs && (
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm font-medium text-slate-600 mb-3">
+                  <p className="text-sm font-medium text-gray-600 mb-3">
                     Left
                   </p>
                   <div className="space-y-2">
                     {question.match_pairs.map((pair, idx) => (
                       <div
                         key={idx}
-                        className="p-3 bg-slate-50 rounded-lg text-sm text-slate-900"
+                        className="p-3 bg-gray-50 rounded-lg text-sm text-gray-900"
                       >
                         {pair.left}
                       </div>
@@ -798,7 +796,7 @@ export default function SafetyBadgeTestPage({
                   </div>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-slate-600 mb-3">
+                  <p className="text-sm font-medium text-gray-600 mb-3">
                     Select Match
                   </p>
                   <div className="space-y-2">
@@ -808,8 +806,8 @@ export default function SafetyBadgeTestPage({
                         onClick={() => setCurrentAnswer(idx.toString())}
                         className={`w-full text-left p-3 rounded-lg border-2 text-sm transition ${
                           currentAnswer === idx.toString()
-                            ? "border-indigo-600 bg-indigo-50 text-indigo-700"
-                            : "border-slate-200 hover:border-slate-300 text-slate-900"
+                            ? "border-purple-600 bg-purple-50 text-purple-700"
+                            : "border-gray-200 hover:border-gray-300 text-gray-900"
                         }`}
                       >
                         {pair.right}
@@ -848,10 +846,10 @@ export default function SafetyBadgeTestPage({
 
               {!feedbackCorrect && (
                 <div className="mt-4 p-3 bg-white rounded border border-red-100">
-                  <p className="text-xs font-medium text-slate-600 mb-2">
+                  <p className="text-xs font-medium text-gray-600 mb-2">
                     Correct answer:
                   </p>
-                  <p className="text-sm font-semibold text-slate-900">
+                  <p className="text-sm font-semibold text-gray-900">
                     {Array.isArray(question.correct_answer)
                       ? (question.correct_answer as number[]).map(i => question.options?.[i]).filter(Boolean).join(" → ") ||
                         JSON.stringify(question.correct_answer)
@@ -876,8 +874,8 @@ export default function SafetyBadgeTestPage({
                 }
                 className={`w-full py-3 px-4 rounded-lg font-semibold transition ${
                   currentAnswer !== null && !(Array.isArray(currentAnswer) && currentAnswer.length === 0) && !submitting
-                    ? "bg-indigo-600 text-white hover:bg-indigo-700"
-                    : "bg-slate-200 text-slate-500 cursor-not-allowed"
+                    ? "bg-purple-600 text-white hover:bg-purple-700"
+                    : "bg-gray-200 text-gray-500 cursor-not-allowed"
                 }`}
               >
                 {submitting ? "Submitting..." : "Check Answer"}
@@ -886,7 +884,7 @@ export default function SafetyBadgeTestPage({
               <button
                 onClick={handleContinueAfterFeedback}
                 disabled={submitting}
-                className="w-full py-3 px-4 rounded-lg font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition"
+                className="w-full py-3 px-4 rounded-lg font-semibold bg-purple-600 text-white hover:bg-purple-700 transition"
               >
                 {currentQuestion === questions.length - 1
                   ? "See Results →"
@@ -931,7 +929,7 @@ export default function SafetyBadgeTestPage({
             {confettiPieces.map((piece) => (
               <div
                 key={piece.id}
-                className="absolute w-2 h-2 bg-indigo-600 rounded-full animate-pulse"
+                className="absolute w-2 h-2 bg-purple-600 rounded-full animate-pulse"
                 style={{
                   left: `${piece.left}%`,
                   top: "-10px",
@@ -952,7 +950,7 @@ export default function SafetyBadgeTestPage({
                   <div className="text-6xl font-bold text-green-600 mb-2">
                     🎉
                   </div>
-                  <h1 className="text-3xl font-bold text-slate-900">
+                  <h1 className="text-3xl font-bold text-gray-900">
                     You Passed!
                   </h1>
                 </>
@@ -961,7 +959,7 @@ export default function SafetyBadgeTestPage({
                   <div className="text-6xl font-bold text-amber-600 mb-2">
                     📊
                   </div>
-                  <h1 className="text-3xl font-bold text-slate-900">
+                  <h1 className="text-3xl font-bold text-gray-900">
                     Not Quite There
                   </h1>
                 </>
@@ -969,19 +967,19 @@ export default function SafetyBadgeTestPage({
             </div>
 
             {/* Big score circle */}
-            <div className="inline-flex items-center justify-center w-32 h-32 rounded-full border-4 border-indigo-600 bg-indigo-50 mb-6">
+            <div className="inline-flex items-center justify-center w-32 h-32 rounded-full border-4 border-purple-600 bg-purple-50 mb-6">
               <div className="text-center">
-                <div className="text-5xl font-bold text-indigo-600">
+                <div className="text-5xl font-bold text-purple-600">
                   {score}%
                 </div>
-                <div className="text-sm text-slate-600 mt-1">
+                <div className="text-sm text-gray-600 mt-1">
                   {correct}/{total}
                 </div>
               </div>
             </div>
 
             {/* Pass threshold info */}
-            <p className="text-slate-600 mb-4">
+            <p className="text-gray-600 mb-4">
               You needed {badge.pass_threshold}% to pass
             </p>
 
@@ -1011,13 +1009,13 @@ export default function SafetyBadgeTestPage({
           {/* Results breakdown */}
           <div className="mb-8">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-slate-900">
+              <h2 className="text-lg font-semibold text-gray-900">
                 {reviewMode ? "Your Mistakes" : "Question Breakdown"}
               </h2>
               {!passed && mistakeIndices.length > 0 && !reviewMode && (
                 <button
                   onClick={() => setReviewMode(true)}
-                  className="text-sm font-medium text-indigo-600 hover:text-indigo-700 underline"
+                  className="text-sm font-medium text-purple-600 hover:text-purple-700 underline"
                 >
                   Review Mistakes ({mistakeIndices.length})
                 </button>
@@ -1025,7 +1023,7 @@ export default function SafetyBadgeTestPage({
               {reviewMode && (
                 <button
                   onClick={() => setReviewMode(false)}
-                  className="text-sm font-medium text-indigo-600 hover:text-indigo-700 underline"
+                  className="text-sm font-medium text-purple-600 hover:text-purple-700 underline"
                 >
                   View All
                 </button>
@@ -1050,7 +1048,7 @@ export default function SafetyBadgeTestPage({
                         {result.correct ? "✓" : "✗"}
                       </span>
                       <div className="flex-1">
-                        <p className="font-medium text-slate-900">
+                        <p className="font-medium text-gray-900">
                           Question {actualIdx + 1}: {result.prompt.substring(0, 80)}
                           {result.prompt.length > 80 ? "..." : ""}
                         </p>
@@ -1065,10 +1063,10 @@ export default function SafetyBadgeTestPage({
                         </p>
                         {!result.correct && result.correct_answer && (
                           <div className="mt-3 p-2 bg-white rounded text-sm border border-red-100">
-                            <p className="text-xs font-medium text-slate-600 mb-1">
+                            <p className="text-xs font-medium text-gray-600 mb-1">
                               Correct answer:
                             </p>
-                            <p className="font-semibold text-slate-900">
+                            <p className="font-semibold text-gray-900">
                               {result.correct_answer}
                             </p>
                           </div>
@@ -1085,14 +1083,14 @@ export default function SafetyBadgeTestPage({
           <div className="flex gap-3">
             <button
               onClick={() => router.push("/dashboard")}
-              className="flex-1 py-3 px-4 rounded-lg font-semibold text-slate-900 border-2 border-slate-200 hover:border-slate-300 transition"
+              className="flex-1 py-3 px-4 rounded-lg font-semibold text-gray-900 border-2 border-gray-200 hover:border-gray-300 transition"
             >
               ← Back to Dashboard
             </button>
             {!passed && (
               <button
                 onClick={() => router.push(`/safety/${badgeId}`)}
-                className="flex-1 py-3 px-4 rounded-lg font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition"
+                className="flex-1 py-3 px-4 rounded-lg font-semibold bg-purple-600 text-white hover:bg-purple-700 transition"
               >
                 Retake Test →
               </button>
