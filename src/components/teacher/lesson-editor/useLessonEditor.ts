@@ -8,7 +8,8 @@ import {
 } from "react";
 import { useAutoSave } from "./useAutoSave";
 import { UndoManager } from "./UndoManager";
-import type { UnitContentData, PageContent } from "@/types";
+import { normalizeContentData } from "@/lib/unit-adapter";
+import type { UnitContentData, UnitContentDataV2, PageContent } from "@/types";
 
 interface UseLessonEditorProps {
   unitId: string;
@@ -86,7 +87,9 @@ export function useLessonEditor({
         }
 
         const data = await response.json();
-        const loadedContent = data.content as UnitContentData;
+        // Normalize all content versions (v1/v2/v3/v4) to a consistent format with .pages array
+        const normalized = normalizeContentData(data.content) as UnitContentDataV2;
+        const loadedContent: UnitContentData = normalized;
 
         setContent(loadedContent);
         setIsFork(data.isForked || false);
@@ -95,7 +98,7 @@ export function useLessonEditor({
         undoManagerRef.current.push(loadedContent);
 
         // Auto-select first page
-        if (loadedContent.pages && loadedContent.pages.length > 0) {
+        if (normalized.pages && normalized.pages.length > 0) {
           setSelectedPageIndex(0);
         }
 
