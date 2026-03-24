@@ -91,46 +91,22 @@ export default function SafetyBadgeTestPage({
     'general-workshop-safety': GENERAL_WORKSHOP_MODULE,
   };
 
-  // Load badge data
+  // Load badge data — try API first, fall back to BUILT_IN_BADGES
   useEffect(() => {
     async function loadBadge() {
       if (!student) return;
+
+      // Always look up built-in badge for content
+      const builtIn = BUILT_IN_BADGES.find(b => b.id === badgeId || b.slug === badgeId);
+
       try {
-        const res = await fetch(
-          `/api/student/safety/badges/${badgeId}`
-        );
+        const res = await fetch(`/api/student/safety/badges/${badgeId}`);
         if (res.ok) {
           const data = await res.json();
           setBadge(data.badge);
 
-          // Try to find the built-in badge definition for richer content
-          const builtIn = BUILT_IN_BADGES.find(b => b.id === badgeId || b.slug === badgeId);
-          if (builtIn) {
-            setLearnCards(builtIn.learn_content || []);
-            // Use built-in badge data for learning blocks
-            const badgeObj = {
-              learning_blocks: undefined,
-              learn_content: builtIn.learn_content,
-            };
-            const blocks = getBlocksFromBadge(badgeObj);
-            setLearningBlocks(blocks);
-            setQuestions(builtIn.question_pool || []);
-          } else {
-            setLearnCards(data.learnContent || []);
-            const badgeObj = {
-              learning_blocks: data.learningBlocks,
-              learn_content: data.learnContent,
-            };
-            const blocks = getBlocksFromBadge(badgeObj);
-            setLearningBlocks(blocks);
-            setQuestions(data.questions || []);
-          }
-
           // Check if already earned or on cooldown
-          if (
-            data.studentStatus === "earned" ||
-            data.studentStatus === "cooldown"
-          ) {
+          if (data.studentStatus === "earned" || data.studentStatus === "cooldown") {
             setScreen("results");
             setResults({
               alreadyEarned: data.studentStatus === "earned",
@@ -138,18 +114,39 @@ export default function SafetyBadgeTestPage({
               expiresAt: data.expiresAt,
             });
           }
-        } else {
-          router.push("/safety");
         }
       } catch (err) {
-        console.error("Error loading badge:", err);
-        router.push("/safety");
-      } finally {
-        setLoadingBadge(false);
+        console.error("Error loading badge from API:", err);
       }
+
+      // Use built-in badge for content (learn cards, questions, badge metadata)
+      if (builtIn) {
+        if (!badge) {
+          setBadge({
+            id: builtIn.id,
+            name: builtIn.name,
+            description: builtIn.description,
+            icon_name: builtIn.icon_name,
+            pass_threshold: builtIn.pass_threshold,
+            question_count: builtIn.question_count,
+            expiry_months: builtIn.expiry_months,
+          });
+        }
+        setLearnCards(builtIn.learn_content || []);
+        const blocks = getBlocksFromBadge({ learn_content: builtIn.learn_content });
+        setLearningBlocks(blocks);
+        setQuestions(builtIn.question_pool || []);
+      } else if (!badge) {
+        // Not in DB and not built-in — redirect
+        router.push("/safety");
+        return;
+      }
+
+      setLoadingBadge(false);
     }
     loadBadge();
-  }, [student, badgeId, router]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [student, badgeId]);
 
   // Track card views
   const toggleCardView = useCallback((index: number) => {

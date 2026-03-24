@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useStudent } from "../student-context";
+import { BUILT_IN_BADGES } from "@/lib/safety/badge-definitions";
 
 interface Badge {
   id: string;
@@ -25,31 +26,55 @@ interface Badge {
 export default function SafetyBadgesPage() {
   const router = useRouter();
   const { student, isLoading: studentLoading } = useStudent();
-  const [badges, setBadges] = useState<Badge[]>([]);
+  const [statusMap, setStatusMap] = useState<Record<string, { status: string; earned_at?: string; expires_at?: string; cooldown_until?: string }>>({});
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  // Fetch badges on mount
+  // Fetch student status for badges (optional — built-in badges always show)
   useEffect(() => {
-    async function loadBadges() {
+    async function loadStatuses() {
       if (!student) return;
       try {
         const res = await fetch("/api/student/safety/badges");
         if (res.ok) {
           const data = await res.json();
-          setBadges(data.badges || []);
-        } else {
-          setError("Failed to load badges");
+          const map: Record<string, any> = {};
+          for (const b of (data.badges || [])) {
+            map[b.id] = { status: b.student_status, earned_at: b.earned_at, expires_at: b.expires_at, cooldown_until: b.cooldown_until };
+            if (b.slug) map[b.slug] = map[b.id];
+          }
+          setStatusMap(map);
         }
       } catch (err) {
-        console.error("Error loading badges:", err);
-        setError("Failed to load badges");
+        console.error("Error loading badge statuses:", err);
       } finally {
         setLoading(false);
       }
     }
-    loadBadges();
+    loadStatuses();
   }, [student]);
+
+  // Merge built-in badges with student status
+  const badges: Badge[] = useMemo(() => {
+    return BUILT_IN_BADGES.map((b) => {
+      const st = statusMap[b.id] || statusMap[b.slug] || { status: "not_started" };
+      return {
+        id: b.slug,
+        name: b.name,
+        description: b.description,
+        slug: b.slug,
+        category: b.category,
+        tier: b.tier,
+        color: b.color,
+        icon_name: b.icon_name,
+        pass_threshold: b.pass_threshold,
+        question_count: b.question_count,
+        student_status: (st.status || "not_started") as Badge["student_status"],
+        earned_at: st.earned_at,
+        expires_at: st.expires_at,
+        cooldown_until: st.cooldown_until,
+      };
+    });
+  }, [statusMap]);
 
   // Group badges by tier and category
   const groupedBadges = useMemo(() => {
@@ -116,24 +141,6 @@ export default function SafetyBadgesPage() {
     );
   }
 
-  if (error) {
-    return (
-      <div className="min-h-screen bg-white p-6">
-        <div className="max-w-4xl mx-auto">
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
-            {error}
-          </div>
-          <Link
-            href="/dashboard"
-            className="mt-4 inline-block px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
-          >
-            Back to Dashboard
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-white">
       {/* Header */}
@@ -161,9 +168,10 @@ export default function SafetyBadgesPage() {
               <div key={tier}>
                 <h2 className="text-lg font-semibold text-slate-900 mb-4">
                   {tier === 1 && "🟢 Tier 1 — Foundations"}
-                  {tier === 2 && "🔵 Tier 2 — Intermediate"}
+                  {tier === 2 && "🔵 Tier 2 — Specialty"}
                   {tier === 3 && "🟣 Tier 3 — Advanced"}
-                  {tier > 3 && `Tier ${tier}`}
+                  {tier === 4 && "🟠 Tier 4 — Expert"}
+                  {tier > 4 && `Tier ${tier}`}
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {groupedBadges[tier]?.map((badge) => {

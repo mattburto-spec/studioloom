@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import type { Badge, BadgeTier } from "@/types";
+import type { BadgeTier } from "@/types";
+import { BUILT_IN_BADGES } from "@/lib/safety/badge-definitions";
+import type { BadgeDefinition } from "@/lib/safety/types";
 
 // ---------------------------------------------------------------------------
 // Badge Icon — maps icon_name to inline SVG
@@ -59,51 +61,10 @@ const CATEGORY_STYLES: Record<string, { bg: string; color: string; border: strin
 // ---------------------------------------------------------------------------
 
 export default function SafetyBadgesPage() {
-  const [badges, setBadges] = useState<Badge[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [isSeedLoading, setIsSeedLoading] = useState(false);
+  const badges: BadgeDefinition[] = BUILT_IN_BADGES;
   const [search, setSearch] = useState("");
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [filterTier, setFilterTier] = useState<string>("all");
-
-  useEffect(() => {
-    const fetchBadges = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
-        const response = await fetch("/api/teacher/badges");
-        if (!response.ok) throw new Error("Failed to load badges");
-        const data = await response.json();
-        setBadges(data.badges || []);
-      } catch (err) {
-        console.error("[SafetyBadgesPage] Fetch error:", err);
-        setError(err instanceof Error ? err.message : "Failed to load badges");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchBadges();
-  }, []);
-
-  const handleSeedBadges = async () => {
-    try {
-      setIsSeedLoading(true);
-      setError(null);
-      const response = await fetch("/api/teacher/badges/seed", { method: "POST" });
-      if (!response.ok) throw new Error("Failed to seed badges");
-      const refreshResponse = await fetch("/api/teacher/badges");
-      if (refreshResponse.ok) {
-        const refreshData = await refreshResponse.json();
-        setBadges(refreshData.badges || []);
-      }
-    } catch (err) {
-      console.error("[SafetyBadgesPage] Seed error:", err);
-      setError(err instanceof Error ? err.message : "Failed to seed badges");
-    } finally {
-      setIsSeedLoading(false);
-    }
-  };
 
   // Filtering
   const filtered = badges.filter((b) => {
@@ -129,8 +90,6 @@ export default function SafetyBadgesPage() {
   const safetyCount = badges.filter((b) => b.category === "safety").length;
   const skillCount = badges.filter((b) => b.category === "skill").length;
   const softwareCount = badges.filter((b) => b.category === "software").length;
-  const hasBadges = badges.length > 0;
-
   return (
     <main className="max-w-6xl mx-auto px-4 py-8">
       {/* Header */}
@@ -140,15 +99,6 @@ export default function SafetyBadgesPage() {
           <p className="text-gray-500 mt-1">Manage workshop certifications, safety tests, and skill badges</p>
         </div>
         <div className="flex items-center gap-2">
-          {hasBadges && !isLoading && (
-            <button
-              onClick={handleSeedBadges}
-              disabled={isSeedLoading}
-              className="inline-flex items-center gap-1.5 px-4 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-50 transition disabled:opacity-50"
-            >
-              {isSeedLoading ? "Seeding..." : "Seed More"}
-            </button>
-          )}
           <Link
             href="/teacher/safety/create"
             className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white rounded-xl shadow-md hover:shadow-lg hover:opacity-90 transition-all"
@@ -244,53 +194,8 @@ export default function SafetyBadgesPage() {
         </div>
       </div>
 
-      {/* Error */}
-      {error && !isLoading && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-2xl">
-          <p className="text-red-700 text-sm font-medium">Error: {error}</p>
-        </div>
-      )}
-
-      {/* Loading */}
-      {isLoading && (
-        <div className="space-y-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="bg-white rounded-2xl border border-gray-100 animate-pulse h-20" />
-          ))}
-        </div>
-      )}
-
-      {/* Empty */}
-      {!isLoading && !hasBadges && (
-        <div className="bg-white rounded-2xl p-12 text-center border border-gray-100">
-          <div className="w-16 h-16 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: "#F3E8FF" }}>
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
-          </div>
-          <p className="text-gray-700 text-lg font-semibold">No badges yet</p>
-          <p className="text-gray-400 text-sm mt-1 max-w-sm mx-auto">
-            Get started by seeding the built-in safety and skill badges, or create your own.
-          </p>
-          <div className="flex items-center justify-center gap-3 mt-5">
-            <button
-              onClick={handleSeedBadges}
-              disabled={isSeedLoading}
-              className="px-5 py-2.5 text-sm font-semibold text-white rounded-xl disabled:opacity-50"
-              style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)" }}
-            >
-              {isSeedLoading ? "Seeding..." : "Seed Built-in Badges"}
-            </button>
-            <Link
-              href="/teacher/safety/create"
-              className="px-5 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50"
-            >
-              Create Custom
-            </Link>
-          </div>
-        </div>
-      )}
-
       {/* Badge list by tier */}
-      {!isLoading && hasBadges && (
+      {(
         <div className="space-y-8">
           {([1, 2, 3, 4] as BadgeTier[]).map((tierNum) => {
             const tierBadges = byTier[tierNum];
@@ -424,7 +329,7 @@ export default function SafetyBadgesPage() {
       )}
 
       {/* Tip */}
-      {hasBadges && !isLoading && (
+      {(
         <div className="mt-8 bg-purple-50 border border-purple-100 rounded-2xl px-5 py-3 flex items-start gap-3">
           <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "#E9D5FF" }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
