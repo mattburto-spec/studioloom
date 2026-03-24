@@ -178,7 +178,7 @@ export interface EllScaffolding {
   ell3?: { extensionPrompts?: string[] };
 }
 
-export type ResponseType = "text" | "upload" | "voice" | "link" | "multi" | "decision-matrix" | "pmi" | "pairwise" | "trade-off-sliders" | "toolkit-tool";
+export type ResponseType = "text" | "upload" | "voice" | "link" | "multi" | "canvas" | "decision-matrix" | "pmi" | "pairwise" | "trade-off-sliders" | "toolkit-tool";
 
 export interface ActivityMedia {
   type: "image" | "video";
