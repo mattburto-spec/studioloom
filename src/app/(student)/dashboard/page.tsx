@@ -301,20 +301,16 @@ export default function StudentDashboard() {
         </div>
 
         {loading ? (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-            <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
-              {[1, 2].map((i) => (
-                <div key={i} className="bg-white rounded-2xl animate-pulse h-64 shadow-sm border border-gray-200/60" />
-              ))}
-            </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            <div className="bg-white rounded-2xl animate-pulse h-64 shadow-sm border border-gray-200/60" />
             <div className="bg-white rounded-2xl animate-pulse h-48 shadow-sm border border-gray-200/60" />
           </div>
         ) : (
           <>
             {/* ============ Two-Column Layout ============ */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            <div className={`grid grid-cols-1 ${pendingBadges.length > 0 || earnedBadges.length > 0 ? "lg:grid-cols-2" : ""} gap-5`}>
               {/* ── Left Column: Unit Cards ── */}
-              <div className={`${pendingBadges.length > 0 || earnedBadges.length > 0 ? "lg:col-span-2" : "lg:col-span-3"}`}>
+              <div className="space-y-4">
                 {units.length === 0 ? (
                   <div className="bg-white rounded-2xl p-16 text-center border border-gray-200/60 shadow-sm">
                     <div className="w-14 h-14 rounded-2xl bg-purple-100 flex items-center justify-center mx-auto mb-4">
@@ -326,7 +322,7 @@ export default function StudentDashboard() {
                     <p className="text-gray-500 text-sm">Your teacher will assign units for you to work on.</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-4">
                     {units.map((unit) => {
                       const unitPages = getPageList(unit.content_data);
                       const firstPageId = unitPages.length > 0 ? unitPages[0].id : "A1";
@@ -501,7 +497,7 @@ export default function StudentDashboard() {
 
               {/* ── Right Column: Safety & Info ── */}
               {(pendingBadges.length > 0 || earnedBadges.length > 0) && (
-                <div className="lg:col-span-1 space-y-4">
+                <div className="space-y-4">
                   {/* Pending Safety Tests */}
                   {pendingBadges.length > 0 && (
                     <div className="lg:sticky lg:top-4">
