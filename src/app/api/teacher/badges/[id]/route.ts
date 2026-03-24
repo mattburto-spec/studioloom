@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { BUILT_IN_BADGES } from "@/lib/safety/badge-definitions";
 
 function createSupabaseServer(request: NextRequest) {
   return createServerClient(
@@ -45,17 +46,42 @@ export async function GET(
       .from("badges")
       .select("*")
       .eq("id", id)
-      .single();
+      .maybeSingle();
+
+    if (data) {
+      return NextResponse.json({ badge: data });
+    }
+
+    // Fallback: try BUILT_IN_BADGES constant (badge may not be seeded to DB yet)
+    const builtIn = BUILT_IN_BADGES.find(b => b.id === id || b.slug === id);
+    if (builtIn) {
+      return NextResponse.json({
+        badge: {
+          id: builtIn.id,
+          slug: builtIn.slug,
+          name: builtIn.name,
+          description: builtIn.description,
+          category: builtIn.category || "safety",
+          tier: builtIn.tier,
+          icon_name: builtIn.icon_name,
+          color: builtIn.color,
+          is_built_in: true,
+          pass_threshold: builtIn.pass_threshold,
+          expiry_months: builtIn.expiry_months || null,
+          retake_cooldown_minutes: builtIn.retake_cooldown_minutes,
+          question_count: builtIn.question_count,
+          question_pool: builtIn.question_pool,
+          learn_content: builtIn.learn_content,
+        },
+      });
+    }
 
     if (error) {
-      if (error.code === "PGRST116") {
-        return NextResponse.json({ error: "Badge not found" }, { status: 404 });
-      }
       console.error("[badges/[id]/GET] Query error:", error);
       return NextResponse.json({ error: "Failed to fetch badge" }, { status: 500 });
     }
 
-    return NextResponse.json({ badge: data });
+    return NextResponse.json({ error: "Badge not found" }, { status: 404 });
   } catch (error) {
     console.error("[badges/[id]/GET] Error:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

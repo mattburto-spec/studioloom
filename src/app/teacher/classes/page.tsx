@@ -55,9 +55,10 @@ export default function ClassesPage() {
     const classIds = classData.map((c) => c.id);
     const [studentsRes, classUnitsRes] = await Promise.all([
       supabase
-        .from("students")
+        .from("class_students")
         .select("class_id")
-        .in("class_id", classIds),
+        .in("class_id", classIds)
+        .eq("is_active", true),
       supabase
         .from("class_units")
         .select("class_id, is_active")

@@ -548,7 +548,7 @@ export default function StudentDashboard() {
                     {hasStudio && (
                       <Link
                         href={`/open-studio/${unit.id}`}
-                        className="block -mt-1 mx-3 mb-0 relative z-0"
+                        className="block -mt-1 mb-0 relative z-0"
                       >
                         <div className="bg-violet-600 hover:bg-violet-700 transition-all text-white text-xs font-semibold flex items-center justify-center gap-1.5 py-2 rounded-b-xl shadow-sm">
                           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

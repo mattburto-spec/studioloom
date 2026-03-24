@@ -123,7 +123,7 @@ export default function UnitDetailPage({
       const [classesRes, classUnitsRes, studentsRes, termsRes] = await Promise.all([
         supabase.from("classes").select("id, name, code, is_archived").order("name"),
         supabase.from("class_units").select("class_id, nm_config, term_id, content_data, forked_at").eq("unit_id", unitId),
-        supabase.from("students").select("class_id"),
+        supabase.from("class_students").select("class_id").eq("is_active", true),
         fetch("/api/teacher/school-calendar").then((r) => (r.ok ? r.json() : Promise.resolve({ terms: [] }))),
       ]);
 

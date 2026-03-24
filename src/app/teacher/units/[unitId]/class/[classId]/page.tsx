@@ -74,7 +74,7 @@ export default function ClassUnitSettingsPage({
       const [unitRes, classRes, studentsRes, classUnitRes, termsRes] = await Promise.all([
         supabase.from("units").select("*").eq("id", unitId).single(),
         supabase.from("classes").select("name, code").eq("id", classId).single(),
-        supabase.from("students").select("id, display_name, username").eq("class_id", classId),
+        supabase.from("class_students").select("student_id, students(id, display_name, username)").eq("class_id", classId).eq("is_active", true),
         supabase.from("class_units").select("term_id, schedule_overrides, content_data, forked_at, forked_from_version").eq("class_id", classId).eq("unit_id", unitId).single(),
         fetch("/api/teacher/school-calendar").then((r) => (r.ok ? r.json() : Promise.resolve({ terms: [] }))),
       ]);
@@ -82,14 +82,15 @@ export default function ClassUnitSettingsPage({
       setUnit(unitRes.data);
       setClassName(classRes.data?.name || "");
       setClassCode(classRes.data?.code || "");
-      setStudentCount(studentsRes.data?.length || 0);
-      setStudents(
-        (studentsRes.data || []).map((s: { id: string; display_name?: string; username?: string }) => ({
-          student_id: s.id,
-          display_name: s.display_name || "",
-          username: s.username || "",
-        }))
-      );
+      const enrolledStudents = (studentsRes.data || [])
+        .filter((row: any) => row.students)
+        .map((row: any) => ({
+          student_id: row.students.id,
+          display_name: row.students.display_name || "",
+          username: row.students.username || "",
+        }));
+      setStudentCount(enrolledStudents.length);
+      setStudents(enrolledStudents);
 
       if (unitRes.data) {
         // Use class-local content if forked, otherwise master
