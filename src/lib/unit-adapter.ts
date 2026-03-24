@@ -62,6 +62,26 @@ export function normalizeContentData(raw: UnitContentData | null | undefined): U
 }
 
 /**
+ * Force normalize to v2 (with .pages array).
+ * v3/v4 are converted to v2 by extracting the pages list.
+ * Use this when you need guaranteed .pages array access (e.g., editors).
+ */
+export function normalizeToV2(raw: UnitContentData | null | undefined): UnitContentDataV2 {
+  const normalized = normalizeContentData(raw);
+
+  if (isV4(normalized)) {
+    const pages = v4ToPageList(normalized);
+    return { version: 2, pages };
+  }
+
+  if (isV3(normalized)) {
+    return { version: 2, pages: normalized.pages || [] };
+  }
+
+  return normalized as UnitContentDataV2;
+}
+
+/**
  * Get an ordered page list from any content_data.
  */
 export function getPageList(contentData: UnitContentData | null | undefined): UnitPage[] {
