@@ -408,8 +408,8 @@ export default function StudentDashboard() {
                   const isInProgress = inProgressUnit?.id === unit.id;
 
                   return (
+                    <div key={unit.id} className="flex flex-col">
                     <div
-                      key={unit.id}
                       className={`rounded-2xl overflow-hidden bg-white shadow-sm hover:shadow-md transition-all duration-200 flex flex-col ${
                         isInProgress ? "ring-2 ring-purple-400 ring-offset-1" : "border border-gray-200/60"
                       }`}
@@ -542,20 +542,23 @@ export default function StudentDashboard() {
                           </Link>
                         </div>
 
-                        {/* Open Studio link */}
-                        {hasStudio && (
-                          <Link
-                            href={`/open-studio/${unit.id}`}
-                            className="mt-2 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold bg-violet-600 text-white hover:bg-violet-700 transition-all"
-                          >
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                              <path d="M7 11V7a5 5 0 0 1 10 0" />
-                            </svg>
-                            Open Studio
-                          </Link>
-                        )}
                       </div>
+                    </div>
+                    {/* Open Studio — hangs off the bottom of the card */}
+                    {hasStudio && (
+                      <Link
+                        href={`/open-studio/${unit.id}`}
+                        className="block -mt-1 mx-3 mb-0 relative z-0"
+                      >
+                        <div className="bg-violet-600 hover:bg-violet-700 transition-all text-white text-xs font-semibold flex items-center justify-center gap-1.5 py-2 rounded-b-xl shadow-sm">
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                            <path d="M7 11V7a5 5 0 0 1 10 0" />
+                          </svg>
+                          Open Studio
+                        </div>
+                      </Link>
+                    )}
                     </div>
                   );
                 })}

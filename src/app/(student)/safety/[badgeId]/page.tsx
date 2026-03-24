@@ -347,164 +347,232 @@ export default function SafetyBadgeTestPage({
 
   // === INTRO SCREEN ===
   if (screen === "intro") {
+    // Resolve learning module
+    const builtIn = BUILT_IN_BADGES.find(b => b.id === badgeId || b.slug === badgeId);
+    const richModule = builtIn ? MODULE_MAP[builtIn.slug] : undefined;
+    const badgeColor = builtIn?.color || "#4F46E5";
+
     return (
-      <div className="min-h-screen bg-white">
-        {/* Header */}
-        <div className="border-b border-slate-200 bg-slate-50">
-          <div className="max-w-2xl mx-auto px-6 py-8">
-            <button
-              onClick={() => router.push("/safety")}
-              className="mb-6 text-indigo-600 hover:text-indigo-700 text-sm font-medium flex items-center gap-1"
-            >
-              ← Back to Badges
-            </button>
-            <div className="flex items-center gap-4 mb-6">
-              <div className="text-5xl">{badge.icon_name}</div>
-              <div>
-                <h1 className="text-3xl font-bold text-slate-900">
+      <div className="min-h-screen bg-gray-50 flex flex-col">
+        {/* ── Sticky top nav bar (matches lesson page) ── */}
+        <div className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-100 shadow-sm">
+          <div className="max-w-5xl mx-auto px-4 py-2 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => router.push("/safety")}
+                className="flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 transition"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="15 18 9 12 15 6" />
+                </svg>
+                Dashboard
+              </button>
+              <span className="text-gray-300">|</span>
+              <span className="text-sm font-semibold text-gray-800 truncate max-w-[200px] sm:max-w-xs">
+                {badge.name}
+              </span>
+            </div>
+            <div className="flex items-center gap-3 text-xs text-gray-500">
+              <span className="hidden sm:inline">{badge.question_count} questions</span>
+              <span className="hidden sm:inline">•</span>
+              <span className="hidden sm:inline">{badge.pass_threshold}% to pass</span>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Hero header with badge color gradient ── */}
+        <div
+          className="relative overflow-hidden"
+          style={{
+            background: `linear-gradient(135deg, ${badgeColor}dd 0%, ${badgeColor}88 50%, ${badgeColor}44 100%)`,
+          }}
+        >
+          <div className="max-w-5xl mx-auto px-6 py-8 sm:py-10">
+            <div className="flex items-start gap-5">
+              <div className="text-5xl sm:text-6xl flex-shrink-0 bg-white/20 backdrop-blur-sm rounded-2xl w-20 h-20 flex items-center justify-center">
+                {badge.icon_name}
+              </div>
+              <div className="min-w-0">
+                <h1 className="text-2xl sm:text-3xl font-bold text-white leading-tight">
                   {badge.name}
                 </h1>
-                <p className="text-slate-600 mt-1">{badge.description}</p>
+                <p className="text-white/80 mt-2 text-sm sm:text-base leading-relaxed max-w-2xl">
+                  {badge.description}
+                </p>
+                {/* Stats strip */}
+                <div className="flex flex-wrap gap-3 mt-4">
+                  <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-white/20 text-white">
+                    <span className="w-2 h-2 rounded-full bg-white/60" />
+                    {badge.question_count} Questions
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-white/20 text-white">
+                    <span className="w-2 h-2 rounded-full bg-white/60" />
+                    {badge.pass_threshold}% Pass
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-white/20 text-white">
+                    <span className="w-2 h-2 rounded-full bg-white/60" />
+                    ~{richModule ? richModule.estimated_minutes : Math.max(5, Math.round(badge.question_count * 2))}min
+                  </span>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Content */}
-        <div className="max-w-2xl mx-auto px-6 py-8">
-          {/* Badge info grid */}
-          <div className="grid grid-cols-3 gap-4 mb-8 p-4 bg-indigo-50 rounded-lg">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-indigo-600">
-                {badge.question_count}
-              </div>
-              <div className="text-sm text-slate-600">Questions</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-indigo-600">
-                {badge.pass_threshold}%
-              </div>
-              <div className="text-sm text-slate-600">Pass Threshold</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-indigo-600">
-                ~{Math.max(5, Math.round(badge.question_count * 2))}m
-              </div>
-              <div className="text-sm text-slate-600">Estimated Time</div>
-            </div>
-          </div>
-
-          {/* Learn section — Rich module, ModuleRenderer blocks, or fallback to old cards */}
-          <div className="mb-8">
-            {(() => {
-              // Check for a rich learning module first
-              const builtIn = BUILT_IN_BADGES.find(b => b.id === badgeId || b.slug === badgeId);
-              const richModule = builtIn ? MODULE_MAP[builtIn.slug] : undefined;
-
-              if (richModule) {
-                return (
-                  <>
-                    <h2 className="text-lg font-semibold text-slate-900 mb-4">
-                      📚 Interactive Learning — ~{richModule.estimated_minutes} min
-                    </h2>
-                    <p className="text-slate-600 mb-4 text-sm">
-                      {richModule.learning_objectives.length} learning objectives. Complete all sections to unlock the test.
-                    </p>
-                    <ModuleRenderer
-                      module={richModule}
-                      onModuleComplete={() => setModuleCompleted(true)}
-                      showProgress={true}
-                    />
-                  </>
-                );
-              }
-
-              if (learningBlocks.length > 0) {
-                return (
-                  <>
-                    <h2 className="text-lg font-semibold text-slate-900 mb-4">
-                      📚 Learn First
-                    </h2>
-                    <p className="text-slate-600 mb-4 text-sm">
-                      Complete all learning modules before taking the test.
-                    </p>
-                    <ModuleRenderer
-                      blocks={learningBlocks}
-                      onModuleComplete={() => setModuleCompleted(true)}
-                      showProgress={true}
-                    />
-                  </>
-                );
-              }
-
-              // Fallback to flat learn cards
-              if (learnCards.length > 0) {
-                return (
-                  <>
-                    <h2 className="text-lg font-semibold text-slate-900 mb-4">
-                      📚 Learn First{" "}
-                      <span className="text-sm font-normal text-slate-500">
-                        ({cardsViewed.size}/{learnCards.length} read)
-                      </span>
-                    </h2>
-                    <p className="text-slate-600 mb-4 text-sm">
-                      Review at least 60% of the learning materials before taking the
-                      test.
-                    </p>
-                    <div className="space-y-3">
-                      {learnCards.map((card, idx) => (
-                        <button
-                          key={idx}
-                          onClick={() => toggleCardView(idx)}
-                          className={`w-full text-left rounded-lg border-2 p-4 transition ${
-                            cardsViewed.has(idx)
-                              ? "border-indigo-300 bg-indigo-50"
-                              : "border-slate-200 hover:border-slate-300"
-                          }`}
-                        >
-                          <div className="flex items-start justify-between">
-                            <div className="flex items-start gap-3">
-                              <span className="text-2xl flex-shrink-0">
-                                {card.icon}
-                              </span>
-                              <div>
-                                <h3 className="font-semibold text-slate-900">
-                                  {card.title}
-                                </h3>
-                                {cardsViewed.has(idx) && (
-                                  <p className="text-slate-600 text-sm mt-2">
-                                    {card.content}
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-                            <span className="text-slate-400 flex-shrink-0">
-                              {cardsViewed.has(idx) ? "▼" : "▶"}
-                            </span>
-                          </div>
-                        </button>
+        {/* ── Main content area (wide, like lesson page) ── */}
+        <div className="flex-1">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+            <div className="flex gap-6">
+              {/* ── Left sidebar: learning objectives (hidden on mobile) ── */}
+              {richModule && (
+                <aside className="hidden lg:block w-56 flex-shrink-0">
+                  <div className="sticky top-16">
+                    <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Learning Objectives</h3>
+                    <ol className="space-y-2">
+                      {richModule.learning_objectives.map((obj, i) => (
+                        <li key={i} className="flex items-start gap-2 text-xs text-gray-600">
+                          <span
+                            className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white mt-0.5"
+                            style={{ backgroundColor: badgeColor }}
+                          >
+                            {i + 1}
+                          </span>
+                          <span className="leading-relaxed">{obj}</span>
+                        </li>
                       ))}
+                    </ol>
+                    <div className="mt-6 pt-4 border-t border-gray-200">
+                      <button
+                        onClick={handleStartQuiz}
+                        disabled={!canStartQuiz}
+                        className={`w-full py-2.5 px-4 rounded-lg text-sm font-semibold transition ${
+                          canStartQuiz
+                            ? "text-white hover:opacity-90 shadow-sm"
+                            : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                        }`}
+                        style={canStartQuiz ? { backgroundColor: badgeColor } : undefined}
+                      >
+                        {canStartQuiz ? "Start Test →" : "Complete Learning"}
+                      </button>
                     </div>
-                  </>
-                );
-              }
+                  </div>
+                </aside>
+              )}
 
-              return null;
-            })()}
+              {/* ── Main content column ── */}
+              <div className="flex-1 min-w-0">
+                {/* Learn section — Rich module, ModuleRenderer blocks, or fallback to old cards */}
+                <div className="mb-8 bg-white rounded-xl border border-gray-200/60 shadow-sm overflow-hidden">
+                  <div className="p-5 sm:p-6">
+                    {(() => {
+                      if (richModule) {
+                        return (
+                          <>
+                            <h2 className="text-lg font-semibold text-gray-900 mb-1">
+                              Interactive Learning — ~{richModule.estimated_minutes} min
+                            </h2>
+                            <p className="text-gray-500 mb-5 text-sm">
+                              {richModule.learning_objectives.length} learning objectives. Complete all sections to unlock the test.
+                            </p>
+                            <ModuleRenderer
+                              module={richModule}
+                              onModuleComplete={() => setModuleCompleted(true)}
+                              showProgress={true}
+                            />
+                          </>
+                        );
+                      }
+
+                      if (learningBlocks.length > 0) {
+                        return (
+                          <>
+                            <h2 className="text-lg font-semibold text-gray-900 mb-1">
+                              Learn First
+                            </h2>
+                            <p className="text-gray-500 mb-5 text-sm">
+                              Complete all learning modules before taking the test.
+                            </p>
+                            <ModuleRenderer
+                              blocks={learningBlocks}
+                              onModuleComplete={() => setModuleCompleted(true)}
+                              showProgress={true}
+                            />
+                          </>
+                        );
+                      }
+
+                      // Fallback to flat learn cards
+                      if (learnCards.length > 0) {
+                        return (
+                          <>
+                            <h2 className="text-lg font-semibold text-gray-900 mb-1">
+                              Learn First{" "}
+                              <span className="text-sm font-normal text-gray-400">
+                                ({cardsViewed.size}/{learnCards.length} read)
+                              </span>
+                            </h2>
+                            <p className="text-gray-500 mb-5 text-sm">
+                              Review at least 60% of the learning materials before taking the test.
+                            </p>
+                            <div className="space-y-3">
+                              {learnCards.map((card, idx) => (
+                                <button
+                                  key={idx}
+                                  onClick={() => toggleCardView(idx)}
+                                  className={`w-full text-left rounded-lg border-2 p-4 transition ${
+                                    cardsViewed.has(idx)
+                                      ? "border-indigo-300 bg-indigo-50"
+                                      : "border-gray-200 hover:border-gray-300"
+                                  }`}
+                                >
+                                  <div className="flex items-start justify-between">
+                                    <div className="flex items-start gap-3">
+                                      <span className="text-2xl flex-shrink-0">
+                                        {card.icon}
+                                      </span>
+                                      <div>
+                                        <h3 className="font-semibold text-gray-900">
+                                          {card.title}
+                                        </h3>
+                                        {cardsViewed.has(idx) && (
+                                          <p className="text-gray-600 text-sm mt-2">
+                                            {card.content}
+                                          </p>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <span className="text-gray-400 flex-shrink-0">
+                                      {cardsViewed.has(idx) ? "▼" : "▶"}
+                                    </span>
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          </>
+                        );
+                      }
+
+                      return null;
+                    })()}
+                  </div>
+                </div>
+
+                {/* Start button (mobile / bottom of content) */}
+                <button
+                  onClick={handleStartQuiz}
+                  disabled={!canStartQuiz}
+                  className={`w-full py-3.5 px-4 rounded-xl font-semibold text-base transition shadow-sm ${
+                    canStartQuiz
+                      ? "text-white hover:opacity-90"
+                      : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                  }`}
+                  style={canStartQuiz ? { backgroundColor: badgeColor } : undefined}
+                >
+                  {canStartQuiz ? "Start Test →" : "Complete Learning First"}
+                </button>
+              </div>
+            </div>
           </div>
-
-          {/* Start button */}
-          <button
-            onClick={handleStartQuiz}
-            disabled={!canStartQuiz}
-            className={`w-full py-3 px-4 rounded-lg font-semibold transition ${
-              canStartQuiz
-                ? "bg-indigo-600 text-white hover:bg-indigo-700"
-                : "bg-slate-200 text-slate-500 cursor-not-allowed"
-            }`}
-          >
-            {canStartQuiz ? "Start Test 🚀" : "Review Materials First"}
-          </button>
         </div>
       </div>
     );
@@ -518,10 +586,10 @@ export default function SafetyBadgeTestPage({
     const progress = ((currentQuestion + 1) / questions.length) * 100;
 
     return (
-      <div className="min-h-screen bg-white">
+      <div className="min-h-screen bg-gray-50">
         {/* Progress bar */}
-        <div className="sticky top-0 z-10 border-b border-slate-200 bg-white shadow-sm">
-          <div className="max-w-2xl mx-auto px-6 py-4">
+        <div className="sticky top-0 z-10 border-b border-gray-200 bg-white/95 backdrop-blur-sm shadow-sm">
+          <div className="max-w-4xl mx-auto px-6 py-4">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-semibold text-slate-900">
                 Question {currentQuestion + 1} of {questions.length}
@@ -550,7 +618,7 @@ export default function SafetyBadgeTestPage({
         </div>
 
         {/* Question content */}
-        <div className="max-w-2xl mx-auto px-6 py-8">
+        <div className="max-w-4xl mx-auto px-6 py-8">
           {/* Question meta */}
           <div className="flex items-center gap-2 mb-6 justify-between">
             <div className="flex items-center gap-2">
@@ -856,7 +924,7 @@ export default function SafetyBadgeTestPage({
       : [];
 
     return (
-      <div className="min-h-screen bg-white relative overflow-hidden">
+      <div className="min-h-screen bg-gray-50 relative overflow-hidden">
         {/* Confetti */}
         {confettiPieces.length > 0 && (
           <div className="fixed inset-0 pointer-events-none">
@@ -875,7 +943,7 @@ export default function SafetyBadgeTestPage({
         )}
 
         {/* Content */}
-        <div className="max-w-2xl mx-auto px-6 py-12">
+        <div className="max-w-4xl mx-auto px-6 py-12">
           {/* Score display */}
           <div className="text-center mb-8">
             <div className="mb-6">
