@@ -120,23 +120,51 @@ export default function GradingPage({
   const loadData = useCallback(async () => {
     const supabase = createClient();
 
-    const [classRes, studentsRes, unitRes] = await Promise.all([
+    const [classRes, unitRes, classUnitRes] = await Promise.all([
       supabase.from("classes").select("name").eq("id", classId).single(),
+      supabase.from("units").select("*").eq("id", unitId).single(),
       supabase
+        .from("class_units")
+        .select("content_data")
+        .eq("unit_id", unitId)
+        .eq("class_id", classId)
+        .maybeSingle(),
+    ]);
+
+    // Fetch students via class_students junction (migration 041)
+    const { data: junctionRows } = await supabase
+      .from("class_students")
+      .select("student_id")
+      .eq("class_id", classId);
+    const junctionIds = junctionRows?.map((r: { student_id: string }) => r.student_id) || [];
+
+    let studentList: Student[] = [];
+    if (junctionIds.length > 0) {
+      const { data: studentsData } = await supabase
+        .from("students")
+        .select("*")
+        .in("id", junctionIds)
+        .order("display_name");
+      studentList = studentsData || [];
+    }
+    // Fallback: if junction returned nothing, try legacy class_id FK
+    if (studentList.length === 0) {
+      const { data: legacyStudents } = await supabase
         .from("students")
         .select("*")
         .eq("class_id", classId)
-        .order("display_name"),
-      supabase.from("units").select("*").eq("id", unitId).single(),
-    ]);
+        .order("display_name");
+      studentList = legacyStudents || [];
+    }
 
     setClassName(classRes.data?.name || "");
-    const studentList = studentsRes.data || [];
     setStudents(studentList);
     setUnit(unitRes.data);
 
-    const pages = unitRes.data?.content_data
-      ? getPageList(unitRes.data.content_data)
+    // Resolve content: class fork → master fallback
+    const resolvedContent = classUnitRes?.data?.content_data ?? unitRes.data?.content_data;
+    const pages = resolvedContent
+      ? getPageList(resolvedContent)
       : [];
     setUnitPages(pages);
 

@@ -27,6 +27,7 @@ import { OpenStudioBanner } from "@/components/open-studio";
 import { useOpenStudio } from "@/hooks/useOpenStudio";
 import { CompetencyPulse } from "@/components/nm";
 import type { PageContent } from "@/types";
+import type { IntegrityMetadata } from "@/components/student/MonitoredTextarea";
 
 export default function UnitPageView({
   params,
@@ -53,6 +54,7 @@ export default function UnitPageView({
   const [nmCheckpoint, setNmCheckpoint] = useState<{ elements: Array<{ id: string; name: string; studentDescription: string; definition: string; color: string }> } | null>(null);
   const [showNmPulse, setShowNmPulse] = useState(false);
   const [nmCompleted, setNmCompleted] = useState(false);
+  const [integrityMetadata, setIntegrityMetadata] = useState<Record<number, IntegrityMetadata>>({});
   // Safety badge requirements are tracked but do NOT block lesson access.
   // Teachers check completion status on their dashboard instead.
 
@@ -321,6 +323,13 @@ export default function UnitPageView({
                   unitId={unitId}
                   pageId={pageId}
                   pageColor={pageColor}
+                  enableIntegrityMonitoring={true}
+                  onIntegrityUpdate={(sectionIndex, metadata) => {
+                    setIntegrityMetadata((prev) => ({
+                      ...prev,
+                      [sectionIndex]: metadata,
+                    }));
+                  }}
                 />
               </ScrollReveal>
             );

@@ -57,10 +57,22 @@ export async function GET(request: NextRequest) {
 
   const db = createAdminClient();
 
-  const { data: students } = await db
-    .from("students")
-    .select("id, display_name")
+  // Get students via class_students junction (migration 041), fallback to legacy FK
+  const { data: junctionRows } = await db
+    .from("class_students")
+    .select("student_id")
     .eq("class_id", classId);
+  const junctionIds = (junctionRows || []).map((r: { student_id: string }) => r.student_id);
+
+  let students: { id: string; display_name: string }[] = [];
+  if (junctionIds.length > 0) {
+    const { data } = await db.from("students").select("id, display_name").in("id", junctionIds);
+    students = data || [];
+  }
+  if (students.length === 0) {
+    const { data } = await db.from("students").select("id, display_name").eq("class_id", classId);
+    students = data || [];
+  }
 
   if (!students || students.length === 0) {
     return NextResponse.json({ data: [] });

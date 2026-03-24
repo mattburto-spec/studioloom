@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useToolSession } from '@/hooks/useToolSession';
 
 const STEPS = [
   {
@@ -118,6 +119,9 @@ interface ScamperToolProps {
   mode: 'public' | 'embedded' | 'standalone';
   challenge?: string;
   sessionId?: string;
+  studentId?: string; // Optional — undefined in public mode
+  unitId?: string;
+  pageId?: string;
   onSave?: (state: ToolState) => void;
   onComplete?: (data: ToolResponse) => void;
 }
@@ -173,6 +177,9 @@ export function ScamperTool({
   mode = 'public',
   challenge: initialChallenge = '',
   sessionId: initialSessionId,
+  studentId,
+  unitId,
+  pageId,
   onSave,
   onComplete,
 }: ScamperToolProps) {
@@ -206,11 +213,22 @@ export function ScamperTool({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const challengeRef = useRef<HTMLTextAreaElement>(null);
 
+  // Initialize tool session persistence (gracefully disabled in public mode)
+  const { session, updateState: updateToolSession, completeSession } = useToolSession({
+    toolId: 'scamper',
+    studentId,
+    mode: mode === 'public' ? 'standalone' : (mode as 'embedded' | 'standalone'),
+    challenge: initialChallenge,
+    unitId,
+    pageId,
+  });
+
   const step = STEPS[currentStep];
   const totalIdeas = ideas.reduce((sum, arr) => sum + arr.length, 0);
   const currentPrompts = aiPrompts[currentStep] || step.fallbackPrompts;
   const cardsDealt = dealtCards[currentStep] || 0;
 
+  // Sync state to legacy onSave callback (if provided)
   useEffect(() => {
     if (mode !== 'public' && onSave) {
       const timer = setTimeout(() => {
@@ -227,6 +245,19 @@ export function ScamperTool({
       return () => clearTimeout(timer);
     }
   }, [stage, challenge, currentStep, ideas, ideaEfforts, dealtCards, mode, onSave]);
+
+  // Sync state to useToolSession hook (for persistence when authenticated)
+  useEffect(() => {
+    const state: ToolState = {
+      stage,
+      challenge,
+      currentStep,
+      ideas,
+      ideaEfforts,
+      dealtCards,
+    };
+    updateToolSession(state);
+  }, [stage, challenge, currentStep, ideas, ideaEfforts, dealtCards, updateToolSession]);
 
   const fetchAI = useCallback(async (body: Record<string, unknown>): Promise<Record<string, unknown>> => {
     const res = await fetch('/api/tools/scamper', {
@@ -355,6 +386,14 @@ export function ScamperTool({
     else {
       setInsights('');
       setStage('summary');
+
+      // Mark session as complete in the persistence layer
+      const summary = {
+        bestIdeas: Array.from(selectedBestIdeas),
+        bestIdeasReasoning,
+      };
+      completeSession(summary);
+
       if (onComplete) {
         onComplete({
           toolId: 'scamper',
@@ -869,6 +908,27 @@ export function ScamperTool({
       fontFamily: 'Inter, -apple-system, sans-serif',
       padding: '40px 24px',
     }}>
+      {/* Save status indicator */}
+      {session.saveStatus !== 'idle' && (
+        <div style={{
+          position: 'fixed',
+          top: '16px',
+          right: '16px',
+          fontSize: '13px',
+          fontWeight: '500',
+          padding: '8px 12px',
+          borderRadius: '6px',
+          zIndex: 1000,
+          opacity: session.saveStatus === 'saved' ? 1 : 0.8,
+          background: session.saveStatus === 'error' ? '#dc26261a' : '#10b98114',
+          color: session.saveStatus === 'error' ? '#ef4444' : '#10b981',
+        }}>
+          {session.saveStatus === 'saving' && '⟳ Saving...'}
+          {session.saveStatus === 'saved' && '✓ Saved'}
+          {session.saveStatus === 'error' && '✕ Save failed'}
+        </div>
+      )}
+
       <div style={{ maxWidth: '800px', margin: '0 auto' }}>
         <h2 style={{
           fontSize: '32px',

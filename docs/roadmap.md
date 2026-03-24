@@ -46,6 +46,69 @@ Rearchitected units from fixed 16-page structure to flexible, teacher-defined pa
 
 ---
 
+## Phase 0.5: Lesson Quality & Teacher Editing (BEFORE adding content)
+**Priority: HIGH — get this right before scaling content creation.**
+The AI wizard generates unit skeletons and lesson content, but the output quality and teacher editing experience need significant tightening before Matt (or any teacher) starts building real units. Right now there's friction between what the AI generates and what a teacher actually wants to deliver. This phase addresses three interconnected problems: generation quality, editing speed, and activity insertion.
+
+### Problem 1: AI-Generated Lesson Timing & Structure
+The Lesson Timing Engine (Phase 2) enforces the Workshop Model and validates timing, but the **quality of what gets generated inside each phase** needs work.
+
+**Current gaps:**
+- AI sometimes generates vague Work Time activities ("Students will work on their designs") instead of specific, timed tasks with clear deliverables
+- Opening hooks can be generic ("Discuss with your partner") rather than engaging, phase-specific provocations
+- Mini-Lesson content is sometimes too long for the 1+age cap — validation auto-repairs the timing but doesn't fix the content density (teacher gets 12 minutes of content crammed into a repaired 13-minute slot)
+- Extensions are sometimes busywork rather than genuine deepening activities indexed to the design phase
+- Debrief protocols are repetitive across lessons (always "gallery walk" or "exit ticket") instead of varying (Tuning Protocol, Silent Gallery, 3-2-1, Critical Friends, I Used To Think / Now I Think)
+
+**What to build:**
+- **Richer prompt engineering for each Workshop Model phase** — phase-specific generation rules (Opening must include a hook type: provocation/mystery/real-world connection/student work showcase; Work Time must specify deliverable + checkpoint question; Debrief must rotate protocol types)
+- **Activity specificity scoring** — post-generation check that flags vague activities ("work on designs") and either auto-enriches or warns the teacher
+- **Debrief protocol library** — 8-10 named protocols with descriptions, the AI picks contextually appropriate ones and rotates across a unit (never the same protocol twice in a row)
+- **Extension quality rules** — extensions must name a specific output ("Sketch 3 alternative solutions using a different material constraint") not just "continue working"
+- **Content density vs. time validation** — if a Mini-Lesson phase has 5 content points but only 12 minutes, warn that it's overloaded (rule of thumb: ~2-3 min per content point)
+
+### Problem 2: Fast Lesson Editing for Teachers
+Teachers need to modify AI-generated lessons quickly and confidently. The current editing experience (class-local editor at `/class/[classId]/edit`) handles page-level changes (title, type, reorder) but not fine-grained lesson content editing.
+
+**Current gaps:**
+- No inline editing of individual activities within a page — teacher must understand the full JSONB content structure
+- No way to quickly swap an activity for a different one (e.g., "replace this group discussion with a think-pair-share")
+- No way to adjust a single phase's timing without opening the full PhaseTimelineBar
+- No quick preview of what students will see after editing — teacher edits in one view, has to navigate to student view to check
+- Reordering activities within a page isn't supported (only reordering pages)
+
+**What to build:**
+- **Inline activity editor** — click any activity block in the lesson editor to expand it into an editable form (title, description, duration, materials, group size, scaffolding). Save updates the JSONB content in place.
+- **Activity swap** — "Replace this activity" button opens a contextual picker showing: (a) activity cards from the library that match the current criterion + phase, (b) AI-generated alternatives ("Give me 3 different ways to do this"), (c) recently used activities from other lessons
+- **Quick timing adjust** — click a phase duration number to edit it inline (e.g., click "12 min" → type "15" → auto-redistributes remaining time with validation warnings)
+- **Split-pane preview** — editor on left, student view preview on right (or toggle between edit/preview modes). Teacher sees exactly what students will see as they edit.
+- **Activity reorder within a page** — drag-to-reorder activities within the Work Time phase (the phase most likely to have multiple activities)
+- **Quick-add activity** — "+" button between existing activities. Opens a minimal form: activity type (from dropdown), title, duration. AI can auto-fill description based on context. Inserts into the JSONB content array at the correct position.
+- **Undo/redo** — essential for confident editing. Store edit history in component state (not DB), reset on page navigation.
+
+### Problem 3: Inserting New Activities Quickly
+Teachers frequently need to add activities that weren't in the AI-generated plan — a warm-up they always do, a specific technique demo, a class routine. This should be frictionless.
+
+**What to build:**
+- **Teacher activity bank** — personal library of saved activities (separate from the shared Activity Cards system). "Save this activity to my bank" button on any activity. Bank persists across units. Teacher can drag from bank into any lesson.
+- **Quick Insert templates** — 10-15 common activity shells pre-loaded: Think-Pair-Share, Gallery Walk, Exit Ticket, Warm-Up Sketch, Technique Demo, Silent Critique, Material Exploration, Digital Tool Tutorial, Design Brief Review, Peer Feedback Round, Checkpoint Question, Tidy-Up Routine. Each has sensible defaults (duration, group size) that the teacher adjusts.
+- **"Add My Routine" feature** — teacher marks certain activities as "routines" (things they do every lesson or every week). When generating a new unit, the AI knows about these routines and incorporates them automatically (e.g., always start with a 3-min sketch warm-up, always end with a 2-min tidy-up).
+- **AI-assisted insertion** — teacher types "I want a 10-minute activity where students compare two materials" → AI generates a complete activity block with title, description, scaffolding, and timing, inserted at the cursor position
+
+### Build Order (~8-10 days total)
+1. **Debrief protocol library + extension quality rules** (~1 day) — immediate generation quality lift
+2. **Phase-specific prompt enrichment** — richer Opening/Work Time/Debrief rules (~1-2 days)
+3. **Inline activity editor + quick timing adjust** (~2-3 days) — core editing UX
+4. **Quick-add activity with templates** (~1-2 days) — insertion flow
+5. **Split-pane preview** (~1 day) — confidence in edits
+6. **Activity swap + AI alternatives** (~1-2 days) — contextual replacement
+7. **Teacher activity bank + routines** (~1-2 days) — personalisation layer
+
+### Why Before Content
+If Matt starts building real units now, he'll hit these friction points on every lesson and either: (a) spend ages manually fixing AI output in the JSONB editor, (b) accept mediocre lessons and lower the bar, or (c) get frustrated and stop. Getting the generation quality and editing flow right first means every unit built afterward is faster and better. This is the "sharpen the axe before chopping" phase.
+
+---
+
 ## Phase 1: Sharpen the Student Experience
 Transform the daily student interaction from structured unit pages to a living portfolio that builds itself.
 
@@ -639,6 +702,58 @@ The projector view (`/teacher/teach/[unitId]/projector`) currently shows phase c
 
 **Build effort:** ~2-3 days for picker + timer + group maker + noise meter. Annotation overlay adds ~1 day.
 
+### Kahoot-Style Live Quiz from Teaching Mode (NEW — 24 March 2026)
+Teachers can launch live, competitive quiz rounds directly from the Teaching Mode cockpit or projector view. Students join via their devices and answer in real-time. Combines the safety badge question engine with live classroom energy.
+
+**Core features:**
+- **Launch from Teaching Mode** — teacher picks questions (from safety badge pools, comprehension checks, or custom quick-create) and starts a live round
+- **Student join via existing session** — no separate app or code needed; students already connected via their lesson page get a quiz overlay
+- **Live leaderboard on projector** — animated scoreboard with streaks, fastest-correct bonuses, podium finish. Projector view already supports postMessage sync from dashboard.
+- **Question types** — reuse existing: multiple choice, true/false, scenario, sequence, match. Add: image-based ("spot the hazard" as timed competitive round)
+- **Team mode** — split class into teams (reuse Group Maker), team scores aggregate
+- **Post-round review** — show class-wide accuracy per question, highlight common misconceptions, save results to unit analytics
+
+**Why build this vs. just use Kahoot:**
+- Questions are already in StudioLoom (safety badge pools, comprehension checks). No re-entry.
+- Results feed the timing model and student profiles — Kahoot data stays in Kahoot.
+- No separate student accounts/apps needed. Zero friction.
+- Teachers stop tab-switching to Kahoot mid-lesson.
+
+**Depends on:** Teaching Mode (BUILT), projector postMessage sync (BUILT), safety badge question engine (BUILT), live-status polling (BUILT).
+
+**Build effort:** ~4-5 days. P0: launch + join + leaderboard + MC/TF questions. P1: team mode, image questions, custom quick-create.
+
+---
+
+### Built-in Design Tools Replacing Paid Apps (NEW — 24 March 2026)
+Teachers currently rely on separate paid/free apps for common design tasks. StudioLoom can absorb the simpler ones — not competing with Tinkercad/OnShape/Photoshop, but replacing tools where a focused, student-friendly version is better than the full app.
+
+**Realistic targets (cut-down versions, student-focused):**
+- **Simple vector editor** (replaces Inkscape/Affinity Designer for basic work) — SVG path drawing, shapes, text, color fill, export SVG/PNG. Students doing logo design, simple illustrations, laser cutter prep files. NOT full pen tool or node editing — just shapes, alignment, and boolean operations (union, subtract, intersect). Canvas-based, ~2-3 weeks.
+- **Pixel art / simple bitmap editor** (replaces MS Paint, Piskel, Pixlr for basic tasks) — brush, fill, shapes, layers, resize, crop, export PNG. Good for texture design, game sprites, simple image editing. ~1-2 weeks.
+- **Mood board / inspiration board** (replaces Milanote, Pinterest boards, Canva mood boards) — drag-drop images, text notes, color swatches, arrows/connections, export as PDF/PNG. Very common Criterion A activity. ~1-2 weeks.
+- **Simple wireframe / UI sketch tool** (replaces Figma for basic wireframing) — drag-drop UI components (buttons, text fields, headers, cards), phone/tablet/desktop frames, link screens together for basic flow. Product/UX design projects. ~2 weeks.
+- **Color palette generator** (replaces Coolors, Adobe Color) — extract from image, harmony rules (complementary, triadic, etc.), accessibility contrast checker, export as swatches. Quick build, high utility. ~2-3 days.
+- **Pattern / texture maker** (replaces Patterninja, Repper) — tile-based pattern from shapes/uploads, preview on mockup surfaces. Textile and surface design projects. ~1 week.
+- **Simple flowchart / diagram tool** (replaces draw.io/Lucidchart for basic diagrams) — drag-drop shapes, connectors, text labels, auto-layout. System diagrams, process flows, user journeys. ~1-2 weeks.
+- **QR code / barcode generator** — for product design projects. Trivial build, surprisingly useful. ~1 day.
+- **Typography tester** — preview Google Fonts with custom text, compare pairings, size/weight/spacing controls. Graphic design and branding projects. ~2-3 days.
+
+**NOT worth competing with (too complex, too specialized):**
+- 3D modeling (Tinkercad, OnShape, Fusion 360) — enormous effort, existing tools are free
+- Full photo editing (Photoshop, GIMP) — too complex, Canva already covers basics
+- Video editing (CapCut, iMovie) — complex timeline UI, codec handling
+- CAD/CAM (Inventor, SolidWorks) — specialized engineering tools
+- Full illustration (Illustrator, Procreate) — deep feature set needed
+
+**Key advantage:** All tools auto-save to StudioLoom portfolio. Exports embed in student submissions. No separate accounts. Teacher sees process (version history, time spent). AI mentor can reference what the student is working on.
+
+**Build priority:** Color palette (quick win, 2-3 days) → Mood board (high demand, Criterion A) → Vector editor (laser cutter prep) → Wireframe tool → others.
+
+**Build effort:** ~8-12 weeks total for the full set. Individual tools can ship independently.
+
+---
+
 ### AI Insights Dashboard (from 2026-03 audit — High Priority)
 The data model already captures the signals needed — this is primarily a UI build:
 - Which knowledge base items are most/least retrieved (via `times_retrieved`, `times_used`)
@@ -658,8 +773,39 @@ The single most impactful teacher-facing feature missing. Teachers need to see a
 - Uses Supabase Realtime subscriptions for live updates
 - Inspired by Google Classroom's stream + Clever's analytics dashboard
 
-### Teacher Marking & Grading Assistance (World-Class Gap — No Way to Record Grades Currently)
+### Phase 0 Grading MVP — Basic Score Entry (~3-5 days)
+**Priority: HIGH — foundation for all AI-assisted grading features below.**
+Before any AI magic, teachers need a simple way to record grades. This is the missing link — currently there's no way to enter scores at all.
+
+**What it does:**
+- Teacher opens a grading page for a unit+class (accessible from Manage Class → Grade tab, which currently just links to the progress page)
+- Left column: student list (filterable by class). Click a student to load their work.
+- Right column: student's responses for each page in the unit, displayed read-only (text responses, uploaded images/files, canvas work, toolkit tool outputs)
+- Below responses: criterion score entry — one 1-8 slider or number input per criterion (A, B, C, D) with the criterion descriptor band visible alongside for reference
+- Free-text comment box per criterion ("What went well / Next steps")
+- Overall comment box for the unit
+- Save stores to `assessment_records` table (already defined in `assessment.ts` types — `AssessmentRecord` with `criterionScores`, `qualitativeFeedback`, `targets`)
+- Saved scores visible on the student's progress page and teacher's class progress view
+- Simple "Mark as Complete" status per student so teacher can track who's been graded
+
+**What it doesn't do (yet):**
+- No AI suggestions — teacher enters all scores manually
+- No exemplar comparison — just the criterion descriptors
+- No batch marking mode — one student at a time
+- No report generation — just raw score storage
+
+**Database:** Uses existing `assessment_records` table structure. Migration may be needed if table doesn't exist yet (check migration history). Columns: student_id, unit_id, class_id, criterion_scores JSONB, feedback JSONB, status, created_at, updated_at.
+
+**Route:** `/teacher/units/[unitId]/class/[classId]/grade` — new page, linked from Manage Class Grade tab.
+
+**Why this first:** Every AI-assisted feature below (criterion-level AI suggestions, calibration support, batch marking, feedback generation, exemplar comparison) requires a grading UI to exist. Building the basic page first means we can ship grading in days, then layer AI on top incrementally. Teachers can start recording scores immediately.
+
+---
+
+### Teacher Marking & Grading Assistance (World-Class Gap — AI-Assisted Layers on Top of Phase 0)
 **2026-03 audit note**: This is the highest-value feature gap. An agentic assessment workflow would transform the platform from content generation to formative assessment: retrieve rubric strand descriptors → analyse student submission against each strand → generate strand-level feedback with specific evidence → suggest targeted improvements with exemplar references → track feedback patterns across submissions. ~2-3 weeks effort, very high impact. Claude's vision capabilities could also analyse student prototype photos against design specifications (Criterion C evidence is almost always photographic).
+
+**Prerequisite: Phase 0 Grading MVP (above) must be built first.** All features below layer onto the basic grading page.
 
 World-leading approach to guiding teacher marking against criteria:
 - **Marking criteria integration**: MYP criterion descriptors (from `CurriculumFramework` type) surfaced alongside student work during marking — not a separate lookup

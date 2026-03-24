@@ -16,7 +16,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
  */
 export interface ToolSessionConfig {
   toolId: string;
-  studentId: string;
+  studentId?: string; // Optional — undefined in public mode
   mode: "embedded" | "standalone";
   challenge?: string;
   unitId?: string;
@@ -125,8 +125,14 @@ export function useToolSession(config: ToolSessionConfig): UseToolSessionReturn 
   /**
    * Fetch existing session for this tool+student+page combo.
    * Returns the session ID if found and in_progress, otherwise null.
+   * Returns null immediately if studentId is missing (public/unauthenticated mode).
    */
   const fetchExistingSession = useCallback(async (): Promise<string | null> => {
+    // If no studentId, skip persistence (public mode)
+    if (!config.studentId) {
+      return null;
+    }
+
     try {
       const queryParams = new URLSearchParams({
         toolId: config.toolId,
@@ -150,8 +156,8 @@ export function useToolSession(config: ToolSessionConfig): UseToolSessionReturn 
       );
 
       if (!response.ok) {
-        if (response.status === 404) {
-          return null; // No existing session
+        if (response.status === 404 || response.status === 401) {
+          return null; // No existing session, or not authenticated
         }
         throw new Error(`Failed to fetch session: ${response.statusText}`);
       }
@@ -173,13 +179,19 @@ export function useToolSession(config: ToolSessionConfig): UseToolSessionReturn 
       }));
       return null;
     }
-  }, [config.toolId, config.mode, config.unitId, config.pageId, config.sectionIndex]);
+  }, [config.toolId, config.mode, config.unitId, config.pageId, config.sectionIndex, config.studentId]);
 
   /**
    * Create a new session in the database.
+   * Returns null immediately if studentId is missing (public/unauthenticated mode).
    */
   const createNewSession = useCallback(
     async (initialState: Record<string, unknown>): Promise<string | null> => {
+      // If no studentId, skip persistence (public mode)
+      if (!config.studentId) {
+        return null;
+      }
+
       try {
         const response = await fetch("/api/student/tool-sessions", {
           method: "POST",
@@ -206,6 +218,10 @@ export function useToolSession(config: ToolSessionConfig): UseToolSessionReturn 
         });
 
         if (!response.ok) {
+          // 401 = not authenticated, silently disable persistence
+          if (response.status === 401) {
+            return null;
+          }
           throw new Error(`Failed to create session: ${response.statusText}`);
         }
 
@@ -396,11 +412,13 @@ export function useToolSession(config: ToolSessionConfig): UseToolSessionReturn 
 
   /**
    * completeSession — mark session as completed and save summary.
+   * In public mode (no sessionId), silently does nothing.
    */
   const completeSession = useCallback(
     async (summary?: Record<string, unknown>) => {
+      // If no sessionId (public mode), do nothing
       if (!sessionState.sessionId) {
-        throw new Error("Cannot complete session: no sessionId");
+        return;
       }
 
       const finalState = {
@@ -436,10 +454,22 @@ export function useToolSession(config: ToolSessionConfig): UseToolSessionReturn 
 
   /**
    * resetSession — create version+1 session for the same tool+page combo.
+   * In public mode, increments version in memory only.
    */
   const resetSession = useCallback(async () => {
     if (!sessionState.sessionId) {
-      throw new Error("Cannot reset: no sessionId to increment from");
+      // Public mode: just increment version in memory
+      setSessionState((prev) => ({
+        ...prev,
+        state: {},
+        status: "in_progress",
+        version: prev.version + 1,
+        startedAt: new Date().toISOString(),
+        completedAt: null,
+        saveStatus: "idle",
+        error: null,
+      }));
+      return;
     }
 
     const newSessionId = await createNewSession({});

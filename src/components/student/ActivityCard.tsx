@@ -6,6 +6,8 @@ import { MarkdownPrompt, stripMarkdown } from "@/components/student/MarkdownProm
 import { toEmbedUrl } from "@/lib/video-embed";
 import type { ActivitySection } from "@/types";
 
+import type { IntegrityMetadata } from "./MonitoredTextarea";
+
 interface ActivityCardProps {
   section: ActivitySection;
   index: number;
@@ -19,6 +21,10 @@ interface ActivityCardProps {
   unitId: string;
   pageId: string;
   pageColor?: string;
+  /** Enable integrity monitoring on text responses (academic integrity tracking) */
+  enableIntegrityMonitoring?: boolean;
+  /** Callback when integrity metadata is updated */
+  onIntegrityUpdate?: (sectionIndex: number, metadata: IntegrityMetadata) => void;
 }
 
 const CONTENT_STYLE_CONFIG = {
@@ -109,6 +115,8 @@ export function ActivityCard({
   unitId,
   pageId,
   pageColor = "#6B7280",
+  enableIntegrityMonitoring = false,
+  onIntegrityUpdate,
 }: ActivityCardProps) {
   const ellKey = `ell${ellLevel}` as "ell1" | "ell2" | "ell3";
   const scaffolding = section.scaffolding?.[ellKey];
@@ -222,6 +230,12 @@ export function ActivityCard({
               unitId={unitId}
               pageId={pageId}
               allowedTypes={allowedTypes}
+              enableIntegrityMonitoring={enableIntegrityMonitoring}
+              onIntegrityUpdate={
+                onIntegrityUpdate
+                  ? (metadata) => onIntegrityUpdate(index, metadata)
+                  : undefined
+              }
             />
           )}
 

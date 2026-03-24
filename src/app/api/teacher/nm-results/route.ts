@@ -78,11 +78,29 @@ export async function GET(request: NextRequest) {
 
   // If classId provided, filter by class_id column (new) OR by student membership (fallback)
   if (classId) {
-    // Get students in this class for filtering
-    const { data: classStudents } = await db
-      .from("students")
-      .select("id, display_name, username")
+    // Get students in this class via junction table (migration 041)
+    const { data: junctionRows } = await db
+      .from("class_students")
+      .select("student_id")
       .eq("class_id", classId);
+    const junctionIds = (junctionRows || []).map((r: { student_id: string }) => r.student_id);
+
+    // Fallback to legacy class_id FK if junction empty
+    let classStudents: { id: string; display_name: string; username: string }[] = [];
+    if (junctionIds.length > 0) {
+      const { data } = await db
+        .from("students")
+        .select("id, display_name, username")
+        .in("id", junctionIds);
+      classStudents = data || [];
+    }
+    if (classStudents.length === 0) {
+      const { data } = await db
+        .from("students")
+        .select("id, display_name, username")
+        .eq("class_id", classId);
+      classStudents = data || [];
+    }
 
     const studentIds = (classStudents || []).map(s => s.id);
 

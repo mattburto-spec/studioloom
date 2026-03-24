@@ -319,6 +319,41 @@ Advanced prototype — core platform functional (unit builder, knowledge base, s
   - `src/types/dashboard.ts` — Added `isForked?: boolean` to `DashboardUnit`.
 
 ## What's next
+
+### 🔴🔴🔴 ACTION PLAN — from full site audit 24 Mar 2026
+**Full audit report at `docs/full-site-audit-2026-03-24.md`.** Key finding: ~25% of code is built but untested end-to-end, ~15% is unwired. Stop building new features until the foundation is verified.
+
+**TIER 0 — DO THIS WEEK (unblocks everything):**
+1. ✅ **Migration 037 CONFIRMED APPLIED (24 Mar 2026)** — school_calendar_terms + class_units.term_id + schedule_overrides all exist.
+2. ✅ **Migration 025 CONFIRMED APPLIED (24 Mar 2026)** — ai_usage_log table exists. Usage tracking live.
+3. Push commit f995075 (safety badge sidebar) — blocked by network proxy, push when able.
+4. **Test existing grading page** — `/teacher/classes/[classId]/grading/[unitId]` is 1,311 lines with criterion scoring (1-8), tags, targets, comments, moderation. Migration 019 exists. The roadmap said "no way to grade" — the page exists. Test if it works.
+5. Update roadmap to match reality (grading page exists, Teaching Mode toolbar mostly built).
+
+**TIER 1 — CLOSE THE GAPS (~3-5 days, before building anything new):**
+6. Wire MonitoredTextarea into ResponseInput (~2 hours). Prop exists but unused. Every submission after this has integrity data.
+7. Wire useToolSession into toolkit tool components (~1 day). Hook + API exist but aren't connected.
+8. Content forking e2e test (~half day). 7-point checklist in CLAUDE.md.
+9. NM e2e test (~half day). Checklist at `docs/nm-test-checklist.md`.
+10. Open Studio e2e test (~half day). Checklist at `docs/open-studio-test-checklist.md`.
+11. Safety badge e2e test, pace feedback test, timetable test (~half day each).
+
+**TIER 2 — FOUNDATION FOR CONTENT (~8-10 days):**
+12. Phase 0.5: Lesson quality + editing (debrief library → prompt enrichment → inline editor → quick-add → preview). Get this right before creating real units.
+13. Fix grading page if testing reveals issues (forked content resolution, class_students junction).
+
+**TIER 3 — NEW FEATURES (only after Tiers 0-2):**
+14. Class Gallery & Peer Review, Lesson Plan Converter, NM Phase 2, etc.
+
+**KEY DEPENDENCY WARNINGS (doing things out of order creates rework):**
+- More toolkit tools BEFORE toolkit persistence wiring = retrofitting auto-save into each tool later
+- New unit content BEFORE Phase 0.5 lesson editing = manually fixing every lesson's JSONB
+- AI-assisted grading BEFORE testing existing grading page = potentially rebuilding UI that already works
+- Peer review BEFORE grading works = nothing meaningful to compare feedback against
+- Monetisation BEFORE usage tracking (migration 025) = no data to base tier limits on
+
+---
+
 - ~~**🔴 Student Dashboard Redesign — "My Design Journey" (PRIORITY)**~~ **✅ COMPLETE (21 Mar 2026).** Continue card, JourneyMap pills, Workshop Skill Certs, Stats strip, DueThisWeek widget, safety_certifications migration (034), teacher grant UI (CertManager), teacher per-student view (`/teacher/students/[studentId]`), student/teacher cert API routes. Spec at `docs/specs/student-dashboard-spec.md`.
 - **🔴 Lesson Plan Converter (PRIORITY)** — Upload existing lesson plans (PDF/DOCX/PPTX) and convert to StudioLoom units. Reuses 80%+ of existing infrastructure (extractDocument, Pass 0 classification, generateUnit pipeline, timing validation). 3-screen flow: upload → review skeleton → generate. Two entry points: "Import" button on units page + option in wizard Step 1. Single lesson mode (add to existing unit) + full unit mode. ~6.5 days across 5 phases. Spec at `docs/specs/lesson-plan-converter.md`.
 - **Class Gallery & Peer Review** — Digital pin-up crit system. Teacher creates a gallery round, students share portfolio work, classmates give structured feedback using toolkit tools (PMI, Two Stars & a Wish, or any tool). Effort-gated: must complete minimum reviews before seeing your own feedback. Teacher dashboard shows submission/review completion per student. Anonymous or named (teacher controls). ~7.5 days across 4 phases. Spec at `docs/specs/class-gallery-peer-review.md`.
@@ -355,7 +390,7 @@ Advanced prototype — core platform functional (unit builder, knowledge base, s
 - **Presentation-Ready Lesson Output** — extend `workshopPhases` schema so each phase carries displayable assets (hook, vocab, key concepts, checkpoint questions, discussion protocols) not just durations. Projector view then renders phase-appropriate content automatically. See `docs/roadmap.md` Phase 4.
 - **Teaching Mode Quick-Access Toolbar (21 Mar 2026)** — Floating toolbar at bottom of Teaching Mode. 6 tool groups: Clock/Time, Phase Timer, Quick Edit (inline-edit lesson content mid-class), On-the-Fly Activities (push instant polls/exit tickets/collaborate boards to students), Classroom Tools (random picker, group maker, noise meter, stopwatch), Projection Controls. Based on Nearpod + ClassPoint patterns. Full spec at `docs/specs/teaching-mode-quick-access.md`. ~11-13 days across 4 phases.
 - **Student auth for China (PIPL compliance)** — class code + student-chosen display name (no real names). No teacher-side mapping stored in platform. No DOB/location/device info. Keeps data anonymized to sidestep PIPL cross-border transfer rules. Real-name support requires China-hosted infrastructure later.
-- **Migration 037 (school_calendar + schedule_overrides) — NOT YET APPLIED.** Adds `school_calendar_terms` table + `term_id` on `class_units` + `schedule_overrides JSONB` on `class_units`. Run `supabase db push` or apply manually. Required for: term picker, lesson scheduling, schedule overrides.
+- ~~**Migration 037 (school_calendar + schedule_overrides) — NOT YET APPLIED.**~~ **✅ CONFIRMED APPLIED 24 Mar 2026.** `school_calendar_terms` table + `class_units.term_id` + `class_units.schedule_overrides` all exist. Term picker, lesson scheduling, schedule overrides all unblocked.
 - **Student video upload support** — Roadmap item. Add `video/*` to file accept, skip compressImage for video, add video player preview component. Student lesson page already embeds videos via URL but doesn't support direct upload from device.
 - **Pace feedback testing** — Student completes lesson → pace pulse appears → taps → saves → teacher sees aggregated data on class progress page. Test backward compat (units without pace data render fine).
 - **School calendar testing** — Teacher Settings → School Calendar: create academic year with terms. Unit detail → class → term picker works and saves. Classes/units without terms still work.
@@ -365,7 +400,7 @@ Advanced prototype — core platform functional (unit builder, knowledge base, s
 - **Skeleton generation debugging** — "AI response missing lessons array. Got keys: []" still occurring. max_tokens increased to dynamic scaling (up to 8192). Detailed logging added. Check server console for `[generateSkeleton]` stop_reason on next failure.
 
 ## Known issues / blockers
-- Migrations 025 (usage tracking) and 028 (student tool sessions) not yet applied to database — run `supabase db push`. Migration 029 (Open Studio) APPLIED 20 Mar 2026. Migration 030 (NM) APPLIED 20 Mar 2026. **Migration 032 (NM page_id UUID→TEXT fix) ✅ APPLIED 21 Mar 2026.** **Migration 033 (unit-as-template architecture) ✅ APPLIED 21 Mar 2026.** **Migration 036 (student pace feedback — nullable columns) ✅ APPLIED 21 Mar 2026.** **Migration 037 (school calendar + term_id + schedule_overrides on class_units) — NOT YET APPLIED.** **Migration 035 (safety_badges — badges, student_badges, unit_badge_requirements, safety_sessions, safety_results) ✅ APPLIED 21 Mar 2026.** **Migration 038 (timetable + class_meetings) ✅ APPLIED 21 Mar 2026.** **Migration 040 (unit forking — content_data/forked_at/forked_from_version on class_units, versions/current_version on units, unit_versions table) ✅ APPLIED 22 Mar 2026.** **Migration 041 (student-class junction — class_students table, author_teacher_id on students, backfill from class_id) ✅ APPLIED (date unknown, discovered 23 Mar 2026).** NM + unit-as-template + safety badges + unit forking + student-class junction features now unblocked — ready for end-to-end testing.
+- **Migration 025 (usage tracking) ✅ CONFIRMED APPLIED 24 Mar 2026** — `ai_usage_log` table exists. Usage tracking is live. **Migration 028 (student tool sessions) — status unknown, needs check.** Migration 029 (Open Studio) APPLIED 20 Mar 2026. Migration 030 (NM) APPLIED 20 Mar 2026. **Migration 032 (NM page_id UUID→TEXT fix) ✅ APPLIED 21 Mar 2026.** **Migration 033 (unit-as-template architecture) ✅ APPLIED 21 Mar 2026.** **Migration 036 (student pace feedback — nullable columns) ✅ APPLIED 21 Mar 2026.** **Migration 037 (school calendar + term_id + schedule_overrides on class_units) ✅ CONFIRMED APPLIED 24 Mar 2026** — `school_calendar_terms` table + `class_units.term_id` + `class_units.schedule_overrides` all exist. All scheduling UI unblocked. **Migration 035 (safety_badges) ✅ APPLIED 21 Mar 2026.** **Migration 038 (timetable + class_meetings) ✅ APPLIED 21 Mar 2026.** **Migration 040 (unit forking) ✅ APPLIED 22 Mar 2026.** **Migration 041 (student-class junction) ✅ APPLIED (discovered 23 Mar 2026).** All major migrations confirmed applied. Remaining unknown: 028 (student tool sessions).
 - ~~**Student login cookie not persisting on Vercel (23 Mar 2026)**~~ **FIXED.** Two stacked bugs: (1) Vercel CDN strips `Set-Cookie` headers from responses with `Cache-Control: public` — Next.js Route Handlers default to `public, max-age=0, must-revalidate`. Fixed by adding `Cache-Control: private, no-cache, no-store, must-revalidate` to all auth routes + global rule in `next.config.ts` for `/api/auth/*`. (2) Migration 041 (`class_students` junction) created an ambiguous PostgREST relationship (PGRST201) — two paths from `students` to `classes` (direct FK + junction table). The nested select `students(... classes(...))` returned HTTP 300 instead of data. Fixed by rewriting `student-session/route.ts` to query each table separately with no nested joins.
 - **Class-local editor initial load had 404** — content API route was using `.single()` on class_units query (throws when no row exists for unforked units). Fixed to `.maybeSingle()`. Also added ownership check fallback (tries without `author_teacher_id` filter if first query fails). Deployed 22 Mar 2026.
 - **Dashboard 3-button layout needs visual testing** — Manage button uses class color fill with white text. Edit Unit uses outline style. Verify these render correctly across all class color assignments (8 colors in CLASS_COLORS array).
