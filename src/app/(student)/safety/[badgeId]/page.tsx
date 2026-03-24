@@ -359,7 +359,7 @@ export default function SafetyBadgeTestPage({
           <div className="max-w-5xl mx-auto px-4 py-2 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <button
-                onClick={() => router.push("/safety")}
+                onClick={() => router.push("/dashboard")}
                 className="flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 transition"
               >
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1084,10 +1084,10 @@ export default function SafetyBadgeTestPage({
           {/* Actions */}
           <div className="flex gap-3">
             <button
-              onClick={() => router.push("/safety")}
+              onClick={() => router.push("/dashboard")}
               className="flex-1 py-3 px-4 rounded-lg font-semibold text-slate-900 border-2 border-slate-200 hover:border-slate-300 transition"
             >
-              ← Back to Safety
+              ← Back to Dashboard
             </button>
             {!passed && (
               <button
