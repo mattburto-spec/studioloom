@@ -154,7 +154,10 @@ export async function GET(request: NextRequest) {
       if (!badge || seenBadges.has(badge.id)) continue;
       seenBadges.add(badge.id);
 
+      // Prefer "active" badge over old failed "expired" attempts
       const sb = (studentBadges || []).find(
+        (s: any) => s.badge_id === badge.id && s.status === "active"
+      ) || (studentBadges || []).find(
         (s: any) => s.badge_id === badge.id
       );
 

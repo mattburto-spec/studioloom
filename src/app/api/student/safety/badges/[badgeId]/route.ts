@@ -41,13 +41,18 @@ export async function GET(
       return NextResponse.json({ error: "Badge not found" }, { status: 404 });
     }
 
-    // Fetch student's badge status
-    const { data: studentBadge } = await supabase
+    // Fetch student's badge status — prefer "active" over old failed "expired" attempts
+    // Multiple rows may exist (failed attempts + active award), so query all and pick best
+    const { data: allStudentBadges } = await supabase
       .from("student_badges")
       .select("status, awarded_at, expires_at")
       .eq("student_id", studentId)
       .eq("badge_id", badgeId)
-      .maybeSingle();
+      .order("awarded_at", { ascending: false });
+
+    const studentBadge = (allStudentBadges || []).find(
+      (sb: any) => sb.status === "active"
+    ) || (allStudentBadges || [])[0] || null;
 
     // Fetch recent failed attempts for cooldown calculation
     // Failed attempts are stored as student_badges with status='expired'
