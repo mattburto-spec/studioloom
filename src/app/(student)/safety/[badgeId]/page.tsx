@@ -221,11 +221,11 @@ export default function SafetyBadgeTestPage({
       return currentAnswer === correct;
     }
 
-    // Handle arrays (sequence)
+    // Handle arrays (sequence — order matters)
     if (Array.isArray(correct)) {
       if (!Array.isArray(currentAnswer)) return false;
       if (currentAnswer.length !== correct.length) return false;
-      return JSON.stringify([...currentAnswer].sort()) === JSON.stringify([...correct].sort());
+      return currentAnswer.every((val, i) => String(val) === String(correct[i]));
     }
 
     return false;
@@ -233,7 +233,7 @@ export default function SafetyBadgeTestPage({
 
   // Navigate quiz — show feedback first
   const handleAnswerSelection = async () => {
-    if (!currentAnswer && currentAnswer !== 0 && currentAnswer !== "false") {
+    if (currentAnswer === null || (Array.isArray(currentAnswer) && currentAnswer.length === 0)) {
       return; // Answer not selected
     }
 
@@ -656,9 +656,9 @@ export default function SafetyBadgeTestPage({
                 {question.options.map((option, idx) => (
                   <button
                     key={idx}
-                    onClick={() => setCurrentAnswer(idx.toString())}
+                    onClick={() => setCurrentAnswer(option)}
                     className={`w-full text-left rounded-lg border-2 p-4 transition ${
-                      currentAnswer === idx.toString()
+                      currentAnswer === option
                         ? "border-indigo-600 bg-indigo-50"
                         : "border-slate-200 hover:border-slate-300"
                     }`}
@@ -666,12 +666,12 @@ export default function SafetyBadgeTestPage({
                     <div className="flex items-center gap-3">
                       <div
                         className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
-                          currentAnswer === idx.toString()
+                          currentAnswer === option
                             ? "border-indigo-600 bg-indigo-600"
                             : "border-slate-300"
                         }`}
                       >
-                        {currentAnswer === idx.toString() && (
+                        {currentAnswer === option && (
                           <div className="w-2 h-2 bg-white rounded-full" />
                         )}
                       </div>
@@ -707,9 +707,9 @@ export default function SafetyBadgeTestPage({
                 {question.options.map((option, idx) => (
                   <button
                     key={idx}
-                    onClick={() => setCurrentAnswer(idx.toString())}
+                    onClick={() => setCurrentAnswer(option)}
                     className={`w-full text-left rounded-lg border-2 p-4 transition ${
-                      currentAnswer === idx.toString()
+                      currentAnswer === option
                         ? "border-indigo-600 bg-indigo-50"
                         : "border-slate-200 hover:border-slate-300"
                     }`}
@@ -717,12 +717,12 @@ export default function SafetyBadgeTestPage({
                     <div className="flex items-center gap-3">
                       <div
                         className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
-                          currentAnswer === idx.toString()
+                          currentAnswer === option
                             ? "border-indigo-600 bg-indigo-600"
                             : "border-slate-300"
                         }`}
                       >
-                        {currentAnswer === idx.toString() && (
+                        {currentAnswer === option && (
                           <div className="w-2 h-2 bg-white rounded-full" />
                         )}
                       </div>
@@ -853,14 +853,13 @@ export default function SafetyBadgeTestPage({
                   </p>
                   <p className="text-sm font-semibold text-slate-900">
                     {Array.isArray(question.correct_answer)
-                      ? question.options?.[question.correct_answer[0] as number] ||
+                      ? (question.correct_answer as number[]).map(i => question.options?.[i]).filter(Boolean).join(" → ") ||
                         JSON.stringify(question.correct_answer)
-                      : question.options?.[parseInt(question.correct_answer as string)] ||
-                        (question.correct_answer === "true"
-                          ? "True"
-                          : question.correct_answer === "false"
-                          ? "False"
-                          : question.correct_answer)}
+                      : question.correct_answer === "true"
+                        ? "True"
+                        : question.correct_answer === "false"
+                        ? "False"
+                        : String(question.correct_answer)}
                   </p>
                 </div>
               )}
@@ -873,10 +872,10 @@ export default function SafetyBadgeTestPage({
               <button
                 onClick={handleAnswerSelection}
                 disabled={
-                  submitting || (!currentAnswer && currentAnswer !== 0 && currentAnswer !== "false")
+                  submitting || (currentAnswer === null || (Array.isArray(currentAnswer) && currentAnswer.length === 0))
                 }
                 className={`w-full py-3 px-4 rounded-lg font-semibold transition ${
-                  (currentAnswer || currentAnswer === 0 || currentAnswer === "false") && !submitting
+                  currentAnswer !== null && !(Array.isArray(currentAnswer) && currentAnswer.length === 0) && !submitting
                     ? "bg-indigo-600 text-white hover:bg-indigo-700"
                     : "bg-slate-200 text-slate-500 cursor-not-allowed"
                 }`}
