@@ -160,6 +160,43 @@ Transform the daily student interaction from structured unit pages to a living p
 - **Phase completion celebrations**: Animation/confetti when a criterion phase is completed. "You finished Inquiring & Analysing!" with summary of what they accomplished
 - Keep it to these 3 mechanics — resist adding XP, leaderboards, or badges until Phase 3
 
+### Student Skill Levels — "Designer Level" System (NEW — 24 Mar 2026)
+Students progress through levels like a game — but tied to real, demonstrated design competency, not arbitrary XP accumulation. The level is a holistic representation of where a student sits as a designer.
+
+**Core concept:**
+- Students have a **Designer Level** (e.g., Level 1–20, or named tiers: Apprentice → Explorer → Creator → Innovator → Master)
+- Level is computed from a composite of **real signals**: criterion scores across units, toolkit tool usage depth, safety badges earned, portfolio quality, reflection quality (effort scores from MonitoredTextarea), peer review participation, Open Studio session productivity scores, NM competency self-assessments
+- Levels are NOT based on volume/grinding (not "submit 50 responses = level up") — they reward depth, quality, and breadth of skill demonstration
+- Each level unlock could grant something meaningful: new toolkit tools, Open Studio eligibility, peer review privileges, ability to mentor younger students, portfolio export styles, dashboard customisation
+
+**Visualisation ideas (research needed):**
+- RPG-style skill tree — branches for each MYP criterion (A: Research, B: Ideas, C: Making, D: Evaluation) with nodes that light up as competency grows. Spatial, explorable, satisfying to fill in
+- Altitude metaphor — mountain/climbing visualisation where each level is a camp. Students see themselves ascending. Class view shows all students on the mountain
+- Rings/orbits — concentric rings expanding outward, each ring = a level tier. Inner ring is core skills, outer rings are advanced. Inspired by Brilliant's course map
+- Character evolution — simple avatar/icon that visually evolves with level (sketch outline → wireframe → coloured → detailed → glowing). Like Pokémon evolution but for a designer identity
+- Dashboard integration: prominent level badge on student dashboard, progress toward next level shown as a bar or radial gauge, "3 more things to reach Level 8" with specific actionable items
+
+**Design constraints (UX Philosophy #4 — Restrained Gamification):**
+- Must feel earned, not grindy. A student who does excellent work on 2 units should level faster than one who does mediocre work on 5
+- No public class leaderboard of levels (ages 11-16 — avoid social comparison anxiety). Teacher can see class distribution privately
+- Levels persist across years — a Year 9 student keeps their level in Year 10. This is the "safety certs follow the student" pattern applied to overall competency
+- Must not create perverse incentives (students gaming for level-ups instead of learning). Weight quality signals heavily, volume signals lightly
+- Consider opt-in for schools that don't want gamification at all
+
+**Data sources (most already exist):**
+- Criterion scores from grading (Phase 4) — strongest signal
+- Toolkit tool completion + depth dots (idea quality from AI assessment)
+- Safety badge count + pass scores
+- Reflection quality (meaningful word count from effort-gating)
+- Open Studio productivity scores + session count
+- NM competency ratings (self + teacher)
+- Portfolio richness (pinned entries, annotation count)
+- Peer review quality given (Phase 5)
+
+**Build estimate:** ~5-7 days. Depends on grading page being functional (criterion scores are the primary signal). Visualisation is the creative challenge — the data aggregation is straightforward.
+
+**Phase:** Build after Phase 4 (grading) gives us criterion scores. Can prototype the visualisation earlier with mock data.
+
 ### Remove/Deprecate Drawing Tool
 - Students use Canva, Figma, TinkerCAD etc. for creation
 - Replace sketch response type with "Add Link" to external work

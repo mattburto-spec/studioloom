@@ -13,6 +13,7 @@ import { useDndContext } from "./DndContext";
 export interface BlockDefinition {
   id: string;
   label: string;
+  /** @deprecated Kept for backward compat — not rendered in palette */
   icon: string;
   category: BlockCategory;
   description: string;
@@ -20,6 +21,8 @@ export interface BlockDefinition {
   defaultPhase: "opening" | "miniLesson" | "workTime" | "debrief" | "any";
   /** Factory function to create the ActivitySection */
   create: () => ActivitySection;
+  /** Optional: marks this block as user-added or imported */
+  source?: "built-in" | "custom" | "imported";
 }
 
 export type BlockCategory =
@@ -27,11 +30,13 @@ export type BlockCategory =
   | "content"
   | "toolkit"
   | "assessment"
-  | "collaboration";
+  | "collaboration"
+  | "custom";
 
 interface CategoryMeta {
   label: string;
-  icon: string;
+  /** Tailwind color class for the category dot (bg-*) */
+  dotColor: string;
   color: string;
   bgColor: string;
   borderColor: string;
@@ -39,39 +44,46 @@ interface CategoryMeta {
 
 const CATEGORIES: Record<BlockCategory, CategoryMeta> = {
   response: {
-    label: "Student Response",
-    icon: "✏️",
+    label: "Response",
+    dotColor: "bg-indigo-500",
     color: "text-indigo-600",
     bgColor: "bg-indigo-50",
     borderColor: "border-indigo-200",
   },
   content: {
     label: "Content",
-    icon: "📄",
+    dotColor: "bg-blue-500",
     color: "text-blue-600",
     bgColor: "bg-blue-50",
     borderColor: "border-blue-200",
   },
   toolkit: {
     label: "Toolkit",
-    icon: "🧰",
+    dotColor: "bg-purple-500",
     color: "text-purple-600",
     bgColor: "bg-purple-50",
     borderColor: "border-purple-200",
   },
   assessment: {
     label: "Assessment",
-    icon: "📋",
+    dotColor: "bg-amber-500",
     color: "text-amber-600",
     bgColor: "bg-amber-50",
     borderColor: "border-amber-200",
   },
   collaboration: {
     label: "Collaboration",
-    icon: "👥",
+    dotColor: "bg-emerald-500",
     color: "text-emerald-600",
     bgColor: "bg-emerald-50",
     borderColor: "border-emerald-200",
+  },
+  custom: {
+    label: "Custom",
+    dotColor: "bg-rose-500",
+    color: "text-rose-600",
+    bgColor: "bg-rose-50",
+    borderColor: "border-rose-200",
   },
 };
 
@@ -412,6 +424,19 @@ export const BLOCK_LIBRARY: BlockDefinition[] = [
 ];
 
 // ─────────────────────────────────────────────────────────────────
+// Extensibility — custom blocks can be added at runtime
+// ─────────────────────────────────────────────────────────────────
+
+/** Merge custom blocks into the library (deduplicates by id) */
+export function mergeBlocks(
+  base: BlockDefinition[],
+  custom: BlockDefinition[]
+): BlockDefinition[] {
+  const ids = new Set(base.map((b) => b.id));
+  return [...base, ...custom.filter((c) => !ids.has(c.id))];
+}
+
+// ─────────────────────────────────────────────────────────────────
 // BlockPalette component
 // ─────────────────────────────────────────────────────────────────
 
@@ -419,6 +444,8 @@ interface BlockPaletteProps {
   onAddBlock: (activity: ActivitySection) => void;
   /** Filter blocks to those contextually relevant */
   suggestedBlockIds?: string[];
+  /** Additional blocks to merge into the library (PP, PYP, custom, etc.) */
+  customBlocks?: BlockDefinition[];
   /** @deprecated No longer used — LessonEditor controls visibility */
   isOpen?: boolean;
   /** @deprecated No longer used — LessonEditor controls visibility */
@@ -428,17 +455,23 @@ interface BlockPaletteProps {
 export default function BlockPalette({
   onAddBlock,
   suggestedBlockIds,
+  customBlocks,
 }: BlockPaletteProps) {
   const [search, setSearch] = useState("");
   const [expandedCategory, setExpandedCategory] = useState<BlockCategory | null>("response");
 
+  // Merge custom blocks if provided
+  const allBlocks = customBlocks
+    ? mergeBlocks(BLOCK_LIBRARY, customBlocks)
+    : BLOCK_LIBRARY;
+
   const filteredBlocks = search
-    ? BLOCK_LIBRARY.filter(
+    ? allBlocks.filter(
         (b) =>
           b.label.toLowerCase().includes(search.toLowerCase()) ||
           b.description.toLowerCase().includes(search.toLowerCase())
       )
-    : BLOCK_LIBRARY;
+    : allBlocks;
 
   const handleAdd = useCallback(
     (block: BlockDefinition) => {
@@ -448,167 +481,175 @@ export default function BlockPalette({
   );
 
   const suggestedBlocks = suggestedBlockIds
-    ? BLOCK_LIBRARY.filter((b) => suggestedBlockIds.includes(b.id))
+    ? allBlocks.filter((b) => suggestedBlockIds.includes(b.id))
     : [];
 
+  // Gather which categories actually have blocks
+  const activeCategories = (Object.keys(CATEGORIES) as BlockCategory[]).filter(
+    (cat) => filteredBlocks.some((b) => b.category === cat)
+  );
+
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full bg-gray-50/50">
       {/* Header */}
       <div className="px-3 pt-3 pb-2">
-                <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider mb-2">
-                  Blocks
-                </h3>
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">
+            Blocks
+          </h3>
+          <span className="text-[10px] text-gray-400 tabular-nums">
+            {allBlocks.length}
+          </span>
+        </div>
 
-                {/* Search */}
-                <div className="relative">
-                  <svg
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"
+        {/* Search */}
+        <div className="relative">
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"
+          >
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search blocks..."
+            className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-transparent"
+          />
+        </div>
+      </div>
+
+      {/* Scrollable content */}
+      <div className="flex-1 overflow-y-auto px-3 pb-3">
+        {/* AI Suggested blocks */}
+        {suggestedBlocks.length > 0 && !search && (
+          <div className="mb-3">
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+              <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider">
+                AI Suggested
+              </span>
+            </div>
+            <div className="space-y-0.5">
+              {suggestedBlocks.map((block) => (
+                <PaletteBlock
+                  key={`suggested-${block.id}`}
+                  block={block}
+                  onAdd={handleAdd}
+                  highlight
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Search results */}
+        {search ? (
+          <div className="space-y-0.5">
+            {filteredBlocks.length === 0 ? (
+              <p className="text-xs text-gray-400 text-center py-4">
+                No blocks match &ldquo;{search}&rdquo;
+              </p>
+            ) : (
+              filteredBlocks.map((block) => (
+                <PaletteBlock
+                  key={block.id}
+                  block={block}
+                  onAdd={handleAdd}
+                />
+              ))
+            )}
+          </div>
+        ) : (
+          /* Categorized accordion */
+          <div className="space-y-0.5">
+            {activeCategories.map((cat) => {
+              const meta = CATEGORIES[cat];
+              const blocks = filteredBlocks.filter(
+                (b) => b.category === cat
+              );
+              if (blocks.length === 0) return null;
+
+              const isExpanded = expandedCategory === cat;
+
+              return (
+                <div key={cat}>
+                  <button
+                    onClick={() =>
+                      setExpandedCategory(isExpanded ? null : cat)
+                    }
+                    className={`w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left transition-all ${
+                      isExpanded
+                        ? `${meta.bgColor} ${meta.color}`
+                        : "hover:bg-gray-100 text-gray-600"
+                    }`}
                   >
-                    <circle cx="11" cy="11" r="8" />
-                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                  </svg>
-                  <input
-                    type="text"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search blocks..."
-                    className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-transparent"
-                  />
-                </div>
-              </div>
+                    <div className={`w-2 h-2 rounded-full ${meta.dotColor} flex-shrink-0`} />
+                    <span className="text-[13px] font-semibold flex-1">
+                      {meta.label}
+                    </span>
+                    <span className="text-[10px] text-gray-400 tabular-nums">
+                      {blocks.length}
+                    </span>
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      className={`transition-transform ${
+                        isExpanded ? "rotate-90" : ""
+                      }`}
+                    >
+                      <polyline points="9 18 15 12 9 6" />
+                    </svg>
+                  </button>
 
-              {/* Scrollable content */}
-              <div className="flex-1 overflow-y-auto px-3 pb-3">
-                {/* AI Suggested blocks */}
-                {suggestedBlocks.length > 0 && !search && (
-                  <div className="mb-3">
-                    <div className="flex items-center gap-1.5 mb-1.5">
-                      <span className="text-xs">✨</span>
-                      <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider">
-                        AI Suggested
-                      </span>
-                    </div>
-                    <div className="space-y-1">
-                      {suggestedBlocks.map((block) => (
-                        <PaletteBlock
-                          key={`suggested-${block.id}`}
-                          block={block}
-                          onAdd={handleAdd}
-                          highlight
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Search results */}
-                {search ? (
-                  <div className="space-y-1">
-                    {filteredBlocks.length === 0 ? (
-                      <p className="text-xs text-gray-400 text-center py-4">
-                        No blocks match &ldquo;{search}&rdquo;
-                      </p>
-                    ) : (
-                      filteredBlocks.map((block) => (
-                        <PaletteBlock
-                          key={block.id}
-                          block={block}
-                          onAdd={handleAdd}
-                        />
-                      ))
-                    )}
-                  </div>
-                ) : (
-                  /* Categorized accordion */
-                  <div className="space-y-1">
-                    {(
-                      Object.keys(CATEGORIES) as BlockCategory[]
-                    ).map((cat) => {
-                      const meta = CATEGORIES[cat];
-                      const blocks = filteredBlocks.filter(
-                        (b) => b.category === cat
-                      );
-                      if (blocks.length === 0) return null;
-
-                      const isExpanded = expandedCategory === cat;
-
-                      return (
-                        <div key={cat}>
-                          <button
-                            onClick={() =>
-                              setExpandedCategory(isExpanded ? null : cat)
-                            }
-                            className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-colors ${
-                              isExpanded
-                                ? `${meta.bgColor} ${meta.color}`
-                                : "hover:bg-gray-100 text-gray-600"
-                            }`}
-                          >
-                            <span className="text-sm">{meta.icon}</span>
-                            <span className="text-xs font-semibold flex-1">
-                              {meta.label}
-                            </span>
-                            <span className="text-[10px] text-gray-400">
-                              {blocks.length}
-                            </span>
-                            <svg
-                              width="12"
-                              height="12"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              className={`transition-transform ${
-                                isExpanded ? "rotate-90" : ""
-                              }`}
-                            >
-                              <polyline points="9 18 15 12 9 6" />
-                            </svg>
-                          </button>
-
-                          <AnimatePresence initial={false}>
-                            {isExpanded && (
-                              <motion.div
-                                initial={{ height: 0, opacity: 0 }}
-                                animate={{ height: "auto", opacity: 1 }}
-                                exit={{ height: 0, opacity: 0 }}
-                                transition={{
-                                  type: "spring",
-                                  damping: 25,
-                                  stiffness: 300,
-                                }}
-                                className="overflow-hidden"
-                              >
-                                <div className="pl-2 pt-1 pb-1 space-y-0.5">
-                                  {blocks.map((block) => (
-                                    <PaletteBlock
-                                      key={block.id}
-                                      block={block}
-                                      onAdd={handleAdd}
-                                    />
-                                  ))}
-                                </div>
-                              </motion.div>
-                            )}
-                          </AnimatePresence>
+                  <AnimatePresence initial={false}>
+                    {isExpanded && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{
+                          type: "spring",
+                          damping: 25,
+                          stiffness: 300,
+                        }}
+                        className="overflow-hidden"
+                      >
+                        <div className="pl-1 pt-1 pb-1 space-y-0">
+                          {blocks.map((block) => (
+                            <PaletteBlock
+                              key={block.id}
+                              block={block}
+                              onAdd={handleAdd}
+                            />
+                          ))}
                         </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────
-// Individual palette block
+// Individual palette block — clean, text-forward, tooltip on hover
 // ─────────────────────────────────────────────────────────────────
 
 function PaletteBlock({
@@ -621,17 +662,16 @@ function PaletteBlock({
   highlight?: boolean;
 }) {
   const { startDrag, endDrag } = useDndContext();
+  const meta = CATEGORIES[block.category] || CATEGORIES.custom;
 
   const handleDragStart = (e: DragEvent) => {
     const activity = block.create();
-    // Set data for HTML5 DnD
     e.dataTransfer.setData(
       "application/json",
       JSON.stringify({ activity, label: block.label, icon: block.icon })
     );
     e.dataTransfer.effectAllowed = "copy";
 
-    // Set up DnD context for drop zone visual feedback
     startDrag({
       activity,
       label: block.label,
@@ -650,35 +690,43 @@ function PaletteBlock({
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       onClick={() => onAdd(block)}
-      className={`w-full flex items-start gap-2.5 px-2.5 py-2 rounded-lg text-left transition-all group cursor-grab active:cursor-grabbing ${
+      title={block.description}
+      className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left transition-all group cursor-grab active:cursor-grabbing ${
         highlight
-          ? "bg-indigo-50/70 border border-indigo-200 hover:bg-indigo-100/70 hover:border-indigo-300"
-          : "hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-200"
-      } hover:scale-[1.01] active:scale-[0.98]`}
+          ? "bg-indigo-50/80 border border-indigo-200 hover:bg-indigo-100/80 hover:border-indigo-300"
+          : "hover:bg-white border border-transparent hover:border-gray-200 hover:shadow-sm"
+      } active:scale-[0.97]`}
     >
-      {/* Drag handle */}
-      <span className="text-gray-300 group-hover:text-gray-400 flex-shrink-0 mt-1 select-none text-[10px]">
-        ⠿
+      {/* Category dot */}
+      <div className={`w-1.5 h-1.5 rounded-full ${meta.dotColor} flex-shrink-0 opacity-60 group-hover:opacity-100 transition-opacity`} />
+
+      {/* Label — bigger text, no description visible */}
+      <span className="text-[13px] font-medium text-gray-700 group-hover:text-gray-900 transition-colors flex-1 truncate">
+        {block.label}
       </span>
-      <span className="text-base mt-0.5 flex-shrink-0">{block.icon}</span>
-      <div className="min-w-0">
-        <div className="text-xs font-semibold text-gray-800 group-hover:text-indigo-700 transition-colors">
-          {block.label}
-        </div>
-        <div className="text-[10px] text-gray-400 leading-tight mt-0.5 line-clamp-1">
-          {block.description}
-        </div>
-      </div>
+
+      {/* Custom/imported badge */}
+      {block.source === "custom" && (
+        <span className="text-[9px] font-semibold text-rose-500 uppercase tracking-wider flex-shrink-0">
+          Custom
+        </span>
+      )}
+      {block.source === "imported" && (
+        <span className="text-[9px] font-semibold text-cyan-500 uppercase tracking-wider flex-shrink-0">
+          Pack
+        </span>
+      )}
+
       {/* Add indicator on hover */}
-      <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-0.5">
+      <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
         <svg
-          width="14"
-          height="14"
+          width="12"
+          height="12"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
-          strokeWidth="2"
-          className="text-indigo-400"
+          strokeWidth="2.5"
+          className="text-gray-400"
         >
           <line x1="12" y1="5" x2="12" y2="19" />
           <line x1="5" y1="12" x2="19" y2="12" />

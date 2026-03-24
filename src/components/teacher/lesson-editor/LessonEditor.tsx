@@ -16,6 +16,7 @@ import DropZone from "./DropZone";
 import { DndProvider } from "./DndContext";
 import AITextField from "./AITextField";
 import ExtensionBlock from "./ExtensionBlock";
+import UnitThumbnailEditor from "./UnitThumbnailEditor";
 import type {
   UnitPage,
   PageContent,
@@ -50,6 +51,9 @@ export default function LessonEditor({
     content,
     loading,
     error,
+    unitTitle,
+    thumbnailUrl,
+    setThumbnailUrl,
     selectedPageIndex,
     setSelectedPageIndex,
     updatePage,
@@ -389,6 +393,8 @@ export default function LessonEditor({
             </button>
           )}
 
+          <h1 className="text-sm font-bold text-gray-900 tracking-tight">Unit Editor</h1>
+
           {/* Fork indicator */}
           {isFork ? (
             <span className="px-2 py-0.5 bg-amber-50 text-amber-700 text-xs font-medium rounded-full border border-amber-200">
@@ -614,14 +620,28 @@ export default function LessonEditor({
 
       {/* ─── Three-Panel Layout ─── */}
       <div className="flex flex-1 min-h-0">
-        {/* Left: Lesson sidebar */}
-        <LessonSidebar
-          pages={pages}
-          selectedIndex={selectedPageIndex}
-          onSelect={setSelectedPageIndex}
-          onReorder={handleReorderPages}
-          onAdd={() => addPage()}
-        />
+        {/* Left: Sidebar column (thumbnail + lessons) */}
+        <div className="w-64 min-w-[256px] border-r border-gray-200 bg-gray-50/50 flex flex-col h-full overflow-hidden">
+          {/* Unit thumbnail */}
+          <div className="px-3 pt-3 pb-2 flex-shrink-0">
+            <UnitThumbnailEditor
+              unitId={unitId}
+              thumbnailUrl={thumbnailUrl}
+              unitTitle={unitTitle}
+              onThumbnailChange={setThumbnailUrl}
+            />
+          </div>
+          {/* Lesson list (takes remaining height) */}
+          <div className="flex-1 min-h-0">
+            <LessonSidebar
+              pages={pages}
+              selectedIndex={selectedPageIndex}
+              onSelect={setSelectedPageIndex}
+              onReorder={handleReorderPages}
+              onAdd={() => addPage()}
+            />
+          </div>
+        </div>
 
         {/* Center: Editor main area */}
         <div className="flex-1 overflow-y-auto">

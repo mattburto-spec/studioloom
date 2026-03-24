@@ -22,6 +22,11 @@ interface UseLessonEditorReturn {
   loading: boolean;
   error: string | null;
 
+  // Unit metadata
+  unitTitle: string | null;
+  thumbnailUrl: string | null;
+  setThumbnailUrl: (url: string) => void;
+
   // Selection & UI state
   selectedPageIndex: number | null;
   setSelectedPageIndex: (index: number) => void;
@@ -65,6 +70,10 @@ export function useLessonEditor({
   const [error, setError] = useState<string | null>(null);
   const [isFork, setIsFork] = useState(false);
 
+  // Unit metadata
+  const [unitTitle, setUnitTitle] = useState<string | null>(null);
+  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
+
   // Selection state
   const [selectedPageIndex, setSelectedPageIndex] = useState<number | null>(null);
 
@@ -92,6 +101,8 @@ export function useLessonEditor({
 
         setContent(loadedContent);
         setIsFork(data.isForked || false);
+        setThumbnailUrl(data.thumbnailUrl || null);
+        setUnitTitle(data.unitTitle || null);
 
         // Initialize undo stack with the loaded content
         undoManagerRef.current.push(loadedContent);
@@ -245,6 +256,9 @@ export function useLessonEditor({
     content,
     loading,
     error,
+    unitTitle,
+    thumbnailUrl,
+    setThumbnailUrl,
     selectedPageIndex,
     setSelectedPageIndex,
     updatePage,

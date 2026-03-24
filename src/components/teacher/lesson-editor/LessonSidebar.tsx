@@ -32,7 +32,7 @@ export function LessonSidebar({
   let lastPhase = "";
 
   return (
-    <div className="w-64 min-w-[256px] border-r border-gray-200 bg-gray-50/50 flex flex-col h-full overflow-hidden">
+    <div className="flex flex-col h-full overflow-hidden">
       {/* Header with Add button */}
       <div className="px-3 py-2.5 border-b border-gray-200 flex-shrink-0 flex items-center justify-between">
         <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">

@@ -31,7 +31,7 @@ async function GET(request: NextRequest) {
     let unit: Record<string, unknown> | null = null;
     const { data: unitData, error: unitErr } = await supabase
       .from("units")
-      .select("id, content_data")
+      .select("id, content_data, thumbnail_url, title")
       .eq("id", unitId)
       .eq("author_teacher_id", auth.teacherId)
       .single();
@@ -41,7 +41,7 @@ async function GET(request: NextRequest) {
       console.warn("[class-units/content GET] ownership check failed, trying without filter:", unitErr?.message);
       const { data: fallbackUnit } = await supabase
         .from("units")
-        .select("id, content_data")
+        .select("id, content_data, thumbnail_url, title")
         .eq("id", unitId)
         .single();
 
@@ -73,6 +73,8 @@ async function GET(request: NextRequest) {
       forkedAt: classUnit?.forked_at || null,
       forkedFromVersion: classUnit?.forked_from_version || null,
       masterVersion: (unit as Record<string, unknown>).current_version ?? 1,
+      thumbnailUrl: (unit as Record<string, unknown>).thumbnail_url || null,
+      unitTitle: (unit as Record<string, unknown>).title || null,
     });
   } catch (err) {
     console.error("[class-units/content GET]", err);
