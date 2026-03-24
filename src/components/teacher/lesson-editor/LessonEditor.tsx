@@ -12,6 +12,9 @@ import ActivityBlock from "./ActivityBlock";
 import { ActivityBlockAdd } from "./ActivityBlockAdd";
 import BlockPalette from "./BlockPalette";
 import GhostBlock from "./GhostBlock";
+import DropZone from "./DropZone";
+import { DndProvider } from "./DndContext";
+import AITextField from "./AITextField";
 import ExtensionBlock from "./ExtensionBlock";
 import type {
   UnitPage,
@@ -369,6 +372,7 @@ export default function LessonEditor({
   const saveLabel = SAVE_STATUS_LABELS[saveStatus] || SAVE_STATUS_LABELS.idle;
 
   return (
+    <DndProvider>
     <div className="flex flex-col h-screen bg-white">
       {/* ─── Sticky Header ─── */}
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-200 bg-white/80 backdrop-blur-sm z-30 flex-shrink-0">
@@ -715,20 +719,23 @@ export default function LessonEditor({
                     onToggle={() => togglePhase("opening")}
                   >
                     <div className="space-y-3">
-                      <div>
-                        <label className="text-xs font-medium text-gray-500 mb-1 block">
-                          Hook
-                        </label>
-                        <textarea
-                          value={phases.opening.hook || ""}
-                          onChange={(e) =>
-                            handleUpdatePhase("opening", { hook: e.target.value })
-                          }
-                          placeholder="How will you grab students' attention?"
-                          className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
-                          rows={2}
-                        />
-                      </div>
+                      <AITextField
+                        label="Hook"
+                        value={phases.opening.hook || ""}
+                        onChange={(val) =>
+                          handleUpdatePhase("opening", { hook: val })
+                        }
+                        placeholder="How will you grab students' attention?"
+                        rows={2}
+                        aiContext={{
+                          field: "hook",
+                          lessonTitle: selectedPage?.title || "",
+                          learningGoal: pageContent.learningGoal || "",
+                          phase: "opening",
+                        }}
+                        unitId={unitId}
+                        classId={classId}
+                      />
                       {/* Vocab warmup */}
                       {pageContent.vocabWarmup && (
                         <div className="bg-indigo-50/50 rounded-lg p-3">
@@ -737,6 +744,13 @@ export default function LessonEditor({
                           </span>
                         </div>
                       )}
+                      {/* Drop zone for opening phase */}
+                      <DropZone
+                        zoneId="opening"
+                        onDrop={handleAddActivity}
+                        label="Drop block into Opening"
+                        accentColor="indigo"
+                      />
                       {/* Ghost blocks for opening phase */}
                       <AnimatePresence>
                         {suggestions
@@ -774,22 +788,30 @@ export default function LessonEditor({
                     onToggle={() => togglePhase("miniLesson")}
                   >
                     <div className="space-y-3">
-                      <div>
-                        <label className="text-xs font-medium text-gray-500 mb-1 block">
-                          Focus
-                        </label>
-                        <textarea
-                          value={phases.miniLesson.focus || ""}
-                          onChange={(e) =>
-                            handleUpdatePhase("miniLesson", {
-                              focus: e.target.value,
-                            })
-                          }
-                          placeholder="What are you teaching directly?"
-                          className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
-                          rows={2}
-                        />
-                      </div>
+                      <AITextField
+                        label="Focus"
+                        value={phases.miniLesson.focus || ""}
+                        onChange={(val) =>
+                          handleUpdatePhase("miniLesson", { focus: val })
+                        }
+                        placeholder="What are you teaching directly?"
+                        rows={2}
+                        aiContext={{
+                          field: "focus",
+                          lessonTitle: selectedPage?.title || "",
+                          learningGoal: pageContent.learningGoal || "",
+                          phase: "miniLesson",
+                        }}
+                        unitId={unitId}
+                        classId={classId}
+                      />
+                      {/* Drop zone for miniLesson phase */}
+                      <DropZone
+                        zoneId="miniLesson"
+                        onDrop={handleAddActivity}
+                        label="Drop block into Mini-Lesson"
+                        accentColor="blue"
+                      />
                       {/* Ghost blocks for miniLesson phase */}
                       <AnimatePresence>
                         {suggestions
@@ -826,6 +848,13 @@ export default function LessonEditor({
                   onToggle={() => togglePhase("workTime")}
                 >
                   <div className="space-y-2">
+                    {/* Drop zone for workTime phase */}
+                    <DropZone
+                      zoneId="workTime"
+                      onDrop={handleAddActivity}
+                      label="Drop block into Work Time"
+                      accentColor="emerald"
+                    />
                     {/* Ghost blocks for workTime phase — shown above activities */}
                     <AnimatePresence>
                       {suggestions
@@ -933,38 +962,47 @@ export default function LessonEditor({
                     onToggle={() => togglePhase("debrief")}
                   >
                     <div className="space-y-3">
-                      <div>
-                        <label className="text-xs font-medium text-gray-500 mb-1 block">
-                          Protocol
-                        </label>
-                        <textarea
-                          value={phases.debrief.protocol || ""}
-                          onChange={(e) =>
-                            handleUpdatePhase("debrief", {
-                              protocol: e.target.value,
-                            })
-                          }
-                          placeholder="Think-Pair-Share, Gallery Walk, Exit Ticket..."
-                          className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
-                          rows={1}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs font-medium text-gray-500 mb-1 block">
-                          Prompt
-                        </label>
-                        <textarea
-                          value={phases.debrief.prompt || ""}
-                          onChange={(e) =>
-                            handleUpdatePhase("debrief", {
-                              prompt: e.target.value,
-                            })
-                          }
-                          placeholder="What question will you ask students to reflect on?"
-                          className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
-                          rows={2}
-                        />
-                      </div>
+                      <AITextField
+                        label="Protocol"
+                        value={phases.debrief.protocol || ""}
+                        onChange={(val) =>
+                          handleUpdatePhase("debrief", { protocol: val })
+                        }
+                        placeholder="Think-Pair-Share, Gallery Walk, Exit Ticket..."
+                        rows={1}
+                        aiContext={{
+                          field: "protocol",
+                          lessonTitle: selectedPage?.title || "",
+                          learningGoal: pageContent.learningGoal || "",
+                          phase: "debrief",
+                        }}
+                        unitId={unitId}
+                        classId={classId}
+                      />
+                      <AITextField
+                        label="Prompt"
+                        value={phases.debrief.prompt || ""}
+                        onChange={(val) =>
+                          handleUpdatePhase("debrief", { prompt: val })
+                        }
+                        placeholder="What question will you ask students to reflect on?"
+                        rows={2}
+                        aiContext={{
+                          field: "prompt",
+                          lessonTitle: selectedPage?.title || "",
+                          learningGoal: pageContent.learningGoal || "",
+                          phase: "debrief",
+                        }}
+                        unitId={unitId}
+                        classId={classId}
+                      />
+                      {/* Drop zone for debrief phase */}
+                      <DropZone
+                        zoneId="debrief"
+                        onDrop={handleAddActivity}
+                        label="Drop block into Debrief"
+                        accentColor="amber"
+                      />
                       {/* Ghost blocks for debrief phase */}
                       <AnimatePresence>
                         {suggestions
@@ -1078,5 +1116,6 @@ export default function LessonEditor({
         </AnimatePresence>
       </div>
     </div>
+    </DndProvider>
   );
 }

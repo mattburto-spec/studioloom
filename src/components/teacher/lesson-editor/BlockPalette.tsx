@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, type DragEvent } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { nanoid } from "nanoid";
 import type { ActivitySection, ResponseType } from "@/types";
+import { useDndContext } from "./DndContext";
 
 // ─────────────────────────────────────────────────────────────────
 // Block definitions — the source of truth for every draggable block
@@ -416,16 +417,16 @@ export const BLOCK_LIBRARY: BlockDefinition[] = [
 
 interface BlockPaletteProps {
   onAddBlock: (activity: ActivitySection) => void;
-  isOpen: boolean;
-  onToggle: () => void;
   /** Filter blocks to those contextually relevant */
   suggestedBlockIds?: string[];
+  /** @deprecated No longer used — LessonEditor controls visibility */
+  isOpen?: boolean;
+  /** @deprecated No longer used — LessonEditor controls visibility */
+  onToggle?: () => void;
 }
 
 export default function BlockPalette({
   onAddBlock,
-  isOpen,
-  onToggle,
   suggestedBlockIds,
 }: BlockPaletteProps) {
   const [search, setSearch] = useState("");
@@ -451,43 +452,9 @@ export default function BlockPalette({
     : [];
 
   return (
-    <>
-      {/* Toggle tab on the edge */}
-      <button
-        onClick={onToggle}
-        className={`absolute right-0 top-1/2 -translate-y-1/2 z-30 flex items-center gap-1 px-1.5 py-3 rounded-l-lg border border-r-0 transition-all ${
-          isOpen
-            ? "bg-indigo-50 border-indigo-200 text-indigo-600 translate-x-0"
-            : "bg-white border-gray-200 text-gray-400 hover:text-indigo-500 hover:border-indigo-200 translate-x-0"
-        }`}
-        title={isOpen ? "Close palette" : "Open block palette"}
-      >
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          className={`transition-transform ${isOpen ? "rotate-180" : ""}`}
-        >
-          <polyline points="15 18 9 12 15 6" />
-        </svg>
-      </button>
-
-      {/* Palette panel */}
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ width: 0, opacity: 0 }}
-            animate={{ width: 280, opacity: 1 }}
-            exit={{ width: 0, opacity: 0 }}
-            transition={{ type: "spring", damping: 28, stiffness: 320 }}
-            className="border-l border-gray-200 bg-gray-50/80 backdrop-blur-sm flex-shrink-0 overflow-hidden flex flex-col"
-          >
-            <div className="w-[280px] flex flex-col h-full">
-              {/* Header */}
-              <div className="px-3 pt-3 pb-2">
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="px-3 pt-3 pb-2">
                 <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider mb-2">
                   Blocks
                 </h3>
@@ -636,11 +603,7 @@ export default function BlockPalette({
                   </div>
                 )}
               </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </>
+    </div>
   );
 }
 
@@ -657,17 +620,46 @@ function PaletteBlock({
   onAdd: (block: BlockDefinition) => void;
   highlight?: boolean;
 }) {
+  const { startDrag, endDrag } = useDndContext();
+
+  const handleDragStart = (e: DragEvent) => {
+    const activity = block.create();
+    // Set data for HTML5 DnD
+    e.dataTransfer.setData(
+      "application/json",
+      JSON.stringify({ activity, label: block.label, icon: block.icon })
+    );
+    e.dataTransfer.effectAllowed = "copy";
+
+    // Set up DnD context for drop zone visual feedback
+    startDrag({
+      activity,
+      label: block.label,
+      icon: block.icon,
+      source: "palette",
+    });
+  };
+
+  const handleDragEnd = () => {
+    endDrag();
+  };
+
   return (
-    <motion.button
+    <div
+      draggable
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
       onClick={() => onAdd(block)}
-      className={`w-full flex items-start gap-2.5 px-2.5 py-2 rounded-lg text-left transition-all group ${
+      className={`w-full flex items-start gap-2.5 px-2.5 py-2 rounded-lg text-left transition-all group cursor-grab active:cursor-grabbing ${
         highlight
           ? "bg-indigo-50/70 border border-indigo-200 hover:bg-indigo-100/70 hover:border-indigo-300"
           : "hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-200"
-      }`}
-      whileHover={{ scale: 1.01 }}
-      whileTap={{ scale: 0.98 }}
+      } hover:scale-[1.01] active:scale-[0.98]`}
     >
+      {/* Drag handle */}
+      <span className="text-gray-300 group-hover:text-gray-400 flex-shrink-0 mt-1 select-none text-[10px]">
+        ⠿
+      </span>
       <span className="text-base mt-0.5 flex-shrink-0">{block.icon}</span>
       <div className="min-w-0">
         <div className="text-xs font-semibold text-gray-800 group-hover:text-indigo-700 transition-colors">
@@ -692,6 +684,6 @@ function PaletteBlock({
           <line x1="5" y1="12" x2="19" y2="12" />
         </svg>
       </div>
-    </motion.button>
+    </div>
   );
 }

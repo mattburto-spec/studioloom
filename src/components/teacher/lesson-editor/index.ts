@@ -8,6 +8,9 @@ export { default as ActivityBlock } from "./ActivityBlock";
 export { default as ExtensionBlock } from "./ExtensionBlock";
 export { default as BlockPalette } from "./BlockPalette";
 export { default as GhostBlock } from "./GhostBlock";
+export { default as DropZone } from "./DropZone";
+export { default as AITextField } from "./AITextField";
+export { DndProvider, useDndContext } from "./DndContext";
 export { LessonSidebar } from "./LessonSidebar";
 export { ActivityBlockAdd } from "./ActivityBlockAdd";
 
