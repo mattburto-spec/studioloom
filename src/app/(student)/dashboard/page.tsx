@@ -297,273 +297,299 @@ export default function StudentDashboard() {
               )}
             </p>
           </div>
-          {/* Earned badges compact */}
-          {earnedBadges.length > 0 && pendingBadges.length === 0 && (
-            <div className="hidden sm:flex items-center gap-1.5 flex-wrap justify-end">
-              {earnedBadges.map((b) => (
-                <span
-                  key={b.badge_id}
-                  className="inline-flex items-center gap-1 text-xs font-medium rounded-full px-2 py-0.5 border"
-                  style={{ borderColor: b.badge_color, color: b.badge_color, backgroundColor: b.badge_color + "10" }}
-                  title={`${b.badge_name} — earned ${new Date(b.earned_at).toLocaleDateString()}`}
-                >
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                  {b.badge_name}
-                </span>
-              ))}
-            </div>
-          )}
+          {/* Earned badges moved to right column sidebar */}
         </div>
 
         {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {[1, 2].map((i) => (
-              <div key={i} className="bg-white rounded-2xl animate-pulse h-64 shadow-sm border border-gray-200/60" />
-            ))}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            <div className="lg:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+              {[1, 2].map((i) => (
+                <div key={i} className="bg-white rounded-2xl animate-pulse h-64 shadow-sm border border-gray-200/60" />
+              ))}
+            </div>
+            <div className="bg-white rounded-2xl animate-pulse h-48 shadow-sm border border-gray-200/60" />
           </div>
         ) : (
           <>
-            {/* ============ Safety Tests ============ */}
-            {pendingBadges.length > 0 && (
-              <div className="mb-5">
-                <div className="rounded-2xl border-2 border-amber-300 bg-amber-50 overflow-hidden shadow-sm">
-                  <div className="px-4 py-2.5 bg-amber-100/80 border-b border-amber-200 flex items-center gap-2">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                    </svg>
-                    <h2 className="text-sm font-bold text-amber-800">
-                      Required Safety Tests ({pendingBadges.length})
-                    </h2>
-                    <span className="text-xs text-amber-600 ml-auto hidden sm:inline">Complete before starting your unit</span>
+            {/* ============ Two-Column Layout ============ */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+              {/* ── Left Column: Unit Cards ── */}
+              <div className={`${pendingBadges.length > 0 || earnedBadges.length > 0 ? "lg:col-span-2" : "lg:col-span-3"}`}>
+                {units.length === 0 ? (
+                  <div className="bg-white rounded-2xl p-16 text-center border border-gray-200/60 shadow-sm">
+                    <div className="w-14 h-14 rounded-2xl bg-purple-100 flex items-center justify-center mx-auto mb-4">
+                      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#7B2FF2" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />
+                      </svg>
+                    </div>
+                    <p className="text-gray-900 text-lg font-semibold mb-1">No units assigned yet</p>
+                    <p className="text-gray-500 text-sm">Your teacher will assign units for you to work on.</p>
                   </div>
-                  <div className="p-3 space-y-2">
-                    {pendingBadges.map((badge) => {
-                      const isCooldown = badge.student_status === "cooldown";
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {units.map((unit) => {
+                      const unitPages = getPageList(unit.content_data);
+                      const firstPageId = unitPages.length > 0 ? unitPages[0].id : "A1";
+                      const percent = getCompletionPercent(unit, unit.progress);
+                      const criterionKeys = [...new Set(
+                        unitPages
+                          .filter((p) => p.type === "strand" && p.criterion)
+                          .map((p) => p.criterion as CriterionKey)
+                      )];
+                      const hasStudio = openStudioUnits.has(unit.id);
+                      const isComplete = percent === 100;
+                      const isInProgress = inProgressUnit?.id === unit.id;
+
                       return (
-                        <div key={badge.badge_id} className="flex items-center gap-3 bg-white rounded-xl p-3 border border-amber-200/60">
-                          <div
-                            className="w-10 h-10 rounded-lg flex items-center justify-center text-lg flex-shrink-0"
-                            style={{ backgroundColor: badge.badge_color + "20", border: `2px solid ${badge.badge_color}` }}
-                          >
-                            {badgeIcon(badge.badge_icon)}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-semibold text-sm text-gray-900">{badge.badge_name}</p>
-                            <p className="text-xs text-gray-500">
-                              For <span className="font-medium">{badge.unit_title}</span>
-                              {" · "}{badge.question_count}q · {badge.pass_threshold}% to pass
-                            </p>
-                            {isCooldown && badge.cooldown_until && (
-                              <p className="text-xs text-amber-600 mt-0.5 font-medium">Retake available {timeAgo(badge.cooldown_until)}</p>
+                        <div key={unit.id} className="flex flex-col">
+                        <div
+                          className={`rounded-2xl overflow-hidden bg-white shadow-sm hover:shadow-md transition-all duration-200 flex flex-col ${
+                            isInProgress ? "ring-2 ring-purple-400 ring-offset-1" : "border border-gray-200/60"
+                          }`}
+                        >
+                          {/* Thumbnail + progress overlay */}
+                          <Link href={`/unit/${unit.id}/${firstPageId}`} className="relative group block">
+                            <div className="w-full h-36 overflow-hidden bg-gradient-to-br from-purple-200 to-blue-200">
+                              <div className="group-hover:scale-105 transition-transform duration-300 w-full h-full">
+                                <UnitThumbnail
+                                  thumbnailUrl={unit.thumbnail_url}
+                                  title={unit.title}
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                            </div>
+                            {/* Progress ring overlay */}
+                            <div className="absolute top-2.5 right-2.5 bg-white/90 backdrop-blur-sm rounded-full p-0.5 shadow-md">
+                              <div className="relative" style={{ width: 40, height: 40 }}>
+                                <svg width="40" height="40" className="transform -rotate-90">
+                                  <circle cx="20" cy="20" r="16" fill="none" stroke="#e5e7eb" strokeWidth="3" />
+                                  <circle
+                                    cx="20" cy="20" r="16" fill="none"
+                                    stroke={isComplete ? "#10b981" : "#7C3AED"}
+                                    strokeWidth="3"
+                                    strokeDasharray={2 * Math.PI * 16}
+                                    strokeDashoffset={2 * Math.PI * 16 * (1 - percent / 100)}
+                                    strokeLinecap="round"
+                                  />
+                                </svg>
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                  {isComplete ? (
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="#10b981">
+                                      <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
+                                    </svg>
+                                  ) : (
+                                    <span className="text-[10px] font-bold text-purple-600">{percent}%</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            {/* "Continue" label for in-progress */}
+                            {isInProgress && (
+                              <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-purple-600/80 to-transparent px-4 py-2">
+                                <span className="text-white text-xs font-semibold">Continue where you left off &rarr;</span>
+                              </div>
                             )}
-                            {badge.student_status === "expired" && (
-                              <p className="text-xs text-red-600 mt-0.5 font-medium">Expired — retake required</p>
-                            )}
-                          </div>
-                          <Link
-                            href={`/safety/${badge.badge_id}`}
-                            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all whitespace-nowrap ${
-                              isCooldown
-                                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                                : "bg-amber-500 hover:bg-amber-600 text-white shadow-sm"
-                            }`}
-                            onClick={(e) => isCooldown && e.preventDefault()}
-                          >
-                            {isCooldown ? "Cooldown" : badge.student_status === "expired" ? "Retake" : "Take Test"}
                           </Link>
+
+                          {/* Content */}
+                          <div className="p-4 flex-1 flex flex-col">
+                            <Link href={`/unit/${unit.id}/${firstPageId}`} className="group">
+                              <h2 className="font-bold text-base text-gray-900 group-hover:text-purple-600 transition mb-1 line-clamp-1">
+                                {unit.title}
+                              </h2>
+                            </Link>
+
+                            {/* Criterion progress bars */}
+                            <div className="flex gap-1 mb-3">
+                              {criterionKeys.length > 0
+                                ? criterionKeys.map((key) => {
+                                    const cp = getCriterionProgress(unitPages, unit.progress, key);
+                                    if (!cp) return null;
+                                    const fillPercent = (cp.completed / cp.total) * 100;
+                                    return (
+                                      <div
+                                        key={key}
+                                        className="flex-1 h-1.5 rounded-full bg-gray-100 overflow-hidden"
+                                        title={`Criterion ${key}: ${cp.completed}/${cp.total}`}
+                                      >
+                                        <div
+                                          className="h-full rounded-full transition-all duration-500"
+                                          style={{ width: `${fillPercent}%`, backgroundColor: CRITERIA[key].color }}
+                                        />
+                                      </div>
+                                    );
+                                  })
+                                : (
+                                  <div className="flex-1 h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                                    <div
+                                      className="h-full rounded-full"
+                                      style={{
+                                        width: `${percent}%`,
+                                        background: "linear-gradient(90deg, #7B2FF2, #A855F7)",
+                                      }}
+                                    />
+                                  </div>
+                                )}
+                            </div>
+
+                            {/* Spacer */}
+                            <div className="flex-1" />
+
+                            {/* Quick-access buttons */}
+                            <div className="flex gap-2 mt-1">
+                              <Link
+                                href={`/unit/${unit.id}/${firstPageId}`}
+                                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-all ${
+                                  isComplete
+                                    ? "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                                    : "bg-purple-600 text-white hover:bg-purple-700"
+                                }`}
+                              >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                  <polygon points="5 3 19 12 5 21 5 3" />
+                                </svg>
+                                {percent === 0 ? "Start" : isComplete ? "Review" : "Continue"}
+                              </Link>
+                              <Link
+                                href={`/unit/${unit.id}/portfolio`}
+                                className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 transition-all border border-blue-200/60"
+                                title="Portfolio"
+                              >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+                                  <line x1="8" y1="21" x2="16" y2="21" />
+                                  <line x1="12" y1="17" x2="12" y2="21" />
+                                </svg>
+                                <span className="hidden sm:inline">Portfolio</span>
+                              </Link>
+                              <Link
+                                href={`/unit/${unit.id}/grades`}
+                                className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-all border border-emerald-200/60"
+                                title="Grades"
+                              >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                                  <polyline points="22 4 12 14.01 9 11.01" />
+                                </svg>
+                                <span className="hidden sm:inline">Grades</span>
+                              </Link>
+                            </div>
+
+                          </div>
+                        </div>
+                        {/* Open Studio — hangs off the bottom of the card */}
+                        {hasStudio && (
+                          <Link
+                            href={`/open-studio/${unit.id}`}
+                            className="block -mt-1 mb-0 relative z-0"
+                          >
+                            <div className="bg-violet-600 hover:bg-violet-700 transition-all text-white text-xs font-semibold flex items-center justify-center gap-1.5 py-2 rounded-b-xl shadow-sm">
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                                <path d="M7 11V7a5 5 0 0 1 10 0" />
+                              </svg>
+                              Open Studio
+                            </div>
+                          </Link>
+                        )}
                         </div>
                       );
                     })}
                   </div>
-                </div>
+                )}
               </div>
-            )}
 
-            {/* ============ Unit Cards ============ */}
-            {units.length === 0 ? (
-              <div className="bg-white rounded-2xl p-16 text-center border border-gray-200/60 shadow-sm">
-                <div className="w-14 h-14 rounded-2xl bg-purple-100 flex items-center justify-center mx-auto mb-4">
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#7B2FF2" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />
-                  </svg>
-                </div>
-                <p className="text-gray-900 text-lg font-semibold mb-1">No units assigned yet</p>
-                <p className="text-gray-500 text-sm">Your teacher will assign units for you to work on.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {units.map((unit) => {
-                  const unitPages = getPageList(unit.content_data);
-                  const firstPageId = unitPages.length > 0 ? unitPages[0].id : "A1";
-                  const percent = getCompletionPercent(unit, unit.progress);
-                  const criterionKeys = [...new Set(
-                    unitPages
-                      .filter((p) => p.type === "strand" && p.criterion)
-                      .map((p) => p.criterion as CriterionKey)
-                  )];
-                  const hasStudio = openStudioUnits.has(unit.id);
-                  const isComplete = percent === 100;
-                  const isInProgress = inProgressUnit?.id === unit.id;
-
-                  return (
-                    <div key={unit.id} className="flex flex-col">
-                    <div
-                      className={`rounded-2xl overflow-hidden bg-white shadow-sm hover:shadow-md transition-all duration-200 flex flex-col ${
-                        isInProgress ? "ring-2 ring-purple-400 ring-offset-1" : "border border-gray-200/60"
-                      }`}
-                    >
-                      {/* Thumbnail + progress overlay */}
-                      <Link href={`/unit/${unit.id}/${firstPageId}`} className="relative group block">
-                        <div className="w-full h-36 overflow-hidden bg-gradient-to-br from-purple-200 to-blue-200">
-                          <div className="group-hover:scale-105 transition-transform duration-300 w-full h-full">
-                            <UnitThumbnail
-                              thumbnailUrl={unit.thumbnail_url}
-                              title={unit.title}
-                              className="w-full h-full object-cover"
-                            />
-                          </div>
-                        </div>
-                        {/* Progress ring overlay */}
-                        <div className="absolute top-2.5 right-2.5 bg-white/90 backdrop-blur-sm rounded-full p-0.5 shadow-md">
-                          <div className="relative" style={{ width: 40, height: 40 }}>
-                            <svg width="40" height="40" className="transform -rotate-90">
-                              <circle cx="20" cy="20" r="16" fill="none" stroke="#e5e7eb" strokeWidth="3" />
-                              <circle
-                                cx="20" cy="20" r="16" fill="none"
-                                stroke={isComplete ? "#10b981" : "#7C3AED"}
-                                strokeWidth="3"
-                                strokeDasharray={2 * Math.PI * 16}
-                                strokeDashoffset={2 * Math.PI * 16 * (1 - percent / 100)}
-                                strokeLinecap="round"
-                              />
-                            </svg>
-                            <div className="absolute inset-0 flex items-center justify-center">
-                              {isComplete ? (
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="#10b981">
-                                  <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
-                                </svg>
-                              ) : (
-                                <span className="text-[10px] font-bold text-purple-600">{percent}%</span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                        {/* "Continue" label for in-progress */}
-                        {isInProgress && (
-                          <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-purple-600/80 to-transparent px-4 py-2">
-                            <span className="text-white text-xs font-semibold">Continue where you left off &rarr;</span>
-                          </div>
-                        )}
-                      </Link>
-
-                      {/* Content */}
-                      <div className="p-4 flex-1 flex flex-col">
-                        <Link href={`/unit/${unit.id}/${firstPageId}`} className="group">
-                          <h2 className="font-bold text-base text-gray-900 group-hover:text-purple-600 transition mb-1 line-clamp-1">
-                            {unit.title}
+              {/* ── Right Column: Safety & Info ── */}
+              {(pendingBadges.length > 0 || earnedBadges.length > 0) && (
+                <div className="lg:col-span-1 space-y-4">
+                  {/* Pending Safety Tests */}
+                  {pendingBadges.length > 0 && (
+                    <div className="lg:sticky lg:top-4">
+                      <div className="rounded-2xl border-2 border-amber-300 bg-amber-50 overflow-hidden shadow-sm">
+                        <div className="px-4 py-2.5 bg-amber-100/80 border-b border-amber-200 flex items-center gap-2">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                          </svg>
+                          <h2 className="text-sm font-bold text-amber-800">
+                            Safety Tests ({pendingBadges.length})
                           </h2>
-                        </Link>
-
-                        {/* Criterion progress bars */}
-                        <div className="flex gap-1 mb-3">
-                          {criterionKeys.length > 0
-                            ? criterionKeys.map((key) => {
-                                const cp = getCriterionProgress(unitPages, unit.progress, key);
-                                if (!cp) return null;
-                                const fillPercent = (cp.completed / cp.total) * 100;
-                                return (
+                        </div>
+                        <div className="p-2.5 space-y-2">
+                          {pendingBadges.map((badge) => {
+                            const isCooldown = badge.student_status === "cooldown";
+                            return (
+                              <Link
+                                key={badge.badge_id}
+                                href={isCooldown ? "#" : `/safety/${badge.badge_id}`}
+                                onClick={(e) => isCooldown && e.preventDefault()}
+                                className={`block rounded-xl p-3 border transition-all ${
+                                  isCooldown
+                                    ? "bg-gray-50 border-gray-200 cursor-not-allowed"
+                                    : "bg-white border-amber-200/60 hover:border-amber-400 hover:shadow-sm"
+                                }`}
+                              >
+                                <div className="flex items-start gap-2.5">
                                   <div
-                                    key={key}
-                                    className="flex-1 h-1.5 rounded-full bg-gray-100 overflow-hidden"
-                                    title={`Criterion ${key}: ${cp.completed}/${cp.total}`}
+                                    className="w-9 h-9 rounded-lg flex items-center justify-center text-base flex-shrink-0"
+                                    style={{ backgroundColor: badge.badge_color + "20", border: `2px solid ${badge.badge_color}` }}
                                   >
-                                    <div
-                                      className="h-full rounded-full transition-all duration-500"
-                                      style={{ width: `${fillPercent}%`, backgroundColor: CRITERIA[key].color }}
-                                    />
+                                    {badgeIcon(badge.badge_icon)}
                                   </div>
-                                );
-                              })
-                            : (
-                              <div className="flex-1 h-1.5 rounded-full bg-gray-100 overflow-hidden">
-                                <div
-                                  className="h-full rounded-full"
-                                  style={{
-                                    width: `${percent}%`,
-                                    background: "linear-gradient(90deg, #7B2FF2, #A855F7)",
-                                  }}
-                                />
-                              </div>
-                            )}
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-semibold text-sm text-gray-900 leading-tight">{badge.badge_name}</p>
+                                    <p className="text-[11px] text-gray-500 mt-0.5">
+                                      {badge.question_count}q · {badge.pass_threshold}% to pass
+                                    </p>
+                                    {isCooldown && badge.cooldown_until && (
+                                      <p className="text-[11px] text-amber-600 mt-0.5 font-medium">Retake {timeAgo(badge.cooldown_until)}</p>
+                                    )}
+                                    {badge.student_status === "expired" && (
+                                      <p className="text-[11px] text-red-600 mt-0.5 font-medium">Expired — retake required</p>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className={`mt-2 text-center py-1.5 rounded-lg text-xs font-semibold ${
+                                  isCooldown
+                                    ? "bg-gray-100 text-gray-400"
+                                    : "bg-amber-500 text-white"
+                                }`}>
+                                  {isCooldown ? "Cooldown" : badge.student_status === "expired" ? "Retake" : "Take Test"}
+                                </div>
+                              </Link>
+                            );
+                          })}
                         </div>
-
-                        {/* Spacer */}
-                        <div className="flex-1" />
-
-                        {/* Quick-access buttons */}
-                        <div className="flex gap-2 mt-1">
-                          <Link
-                            href={`/unit/${unit.id}/${firstPageId}`}
-                            className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-all ${
-                              isComplete
-                                ? "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                                : "bg-purple-600 text-white hover:bg-purple-700"
-                            }`}
-                          >
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                              <polygon points="5 3 19 12 5 21 5 3" />
-                            </svg>
-                            {percent === 0 ? "Start" : isComplete ? "Review" : "Continue"}
-                          </Link>
-                          <Link
-                            href={`/unit/${unit.id}/portfolio`}
-                            className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 transition-all border border-blue-200/60"
-                            title="Portfolio"
-                          >
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
-                              <line x1="8" y1="21" x2="16" y2="21" />
-                              <line x1="12" y1="17" x2="12" y2="21" />
-                            </svg>
-                            <span className="hidden sm:inline">Portfolio</span>
-                          </Link>
-                          <Link
-                            href={`/unit/${unit.id}/grades`}
-                            className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-all border border-emerald-200/60"
-                            title="Grades"
-                          >
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                              <polyline points="22 4 12 14.01 9 11.01" />
-                            </svg>
-                            <span className="hidden sm:inline">Grades</span>
-                          </Link>
-                        </div>
-
                       </div>
                     </div>
-                    {/* Open Studio — hangs off the bottom of the card */}
-                    {hasStudio && (
-                      <Link
-                        href={`/open-studio/${unit.id}`}
-                        className="block -mt-1 mb-0 relative z-0"
-                      >
-                        <div className="bg-violet-600 hover:bg-violet-700 transition-all text-white text-xs font-semibold flex items-center justify-center gap-1.5 py-2 rounded-b-xl shadow-sm">
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                            <path d="M7 11V7a5 5 0 0 1 10 0" />
-                          </svg>
-                          Open Studio
-                        </div>
-                      </Link>
-                    )}
+                  )}
+
+                  {/* Earned Badges (when no pending) */}
+                  {earnedBadges.length > 0 && pendingBadges.length === 0 && (
+                    <div className="rounded-2xl border border-green-200 bg-green-50/50 overflow-hidden shadow-sm">
+                      <div className="px-4 py-2.5 bg-green-100/60 border-b border-green-200 flex items-center gap-2">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                        </svg>
+                        <h2 className="text-sm font-bold text-green-800">Safety Badges</h2>
+                      </div>
+                      <div className="p-3 space-y-1.5">
+                        {earnedBadges.map((b) => (
+                          <div
+                            key={b.badge_id}
+                            className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-white/80"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5">
+                              <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                            <span className="text-xs font-medium text-gray-700">{b.badge_name}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  );
-                })}
-              </div>
-            )}
+                  )}
+                </div>
+              )}
+            </div>
 
             {/* ============ Due This Week ============ */}
             {dueItems.length > 0 && (
