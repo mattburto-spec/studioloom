@@ -7,6 +7,7 @@ import { ModuleRenderer } from "@/components/safety/blocks";
 import type { ContentBlock } from "@/lib/safety/content-blocks";
 import { getBlocksFromBadge } from "@/lib/safety/content-blocks";
 import { BUILT_IN_BADGES } from "@/lib/safety/badge-definitions";
+import { BadgeIcon } from "@/components/safety/BadgeIcon";
 import {
   GENERAL_WORKSHOP_MODULE,
   HAND_TOOL_MODULE,
@@ -389,8 +390,8 @@ export default function SafetyBadgeTestPage({
         >
           <div className="max-w-5xl mx-auto px-6 py-8 sm:py-10">
             <div className="flex items-start gap-5">
-              <div className="text-5xl sm:text-6xl flex-shrink-0 bg-white/20 backdrop-blur-sm rounded-2xl w-20 h-20 flex items-center justify-center">
-                {badge.icon_name}
+              <div className="flex-shrink-0 bg-white/20 backdrop-blur-sm rounded-2xl w-20 h-20 flex items-center justify-center">
+                <BadgeIcon iconName={badge.icon_name} size={44} color="white" />
               </div>
               <div className="min-w-0">
                 <h1 className="text-2xl sm:text-3xl font-bold text-white leading-tight">

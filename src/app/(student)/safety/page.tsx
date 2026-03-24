@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { BadgeIcon } from "@/components/safety/BadgeIcon";
 import { useStudent } from "../student-context";
 import { BUILT_IN_BADGES } from "@/lib/safety/badge-definitions";
 
@@ -192,7 +193,7 @@ export default function SafetyBadgesPage() {
                         <div className="flex items-start justify-between mb-3">
                           <div className="flex items-start gap-3">
                             <div
-                              className="text-3xl flex-shrink-0"
+                              className="flex-shrink-0"
                               style={{
                                 filter:
                                   badge.student_status === "earned"
@@ -200,7 +201,7 @@ export default function SafetyBadgesPage() {
                                     : "grayscale(100%)",
                               }}
                             >
-                              {badge.icon_name}
+                              <BadgeIcon iconName={badge.icon_name} size={28} color={badge.color} />
                             </div>
                             <div>
                               <h3 className="font-semibold text-slate-900">

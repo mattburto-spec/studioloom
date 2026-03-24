@@ -11,6 +11,7 @@ import { ToolModal } from "@/components/toolkit/ToolModal";
 import { UnitThumbnail } from "@/components/shared/UnitThumbnail";
 import { JourneyMap } from "@/components/student/JourneyMap";
 import { DueThisWeek } from "@/components/student/DueThisWeek";
+import { BadgeIcon } from "@/components/safety/BadgeIcon";
 import type { Unit, StudentProgress, PortfolioEntry, UnitPage } from "@/types";
 
 interface ToolSession {
@@ -253,14 +254,9 @@ export default function StudentDashboard() {
     });
   }, [journeyUnit]);
 
-  // Badge icon helper
-  function badgeIcon(icon: string) {
-    return icon === "shield" ? "\u{1F6E1}\uFE0F" :
-           icon === "hammer" ? "\u{1F528}" :
-           icon === "zap" ? "\u26A1" :
-           icon === "cog" ? "\u2699\uFE0F" :
-           icon === "cpu" ? "\u{1F5A5}\uFE0F" :
-           icon === "scissors" ? "\u2702\uFE0F" : "\u{1F6E1}\uFE0F";
+  // Badge icon helper — uses shared BadgeIcon component
+  function badgeIconEl(icon: string, color: string) {
+    return <BadgeIcon iconName={icon} size={20} color={color} />;
   }
 
   return (
@@ -529,7 +525,7 @@ export default function StudentDashboard() {
                                     className="w-9 h-9 rounded-lg flex items-center justify-center text-base flex-shrink-0"
                                     style={{ backgroundColor: badge.badge_color + "20", border: `2px solid ${badge.badge_color}` }}
                                   >
-                                    {badgeIcon(badge.badge_icon)}
+                                    {badgeIconEl(badge.badge_icon, badge.badge_color)}
                                   </div>
                                   <div className="flex-1 min-w-0">
                                     <p className="font-semibold text-sm text-gray-900 leading-tight">{badge.badge_name}</p>
