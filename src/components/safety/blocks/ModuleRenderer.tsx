@@ -27,6 +27,10 @@ interface ModuleRendererProps {
     learning_blocks?: ContentBlock[];
     learn_content?: Array<{ title: string; content: string; icon: string }>;
   };
+  /** Single block mode — render just one block (for sidebar layout) */
+  singleBlock?: ContentBlock;
+  /** Called when a single block is completed (single-block mode) */
+  onBlockComplete?: () => void;
   /** Called when all blocks are completed */
   onModuleComplete?: (results: ModuleResults) => void;
   /** Show progress bar (default true) */
@@ -164,10 +168,24 @@ export default function ModuleRenderer({
   module,
   blocks: blocksProp,
   badge,
+  singleBlock,
+  onBlockComplete,
   onModuleComplete,
   showProgress = true,
   allowSkip = false,
 }: ModuleRendererProps) {
+  // ==================== Single Block Mode ====================
+  // When singleBlock is provided, render just that one block with no progress/stacking
+  if (singleBlock) {
+    return (
+      <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+        {renderBlock(singleBlock, () => {
+          onBlockComplete?.();
+        })}
+      </div>
+    );
+  }
+
   // Resolve blocks from whatever source is provided
   const blocks = useMemo(() => {
     if (module?.blocks?.length) return module.blocks;

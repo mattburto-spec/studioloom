@@ -53,6 +53,73 @@ interface Badge {
 
 type Screen = "intro" | "quiz" | "results";
 
+// ============================================================================
+// Sidebar helpers
+// ============================================================================
+
+function blockTypeLabel(type: string): string {
+  switch (type) {
+    case "spot_the_hazard": return "Spot the Hazard";
+    case "scenario": return "Scenario";
+    case "before_after": return "Before & After";
+    case "key_concept": return "Key Concept";
+    case "comprehension_check": return "Quick Check";
+    case "micro_story": return "Case Study";
+    case "step_by_step": return "Step by Step";
+    case "machine_diagram": return "Diagram";
+    case "video_embed": return "Video";
+    default: return "Activity";
+  }
+}
+
+function blockTypeColor(type: string): string {
+  switch (type) {
+    case "spot_the_hazard": return "#f59e0b";
+    case "scenario": return "#8b5cf6";
+    case "before_after": return "#06b6d4";
+    case "key_concept": return "#6366f1";
+    case "comprehension_check": return "#10b981";
+    case "micro_story": return "#ec4899";
+    case "step_by_step": return "#f97316";
+    case "machine_diagram": return "#0ea5e9";
+    case "video_embed": return "#ef4444";
+    default: return "#94a3b8";
+  }
+}
+
+function SidebarStatusIcon({ status, color }: { status: "locked" | "complete" | "in_progress" | "not_started"; color: string }) {
+  const size = 18;
+  if (status === "locked") {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 opacity-50">
+        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+      </svg>
+    );
+  }
+  if (status === "complete") {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" className="flex-shrink-0">
+        <circle cx="12" cy="12" r="10" fill={color} />
+        <path d="M8 12l3 3 5-5" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      </svg>
+    );
+  }
+  if (status === "in_progress") {
+    return (
+      <svg width={size} height={size} viewBox="0 0 24 24" className="flex-shrink-0">
+        <circle cx="12" cy="12" r="9" stroke={color} strokeWidth="2.5" fill="none" strokeDasharray="28.27 28.27" strokeDashoffset="14.14" strokeLinecap="round" />
+      </svg>
+    );
+  }
+  // not_started
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className="flex-shrink-0">
+      <circle cx="12" cy="12" r="9" stroke="#6b7280" strokeWidth="1.5" fill="none" opacity="0.4" />
+    </svg>
+  );
+}
+
 interface Answer {
   question_id: string;
   selected: string | string[] | number[];
@@ -87,6 +154,11 @@ export default function SafetyBadgeTestPage({
   const [questionStartTime, setQuestionStartTime] = useState<number>(
     Date.now()
   );
+
+  // Sidebar layout state
+  const [currentSection, setCurrentSection] = useState<number>(0);
+  const [completedSections, setCompletedSections] = useState<Set<string>>(new Set());
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Results
   const [results, setResults] = useState<any>(null);
@@ -346,229 +418,446 @@ export default function SafetyBadgeTestPage({
     );
   }
 
-  // === INTRO SCREEN ===
+  // === INTRO / LEARNING SCREEN (sidebar + content layout) ===
   if (screen === "intro") {
-    // Resolve learning module
     const builtIn = BUILT_IN_BADGES.find(b => b.id === badgeId || b.slug === badgeId);
     const richModule = builtIn ? MODULE_MAP[builtIn.slug] : undefined;
     const badgeColor = builtIn?.color || "#4F46E5";
-    let sectionNum = 0;
+
+    // Build sections list for sidebar
+    type Section = { id: string; label: string; type: string; blockIndex?: number };
+    const sections: Section[] = [{ id: "overview", label: "Overview", type: "overview" }];
+
+    const blocks = richModule?.blocks || learningBlocks || [];
+    blocks.forEach((block, i) => {
+      sections.push({
+        id: `block-${i}`,
+        label: block.title || blockTypeLabel(block.type),
+        type: block.type,
+        blockIndex: i,
+      });
+    });
+
+    // If no blocks but old learn cards, treat each as a section
+    if (blocks.length === 0 && learnCards.length > 0) {
+      learnCards.forEach((card, i) => {
+        sections.push({ id: `card-${i}`, label: card.title, type: "learn_card" });
+      });
+    }
+
+    sections.push({ id: "quiz", label: "Take the Test", type: "quiz" });
+
+    // Current section index
+    const currentSectionIndex = currentSection ?? 0;
+    const currentSec = sections[currentSectionIndex];
+
+    // Can the student navigate to a section?
+    // Overview is always accessible. Each block section requires the previous to be completed.
+    // Quiz section requires all blocks completed.
+    const canAccessSection = (idx: number): boolean => {
+      if (idx === 0) return true; // Overview always accessible
+      if (idx === sections.length - 1) return canStartQuiz; // Quiz = last
+      // Block sections: can access if all previous blocks are complete
+      for (let i = 1; i < idx; i++) {
+        if (!completedSections.has(sections[i].id)) return false;
+      }
+      return true;
+    };
+
+    const getSectionStatus = (idx: number): "locked" | "complete" | "in_progress" | "not_started" => {
+      const sec = sections[idx];
+      if (sec.id === "quiz") return canStartQuiz ? "not_started" : "locked";
+      if (completedSections.has(sec.id)) return "complete";
+      if (idx === currentSectionIndex) return "in_progress";
+      if (!canAccessSection(idx)) return "locked";
+      return "not_started";
+    };
+
+    // Sidebar progress
+    const blocksTotal = sections.length - 2; // minus overview and quiz
+    const blocksCompleted = sections.filter((s, i) => i > 0 && i < sections.length - 1 && completedSections.has(s.id)).length;
+    const pct = blocksTotal > 0 ? Math.round((blocksCompleted / blocksTotal) * 100) : 0;
+
+    const sidebarContent = (
+      <div className="flex flex-col h-full">
+        {/* Badge header */}
+        <div className="p-4 border-b border-white/10">
+          <div
+            className="w-12 h-12 rounded-xl flex items-center justify-center text-xl mb-3"
+            style={{ backgroundColor: badgeColor + "30", border: `2px solid ${badgeColor}` }}
+          >
+            <BadgeIcon iconName={badge.icon_name} color={badgeColor} size={24} />
+          </div>
+          <h2 className="text-sm font-bold text-white leading-snug line-clamp-2">
+            {badge.name}
+          </h2>
+          <div className="mt-3">
+            <div className="w-full h-1.5 rounded-full bg-white/10 overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-500"
+                style={{ width: `${pct}%`, backgroundColor: badgeColor }}
+              />
+            </div>
+            <p className="text-[10px] font-bold text-white/50 uppercase tracking-wider mt-1.5">
+              {pct}% Complete
+            </p>
+          </div>
+        </div>
+
+        {/* Section nav */}
+        <nav className="flex-1 overflow-y-auto py-2">
+          {sections.map((sec, idx) => {
+            const status = getSectionStatus(idx);
+            const isActive = idx === currentSectionIndex;
+            const accessible = canAccessSection(idx);
+
+            return (
+              <button
+                key={sec.id}
+                onClick={() => accessible && setCurrentSection(idx)}
+                disabled={!accessible}
+                className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-left transition-all duration-150 border-l-[3px] ${
+                  isActive
+                    ? "bg-white/10"
+                    : "border-transparent hover:bg-white/5"
+                } ${!accessible ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}`}
+                style={isActive ? { borderLeftColor: badgeColor } : undefined}
+              >
+                {/* Status icon */}
+                <SidebarStatusIcon status={status} color={badgeColor} />
+                <div className="min-w-0 flex-1">
+                  <p className={`text-xs leading-snug truncate ${
+                    isActive ? "text-white font-semibold" : "text-white/70"
+                  }`}>
+                    {idx > 0 && idx < sections.length - 1 ? `${idx}. ` : ""}{sec.label}
+                  </p>
+                </div>
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* Back to dashboard */}
+        <div className="p-3 border-t border-white/10">
+          <button
+            onClick={() => router.push("/dashboard")}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-white/50 hover:text-white hover:bg-white/5 transition-colors text-xs"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+            Back to Dashboard
+          </button>
+        </div>
+      </div>
+    );
 
     return (
-      <div className="min-h-screen bg-white">
-        {/* ── Sticky top nav bar (matches lesson page exactly) ── */}
-        <div className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-100 shadow-sm">
-          <div className="max-w-4xl mx-auto px-4 py-2 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-gray-700 truncate max-w-[50%]">
-                {badge.name}
-              </span>
-            </div>
-            <button
-              onClick={() => router.push("/dashboard")}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 rounded-lg transition"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-                <polyline points="9 22 9 12 15 12 15 22" />
-              </svg>
-              Dashboard
-            </button>
-          </div>
-        </div>
+      <div className="flex min-h-screen">
+        {/* Desktop sidebar */}
+        <aside className="hidden md:flex flex-col w-64 flex-shrink-0 bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 border-r border-white/10 h-screen sticky top-0 overflow-hidden">
+          {sidebarContent}
+        </aside>
 
-        {/* ── Hero header — dark-to-color gradient (matches lesson page) ── */}
-        <div className="w-full" style={{ background: `linear-gradient(135deg, #1A1A2E 0%, ${badgeColor} 100%)` }}>
-          <div className="max-w-4xl mx-auto px-6 pt-6 pb-10">
-            <p className="text-sm text-white/70 font-medium mb-3 uppercase tracking-wider">
-              Safety Certification
-            </p>
-            <h1 className="text-4xl md:text-5xl font-extrabold text-white leading-tight">
-              {badge.name}
-            </h1>
-            <div className="flex items-center gap-2 mt-5 flex-wrap">
-              <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-white/20 text-white">
-                <span className="w-2 h-2 rounded-full bg-white/60" />
-                {badge.question_count} Questions
-              </span>
-              <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-white/20 text-white">
-                <span className="w-2 h-2 rounded-full bg-white/60" />
-                {badge.pass_threshold}% to Pass
-              </span>
-              <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-white/20 text-white">
-                <span className="w-2 h-2 rounded-full bg-white/60" />
-                ~{richModule ? richModule.estimated_minutes : Math.max(5, Math.round(badge.question_count * 2))} min
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* ── Main content — white background, same width as lesson page ── */}
-        <main className="max-w-4xl mx-auto px-6 py-10 pb-28">
-
-          {/* Description block */}
-          <p className="text-lg text-gray-700 leading-relaxed mb-2">
-            {badge.description}
-          </p>
-
-          {/* Learning objectives (if rich module) */}
-          {richModule && richModule.learning_objectives.length > 0 && (
-            <>
-              {/* Divider */}
-              <div className="flex items-center gap-4 my-8">
-                <div className="flex-1 h-px bg-gray-200" />
-                <div
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-sm"
-                  style={{ backgroundColor: badgeColor }}
-                >
-                  {++sectionNum}
-                </div>
-                <div className="flex-1 h-px bg-gray-200" />
-              </div>
-
-              <div
-                className="rounded-2xl p-6 md:p-8 mb-2"
-                style={{ backgroundColor: badgeColor + "12" }}
-              >
-                <h2 className="text-sm font-bold uppercase tracking-widest mb-4" style={{ color: badgeColor }}>
-                  Learning Objectives
-                </h2>
-                <ol className="space-y-3">
-                  {richModule.learning_objectives.map((obj, i) => (
-                    <li key={i} className="flex items-start gap-3">
-                      <span
-                        className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white mt-0.5"
-                        style={{ backgroundColor: badgeColor }}
-                      >
-                        {i + 1}
-                      </span>
-                      <span className="text-gray-700 leading-relaxed">{obj}</span>
-                    </li>
-                  ))}
-                </ol>
-              </div>
-            </>
-          )}
-
-          {/* Divider before learning content */}
-          <div className="flex items-center gap-4 my-8">
-            <div className="flex-1 h-px bg-gray-200" />
+        {/* Mobile sidebar toggle + overlay */}
+        {sidebarOpen && (
+          <>
             <div
-              className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold shadow-sm"
-              style={{ backgroundColor: badgeColor }}
-            >
-              {++sectionNum}
+              className="fixed inset-0 bg-black/50 z-40 md:hidden"
+              onClick={() => setSidebarOpen(false)}
+            />
+            <aside className="fixed inset-y-0 left-0 w-72 bg-gradient-to-b from-gray-900 via-gray-800 to-gray-900 z-50 md:hidden shadow-2xl overflow-hidden flex flex-col">
+              {sidebarContent}
+            </aside>
+          </>
+        )}
+
+        {/* Main content area */}
+        <div className="flex-1 min-w-0 overflow-x-hidden">
+          {/* Sticky top nav */}
+          <div className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-gray-100 shadow-sm">
+            <div className="max-w-4xl mx-auto px-4 py-2 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setSidebarOpen(true)}
+                  className="md:hidden w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-200 transition"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="3" y1="6" x2="21" y2="6" />
+                    <line x1="3" y1="12" x2="21" y2="12" />
+                    <line x1="3" y1="18" x2="21" y2="18" />
+                  </svg>
+                </button>
+                <span className="text-sm font-semibold text-gray-700 truncate">
+                  {currentSec?.label || badge.name}
+                </span>
+                <span className="text-xs text-gray-400 hidden sm:inline">
+                  {currentSectionIndex + 1} / {sections.length}
+                </span>
+              </div>
+              <button
+                onClick={() => router.push("/dashboard")}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 rounded-lg transition"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                  <polyline points="9 22 9 12 15 12 15 22" />
+                </svg>
+                Dashboard
+              </button>
             </div>
-            <div className="flex-1 h-px bg-gray-200" />
           </div>
 
-          {/* Learn section — Rich module, ModuleRenderer blocks, or fallback to old cards */}
-          {(() => {
-            if (richModule) {
-              return (
-                <div className="mb-8">
-                  <h2 className="text-lg font-semibold text-gray-900 mb-1">
-                    Interactive Learning
-                  </h2>
-                  <p className="text-gray-500 mb-6 text-sm leading-relaxed">
-                    {richModule.learning_objectives.length} learning objectives — complete all sections to unlock the test.
+          {/* ── Section: Overview ── */}
+          {currentSec?.id === "overview" && (
+            <div>
+              {/* Hero */}
+              <div className="w-full" style={{ background: `linear-gradient(135deg, #1A1A2E 0%, ${badgeColor} 100%)` }}>
+                <div className="max-w-4xl mx-auto px-6 pt-6 pb-10">
+                  <p className="text-sm text-white/70 font-medium mb-3 uppercase tracking-wider">
+                    Safety Certification
                   </p>
-                  <ModuleRenderer
-                    module={richModule}
-                    onModuleComplete={() => setModuleCompleted(true)}
-                    showProgress={true}
-                  />
-                </div>
-              );
-            }
-
-            if (learningBlocks.length > 0) {
-              return (
-                <div className="mb-8">
-                  <h2 className="text-lg font-semibold text-gray-900 mb-1">
-                    Learn First
-                  </h2>
-                  <p className="text-gray-500 mb-6 text-sm leading-relaxed">
-                    Complete all learning modules before taking the test.
-                  </p>
-                  <ModuleRenderer
-                    blocks={learningBlocks}
-                    onModuleComplete={() => setModuleCompleted(true)}
-                    showProgress={true}
-                  />
-                </div>
-              );
-            }
-
-            // Fallback to flat learn cards
-            if (learnCards.length > 0) {
-              return (
-                <div className="mb-8">
-                  <h2 className="text-lg font-semibold text-gray-900 mb-1">
-                    Learn First{" "}
-                    <span className="text-sm font-normal text-gray-400">
-                      ({cardsViewed.size}/{learnCards.length} read)
+                  <h1 className="text-4xl md:text-5xl font-extrabold text-white leading-tight">
+                    {badge.name}
+                  </h1>
+                  <div className="flex items-center gap-2 mt-5 flex-wrap">
+                    <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-white/20 text-white">
+                      {badge.question_count} Questions
                     </span>
-                  </h2>
-                  <p className="text-gray-500 mb-6 text-sm leading-relaxed">
-                    Review at least 60% of the learning materials before taking the test.
-                  </p>
-                  <div className="space-y-3">
-                    {learnCards.map((card, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => toggleCardView(idx)}
-                        className={`w-full text-left rounded-lg border-2 p-4 transition ${
-                          cardsViewed.has(idx)
-                            ? "border-opacity-40 bg-opacity-10"
-                            : "border-gray-200 hover:border-gray-300"
-                        }`}
-                        style={cardsViewed.has(idx) ? { borderColor: badgeColor, backgroundColor: badgeColor + "10" } : undefined}
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-start gap-3">
-                            <span className="text-2xl flex-shrink-0">
-                              {card.icon}
-                            </span>
-                            <div>
-                              <h3 className="font-semibold text-gray-900">
-                                {card.title}
-                              </h3>
-                              {cardsViewed.has(idx) && (
-                                <p className="text-gray-600 text-sm mt-2 leading-relaxed">
-                                  {card.content}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                          <span className="text-gray-400 flex-shrink-0">
-                            {cardsViewed.has(idx) ? "▼" : "▶"}
-                          </span>
-                        </div>
-                      </button>
-                    ))}
+                    <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-white/20 text-white">
+                      {badge.pass_threshold}% to Pass
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-white/20 text-white">
+                      ~{richModule ? richModule.estimated_minutes : Math.max(5, Math.round(badge.question_count * 2))} min
+                    </span>
                   </div>
                 </div>
-              );
-            }
+              </div>
 
-            return null;
-          })()}
+              <main className="max-w-4xl mx-auto px-6 py-10">
+                <p className="text-lg text-gray-700 leading-relaxed mb-8">
+                  {badge.description}
+                </p>
 
-          {/* Start Test button */}
-          <button
-            onClick={handleStartQuiz}
-            disabled={!canStartQuiz}
-            className={`w-full py-3.5 px-4 rounded-xl font-semibold text-base transition shadow-sm ${
-              canStartQuiz
-                ? "text-white hover:opacity-90"
-                : "bg-gray-200 text-gray-400 cursor-not-allowed"
-            }`}
-            style={canStartQuiz ? { backgroundColor: badgeColor } : undefined}
-          >
-            {canStartQuiz ? "Start Test →" : "Complete Learning First"}
-          </button>
-        </main>
+                {/* Learning objectives */}
+                {richModule && richModule.learning_objectives.length > 0 && (
+                  <div
+                    className="rounded-2xl p-6 md:p-8 mb-8"
+                    style={{ backgroundColor: badgeColor + "12" }}
+                  >
+                    <h2 className="text-sm font-bold uppercase tracking-widest mb-4" style={{ color: badgeColor }}>
+                      What You&apos;ll Learn
+                    </h2>
+                    <ol className="space-y-3">
+                      {richModule.learning_objectives.map((obj, i) => (
+                        <li key={i} className="flex items-start gap-3">
+                          <span
+                            className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white mt-0.5"
+                            style={{ backgroundColor: badgeColor }}
+                          >
+                            {i + 1}
+                          </span>
+                          <span className="text-gray-700 leading-relaxed">{obj}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
+
+                {/* How it works */}
+                <div className="rounded-2xl border border-gray-200 p-6 mb-8">
+                  <h2 className="text-sm font-bold uppercase tracking-widest text-gray-500 mb-4">
+                    How It Works
+                  </h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="flex items-start gap-3">
+                      <span className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-sm font-bold">1</span>
+                      <div>
+                        <p className="font-semibold text-gray-900 text-sm">Learn</p>
+                        <p className="text-xs text-gray-500 mt-0.5">Work through each section in the sidebar</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <span className="flex-shrink-0 w-8 h-8 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center text-sm font-bold">2</span>
+                      <div>
+                        <p className="font-semibold text-gray-900 text-sm">Test</p>
+                        <p className="text-xs text-gray-500 mt-0.5">Pass the quiz with {badge.pass_threshold}% or higher</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <span className="flex-shrink-0 w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center text-sm font-bold">3</span>
+                      <div>
+                        <p className="font-semibold text-gray-900 text-sm">Earn</p>
+                        <p className="text-xs text-gray-500 mt-0.5">Get your safety badge</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Start button */}
+                <button
+                  onClick={() => {
+                    if (sections.length > 1) setCurrentSection(1);
+                  }}
+                  className="w-full py-3.5 px-4 rounded-xl font-semibold text-base text-white transition shadow-sm hover:opacity-90"
+                  style={{ backgroundColor: badgeColor }}
+                >
+                  Start Learning →
+                </button>
+              </main>
+            </div>
+          )}
+
+          {/* ── Section: Learning Block ── */}
+          {currentSec?.type !== "overview" && currentSec?.type !== "quiz" && currentSec?.blockIndex !== undefined && (
+            <div>
+              {/* Section header bar */}
+              <div className="w-full border-b border-gray-100" style={{ backgroundColor: badgeColor + "08" }}>
+                <div className="max-w-4xl mx-auto px-6 py-4 flex items-center gap-3">
+                  <div
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0"
+                    style={{ backgroundColor: badgeColor }}
+                  >
+                    {(currentSec.blockIndex ?? 0) + 1}
+                  </div>
+                  <div>
+                    <span
+                      className="inline-block px-2 py-0.5 rounded text-[10px] font-semibold text-white uppercase tracking-wide"
+                      style={{ backgroundColor: blockTypeColor(currentSec.type) }}
+                    >
+                      {blockTypeLabel(currentSec.type)}
+                    </span>
+                    <h2 className="text-lg font-semibold text-gray-900 mt-0.5">
+                      {currentSec.label}
+                    </h2>
+                  </div>
+                </div>
+              </div>
+
+              <main className="max-w-4xl mx-auto px-6 py-8">
+                <ModuleRenderer
+                  key={currentSec.id}
+                  singleBlock={blocks[currentSec.blockIndex!]}
+                  onBlockComplete={() => {
+                    setCompletedSections(prev => {
+                      const next = new Set(prev);
+                      next.add(currentSec.id);
+                      // Check if all blocks complete → set moduleCompleted
+                      const allBlockIds = sections.filter((s, i) => i > 0 && i < sections.length - 1).map(s => s.id);
+                      const allDone = allBlockIds.every(id => next.has(id));
+                      if (allDone) setModuleCompleted(true);
+                      return next;
+                    });
+                  }}
+                />
+
+                {/* Navigation buttons */}
+                <div className="flex gap-3 mt-8 pt-6 border-t border-gray-100">
+                  {currentSectionIndex > 0 && (
+                    <button
+                      onClick={() => setCurrentSection(currentSectionIndex - 1)}
+                      className="flex items-center gap-1.5 px-4 py-2.5 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="15 18 9 12 15 6" />
+                      </svg>
+                      Previous
+                    </button>
+                  )}
+                  <div className="flex-1" />
+                  {completedSections.has(currentSec.id) && currentSectionIndex < sections.length - 1 && (
+                    <button
+                      onClick={() => setCurrentSection(currentSectionIndex + 1)}
+                      className="flex items-center gap-1.5 px-5 py-2.5 rounded-lg text-sm font-semibold text-white transition hover:opacity-90"
+                      style={{ backgroundColor: badgeColor }}
+                    >
+                      {currentSectionIndex === sections.length - 2 ? "Go to Test" : "Next Section"}
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="9 18 15 12 9 6" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              </main>
+            </div>
+          )}
+
+          {/* ── Section: Old learn card view ── */}
+          {currentSec?.type === "learn_card" && (
+            <main className="max-w-4xl mx-auto px-6 py-8">
+              {(() => {
+                const cardIdx = parseInt(currentSec.id.replace("card-", ""));
+                const card = learnCards[cardIdx];
+                if (!card) return null;
+                return (
+                  <div>
+                    <div className="flex items-center gap-3 mb-6">
+                      <span className="text-3xl">{card.icon}</span>
+                      <h2 className="text-xl font-semibold text-gray-900">{card.title}</h2>
+                    </div>
+                    <p className="text-lg text-gray-700 leading-relaxed mb-8">{card.content}</p>
+                    <button
+                      onClick={() => {
+                        toggleCardView(cardIdx);
+                        setCompletedSections(prev => {
+                          const next = new Set(prev);
+                          next.add(currentSec.id);
+                          // Check all cards done
+                          const allCardIds = sections.filter(s => s.type === "learn_card").map(s => s.id);
+                          const allDone = allCardIds.every(id => next.has(id));
+                          if (allDone) setModuleCompleted(true);
+                          return next;
+                        });
+                        if (currentSectionIndex < sections.length - 1) {
+                          setCurrentSection(currentSectionIndex + 1);
+                        }
+                      }}
+                      className="px-5 py-2.5 rounded-lg text-sm font-semibold text-white transition hover:opacity-90"
+                      style={{ backgroundColor: badgeColor }}
+                    >
+                      {currentSectionIndex < sections.length - 2 ? "Next →" : "Done ✓"}
+                    </button>
+                  </div>
+                );
+              })()}
+            </main>
+          )}
+
+          {/* ── Section: Quiz launch ── */}
+          {currentSec?.id === "quiz" && (
+            <main className="max-w-4xl mx-auto px-6 py-16 text-center">
+              <div className="w-16 h-16 rounded-2xl mx-auto mb-6 flex items-center justify-center text-3xl" style={{ backgroundColor: badgeColor + "15" }}>
+                📝
+              </div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-3">Ready for the Test?</h2>
+              <p className="text-gray-600 mb-2 max-w-md mx-auto">
+                {badge.question_count} questions, {badge.pass_threshold}% required to pass.
+              </p>
+              {!canStartQuiz && (
+                <p className="text-amber-600 text-sm font-medium mb-6">
+                  Complete all learning sections first.
+                </p>
+              )}
+              {canStartQuiz && (
+                <p className="text-green-600 text-sm font-medium mb-6">
+                  ✓ All sections complete — you&apos;re ready!
+                </p>
+              )}
+              <button
+                onClick={handleStartQuiz}
+                disabled={!canStartQuiz}
+                className={`px-8 py-3.5 rounded-xl font-semibold text-base transition shadow-sm ${
+                  canStartQuiz
+                    ? "text-white hover:opacity-90"
+                    : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                }`}
+                style={canStartQuiz ? { backgroundColor: badgeColor } : undefined}
+              >
+                {canStartQuiz ? "Start Test →" : "Complete Learning First"}
+              </button>
+            </main>
+          )}
+        </div>
       </div>
     );
   }
