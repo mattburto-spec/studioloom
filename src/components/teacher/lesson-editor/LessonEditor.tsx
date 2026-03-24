@@ -3,11 +3,15 @@
 import { useEffect, useCallback, useState, useMemo } from "react";
 import { Reorder, AnimatePresence, motion } from "framer-motion";
 import { useLessonEditor } from "./useLessonEditor";
+import { useAISuggestions } from "./useAISuggestions";
+import type { AISuggestion } from "./useAISuggestions";
 import { LessonSidebar } from "./LessonSidebar";
 import LessonHeader from "./LessonHeader";
 import PhaseSection from "./PhaseSection";
 import ActivityBlock from "./ActivityBlock";
 import { ActivityBlockAdd } from "./ActivityBlockAdd";
+import BlockPalette from "./BlockPalette";
+import GhostBlock from "./GhostBlock";
 import ExtensionBlock from "./ExtensionBlock";
 import type {
   UnitPage,
@@ -68,6 +72,24 @@ export default function LessonEditor({
   const togglePhase = (phase: string) => {
     setOpenPhases((prev) => ({ ...prev, [phase]: !prev[phase] }));
   };
+
+  // Block palette state
+  const [paletteOpen, setPaletteOpen] = useState(true);
+
+  // AI suggestions
+  const {
+    suggestions,
+    loading: suggestionsLoading,
+    fetchSuggestions,
+    dismissSuggestion,
+    acceptSuggestion,
+    suggestedBlockIds,
+  } = useAISuggestions({ unitId, classId });
+
+  // AI generation state
+  const [showAIGenerate, setShowAIGenerate] = useState(false);
+  const [aiTopic, setAiTopic] = useState("");
+  const [aiGenerating, setAiGenerating] = useState(false);
 
   // Version management state
   const [showVersionModal, setShowVersionModal] = useState(false);
@@ -431,6 +453,58 @@ export default function LessonEditor({
             )}
           </AnimatePresence>
 
+          {/* AI Suggest button */}
+          <button
+            onClick={() => {
+              if (!pageContent) return;
+              fetchSuggestions({
+                lessonTitle: selectedPage?.title || "",
+                learningGoal: pageContent.learningGoal || "",
+                existingActivities: pageContent.sections || [],
+                workshopPhases: pageContent.workshopPhases
+                  ? {
+                      opening: { hook: pageContent.workshopPhases.opening?.hook },
+                      miniLesson: { focus: pageContent.workshopPhases.miniLesson?.focus },
+                      debrief: {
+                        protocol: pageContent.workshopPhases.debrief?.protocol,
+                        prompt: pageContent.workshopPhases.debrief?.prompt,
+                      },
+                    }
+                  : undefined,
+              });
+            }}
+            disabled={!selectedPage || suggestionsLoading}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-indigo-500 to-purple-500 text-white hover:from-indigo-600 hover:to-purple-600 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow-md"
+            title="Get AI suggestions for this lesson"
+          >
+            {suggestionsLoading ? (
+              <div className="animate-spin w-3 h-3 border-2 border-white border-t-transparent rounded-full" />
+            ) : (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8l-6.2 4.5 2.4-7.4L2 9.4h7.6z" />
+              </svg>
+            )}
+            {suggestionsLoading ? "Thinking..." : "AI Suggest"}
+          </button>
+
+          {/* Palette toggle */}
+          <button
+            onClick={() => setPaletteOpen(!paletteOpen)}
+            className={`p-1.5 rounded-md transition-colors ${
+              paletteOpen
+                ? "bg-indigo-100 text-indigo-600"
+                : "hover:bg-gray-100 text-gray-400 hover:text-gray-600"
+            }`}
+            title={paletteOpen ? "Hide block palette" : "Show block palette"}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="3" width="7" height="7" rx="1" />
+              <rect x="14" y="3" width="7" height="7" rx="1" />
+              <rect x="3" y="14" width="7" height="7" rx="1" />
+              <rect x="14" y="14" width="7" height="7" rx="1" />
+            </svg>
+          </button>
+
           {/* Version management menu */}
           {enableVersioning && isFork && (
             <div className="relative">
@@ -534,7 +608,7 @@ export default function LessonEditor({
         </div>
       )}
 
-      {/* ─── Split Pane ─── */}
+      {/* ─── Three-Panel Layout ─── */}
       <div className="flex flex-1 min-h-0">
         {/* Left: Lesson sidebar */}
         <LessonSidebar
@@ -545,7 +619,7 @@ export default function LessonEditor({
           onAdd={() => addPage()}
         />
 
-        {/* Right: Editor main area */}
+        {/* Center: Editor main area */}
         <div className="flex-1 overflow-y-auto">
           {selectedPage && pageContent ? (
             <div className="max-w-3xl mx-auto px-6 py-6">
@@ -593,6 +667,35 @@ export default function LessonEditor({
                 </div>
               )}
 
+              {/* ─── AI Suggestions Banner ─── */}
+              <AnimatePresence>
+                {suggestions.length > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="mb-4"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm">✨</span>
+                        <span className="text-xs font-semibold text-indigo-600">
+                          {suggestions.length} AI suggestion{suggestions.length !== 1 ? "s" : ""} for this lesson
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => {
+                          suggestions.forEach((s) => dismissSuggestion(s.id));
+                        }}
+                        className="text-[10px] text-gray-400 hover:text-gray-600 transition-colors"
+                      >
+                        Dismiss all
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               {/* ─── Lesson Header ─── */}
               <LessonHeader
                 page={selectedPage}
@@ -634,6 +737,25 @@ export default function LessonEditor({
                           </span>
                         </div>
                       )}
+                      {/* Ghost blocks for opening phase */}
+                      <AnimatePresence>
+                        {suggestions
+                          .filter((s) => s.phase === "opening")
+                          .map((suggestion) => (
+                            <GhostBlock
+                              key={suggestion.id}
+                              activity={suggestion.activity}
+                              label={suggestion.label}
+                              icon={suggestion.icon}
+                              reason={suggestion.reason}
+                              onAccept={(activity) => {
+                                handleAddActivity(activity);
+                                acceptSuggestion(suggestion.id);
+                              }}
+                              onDismiss={() => dismissSuggestion(suggestion.id)}
+                            />
+                          ))}
+                      </AnimatePresence>
                     </div>
                   </PhaseSection>
                 </div>
@@ -651,21 +773,42 @@ export default function LessonEditor({
                     isOpen={openPhases.miniLesson}
                     onToggle={() => togglePhase("miniLesson")}
                   >
-                    <div>
-                      <label className="text-xs font-medium text-gray-500 mb-1 block">
-                        Focus
-                      </label>
-                      <textarea
-                        value={phases.miniLesson.focus || ""}
-                        onChange={(e) =>
-                          handleUpdatePhase("miniLesson", {
-                            focus: e.target.value,
-                          })
-                        }
-                        placeholder="What are you teaching directly?"
-                        className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
-                        rows={2}
-                      />
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-xs font-medium text-gray-500 mb-1 block">
+                          Focus
+                        </label>
+                        <textarea
+                          value={phases.miniLesson.focus || ""}
+                          onChange={(e) =>
+                            handleUpdatePhase("miniLesson", {
+                              focus: e.target.value,
+                            })
+                          }
+                          placeholder="What are you teaching directly?"
+                          className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none"
+                          rows={2}
+                        />
+                      </div>
+                      {/* Ghost blocks for miniLesson phase */}
+                      <AnimatePresence>
+                        {suggestions
+                          .filter((s) => s.phase === "miniLesson")
+                          .map((suggestion) => (
+                            <GhostBlock
+                              key={suggestion.id}
+                              activity={suggestion.activity}
+                              label={suggestion.label}
+                              icon={suggestion.icon}
+                              reason={suggestion.reason}
+                              onAccept={(activity) => {
+                                handleAddActivity(activity);
+                                acceptSuggestion(suggestion.id);
+                              }}
+                              onDismiss={() => dismissSuggestion(suggestion.id)}
+                            />
+                          ))}
+                      </AnimatePresence>
                     </div>
                   </PhaseSection>
                 </div>
@@ -683,6 +826,26 @@ export default function LessonEditor({
                   onToggle={() => togglePhase("workTime")}
                 >
                   <div className="space-y-2">
+                    {/* Ghost blocks for workTime phase — shown above activities */}
+                    <AnimatePresence>
+                      {suggestions
+                        .filter((s) => s.phase === "workTime")
+                        .map((suggestion) => (
+                          <GhostBlock
+                            key={suggestion.id}
+                            activity={suggestion.activity}
+                            label={suggestion.label}
+                            icon={suggestion.icon}
+                            reason={suggestion.reason}
+                            onAccept={(activity) => {
+                              handleAddActivity(activity);
+                              acceptSuggestion(suggestion.id);
+                            }}
+                            onDismiss={() => dismissSuggestion(suggestion.id)}
+                          />
+                        ))}
+                    </AnimatePresence>
+
                     {/* Activities with drag-and-drop */}
                     <Reorder.Group
                       axis="y"
@@ -802,6 +965,25 @@ export default function LessonEditor({
                           rows={2}
                         />
                       </div>
+                      {/* Ghost blocks for debrief phase */}
+                      <AnimatePresence>
+                        {suggestions
+                          .filter((s) => s.phase === "debrief")
+                          .map((suggestion) => (
+                            <GhostBlock
+                              key={suggestion.id}
+                              activity={suggestion.activity}
+                              label={suggestion.label}
+                              icon={suggestion.icon}
+                              reason={suggestion.reason}
+                              onAccept={(activity) => {
+                                handleAddActivity(activity);
+                                acceptSuggestion(suggestion.id);
+                              }}
+                              onDismiss={() => dismissSuggestion(suggestion.id)}
+                            />
+                          ))}
+                      </AnimatePresence>
                     </div>
                   </PhaseSection>
                 </div>
@@ -872,6 +1054,28 @@ export default function LessonEditor({
             </div>
           )}
         </div>
+
+        {/* Right: Block Palette */}
+        <AnimatePresence>
+          {paletteOpen && (
+            <motion.div
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 300, opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className="border-l border-gray-200 bg-gray-50/80 overflow-hidden flex-shrink-0"
+            >
+              <div className="w-[300px] h-full overflow-y-auto">
+                <BlockPalette
+                  onAddBlock={handleAddActivity}
+                  suggestedBlockIds={suggestedBlockIds}
+                  isOpen={paletteOpen}
+                  onToggle={() => setPaletteOpen(!paletteOpen)}
+                />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

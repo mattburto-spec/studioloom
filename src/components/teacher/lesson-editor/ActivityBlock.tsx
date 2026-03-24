@@ -11,6 +11,7 @@ interface ActivityBlockProps {
   index: number;
   onUpdate: (partial: Partial<ActivitySection>) => void;
   onDelete: () => void;
+  onDuplicate?: () => void;
 }
 
 const RESPONSE_TYPES: ResponseType[] = [
@@ -37,6 +38,7 @@ const RESPONSE_TYPE_LABELS: Record<ResponseType, string> = {
   pairwise: "Pairwise Comparison",
   "trade-off-sliders": "Trade-off Sliders",
   "toolkit-tool": "Toolkit Tool",
+  canvas: "Canvas Drawing",
 };
 
 const DESIGN_PHASES = [
@@ -66,6 +68,7 @@ export default function ActivityBlock({
   index,
   onUpdate,
   onDelete,
+  onDuplicate,
 }: ActivityBlockProps) {
   const dragControls = useDragControls();
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
@@ -162,6 +165,20 @@ export default function ActivityBlock({
             <span className="ml-1">min</span>
           </div>
         </div>
+
+        {/* Duplicate button */}
+        {onDuplicate && (
+          <button
+            onClick={onDuplicate}
+            className="flex-shrink-0 opacity-0 group-hover:opacity-100 p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+            aria-label="Duplicate activity"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <rect x="9" y="9" width="13" height="13" rx="2" />
+              <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+            </svg>
+          </button>
+        )}
 
         {/* Delete button */}
         <button
