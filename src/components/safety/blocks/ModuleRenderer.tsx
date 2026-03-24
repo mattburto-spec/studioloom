@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import type { ContentBlock, LearningModule } from "@/lib/safety/content-blocks";
 import { getBlocksFromBadge } from "@/lib/safety/content-blocks";
 import SpotTheHazard from "./SpotTheHazard";
@@ -47,27 +47,20 @@ export interface ModuleResults {
 // Inline SVG Icons
 // ============================================================================
 
-function ChevronLeftIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-      <path d="M12.5 15L7.5 10L12.5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function ChevronRightIcon() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-      <path d="M7.5 15L12.5 10L7.5 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
 function CheckCircleIcon() {
   return (
     <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
       <circle cx="10" cy="10" r="9" stroke="currentColor" strokeWidth="1.5" />
       <path d="M6 10L9 13L14 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function LockIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
     </svg>
   );
 }
@@ -80,6 +73,14 @@ function TrophyIcon() {
       <path d="M28 12H32C32 16 30.5 18 28 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
       <path d="M20 28V32" stroke="currentColor" strokeWidth="2" />
       <path d="M14 32H26" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function ChevronDownIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
+      <path d="M5 7.5L10 12.5L15 7.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
@@ -107,7 +108,7 @@ const keyframes = `
 `;
 
 // ============================================================================
-// Block Type Label
+// Block Type Helpers
 // ============================================================================
 
 function blockTypeLabel(type: string): string {
@@ -132,12 +133,31 @@ function blockTypeColor(type: string): string {
     case "before_after": return "#06b6d4";
     case "key_concept": return "#6366f1";
     case "comprehension_check": return "#10b981";
+    case "micro_story": return "#ec4899";
+    case "step_by_step": return "#f97316";
+    case "machine_diagram": return "#0ea5e9";
+    case "video_embed": return "#ef4444";
     default: return "#94a3b8";
   }
 }
 
+function blockTypeEmoji(type: string): string {
+  switch (type) {
+    case "spot_the_hazard": return "⚠️";
+    case "scenario": return "🎭";
+    case "before_after": return "🔄";
+    case "key_concept": return "💡";
+    case "comprehension_check": return "✅";
+    case "micro_story": return "📖";
+    case "step_by_step": return "📋";
+    case "machine_diagram": return "🔧";
+    case "video_embed": return "🎥";
+    default: return "📝";
+  }
+}
+
 // ============================================================================
-// Module Renderer Component
+// Module Renderer Component — Vertical Stacking
 // ============================================================================
 
 export default function ModuleRenderer({
@@ -156,142 +176,147 @@ export default function ModuleRenderer({
     return [];
   }, [module, blocksProp, badge]);
 
-  const [currentIndex, setCurrentIndex] = useState(0);
   const [completedSet, setCompletedSet] = useState<Set<number>>(new Set());
   const [comprehensionResults, setComprehensionResults] = useState<Array<{ correct: boolean }>>([]);
   const [moduleComplete, setModuleComplete] = useState(false);
   const [startTime] = useState(Date.now());
 
+  // Refs for scrolling newly revealed blocks into view
+  const blockRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  const [lastUnlocked, setLastUnlocked] = useState(-1);
+
   const totalBlocks = blocks.length;
   const completedCount = completedSet.size;
   const progressPct = totalBlocks > 0 ? Math.round((completedCount / totalBlocks) * 100) : 0;
-  const currentBlock = blocks[currentIndex] ?? null;
 
-  // Mark current block as complete
-  const handleBlockComplete = useCallback((extra?: { correct?: boolean }) => {
+  // The highest block index that is unlocked (visible)
+  // Block 0 is always unlocked. Each subsequent block unlocks when the previous is completed.
+  const unlockedUpTo = useMemo(() => {
+    if (allowSkip) return totalBlocks - 1;
+    let maxUnlocked = 0;
+    for (let i = 0; i < totalBlocks - 1; i++) {
+      if (completedSet.has(i)) {
+        maxUnlocked = i + 1;
+      } else {
+        break;
+      }
+    }
+    return maxUnlocked;
+  }, [completedSet, totalBlocks, allowSkip]);
+
+  // Scroll newly unlocked block into view
+  useEffect(() => {
+    if (unlockedUpTo > lastUnlocked && unlockedUpTo > 0) {
+      setLastUnlocked(unlockedUpTo);
+      // Small delay to let the DOM render the new block
+      setTimeout(() => {
+        const el = blockRefs.current.get(unlockedUpTo);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      }, 100);
+    }
+  }, [unlockedUpTo, lastUnlocked]);
+
+  // Mark a block as complete
+  const handleBlockComplete = useCallback((blockIndex: number, extra?: { correct?: boolean }) => {
     setCompletedSet(prev => {
       const next = new Set(prev);
-      next.add(currentIndex);
+      next.add(blockIndex);
+
+      // Check if this was the last block
+      if (next.size >= totalBlocks) {
+        // Defer module completion to next tick so state settles
+        setTimeout(() => {
+          setModuleComplete(true);
+          const results: ModuleResults = {
+            totalBlocks,
+            completedBlocks: totalBlocks,
+            comprehensionScore: {
+              correct: 0, // Will be filled by comprehension results
+              total: 0,
+            },
+            timeSpentMs: Date.now() - startTime,
+          };
+          onModuleComplete?.(results);
+        }, 300);
+      }
+
       return next;
     });
 
     if (extra?.correct !== undefined) {
       setComprehensionResults(prev => [...prev, { correct: extra.correct! }]);
     }
-  }, [currentIndex]);
-
-  // Navigate to next block
-  const goNext = useCallback(() => {
-    if (currentIndex < totalBlocks - 1) {
-      setCurrentIndex(prev => prev + 1);
-    } else if (completedSet.size >= totalBlocks - 1 || completedSet.has(currentIndex)) {
-      // All blocks done (current one might just have been completed)
-      setModuleComplete(true);
-      const results: ModuleResults = {
-        totalBlocks,
-        completedBlocks: completedSet.size + (completedSet.has(currentIndex) ? 0 : 1),
-        comprehensionScore: {
-          correct: comprehensionResults.filter(r => r.correct).length,
-          total: comprehensionResults.length,
-        },
-        timeSpentMs: Date.now() - startTime,
-      };
-      onModuleComplete?.(results);
-    }
-  }, [currentIndex, totalBlocks, completedSet, comprehensionResults, startTime, onModuleComplete]);
-
-  const goPrev = useCallback(() => {
-    if (currentIndex > 0) {
-      setCurrentIndex(prev => prev - 1);
-    }
-  }, [currentIndex]);
-
-  const canGoNext = allowSkip || completedSet.has(currentIndex);
+  }, [totalBlocks, startTime, onModuleComplete]);
 
   if (blocks.length === 0) {
     return (
-      <div style={{ padding: 32, textAlign: "center", color: "#94a3b8" }}>
+      <div className="py-8 text-center text-gray-400">
         <p>No learning materials available for this badge yet.</p>
       </div>
     );
   }
 
-  // ==================== Completion Screen ====================
+  // ==================== Completion Banner ====================
   if (moduleComplete) {
-    const compScore = comprehensionResults.length > 0
-      ? comprehensionResults.filter(r => r.correct).length
-      : null;
+    const compCorrect = comprehensionResults.filter(r => r.correct).length;
     const compTotal = comprehensionResults.length;
     const timeSec = Math.round((Date.now() - startTime) / 1000);
     const timeMin = Math.floor(timeSec / 60);
     const timeFmt = timeMin > 0 ? `${timeMin}m ${timeSec % 60}s` : `${timeSec}s`;
 
     return (
-      <div style={{ maxWidth: 600, margin: "0 auto", padding: "32px 16px" }}>
+      <div>
         <style>{keyframes}</style>
-        <div style={{
-          background: "linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #1e1b4b 100%)",
-          borderRadius: 16,
-          padding: "40px 32px",
-          textAlign: "center",
-          animation: "completePulse 2s ease-in-out",
-          border: "2px solid #4338ca",
-        }}>
-          <div style={{ color: "#fbbf24", marginBottom: 16 }}>
+        {/* Show all completed blocks */}
+        {blocks.map((block, i) => (
+          <div key={i} className="mb-6 opacity-60">
+            <CompletedBlockHeader index={i} block={block} />
+          </div>
+        ))}
+
+        {/* Completion card */}
+        <div
+          className="rounded-2xl p-8 text-center mt-8 border-2"
+          style={{
+            background: "linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #1e1b4b 100%)",
+            borderColor: "#4338ca",
+            animation: "completePulse 2s ease-in-out",
+          }}
+        >
+          <div className="text-yellow-400 mb-4 flex justify-center">
             <TrophyIcon />
           </div>
-          <h2 style={{ color: "#fff", fontSize: 24, fontWeight: 700, margin: "0 0 8px" }}>
+          <h2 className="text-2xl font-bold text-white mb-2">
             Module Complete!
           </h2>
-          <p style={{ color: "#c7d2fe", fontSize: 16, margin: "0 0 24px" }}>
+          <p className="text-indigo-200 mb-6">
             You&apos;ve completed all {totalBlocks} learning activities.
           </p>
 
-          <div style={{
-            display: "flex",
-            justifyContent: "center",
-            gap: 24,
-            flexWrap: "wrap",
-            marginBottom: 24,
-          }}>
-            <div style={{
-              background: "rgba(255,255,255,0.08)",
-              borderRadius: 12,
-              padding: "16px 24px",
-              minWidth: 100,
-            }}>
-              <div style={{ color: "#fbbf24", fontSize: 28, fontWeight: 700 }}>{totalBlocks}</div>
-              <div style={{ color: "#94a3b8", fontSize: 13 }}>Activities</div>
+          <div className="flex justify-center gap-4 flex-wrap mb-6">
+            <div className="bg-white/10 rounded-xl px-5 py-3 min-w-[90px]">
+              <div className="text-yellow-400 text-2xl font-bold">{totalBlocks}</div>
+              <div className="text-gray-400 text-xs">Activities</div>
             </div>
 
-            {compScore !== null && (
-              <div style={{
-                background: "rgba(255,255,255,0.08)",
-                borderRadius: 12,
-                padding: "16px 24px",
-                minWidth: 100,
-              }}>
-                <div style={{
-                  color: compScore === compTotal ? "#10b981" : "#f59e0b",
-                  fontSize: 28,
-                  fontWeight: 700,
-                }}>{compScore}/{compTotal}</div>
-                <div style={{ color: "#94a3b8", fontSize: 13 }}>Quiz Score</div>
+            {compTotal > 0 && (
+              <div className="bg-white/10 rounded-xl px-5 py-3 min-w-[90px]">
+                <div className={`text-2xl font-bold ${compCorrect === compTotal ? "text-green-400" : "text-yellow-400"}`}>
+                  {compCorrect}/{compTotal}
+                </div>
+                <div className="text-gray-400 text-xs">Quiz Score</div>
               </div>
             )}
 
-            <div style={{
-              background: "rgba(255,255,255,0.08)",
-              borderRadius: 12,
-              padding: "16px 24px",
-              minWidth: 100,
-            }}>
-              <div style={{ color: "#818cf8", fontSize: 28, fontWeight: 700 }}>{timeFmt}</div>
-              <div style={{ color: "#94a3b8", fontSize: 13 }}>Time</div>
+            <div className="bg-white/10 rounded-xl px-5 py-3 min-w-[90px]">
+              <div className="text-indigo-300 text-2xl font-bold">{timeFmt}</div>
+              <div className="text-gray-400 text-xs">Time</div>
             </div>
           </div>
 
-          <p style={{ color: "#a5b4fc", fontSize: 14 }}>
+          <p className="text-indigo-300 text-sm">
             You&apos;re ready to take the safety quiz!
           </p>
         </div>
@@ -299,142 +324,147 @@ export default function ModuleRenderer({
     );
   }
 
-  // ==================== Main Render ====================
+  // ==================== Main Render — Vertical Stack ====================
   return (
-    <div style={{ maxWidth: 800, margin: "0 auto" }}>
+    <div>
       <style>{keyframes}</style>
 
-      {/* ---- Progress Bar ---- */}
+      {/* ---- Sticky Progress Bar ---- */}
       {showProgress && (
-        <div style={{ padding: "16px 16px 0" }}>
-          {/* Step dots */}
-          <div style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            marginBottom: 8,
-            flexWrap: "wrap",
-          }}>
-            {blocks.map((block, i) => {
-              const isCompleted = completedSet.has(i);
-              const isCurrent = i === currentIndex;
-              const color = blockTypeColor(block.type);
-              return (
-                <button
-                  key={i}
-                  onClick={() => (allowSkip || completedSet.has(i) || i <= currentIndex) && setCurrentIndex(i)}
-                  style={{
-                    width: isCurrent ? 28 : 20,
-                    height: 8,
-                    borderRadius: 4,
-                    border: "none",
-                    background: isCompleted ? "#10b981" : isCurrent ? color : "#334155",
-                    cursor: (allowSkip || completedSet.has(i) || i <= currentIndex) ? "pointer" : "default",
-                    transition: "all 0.2s ease",
-                    opacity: i > currentIndex && !completedSet.has(i) && !allowSkip ? 0.4 : 1,
-                  }}
-                  title={`${blockTypeLabel(block.type)}${isCompleted ? " (completed)" : ""}`}
-                />
-              );
-            })}
+        <div className="sticky top-[52px] z-40 bg-white/95 backdrop-blur-sm border-b border-gray-100 -mx-6 px-6 py-3 mb-6">
+          {/* Progress bar */}
+          <div className="flex items-center gap-2 mb-1">
+            <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-500 ease-out"
+                style={{
+                  width: `${progressPct}%`,
+                  background: progressPct === 100
+                    ? "#10b981"
+                    : "linear-gradient(90deg, #6366f1, #8b5cf6)",
+                }}
+              />
+            </div>
+            <span className="text-xs font-semibold text-gray-500 w-10 text-right">
+              {progressPct}%
+            </span>
           </div>
-
-          {/* Progress text */}
-          <div style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            fontSize: 13,
-            color: "#94a3b8",
-          }}>
-            <span>
-              <span style={{
-                display: "inline-block",
-                padding: "2px 8px",
-                borderRadius: 4,
-                background: blockTypeColor(currentBlock?.type ?? ""),
-                color: "#fff",
-                fontSize: 11,
-                fontWeight: 600,
-                marginRight: 8,
-              }}>
-                {blockTypeLabel(currentBlock?.type ?? "")}
-              </span>
-              {currentIndex + 1} of {totalBlocks}
-            </span>
-            <span style={{ color: "#10b981" }}>
-              {completedCount} completed
-            </span>
+          <div className="text-xs text-gray-400">
+            {completedCount} of {totalBlocks} sections complete
           </div>
         </div>
       )}
 
-      {/* ---- Current Block ---- */}
-      <div
-        key={currentIndex}
-        style={{ animation: "moduleSlideIn 0.3s ease-out" }}
-      >
-        {renderBlock(currentBlock, handleBlockComplete)}
+      {/* ---- All Visible Blocks (stacked vertically) ---- */}
+      {blocks.map((block, i) => {
+        const isCompleted = completedSet.has(i);
+        const isUnlocked = i <= unlockedUpTo;
+        const isLatest = i === unlockedUpTo && !isCompleted;
+        const color = blockTypeColor(block.type);
+
+        // Locked block — show placeholder
+        if (!isUnlocked) {
+          return (
+            <div
+              key={i}
+              className="mb-4 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50 p-5 flex items-center gap-3"
+            >
+              <div className="text-gray-300">
+                <LockIcon />
+              </div>
+              <div>
+                <span className="text-sm font-medium text-gray-400">
+                  Section {i + 1} — {blockTypeLabel(block.type)}
+                </span>
+                <p className="text-xs text-gray-300 mt-0.5">
+                  Complete the section above to unlock
+                </p>
+              </div>
+            </div>
+          );
+        }
+
+        // Completed block — show collapsed summary
+        if (isCompleted && !isLatest) {
+          return (
+            <div key={i} className="mb-4">
+              <CompletedBlockHeader index={i} block={block} />
+            </div>
+          );
+        }
+
+        // Active block — show full content
+        return (
+          <div
+            key={i}
+            ref={(el) => { if (el) blockRefs.current.set(i, el); }}
+            className="mb-6"
+            style={i > 0 ? { animation: "moduleSlideIn 0.4s ease-out" } : undefined}
+          >
+            {/* Section header */}
+            <div className="flex items-center gap-3 mb-4">
+              <div
+                className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0"
+                style={{ backgroundColor: color }}
+              >
+                {i + 1}
+              </div>
+              <div>
+                <span
+                  className="inline-block px-2 py-0.5 rounded text-xs font-semibold text-white mb-0.5"
+                  style={{ backgroundColor: color }}
+                >
+                  {blockTypeLabel(block.type)}
+                </span>
+                {block.title && (
+                  <h3 className="text-base font-semibold text-gray-900">{block.title}</h3>
+                )}
+              </div>
+            </div>
+
+            {/* Block content */}
+            <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+              {renderBlock(block, (extra) => handleBlockComplete(i, extra))}
+            </div>
+
+            {/* Completed indicator (appears after completing this block) */}
+            {isCompleted && (
+              <div className="flex items-center gap-2 mt-3 text-green-600 text-sm font-medium">
+                <CheckCircleIcon />
+                Section complete
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ============================================================================
+// Completed Block Header — compact collapsed view
+// ============================================================================
+
+function CompletedBlockHeader({ index, block }: { index: number; block: ContentBlock }) {
+  const color = blockTypeColor(block.type);
+  return (
+    <div className="flex items-center gap-3 rounded-lg bg-gray-50 border border-gray-100 px-4 py-3">
+      <div className="text-green-500 flex-shrink-0">
+        <CheckCircleIcon />
       </div>
-
-      {/* ---- Navigation ---- */}
-      <div style={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        padding: "16px",
-        borderTop: "1px solid #1e293b",
-        marginTop: 8,
-      }}>
-        <button
-          onClick={goPrev}
-          disabled={currentIndex === 0}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 4,
-            padding: "8px 16px",
-            borderRadius: 8,
-            border: "1px solid #334155",
-            background: "transparent",
-            color: currentIndex === 0 ? "#475569" : "#e2e8f0",
-            cursor: currentIndex === 0 ? "not-allowed" : "pointer",
-            fontSize: 14,
-            fontWeight: 500,
-          }}
+      <span className="text-sm text-gray-500">
+        <span className="font-semibold text-gray-700">Section {index + 1}</span>
+        {" — "}
+        <span
+          className="inline-block px-1.5 py-0.5 rounded text-xs font-medium text-white"
+          style={{ backgroundColor: color }}
         >
-          <ChevronLeftIcon /> Previous
-        </button>
-
-        {completedSet.has(currentIndex) && (
-          <span style={{ color: "#10b981", fontSize: 13, display: "flex", alignItems: "center", gap: 4 }}>
-            <CheckCircleIcon /> Done
-          </span>
+          {blockTypeLabel(block.type)}
+        </span>
+        {block.title && (
+          <span className="ml-1.5 text-gray-600">{block.title}</span>
         )}
-
-        <button
-          onClick={goNext}
-          disabled={!canGoNext}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 4,
-            padding: "8px 20px",
-            borderRadius: 8,
-            border: "none",
-            background: canGoNext
-              ? "linear-gradient(135deg, #6366f1, #8b5cf6)"
-              : "#1e293b",
-            color: canGoNext ? "#fff" : "#475569",
-            cursor: canGoNext ? "pointer" : "not-allowed",
-            fontSize: 14,
-            fontWeight: 600,
-            transition: "all 0.2s ease",
-          }}
-        >
-          {currentIndex === totalBlocks - 1 ? "Finish" : "Next"} <ChevronRightIcon />
-        </button>
-      </div>
+      </span>
     </div>
   );
 }
