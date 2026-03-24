@@ -4,11 +4,11 @@ import { useEffect, useCallback, useState, useMemo } from "react";
 import { Reorder, AnimatePresence, motion } from "framer-motion";
 import { useLessonEditor } from "./useLessonEditor";
 import { LessonSidebar } from "./LessonSidebar";
-import { LessonHeader } from "./LessonHeader";
-import { PhaseSection } from "./PhaseSection";
-import { ActivityBlock } from "./ActivityBlock";
+import LessonHeader from "./LessonHeader";
+import PhaseSection from "./PhaseSection";
+import ActivityBlock from "./ActivityBlock";
 import { ActivityBlockAdd } from "./ActivityBlockAdd";
-import { ExtensionBlock } from "./ExtensionBlock";
+import ExtensionBlock from "./ExtensionBlock";
 import type {
   UnitPage,
   PageContent,
