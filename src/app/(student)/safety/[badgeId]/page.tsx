@@ -7,7 +7,19 @@ import { ModuleRenderer } from "@/components/safety/blocks";
 import type { ContentBlock } from "@/lib/safety/content-blocks";
 import { getBlocksFromBadge } from "@/lib/safety/content-blocks";
 import { BUILT_IN_BADGES } from "@/lib/safety/badge-definitions";
-import { GENERAL_WORKSHOP_MODULE } from "@/lib/safety/modules";
+import {
+  GENERAL_WORKSHOP_MODULE,
+  HAND_TOOL_MODULE,
+  FIRE_SAFETY_MODULE,
+  PPE_MODULE,
+  WOOD_WORKSHOP_MODULE,
+  METAL_WORKSHOP_MODULE,
+  PLASTICS_MODULE,
+  ELECTRONICS_MODULE,
+  LASER_CUTTER_MODULE,
+  THREE_D_PRINTER_MODULE,
+  BAND_SAW_MODULE,
+} from "@/lib/safety/modules";
 import type { LearningModule } from "@/lib/safety/content-blocks";
 
 interface LearnCard {
@@ -89,6 +101,16 @@ export default function SafetyBadgeTestPage({
   // Map badge slugs to rich learning modules
   const MODULE_MAP: Record<string, LearningModule> = {
     'general-workshop-safety': GENERAL_WORKSHOP_MODULE,
+    'hand-tool-safety': HAND_TOOL_MODULE,
+    'fire-safety-emergency': FIRE_SAFETY_MODULE,
+    'ppe-fundamentals': PPE_MODULE,
+    'wood-workshop-safety': WOOD_WORKSHOP_MODULE,
+    'metal-workshop-safety': METAL_WORKSHOP_MODULE,
+    'plastics-composites-safety': PLASTICS_MODULE,
+    'electronics-soldering-safety': ELECTRONICS_MODULE,
+    'laser-cutter-safety': LASER_CUTTER_MODULE,
+    '3d-printer-safety': THREE_D_PRINTER_MODULE,
+    'band-saw': BAND_SAW_MODULE,
   };
 
   // Load badge data — try API first, fall back to BUILT_IN_BADGES
