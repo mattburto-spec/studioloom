@@ -555,27 +555,53 @@ export default function StudentDashboard() {
                     </div>
                   )}
 
-                  {/* Earned Badges (when no pending) */}
-                  {earnedBadges.length > 0 && pendingBadges.length === 0 && (
-                    <div className="rounded-2xl border border-green-200 bg-green-50/50 overflow-hidden shadow-sm">
-                      <div className="px-4 py-2.5 bg-green-100/60 border-b border-green-200 flex items-center gap-2">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                  {/* Earned Badges — always visible as trophy shelf */}
+                  {earnedBadges.length > 0 && (
+                    <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden shadow-sm">
+                      <div className="px-4 py-2.5 bg-gradient-to-r from-purple-50 to-indigo-50 border-b border-gray-100 flex items-center gap-2">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5C7 4 7 7 7 7" />
+                          <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5C17 4 17 7 17 7" />
+                          <path d="M4 22h16" />
+                          <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20 7 22" />
+                          <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20 17 22" />
+                          <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
                         </svg>
-                        <h2 className="text-sm font-bold text-green-800">Safety Badges</h2>
+                        <h2 className="text-sm font-bold text-purple-800">My Badges</h2>
+                        <span className="ml-auto text-xs font-semibold text-purple-500 bg-purple-100 px-2 py-0.5 rounded-full">
+                          {earnedBadges.length}
+                        </span>
                       </div>
-                      <div className="p-3 space-y-1.5">
-                        {earnedBadges.map((b) => (
-                          <div
-                            key={b.badge_id}
-                            className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-white/80"
-                          >
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5">
-                              <polyline points="20 6 9 17 4 12" />
-                            </svg>
-                            <span className="text-xs font-medium text-gray-700">{b.badge_name}</span>
-                          </div>
-                        ))}
+                      <div className="p-3">
+                        <div className="flex flex-wrap gap-3 justify-center">
+                          {earnedBadges.map((b) => (
+                            <Link
+                              key={b.badge_id}
+                              href={`/safety/${b.badge_id}`}
+                              className="group flex flex-col items-center gap-1.5 w-[72px] text-center"
+                            >
+                              <div
+                                className="relative w-14 h-14 rounded-full flex items-center justify-center text-xl shadow-md group-hover:scale-110 transition-transform duration-200"
+                                style={{
+                                  background: `linear-gradient(135deg, ${b.badge_color}30, ${b.badge_color}60)`,
+                                  border: `2.5px solid ${b.badge_color}`,
+                                  boxShadow: `0 2px 8px ${b.badge_color}30`,
+                                }}
+                              >
+                                {badgeIconEl(b.badge_icon, b.badge_color)}
+                                {/* Green check overlay */}
+                                <div className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-green-500 border-2 border-white flex items-center justify-center">
+                                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5">
+                                    <polyline points="20 6 9 17 4 12" />
+                                  </svg>
+                                </div>
+                              </div>
+                              <span className="text-[10px] font-semibold text-gray-600 leading-tight line-clamp-2">
+                                {b.badge_name}
+                              </span>
+                            </Link>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   )}
