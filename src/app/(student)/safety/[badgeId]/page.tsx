@@ -6,6 +6,9 @@ import { useStudent } from "../../student-context";
 import { ModuleRenderer } from "@/components/safety/blocks";
 import type { ContentBlock } from "@/lib/safety/content-blocks";
 import { getBlocksFromBadge } from "@/lib/safety/content-blocks";
+import { BUILT_IN_BADGES } from "@/lib/safety/badge-definitions";
+import { GENERAL_WORKSHOP_MODULE } from "@/lib/safety/modules";
+import type { LearningModule } from "@/lib/safety/content-blocks";
 
 interface LearnCard {
   title: string;
@@ -83,6 +86,11 @@ export default function SafetyBadgeTestPage({
   const [reviewMode, setReviewMode] = useState(false);
   const [reviewQuestions, setReviewQuestions] = useState<number[]>([]);
 
+  // Map badge slugs to rich learning modules
+  const MODULE_MAP: Record<string, LearningModule> = {
+    'general-workshop-safety': GENERAL_WORKSHOP_MODULE,
+  };
+
   // Load badge data
   useEffect(() => {
     async function loadBadge() {
@@ -94,17 +102,29 @@ export default function SafetyBadgeTestPage({
         if (res.ok) {
           const data = await res.json();
           setBadge(data.badge);
-          setLearnCards(data.learnContent || []);
 
-          // Extract learning blocks (new format) or convert from old learnContent
-          const badgeObj = {
-            learning_blocks: data.learningBlocks,
-            learn_content: data.learnContent,
-          };
-          const blocks = getBlocksFromBadge(badgeObj);
-          setLearningBlocks(blocks);
-
-          setQuestions(data.questions || []);
+          // Try to find the built-in badge definition for richer content
+          const builtIn = BUILT_IN_BADGES.find(b => b.id === badgeId || b.slug === badgeId);
+          if (builtIn) {
+            setLearnCards(builtIn.learn_content || []);
+            // Use built-in badge data for learning blocks
+            const badgeObj = {
+              learning_blocks: undefined,
+              learn_content: builtIn.learn_content,
+            };
+            const blocks = getBlocksFromBadge(badgeObj);
+            setLearningBlocks(blocks);
+            setQuestions(builtIn.question_pool || []);
+          } else {
+            setLearnCards(data.learnContent || []);
+            const badgeObj = {
+              learning_blocks: data.learningBlocks,
+              learn_content: data.learnContent,
+            };
+            const blocks = getBlocksFromBadge(badgeObj);
+            setLearningBlocks(blocks);
+            setQuestions(data.questions || []);
+          }
 
           // Check if already earned or on cooldown
           if (
@@ -355,22 +375,51 @@ export default function SafetyBadgeTestPage({
             </div>
           </div>
 
-          {/* Learn section — ModuleRenderer or fallback to old cards */}
+          {/* Learn section — Rich module, ModuleRenderer blocks, or fallback to old cards */}
           <div className="mb-8">
-            {learningBlocks.length > 0 ? (
-              <>
-                <h2 className="text-lg font-semibold text-slate-900 mb-4">
-                  📚 Learn First
-                </h2>
-                <p className="text-slate-600 mb-4 text-sm">
-                  Complete all learning modules before taking the test.
-                </p>
-                <ModuleRenderer
-                  blocks={learningBlocks}
-                  onModuleComplete={() => setModuleCompleted(true)}
-                  showProgress={true}
-                />
-              </>
+            {(() => {
+              // Check for a rich learning module first
+              const builtIn = BUILT_IN_BADGES.find(b => b.id === badgeId || b.slug === badgeId);
+              const richModule = builtIn ? MODULE_MAP[builtIn.slug] : undefined;
+
+              if (richModule) {
+                return (
+                  <>
+                    <h2 className="text-lg font-semibold text-slate-900 mb-4">
+                      📚 Interactive Learning — ~{richModule.estimated_minutes} min
+                    </h2>
+                    <p className="text-slate-600 mb-4 text-sm">
+                      {richModule.learning_objectives.length} learning objectives. Complete all sections to unlock the test.
+                    </p>
+                    <ModuleRenderer
+                      module={richModule}
+                      onModuleComplete={() => setModuleCompleted(true)}
+                      showProgress={true}
+                    />
+                  </>
+                );
+              }
+
+              if (learningBlocks.length > 0) {
+                return (
+                  <>
+                    <h2 className="text-lg font-semibold text-slate-900 mb-4">
+                      📚 Learn First
+                    </h2>
+                    <p className="text-slate-600 mb-4 text-sm">
+                      Complete all learning modules before taking the test.
+                    </p>
+                    <ModuleRenderer
+                      blocks={learningBlocks}
+                      onModuleComplete={() => setModuleCompleted(true)}
+                      showProgress={true}
+                    />
+                  </>
+                );
+              }
+
+              return null;
+            })()}
             ) : (
               <>
                 <h2 className="text-lg font-semibold text-slate-900 mb-4">

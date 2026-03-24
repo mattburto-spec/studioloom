@@ -1,45 +1,21 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { SpotTheHazard, ModuleRenderer } from '@/components/safety/blocks';
 import { BadgePathVisualization } from '@/components/safety';
 import { WOODWORK_SCENE, METALWORK_SCENE, GENERAL_SCENE, SCENE_LIST } from '@/lib/safety/scenes';
 import { GENERAL_WORKSHOP_MODULE } from '@/lib/safety/modules';
+import { BUILT_IN_BADGES } from '@/lib/safety/badge-definitions';
+import type { BadgeDefinition } from '@/lib/safety/types';
 import type { LearningModule } from '@/lib/safety/content-blocks';
-
-interface Question {
-  id: string;
-  question: string;
-  options: string[];
-  correct: number;
-}
-
-interface LearnContent {
-  title: string;
-  sections: Array<{
-    title: string;
-    content: string;
-  }>;
-}
-
-interface Badge {
-  id: string;
-  name: string;
-  slug: string;
-  description: string;
-  tier: 'bronze' | 'silver' | 'gold';
-  learn_content: LearnContent;
-  question_pool: Question[];
-}
 
 type ViewMode = 'landing' | 'cards' | 'learn' | 'quiz';
 
 export default function SafetyToolsPage() {
-  const [badges, setBadges] = useState<Badge[]>([]);
-  const [loading, setLoading] = useState(true);
+  const badges = BUILT_IN_BADGES;
   const [viewMode, setViewMode] = useState<ViewMode>('landing');
-  const [selectedBadge, setSelectedBadge] = useState<Badge | null>(null);
+  const [selectedBadge, setSelectedBadge] = useState<BadgeDefinition | null>(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState<Record<number, number>>({});
   const [quizComplete, setQuizComplete] = useState(false);
@@ -47,31 +23,12 @@ export default function SafetyToolsPage() {
   const [activeScene, setActiveScene] = useState(WOODWORK_SCENE);
   const [moduleCompleted, setModuleCompleted] = useState(false);
 
-  // Map badge slugs/names to rich learning modules (when available)
+  // Map badge slugs to rich learning modules (when available)
   const MODULE_MAP: Record<string, LearningModule> = {
     'general-workshop-safety': GENERAL_WORKSHOP_MODULE,
   };
 
-  useEffect(() => {
-    async function loadBadges() {
-      try {
-        setLoading(true);
-        const response = await fetch('/api/public/safety-badges');
-        if (response.ok) {
-          const data = await response.json();
-          setBadges(data.badges || []);
-        }
-      } catch (err) {
-        console.error('Error loading badges:', err);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    loadBadges();
-  }, []);
-
-  function startBadge(badge: Badge) {
+  function startBadge(badge: BadgeDefinition) {
     setSelectedBadge(badge);
     setViewMode('learn');
     setCurrentQuestionIndex(0);
@@ -101,8 +58,18 @@ export default function SafetyToolsPage() {
 
     let correctCount = 0;
     selectedBadge.question_pool.forEach((q, idx) => {
-      if (selectedAnswers[idx] === q.correct) {
-        correctCount++;
+      const selectedIdx = selectedAnswers[idx];
+      if (selectedIdx !== undefined && q.options) {
+        // Compare selected option text to correct_answer string
+        if (q.options[selectedIdx] === q.correct_answer) {
+          correctCount++;
+        }
+      } else if (q.type === 'true_false') {
+        // For true/false, options are ['True', 'False'] and correct_answer is 'true'/'false'
+        const selected = selectedIdx === 0 ? 'true' : 'false';
+        if (selected === q.correct_answer) {
+          correctCount++;
+        }
       }
     });
 
@@ -135,30 +102,16 @@ export default function SafetyToolsPage() {
     setScore(0);
   }
 
-  const getTierColor = (tier: string) => {
-    switch (tier) {
-      case 'bronze':
-        return { bg: 'rgba(184,134,11,0.1)', border: '#b8860b', text: '#8b6914' };
-      case 'silver':
-        return { bg: 'rgba(192,192,192,0.1)', border: '#c0c0c0', text: '#808080' };
-      case 'gold':
-        return { bg: 'rgba(255,215,0,0.1)', border: '#ffd700', text: '#b8960f' };
-      default:
-        return { bg: 'rgba(99,102,241,0.1)', border: '#6366f1', text: '#4f46e5' };
-    }
+  const TIER_INFO: Record<number, { name: string; icon: string; border: string; text: string }> = {
+    1: { name: 'Foundation', icon: '🛡️', border: '#10b981', text: '#059669' },
+    2: { name: 'Workshop Areas', icon: '🏭', border: '#f59e0b', text: '#d97706' },
+    3: { name: 'Machine Specific', icon: '⚙️', border: '#8b5cf6', text: '#7c3aed' },
+    4: { name: 'Materials & Processes', icon: '🔬', border: '#ec4899', text: '#db2777' },
   };
 
-  const getTierIcon = (tier: string) => {
-    switch (tier) {
-      case 'bronze':
-        return '🥉';
-      case 'silver':
-        return '🥈';
-      case 'gold':
-        return '🥇';
-      default:
-        return '⭐';
-    }
+  const getTierColor = (tier: number | string) => {
+    const t = typeof tier === 'number' ? tier : 1;
+    return TIER_INFO[t] || TIER_INFO[1];
   };
 
   // SVG Icons
@@ -559,28 +512,19 @@ export default function SafetyToolsPage() {
           </div>
         </div>
 
-        {loading ? (
-          <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 24px', textAlign: 'center' }}>
-            <p style={{ color: '#a8adc7' }}>Loading badges...</p>
-          </div>
-        ) : badges.length === 0 ? (
-          <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 24px', textAlign: 'center' }}>
-            <p style={{ color: '#a8adc7' }}>No badges available yet.</p>
-          </div>
-        ) : (
-          <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 24px' }}>
-            {['bronze', 'silver', 'gold'].map((tier) => {
+        <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 24px' }}>
+            {[1, 2, 3, 4].map((tier) => {
               const tierBadges = badges.filter((b) => b.tier === tier);
               if (tierBadges.length === 0) return null;
-              const tierColor = getTierColor(tier);
-              const tierIcon = getTierIcon(tier);
+              const tierInfo = TIER_INFO[tier] || TIER_INFO[1];
               return (
                 <div key={tier} style={{ marginBottom: '48px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
-                    <span style={{ fontSize: '24px' }}>{tierIcon}</span>
-                    <h2 style={{ fontSize: '20px', fontWeight: '600', textTransform: 'capitalize', margin: 0, color: '#e8eaf0' }}>
-                      {tier} Badges
+                    <span style={{ fontSize: '24px' }}>{tierInfo.icon}</span>
+                    <h2 style={{ fontSize: '20px', fontWeight: '600', margin: 0, color: '#e8eaf0' }}>
+                      Tier {tier}: {tierInfo.name}
                     </h2>
+                    <span style={{ fontSize: '13px', color: '#6b7280' }}>{tierBadges.length} badge{tierBadges.length !== 1 ? 's' : ''}</span>
                     <div style={{ flex: 1, height: '1px', background: '#404860' }} />
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
@@ -589,7 +533,7 @@ export default function SafetyToolsPage() {
                         key={badge.id}
                         style={{
                           background: 'rgba(30,27,75,0.6)',
-                          border: `2px solid ${tierColor.border}`,
+                          border: `2px solid ${tierInfo.border}`,
                           borderRadius: '12px',
                           padding: '24px',
                           cursor: 'pointer',
@@ -597,16 +541,22 @@ export default function SafetyToolsPage() {
                         }}
                         onMouseEnter={(e) => {
                           (e.currentTarget as HTMLDivElement).style.background = 'rgba(30,27,75,0.8)';
-                          (e.currentTarget as HTMLDivElement).style.borderColor = tierColor.text;
+                          (e.currentTarget as HTMLDivElement).style.borderColor = tierInfo.text;
                           (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)';
                         }}
                         onMouseLeave={(e) => {
                           (e.currentTarget as HTMLDivElement).style.background = 'rgba(30,27,75,0.6)';
-                          (e.currentTarget as HTMLDivElement).style.borderColor = tierColor.border;
+                          (e.currentTarget as HTMLDivElement).style.borderColor = tierInfo.border;
                           (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)';
                         }}
+                        onClick={() => startBadge(badge)}
                       >
-                        <div style={{ fontSize: '48px', marginBottom: '16px', opacity: 0.7 }}>{tierIcon}</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                          <span style={{ fontSize: '32px' }}>{badge.icon_name}</span>
+                          <div style={{ padding: '2px 8px', borderRadius: '4px', background: `${tierInfo.border}20`, border: `1px solid ${tierInfo.border}40`, fontSize: '11px', fontWeight: '600', color: tierInfo.border }}>
+                            Tier {tier}
+                          </div>
+                        </div>
                         <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#e8eaf0', margin: '0 0 8px 0' }}>
                           {badge.name}
                         </h3>
@@ -616,14 +566,14 @@ export default function SafetyToolsPage() {
                         <div style={{ display: 'flex', gap: '8px', fontSize: '12px', color: '#6b7280', marginBottom: '16px' }}>
                           <span>{badge.question_pool?.length || 0} questions</span>
                           <span>•</span>
-                          <span>~15 min</span>
+                          <span>{badge.pass_threshold}% to pass</span>
                         </div>
                         <button
-                          onClick={() => startBadge(badge)}
+                          onClick={(e) => { e.stopPropagation(); startBadge(badge); }}
                           style={{
                             width: '100%',
                             padding: '10px 16px',
-                            background: `linear-gradient(135deg, ${tierColor.border} 0%, ${tierColor.text} 100%)`,
+                            background: `linear-gradient(135deg, ${tierInfo.border} 0%, ${tierInfo.text} 100%)`,
                             color: '#fff',
                             border: 'none',
                             borderRadius: '8px',
@@ -648,7 +598,6 @@ export default function SafetyToolsPage() {
               );
             })}
           </div>
-        )}
 
         <div style={{ marginTop: '72px', padding: '48px 24px', textAlign: 'center', borderTop: '1px solid #404860' }}>
           <h2 style={{ fontSize: '24px', fontWeight: '600', color: '#e8eaf0', margin: '0 0 16px 0' }}>
@@ -777,8 +726,8 @@ export default function SafetyToolsPage() {
             </>
           ) : (
             <>
-              {/* Fallback: flat learn content sections */}
-              {selectedBadge.learn_content?.sections?.map((section, idx) => (
+              {/* Fallback: flat learn content cards */}
+              {selectedBadge.learn_content?.map((card, idx) => (
                 <div
                   key={idx}
                   style={{
@@ -789,11 +738,14 @@ export default function SafetyToolsPage() {
                     marginBottom: '16px',
                   }}
                 >
-                  <h2 style={{ fontSize: '18px', fontWeight: '600', color: '#e8eaf0', margin: '0 0 12px 0' }}>
-                    {section.title}
-                  </h2>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                    <span style={{ fontSize: '24px' }}>{card.icon}</span>
+                    <h2 style={{ fontSize: '18px', fontWeight: '600', color: '#e8eaf0', margin: 0 }}>
+                      {card.title}
+                    </h2>
+                  </div>
                   <div style={{ fontSize: '14px', color: '#a8adc7', lineHeight: '1.6', whiteSpace: 'pre-wrap' }}>
-                    {section.content}
+                    {card.content}
                   </div>
                 </div>
               ))}
@@ -989,10 +941,10 @@ export default function SafetyToolsPage() {
                   lineHeight: '1.5',
                 }}
               >
-                {currentQuestion.question}
+                {currentQuestion.prompt}
               </h2>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {currentQuestion.options?.map((option, idx) => (
+                {(currentQuestion.options || (currentQuestion.type === 'true_false' ? ['True', 'False'] : []))?.map((option, idx) => (
                   <label
                     key={idx}
                     style={{
