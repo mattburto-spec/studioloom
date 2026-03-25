@@ -79,39 +79,27 @@ export default function UnitPageView({
     return null; // Layout handles the loading state
   }
 
-  if (!currentPage) {
-    // Page ID not found — either redirecting or content is empty
-    if (allPages.length > 0) {
-      return null; // useEffect above will redirect
-    }
-    return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="text-center space-y-3">
-          <p className="text-gray-500">This unit doesn&apos;t have any lessons yet.</p>
-          <button
-            onClick={() => router.push("/dashboard")}
-            className="text-sm text-purple-600 hover:text-purple-800 underline"
-          >
-            Back to Dashboard
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  const journeyMode = isV3(data.unit.content_data);
-  const currentIndex = enabledPages.findIndex((p) => p.id === pageId);
-  const criterion = currentPage.type === "strand" && currentPage.criterion
+  // Derived values — safe even when currentPage is undefined
+  const journeyMode = data ? isV3(data.unit.content_data) : false;
+  const currentIndex = currentPage ? enabledPages.findIndex((p) => p.id === pageId) : -1;
+  const criterion = currentPage?.type === "strand" && currentPage.criterion
     ? CRITERIA[currentPage.criterion as CriterionKey]
     : null;
-  const pageContent: PageContent | undefined = currentPage.content;
+  const pageContent: PageContent | undefined = currentPage?.content;
 
   let sectionNum = 0;
   const hasContext = pageContent?.learningGoal || pageContent?.vocabWarmup || pageContent?.introduction;
 
-  const displayTitle = currentPage.phaseLabel && pageContent?.title?.startsWith(`${currentPage.phaseLabel}: `)
-    ? pageContent.title.slice(currentPage.phaseLabel.length + 2)
-    : pageContent?.title || currentPage.title;
+  const displayTitle = currentPage
+    ? (currentPage.phaseLabel && pageContent?.title?.startsWith(`${currentPage.phaseLabel}: `)
+        ? pageContent.title.slice(currentPage.phaseLabel.length + 2)
+        : pageContent?.title || currentPage.title)
+    : data?.unit.title || "Lesson";
+
+  // If page not found but we have pages, useEffect will redirect — show nothing briefly
+  if (!currentPage && allPages.length > 0) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-white">
@@ -131,9 +119,11 @@ export default function UnitPageView({
                 </svg>
               </button>
             )}
-            <span className="text-xs text-gray-400 font-medium hidden sm:block">
-              {currentIndex + 1}/{enabledPages.length}
-            </span>
+            {currentPage && (
+              <span className="text-xs text-gray-400 font-medium hidden sm:block">
+                {currentIndex + 1}/{enabledPages.length}
+              </span>
+            )}
           </div>
           <span className="text-sm font-semibold text-gray-700 truncate max-w-[50%]">
             {displayTitle}
@@ -152,6 +142,7 @@ export default function UnitPageView({
       </div>
 
       {/* ── Hero header — full-width gradient block ── */}
+      {currentPage ? (
       <div className="w-full" style={{ background: `linear-gradient(135deg, #1A1A2E 0%, ${pageColor} 100%)` }}>
         <div className="max-w-4xl mx-auto px-6 pt-6 pb-10">
 
@@ -209,6 +200,19 @@ export default function UnitPageView({
           </div>
         </div>
       </div>
+      ) : (
+      /* No lesson content — show a helpful empty state instead of blank page */
+      <div className="w-full" style={{ background: "linear-gradient(135deg, #1A1A2E 0%, #6B7280 100%)" }}>
+        <div className="max-w-4xl mx-auto px-6 pt-6 pb-10">
+          <h1 className="text-3xl md:text-4xl font-extrabold text-white leading-tight">
+            {data?.unit.title || "Unit"}
+          </h1>
+          <p className="text-white/70 mt-3">
+            This unit doesn&apos;t have any lesson content yet. Your teacher will add content soon.
+          </p>
+        </div>
+      </div>
+      )}
 
       {/* ── Open Studio Banner ── */}
       {openStudio.state && (openStudio.state.unlocked || openStudio.justRevoked) && (
@@ -230,7 +234,26 @@ export default function UnitPageView({
 
       {/* ── Main scrollable content — white background ── */}
       <main className="max-w-4xl mx-auto px-6 py-10 pb-28">
+      {!currentPage && (
+        <div className="text-center py-16">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+            </svg>
+          </div>
+          <p className="text-gray-500 text-lg font-medium">No lesson content yet</p>
+          <p className="text-gray-400 text-sm mt-1">Your teacher will add content soon. You can still use the tools below.</p>
+          <button
+            onClick={() => router.push("/dashboard")}
+            className="mt-6 px-5 py-2 text-sm font-medium text-purple-600 hover:text-purple-800 bg-purple-50 hover:bg-purple-100 rounded-lg transition"
+          >
+            Back to Dashboard
+          </button>
+        </div>
+      )}
 
+      {currentPage && (<>
         {/* ── Section 1: Context (Learning Goal + Vocab + Intro) ── */}
         {hasContext && (
           <>
@@ -441,7 +464,7 @@ export default function UnitPageView({
             )}
           </div>
         </ScrollReveal>
-
+      </>)}
       </main>
 
       {/* Panels */}

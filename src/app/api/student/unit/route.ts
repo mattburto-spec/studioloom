@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireStudentAuth } from "@/lib/auth/student";
 import { resolveClassUnitContent } from "@/lib/units/resolve-content";
+import type { UnitContentData } from "@/types";
 
 // Forward mapping for pre-migration-011 fallback
 const NUMBER_TO_PAGE_ID: Record<number, string> = {
@@ -109,9 +110,28 @@ export async function GET(request: NextRequest) {
   });
 
   // Resolve content: prefer class-unit fork if it exists, fall back to master
+  const resolvedContentData = resolveClassUnitContent(
+    unit.content_data as UnitContentData,
+    cu.content_data as UnitContentData | null | undefined
+  );
+
+  // Diagnostic logging — helps debug empty content_data issues
+  const contentDebug = {
+    masterIsNull: unit.content_data == null,
+    masterType: unit.content_data ? typeof unit.content_data : "null",
+    masterVersion: unit.content_data && typeof unit.content_data === "object" ? (unit.content_data as Record<string, unknown>).version : undefined,
+    masterHasPages: unit.content_data && typeof unit.content_data === "object" ? Array.isArray((unit.content_data as Record<string, unknown>).pages) : false,
+    masterPageCount: unit.content_data && typeof unit.content_data === "object" && Array.isArray((unit.content_data as Record<string, unknown>).pages) ? ((unit.content_data as Record<string, unknown>).pages as unknown[]).length : 0,
+    masterKeys: unit.content_data && typeof unit.content_data === "object" ? Object.keys(unit.content_data as Record<string, unknown>) : [],
+    classUnitIsNull: cu.content_data == null,
+    resolvedIsNull: resolvedContentData == null,
+    resolvedVersion: resolvedContentData && typeof resolvedContentData === "object" ? (resolvedContentData as Record<string, unknown>).version : undefined,
+  };
+  console.log("[student/unit] content_data debug:", JSON.stringify(contentDebug));
+
   const resolvedUnit = {
     ...unit,
-    content_data: resolveClassUnitContent(unit.content_data, cu.content_data),
+    content_data: resolvedContentData,
   };
 
   return NextResponse.json({
