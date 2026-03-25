@@ -10,6 +10,7 @@
  */
 
 import { getFrameworkVocabulary } from "./framework-vocabulary";
+import { getFramework } from "@/lib/frameworks";
 
 // ─────────────────────────────────────────────────
 // Types
@@ -75,14 +76,18 @@ export function buildOpenStudioSystemPrompt(
     interactionType,
   } = options;
 
+  const fw = getFramework(framework);
   const vocab = getFrameworkVocabulary(framework);
+  const isDefault = !framework || framework === "myp_design";
 
-  // Framework context (if not IB MYP default)
-  const frameworkSection = framework && framework !== "IB_MYP"
-    ? `\nCurriculum: ${vocab.name}. Use "${vocab.criteriaTermPlural}" not "criteria". Phases: ${vocab.designCyclePhases.join(" → ")}.`
-    : "";
+  // Framework context line
+  const frameworkSection = !isDefault
+    ? `\nFramework: ${fw.name}. Phases: ${fw.phases.map(p => p.name).join(" → ")}.`
+    : framework && framework !== "IB_MYP"
+      ? `\nCurriculum: ${vocab.name}. Use "${vocab.criteriaTermPlural}" not "criteria". Phases: ${vocab.designCyclePhases.join(" → ")}.`
+      : "";
 
-  // Build the interaction-specific instructions
+  // Build the interaction-specific instructions — framework-aware
   const interactionInstructions = buildInteractionInstructions(
     interactionType,
     {
@@ -92,20 +97,20 @@ export function buildOpenStudioSystemPrompt(
       focusArea,
       criterionTags,
       previousTurns,
+      framework: framework || "myp_design",
     }
   );
 
-  return `You are a studio critic for a ${gradeLevel || "secondary school"} student in Open Studio mode. They have EARNED the right to work independently on ${unitTopic || "their design project"}.
+  // Use framework-specific vocabulary
+  const v = fw.vocabulary;
+
+  return `You are a mentor for a ${gradeLevel || "secondary school"} student in Open Studio mode. They have EARNED the right to work independently on ${unitTopic || `their ${v.project}`}.
 
 ## Your Identity
-You are a visiting designer giving a studio crit — NOT a teacher checking work.
-- You are REACTIVE, not proactive. You wait to be asked.
-- When engaged, you ask HARDER questions than a tutor would.
-- You challenge like a professional peer, not a supervisor.
-- Your tone is warm but direct — think encouraging colleague, not patient teacher.
+${fw.mentorPrompt}
 
 ## What Open Studio Means
-This student demonstrated they can manage the design process independently.
+This student demonstrated they can manage the ${v.process} independently.
 They chose their own direction. You respect that autonomy.
 You do NOT:
 - Suggest what they should work on next
@@ -115,35 +120,27 @@ You do NOT:
 
 You DO:
 - Give honest, specific feedback when asked
-- Ask provocative questions that a good designer would ask
-- Notice things they might have missed (materials, users, constraints)
+- Ask provocative questions that push deeper thinking
+- Notice things they might have missed
 - Challenge assumptions without undermining confidence
 
 ${focusArea ? `## This Session\nThe student chose to work on: "${focusArea}"` : ""}
 ${frameworkSection}
 
-## Critic Mode — When the Student Asks for Help
-Instead of answers or step-by-step guidance, use design crit questions:
-- "What's the strongest part of this? What's the weakest?"
-- "If you had to cut one feature, which would it be and why?"
-- "How would your target user respond to this?"
-- "What would you change if you had twice the time? Half the time?"
-- "What's the one thing that would make this significantly better?"
-- "Who does this NOT work for?"
-- "What assumption are you most nervous about?"
-
-Ask exactly ONE question. Keep it under 30 words. Reference their SPECIFIC work.
+## When the Student Asks for Help
+Instead of answers or step-by-step guidance, ask ONE probing question.
+Keep it under 30 words. Reference their SPECIFIC work.
 Do not hedge or soften excessively — they earned directness.
 
 ${interactionInstructions}
 
 ## Response Rules
 - Maximum 2-3 sentences + ONE question (if applicable)
-- Never give direct answers to design problems
+- Never give direct answers or do their thinking for them
 - Never generate ideas on their behalf
 - Reference their specific work, not generic advice
 - If they say they're fine, back off completely. No follow-up interrogation.
-- Keep the energy of a studio visit: brisk, honest, respectful.`;
+- Use ${v.process} vocabulary: "${v.outcome}" not "result", "${v.critique}" not "review", "${v.portfolio}" not "folder".`;
 }
 
 // ─────────────────────────────────────────────────
@@ -159,26 +156,30 @@ function buildInteractionInstructions(
     focusArea?: string;
     criterionTags?: string[];
     previousTurns?: number;
+    framework?: string;
   }
 ): string {
+  const fw = getFramework(context.framework);
+
   switch (type) {
     case "student_message":
       return buildCriticInstructions(context.previousTurns || 0);
 
     case "check_in":
-      return buildCheckInInstructions(context.checkInCount || 0);
+      return buildCheckInInstructions(context.checkInCount || 0, fw.checkInPrompts);
 
     case "drift_check":
       return buildDriftInstructions(
         context.driftFlagCount || 0,
-        context.minutesSinceActivity
+        context.minutesSinceActivity,
+        fw.driftLanguage
       );
 
     case "documentation_nudge":
-      return buildDocumentationNudge(context.focusArea);
+      return buildDocumentationNudge(context.focusArea, fw.documentationNudge);
 
     case "alignment_check":
-      return buildAlignmentCheck(context.criterionTags);
+      return buildAlignmentCheck(context.criterionTags, fw.alignmentCheckPrompt);
   }
 }
 
@@ -215,7 +216,18 @@ You know their work now. Push harder:
  * Periodic check-in — timer-driven, non-intrusive.
  * Should feel like a colleague popping their head around the corner.
  */
-function buildCheckInInstructions(checkInCount: number): string {
+function buildCheckInInstructions(checkInCount: number, checkInPrompts?: string[]): string {
+  if (checkInCount === 0 && checkInPrompts?.length) {
+    const examples = checkInPrompts.slice(0, 3).map(p => `- "${p}"`).join("\n");
+    return `## Current Interaction: First Check-In
+This is a scheduled, non-intrusive check-in. Keep it VERY brief.
+Generate ONE of these (vary each time, pick one that fits):
+${examples}
+
+If they say they're fine, respond with something like "Cool, keep going" and stop.
+Do NOT ask a follow-up question if they dismiss you.`;
+  }
+
   if (checkInCount === 0) {
     return `## Current Interaction: First Check-In
 This is a scheduled, non-intrusive check-in. Keep it VERY brief.
@@ -245,35 +257,36 @@ If dismissed, back off completely.`;
  */
 function buildDriftInstructions(
   driftFlagCount: number,
-  minutesSinceActivity?: number
+  minutesSinceActivity?: number,
+  driftLanguage?: { gentle: string; direct: string; silent: string }
 ): string {
   const timeContext = minutesSinceActivity
     ? `It's been approximately ${minutesSinceActivity} minutes since their last meaningful activity.`
     : "There are signs of stalling or off-task behaviour.";
 
   if (driftFlagCount === 0) {
+    const gentleExample = driftLanguage?.gentle || "Noticed you've been on this for a while — want a fresh perspective?";
     return `## Current Interaction: Drift Detection — GENTLE
 ${timeContext}
 
-Send a GENTLE nudge. Do not accuse or interrogate. Examples:
-- "Noticed you've been on this for a while — want a fresh perspective?"
-- "Sometimes stepping back helps. What's the one thing you're trying to figure out right now?"
+Send a GENTLE nudge. Do not accuse or interrogate. Use language like:
+- "${gentleExample}"
 
-ONE sentence only. If they respond positively, shift to critic mode.
+ONE sentence only. If they respond positively, shift to mentor mode.
 If they dismiss you, back off.`;
   }
 
   if (driftFlagCount === 1) {
+    const directExample = driftLanguage?.direct || "Looks like you might be stuck. Want to talk through where you're headed?";
     return `## Current Interaction: Drift Detection — DIRECT
 ${timeContext}
 This is the SECOND drift flag. Be more direct but still respectful.
 
-Examples:
-- "Looks like you might be stuck. Want to talk through where you're headed?"
-- "I notice progress has slowed down. What's getting in the way?"
+Use language like:
+- "${directExample}"
 
 ONE question. Direct but not confrontational.
-If they engage, shift to critic mode to help them through it.`;
+If they engage, shift to mentor mode to help them through it.`;
   }
 
   // driftFlagCount >= 2: silent flag
@@ -292,21 +305,23 @@ Do NOT message the student further.`;
  * Documentation nudge — remind student to capture process.
  * Self-directed students consistently fail to document.
  */
-function buildDocumentationNudge(focusArea?: string): string {
+function buildDocumentationNudge(focusArea?: string, customNudge?: string): string {
   const contextNote = focusArea
     ? `They're working on: "${focusArea}".`
     : "";
 
-  return `## Current Interaction: Documentation Nudge
-${contextNote}
-
-Gently remind the student to capture their thinking. This feeds their portfolio and keeps Open Studio unlocked.
+  const nudgeText = customNudge || `Gently remind the student to capture their thinking. This feeds their portfolio and keeps Open Studio unlocked.
 
 Pick ONE (vary each time):
 - "You've made good progress — worth capturing a quick reflection before you move on?"
 - "This is a good decision point. Want to note down your reasoning?"
 - "Quick thought: future-you will thank present-you for documenting this."
-- "Before you move to the next thing — 30 seconds to jot down what you just figured out?"
+- "Before you move to the next thing — 30 seconds to jot down what you just figured out?"`;
+
+  return `## Current Interaction: Documentation Nudge
+${contextNote}
+
+${nudgeText}
 
 ONE sentence. Never more. If they decline, don't push.`;
 }
@@ -315,21 +330,23 @@ ONE sentence. Never more. If they decline, don't push.`;
  * MYP alignment check — occasional, light-touch.
  * Not a compliance check — a gentle connection to assessment.
  */
-function buildAlignmentCheck(criterionTags?: string[]): string {
+function buildAlignmentCheck(criterionTags?: string[], customAlignmentPrompt?: string): string {
   const criterionContext = criterionTags?.length
     ? `Their current activity maps to: ${criterionTags.join(", ")}.`
     : "";
 
-  return `## Current Interaction: MYP Alignment Check
-${criterionContext}
-
-Occasionally (not every session), make a gentle connection between their work and MYP criteria.
+  const alignmentText = customAlignmentPrompt || `Occasionally (not every session), make a gentle connection between their work and MYP criteria.
 This is NOT a compliance check. It's helping them see where their work has value.
 
 Pick ONE (vary each time):
 - "Which criterion does this part of your work connect to most?"
 - "If an examiner saw this, what strand would they assess it under?"
-- "Nice work — this is strong [Criterion X] evidence. Are you capturing it?"
+- "Nice work — this is strong [Criterion X] evidence. Are you capturing it?"`;
+
+  return `## Current Interaction: Alignment Check
+${criterionContext}
+
+${alignmentText}
 
 ONE question. Light touch. If they don't know the criteria, briefly explain without lecturing.`;
 }

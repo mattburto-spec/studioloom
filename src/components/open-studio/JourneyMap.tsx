@@ -2,22 +2,26 @@
 
 import { motion } from "framer-motion";
 
-export type JourneyPhase = "discovery" | "planning" | "working" | "sharing";
+export type JourneyPhase = string;
+
+interface PhaseConfig {
+  id: string;
+  label: string;
+  icon: string;
+  description: string;
+  color: string;
+}
 
 interface JourneyMapProps {
   currentPhase: JourneyPhase;
   completedPhases: JourneyPhase[];
   compact?: boolean; // thin bar mode (when scrolled)
   onPhaseClick?: (phase: JourneyPhase) => void;
+  /** Custom phases from framework config — overrides default design phases */
+  customPhases?: PhaseConfig[];
 }
 
-const PHASES: {
-  id: JourneyPhase;
-  label: string;
-  icon: string;
-  description: string;
-  color: string;
-}[] = [
+const DEFAULT_PHASES: PhaseConfig[] = [
   {
     id: "discovery",
     label: "Discovery",
@@ -53,7 +57,9 @@ export function JourneyMap({
   completedPhases,
   compact = false,
   onPhaseClick,
+  customPhases,
 }: JourneyMapProps) {
+  const PHASES = customPhases || DEFAULT_PHASES;
   const currentIndex = PHASES.findIndex((p) => p.id === currentPhase);
 
   if (compact) {

@@ -99,6 +99,31 @@ export async function POST(request: NextRequest) {
     .eq("id", unitId)
     .single();
 
+  // Look up the class framework for this student+unit
+  let classFramework: string | undefined;
+  const { data: classStudents } = await supabase
+    .from("class_students")
+    .select("class_id")
+    .eq("student_id", studentId);
+
+  if (classStudents?.length) {
+    const classIds = classStudents.map((cs: { class_id: string }) => cs.class_id);
+    const { data: classUnit } = await supabase
+      .from("class_units")
+      .select("class_id")
+      .eq("unit_id", unitId)
+      .in("class_id", classIds)
+      .maybeSingle();
+    if (classUnit) {
+      const { data: cls } = await supabase
+        .from("classes")
+        .select("framework")
+        .eq("id", classUnit.class_id)
+        .maybeSingle();
+      if (cls?.framework) classFramework = cls.framework;
+    }
+  }
+
   // Count existing drift flags
   const driftFlags = (osSession.drift_flags as Array<{ level: string }>) || [];
   const driftFlagCount = driftFlags.length;
@@ -108,6 +133,7 @@ export async function POST(request: NextRequest) {
     focusArea: osSession.focus_area || undefined,
     unitTopic: unit?.topic || unit?.title || undefined,
     gradeLevel: unit?.grade_level || undefined,
+    framework: classFramework,
     previousTurns: osSession.ai_interactions || 0,
     minutesSinceActivity,
     checkInCount: osSession.check_in_count || 0,

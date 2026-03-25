@@ -22,6 +22,7 @@ export default function TeacherDashboard() {
 
   const [showCreate, setShowCreate] = useState(false);
   const [newClassName, setNewClassName] = useState("");
+  const [newClassFramework, setNewClassFramework] = useState("myp_design");
   const [creating, setCreating] = useState(false);
   const [styleProfile, setStyleProfile] = useState<TeacherStyleProfile | null>(null);
 
@@ -81,10 +82,12 @@ export default function TeacherDashboard() {
       teacher_id: teacher.id,
       name: newClassName.trim(),
       code,
+      framework: newClassFramework,
     });
 
     if (!err) {
       setNewClassName("");
+      setNewClassFramework("myp_design");
       setShowCreate(false);
       loadDashboard(true);
     }
@@ -164,7 +167,7 @@ export default function TeacherDashboard() {
       {/* Create class modal */}
       {showCreate && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" style={{ backdropFilter: "blur(4px)" }}>
-          <div className="bg-white rounded-2xl p-6 w-full max-w-sm mx-4 shadow-xl border border-border">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md mx-4 shadow-xl border border-border">
             <h2 className="text-lg font-bold text-text-primary mb-1">Create New Class</h2>
             <p className="text-sm text-text-secondary mb-4">Students will use a code to join.</p>
             <input
@@ -174,8 +177,42 @@ export default function TeacherDashboard() {
               placeholder="e.g. Grade 8 Design"
               className="w-full px-4 py-3 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-brand-purple/30 focus:border-brand-purple transition-all mb-4 text-sm"
               autoFocus
-              onKeyDown={(e) => { if (e.key === "Enter") createClass(); }}
             />
+
+            {/* Framework selector */}
+            <label className="block text-xs font-semibold text-text-secondary mb-2">Learning Framework</label>
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              {[
+                { id: "myp_design", label: "MYP Design", desc: "Design cycle", icon: "M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5", color: "#6366F1" },
+                { id: "service_learning", label: "Service Learning", desc: "Community service", icon: "M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z", color: "#EC4899" },
+                { id: "pyp_exhibition", label: "PYP Exhibition", desc: "Inquiry journey", icon: "M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z", color: "#F59E0B" },
+                { id: "personal_project", label: "Personal Project", desc: "Year 10 PP", icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z", color: "#8B5CF6" },
+              ].map((fw) => (
+                <button
+                  key={fw.id}
+                  onClick={() => setNewClassFramework(fw.id)}
+                  className={`flex items-center gap-2.5 p-3 rounded-xl border-2 text-left transition-all ${
+                    newClassFramework === fw.id
+                      ? "border-purple-500 bg-purple-50 shadow-sm"
+                      : "border-gray-200 hover:border-gray-300 bg-white"
+                  }`}
+                >
+                  <div
+                    className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                    style={{ background: newClassFramework === fw.id ? fw.color : "#F3F4F6" }}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={newClassFramework === fw.id ? "#fff" : "#9CA3AF"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d={fw.icon} />
+                    </svg>
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-semibold text-text-primary leading-tight">{fw.label}</div>
+                    <div className="text-[10px] text-text-secondary">{fw.desc}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+
             <div className="flex gap-2">
               <button
                 onClick={() => setShowCreate(false)}

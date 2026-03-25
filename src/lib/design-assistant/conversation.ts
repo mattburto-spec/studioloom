@@ -14,6 +14,7 @@ import {
 } from "@/lib/ai/design-assistant-prompt";
 import { buildOpenStudioSystemPrompt } from "@/lib/ai/open-studio-prompt";
 import { getTeachingContext, getFrameworkFromContext } from "@/lib/ai/teacher-context";
+import { getFramework } from "@/lib/frameworks";
 import { logUsage } from "@/lib/usage-tracking";
 
 // =========================================================================
@@ -241,8 +242,13 @@ export async function generateResponse(
   // 5. Get activity context
   const activityContext = await getActivityContext(conversation.unitId, conversation.pageId);
 
-  // 6. Get teacher's framework for vocabulary
-  const teachingContext = await getTeacherFrameworkForStudent(conversation.unitId);
+  // 6. Get class framework (Service Learning, PYP Exhibition, etc.)
+  // Falls back to teacher's curriculum framework for vocabulary if no class framework
+  const classFramework = await getClassFrameworkForStudent(conversation.studentId, conversation.unitId);
+  const teachingContext = classFramework
+    ? null
+    : await getTeacherFrameworkForStudent(conversation.unitId);
+  const effectiveFramework = classFramework || teachingContext?.framework;
 
   // 7. Check Open Studio status — switches entire prompt mode
   const openStudioMode = await checkOpenStudioStatus(
@@ -257,7 +263,7 @@ export async function generateResponse(
       focusArea: openStudioMode.focusArea || undefined,
       unitTopic: activityContext?.unitTopic,
       gradeLevel: activityContext?.gradeLevel,
-      framework: teachingContext?.framework,
+      framework: effectiveFramework,
       criterionTags: activityContext?.criterionTags,
       previousTurns: turns.length,
       interactionType: "student_message",
@@ -266,7 +272,7 @@ export async function generateResponse(
     systemPrompt = buildDesignAssistantSystemPrompt({
       bloomLevel,
       effortScore,
-      framework: teachingContext?.framework,
+      framework: effectiveFramework,
       activityTitle: activityContext?.title,
       activityPrompt: activityContext?.prompt,
       unitTopic: activityContext?.unitTopic,
@@ -389,6 +395,77 @@ async function getTeacherFrameworkForStudent(
   if (!teachingContext) return null;
 
   return { framework: getFrameworkFromContext(teachingContext) };
+}
+
+/**
+ * Get the class-level framework for a student's unit.
+ * Looks up: student → class_students → classes.framework
+ * Returns the framework ID (e.g., "service_learning") or null if not found/default.
+ */
+async function getClassFrameworkForStudent(
+  studentId: string,
+  unitId: string
+): Promise<string | null> {
+  const supabase = createAdminClient();
+
+  // Find which class this student is in for this unit
+  // class_students → class_units → classes.framework
+  const { data: classStudents } = await supabase
+    .from("class_students")
+    .select("class_id")
+    .eq("student_id", studentId);
+
+  if (!classStudents || classStudents.length === 0) {
+    // Fallback: check legacy students.class_id
+    const { data: student } = await supabase
+      .from("students")
+      .select("class_id")
+      .eq("id", studentId)
+      .maybeSingle();
+
+    if (!student?.class_id) return null;
+
+    // Check if this class has the unit assigned
+    const { data: classUnit } = await supabase
+      .from("class_units")
+      .select("class_id")
+      .eq("class_id", student.class_id)
+      .eq("unit_id", unitId)
+      .maybeSingle();
+
+    if (!classUnit) return null;
+
+    const { data: cls } = await supabase
+      .from("classes")
+      .select("framework")
+      .eq("id", student.class_id)
+      .maybeSingle();
+
+    const fw = cls?.framework;
+    return fw && fw !== "myp_design" ? fw : null;
+  }
+
+  // Find the class that has this unit assigned
+  const classIds = classStudents.map((cs: { class_id: string }) => cs.class_id);
+
+  const { data: classUnit } = await supabase
+    .from("class_units")
+    .select("class_id")
+    .eq("unit_id", unitId)
+    .in("class_id", classIds)
+    .maybeSingle();
+
+  if (!classUnit) return null;
+
+  const { data: cls } = await supabase
+    .from("classes")
+    .select("framework")
+    .eq("id", classUnit.class_id)
+    .maybeSingle();
+
+  const fw = cls?.framework;
+  // Only return non-default frameworks — null means "use teacher context as before"
+  return fw && fw !== "myp_design" ? fw : null;
 }
 
 /**
