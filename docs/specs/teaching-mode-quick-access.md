@@ -94,20 +94,43 @@ Each button opens a **popover panel** (not a modal, not a page navigation). Popo
 - One-click phase skip (teacher decides "opening is done, move to mini-lesson")
 - Syncs with projector view via postMessage
 
-### 3. Quick Edit (`✏️`)
+### 3. Quick Edit (`✏️`) — Slide-Out Editor Panel
 
-**Popover with inline-editable fields for the current lesson:**
+**Not a popover — a slide-out panel (~400px) from the right side of the Teaching Mode dashboard.** This is a stripped-down version of the full lesson editor, focused on the current lesson only.
 
-- **Opening Hook** — textarea, edit in place, save
-- **Learning Goal** — textarea
-- **Mini-Lesson Focus** — textarea
-- **Debrief Prompt** — textarea
-- **Teacher Notes** — free-form, persisted per-lesson
+**Why a panel, not a popover:** Teachers mid-class need more than field tweaks. They may need to add a quick activity, reorder activities, or adjust scaffolding. A popover is too cramped. A full page navigation breaks flow. A slide-out panel gives enough room while keeping the student grid visible on the left.
+
+**Panel contents:**
+- **Current lesson header** — title + learning goal (inline editable via `InlineEdit` component from lesson editor)
+- **Workshop phase sections** — collapsible, same as full editor but compact
+  - Opening Hook — inline editable
+  - Mini-Lesson Focus — inline editable
+  - Activity list — each activity shows title + prompt (inline editable) + duration chip
+  - Debrief Protocol/Prompt — inline editable
+- **+ Add Activity button** — opens compact `ActivityBlockAdd` picker (same 6 templates + "Import from..." search)
+  - "Import from..." searches teacher's own units AND extracted activity blocks from uploaded materials
+  - AI `#` button available on text fields (same `AITextField` component)
 - **Phase Durations** — quick +/- buttons (±1 min, ±5 min) per phase
+- **Teacher Notes** — free-form, persisted per-lesson
+- **Extension quick-add** — "+ Extension" button for on-the-fly early finisher activities
 
-Changes save immediately (debounced auto-save to DB). Green checkmark flash on save.
+**Technical approach:**
+- Reuses existing lesson editor components: `ActivityBlock`, `InlineEdit`, `AITextField`, `ActivityBlockAdd`, `PhaseSection`
+- These components already exist and are modular — they render in any container width
+- Changes save via the same content API (`PATCH /api/teacher/class-units/content`) with fork-on-write
+- Auto-save (800ms debounce) via existing `useAutoSave` hook
+- Projector view updates via existing `postMessage` sync — teacher edits hook text, projector shows updated hook immediately
+- Undo support via existing `UndoManager`
 
-**Key constraint:** These edits modify the unit's `content_data` JSONB in the database. This means changes are permanent (for next time you teach this lesson too). Add a visual indicator: "Changes save to lesson" with an undo option.
+**Interaction flow:**
+1. Teacher clicks ✏️ in toolbar (or clicks any content area in the main teaching view)
+2. Panel slides in from right with spring animation (Framer Motion)
+3. Current lesson content loads (already in memory from Teaching Mode state)
+4. Teacher edits inline — changes auto-save + sync to projector
+5. Teacher clicks outside panel or ✕ to dismiss
+6. Panel slides out, teaching dashboard reclaims full width
+
+**Key constraint:** These edits modify `content_data` JSONB via fork-on-write. Changes are permanent for this class's version of the lesson. Visual indicator: "Changes save to lesson" with subtle "✓ Saved" flash. Undo via Cmd+Z.
 
 ### 4. On-the-Fly Activity (`⚡`)
 
@@ -166,11 +189,15 @@ Changes save immediately (debounced auto-save to DB). Green checkmark flash on s
 - Stopwatch
 - All tools project to projector via postMessage
 
-### Phase 2: Quick Edit (~2 days)
-- Inline edit popover for current lesson fields
-- Debounced auto-save to `content_data` JSONB
-- Undo support (keep previous value for 30s)
+### Phase 2: Quick Edit Slide-Out Panel (~3 days)
+- Slide-out panel component (~400px, Framer Motion spring animation)
+- Mount existing lesson editor components (ActivityBlock, InlineEdit, AITextField, PhaseSection, ActivityBlockAdd) in compact panel layout
+- Wire to fork-on-write content API (same as full lesson editor)
+- Auto-save via existing useAutoSave hook
+- Undo support via existing UndoManager
 - Phase duration quick-adjust (+/- buttons)
+- "Import from..." modal (searches own units + extracted activity blocks from uploads)
+- postMessage sync to projector on every save
 
 ### Phase 3: On-the-Fly Activities (~4-5 days)
 - Database: `on_the_fly_activities` table (teacher_id, class_id, unit_id, page_id, type, prompt, options, responses JSONB, status, timestamps)

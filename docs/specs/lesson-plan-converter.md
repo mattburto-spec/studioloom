@@ -110,6 +110,15 @@ Teachers switching to StudioLoom have years of existing lesson plans in Word, PD
 - Highlight what was preserved, what was enhanced, and what was added
 - Teacher can toggle between "original" and "enhanced" views
 
+**11b. Activity extraction for block library**
+- During ingestion (both converter and knowledge base upload), tag individual activities as reusable blocks
+- Each extracted activity gets: title, description, suggested duration, response type, source document reference, design phase tag
+- Stored as queryable records (lightweight `activity_library` view or filtered query on lesson_profiles)
+- Available in the lesson editor's "Import from..." modal alongside activities from the teacher's own units
+- AI-assisted search: teacher types "gallery walk critique" → embedding search across both sources (own units + extracted from uploads)
+- This means even uploading a textbook with one great activity makes that activity available as a draggable block
+- Key: extraction happens automatically during existing Pass 0/1 analysis — no extra teacher effort
+
 ### Future Considerations (P2)
 
 **12. Google Docs / Slides import** — OAuth connection to pull directly from Google Drive
@@ -131,17 +140,22 @@ Upload → extractDocument() → Pass 0 Classification
                         NEW: extractLessonStructure()
                         (AI call to parse lessons, activities, timing)
                                     ↓
-                        NEW: buildSkeletonFromExtraction()
-                        (Maps extracted structure → TimelineSkeleton)
-                                    ↓
-                        Teacher reviews + edits skeleton
-                                    ↓
-                        EXISTING: generateUnit() pipeline
-                        (with original text injected as context)
-                                    ↓
-                        EXISTING: validateLessonTiming()
-                        EXISTING: save to units table
+                  ┌─────────────────┴─────────────────┐
+                  ↓                                   ↓
+    NEW: buildSkeletonFromExtraction()    NEW: extractActivitiesAsBlocks()
+    (Maps extracted structure →           (Tags individual activities for
+     TimelineSkeleton)                     the reusable block library)
+                  ↓                                   ↓
+    Teacher reviews + edits skeleton       Activity library (queryable
+                  ↓                        via "Import from..." in editor)
+    EXISTING: generateUnit() pipeline
+    (with original text injected as context)
+                  ↓
+    EXISTING: validateLessonTiming()
+    EXISTING: save to units table
 ```
+
+**Dual output:** Every upload produces both a convertible unit AND a set of tagged activity blocks. Even if the teacher doesn't convert the full document, the individual activities become available in the lesson editor's import search.
 
 ### New Components Needed
 

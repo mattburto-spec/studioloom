@@ -11,6 +11,16 @@ import { UndoManager } from "./UndoManager";
 import { normalizeToV2 } from "@/lib/unit-adapter";
 import type { UnitContentData, UnitContentDataV2, PageContent } from "@/types";
 
+type EditMode = "all" | "class";
+
+interface VersionEntry {
+  version: number;
+  label: string;
+  created_at: string;
+  source_class_id: string | null;
+  sourceClassName: string | null;
+}
+
 interface UseLessonEditorProps {
   unitId: string;
   classId: string;
@@ -37,8 +47,18 @@ interface UseLessonEditorReturn {
   removePage: (pageIndex: number) => void;
   reorderPages: (fromIndex: number, toIndex: number) => void;
 
-  // Fork state
+  // Fork state & edit mode
   isFork: boolean;
+  editMode: EditMode;
+  setEditMode: (mode: EditMode) => void;
+
+  // Version history
+  versionHistory: VersionEntry[];
+  loadingVersions: boolean;
+
+  // Promote fork
+  promoteFork: (saveVersionFirst: boolean) => Promise<boolean>;
+  promoting: boolean;
 
   // Undo/redo
   undo: () => void;
@@ -57,8 +77,9 @@ interface UseLessonEditorReturn {
  * - Load resolved content from GET /api/teacher/class-units/content
  * - Manage page selection and editing
  * - Maintain undo/redo stack
- * - Auto-save changes via useAutoSave
- * - Track fork status
+ * - Auto-save changes via useAutoSave (routes to master or fork based on editMode)
+ * - Track fork status and version history
+ * - Support "Apply to All Classes" (promote fork to master)
  */
 export function useLessonEditor({
   unitId,
@@ -69,6 +90,16 @@ export function useLessonEditor({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isFork, setIsFork] = useState(false);
+
+  // Edit mode — defaults to "class" when entering from class context
+  const [editMode, setEditMode] = useState<EditMode>("class");
+
+  // Version history
+  const [versionHistory, setVersionHistory] = useState<VersionEntry[]>([]);
+  const [loadingVersions, setLoadingVersions] = useState(false);
+
+  // Promote fork state
+  const [promoting, setPromoting] = useState(false);
 
   // Unit metadata
   const [unitTitle, setUnitTitle] = useState<string | null>(null);
@@ -104,6 +135,9 @@ export function useLessonEditor({
         setThumbnailUrl(data.thumbnailUrl || null);
         setUnitTitle(data.unitTitle || null);
 
+        // Default edit mode based on fork status
+        setEditMode("class");
+
         // Initialize undo stack with the loaded content
         undoManagerRef.current.push(loadedContent);
 
@@ -122,6 +156,78 @@ export function useLessonEditor({
 
     loadContent();
   }, [unitId, classId]);
+
+  // Load version history
+  useEffect(() => {
+    async function loadVersions() {
+      setLoadingVersions(true);
+      try {
+        const response = await fetch(`/api/teacher/units/versions?unitId=${unitId}`);
+        if (response.ok) {
+          const data = await response.json();
+          setVersionHistory(data.versions || []);
+        }
+      } catch (err) {
+        console.error("[useLessonEditor] version history load error:", err);
+      }
+      setLoadingVersions(false);
+    }
+
+    loadVersions();
+  }, [unitId]);
+
+  // Handle edit mode change
+  // When switching modes, the content in the editor stays the same.
+  // The auto-save hook routes saves to the correct endpoint based on editMode:
+  //   - "all" → PATCH /api/teacher/units/[unitId]/content (master)
+  //   - "class" → PATCH /api/teacher/class-units/content (fork-on-write)
+  const handleSetEditMode = useCallback(
+    (mode: EditMode) => {
+      if (mode === editMode) return;
+      setEditMode(mode);
+    },
+    [editMode]
+  );
+
+  // Promote fork to master
+  const promoteFork = useCallback(
+    async (saveVersionFirst: boolean): Promise<boolean> => {
+      setPromoting(true);
+      try {
+        const response = await fetch(`/api/teacher/units/${unitId}/promote-fork`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ classId, saveVersionFirst }),
+        });
+
+        if (!response.ok) {
+          const data = await response.json();
+          console.error("[promoteFork] failed:", data.error);
+          setPromoting(false);
+          return false;
+        }
+
+        // After promotion, the fork is cleared — reload content
+        setIsFork(false);
+        setEditMode("class"); // Back to class mode (now inherits master)
+
+        // Refresh version history
+        const versionsResp = await fetch(`/api/teacher/units/versions?unitId=${unitId}`);
+        if (versionsResp.ok) {
+          const versionsData = await versionsResp.json();
+          setVersionHistory(versionsData.versions || []);
+        }
+
+        setPromoting(false);
+        return true;
+      } catch (err) {
+        console.error("[promoteFork] error:", err);
+        setPromoting(false);
+        return false;
+      }
+    },
+    [unitId, classId]
+  );
 
   // Update a single page
   const updatePage = useCallback(
@@ -245,11 +351,12 @@ export function useLessonEditor({
     }
   }, []);
 
-  // Auto-save hook
+  // Auto-save hook — routes to master or fork based on editMode
   const saveStatus = useAutoSave({
     unitId,
     classId,
     content: content || { version: 2, pages: [] },
+    editMode,
   });
 
   return {
@@ -266,6 +373,12 @@ export function useLessonEditor({
     removePage,
     reorderPages,
     isFork,
+    editMode,
+    setEditMode: handleSetEditMode,
+    versionHistory,
+    loadingVersions,
+    promoteFork,
+    promoting,
     undo,
     redo,
     canUndo: undoManagerRef.current.canUndo,

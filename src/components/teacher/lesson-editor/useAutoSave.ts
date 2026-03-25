@@ -4,27 +4,30 @@ import { useEffect, useRef, useCallback, useState } from "react";
 import type { UnitContentData } from "@/types";
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
+type EditMode = "all" | "class";
 
 interface UseAutoSaveProps {
   unitId: string;
   classId: string;
   content: UnitContentData;
+  editMode: EditMode;
 }
 
 /**
  * useAutoSave — Debounced auto-save hook for lesson editor
  *
- * Automatically saves content to the fork-on-write API when it changes.
- * Debounced at 800ms to avoid excessive API calls.
- * Returns the current save status ("idle" | "saving" | "saved" | "error").
+ * Automatically saves content when it changes (800ms debounce).
+ * Routes saves to different endpoints based on editMode:
+ *   - "class" → PATCH /api/teacher/class-units/content (fork-on-write, existing)
+ *   - "all"   → PATCH /api/teacher/units/[unitId]/content (direct master update)
  *
- * The server-side content API handles fork-on-write automatically —
- * this hook just sends the full content_data.
+ * Returns the current save status ("idle" | "saving" | "saved" | "error").
  */
 export function useAutoSave({
   unitId,
   classId,
   content,
+  editMode,
 }: UseAutoSaveProps): SaveStatus {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -43,15 +46,27 @@ export function useAutoSave({
       setSaveStatus("saving");
 
       try {
-        const response = await fetch("/api/teacher/class-units/content", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            unitId,
-            classId,
-            content_data: dataToSave,
-          }),
-        });
+        let response: Response;
+
+        if (editMode === "all") {
+          // Direct master update — all non-forked classes see this immediately
+          response = await fetch(`/api/teacher/units/${unitId}/content`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ content_data: dataToSave }),
+          });
+        } else {
+          // Class-local fork-on-write (existing behavior)
+          response = await fetch("/api/teacher/class-units/content", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              unitId,
+              classId,
+              content_data: dataToSave,
+            }),
+          });
+        }
 
         if (!response.ok) {
           const data = await response.json();
@@ -70,22 +85,19 @@ export function useAutoSave({
         setSaveStatus("error");
       }
     },
-    [unitId, classId]
+    [unitId, classId, editMode]
   );
 
   // Debounced save on content change
   useEffect(() => {
-    // Clear any pending save
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current);
     }
 
-    // Schedule a new save
     saveTimerRef.current = setTimeout(() => {
       save(content);
     }, 800);
 
-    // Cleanup on unmount
     return () => {
       if (saveTimerRef.current) {
         clearTimeout(saveTimerRef.current);

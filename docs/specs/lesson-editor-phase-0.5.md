@@ -94,7 +94,8 @@ Also update `usePageResponses` to key by activityId with index fallback.
 ### Entry Points
 1. **Class-local editor** at `/teacher/units/[unitId]/class/[classId]/edit` (existing page, enhanced)
 2. **Master unit editor** at `/teacher/units/[unitId]/edit` (existing page, enhanced)
-3. **Quick Edit from Teaching Mode** (future — same component, embedded in modal)
+3. **Quick Edit from Teaching Mode** — slide-out panel (~400px from right) using the same editor components (ActivityBlock, InlineEdit, AITextField, PhaseSection, ActivityBlockAdd) in a compact layout. Scoped to current lesson only. Auto-saves via fork-on-write, syncs to projector via postMessage. See `docs/specs/teaching-mode-quick-access.md` Phase 2 for full spec.
+4. **"Import from..." activity search** — available in all entry points. Searches two sources: (a) activities from teacher's own units, (b) activities extracted from uploaded materials (lesson plans, textbooks) via the knowledge base pipeline. AI-powered embedding search. See `docs/specs/lesson-plan-converter.md` P1 item 11b.
 
 ### Layout: Split-Pane
 

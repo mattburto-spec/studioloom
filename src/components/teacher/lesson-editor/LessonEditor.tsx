@@ -61,6 +61,12 @@ export default function LessonEditor({
     removePage,
     reorderPages,
     isFork,
+    editMode,
+    setEditMode,
+    versionHistory,
+    loadingVersions,
+    promoteFork,
+    promoting,
     undo,
     redo,
     canUndo,
@@ -395,14 +401,18 @@ export default function LessonEditor({
 
           <h1 className="text-sm font-bold text-gray-900 tracking-tight">Unit Editor</h1>
 
-          {/* Fork indicator */}
-          {isFork ? (
+          {/* Edit mode indicator */}
+          {editMode === "all" ? (
+            <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-xs font-medium rounded-full border border-blue-200">
+              Editing all classes
+            </span>
+          ) : isFork ? (
             <span className="px-2 py-0.5 bg-amber-50 text-amber-700 text-xs font-medium rounded-full border border-amber-200">
-              Class fork
+              This class only
             </span>
           ) : (
-            <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-xs font-medium rounded-full border border-blue-200">
-              Master template
+            <span className="px-2 py-0.5 bg-gray-50 text-gray-500 text-xs font-medium rounded-full border border-gray-200">
+              This class only
             </span>
           )}
         </div>
@@ -639,6 +649,17 @@ export default function LessonEditor({
               onSelect={setSelectedPageIndex}
               onReorder={handleReorderPages}
               onAdd={() => addPage()}
+              editMode={editMode}
+              onEditModeChange={setEditMode}
+              isFork={isFork}
+              versionHistory={versionHistory}
+              loadingVersions={loadingVersions}
+              onPromoteFork={promoteFork}
+              promoting={promoting}
+              unitId={unitId}
+              classId={classId}
+              unitTitle={unitTitle}
+              thumbnailUrl={thumbnailUrl}
             />
           </div>
         </div>

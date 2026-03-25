@@ -107,6 +107,39 @@ Teachers frequently need to add activities that weren't in the AI-generated plan
 ### Why Before Content
 If Matt starts building real units now, he'll hit these friction points on every lesson and either: (a) spend ages manually fixing AI output in the JSONB editor, (b) accept mediocre lessons and lower the bar, or (c) get frustrated and stop. Getting the generation quality and editing flow right first means every unit built afterward is faster and better. This is the "sharpen the axe before chopping" phase.
 
+### Content Import Pipeline (NEW — 25 March 2026)
+The lesson editor and Lesson Plan Converter share a critical dependency: **uploaded content should become both editable units AND reusable activity blocks.** This is the pipeline that connects them.
+
+**Dual output from every upload:**
+1. **Editable unit** — uploaded lesson plan → AI extraction → `content_data` JSON → appears in lesson editor with full Workshop Model structure, inline editing, drag-and-drop. Teacher gets "my lesson plan, enhanced" that they can tweak in the editor they already know. Full spec: `docs/specs/lesson-plan-converter.md`.
+2. **Reusable activity blocks** — during ingestion, individual activities are tagged (title, description, duration, response type, source doc, design phase). These become queryable via the "Import from..." search in the lesson editor. Even uploading a textbook with one great activity makes that activity available as a draggable block.
+
+**"Import from..." in the editor:**
+The lesson editor's ActivityBlockAdd (currently 6 templates: discussion, hands-on, research, reflection, presentation, assessment) gains an "Import from..." option. This searches two sources:
+- (a) Activities from the teacher's own units (existing content_data)
+- (b) Activities extracted from uploaded materials (lesson plans, textbooks, schemes of work)
+AI-powered embedding search: teacher types "gallery walk critique" → finds matching activities across both sources. Selected activity is cloned into the current lesson as a new ActivitySection with fresh activityId.
+
+**Why not a bigger block catalog:** Considered showing all available blocks in the sidebar, but rejected due to choice paralysis. The 6 category templates stay as the fast primary add mechanism. "Import from..." is the power feature for specific reuse. Keeps the editor fast and focused.
+
+**Build estimate:** ~2-3 days for activity extraction pipeline + import search UI. Depends on: Lesson Plan Converter Phase 1 (extraction), lesson editor "Import from..." modal.
+
+### Teaching Mode Quick-Edit Panel (NEW — 25 March 2026)
+When a teacher is actively teaching and needs to tweak content or add an activity, they shouldn't have to leave the teaching cockpit.
+
+**Solution:** A slide-out panel (~400px from right) in Teaching Mode that opens when the teacher clicks the ✏️ Quick Edit toolbar button. This is a compact version of the full lesson editor, scoped to the current lesson only.
+
+**What it reuses (zero new components needed):**
+- `ActivityBlock` — activity cards with inline editing
+- `InlineEdit` — click-to-edit for hook, focus, protocol, prompt
+- `AITextField` — the `#` button for AI suggestions
+- `PhaseSection` — collapsible Workshop Model phases
+- `ActivityBlockAdd` — 6 templates + "Import from..." search
+- `useAutoSave` — debounced save to fork-on-write content API
+- `UndoManager` — Cmd+Z/Shift+Z
+
+**What's new:** Just the panel container, animation (Framer Motion slide-in), and wiring to Teaching Mode state. Teacher edits save via same content API, projector updates via existing `postMessage` sync. ~3 days. Full spec: `docs/specs/teaching-mode-quick-access.md` Phase 2.
+
 ---
 
 ## Phase 1: Sharpen the Student Experience
@@ -196,6 +229,22 @@ Students progress through levels like a game — but tied to real, demonstrated 
 **Build estimate:** ~5-7 days. Depends on grading page being functional (criterion scores are the primary signal). Visualisation is the creative challenge — the data aggregation is straightforward.
 
 **Phase:** Build after Phase 4 (grading) gives us criterion scores. Can prototype the visualisation earlier with mock data.
+
+### Year Planner & Curriculum Connection (NEW — 25 Mar 2026)
+
+**Year Planner:** Visual horizontal timeline for big-picture unit planning. One swimlane per class, X-axis is weeks grouped by terms. Teachers drag unit blocks onto the timeline to schedule, drag edges to resize (sets lesson count). Cycle engine computes actual dates. Today marker, term shading, unassigned units sidebar with drag-to-assign. Framer Motion throughout (spring physics on drop, `layoutId` transitions, `useMotionValue` for resize handles). Needs only 2 new columns on `class_units`: `planned_start_date` DATE and `planned_lesson_count` INTEGER. Everything else (terms, timetable, class_units junction) already exists.
+
+**Curriculum Connection (Layer 1 — Coverage Map):** Overlay on the year planner showing curriculum coverage. `curriculum_frameworks` table with seeded data (MYP Design, GCSE DT, ACARA, A-Level). `unit_curriculum_tags` table linking units to criteria/strands/concepts with coverage depth (touched/developed/assessed). Heatmap row per class showing gaps. Auto-backfill from existing content_data criterion arrays. Year-end coverage report for MYP coordinators.
+
+**Layer 2 (future):** Curriculum-as-template (defines unit sequences with dependencies), cross-teacher coordination (department view), AI-suggested sequencing, ManageBac/Toddle sync, multi-year vertical articulation view.
+
+**Materials & Purchasing Management:** Each unit has a materials list (name, category, quantity per student, estimated cost, supplier link). Stored as JSONB on content_data (forks with content). Materials editor in unit editor sidebar. Year planner materials overlay (category icons, cost summaries per term). Purchasing Dashboard at `/teacher/purchasing`: aggregated shopping list per term (quantity × class size across all units), supplier links, ordered checkboxes, CSV/Excel export for school finance. AI suggests materials during unit generation (reads workshop/equipment context). No new table needed — materials live on content_data, only "ordered" state needs `purchasing_state` JSONB on class_units.
+
+**Build estimate:** ~8-11 days (Year Planner ~4d, Curriculum Layer 1 ~2-3d, Materials ~3-4d). Full spec at `docs/specs/year-planner-spec.md`.
+
+**Dependencies:** School calendar terms must exist, timetable helps but not required (defaults to 1 meeting/week estimate).
+
+**Phase:** Build after Tier 1 gap-closing. Pairs well with the Lesson Scheduling system already built.
 
 ### Remove/Deprecate Drawing Tool
 - Students use Canva, Figma, TinkerCAD etc. for creation
@@ -788,6 +837,170 @@ Teachers currently rely on separate paid/free apps for common design tasks. Stud
 **Build priority:** Color palette (quick win, 2-3 days) → Mood board (high demand, Criterion A) → Vector editor (laser cutter prep) → Wireframe tool → others.
 
 **Build effort:** ~8-12 weeks total for the full set. Individual tools can ship independently.
+
+---
+
+## Phase 4.5: Teacher Time-Saver Features (NEW — 25 Mar 2026)
+
+**Problem:** Teachers spend 10+ hours per week on administrative work outside instruction: generating cover plans, catching absent students up, writing parent reports, managing risk assessments, forming student groups, exporting evidence for accreditation, preparing differentiation sheets, collating end-of-unit reflections. StudioLoom already captures all this data — extracting and formatting it into ready-to-use outputs would free hours per week.
+
+These 8 features leverage existing student data (criterion grades, toolkit sessions, NM assessments, safety badges, reflections) and lesson structure (workshopPhases, extensions, materials data) to auto-generate teacher deliverables. Most data collection is already built; this is primarily UI + API routes.
+
+### 1. Cover/Relief Lessons (~2 days)
+**Use case:** Teacher is absent. Relief teacher needs a one-page stand-alone lesson plan with instructions they can follow.
+
+**What it does:**
+- Button on each lesson in Teaching Mode or LessonSchedule: "Generate Cover Plan"
+- Extracts lesson data and produces a **one-page PDF** with:
+  - **Simplified activity instructions** — strips teacher notes/pedagogy, keeps only what students do (step 1, step 2, step 3, materials, timing)
+  - **Materials checklist** — what students need, organized by activity
+  - **Timing breakdown** — phases + phase durations (from `workshopPhases`)
+  - **Student grouping** — who works with whom (if groups pre-assigned)
+  - **Safety requirements** — which badges are prerequisites, PPE notes from safety_badges data
+  - **Contact info** — where to find you if questions arise
+- **Leverages:** workshopPhases, extensions, safety badges, materials list (when built), student groupings (from Smart Student Grouping below)
+- **Entry point:** "Generate Cover Plan" button on lesson cards in Teaching Mode or on the LessonSchedule sidebar
+
+### 2. Absent Student Catch-Up (~1.5 days)
+**Use case:** Student missed a lesson and needs to catch themselves up to rejoin the class.
+
+**What it does:**
+- Teacher (or student) clicks "Catch-Up Brief" on the progress page next to an absent student
+- Generates a **guided catch-up page** (in-app, not PDF) with:
+  - **What the class did** — activity summaries from lesson content (plain language, not technical)
+  - **What was due** — which responses they need to submit, any deadlines
+  - **Key vocabulary + concepts** — extracted from lesson content, linked to knowledge base if available
+  - **Peer work to review** — 1-2 anonymized example responses from classmates (with student consent, or skip if none)
+  - **Time estimate** — how long to catch up (estimated based on work complexity)
+  - **Checkpoint** — "You've caught up when you can answer: [checkpoint question from lesson]"
+- Alternatively: auto-displays on student dashboard as "You missed this lesson" card → click to view catch-up brief
+- **Leverages:** lesson content, student_progress (who submitted what), class progress data
+- **Entry point:** Teacher clicks button on progress page, or system auto-triggers for students who miss a lesson
+
+### 3. Parent Progress Snapshots (~2-3 days)
+**Use case:** Parent-teacher conference or mid-term progress update.
+
+**What it does:**
+- Button on per-student view or bulk-generate for parent-teacher conference week
+- Produces a **parent-friendly PDF** (200-300 words, no jargon) with:
+  - **Student profile card** — name, year, photo (optional), key strengths
+  - **Criterion progress** — A/B/C/D grades this term (visual, not numbers), progress compared to start of unit
+  - **Portfolio highlights** — 2-3 best pieces with brief captions
+  - **Competency snapshot** — NM ratings if applicable ("Your child is developing their independence in learning")
+  - **Toolkit usage** — "They've used 7 design thinking tools this unit, spending the most time on empathy mapping"
+  - **Safety milestone** — "Safety certified for: laser cutting, soldering" (if badges earned)
+  - **Open Studio status** — "Self-directed time unlocked since [date]" (if applicable)
+  - **Pace feedback** — "Generally works at a steady pace; occasionally finds mini-lessons too slow"
+  - **Teacher commentary** — personalized 1-2 sentence note (teacher fills in, not AI)
+- **Toggles:** Teacher can enable/disable which sections appear (all sections on by default)
+- **Bulk generation:** Generate for whole class at once, download as ZIP of PDFs
+- **Leverages:** criterion grades, toolkit_sessions, competency_assessments, safety_badges, lesson_feedback (pace), portfolio, reflections, Open Studio data
+- **Entry point:** "Parent Snapshot" button on student detail page, or "Bulk Export for Conferences" on class progress page
+
+### 4. Risk Assessments (~2 days)
+**Use case:** School/legal requirement to document hazards and control measures.
+
+**What it does:**
+- Button on unit detail or class-unit settings: "Generate Risk Assessment"
+- Produces a **formatted risk assessment PDF** (compliant with Australian/UK templates) with sections:
+  - **Activity hazard matrix** — maps each lesson activity to standard hazards (heat, cuts, chemical exposure, noise, etc.)
+  - **Equipment certification** — which students are certified for which equipment (from safety_badges)
+  - **MSDS lite** — one-page summary per material used (auto-pulled from materials data)
+  - **Supervision requirements** — ratios, teacher qualifications, documented in unit
+  - **Control measures** — risk mitigation for each hazard
+  - **Emergency contacts + first aid** — school-level data (from school profile)
+- **Customization:** Select from pre-built UK/Australian templates, or upload custom school template
+- **Leverages:** workshop settings (tools & machines, software), safety badge system (certifications), materials list, lesson content
+- **Entry point:** "Generate Risk Assessment" button on unit detail page or class-unit settings, also available in Teaching Mode quick toolbar for last-minute checks
+
+### 5. Smart Student Grouping (~2 days)
+**Use case:** Form optimal groups for peer learning, project work, or gallery walks.
+
+**What it does:**
+- Tool accessible from Teaching Mode quick-access toolbar or standalone page at `/teacher/groups`
+- Teacher selects a class and unit
+- System generates **group suggestions** using multiple factors:
+  - **Skill level** — criterion grades (balanced, similar-ability, or complementary)
+  - **Engagement patterns** — time spent, submission consistency, response quality from student_progress
+  - **Toolkit depth** — which tools each student has used (peer learning benefit if diverse)
+  - **Open Studio productivity** — Open Studio score (productivity_score) helps identify collaborative leaders
+  - **NM competency** — if NM enabled, uses agency/independence ratings (who's ready to lead groups?)
+  - **Safety certification** — who can use what equipment (if fabrication is part of the activity)
+- **Modes:**
+  - **Mixed-ability** — spread skill levels evenly across groups, pair quieter students with confident ones
+  - **Similar-ability** — cluster by performance (all high, all medium, all emerging) for targeted scaffolding
+  - **Complementary-skills** — pair students whose toolkit usage is different (one used Empathy Mapping, another used Decision Matrix)
+  - **Random with constraints** — randomize but ensure no all-low-engagement groups
+- **Output:** Visual group cards, exportable as image or CSV for student seating chart
+- **Teacher can override:** Manually adjust groups or lock certain pairs together
+- **Leverages:** student_progress (criterion grades, engagement), toolkit_sessions (tool usage), competency_assessments (NM ratings), open_studio_sessions (productivity_score), safety_badges (certifications)
+- **Entry point:** "Form Groups" button in Teaching Mode toolbar or dedicated `/teacher/groups` page
+
+### 6. Accreditation Evidence Portfolio (~3 days)
+**Use case:** IB MYP programme evaluation, school accreditation (CIS/WASC/NEASC), or teacher appraisal.
+
+**What it does:**
+- Export button on teacher dashboard: "Export Evidence for Accreditation"
+- Generates a **structured evidence package** (ZIP with organized PDFs, CSVs, and JSON) with:
+  - **Unit plans** — all units taught this cycle, linked to curriculum framework standards
+  - **Assessment samples** — 2-3 student work samples per criterion, anonymized, with rubric applied
+  - **Differentiation evidence** — ELL tiers used, extension activities provided, special accommodations documented
+  - **Feedback evidence** — sample feedback comments, criterion-level feedback, action points
+  - **NM competency tracking** — aggregated NM assessment data if used (anonymous class summary)
+  - **Safety compliance** — badge completion rates, risk assessment documents
+  - **AI usage log** — summary of AI integration (how many units generated with AI, student-facing AI tools used)
+  - **Curriculum alignment mapping** — shows which MYP criteria, GCSE specs, or ACARA descriptors map to each unit
+  - **Compliance metadata** — data collection dates, privacy settings applied, export date
+- **Customization:** Select accreditation body (IB, CIS, WASC, NEASC, custom), system highlights evidence relevant to that framework's criteria
+- **PDF index:** Auto-generated table of contents with hyperlinks to evidence items
+- **Leverages:** units, content_data, student_progress, assessment_records, competency_assessments, safety_badges, curriculum tags (when built), ai_usage_log, lesson_feedback
+- **Entry point:** "Export Evidence" button on teacher dashboard or dedicated accreditation page at `/teacher/accreditation`
+
+### 7. Automatic Differentiation Notes (~1 day)
+**Use case:** Teacher needs a printed sheet showing how to differentiate a specific lesson across ELL tiers and ability levels.
+
+**What it does:**
+- "Differentiation Sheet" button on any lesson card (or in Teaching Mode)
+- Generates a **one-page printable cheat sheet** with sections:
+  - **For ELL students** — pulls the ELL tier scaffolding already generated per activity (sentence starters, simplified prompts, glossary of key terms)
+  - **For advanced students** — extension activities from `workshopPhases.extensions`, plus challenge prompts
+  - **For students needing support** — pre-requisite safety badges, materials simplifications, peer partner suggestions
+  - **Checkpoint questions** — differentiated difficulty (remembering/understanding/applying levels)
+  - **Equipment/materials notes** — which students can/can't access based on certifications
+- **Format:** One-page, large font, ready to print and stick on whiteboard or give to TA
+- **Leverages:** existing ELL tiers in content_data, extensions, safety requirements, activity complexity metadata
+- **Entry point:** "Differentiation Sheet" button on lesson card or in Teaching Mode sidebar
+
+### 8. End-of-Unit Student Self-Evaluation (~2 days)
+**Use case:** Final reflection + growth assessment before moving to next unit.
+
+**What it does:**
+- Auto-triggered after final lesson completion (or teacher-initiated from progress page)
+- Student sees a **pre-populated guided reflection form** with:
+  - **Activity recap** — which activities they completed, with time spent and toolkit tools used (non-editable, for context)
+  - **Portfolio pieces** — links to work they saved during unit (they can review before reflecting)
+  - **Criterion self-assessment** — for each criterion (A/B/C/D):
+    - Student rates their own work 1-8 (slider)
+    - Student identifies their strongest piece for that criterion
+    - Student identifies where they struggled
+  - **Toolkit reflection** — "Which design thinking tools did you use most? Why?"
+  - **Growth narrative** — AI-prompted: "Describe one moment this unit where you surprised yourself"
+  - **Goal setting** — "What's one thing you want to improve for next unit?"
+  - **Comparison (optional)** — If teacher grades available, AI provides gentle comparison: "Your self-rating for Criterion B (6) matches the teacher's score (6). Nice accurate self-assessment! For Criterion C, you rated yourself 5 but the teacher suggested 6 — what might you have missed?"
+- **Output:** Self-evaluation stored in student profile, visible to student and teacher on progress page
+- **Leverages:** student_progress, tool_sessions, competency_assessments, portfolio data, assessment_records (if grading complete)
+- **Entry point:** Auto-triggered card "Final Reflection" after last lesson, or teacher can manually launch from progress page
+
+---
+
+### Implementation Notes (Phase 4.5)
+- **Data readiness:** Most underlying data collection already built (criterion grades, toolkit sessions, NM assessments, safety badges, reflections, lesson structure). Phase 4.5 is primarily API routes + templating + PDF/CSV generation.
+- **PDF generation:** Use an existing library (html-to-pdf, pptx-gen, or similar) or Supabase/Vercel Functions + headless browser approach. Keep it simple — no complex layout needed.
+- **Bulk export:** All features support single + bulk export where applicable (parent snapshots, risk assessments, evidence portfolio).
+- **Privacy:** All exports are teacher-visible (stored server-side, not on student devices). Anonymize student work in shared outputs (catch-up briefs, group suggestions).
+- **Dependencies:** Builds on Phase 0.5 (lesson editor), Phase 2 (knowledge base + AI generation), Phase 3 (safety badges), Phase 6 (academic integrity + grading), NM Phase 1 (competency assessment).
+- **Build order:** Start with Cover/Relief Lessons (simplest, highest immediate utility) → Absent Catch-Up → Parent Snapshots → Risk Assessments → Smart Grouping → Evidence Portfolio → Differentiation Notes → End-of-Unit Evaluation.
+- **Estimated total effort:** ~15-18 days across one sprint (staggered release, not all at once).
 
 ---
 
