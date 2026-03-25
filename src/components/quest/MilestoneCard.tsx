@@ -47,7 +47,7 @@ const SOURCE_BADGE_COLOR: Record<string, { bg: string; text: string; label: stri
 
 export function MilestoneCard({
   milestone,
-  evidence,
+  evidence = [],
   isActive = false,
   mentorColor = '#A78BFA',
   onStatusChange,
