@@ -4,8 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
-// ── Class colour palette + mesh gradients (shared) ──
-import { CLASS_COLORS, getClassColor, getMeshGradientStyle } from "@/lib/ui/mesh-gradient";
+// ── Class colour palette + gradients (shared) ──
+import { CLASS_COLORS, getClassColor, getClassGradient } from "@/lib/ui/class-colors";
 
 interface ClassRow {
   id: string;
@@ -310,8 +310,8 @@ export default function ClassesPage() {
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-center gap-3 min-w-0">
                         <div
-                          className="w-11 h-11 rounded-xl flex items-center justify-center font-extrabold text-sm shrink-0 shadow-sm overflow-hidden"
-                          style={{ ...getMeshGradientStyle(idx), color: color.text }}
+                          className="w-11 h-11 rounded-xl flex items-center justify-center text-white font-extrabold text-sm shrink-0 shadow-sm overflow-hidden"
+                          style={{ background: getClassGradient(idx) }}
                         >
                           {cls.name.slice(0, 2).toUpperCase()}
                         </div>

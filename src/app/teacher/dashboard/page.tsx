@@ -246,8 +246,8 @@ function formatStuckTime(hours: number): string {
 // Two-Column Dashboard — Sidebar (1/3) + Class Cards (2/3)
 // ---------------------------------------------------------------------------
 
-// Class color palette + mesh gradients
-import { CLASS_COLORS, getClassColor, getMeshGradientStyle } from "@/lib/ui/mesh-gradient";
+// Class color palette + gradients
+import { CLASS_COLORS, getClassColor, getClassGradient } from "@/lib/ui/class-colors";
 
 interface ScheduleEntry {
   date: string;
@@ -481,11 +481,15 @@ function TwoColumnDashboard({
                   {/* Class identity panel — clickable, links to Class Hub */}
                   <Link
                     href={`/teacher/units/${u.unitId}/class/${u.classId}`}
-                    className="w-44 shrink-0 flex flex-col items-center justify-center py-6 relative overflow-hidden hover:opacity-90 transition-opacity"
-                    style={getMeshGradientStyle(u.classIdx)}
+                    className="w-44 shrink-0 flex flex-col items-center justify-center py-6 text-white relative overflow-hidden hover:opacity-90 transition-opacity"
+                    style={{ background: getClassGradient(u.classIdx) }}
                   >
-                    <p className="text-lg font-extrabold leading-tight text-center px-3 relative z-10" style={{ color: c.text }}>{u.className}</p>
-                    <p className="text-xs mt-1.5 relative z-10 font-medium" style={{ color: c.text, opacity: 0.7 }}>{u.studentCount} student{u.studentCount !== 1 ? "s" : ""}</p>
+                    {/* Decorative circles */}
+                    <div className="absolute -top-6 -left-6 w-24 h-24 rounded-full opacity-10" style={{ background: "#fff" }} />
+                    <div className="absolute -bottom-4 -right-4 w-20 h-20 rounded-full opacity-10" style={{ background: "#fff" }} />
+                    <div className="absolute top-3 right-3 w-8 h-8 rounded-full opacity-5" style={{ background: "#fff" }} />
+                    <p className="text-lg font-extrabold leading-tight text-center px-3 relative z-10 drop-shadow-sm">{u.className}</p>
+                    <p className="text-xs opacity-75 mt-1.5 relative z-10 font-medium">{u.studentCount} student{u.studentCount !== 1 ? "s" : ""}</p>
                   </Link>
 
                   <div className="flex-1 px-5 py-4 flex flex-col">
