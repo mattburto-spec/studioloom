@@ -481,11 +481,11 @@ function TwoColumnDashboard({
                   {/* Class identity panel — clickable, links to Class Hub */}
                   <Link
                     href={`/teacher/units/${u.unitId}/class/${u.classId}`}
-                    className="w-44 shrink-0 flex flex-col items-center justify-center py-6 text-white relative overflow-hidden hover:opacity-90 transition-opacity"
+                    className="w-44 shrink-0 flex flex-col items-center justify-center py-6 relative overflow-hidden hover:opacity-90 transition-opacity"
                     style={getMeshGradientStyle(u.classIdx)}
                   >
-                    <p className="text-lg font-extrabold leading-tight text-center px-3 relative z-10 drop-shadow-sm" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.15)" }}>{u.className}</p>
-                    <p className="text-xs opacity-80 mt-1.5 relative z-10 font-medium" style={{ textShadow: "0 1px 2px rgba(0,0,0,0.1)" }}>{u.studentCount} student{u.studentCount !== 1 ? "s" : ""}</p>
+                    <p className="text-lg font-extrabold leading-tight text-center px-3 relative z-10" style={{ color: c.text }}>{u.className}</p>
+                    <p className="text-xs mt-1.5 relative z-10 font-medium" style={{ color: c.text, opacity: 0.7 }}>{u.studentCount} student{u.studentCount !== 1 ? "s" : ""}</p>
                   </Link>
 
                   <div className="flex-1 px-5 py-4 flex flex-col">
