@@ -395,7 +395,7 @@ function TwoColumnDashboard({
               {data.stuckStudents.slice(0, 5).map((s) => (
                 <Link
                   key={`stuck-${s.studentId}-${s.unitId}`}
-                  href={`/teacher/classes/${s.classId}/progress/${s.unitId}`}
+                  href={`/teacher/units/${s.unitId}/class/${s.classId}?tab=progress`}
                   className="flex items-center gap-2.5 px-3 py-2 hover:bg-amber-50/50 transition text-xs"
                 >
                   <div className="w-6 h-6 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-[10px] font-bold shrink-0">
@@ -456,9 +456,10 @@ function TwoColumnDashboard({
                 className="bg-white rounded-2xl border border-gray-200 overflow-hidden hover:shadow-lg transition-all duration-200"
               >
                 <div className="flex items-stretch">
-                  {/* Class identity panel — gradient with subtle pattern */}
-                  <div
-                    className="w-44 shrink-0 flex flex-col items-center justify-center py-6 text-white relative overflow-hidden"
+                  {/* Class identity panel — clickable, links to Class Hub */}
+                  <Link
+                    href={`/teacher/units/${u.unitId}/class/${u.classId}`}
+                    className="w-44 shrink-0 flex flex-col items-center justify-center py-6 text-white relative overflow-hidden hover:opacity-90 transition-opacity"
                     style={{
                       background: `linear-gradient(160deg, ${c.fill}, ${darkerFill})`,
                     }}
@@ -469,7 +470,7 @@ function TwoColumnDashboard({
                     <div className="absolute top-3 right-3 w-8 h-8 rounded-full opacity-5" style={{ background: "#fff" }} />
                     <p className="text-lg font-extrabold leading-tight text-center px-3 relative z-10 drop-shadow-sm">{u.className}</p>
                     <p className="text-xs opacity-75 mt-1.5 relative z-10 font-medium">{u.studentCount} student{u.studentCount !== 1 ? "s" : ""}</p>
-                  </div>
+                  </Link>
 
                   <div className="flex-1 px-5 py-4 flex flex-col">
                     {/* Unit title — bigger and bolder */}
@@ -516,31 +517,16 @@ function TwoColumnDashboard({
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
                           Edit
                         </Link>
-                        <Link
-                          href={`/teacher/classes/${u.classId}/progress/${u.unitId}`}
-                          className="inline-flex items-center gap-1.5 text-sm font-bold px-5 py-2 rounded-full text-white transition-all duration-200 hover:shadow-lg hover:scale-[1.03] active:scale-[0.97]"
-                          style={{
-                            background: u.openStudioCount > 0
-                              ? "linear-gradient(135deg, #06B6D4, #8B5CF6, #EC4899)"
-                              : "linear-gradient(135deg, #67E8F9, #A78BFA, #F9A8D4)",
-                            boxShadow: u.openStudioCount > 0
-                              ? "0 3px 12px rgba(139, 92, 246, 0.3), 0 1px 4px rgba(236, 72, 153, 0.2)"
-                              : "0 2px 6px rgba(167, 139, 250, 0.2)",
-                          }}
-                        >
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                          Studio
-                          {u.openStudioCount > 0 && (
-                            <span className="text-xs font-extrabold px-1.5 py-0.5 rounded-full ml-0.5" style={{ background: "rgba(255,255,255,0.3)" }}>
-                              {u.openStudioCount}
-                            </span>
-                          )}
-                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
-                        </Link>
                       </div>
 
-                      {/* Feature badges — right side, bigger */}
+                      {/* Feature badges + progress link — right side */}
                       <div className="flex items-center gap-2 shrink-0">
+                        {u.openStudioCount > 0 && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg" style={{ background: "#F3E8FF", color: "#7C3AED" }}>
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                            {u.openStudioCount} in Studio
+                          </span>
+                        )}
                         {u.nmEnabled && (
                           <span
                             className="inline-flex items-center justify-center text-xs font-black px-2.5 py-1.5 rounded-lg shadow-sm"
@@ -558,6 +544,14 @@ function TwoColumnDashboard({
                             {u.badgeRequirementCount}
                           </span>
                         )}
+                        <Link
+                          href={`/teacher/units/${u.unitId}/class/${u.classId}?tab=progress`}
+                          className="inline-flex items-center gap-1 text-[11px] font-medium text-text-secondary hover:text-text-primary transition"
+                          title="View progress in Class Hub"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                          Progress
+                        </Link>
                       </div>
                     </div>
                   </div>
@@ -566,6 +560,38 @@ function TwoColumnDashboard({
             );
           })
         )}
+
+        {/* ── Classes with no units assigned ── */}
+        {(() => {
+          const emptyClasses = data.classes.filter(c => c.units.length === 0);
+          if (emptyClasses.length === 0) return null;
+          return (
+            <div className="mt-6 bg-gray-50 rounded-xl border border-gray-200 p-4">
+              <p className="text-xs font-semibold text-text-secondary mb-2">Classes without units</p>
+              <div className="flex flex-wrap gap-2">
+                {emptyClasses.map(cls => (
+                  <div
+                    key={cls.id}
+                    className="inline-flex items-center gap-2 bg-white rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                  >
+                    <div
+                      className="w-2.5 h-2.5 rounded-full"
+                      style={{ background: getClassColor(classIndexMap.get(cls.id) ?? 0).fill }}
+                    />
+                    <span className="font-medium text-text-primary">{cls.name}</span>
+                    <span className="text-text-secondary text-xs">{cls.studentCount} student{cls.studentCount !== 1 ? "s" : ""}</span>
+                    <Link
+                      href="/teacher/units"
+                      className="text-xs font-medium text-violet-600 hover:text-violet-800 ml-1"
+                    >
+                      Assign unit →
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
