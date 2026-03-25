@@ -27,11 +27,13 @@ import StudentDrawer from "@/components/teacher/class-hub/StudentDrawer";
 // URL: /teacher/units/[unitId]/class/[classId]
 // ---------------------------------------------------------------------------
 
-type HubTab = "progress" | "grade" | "settings";
+type HubTab = "progress" | "grade" | "metrics" | "safety" | "settings";
 
 const TABS: { id: HubTab; label: string; icon: string }[] = [
   { id: "progress", label: "Progress", icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" },
   { id: "grade", label: "Grade", icon: "M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" },
+  { id: "metrics", label: "Metrics", icon: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" },
+  { id: "safety", label: "Safety", icon: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" },
   { id: "settings", label: "Settings", icon: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" },
 ];
 
@@ -64,7 +66,7 @@ export default function ClassHubPage({
     if (typeof window !== "undefined") {
       const sp = new URLSearchParams(window.location.search);
       const tab = sp.get("tab");
-      if (tab === "progress" || tab === "grade" || tab === "settings") return tab;
+      if (tab === "progress" || tab === "grade" || tab === "metrics" || tab === "safety" || tab === "settings") return tab;
     }
     return "progress";
   });
@@ -748,6 +750,65 @@ export default function ClassHubPage({
       )}
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* METRICS TAB (NM / Melbourne Metrics)                              */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {activeTab === "metrics" && (
+        <div className="max-w-3xl">
+          {globalNmEnabled ? (
+            <>
+              <div className="mb-6">
+                <NMConfigPanel unitId={unitId} classId={classId} pages={pages} currentConfig={nmConfig}
+                  onSave={async (config) => {
+                    const res = await fetch("/api/teacher/nm-config", {
+                      method: "POST", headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ unitId, classId, config }),
+                    });
+                    if (!res.ok) { const errData = await res.json().catch(() => ({})); throw new Error(errData.error || "Save failed"); }
+                    setNmConfig(config);
+                  }}
+                />
+              </div>
+              {nmConfig.enabled && <div className="mb-6"><NMResultsPanel unitId={unitId} classId={classId} /></div>}
+            </>
+          ) : (
+            <div className="p-6 bg-gray-50 rounded-xl border border-border text-center">
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-3">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              </svg>
+              <h3 className="font-semibold text-text-primary mb-1">New Metrics</h3>
+              <p className="text-sm text-text-secondary mb-3">
+                Enable New Metrics in your school settings to configure competency assessments for this class.
+              </p>
+              <Link href="/teacher/settings?tab=school" className="text-purple-600 text-sm font-medium hover:underline">Go to Settings →</Link>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* SAFETY TAB (Badges & Certifications)                              */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {activeTab === "safety" && (
+        <div className="max-w-3xl space-y-6">
+          <CertManager classId={classId} students={students.map((s) => ({ student_id: s.id, display_name: s.display_name, username: s.username }))} />
+          <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+                Safety Badge Library
+              </h3>
+              <p className="text-sm text-gray-500 mt-1">Create new badges, edit questions, and manage unit requirements.</p>
+            </div>
+            <Link href="/teacher/safety" className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-50 text-amber-700 font-medium text-sm hover:bg-amber-100 transition shrink-0">
+              Manage Badges
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* SETTINGS TAB                                                      */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {activeTab === "settings" && (
@@ -838,47 +899,14 @@ export default function ClassHubPage({
             );
           })()}
 
-          {/* NM Config & Results */}
-          {globalNmEnabled ? (
-            <>
-              <div className="mb-6">
-                <NMConfigPanel unitId={unitId} classId={classId} pages={pages} currentConfig={nmConfig}
-                  onSave={async (config) => {
-                    const res = await fetch("/api/teacher/nm-config", {
-                      method: "POST", headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ unitId, classId, config }),
-                    });
-                    if (!res.ok) { const errData = await res.json().catch(() => ({})); throw new Error(errData.error || "Save failed"); }
-                    setNmConfig(config);
-                  }}
-                />
-              </div>
-              {nmConfig.enabled && <div className="mb-6"><NMResultsPanel unitId={unitId} classId={classId} /></div>}
-            </>
-          ) : (
-            <div className="mb-6 p-4 bg-gray-50 rounded-xl border border-border text-sm text-text-secondary">
-              New Metrics is turned off. Enable it in <a href="/teacher/settings?tab=school" className="text-purple-600 underline">Settings → School &amp; Teaching</a> to configure competency assessments.
+          {/* Class code */}
+          {classCode && (
+            <div className="mb-6 bg-surface-alt rounded-xl p-4 border border-border">
+              <label className="block text-xs font-semibold text-text-primary mb-2">Class Code</label>
+              <p className="text-lg font-mono font-bold text-purple-600">{classCode}</p>
+              <p className="text-xs text-text-secondary mt-1">Students use this code to join this class.</p>
             </div>
           )}
-
-          {/* Safety */}
-          <div className="space-y-6">
-            <CertManager classId={classId} students={students.map((s) => ({ student_id: s.id, display_name: s.display_name, username: s.username }))} />
-            <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center justify-between">
-              <div>
-                <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                  </svg>
-                  Safety Badge Library
-                </h3>
-                <p className="text-sm text-gray-500 mt-1">Create new badges, edit questions, and manage unit requirements.</p>
-              </div>
-              <Link href="/teacher/safety" className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-50 text-amber-700 font-medium text-sm hover:bg-amber-100 transition shrink-0">
-                Manage Badges
-              </Link>
-            </div>
-          </div>
         </div>
       )}
 

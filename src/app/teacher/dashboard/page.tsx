@@ -476,7 +476,9 @@ function TwoColumnDashboard({
                     {/* Unit title — bigger and bolder */}
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <h3 className="text-xl font-extrabold text-text-primary leading-snug tracking-tight">{u.unitTitle}</h3>
+                        <Link href={`/teacher/units/${u.unitId}/class/${u.classId}`} className="text-xl font-extrabold text-text-primary leading-snug tracking-tight hover:text-purple-700 transition">
+                          {u.unitTitle}
+                        </Link>
                         {/* Status badges */}
                         {u.isForked && (
                           <div className="mt-2">
@@ -511,11 +513,18 @@ function TwoColumnDashboard({
                           Teach
                         </Link>
                         <Link
+                          href={`/teacher/units/${u.unitId}/class/${u.classId}`}
+                          className="inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl border-2 border-purple-200 text-purple-700 transition hover:bg-purple-50"
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
+                          Class Hub
+                        </Link>
+                        <Link
                           href={`/teacher/units/${u.unitId}/class/${u.classId}/edit`}
                           className="inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl border-2 border-gray-200 text-text-secondary transition hover:bg-gray-50"
                         >
                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
-                          Edit
+                          Edit Unit
                         </Link>
                       </div>
 
