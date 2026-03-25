@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireTeacherAuth } from "@/lib/auth/require-teacher-auth";
+import { requireTeacherAuth } from "@/lib/auth/verify-teacher-unit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getPageList } from "@/lib/unit-adapter";
 import { resolveClassUnitContent } from "@/lib/units/resolve-content";
