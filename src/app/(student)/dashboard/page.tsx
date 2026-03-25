@@ -459,120 +459,109 @@ export default function StudentDashboard() {
                 )}
               </div>
 
-              {/* ── Safety Badges Section ── */}
-              {(pendingBadges.length > 0 || earnedBadges.length > 0) && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* Pending Safety Tests */}
-                  {pendingBadges.length > 0 && (
-                    <div>
-                      <div className="rounded-2xl border-2 border-amber-300 bg-amber-50 overflow-hidden shadow-sm">
-                        <div className="px-4 py-2.5 bg-amber-100/80 border-b border-amber-200 flex items-center gap-2">
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                          </svg>
-                          <h2 className="text-sm font-bold text-amber-800">
-                            Safety Tests ({pendingBadges.length})
-                          </h2>
-                        </div>
-                        <div className="p-2.5 space-y-2">
-                          {pendingBadges.map((badge) => {
-                            const isCooldown = badge.student_status === "cooldown";
-                            return (
-                              <Link
-                                key={badge.badge_id}
-                                href={isCooldown ? "#" : `/safety/${badge.badge_id}`}
-                                onClick={(e) => isCooldown && e.preventDefault()}
-                                className={`block rounded-xl p-3 border transition-all ${
-                                  isCooldown
-                                    ? "bg-gray-50 border-gray-200 cursor-not-allowed"
-                                    : "bg-white border-amber-200/60 hover:border-amber-400 hover:shadow-sm"
-                                }`}
-                              >
-                                <div className="flex items-start gap-2.5">
-                                  <div
-                                    className="w-9 h-9 rounded-lg flex items-center justify-center text-base flex-shrink-0"
-                                    style={{ backgroundColor: badge.badge_color + "20", border: `2px solid ${badge.badge_color}` }}
-                                  >
-                                    {badgeIconEl(badge.badge_icon, badge.badge_color)}
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <p className="font-semibold text-sm text-gray-900 leading-tight">{badge.badge_name}</p>
-                                    <p className="text-[11px] text-gray-500 mt-0.5">
-                                      {badge.question_count}q · {badge.pass_threshold}% to pass
-                                    </p>
-                                    {isCooldown && badge.cooldown_until && (
-                                      <p className="text-[11px] text-amber-600 mt-0.5 font-medium">Retake {timeAgo(badge.cooldown_until)}</p>
-                                    )}
-                                    {badge.student_status === "expired" && (
-                                      <p className="text-[11px] text-red-600 mt-0.5 font-medium">Expired — retake required</p>
-                                    )}
-                                  </div>
-                                </div>
-                                <div className={`mt-2 text-center py-1.5 rounded-lg text-xs font-semibold ${
-                                  isCooldown
-                                    ? "bg-gray-100 text-gray-400"
-                                    : "bg-amber-500 text-white"
-                                }`}>
-                                  {isCooldown ? "Cooldown" : badge.student_status === "expired" ? "Retake" : "Take Test"}
-                                </div>
-                              </Link>
-                            );
-                          })}
-                        </div>
-                      </div>
+              {/* ── Earned Badges — horizontal strip ── */}
+              {earnedBadges.length > 0 && (
+                <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden shadow-sm">
+                  <div className="px-4 py-2 bg-gradient-to-r from-purple-50 to-indigo-50 border-b border-gray-100 flex items-center gap-2">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5C7 4 7 7 7 7" />
+                      <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5C17 4 17 7 17 7" />
+                      <path d="M4 22h16" />
+                      <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
+                    </svg>
+                    <h2 className="text-xs font-bold text-purple-800">My Badges</h2>
+                    <span className="ml-auto text-[10px] font-semibold text-purple-500 bg-purple-100 px-1.5 py-0.5 rounded-full">
+                      {earnedBadges.length}
+                    </span>
+                  </div>
+                  <div className="px-3 py-2.5 overflow-hidden">
+                    <div className="flex gap-4 overflow-x-auto">
+                      {earnedBadges.map((b) => (
+                        <Link
+                          key={b.badge_id}
+                          href={`/safety/${b.badge_id}`}
+                          className="group flex flex-col items-center gap-1 w-[60px] flex-shrink-0 text-center"
+                        >
+                          <div
+                            className="relative w-11 h-11 rounded-full flex items-center justify-center text-lg group-hover:scale-110 transition-transform duration-200"
+                            style={{
+                              background: `linear-gradient(135deg, ${b.badge_color}30, ${b.badge_color}60)`,
+                              border: `2px solid ${b.badge_color}`,
+                            }}
+                          >
+                            {badgeIconEl(b.badge_icon, b.badge_color)}
+                            <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-green-500 border-[1.5px] border-white flex items-center justify-center">
+                              <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4">
+                                <polyline points="20 6 9 17 4 12" />
+                              </svg>
+                            </div>
+                          </div>
+                          <span className="text-[9px] font-semibold text-gray-500 leading-tight line-clamp-2">
+                            {b.badge_name}
+                          </span>
+                        </Link>
+                      ))}
                     </div>
-                  )}
+                  </div>
+                </div>
+              )}
 
-                  {/* Earned Badges — always visible as trophy shelf */}
-                  {earnedBadges.length > 0 && (
-                    <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden shadow-sm">
-                      <div className="px-4 py-2.5 bg-gradient-to-r from-purple-50 to-indigo-50 border-b border-gray-100 flex items-center gap-2">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5C7 4 7 7 7 7" />
-                          <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5C17 4 17 7 17 7" />
-                          <path d="M4 22h16" />
-                          <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20 7 22" />
-                          <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20 17 22" />
-                          <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
-                        </svg>
-                        <h2 className="text-sm font-bold text-purple-800">My Badges</h2>
-                        <span className="ml-auto text-xs font-semibold text-purple-500 bg-purple-100 px-2 py-0.5 rounded-full">
-                          {earnedBadges.length}
-                        </span>
-                      </div>
-                      <div className="p-3 overflow-hidden">
-                        <div className="flex flex-wrap gap-4 justify-center py-1">
-                          {earnedBadges.map((b) => (
-                            <Link
-                              key={b.badge_id}
-                              href={`/safety/${b.badge_id}`}
-                              className="group flex flex-col items-center gap-1.5 w-[72px] text-center"
+              {/* ── Pending Safety Tests — grid of cards ── */}
+              {pendingBadges.length > 0 && (
+                <div className="rounded-2xl border-2 border-amber-300 bg-amber-50 overflow-hidden shadow-sm">
+                  <div className="px-4 py-2.5 bg-amber-100/80 border-b border-amber-200 flex items-center gap-2">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                    </svg>
+                    <h2 className="text-sm font-bold text-amber-800">
+                      Safety Tests ({pendingBadges.length})
+                    </h2>
+                  </div>
+                  <div className="p-2.5 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {pendingBadges.map((badge) => {
+                      const isCooldown = badge.student_status === "cooldown";
+                      return (
+                        <Link
+                          key={badge.badge_id}
+                          href={isCooldown ? "#" : `/safety/${badge.badge_id}`}
+                          onClick={(e) => isCooldown && e.preventDefault()}
+                          className={`block rounded-xl p-3 border transition-all ${
+                            isCooldown
+                              ? "bg-gray-50 border-gray-200 cursor-not-allowed"
+                              : "bg-white border-amber-200/60 hover:border-amber-400 hover:shadow-sm"
+                          }`}
+                        >
+                          <div className="flex items-start gap-2.5">
+                            <div
+                              className="w-9 h-9 rounded-lg flex items-center justify-center text-base flex-shrink-0"
+                              style={{ backgroundColor: badge.badge_color + "20", border: `2px solid ${badge.badge_color}` }}
                             >
-                              <div
-                                className="relative w-14 h-14 rounded-full flex items-center justify-center text-xl shadow-md group-hover:scale-110 transition-transform duration-200"
-                                style={{
-                                  background: `linear-gradient(135deg, ${b.badge_color}30, ${b.badge_color}60)`,
-                                  border: `2.5px solid ${b.badge_color}`,
-                                  boxShadow: `0 2px 8px ${b.badge_color}30`,
-                                }}
-                              >
-                                {badgeIconEl(b.badge_icon, b.badge_color)}
-                                {/* Green check overlay */}
-                                <div className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-green-500 border-2 border-white flex items-center justify-center">
-                                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5">
-                                    <polyline points="20 6 9 17 4 12" />
-                                  </svg>
-                                </div>
-                              </div>
-                              <span className="text-[10px] font-semibold text-gray-600 leading-tight line-clamp-2">
-                                {b.badge_name}
-                              </span>
-                            </Link>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  )}
+                              {badgeIconEl(badge.badge_icon, badge.badge_color)}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-semibold text-sm text-gray-900 leading-tight">{badge.badge_name}</p>
+                              <p className="text-[11px] text-gray-500 mt-0.5">
+                                {badge.question_count}q · {badge.pass_threshold}% to pass
+                              </p>
+                              {isCooldown && badge.cooldown_until && (
+                                <p className="text-[11px] text-amber-600 mt-0.5 font-medium">Retake {timeAgo(badge.cooldown_until)}</p>
+                              )}
+                              {badge.student_status === "expired" && (
+                                <p className="text-[11px] text-red-600 mt-0.5 font-medium">Expired — retake required</p>
+                              )}
+                            </div>
+                          </div>
+                          <div className={`mt-2 text-center py-1.5 rounded-lg text-xs font-semibold ${
+                            isCooldown
+                              ? "bg-gray-100 text-gray-400"
+                              : "bg-amber-500 text-white"
+                          }`}>
+                            {isCooldown ? "Cooldown" : badge.student_status === "expired" ? "Retake" : "Take Test"}
+                          </div>
+                        </Link>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>
