@@ -27,12 +27,13 @@ import StudentDrawer from "@/components/teacher/class-hub/StudentDrawer";
 // URL: /teacher/units/[unitId]/class/[classId]
 // ---------------------------------------------------------------------------
 
-type HubTab = "progress" | "grade" | "students" | "metrics" | "badges" | "settings";
+type HubTab = "progress" | "grade" | "students" | "studio" | "metrics" | "badges" | "settings";
 
 const TABS: { id: HubTab; label: string; icon: string }[] = [
   { id: "progress", label: "Progress", icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" },
   { id: "grade", label: "Grade", icon: "M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" },
   { id: "students", label: "Students", icon: "M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zm13 10v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" },
+  { id: "studio", label: "Open Studio", icon: "M3 11h18M3 11v8a2 2 0 002 2h14a2 2 0 002-2v-8M7 11V7a5 5 0 0110 0v4" },
   { id: "metrics", label: "New Metrics", icon: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" },
   { id: "badges", label: "Badges", icon: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" },
   { id: "settings", label: "Settings", icon: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" },
@@ -67,8 +68,9 @@ export default function ClassHubPage({
     if (typeof window !== "undefined") {
       const sp = new URLSearchParams(window.location.search);
       const tab = sp.get("tab");
-      if (tab === "progress" || tab === "grade" || tab === "students" || tab === "metrics" || tab === "badges" || tab === "settings") return tab;
+      if (tab === "progress" || tab === "grade" || tab === "students" || tab === "studio" || tab === "metrics" || tab === "badges" || tab === "settings") return tab;
       if (tab === "safety") return "badges"; // backward compat
+      if (tab === "open-studio") return "studio"; // backward compat
     }
     return "progress";
   });
@@ -1170,6 +1172,47 @@ export default function ClassHubPage({
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* SAFETY TAB (Badges & Certifications)                              */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* OPEN STUDIO TAB                                                    */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {activeTab === "studio" && (
+        <div className="max-w-4xl space-y-6">
+          {/* Open Studio Class View — unlock/revoke/status for all students */}
+          <OpenStudioClassView unitId={unitId} classId={classId} />
+
+          {/* Info card about Open Studio */}
+          <div className="bg-violet-50 border border-violet-200 rounded-xl p-5">
+            <h3 className="font-semibold text-violet-900 flex items-center gap-2 mb-2">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 16v-4M12 8h.01" />
+              </svg>
+              About Open Studio
+            </h3>
+            <p className="text-sm text-violet-700 leading-relaxed mb-3">
+              Open Studio gives students self-directed working time. When unlocked, the AI mentor switches from guided Socratic tutor to studio critic mode — asking deeper questions and encouraging independent decision-making.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+              <div className="bg-white/70 rounded-lg p-3 border border-violet-100">
+                <div className="font-semibold text-violet-800 mb-1">Check-ins</div>
+                <p className="text-violet-600 text-xs">Students receive periodic check-ins (configurable interval) to stay on track.</p>
+              </div>
+              <div className="bg-white/70 rounded-lg p-3 border border-violet-100">
+                <div className="font-semibold text-violet-800 mb-1">Drift Detection</div>
+                <p className="text-violet-600 text-xs">3-level escalation: gentle nudge → direct question → silent flag to you.</p>
+              </div>
+              <div className="bg-white/70 rounded-lg p-3 border border-violet-100">
+                <div className="font-semibold text-violet-800 mb-1">Auto-Revocation</div>
+                <p className="text-violet-600 text-xs">2 consecutive sessions with drift flags triggers automatic revocation.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* BADGES TAB                                                        */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {activeTab === "badges" && (
         <div className="max-w-3xl space-y-6">
