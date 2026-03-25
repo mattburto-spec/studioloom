@@ -28,6 +28,7 @@ interface ClassRow {
   is_archived?: boolean;
   studentCount: number;
   unitCount: number;
+  framework?: string;
 }
 
 export default function ClassesPage() {
@@ -36,15 +37,19 @@ export default function ClassesPage() {
   const [showArchived, setShowArchived] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState("");
+  const [newFramework, setNewFramework] = useState("myp_design");
   const [creating, setCreating] = useState(false);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [archiving, setArchiving] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ classId: string; name: string } | null>(null);
+  const [deleteConfirmInput, setDeleteConfirmInput] = useState("");
 
   const loadClasses = useCallback(async () => {
     const supabase = createClient();
     const { data: classData } = await supabase
       .from("classes")
-      .select("id, name, code, created_at, is_archived")
+      .select("id, name, code, created_at, is_archived, framework")
       .order("created_at", { ascending: false });
 
     if (!classData) {
@@ -107,13 +112,33 @@ export default function ClassesPage() {
       name: newName.trim(),
       code,
       teacher_id: user.id,
+      framework: newFramework,
     });
     if (!error) {
       setNewName("");
+      setNewFramework("myp_design");
       setShowCreate(false);
       loadClasses();
     }
     setCreating(false);
+  }
+
+  async function deleteClass() {
+    if (!deleteConfirm || deleteConfirmInput !== deleteConfirm.name) return;
+    setDeleting(deleteConfirm.classId);
+
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("classes")
+      .delete()
+      .eq("id", deleteConfirm.classId);
+
+    if (!error) {
+      setDeleteConfirm(null);
+      setDeleteConfirmInput("");
+      loadClasses();
+    }
+    setDeleting(null);
   }
 
   function copyCode(code: string) {
@@ -173,17 +198,60 @@ export default function ClassesPage() {
 
       {/* ── Create class form ── */}
       {showCreate && (
-        <div className="mb-8 p-5 bg-white border border-purple-100 rounded-2xl shadow-sm" style={{ background: "linear-gradient(180deg, #FAFAFE 0%, #FFFFFF 100%)" }}>
-          <p className="text-sm font-semibold text-text-primary mb-3">Create a new class</p>
-          <div className="flex items-center gap-3">
+        <div className="mb-8 p-6 bg-white border border-purple-100 rounded-2xl shadow-sm" style={{ background: "linear-gradient(180deg, #FAFAFE 0%, #FFFFFF 100%)" }}>
+          <p className="text-sm font-semibold text-text-primary mb-4">Create a new class</p>
+
+          {/* Class name */}
+          <div className="mb-4">
+            <label className="text-xs font-semibold text-text-secondary mb-2 block">Class Name</label>
             <input
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               placeholder="e.g. Year 10 Design & Technology"
-              className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
               onKeyDown={(e) => e.key === "Enter" && createClass()}
               autoFocus
             />
+          </div>
+
+          {/* Framework selector */}
+          <div className="mb-5">
+            <label className="text-xs font-semibold text-text-secondary mb-2.5 block">Learning Framework</label>
+            <div className="grid grid-cols-2 gap-2.5">
+              {[
+                { id: "myp_design", label: "MYP Design", desc: "Design cycle", color: "#6366F1" },
+                { id: "service_learning", label: "Service Learning", desc: "Community service", color: "#EC4899" },
+                { id: "pyp_exhibition", label: "PYP Exhibition", desc: "Inquiry journey", color: "#F59E0B" },
+                { id: "personal_project", label: "Personal Project", desc: "Year 10 PP", color: "#8B5CF6" },
+              ].map((fw) => (
+                <button
+                  key={fw.id}
+                  onClick={() => setNewFramework(fw.id)}
+                  className={`flex items-center gap-2.5 p-3 rounded-lg border-2 text-left transition-all ${
+                    newFramework === fw.id
+                      ? "border-purple-500 bg-purple-50"
+                      : "border-gray-200 hover:border-gray-300 bg-white"
+                  }`}
+                >
+                  <div
+                    className="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0"
+                    style={{ background: newFramework === fw.id ? fw.color : "#F3F4F6" }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={newFramework === fw.id ? "#fff" : "#9CA3AF"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 5L2 10l10 5 10-5-10-5zM2 19l10 5 10-5M2 14.5l10 5 10-5" />
+                    </svg>
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-semibold text-text-primary leading-tight">{fw.label}</div>
+                    <div className="text-[10px] text-text-secondary">{fw.desc}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Buttons */}
+          <div className="flex items-center gap-3">
             <button
               onClick={createClass}
               disabled={creating || !newName.trim()}
@@ -195,6 +263,7 @@ export default function ClassesPage() {
               onClick={() => {
                 setShowCreate(false);
                 setNewName("");
+                setNewFramework("myp_design");
               }}
               className="px-3 py-2.5 text-sm text-text-tertiary hover:text-text-primary transition"
             >
@@ -267,6 +336,45 @@ export default function ClassesPage() {
                             >
                               {cls.name}
                             </Link>
+                            {cls.framework && (
+                              <span
+                                className="text-[10px] font-semibold px-2 py-0.5 rounded-full border"
+                                style={{
+                                  background:
+                                    cls.framework === "myp_design"
+                                      ? "#EEF2FF"
+                                      : cls.framework === "service_learning"
+                                      ? "#FDF2F8"
+                                      : cls.framework === "pyp_exhibition"
+                                      ? "#FFFBEB"
+                                      : "#F5F3FF",
+                                  color:
+                                    cls.framework === "myp_design"
+                                      ? "#3730A3"
+                                      : cls.framework === "service_learning"
+                                      ? "#9D174D"
+                                      : cls.framework === "pyp_exhibition"
+                                      ? "#92400E"
+                                      : "#5B21B6",
+                                  borderColor:
+                                    cls.framework === "myp_design"
+                                      ? "#C7D2FE"
+                                      : cls.framework === "service_learning"
+                                      ? "#FBCFE8"
+                                      : cls.framework === "pyp_exhibition"
+                                      ? "#FEF3C7"
+                                      : "#EDE9FE",
+                                }}
+                              >
+                                {cls.framework === "myp_design"
+                                  ? "Design"
+                                  : cls.framework === "service_learning"
+                                  ? "Service"
+                                  : cls.framework === "pyp_exhibition"
+                                  ? "PYP"
+                                  : "Project"}
+                              </span>
+                            )}
                           </div>
                           {/* Stats row */}
                           <div className="flex items-center gap-3 mt-0.5">
@@ -386,6 +494,25 @@ export default function ClassesPage() {
                           {archiving === cls.id ? "..." : "Archive"}
                         </button>
 
+                        {/* Delete */}
+                        <button
+                          onClick={() => {
+                            setDeleteConfirm({ classId: cls.id, name: cls.name });
+                            setDeleteConfirmInput("");
+                          }}
+                          disabled={deleting === cls.id}
+                          className="inline-flex items-center gap-1.5 text-xs font-semibold px-3.5 py-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 transition"
+                          title="Delete this class permanently"
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="3 6 5 4 20 4 22 6" />
+                            <line x1="19" y1="8" x2="5" y2="8" />
+                            <line x1="10" y1="12" x2="10" y2="19" />
+                            <line x1="14" y1="12" x2="14" y2="19" />
+                          </svg>
+                          {deleting === cls.id ? "..." : "Delete"}
+                        </button>
+
                         {/* Spacer + quick unit count link */}
                         {cls.unitCount > 0 && (
                           <Link
@@ -485,6 +612,23 @@ export default function ClassesPage() {
                             </svg>
                             {archiving === cls.id ? "Restoring..." : "Restore"}
                           </button>
+                          <button
+                            onClick={() => {
+                              setDeleteConfirm({ classId: cls.id, name: cls.name });
+                              setDeleteConfirmInput("");
+                            }}
+                            disabled={deleting === cls.id}
+                            className="inline-flex items-center gap-1.5 text-xs font-semibold px-3.5 py-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300 transition"
+                            title="Delete this class permanently"
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="3 6 5 4 20 4 22 6" />
+                              <line x1="19" y1="8" x2="5" y2="8" />
+                              <line x1="10" y1="12" x2="10" y2="19" />
+                              <line x1="14" y1="12" x2="14" y2="19" />
+                            </svg>
+                            {deleting === cls.id ? "..." : "Delete"}
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -493,6 +637,62 @@ export default function ClassesPage() {
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Delete confirmation modal ── */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" style={{ backdropFilter: "blur(4px)" }}>
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md mx-4 shadow-xl border border-border">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="3 6 5 4 20 4 22 6" />
+                  <line x1="19" y1="8" x2="5" y2="8" />
+                  <line x1="10" y1="12" x2="10" y2="19" />
+                  <line x1="14" y1="12" x2="14" y2="19" />
+                </svg>
+              </div>
+              <h2 className="text-lg font-bold text-text-primary">Delete Class</h2>
+            </div>
+
+            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+              This will permanently delete <span className="font-semibold">{deleteConfirm.name}</span> and all associated data (students, progress, grades). This cannot be undone.
+            </p>
+
+            <div className="mb-4">
+              <label className="text-xs font-semibold text-text-secondary mb-2 block">
+                Type the class name to confirm
+              </label>
+              <input
+                type="text"
+                value={deleteConfirmInput}
+                onChange={(e) => setDeleteConfirmInput(e.target.value)}
+                placeholder={deleteConfirm.name}
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent font-mono"
+                autoFocus
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  setDeleteConfirm(null);
+                  setDeleteConfirmInput("");
+                }}
+                className="flex-1 py-2.5 border border-border rounded-xl text-sm text-text-secondary hover:bg-surface-alt transition font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={deleteClass}
+                disabled={deleteConfirmInput !== deleteConfirm.name || deleting === deleteConfirm.classId}
+                className="flex-1 py-2.5 text-white rounded-xl text-sm font-semibold transition disabled:opacity-40 bg-red-600 hover:bg-red-700"
+              >
+                {deleting === deleteConfirm.classId ? "Deleting..." : "Delete Class"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

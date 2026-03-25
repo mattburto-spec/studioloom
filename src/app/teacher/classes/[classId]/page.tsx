@@ -472,7 +472,7 @@ export default function ClassDetailPage({
     // Build map: student_id → most recent class info (first enrollment per student since ordered desc)
     const lastClassMap = new Map<string, { name: string; id: string }>();
     if (enrollments) {
-      for (const e of enrollments as Array<{ student_id: string; class_id: string; classes: { name: string } | null }>) {
+      for (const e of (enrollments as unknown as Array<{ student_id: string; class_id: string; classes: { name: string } | null }>)) {
         if (!lastClassMap.has(e.student_id) && e.classes) {
           lastClassMap.set(e.student_id, { name: e.classes.name, id: e.class_id });
         }
@@ -1684,11 +1684,11 @@ function UnitsSection({
                       )}
                       {/* Meta row */}
                       <div className="flex items-center gap-3 mt-2 text-xs text-text-tertiary">
-                        {(unit as Record<string, unknown>).grade_level && (
-                          <span>{(unit as Record<string, unknown>).grade_level as string}</span>
+                        {Boolean((unit as unknown as Record<string, unknown>).grade_level) && (
+                          <span>{String((unit as unknown as Record<string, unknown>).grade_level)}</span>
                         )}
-                        {(unit as Record<string, unknown>).estimated_duration && (
-                          <span>{(unit as Record<string, unknown>).estimated_duration as string}</span>
+                        {Boolean((unit as unknown as Record<string, unknown>).estimated_duration) && (
+                          <span>{String((unit as unknown as Record<string, unknown>).estimated_duration)}</span>
                         )}
                       </div>
                     </div>
@@ -1780,7 +1780,8 @@ function UnitsSection({
                   ? new Date(dateStr).toLocaleDateString("en-AU", { month: "short", year: "numeric" })
                   : null;
                 // Count lessons
-                const lessonCount = unit.content_data?.pages?.length || 0;
+                const cd = unit.content_data as Record<string, unknown> | null;
+                const lessonCount = (cd && Array.isArray((cd as { pages?: unknown[] }).pages)) ? (cd as { pages: unknown[] }).pages.length : 0;
 
                 return (
                   <div

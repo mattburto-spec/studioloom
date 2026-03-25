@@ -9,8 +9,8 @@ import { LessonSchedule } from "@/components/teacher/LessonSchedule";
 import type { ScheduleOverrides } from "@/components/teacher/LessonSchedule";
 import type { NMUnitConfig } from "@/lib/nm/constants";
 import { DEFAULT_NM_CONFIG, AGENCY_ELEMENTS } from "@/lib/nm/constants";
-import { getPageList } from "@/lib/unit-adapter";
-import { getPageColor } from "@/lib/constants";
+import { getPageList, isV3 } from "@/lib/unit-adapter";
+import { getPageColor, CRITERIA, GRADING_SCALES, type CriterionKey, type GradingScale } from "@/lib/constants";
 import type { Unit, UnitPage, UnitContentData, Student, StudentProgress } from "@/types";
 import type { AssessmentRecordRow } from "@/types/assessment";
 import { resolveClassUnitContent } from "@/lib/units/resolve-content";
@@ -98,6 +98,19 @@ export default function ClassHubPage({
   // Progress tab state
   const [progressMap, setProgressMap] = useState<StudentProgressMap>({});
   const [progressLoading, setProgressLoading] = useState(false);
+
+  // Grade tab state
+  const [assessments, setAssessments] = useState<Map<string, any>>(new Map());
+  const [assessmentIds, setAssessmentIds] = useState<Map<string, string>>(new Map());
+  const [selectedStudentForGrading, setSelectedStudentForGrading] = useState<string | null>(null);
+  const [currentScores, setCurrentScores] = useState<Map<string, any>>(new Map());
+  const [teacherComments, setTeacherComments] = useState("");
+  const [overallGrade, setOverallGrade] = useState<number | undefined>();
+  const [gradeLoading, setGradeLoading] = useState(false);
+  const [gradeSaving, setGradeSaving] = useState(false);
+  const [gradeSaved, setGradeSaved] = useState(false);
+  const [gradeDirty, setGradeDirty] = useState(false);
+  const [unitCriteriaForGrade, setUnitCriteriaForGrade] = useState<string[]>([]);
   const [progressLoaded, setProgressLoaded] = useState(false);
   const [gradingStatusMap, setGradingStatusMap] = useState<Record<string, GradingStatus>>({});
   const [openStudioStatuses, setOpenStudioStatuses] = useState<Record<string, { unlocked_at: string | null }>>({});
@@ -273,6 +286,84 @@ export default function ClassHubPage({
   }, [activeTab, loading, students, progressLoaded, loadProgressData]);
 
   // -----------------------------------------------------------------------
+  // Load grading data (lazy — only when Grade tab is active)
+  // -----------------------------------------------------------------------
+  const loadGradeData = useCallback(async () => {
+    if (!unit) return;
+    setGradeLoading(true);
+
+    try {
+      // Extract criteria from unit pages
+      const criteria: string[] = [];
+      if (unit && isV3(unit.content_data)) {
+        const uniqueCriteria = new Set<string>();
+        unitPages.forEach((p) => {
+          (p.content?.sections || []).forEach((s) => {
+            (s.criterionTags || []).forEach((t) => uniqueCriteria.add(t));
+          });
+        });
+        criteria.push(...Array.from(uniqueCriteria));
+      } else {
+        const uniqueCriteria = new Set<string>();
+        unitPages.filter((p) => p.type === "strand" && p.criterion).forEach((p) => {
+          if (p.criterion) uniqueCriteria.add(p.criterion);
+        });
+        criteria.push(...Array.from(uniqueCriteria));
+      }
+      setUnitCriteriaForGrade(criteria);
+
+      // Fetch assessments
+      const assessRes = await fetch(`/api/teacher/assessments?classId=${classId}&unitId=${unitId}`);
+      if (assessRes.ok) {
+        const { assessments: rows } = (await assessRes.json()) as { assessments: AssessmentRecordRow[] };
+        const assessMap = new Map<string, any>();
+        const idMap = new Map<string, string>();
+        for (const row of rows) {
+          assessMap.set(row.student_id, row.data);
+          idMap.set(row.student_id, row.id);
+        }
+        setAssessments(assessMap);
+        setAssessmentIds(idMap);
+      }
+
+      // Auto-select first student if not already selected
+      if (!selectedStudentForGrading && students.length > 0) {
+        setSelectedStudentForGrading(students[0].id);
+      }
+    } catch {
+      // silently fail
+    } finally {
+      setGradeLoading(false);
+    }
+  }, [unit, unitId, classId, unitPages, students, selectedStudentForGrading]);
+
+  useEffect(() => {
+    if (activeTab === "grade" && !loading && unit && !gradeLoading && unitPages.length > 0) {
+      loadGradeData();
+    }
+  }, [activeTab, loading, unit, gradeLoading, unitPages, loadGradeData]);
+
+  // Load assessment form when selected student changes
+  useEffect(() => {
+    if (!selectedStudentForGrading) return;
+    const existing = assessments.get(selectedStudentForGrading);
+    if (existing) {
+      const scoreMap = new Map<string, any>();
+      for (const cs of existing.criterion_scores || []) {
+        scoreMap.set(cs.criterion_key, cs);
+      }
+      setCurrentScores(scoreMap);
+      setOverallGrade(existing.overall_grade);
+      setTeacherComments(existing.teacher_comments || "");
+    } else {
+      setCurrentScores(new Map());
+      setOverallGrade(undefined);
+      setTeacherComments("");
+    }
+    setGradeDirty(false);
+  }, [selectedStudentForGrading, assessments]);
+
+  // -----------------------------------------------------------------------
   // Schedule loading (for Settings tab)
   // -----------------------------------------------------------------------
   useEffect(() => {
@@ -371,6 +462,83 @@ export default function ClassHubPage({
 
     setDetailResponses((data?.responses as Record<string, string>) || {});
     setDetailLoading(false);
+  }
+
+  // -----------------------------------------------------------------------
+  // Grade tab helpers
+  // -----------------------------------------------------------------------
+
+  function getCriterionScore(key: string): any {
+    return currentScores.get(key) || { criterion_key: key, level: 0 };
+  }
+
+  function updateCriterionScore(key: string, updates: any) {
+    setCurrentScores((prev) => {
+      const next = new Map(prev);
+      const existing = next.get(key) || { criterion_key: key, level: 0 };
+      next.set(key, { ...existing, ...updates });
+      return next;
+    });
+    setGradeDirty(true);
+  }
+
+  function getGradeStatus(studentId: string): GradingStatus {
+    const a = assessments.get(studentId);
+    if (!a) return "ungraded";
+    return a.is_draft ? "draft" : "published";
+  }
+
+  async function saveGradeAssessment(isDraft: boolean) {
+    if (!selectedStudentForGrading) return;
+    setGradeSaving(true);
+
+    const record = {
+      id: assessmentIds.get(selectedStudentForGrading) || crypto.randomUUID(),
+      student_id: selectedStudentForGrading,
+      unit_id: unitId,
+      class_id: classId,
+      teacher_id: "",
+      criterion_scores: Array.from(currentScores.values()).filter((cs) => cs.level > 0),
+      overall_grade: overallGrade,
+      teacher_comments: teacherComments || undefined,
+      assessed_at: new Date().toISOString(),
+      is_draft: isDraft,
+    };
+
+    try {
+      const res = await fetch("/api/teacher/assessments", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          student_id: selectedStudentForGrading,
+          unit_id: unitId,
+          class_id: classId,
+          data: record,
+          is_draft: isDraft,
+        }),
+      });
+
+      if (res.ok) {
+        const { assessment } = await res.json();
+        setAssessments((prev) => {
+          const next = new Map(prev);
+          next.set(selectedStudentForGrading, assessment.data);
+          return next;
+        });
+        setAssessmentIds((prev) => {
+          const next = new Map(prev);
+          next.set(selectedStudentForGrading, assessment.id);
+          return next;
+        });
+        setGradeDirty(false);
+        setGradeSaved(true);
+        setTimeout(() => setGradeSaved(false), 2000);
+      }
+    } catch {
+      // silently fail
+    }
+
+    setGradeSaving(false);
   }
 
   // -----------------------------------------------------------------------
@@ -546,7 +714,8 @@ export default function ClassHubPage({
                                 >
                                   {studentName}
                                   {(() => {
-                                    const ylNum = getYearLevelNumber(student.graduation_year ?? null);
+                                    const gy = student.graduation_year;
+                                    const ylNum = getYearLevelNumber(typeof gy === 'number' ? gy : gy ? parseInt(gy, 10) || null : null);
                                     return ylNum ? <span className="text-[9px] font-bold text-indigo-400" title={`Year ${ylNum}`}>{ylNum}</span> : null;
                                   })()}
                                   {gradingStatusMap[student.id] === "published" && (
@@ -728,24 +897,227 @@ export default function ClassHubPage({
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {activeTab === "grade" && (
         <div className="space-y-4">
-          <div className="bg-white rounded-xl border border-border p-6 text-center">
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-3">
-              <path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
-            <h3 className="font-semibold text-text-primary mb-1">Grading</h3>
-            <p className="text-sm text-text-secondary mb-4">
-              Review student submissions and assess against MYP criteria.
-            </p>
-            <Link
-              href={`/teacher/classes/${classId}/grading/${unitId}`}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-purple-600 text-white font-semibold text-sm hover:bg-purple-700 transition"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
-              </svg>
-              Open Grading View
-            </Link>
-          </div>
+          {gradeLoading ? (
+            <div className="bg-white rounded-xl border border-border p-6 animate-pulse">
+              <div className="h-40 bg-gray-200 rounded" />
+            </div>
+          ) : students.length === 0 ? (
+            <div className="bg-white rounded-xl border border-border p-6 text-center">
+              <p className="text-text-secondary">No students in this class yet.</p>
+            </div>
+          ) : unitCriteriaForGrade.length === 0 ? (
+            <div className="bg-white rounded-xl border border-border p-6 text-center">
+              <p className="text-text-secondary mb-3">No criteria found in this unit.</p>
+              <Link href={`/teacher/classes/${classId}/grading/${unitId}`} className="text-accent-blue text-sm font-medium hover:underline">
+                Open Full Grading View →
+              </Link>
+            </div>
+          ) : (
+            <>
+              {/* Student List & Grading Form */}
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+                {/* Student List Sidebar */}
+                <div className="bg-white rounded-xl border border-border overflow-hidden lg:col-span-1">
+                  <div className="px-4 py-3 border-b border-border">
+                    <h3 className="text-xs font-semibold text-text-secondary uppercase">Students</h3>
+                  </div>
+                  <div className="max-h-[60vh] overflow-y-auto divide-y divide-border/50">
+                    {students.map((s) => {
+                      const status = getGradeStatus(s.id);
+                      const isSelected = s.id === selectedStudentForGrading;
+                      const statusColors = {
+                        "ungraded": "bg-gray-50 text-gray-600",
+                        "draft": "bg-blue-50 text-blue-600",
+                        "published": "bg-green-50 text-green-600",
+                      };
+                      return (
+                        <button
+                          key={s.id}
+                          onClick={() => setSelectedStudentForGrading(s.id)}
+                          className={`w-full text-left px-3 py-2.5 flex items-center gap-2 transition ${
+                            isSelected
+                              ? "bg-accent-blue/5 border-l-2 border-accent-blue"
+                              : "hover:bg-surface-alt border-l-2 border-transparent"
+                          }`}
+                        >
+                          <span className="text-xs font-medium text-text-primary truncate flex-1">
+                            {s.display_name || s.username}
+                          </span>
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold whitespace-nowrap ${statusColors[status]}`}>
+                            {status === "ungraded" ? "—" : status === "draft" ? "Draft" : "✓"}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Grading Form */}
+                <div className="bg-white rounded-xl border border-border p-5 lg:col-span-3 space-y-4">
+                  {selectedStudentForGrading && (() => {
+                    const student = students.find((s) => s.id === selectedStudentForGrading);
+                    const scale = GRADING_SCALES.IB_MYP;
+                    return (
+                      <>
+                        {/* Student header */}
+                        <div className="flex items-center justify-between pb-3 border-b border-border">
+                          <h3 className="text-sm font-semibold text-text-primary">
+                            {student?.display_name || student?.username}
+                          </h3>
+                          {gradeSaved && (
+                            <span className="text-xs text-accent-green font-medium">✓ Saved</span>
+                          )}
+                        </div>
+
+                        {/* Criteria sections */}
+                        <div className="space-y-4">
+                          {unitCriteriaForGrade.map((criterionKey) => {
+                            const criterion = CRITERIA[criterionKey as CriterionKey];
+                            if (!criterion) return null;
+                            const score = getCriterionScore(criterionKey);
+
+                            return (
+                              <div key={criterionKey} className="p-3 bg-gray-50 rounded-lg space-y-2">
+                                {/* Criterion header */}
+                                <div className="flex items-center gap-2">
+                                  <span
+                                    className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0"
+                                    style={{ backgroundColor: criterion.color }}
+                                  >
+                                    {criterionKey}
+                                  </span>
+                                  <span className="text-xs font-semibold text-text-primary flex-1">
+                                    {criterion.name}
+                                  </span>
+                                  {score.level > 0 && (
+                                    <span className="text-xs font-bold" style={{ color: criterion.color }}>
+                                      {scale.formatDisplay(score.level)}
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* Level picker */}
+                                <div className="flex gap-1">
+                                  {[1, 2, 3, 4, 5, 6, 7, 8].map((v) => {
+                                    const isSelected = v === score.level;
+                                    return (
+                                      <button
+                                        key={v}
+                                        onClick={() => updateCriterionScore(criterionKey, { level: v })}
+                                        className="w-7 h-7 rounded-lg font-semibold text-xs transition text-white"
+                                        style={{
+                                          backgroundColor: isSelected ? criterion.color : "#e5e7eb",
+                                          color: isSelected ? "white" : "#9ca3af",
+                                        }}
+                                      >
+                                        {v}
+                                      </button>
+                                    );
+                                  })}
+                                  {score.level > 0 && (
+                                    <button
+                                      onClick={() => updateCriterionScore(criterionKey, { level: 0 })}
+                                      className="w-7 h-7 rounded-lg bg-gray-200 text-gray-400 hover:bg-gray-300 transition text-xs font-semibold"
+                                    >
+                                      ✕
+                                    </button>
+                                  )}
+                                </div>
+
+                                {/* Criterion comment */}
+                                <textarea
+                                  value={score.comment || ""}
+                                  onChange={(e) => updateCriterionScore(criterionKey, { comment: e.target.value })}
+                                  placeholder={`Comment on ${criterionKey}...`}
+                                  rows={1}
+                                  className="w-full px-2 py-1.5 border border-border rounded text-xs focus:outline-none focus:ring-2 focus:ring-accent-blue/30 resize-none"
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Overall assessment */}
+                        <div className="p-3 bg-indigo-50 rounded-lg space-y-2 border border-indigo-200">
+                          <label className="block text-xs font-semibold text-indigo-900">
+                            Overall Grade
+                          </label>
+                          <div className="flex gap-1">
+                            {[1, 2, 3, 4, 5, 6, 7, 8].map((v) => {
+                              const isSelected = v === overallGrade;
+                              return (
+                                <button
+                                  key={v}
+                                  onClick={() => setOverallGrade(v)}
+                                  className="flex-1 py-1.5 rounded font-semibold text-xs transition"
+                                  style={{
+                                    backgroundColor: isSelected ? "#6366f1" : "#e0e7ff",
+                                    color: isSelected ? "white" : "#6b7280",
+                                  }}
+                                >
+                                  {v}
+                                </button>
+                              );
+                            })}
+                            {overallGrade !== undefined && (
+                              <button
+                                onClick={() => setOverallGrade(undefined)}
+                                className="px-2 py-1.5 rounded bg-gray-200 text-gray-400 hover:bg-gray-300 transition text-xs font-semibold"
+                              >
+                                ✕
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Teacher comments */}
+                        <div>
+                          <label className="block text-xs font-semibold text-text-secondary mb-1">
+                            Teacher Comments
+                          </label>
+                          <textarea
+                            value={teacherComments}
+                            onChange={(e) => { setTeacherComments(e.target.value); setGradeDirty(true); }}
+                            placeholder="Overall feedback and next steps..."
+                            rows={3}
+                            className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-accent-blue/30 resize-none"
+                          />
+                        </div>
+
+                        {/* Action buttons */}
+                        <div className="flex gap-2 pt-2">
+                          <button
+                            onClick={() => saveGradeAssessment(true)}
+                            disabled={gradeSaving || !gradeDirty}
+                            className="flex-1 px-4 py-2 rounded-lg bg-blue-50 text-blue-700 font-medium text-sm hover:bg-blue-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {gradeSaving ? "Saving..." : "Save as Draft"}
+                          </button>
+                          <button
+                            onClick={() => saveGradeAssessment(false)}
+                            disabled={gradeSaving || !gradeDirty}
+                            className="flex-1 px-4 py-2 rounded-lg bg-purple-600 text-white font-medium text-sm hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {gradeSaving ? "Saving..." : "Publish"}
+                          </button>
+                        </div>
+
+                        {/* Link to full grading view */}
+                        <div className="pt-2 border-t border-border">
+                          <Link
+                            href={`/teacher/classes/${classId}/grading/${unitId}`}
+                            className="text-accent-blue text-xs font-medium hover:underline inline-flex items-center gap-1"
+                          >
+                            ↗ Open Full Grading View
+                          </Link>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+            </>
+          )}
         </div>
       )}
 
