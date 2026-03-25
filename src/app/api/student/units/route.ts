@@ -54,6 +54,16 @@ export async function GET(request: NextRequest) {
 
   const classIdArray = Array.from(classIds);
 
+  // Get class names + subjects for display
+  const { data: classRows } = await supabase
+    .from("classes")
+    .select("id, name, subject, grade_level")
+    .in("id", classIdArray);
+  const classMap = new Map<string, { name: string; subject: string | null; grade_level: string | null }>();
+  for (const c of classRows || []) {
+    classMap.set(c.id, { name: c.name, subject: c.subject, grade_level: c.grade_level });
+  }
+
   // Get active units from ALL enrolled classes
   let classUnits: Record<string, unknown>[] | null = null;
 
@@ -118,12 +128,19 @@ export async function GET(request: NextRequest) {
       cu?.content_data as import("@/types").UnitContentData | null | undefined
     );
 
+    const classId = cu?.class_id as string | undefined;
+    const classData = classId ? classMap.get(classId) : undefined;
+
     return {
       ...unit,
       content_data: resolvedContentData,
       progress: unitProgress,
       locked_pages: lockedPages,
       page_due_dates: (cu?.page_due_dates as Record<string, string>) || {},
+      class_id: classId || null,
+      class_name: classData?.name || null,
+      class_subject: classData?.subject || null,
+      class_grade_level: classData?.grade_level || null,
     };
   });
 

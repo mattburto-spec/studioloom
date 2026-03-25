@@ -27,6 +27,10 @@ interface ToolSession {
 interface UnitWithProgress extends Unit {
   progress: StudentProgress[];
   page_due_dates?: Record<string, string>;
+  class_id?: string | null;
+  class_name?: string | null;
+  class_subject?: string | null;
+  class_grade_level?: string | null;
 }
 
 export default function StudentDashboard() {
@@ -259,6 +263,54 @@ export default function StudentDashboard() {
     return <BadgeIcon iconName={icon} size={20} color={color} />;
   }
 
+  // Subject/class → gradient color mapping for card headers
+  const SUBJECT_GRADIENTS: Record<string, string> = {
+    // MYP subject groups
+    "design": "from-teal-500 to-emerald-400",
+    "product design": "from-teal-500 to-emerald-400",
+    "digital design": "from-cyan-500 to-blue-400",
+    "service": "from-pink-400 to-rose-300",
+    "service as action": "from-pink-400 to-rose-300",
+    "community": "from-pink-400 to-rose-300",
+    "personal project": "from-violet-500 to-purple-400",
+    "pp": "from-violet-500 to-purple-400",
+    "pypx": "from-amber-400 to-yellow-300",
+    "exhibition": "from-amber-400 to-yellow-300",
+    // General subjects
+    "technology": "from-sky-500 to-blue-400",
+    "art": "from-fuchsia-500 to-pink-400",
+    "science": "from-green-500 to-emerald-400",
+    "math": "from-orange-500 to-amber-400",
+    "english": "from-red-400 to-rose-300",
+  };
+
+  function getSubjectGradient(unit: UnitWithProgress): string {
+    // Try class subject first
+    const subject = unit.class_subject?.toLowerCase()?.trim();
+    if (subject) {
+      for (const [key, gradient] of Object.entries(SUBJECT_GRADIENTS)) {
+        if (subject.includes(key)) return gradient;
+      }
+    }
+    // Deterministic fallback based on unit ID
+    const fallbacks = [
+      "from-teal-500 to-emerald-400",
+      "from-violet-500 to-purple-400",
+      "from-pink-400 to-rose-300",
+      "from-sky-500 to-blue-400",
+      "from-amber-400 to-yellow-300",
+      "from-fuchsia-500 to-pink-400",
+    ];
+    let hash = 0;
+    for (let i = 0; i < unit.id.length; i++) hash = ((hash << 5) - hash + unit.id.charCodeAt(i)) | 0;
+    return fallbacks[Math.abs(hash) % fallbacks.length];
+  }
+
+  function getSubjectLabel(unit: UnitWithProgress): string | null {
+    if (unit.class_subject) return unit.class_subject.toUpperCase();
+    return null;
+  }
+
   return (
     <main className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50">
       {/* Tool Modal */}
@@ -277,10 +329,9 @@ export default function StudentDashboard() {
             <h1 className="text-2xl font-bold text-gray-900">
               {student?.display_name || student?.username}
             </h1>
-            <p className="text-sm text-gray-500">
-              {classInfo?.name || "Your class"}
-              {nextClass && (
-                <span className="ml-2 inline-flex items-center gap-1 text-blue-600 font-medium">
+            {nextClass && (
+              <p className="text-sm text-gray-500">
+                <span className="inline-flex items-center gap-1 text-blue-600 font-medium">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
                     <line x1="16" y1="2" x2="16" y2="6" />
@@ -290,10 +341,9 @@ export default function StudentDashboard() {
                   Next: {nextClass.short}
                   {nextClass.room && <span className="text-gray-400 font-normal"> &middot; {nextClass.room}</span>}
                 </span>
-              )}
-            </p>
+              </p>
+            )}
           </div>
-          {/* Earned badges moved to right column sidebar */}
         </div>
 
         {loading ? (
@@ -304,9 +354,9 @@ export default function StudentDashboard() {
         ) : (
           <>
             {/* ============ Two-Column Layout ============ */}
-            <div className={`grid grid-cols-1 ${pendingBadges.length > 0 || earnedBadges.length > 0 ? "lg:grid-cols-2" : ""} gap-5`}>
-              {/* ── Left Column: Unit Cards ── */}
-              <div className="space-y-4">
+            <div className="space-y-5">
+              {/* ── Unit Cards ── */}
+              <div>
                 {units.length === 0 ? (
                   <div className="bg-white rounded-2xl p-16 text-center border border-gray-200/60 shadow-sm">
                     <div className="w-14 h-14 rounded-2xl bg-purple-100 flex items-center justify-center mx-auto mb-4">
@@ -318,173 +368,90 @@ export default function StudentDashboard() {
                     <p className="text-gray-500 text-sm">Your teacher will assign units for you to work on.</p>
                   </div>
                 ) : (
-                  <div className="space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {units.map((unit) => {
                       const unitPages = getPageList(unit.content_data);
                       const firstPageId = unitPages.length > 0 ? unitPages[0].id : null;
                       const unitLink = firstPageId ? `/unit/${unit.id}/${firstPageId}` : `/unit/${unit.id}/narrative`;
                       const percent = getCompletionPercent(unit, unit.progress);
-                      const criterionKeys = [...new Set(
-                        unitPages
-                          .filter((p) => p.type === "strand" && p.criterion)
-                          .map((p) => p.criterion as CriterionKey)
-                      )];
                       const hasStudio = openStudioUnits.has(unit.id);
                       const isComplete = percent === 100;
-                      const isInProgress = inProgressUnit?.id === unit.id;
+                      const gradient = getSubjectGradient(unit);
+                      const subjectLabel = getSubjectLabel(unit);
 
                       return (
                         <div key={unit.id} className="flex flex-col">
-                        <div
-                          className={`rounded-2xl overflow-hidden bg-white shadow-sm hover:shadow-md transition-all duration-200 flex flex-col ${
-                            isInProgress ? "ring-2 ring-purple-400 ring-offset-1" : "border border-gray-200/60"
+                        <Link
+                          href={unitLink}
+                          className={`rounded-2xl overflow-hidden bg-white shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 flex flex-col ${
+                            "border border-gray-200/60"
                           }`}
                         >
-                          {/* Thumbnail + progress overlay */}
-                          <Link href={unitLink} className="relative group block">
-                            <div className="w-full h-36 overflow-hidden bg-gradient-to-br from-purple-200 to-blue-200">
-                              <div className="group-hover:scale-105 transition-transform duration-300 w-full h-full">
+                          {/* Colored gradient header with subject label + progress ring */}
+                          <div className={`relative bg-gradient-to-r ${gradient} px-4 py-5`}>
+                            {subjectLabel && (
+                              <span className="text-white/90 text-[11px] font-bold tracking-wider uppercase">
+                                {subjectLabel}
+                              </span>
+                            )}
+                            {/* Thumbnail overlay (subtle) */}
+                            {unit.thumbnail_url && (
+                              <div className="absolute inset-0 opacity-20">
                                 <UnitThumbnail
                                   thumbnailUrl={unit.thumbnail_url}
                                   title={unit.title}
                                   className="w-full h-full object-cover"
                                 />
                               </div>
-                            </div>
-                            {/* Progress ring overlay */}
-                            <div className="absolute top-2.5 right-2.5 bg-white/90 backdrop-blur-sm rounded-full p-0.5 shadow-md">
-                              <div className="relative" style={{ width: 40, height: 40 }}>
-                                <svg width="40" height="40" className="transform -rotate-90">
-                                  <circle cx="20" cy="20" r="16" fill="none" stroke="#e5e7eb" strokeWidth="3" />
+                            )}
+                            {/* Progress ring */}
+                            <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm rounded-full p-0.5 shadow-md">
+                              <div className="relative" style={{ width: 36, height: 36 }}>
+                                <svg width="36" height="36" className="transform -rotate-90">
+                                  <circle cx="18" cy="18" r="14" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="2.5" />
                                   <circle
-                                    cx="20" cy="20" r="16" fill="none"
-                                    stroke={isComplete ? "#10b981" : "#7C3AED"}
-                                    strokeWidth="3"
-                                    strokeDasharray={2 * Math.PI * 16}
-                                    strokeDashoffset={2 * Math.PI * 16 * (1 - percent / 100)}
+                                    cx="18" cy="18" r="14" fill="none"
+                                    stroke={isComplete ? "#10b981" : "#fff"}
+                                    strokeWidth="2.5"
+                                    strokeDasharray={2 * Math.PI * 14}
+                                    strokeDashoffset={2 * Math.PI * 14 * (1 - percent / 100)}
                                     strokeLinecap="round"
                                   />
                                 </svg>
                                 <div className="absolute inset-0 flex items-center justify-center">
                                   {isComplete ? (
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="#10b981">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="#10b981">
                                       <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
                                     </svg>
                                   ) : (
-                                    <span className="text-[10px] font-bold text-purple-600">{percent}%</span>
+                                    <span className="text-[10px] font-bold text-gray-700">{percent}%</span>
                                   )}
                                 </div>
                               </div>
                             </div>
-                            {/* "Continue" label for in-progress */}
-                            {isInProgress && (
-                              <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-purple-600/80 to-transparent px-4 py-2">
-                                <span className="text-white text-xs font-semibold">Continue where you left off &rarr;</span>
-                              </div>
-                            )}
-                          </Link>
+                          </div>
 
                           {/* Content */}
                           <div className="p-4 flex-1 flex flex-col">
-                            <Link href={unitLink} className="group">
-                              <h2 className="font-bold text-base text-gray-900 group-hover:text-purple-600 transition mb-1 line-clamp-1">
-                                {unit.title}
-                              </h2>
-                            </Link>
-
-                            {/* Criterion progress bars */}
-                            <div className="flex gap-1 mb-3">
-                              {criterionKeys.length > 0
-                                ? criterionKeys.map((key) => {
-                                    const cp = getCriterionProgress(unitPages, unit.progress, key);
-                                    if (!cp) return null;
-                                    const fillPercent = (cp.completed / cp.total) * 100;
-                                    return (
-                                      <div
-                                        key={key}
-                                        className="flex-1 h-1.5 rounded-full bg-gray-100 overflow-hidden"
-                                        title={`Criterion ${key}: ${cp.completed}/${cp.total}`}
-                                      >
-                                        <div
-                                          className="h-full rounded-full transition-all duration-500"
-                                          style={{ width: `${fillPercent}%`, backgroundColor: CRITERIA[key].color }}
-                                        />
-                                      </div>
-                                    );
-                                  })
-                                : (
-                                  <div className="flex-1 h-1.5 rounded-full bg-gray-100 overflow-hidden">
-                                    <div
-                                      className="h-full rounded-full"
-                                      style={{
-                                        width: `${percent}%`,
-                                        background: "linear-gradient(90deg, #7B2FF2, #A855F7)",
-                                      }}
-                                    />
-                                  </div>
-                                )}
-                            </div>
-
-                            {/* Spacer */}
-                            <div className="flex-1" />
-
-                            {/* Quick-access buttons */}
-                            <div className="flex gap-2 mt-1">
-                              <Link
-                                href={unitLink}
-                                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-all ${
-                                  isComplete
-                                    ? "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                                    : "bg-purple-600 text-white hover:bg-purple-700"
-                                }`}
-                              >
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                  <polygon points="5 3 19 12 5 21 5 3" />
-                                </svg>
-                                {percent === 0 ? "Start" : isComplete ? "Review" : "Continue"}
-                              </Link>
-                              <Link
-                                href={`/unit/${unit.id}/portfolio`}
-                                className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 transition-all border border-blue-200/60"
-                                title="Portfolio"
-                              >
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
-                                  <line x1="8" y1="21" x2="16" y2="21" />
-                                  <line x1="12" y1="17" x2="12" y2="21" />
-                                </svg>
-                                <span className="hidden sm:inline">Portfolio</span>
-                              </Link>
-                              <Link
-                                href={`/unit/${unit.id}/grades`}
-                                className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-all border border-emerald-200/60"
-                                title="Grades"
-                              >
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                                  <polyline points="22 4 12 14.01 9 11.01" />
-                                </svg>
-                                <span className="hidden sm:inline">Grades</span>
-                              </Link>
-                            </div>
-
+                            <h2 className="font-bold text-base text-gray-900 mb-1 line-clamp-2">
+                              {unit.title}
+                            </h2>
+                            <p className="text-sm text-gray-500">
+                              {percent === 0 ? "Start this unit" : isComplete ? "Complete" : "Continue where you left off"} &rarr;
+                            </p>
                           </div>
-                          {/* Open Studio — flush at bottom of card */}
+
+                          {/* Open Studio strip */}
                           {hasStudio && (
-                            <Link
-                              href={`/open-studio/${unit.id}`}
-                              className="block mt-auto"
-                            >
-                              <div className="bg-violet-600 hover:bg-violet-700 transition-all text-white text-xs font-semibold flex items-center justify-center gap-1.5 py-2">
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                                  <path d="M7 11V7a5 5 0 0 1 10 0" />
-                                </svg>
-                                Open Studio
-                              </div>
-                            </Link>
+                            <div className="bg-violet-600 text-white text-[11px] font-semibold flex items-center justify-center gap-1.5 py-1.5">
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                                <path d="M7 11V7a5 5 0 0 1 10 0" />
+                              </svg>
+                              Open Studio
+                            </div>
                           )}
-                        </div>
+                        </Link>
                         </div>
                       );
                     })}
@@ -492,9 +459,9 @@ export default function StudentDashboard() {
                 )}
               </div>
 
-              {/* ── Right Column: Safety & Info ── */}
+              {/* ── Safety Badges Section ── */}
               {(pendingBadges.length > 0 || earnedBadges.length > 0) && (
-                <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {/* Pending Safety Tests */}
                   {pendingBadges.length > 0 && (
                     <div>
