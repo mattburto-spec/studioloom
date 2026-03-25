@@ -497,7 +497,7 @@ export default function StudentDashboard() {
                 <div className="space-y-4">
                   {/* Pending Safety Tests */}
                   {pendingBadges.length > 0 && (
-                    <div className="lg:sticky lg:top-4">
+                    <div>
                       <div className="rounded-2xl border-2 border-amber-300 bg-amber-50 overflow-hidden shadow-sm">
                         <div className="px-4 py-2.5 bg-amber-100/80 border-b border-amber-200 flex items-center gap-2">
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -573,8 +573,8 @@ export default function StudentDashboard() {
                           {earnedBadges.length}
                         </span>
                       </div>
-                      <div className="p-3">
-                        <div className="flex flex-wrap gap-3 justify-center">
+                      <div className="p-3 overflow-hidden">
+                        <div className="flex flex-wrap gap-4 justify-center py-1">
                           {earnedBadges.map((b) => (
                             <Link
                               key={b.badge_id}
