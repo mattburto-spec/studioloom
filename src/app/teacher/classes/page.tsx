@@ -4,21 +4,8 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
-// ── Class colour palette (same as dashboard) ──
-const CLASS_COLORS = [
-  { fill: "#3B82F6", gradient: "linear-gradient(135deg, #3B82F6, #2563EB)", light: "#EFF6FF", text: "#1E40AF" },
-  { fill: "#10B981", gradient: "linear-gradient(135deg, #10B981, #059669)", light: "#ECFDF5", text: "#065F46" },
-  { fill: "#F59E0B", gradient: "linear-gradient(135deg, #F59E0B, #D97706)", light: "#FFFBEB", text: "#92400E" },
-  { fill: "#8B5CF6", gradient: "linear-gradient(135deg, #8B5CF6, #7C3AED)", light: "#F5F3FF", text: "#5B21B6" },
-  { fill: "#EC4899", gradient: "linear-gradient(135deg, #EC4899, #DB2777)", light: "#FDF2F8", text: "#9D174D" },
-  { fill: "#06B6D4", gradient: "linear-gradient(135deg, #06B6D4, #0891B2)", light: "#ECFEFF", text: "#155E75" },
-  { fill: "#F97316", gradient: "linear-gradient(135deg, #F97316, #EA580C)", light: "#FFF7ED", text: "#9A3412" },
-  { fill: "#6366F1", gradient: "linear-gradient(135deg, #6366F1, #4F46E5)", light: "#EEF2FF", text: "#3730A3" },
-];
-
-function getClassColor(idx: number) {
-  return CLASS_COLORS[idx % CLASS_COLORS.length];
-}
+// ── Class colour palette + mesh gradients (shared) ──
+import { CLASS_COLORS, getClassColor, getMeshGradient } from "@/lib/ui/mesh-gradient";
 
 interface ClassRow {
   id: string;
@@ -314,7 +301,7 @@ export default function ClassesPage() {
                   {/* ── Colour sidebar ── */}
                   <div
                     className="w-2 shrink-0"
-                    style={{ background: color.gradient }}
+                    style={{ background: color.fill }}
                   />
 
                   {/* ── Card content ── */}
@@ -323,8 +310,8 @@ export default function ClassesPage() {
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-center gap-3 min-w-0">
                         <div
-                          className="w-11 h-11 rounded-xl flex items-center justify-center text-white font-extrabold text-sm shrink-0 shadow-sm"
-                          style={{ background: color.gradient }}
+                          className="w-11 h-11 rounded-xl flex items-center justify-center text-white font-extrabold text-sm shrink-0 shadow-sm overflow-hidden"
+                          style={{ background: getMeshGradient(idx).background }}
                         >
                           {cls.name.slice(0, 2).toUpperCase()}
                         </div>

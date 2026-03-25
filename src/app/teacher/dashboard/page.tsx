@@ -246,21 +246,8 @@ function formatStuckTime(hours: number): string {
 // Two-Column Dashboard — Sidebar (1/3) + Class Cards (2/3)
 // ---------------------------------------------------------------------------
 
-// Class color palette — deterministic per class index
-const CLASS_COLORS = [
-  { fill: "#3B82F6", light: "#EFF6FF", text: "#1E40AF" },  // blue
-  { fill: "#10B981", light: "#ECFDF5", text: "#065F46" },  // emerald
-  { fill: "#F59E0B", light: "#FFFBEB", text: "#92400E" },  // amber
-  { fill: "#8B5CF6", light: "#F5F3FF", text: "#5B21B6" },  // purple
-  { fill: "#EC4899", light: "#FDF2F8", text: "#9D174D" },  // pink
-  { fill: "#06B6D4", light: "#ECFEFF", text: "#155E75" },  // cyan
-  { fill: "#F97316", light: "#FFF7ED", text: "#9A3412" },  // orange
-  { fill: "#6366F1", light: "#EEF2FF", text: "#3730A3" },  // indigo
-];
-
-function getClassColor(classIdx: number) {
-  return CLASS_COLORS[classIdx % CLASS_COLORS.length];
-}
+// Class color palette + mesh gradients
+import { CLASS_COLORS, getClassColor, getMeshGradient } from "@/lib/ui/mesh-gradient";
 
 interface ScheduleEntry {
   date: string;
@@ -485,8 +472,6 @@ function TwoColumnDashboard({
         ) : (
           classCards.map((u) => {
             const c = getClassColor(u.classIdx);
-            // Derive a darker shade for gradient end
-            const darkerFill = c.fill + "CC";
             return (
               <div
                 key={`card-${u.unitId}-${u.classId}`}
@@ -498,15 +483,11 @@ function TwoColumnDashboard({
                     href={`/teacher/units/${u.unitId}/class/${u.classId}`}
                     className="w-44 shrink-0 flex flex-col items-center justify-center py-6 text-white relative overflow-hidden hover:opacity-90 transition-opacity"
                     style={{
-                      background: `linear-gradient(160deg, ${c.fill}, ${darkerFill})`,
+                      background: getMeshGradient(u.classIdx).background,
                     }}
                   >
-                    {/* Decorative circles */}
-                    <div className="absolute -top-6 -left-6 w-24 h-24 rounded-full opacity-10" style={{ background: "#fff" }} />
-                    <div className="absolute -bottom-4 -right-4 w-20 h-20 rounded-full opacity-10" style={{ background: "#fff" }} />
-                    <div className="absolute top-3 right-3 w-8 h-8 rounded-full opacity-5" style={{ background: "#fff" }} />
-                    <p className="text-lg font-extrabold leading-tight text-center px-3 relative z-10 drop-shadow-sm">{u.className}</p>
-                    <p className="text-xs opacity-75 mt-1.5 relative z-10 font-medium">{u.studentCount} student{u.studentCount !== 1 ? "s" : ""}</p>
+                    <p className="text-lg font-extrabold leading-tight text-center px-3 relative z-10 drop-shadow-sm" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.15)" }}>{u.className}</p>
+                    <p className="text-xs opacity-80 mt-1.5 relative z-10 font-medium" style={{ textShadow: "0 1px 2px rgba(0,0,0,0.1)" }}>{u.studentCount} student{u.studentCount !== 1 ? "s" : ""}</p>
                   </Link>
 
                   <div className="flex-1 px-5 py-4 flex flex-col">
