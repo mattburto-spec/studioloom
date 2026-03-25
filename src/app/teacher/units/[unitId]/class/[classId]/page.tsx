@@ -27,13 +27,14 @@ import StudentDrawer from "@/components/teacher/class-hub/StudentDrawer";
 // URL: /teacher/units/[unitId]/class/[classId]
 // ---------------------------------------------------------------------------
 
-type HubTab = "progress" | "grade" | "metrics" | "safety" | "settings";
+type HubTab = "progress" | "grade" | "students" | "metrics" | "badges" | "settings";
 
 const TABS: { id: HubTab; label: string; icon: string }[] = [
   { id: "progress", label: "Progress", icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" },
   { id: "grade", label: "Grade", icon: "M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" },
-  { id: "metrics", label: "Metrics", icon: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" },
-  { id: "safety", label: "Safety", icon: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" },
+  { id: "students", label: "Students", icon: "M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zm13 10v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" },
+  { id: "metrics", label: "New Metrics", icon: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" },
+  { id: "badges", label: "Badges", icon: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" },
   { id: "settings", label: "Settings", icon: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" },
 ];
 
@@ -66,7 +67,8 @@ export default function ClassHubPage({
     if (typeof window !== "undefined") {
       const sp = new URLSearchParams(window.location.search);
       const tab = sp.get("tab");
-      if (tab === "progress" || tab === "grade" || tab === "metrics" || tab === "safety" || tab === "settings") return tab;
+      if (tab === "progress" || tab === "grade" || tab === "students" || tab === "metrics" || tab === "badges" || tab === "settings") return tab;
+      if (tab === "safety") return "badges"; // backward compat
     }
     return "progress";
   });
@@ -572,9 +574,9 @@ export default function ClassHubPage({
       <div className="flex items-center gap-1.5 text-xs text-text-secondary mb-4">
         <Link href="/teacher/dashboard" className="hover:text-text-primary transition">Dashboard</Link>
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6" /></svg>
-        <Link href={`/teacher/units/${unitId}`} className="hover:text-text-primary transition truncate max-w-[200px]">{unit.title}</Link>
+        <Link href={`/teacher/classes/${classId}`} className="hover:text-text-primary transition">{className}</Link>
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6" /></svg>
-        <span className="text-text-primary font-medium">{className}</span>
+        <span className="text-text-primary font-medium truncate max-w-[200px]">{unit.title}</span>
       </div>
 
       {/* Header */}
@@ -585,9 +587,11 @@ export default function ClassHubPage({
               {className.charAt(0).toUpperCase()}
             </div>
             {className}
+            <span className="text-text-tertiary font-normal">·</span>
+            <span className="text-text-secondary font-normal truncate max-w-[300px]">{unit.title}</span>
           </h1>
           <p className="text-sm text-text-secondary mt-0.5">
-            {unit.title} · {students.length} student{students.length !== 1 ? "s" : ""} · {pages.length} page{pages.length !== 1 ? "s" : ""}
+            {students.length} student{students.length !== 1 ? "s" : ""} · {pages.length} page{pages.length !== 1 ? "s" : ""}
           </p>
         </div>
         {/* Quick actions */}
@@ -1122,6 +1126,13 @@ export default function ClassHubPage({
       )}
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* STUDENTS TAB                                                       */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {activeTab === "students" && (
+        <StudentsTab classId={classId} students={students} setStudents={setStudents} />
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* METRICS TAB (NM / Melbourne Metrics)                              */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {activeTab === "metrics" && (
@@ -1160,7 +1171,7 @@ export default function ClassHubPage({
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* SAFETY TAB (Badges & Certifications)                              */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      {activeTab === "safety" && (
+      {activeTab === "badges" && (
         <div className="max-w-3xl space-y-6">
           <CertManager classId={classId} students={students.map((s) => ({ student_id: s.id, display_name: s.display_name, username: s.username }))} />
           <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center justify-between">
@@ -1312,5 +1323,238 @@ export default function ClassHubPage({
         />
       )}
     </main>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Students Tab — manage class enrollment
+// ---------------------------------------------------------------------------
+
+function StudentsTab({
+  classId,
+  students,
+  setStudents,
+}: {
+  classId: string;
+  students: Array<{ id: string; display_name: string; username: string; graduation_year?: string | null }>;
+  setStudents: React.Dispatch<React.SetStateAction<Array<{ id: string; display_name: string; username: string; graduation_year?: string | null }>>>;
+}) {
+  const [addMode, setAddMode] = useState(false);
+  const [newDisplayName, setNewDisplayName] = useState("");
+  const [newUsername, setNewUsername] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editUsername, setEditUsername] = useState("");
+  const [removeConfirmId, setRemoveConfirmId] = useState<string | null>(null);
+  const [removing, setRemoving] = useState(false);
+
+  async function addStudent() {
+    if (!newDisplayName.trim() && !newUsername.trim()) return;
+    setSaving(true);
+    setError("");
+    try {
+      const supabase = createClient();
+      // Create student record
+      const { data: newStudent, error: insertErr } = await supabase
+        .from("students")
+        .insert({
+          display_name: newDisplayName.trim(),
+          username: newUsername.trim() || newDisplayName.trim().toLowerCase().replace(/\s+/g, "_"),
+          class_id: classId,
+        })
+        .select("id, display_name, username, graduation_year")
+        .single();
+
+      if (insertErr) throw insertErr;
+      if (!newStudent) throw new Error("Failed to create student");
+
+      // Enroll in class
+      await supabase.from("class_students").insert({
+        student_id: newStudent.id,
+        class_id: classId,
+        is_active: true,
+      });
+
+      setStudents((prev) => [...prev, newStudent].sort((a, b) => (a.display_name || a.username).localeCompare(b.display_name || b.username)));
+      setNewDisplayName("");
+      setNewUsername("");
+      setAddMode(false);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to add student");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveEdit(studentId: string) {
+    if (!editName.trim() && !editUsername.trim()) return;
+    setSaving(true);
+    try {
+      const supabase = createClient();
+      await supabase.from("students").update({
+        display_name: editName.trim(),
+        username: editUsername.trim(),
+      }).eq("id", studentId);
+
+      setStudents((prev) => prev.map((s) =>
+        s.id === studentId ? { ...s, display_name: editName.trim(), username: editUsername.trim() } : s
+      ));
+      setEditingId(null);
+    } catch {
+      // silent
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function removeStudent(studentId: string) {
+    setRemoving(true);
+    try {
+      const supabase = createClient();
+      // Deactivate enrollment (soft remove, not hard delete)
+      await supabase.from("class_students")
+        .update({ is_active: false })
+        .eq("student_id", studentId)
+        .eq("class_id", classId);
+
+      setStudents((prev) => prev.filter((s) => s.id !== studentId));
+      setRemoveConfirmId(null);
+    } catch {
+      // silent
+    } finally {
+      setRemoving(false);
+    }
+  }
+
+  return (
+    <div className="max-w-2xl">
+      {/* Header with add button */}
+      <div className="flex items-center justify-between mb-4">
+        <p className="text-sm text-text-secondary">{students.length} student{students.length !== 1 ? "s" : ""} enrolled</p>
+        <button
+          onClick={() => { setAddMode(true); setError(""); }}
+          className="px-3 py-1.5 rounded-lg bg-purple-600 text-white text-sm font-medium hover:bg-purple-700 transition flex items-center gap-1.5"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+          Add Student
+        </button>
+      </div>
+
+      {/* Add student form */}
+      {addMode && (
+        <div className="mb-4 bg-purple-50 border border-purple-200 rounded-xl p-4">
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Display Name</label>
+              <input
+                type="text"
+                value={newDisplayName}
+                onChange={(e) => setNewDisplayName(e.target.value)}
+                placeholder="e.g. Sarah Chen"
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                autoFocus
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Username</label>
+              <input
+                type="text"
+                value={newUsername}
+                onChange={(e) => setNewUsername(e.target.value)}
+                placeholder="auto-generated if blank"
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
+            </div>
+          </div>
+          {error && <p className="text-xs text-red-600 mb-2">{error}</p>}
+          <div className="flex gap-2">
+            <button onClick={addStudent} disabled={saving || (!newDisplayName.trim() && !newUsername.trim())}
+              className="px-4 py-1.5 rounded-lg bg-purple-600 text-white text-sm font-medium hover:bg-purple-700 transition disabled:opacity-50">
+              {saving ? "Adding..." : "Add"}
+            </button>
+            <button onClick={() => { setAddMode(false); setError(""); }} className="px-4 py-1.5 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50 transition">
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Student list */}
+      <div className="bg-white rounded-xl border border-gray-200 divide-y divide-gray-100">
+        {students.length === 0 ? (
+          <div className="p-8 text-center text-gray-400">
+            <p className="text-sm">No students in this class yet.</p>
+            <p className="text-xs mt-1">Add students above or share the class code for students to join.</p>
+          </div>
+        ) : (
+          students.map((s) => (
+            <div key={s.id} className="flex items-center gap-3 px-4 py-3 group hover:bg-gray-50 transition">
+              {/* Avatar */}
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-400 to-blue-400 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                {(s.display_name || s.username || "?").charAt(0).toUpperCase()}
+              </div>
+
+              {editingId === s.id ? (
+                /* Edit mode */
+                <div className="flex-1 flex items-center gap-2">
+                  <input value={editName} onChange={(e) => setEditName(e.target.value)}
+                    className="flex-1 px-2 py-1 rounded border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                  <input value={editUsername} onChange={(e) => setEditUsername(e.target.value)}
+                    className="w-32 px-2 py-1 rounded border border-gray-300 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                  <button onClick={() => saveEdit(s.id)} disabled={saving}
+                    className="px-2 py-1 rounded bg-purple-600 text-white text-xs font-medium hover:bg-purple-700 transition disabled:opacity-50">Save</button>
+                  <button onClick={() => setEditingId(null)} className="px-2 py-1 rounded border border-gray-300 text-xs text-gray-600 hover:bg-gray-50 transition">Cancel</button>
+                </div>
+              ) : (
+                /* Display mode */
+                <>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">{s.display_name || s.username}</p>
+                    {s.display_name && s.username && s.display_name !== s.username && (
+                      <p className="text-xs text-gray-400 font-mono">{s.username}</p>
+                    )}
+                  </div>
+                  {s.graduation_year && (
+                    <span className="text-xs text-gray-400 font-mono">Y{getYearLevelNumber(typeof s.graduation_year === "number" ? s.graduation_year : parseInt(s.graduation_year, 10) || null)}</span>
+                  )}
+
+                  {/* Action buttons — visible on hover */}
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition">
+                    <button onClick={() => { setEditingId(s.id); setEditName(s.display_name); setEditUsername(s.username); }}
+                      className="p-1.5 rounded-lg hover:bg-gray-200 transition" title="Edit">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                      </svg>
+                    </button>
+
+                    {removeConfirmId === s.id ? (
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => removeStudent(s.id)} disabled={removing}
+                          className="px-2 py-1 rounded bg-red-600 text-white text-[10px] font-medium hover:bg-red-700 transition disabled:opacity-50">
+                          {removing ? "..." : "Remove"}
+                        </button>
+                        <button onClick={() => setRemoveConfirmId(null)} className="px-2 py-1 rounded border border-gray-300 text-[10px] text-gray-600 hover:bg-gray-50 transition">No</button>
+                      </div>
+                    ) : (
+                      <button onClick={() => setRemoveConfirmId(s.id)}
+                        className="p-1.5 rounded-lg hover:bg-red-50 transition" title="Remove from class">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+    </div>
   );
 }
