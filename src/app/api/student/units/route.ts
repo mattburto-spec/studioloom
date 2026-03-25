@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  // Get student's class
+  // Get ALL classes this student is enrolled in (junction table + legacy fallback)
   const { data: student } = await supabase
     .from("students")
     .select("class_id")
@@ -29,20 +29,45 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Student not found" }, { status: 404 });
   }
 
-  // Get active units — try locked_page_ids first, fall back to locked_pages
+  // Collect class IDs from junction table
+  const { data: enrollments } = await supabase
+    .from("class_students")
+    .select("class_id")
+    .eq("student_id", studentId)
+    .eq("is_active", true);
+
+  const classIds = new Set<string>();
+  // Add junction table enrollments
+  if (enrollments) {
+    for (const e of enrollments) {
+      classIds.add(e.class_id);
+    }
+  }
+  // Add legacy class_id as fallback
+  if (student.class_id) {
+    classIds.add(student.class_id);
+  }
+
+  if (classIds.size === 0) {
+    return NextResponse.json({ units: [] });
+  }
+
+  const classIdArray = Array.from(classIds);
+
+  // Get active units from ALL enrolled classes
   let classUnits: Record<string, unknown>[] | null = null;
 
   const { data: cuNew, error: cuError } = await supabase
     .from("class_units")
-    .select("unit_id, locked_page_ids, page_due_dates, content_data")
-    .eq("class_id", student.class_id)
+    .select("unit_id, class_id, locked_page_ids, page_due_dates, content_data")
+    .in("class_id", classIdArray)
     .eq("is_active", true);
 
   if (cuError && (cuError.message?.includes("does not exist") || cuError.message?.includes("Could not find"))) {
     const { data: cuOld } = await supabase
       .from("class_units")
-      .select("unit_id, locked_pages, page_due_dates, content_data")
-      .eq("class_id", student.class_id)
+      .select("unit_id, class_id, locked_pages, page_due_dates, content_data")
+      .in("class_id", classIdArray)
       .eq("is_active", true);
     classUnits = cuOld as Record<string, unknown>[] | null;
   } else {
@@ -53,7 +78,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ units: [] });
   }
 
-  const unitIds = classUnits.map((cu) => cu.unit_id as string);
+  // Deduplicate unit IDs (same unit may appear in multiple classes)
+  const unitIds = [...new Set(classUnits.map((cu) => cu.unit_id as string))];
 
   // Get units
   const { data: units } = await supabase
@@ -87,7 +113,10 @@ export async function GET(request: NextRequest) {
       });
 
     // Resolve content: prefer class-unit fork if it exists, fall back to master
-    const resolvedContentData = resolveClassUnitContent(unit.content_data, cu?.content_data);
+    const resolvedContentData = resolveClassUnitContent(
+      unit.content_data as import("@/types").UnitContentData,
+      cu?.content_data as import("@/types").UnitContentData | null | undefined
+    );
 
     return {
       ...unit,
