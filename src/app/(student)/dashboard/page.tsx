@@ -263,52 +263,52 @@ export default function StudentDashboard() {
     return <BadgeIcon iconName={icon} size={20} color={color} />;
   }
 
-  // Subject/class → gradient color mapping for card headers
-  const SUBJECT_GRADIENTS: Record<string, string> = {
+  // Subject/class → gradient + label mapping
+  // Each entry: [keywords to match, gradient classes, display label]
+  const SUBJECT_MAP: [string[], string, string][] = [
     // MYP subject groups
-    "design": "from-teal-500 to-emerald-400",
-    "product design": "from-teal-500 to-emerald-400",
-    "digital design": "from-cyan-500 to-blue-400",
-    "service": "from-pink-400 to-rose-300",
-    "service as action": "from-pink-400 to-rose-300",
-    "community": "from-pink-400 to-rose-300",
-    "personal project": "from-violet-500 to-purple-400",
-    "pp": "from-violet-500 to-purple-400",
-    "pypx": "from-amber-400 to-yellow-300",
-    "exhibition": "from-amber-400 to-yellow-300",
+    [["product design", "design tech", "design & tech"], "from-teal-500 to-emerald-400", "DESIGN"],
+    [["digital design", "digital"], "from-cyan-500 to-blue-400", "DIGITAL DESIGN"],
+    [["service as action", "service", "community"], "from-pink-400 to-rose-300", "SERVICE"],
+    [["personal project", " pp ", "pp"], "from-violet-500 to-purple-400", "PP"],
+    [["pypx", "exhibition"], "from-amber-400 to-yellow-300", "PYPX"],
+    [["design"], "from-teal-500 to-emerald-400", "DESIGN"],
     // General subjects
-    "technology": "from-sky-500 to-blue-400",
-    "art": "from-fuchsia-500 to-pink-400",
-    "science": "from-green-500 to-emerald-400",
-    "math": "from-orange-500 to-amber-400",
-    "english": "from-red-400 to-rose-300",
-  };
+    [["technology", "tech"], "from-sky-500 to-blue-400", "TECHNOLOGY"],
+    [["art", "visual"], "from-fuchsia-500 to-pink-400", "ART"],
+    [["science", "biology", "chemistry", "physics"], "from-green-500 to-emerald-400", "SCIENCE"],
+    [["math", "maths"], "from-orange-500 to-amber-400", "MATHS"],
+    [["english", "language", "literature"], "from-red-400 to-rose-300", "ENGLISH"],
+  ];
 
-  function getSubjectGradient(unit: UnitWithProgress): string {
-    // Try class subject first
-    const subject = unit.class_subject?.toLowerCase()?.trim();
-    if (subject) {
-      for (const [key, gradient] of Object.entries(SUBJECT_GRADIENTS)) {
-        if (subject.includes(key)) return gradient;
+  function detectSubject(unit: UnitWithProgress): { gradient: string; label: string } {
+    // Check class_subject, class_name, then unit title — first match wins
+    const candidates = [
+      unit.class_subject,
+      unit.class_name,
+      unit.title,
+    ].filter(Boolean).map(s => ` ${s!.toLowerCase()} `); // pad with spaces for word boundary matching
+
+    for (const candidate of candidates) {
+      for (const [keywords, gradient, label] of SUBJECT_MAP) {
+        if (keywords.some(kw => candidate.includes(kw))) {
+          return { gradient, label };
+        }
       }
     }
-    // Deterministic fallback based on unit ID
-    const fallbacks = [
-      "from-teal-500 to-emerald-400",
-      "from-violet-500 to-purple-400",
-      "from-pink-400 to-rose-300",
-      "from-sky-500 to-blue-400",
-      "from-amber-400 to-yellow-300",
-      "from-fuchsia-500 to-pink-400",
+
+    // Deterministic fallback
+    const fallbacks: [string, string][] = [
+      ["from-teal-500 to-emerald-400", "DESIGN"],
+      ["from-violet-500 to-purple-400", "PROJECT"],
+      ["from-pink-400 to-rose-300", "UNIT"],
+      ["from-sky-500 to-blue-400", "UNIT"],
+      ["from-amber-400 to-yellow-300", "UNIT"],
     ];
     let hash = 0;
     for (let i = 0; i < unit.id.length; i++) hash = ((hash << 5) - hash + unit.id.charCodeAt(i)) | 0;
-    return fallbacks[Math.abs(hash) % fallbacks.length];
-  }
-
-  function getSubjectLabel(unit: UnitWithProgress): string | null {
-    if (unit.class_subject) return unit.class_subject.toUpperCase();
-    return null;
+    const [gradient, label] = fallbacks[Math.abs(hash) % fallbacks.length];
+    return { gradient, label };
   }
 
   return (
@@ -376,8 +376,7 @@ export default function StudentDashboard() {
                       const percent = getCompletionPercent(unit, unit.progress);
                       const hasStudio = openStudioUnits.has(unit.id);
                       const isComplete = percent === 100;
-                      const gradient = getSubjectGradient(unit);
-                      const subjectLabel = getSubjectLabel(unit);
+                      const { gradient, label: subjectLabel } = detectSubject(unit);
 
                       return (
                         <div key={unit.id} className="flex flex-col">
@@ -389,11 +388,9 @@ export default function StudentDashboard() {
                         >
                           {/* Colored gradient header with subject label + progress ring */}
                           <div className={`relative bg-gradient-to-r ${gradient} px-4 py-5`}>
-                            {subjectLabel && (
-                              <span className="text-white/90 text-[11px] font-bold tracking-wider uppercase">
-                                {subjectLabel}
-                              </span>
-                            )}
+                            <span className="text-white font-extrabold text-sm tracking-widest uppercase drop-shadow-sm">
+                              {subjectLabel}
+                            </span>
                             {/* Thumbnail overlay (subtle) */}
                             {unit.thumbnail_url && (
                               <div className="absolute inset-0 opacity-20">
