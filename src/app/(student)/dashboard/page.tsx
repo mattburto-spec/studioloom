@@ -321,7 +321,8 @@ export default function StudentDashboard() {
                   <div className="space-y-4">
                     {units.map((unit) => {
                       const unitPages = getPageList(unit.content_data);
-                      const firstPageId = unitPages.length > 0 ? unitPages[0].id : "A1";
+                      const firstPageId = unitPages.length > 0 ? unitPages[0].id : null;
+                      const unitLink = firstPageId ? `/unit/${unit.id}/${firstPageId}` : `/unit/${unit.id}/narrative`;
                       const percent = getCompletionPercent(unit, unit.progress);
                       const criterionKeys = [...new Set(
                         unitPages
@@ -340,7 +341,7 @@ export default function StudentDashboard() {
                           }`}
                         >
                           {/* Thumbnail + progress overlay */}
-                          <Link href={`/unit/${unit.id}/${firstPageId}`} className="relative group block">
+                          <Link href={unitLink} className="relative group block">
                             <div className="w-full h-36 overflow-hidden bg-gradient-to-br from-purple-200 to-blue-200">
                               <div className="group-hover:scale-105 transition-transform duration-300 w-full h-full">
                                 <UnitThumbnail
@@ -385,7 +386,7 @@ export default function StudentDashboard() {
 
                           {/* Content */}
                           <div className="p-4 flex-1 flex flex-col">
-                            <Link href={`/unit/${unit.id}/${firstPageId}`} className="group">
+                            <Link href={unitLink} className="group">
                               <h2 className="font-bold text-base text-gray-900 group-hover:text-purple-600 transition mb-1 line-clamp-1">
                                 {unit.title}
                               </h2>
@@ -430,7 +431,7 @@ export default function StudentDashboard() {
                             {/* Quick-access buttons */}
                             <div className="flex gap-2 mt-1">
                               <Link
-                                href={`/unit/${unit.id}/${firstPageId}`}
+                                href={unitLink}
                                 className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-all ${
                                   isComplete
                                     ? "bg-gray-100 text-gray-600 hover:bg-gray-200"

@@ -68,8 +68,35 @@ export default function UnitPageView({
       .catch(() => {}); // silently ignore — NM is optional
   }, [pageId]);
 
-  if (loading || !data || !currentPage) {
+  // Redirect to valid page if current pageId not found in content
+  useEffect(() => {
+    if (!loading && data && !currentPage && allPages.length > 0) {
+      router.replace(`/unit/${unitId}/${allPages[0].id}`);
+    }
+  }, [loading, data, currentPage, allPages, unitId, router]);
+
+  if (loading || !data) {
     return null; // Layout handles the loading state
+  }
+
+  if (!currentPage) {
+    // Page ID not found — either redirecting or content is empty
+    if (allPages.length > 0) {
+      return null; // useEffect above will redirect
+    }
+    return (
+      <div className="min-h-screen bg-white flex items-center justify-center">
+        <div className="text-center space-y-3">
+          <p className="text-gray-500">This unit doesn&apos;t have any lessons yet.</p>
+          <button
+            onClick={() => router.push("/dashboard")}
+            className="text-sm text-purple-600 hover:text-purple-800 underline"
+          >
+            Back to Dashboard
+          </button>
+        </div>
+      </div>
+    );
   }
 
   const journeyMode = isV3(data.unit.content_data);
