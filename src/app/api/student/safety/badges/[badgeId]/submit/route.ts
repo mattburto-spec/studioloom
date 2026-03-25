@@ -106,8 +106,12 @@ export async function POST(
       return NextResponse.json({ error: "Badge not found" }, { status: 404 });
     }
 
-    // Get question pool
-    const question_pool = (badge.question_pool || []) as Array<{
+    // Get question pool — Supabase may return strings or null for JSONB columns
+    let parsedPool = badge.question_pool;
+    if (typeof parsedPool === "string") {
+      try { parsedPool = JSON.parse(parsedPool); } catch { parsedPool = []; }
+    }
+    const question_pool = (Array.isArray(parsedPool) ? parsedPool : []) as Array<{
       id: string;
       type: string;
       prompt: string;

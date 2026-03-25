@@ -229,7 +229,19 @@ export default function BadgeDetailPage() {
         }
 
         const data = await response.json();
-        setBadge(data.badge);
+        const b = data.badge;
+        // Normalize JSONB fields — may come as strings from DB or be null
+        if (b) {
+          if (typeof b.question_pool === "string") {
+            try { b.question_pool = JSON.parse(b.question_pool); } catch { b.question_pool = []; }
+          }
+          if (!Array.isArray(b.question_pool)) b.question_pool = [];
+          if (typeof b.learn_content === "string") {
+            try { b.learn_content = JSON.parse(b.learn_content); } catch { b.learn_content = []; }
+          }
+          if (!Array.isArray(b.learn_content)) b.learn_content = [];
+        }
+        setBadge(b);
       } catch (err) {
         console.error("[BadgeDetailPage] Fetch error:", err);
         setError(err instanceof Error ? err.message : "Failed to load badge");

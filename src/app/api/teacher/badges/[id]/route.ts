@@ -49,6 +49,15 @@ export async function GET(
       .maybeSingle();
 
     if (data) {
+      // Normalize JSONB fields — ensure arrays
+      if (typeof data.question_pool === "string") {
+        try { data.question_pool = JSON.parse(data.question_pool); } catch { data.question_pool = []; }
+      }
+      if (!Array.isArray(data.question_pool)) data.question_pool = [];
+      if (typeof data.learn_content === "string") {
+        try { data.learn_content = JSON.parse(data.learn_content); } catch { data.learn_content = []; }
+      }
+      if (!Array.isArray(data.learn_content)) data.learn_content = [];
       return NextResponse.json({ badge: data });
     }
 

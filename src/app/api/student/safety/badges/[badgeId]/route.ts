@@ -106,13 +106,21 @@ export async function GET(
     // NOTE: Periodic cron job should scan and update expired badges to status='expired'.
     // This prevents stale 'active' records from persisting. See scheduled tasks roadmap.
 
-    // Parse JSONB fields
-    const learn_content = (badge.learn_content || []) as Array<{
+    // Parse JSONB fields — Supabase may return strings or null for JSONB columns
+    let parsedLearnContent = badge.learn_content;
+    if (typeof parsedLearnContent === "string") {
+      try { parsedLearnContent = JSON.parse(parsedLearnContent); } catch { parsedLearnContent = []; }
+    }
+    const learn_content = (Array.isArray(parsedLearnContent) ? parsedLearnContent : []) as Array<{
       title: string;
       content: string;
       icon: string;
     }>;
-    const question_pool = (badge.question_pool || []) as Array<{
+    let parsedQuestionPool = badge.question_pool;
+    if (typeof parsedQuestionPool === "string") {
+      try { parsedQuestionPool = JSON.parse(parsedQuestionPool); } catch { parsedQuestionPool = []; }
+    }
+    const question_pool = (Array.isArray(parsedQuestionPool) ? parsedQuestionPool : []) as Array<{
       id: string;
       type: string;
       topic: string;
