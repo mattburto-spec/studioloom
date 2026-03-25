@@ -247,7 +247,7 @@ function formatStuckTime(hours: number): string {
 // ---------------------------------------------------------------------------
 
 // Class color palette + mesh gradients
-import { CLASS_COLORS, getClassColor, getMeshGradient } from "@/lib/ui/mesh-gradient";
+import { CLASS_COLORS, getClassColor, getMeshGradientStyle } from "@/lib/ui/mesh-gradient";
 
 interface ScheduleEntry {
   date: string;
@@ -482,9 +482,7 @@ function TwoColumnDashboard({
                   <Link
                     href={`/teacher/units/${u.unitId}/class/${u.classId}`}
                     className="w-44 shrink-0 flex flex-col items-center justify-center py-6 text-white relative overflow-hidden hover:opacity-90 transition-opacity"
-                    style={{
-                      background: getMeshGradient(u.classIdx).background,
-                    }}
+                    style={getMeshGradientStyle(u.classIdx)}
                   >
                     <p className="text-lg font-extrabold leading-tight text-center px-3 relative z-10 drop-shadow-sm" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.15)" }}>{u.className}</p>
                     <p className="text-xs opacity-80 mt-1.5 relative z-10 font-medium" style={{ textShadow: "0 1px 2px rgba(0,0,0,0.1)" }}>{u.studentCount} student{u.studentCount !== 1 ? "s" : ""}</p>

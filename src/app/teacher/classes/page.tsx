@@ -5,7 +5,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
 // ── Class colour palette + mesh gradients (shared) ──
-import { CLASS_COLORS, getClassColor, getMeshGradient } from "@/lib/ui/mesh-gradient";
+import { CLASS_COLORS, getClassColor, getMeshGradientStyle } from "@/lib/ui/mesh-gradient";
 
 interface ClassRow {
   id: string;
@@ -311,7 +311,7 @@ export default function ClassesPage() {
                       <div className="flex items-center gap-3 min-w-0">
                         <div
                           className="w-11 h-11 rounded-xl flex items-center justify-center text-white font-extrabold text-sm shrink-0 shadow-sm overflow-hidden"
-                          style={{ background: getMeshGradient(idx).background }}
+                          style={getMeshGradientStyle(idx)}
                         >
                           {cls.name.slice(0, 2).toUpperCase()}
                         </div>
