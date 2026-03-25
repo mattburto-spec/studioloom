@@ -69,6 +69,51 @@ export const POST = withErrorHandler("student/design-assistant:POST", async (req
     );
   }
 
+  // Verify student is still enrolled in a class that has this unit
+  if (unitId) {
+    const supabase = createAdminClient();
+    // Get all active class enrollments for this student
+    const { data: enrollments } = await supabase
+      .from("class_students")
+      .select("class_id")
+      .eq("student_id", studentId)
+      .eq("is_active", true);
+
+    const activeClassIds = (enrollments || []).map((e: { class_id: string }) => e.class_id);
+
+    // Also check legacy class_id
+    const { data: student } = await supabase
+      .from("students")
+      .select("class_id")
+      .eq("id", studentId)
+      .single();
+    if (student?.class_id) activeClassIds.push(student.class_id);
+
+    if (activeClassIds.length > 0) {
+      // Check if any of these classes have this unit assigned
+      const { data: classUnits } = await supabase
+        .from("class_units")
+        .select("class_id")
+        .in("class_id", activeClassIds)
+        .eq("unit_id", unitId)
+        .eq("is_active", true)
+        .limit(1);
+
+      if (!classUnits || classUnits.length === 0) {
+        return NextResponse.json(
+          { error: "You no longer have access to this unit." },
+          { status: 403 }
+        );
+      }
+    } else {
+      // No active enrollments at all
+      return NextResponse.json(
+        { error: "You are not enrolled in any active classes." },
+        { status: 403 }
+      );
+    }
+  }
+
   // Check for API key
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {

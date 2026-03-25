@@ -1455,12 +1455,18 @@ function StudentsTab({
   async function removeStudent(studentId: string) {
     setRemoving(true);
     try {
-      const supabase = createClient();
-      // Deactivate enrollment (soft remove, not hard delete)
-      await supabase.from("class_students")
-        .update({ is_active: false })
-        .eq("student_id", studentId)
-        .eq("class_id", classId);
+      // Use server API — handles deactivation + session invalidation
+      const res = await fetch("/api/teacher/class-students", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ studentId, classId }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        console.error("[removeStudent] Error:", data.error);
+        return;
+      }
 
       setStudents((prev) => prev.filter((s) => s.id !== studentId));
       setRemoveConfirmId(null);

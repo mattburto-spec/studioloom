@@ -1023,6 +1023,16 @@ The single most impactful teacher-facing feature missing. Teachers need to see a
 - Uses Supabase Realtime subscriptions for live updates
 - Inspired by Google Classroom's stream + Clever's analytics dashboard
 
+### ARCHITECTURE NOTE: student_progress Schema Gap (25 Mar 2026)
+**CRITICAL ISSUE:** The `student_progress` table has (student_id, unit_id, page_id) as PK but lacks a class_id field. With the unit-as-template architecture (migration 040/041), the same student can now enroll in multiple classes and take the same unit in both classes simultaneously. This makes student_progress records ambiguous — which class's progress is being tracked? The `assessment_records` table correctly includes class_id, but student_progress does not. This inconsistency breaks the multi-class enrollment model. **Design decision required:**
+- **(A) Add class_id to PK** — Safest option. Makes student_progress properly scoped to a class-unit instance. Requires migration + data backfill (group existing rows by class). Breaking change.
+- **(B) Accept single-class-per-unit assumption** — Simpler but architecturally limiting. Student can only be in one class teaching the same unit at a time. Acceptable if the use case is uncommon (most teachers don't teach the same unit to multiple classes in the same term).
+- **(C) Deprecate student_progress** — Move all tracking to class-unit or assessment_records level. Larger refactor.
+
+**Current status:** Grading page exists and works (inline grading in Class Hub), but assume it will fail silently or conflict if tested with a student enrolled in multiple classes teaching the same unit. This edge case has very low probability (unusual enrollment), so shipping is safe but needs a database migration before supporting multi-class enrollment at scale.
+
+---
+
 ### Phase 0 Grading MVP — Basic Score Entry (~3-5 days)
 **Priority: HIGH — foundation for all AI-assisted grading features below.**
 Before any AI magic, teachers need a simple way to record grades. This is the missing link — currently there's no way to enter scores at all.
@@ -1048,7 +1058,7 @@ Before any AI magic, teachers need a simple way to record grades. This is the mi
 
 **Route:** `/teacher/units/[unitId]/class/[classId]/grade` — new page, linked from Manage Class Grade tab.
 
-**Why this first:** Every AI-assisted feature below (criterion-level AI suggestions, calibration support, batch marking, feedback generation, exemplar comparison) requires a grading UI to exist. Building the basic page first means we can ship grading in days, then layer AI on top incrementally. Teachers can start recording scores immediately.
+**Why this first:** Every AI-assisted feature below (criterion-level AI suggestions, calibration support, batch marking, feedback generation, exemplar comparison) requires a grading UI to exist. Building the basic page first means we can ship grading in days, then layer AI on top incrementally. Teachers can start recording scores immediately. **Note: grading page exists as of 25 Mar 2026 and is partially tested (inline grading works in Class Hub). Full testing needed after student_progress schema decision is made.**
 
 ---
 

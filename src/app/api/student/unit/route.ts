@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
 
   const supabase = createAdminClient();
 
-  // Get student's class and name
+  // Get student info
   const { data: student } = await supabase
     .from("students")
     .select("class_id, ell_level, display_name, username")
@@ -48,41 +48,42 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unit not found" }, { status: 404 });
   }
 
-  // Get class-unit settings — try with new columns, fall back if migrations not yet applied
-  let classUnit: Record<string, unknown> | null = null;
-  const { data: cuFull, error: cuError } = await supabase
-    .from("class_units")
-    .select("locked_page_ids, is_active, final_due_date, page_due_dates, page_settings, content_data")
-    .eq("class_id", student.class_id)
-    .eq("unit_id", unitId)
-    .single();
+  // Find student's active class for this unit via junction table + legacy fallback
+  // Step 1: Get all active class enrollments
+  const { data: enrollments } = await supabase
+    .from("class_students")
+    .select("class_id")
+    .eq("student_id", studentId)
+    .eq("is_active", true);
 
-  if (cuError && (cuError.message?.includes("does not exist") || cuError.message?.includes("Could not find"))) {
-    // Columns from migration 011 not yet applied — fall back
-    const { data: cuBasic } = await supabase
-      .from("class_units")
-      .select("locked_pages, is_active, final_due_date, page_due_dates, page_settings, content_data")
-      .eq("class_id", student.class_id)
-      .eq("unit_id", unitId)
-      .single();
+  const activeClassIds = new Set<string>();
+  if (enrollments) {
+    for (const e of enrollments) activeClassIds.add(e.class_id);
+  }
+  // Legacy fallback
+  if (student.class_id) activeClassIds.add(student.class_id);
 
-    if (!cuBasic) {
-      // Try even more basic (page_due_dates/page_settings may also not exist)
-      const { data: cuMinimal } = await supabase
-        .from("class_units")
-        .select("locked_pages, is_active, content_data")
-        .eq("class_id", student.class_id)
-        .eq("unit_id", unitId)
-        .single();
-      classUnit = cuMinimal as Record<string, unknown> | null;
-    } else {
-      classUnit = cuBasic as Record<string, unknown> | null;
-    }
-  } else {
-    classUnit = cuFull as Record<string, unknown> | null;
+  if (activeClassIds.size === 0) {
+    return NextResponse.json(
+      { error: "You are not enrolled in any active classes." },
+      { status: 403 }
+    );
   }
 
-  if (!classUnit || !(classUnit as { is_active?: boolean }).is_active) {
+  // Step 2: Find the class_units row for this unit among student's active classes
+  let classUnit: Record<string, unknown> | null = null;
+  const { data: cuRows } = await supabase
+    .from("class_units")
+    .select("class_id, locked_page_ids, is_active, final_due_date, page_due_dates, page_settings, content_data")
+    .in("class_id", Array.from(activeClassIds))
+    .eq("unit_id", unitId)
+    .eq("is_active", true);
+
+  if (cuRows && cuRows.length > 0) {
+    classUnit = cuRows[0] as Record<string, unknown>;
+  }
+
+  if (!classUnit) {
     return NextResponse.json(
       { error: "Unit not assigned to your class" },
       { status: 403 }

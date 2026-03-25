@@ -364,8 +364,29 @@ export default function StudentDashboard() {
                         <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />
                       </svg>
                     </div>
-                    <p className="text-gray-900 text-lg font-semibold mb-1">No units assigned yet</p>
-                    <p className="text-gray-500 text-sm">Your teacher will assign units for you to work on.</p>
+                    {classInfo ? (
+                      <>
+                        <p className="text-gray-900 text-lg font-semibold mb-1">No units assigned yet</p>
+                        <p className="text-gray-500 text-sm">Your teacher will assign units for you to work on.</p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-gray-900 text-lg font-semibold mb-1">You&apos;re not enrolled in any classes</p>
+                        <p className="text-gray-500 text-sm mb-4">Ask your teacher for a class code to get started.</p>
+                        <button
+                          onClick={async () => {
+                            await fetch("/api/auth/student-session", { method: "DELETE" });
+                            window.location.href = "/login";
+                          }}
+                          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-600 text-white text-sm font-medium hover:bg-purple-700 transition"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" /><polyline points="10 17 15 12 10 7" /><line x1="15" y1="12" x2="3" y2="12" />
+                          </svg>
+                          Join a class
+                        </button>
+                      </>
+                    )}
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
