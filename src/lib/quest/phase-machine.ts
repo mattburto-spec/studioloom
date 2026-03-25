@@ -23,10 +23,10 @@ export function isDiscoveryComplete(journey: QuestJourney): boolean {
   const p = journey.discovery_profile;
   if (!p) return false;
   return (
-    p.strengths.length > 0 &&
-    p.interests.length > 0 &&
-    p.needs.length > 0 &&
-    p.project_idea.trim().length >= 20
+    Array.isArray(p.strengths) && p.strengths.length > 0 &&
+    Array.isArray(p.interests) && p.interests.length > 0 &&
+    Array.isArray(p.needs) && p.needs.length > 0 &&
+    typeof p.project_idea === 'string' && p.project_idea.trim().length >= 20
   );
 }
 
@@ -37,6 +37,7 @@ export function isPlanningComplete(
 ): boolean {
   const c = journey.contract;
   if (!c || !c.confirmed_at) return false;
+  if (!Array.isArray(milestones)) return false;
 
   // Must have at least 3 milestones with target dates in the working phase
   const datedMilestones = milestones.filter(m => m.target_date && m.phase === 'working');
@@ -45,6 +46,7 @@ export function isPlanningComplete(
 
 /** Check if Working phase is complete (all working milestones done or skipped) */
 export function isWorkingComplete(milestones: QuestMilestone[]): boolean {
+  if (!Array.isArray(milestones)) return false;
   const workingMilestones = milestones.filter(m => m.phase === 'working');
   if (workingMilestones.length === 0) return false;
   return workingMilestones.every(m => m.status === 'completed' || m.status === 'skipped');
@@ -55,6 +57,7 @@ export function isSharingComplete(
   milestones: QuestMilestone[],
   sharingEvidenceCount: number
 ): boolean {
+  if (!Array.isArray(milestones)) return false;
   const sharingMilestones = milestones.filter(m => m.phase === 'sharing');
   const allDone = sharingMilestones.every(m => m.status === 'completed' || m.status === 'skipped');
   return allDone && sharingEvidenceCount > 0;
@@ -95,6 +98,7 @@ export function getPhaseMilestoneProgress(
   milestones: QuestMilestone[],
   phase: QuestPhase
 ): { completed: number; total: number } {
+  if (!Array.isArray(milestones)) return { completed: 0, total: 0 };
   const phaseMilestones = milestones.filter(m => m.phase === phase);
   const completed = phaseMilestones.filter(m => m.status === 'completed').length;
   return { completed, total: phaseMilestones.length };
