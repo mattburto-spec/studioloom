@@ -528,39 +528,35 @@ function TwoColumnDashboard({
                         </Link>
                       </div>
 
-                      {/* Feature badges + progress link — right side */}
-                      <div className="flex items-center gap-2 shrink-0">
+                      {/* Feature indicators — right side */}
+                      <div className="flex items-center gap-1.5 shrink-0">
                         {u.openStudioCount > 0 && (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg" style={{ background: "#F3E8FF", color: "#7C3AED" }}>
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-                            {u.openStudioCount} in Studio
+                          <span
+                            className="inline-flex items-center justify-center w-7 h-7 rounded-lg"
+                            style={{ background: "#F3E8FF" }}
+                            title={`${u.openStudioCount} student${u.openStudioCount !== 1 ? "s" : ""} in Open Studio`}
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" /></svg>
                           </span>
                         )}
                         {u.nmEnabled && (
                           <span
-                            className="inline-flex items-center justify-center text-xs font-black px-2.5 py-1.5 rounded-lg shadow-sm"
-                            style={{ background: "#FF2D78", color: "#fff", fontFamily: "'Arial Black', sans-serif", letterSpacing: "0.02em" }}
+                            className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-[9px] font-black"
+                            style={{ background: "#FF2D78", color: "#fff", fontFamily: "'Arial Black', sans-serif" }}
+                            title="New Metrics enabled"
                           >
                             NM
                           </span>
                         )}
                         {u.badgeRequirementCount > 0 && (
                           <span
-                            className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1.5 rounded-lg shadow-sm"
-                            style={{ background: "#FEF3C7", color: "#92400E", border: "1px solid #FDE68A" }}
+                            className="inline-flex items-center justify-center w-7 h-7 rounded-lg"
+                            style={{ background: "#FEF3C7", border: "1px solid #FDE68A" }}
+                            title={`${u.badgeRequirementCount} safety badge${u.badgeRequirementCount !== 1 ? "s" : ""} required`}
                           >
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="#F59E0B" stroke="#92400E" strokeWidth="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
-                            {u.badgeRequirementCount}
                           </span>
                         )}
-                        <Link
-                          href={`/teacher/units/${u.unitId}/class/${u.classId}?tab=progress`}
-                          className="inline-flex items-center gap-1 text-[11px] font-medium text-text-secondary hover:text-text-primary transition"
-                          title="View progress in Class Hub"
-                        >
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                          Progress
-                        </Link>
                       </div>
                     </div>
                   </div>
