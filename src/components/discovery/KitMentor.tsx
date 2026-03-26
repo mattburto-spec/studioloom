@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import type { DiscoveryStation, KitExpression } from "@/lib/discovery/types";
 import { KIT_EXPRESSIONS, checkImageExists } from "@/lib/discovery/assets";
 
@@ -70,8 +71,17 @@ export function KitMentor({ expression, station, message }: KitMentorProps) {
 
   return (
     <div className="absolute bottom-24 left-6 z-40 flex items-end gap-3 max-w-md">
-      {/* Kit's avatar */}
-      <div
+      {/* Kit's avatar — gentle floating bob */}
+      <motion.div
+        animate={{
+          y: [0, -6, 0],
+          scale: [1, 1.02, 1],
+        }}
+        transition={{
+          duration: 3,
+          repeat: Infinity,
+          ease: "easeInOut",
+        }}
         className="w-20 h-20 sm:w-28 sm:h-28 rounded-full flex items-center justify-center shrink-0 shadow-2xl overflow-hidden"
         style={{
           background: hasImage ? "transparent" : `linear-gradient(135deg, ${accent}55, ${accent}99)`,
@@ -88,27 +98,34 @@ export function KitMentor({ expression, station, message }: KitMentorProps) {
         ) : (
           <span className="text-4xl sm:text-6xl">{emoji}</span>
         )}
-      </div>
+      </motion.div>
 
-      {/* Speech bubble */}
-      {message && (
-        <div
-          className="relative bg-white/10 backdrop-blur-md rounded-2xl rounded-bl-sm px-4 py-3 text-base text-white/90 leading-relaxed"
-          style={{ border: `1px solid ${accent}33` }}
-        >
-          {message}
-          {/* Tail pointing to Kit */}
-          <div
-            className="absolute -bottom-1 left-0 w-3 h-3"
-            style={{
-              background: "rgba(255,255,255,0.1)",
-              borderRadius: "0 0 0 8px",
-              borderLeft: `1px solid ${accent}33`,
-              borderBottom: `1px solid ${accent}33`,
-            }}
-          />
-        </div>
-      )}
+      {/* Speech bubble — slides in when Kit speaks */}
+      <AnimatePresence mode="wait">
+        {message && (
+          <motion.div
+            key={message}
+            initial={{ opacity: 0, x: -12, scale: 0.95 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            exit={{ opacity: 0, x: -8, scale: 0.95 }}
+            transition={{ type: "spring", stiffness: 300, damping: 25 }}
+            className="relative bg-white/10 backdrop-blur-md rounded-2xl rounded-bl-sm px-4 py-3 text-base text-white/90 leading-relaxed"
+            style={{ border: `1px solid ${accent}33` }}
+          >
+            {message}
+            {/* Tail pointing to Kit */}
+            <div
+              className="absolute -bottom-1 left-0 w-3 h-3"
+              style={{
+                background: "rgba(255,255,255,0.1)",
+                borderRadius: "0 0 0 8px",
+                borderLeft: `1px solid ${accent}33`,
+                borderBottom: `1px solid ${accent}33`,
+              }}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

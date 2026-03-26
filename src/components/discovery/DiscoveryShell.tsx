@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
 import { useDiscoverySession } from "@/hooks/useDiscoverySession";
 import { StationBackground } from "./StationBackground";
 import { KitMentor } from "./KitMentor";
@@ -168,11 +169,21 @@ export function DiscoveryShell({ unitId }: DiscoveryShellProps) {
         );
       })()}
 
-      {/* Station Content — the main interactive area */}
+      {/* Station Content — the main interactive area with crossfade transitions */}
       <div className="absolute inset-0 pt-12 pb-20 flex items-center justify-center">
         <div className="w-full max-w-2xl mx-auto px-6">
           <div className="backdrop-blur-md bg-black/40 rounded-3xl p-6 sm:p-8 shadow-2xl ring-1 ring-white/10">
-            <StationRenderer session={session} />
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={session.machine.currentStation}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.35, ease: "easeInOut" }}
+              >
+                <StationRenderer session={session} />
+              </motion.div>
+            </AnimatePresence>
           </div>
         </div>
       </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import type { UseDiscoverySessionReturn } from "@/hooks/useDiscoverySession";
 import { getStation1Content } from "@/lib/discovery/content";
 import {
@@ -158,45 +159,64 @@ export function Station1Campfire({ session }: Station1CampfireProps) {
           </p>
         )}
 
-        {/* Question */}
-        <p className="text-white/90 text-center text-base mb-6 font-medium">
-          {pair.prompt}
-        </p>
-
-        {/* Options */}
-        <div className="space-y-3">
-          <button
-            onClick={() => handleAnswer(pair, "a")}
-            className={`w-full text-left rounded-xl p-4 transition-all duration-200 ${
-              isSelected === "a"
-                ? "ring-2 ring-orange-400 bg-orange-400/10"
-                : "bg-white/5 hover:bg-white/10 ring-1 ring-white/10 hover:ring-white/30"
-            }`}
+        {/* Question + Options — animate when pair changes */}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={pair.id}
+            initial={{ opacity: 0, x: 40 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -40 }}
+            transition={{ type: "spring", stiffness: 300, damping: 30 }}
           >
-            <div className="flex items-start gap-3">
-              <span className="text-xl">{pair.optionA.icon}</span>
-              <span className="text-sm text-white/80 leading-relaxed">
-                {pair.optionA.label}
-              </span>
-            </div>
-          </button>
+            {/* Question */}
+            <p className="text-white/90 text-center text-base mb-6 font-medium">
+              {pair.prompt}
+            </p>
 
-          <button
-            onClick={() => handleAnswer(pair, "b")}
-            className={`w-full text-left rounded-xl p-4 transition-all duration-200 ${
-              isSelected === "b"
-                ? "ring-2 ring-orange-400 bg-orange-400/10"
-                : "bg-white/5 hover:bg-white/10 ring-1 ring-white/10 hover:ring-white/30"
-            }`}
-          >
-            <div className="flex items-start gap-3">
-              <span className="text-xl">{pair.optionB.icon}</span>
-              <span className="text-sm text-white/80 leading-relaxed">
-                {pair.optionB.label}
-              </span>
+            {/* Options — staggered slide-up */}
+            <div className="space-y-3">
+              <motion.button
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1, type: "spring", stiffness: 300, damping: 25 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => handleAnswer(pair, "a")}
+                className={`w-full text-left rounded-xl p-4 transition-colors duration-200 ${
+                  isSelected === "a"
+                    ? "ring-2 ring-orange-400 bg-orange-400/10"
+                    : "bg-white/5 hover:bg-white/10 ring-1 ring-white/10 hover:ring-white/30"
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <span className="text-xl">{pair.optionA.icon}</span>
+                  <span className="text-sm text-white/80 leading-relaxed">
+                    {pair.optionA.label}
+                  </span>
+                </div>
+              </motion.button>
+
+              <motion.button
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2, type: "spring", stiffness: 300, damping: 25 }}
+                whileTap={{ scale: 0.97 }}
+                onClick={() => handleAnswer(pair, "b")}
+                className={`w-full text-left rounded-xl p-4 transition-colors duration-200 ${
+                  isSelected === "b"
+                    ? "ring-2 ring-orange-400 bg-orange-400/10"
+                    : "bg-white/5 hover:bg-white/10 ring-1 ring-white/10 hover:ring-white/30"
+                }`}
+              >
+                <div className="flex items-start gap-3">
+                  <span className="text-xl">{pair.optionB.icon}</span>
+                  <span className="text-sm text-white/80 leading-relaxed">
+                    {pair.optionB.label}
+                  </span>
+                </div>
+              </motion.button>
             </div>
-          </button>
-        </div>
+          </motion.div>
+        </AnimatePresence>
 
         {/* Counter */}
         <p className="text-white/50 text-sm text-center mt-4">
