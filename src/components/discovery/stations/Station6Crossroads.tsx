@@ -113,9 +113,11 @@ export function Station6Crossroads({ session }: Station6CrossroadsProps) {
         if (res.ok) return res.json();
         throw new Error(`API ${res.status}`);
       })
-      .then((result) => {
+      .then((data) => {
         if (!generateDoorsRef.current) return; // Stale
-        updateData({ doors: result.doors ?? [] });
+        // API returns { result: { doors: [...] }, usage: {...} }
+        const doors = data.result?.doors ?? data.doors ?? [];
+        updateData({ doors });
         setIsLoadingDoors(false);
         clearTimeout(timeoutId);
         clearTimeout(hardTimeoutId);
@@ -154,9 +156,12 @@ export function Station6Crossroads({ session }: Station6CrossroadsProps) {
     setTimeout(() => session.goToStep("station_6_explore_1"), 800);
   }, [profile, session, updateData]);
 
+  const doorsRequestedRef = useRef(false);
   useEffect(() => {
     if (current !== "station_6_generating") return;
     if (station6.doors.length > 0) return; // Already generated
+    if (doorsRequestedRef.current) return; // Already in-flight — prevent re-trigger loop
+    doorsRequestedRef.current = true;
     return generateDoors();
   }, [current, station6.doors.length, generateDoors]);
 
