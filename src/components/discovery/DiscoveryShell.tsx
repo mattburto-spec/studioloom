@@ -82,6 +82,37 @@ export function DiscoveryShell({ unitId }: DiscoveryShellProps) {
     );
   }
 
+  // ─── Error State (failed to create/load session) ────────────
+  if (!session.loading && !session.sessionId && session.machine.current === "not_started") {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center bg-gray-950">
+        <div className="text-center max-w-md mx-auto px-6">
+          <div className="text-4xl mb-4">⚠️</div>
+          <h1 className="text-xl font-bold text-white mb-2">
+            Couldn&apos;t start your journey
+          </h1>
+          <p className="text-white/60 mb-6 text-sm">
+            Something went wrong loading the Discovery Engine. Try refreshing the page, or head back to your dashboard.
+          </p>
+          <div className="flex gap-3 justify-center">
+            <button
+              onClick={() => window.location.reload()}
+              className="px-5 py-2.5 rounded-full bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium transition-colors"
+            >
+              Try Again
+            </button>
+            <a
+              href="/dashboard"
+              className="px-5 py-2.5 rounded-full bg-white/10 hover:bg-white/20 text-white text-sm font-medium transition-colors"
+            >
+              Back to Dashboard
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // ─── Completed State ────────────────────────────────────────
   if (session.machine.current === "completed") {
     return (

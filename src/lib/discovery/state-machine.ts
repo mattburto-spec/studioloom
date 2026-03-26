@@ -211,6 +211,10 @@ export function canAdvance(state: DiscoveryState, profile: DiscoveryProfile): bo
       return profile.station7.successCriteria.length >= 3;
     case 'station_7_excitement':
       return profile.station7.excitementScore !== null;
+    case 'station_7_grand_reveal':
+      return profile.archetypeResult !== null;
+    case 'station_7_share':
+      return true; // Final screen — always passable
 
     // Everything else can advance freely (intros, reveals, transitions)
     default:

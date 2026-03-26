@@ -70,12 +70,25 @@ export function Station6Crossroads({ session }: Station6CrossroadsProps) {
     const primaryArchetype = profile.archetypeResult?.primary ?? "Maker";
     const secondaryArchetype = profile.archetypeResult?.secondary;
 
-    // 20-second timeout — show retry button if API hangs
+    // 20-second timeout — show retry/fallback buttons if API hangs
     const timeoutId = setTimeout(() => {
       if (generateDoorsRef.current) {
         setGenerationTimedOut(true);
       }
     }, 20_000);
+
+    // 35-second hard timeout — auto-fallback to template doors
+    const hardTimeoutId = setTimeout(() => {
+      if (generateDoorsRef.current) {
+        console.warn("[Station6] Hard timeout — auto-falling back to template doors");
+        const fallback = getTemplateDoors(primaryArchetype, profile.mode);
+        updateData({ doors: fallback });
+        setIsLoadingDoors(false);
+        setGenerationTimedOut(false);
+        generateDoorsRef.current = false;
+        setTimeout(() => session.goToStep("station_6_explore_1"), 800);
+      }
+    }, 35_000);
 
     const controller = new AbortController();
 
@@ -105,6 +118,7 @@ export function Station6Crossroads({ session }: Station6CrossroadsProps) {
         updateData({ doors: result.doors ?? [] });
         setIsLoadingDoors(false);
         clearTimeout(timeoutId);
+        clearTimeout(hardTimeoutId);
         setTimeout(() => session.goToStep("station_6_explore_1"), 1500);
       })
       .catch((err) => {
@@ -114,6 +128,7 @@ export function Station6Crossroads({ session }: Station6CrossroadsProps) {
         updateData({ doors: fallback });
         setIsLoadingDoors(false);
         clearTimeout(timeoutId);
+        clearTimeout(hardTimeoutId);
         setTimeout(() => session.goToStep("station_6_explore_1"), 1500);
       })
       .finally(() => {
@@ -122,6 +137,7 @@ export function Station6Crossroads({ session }: Station6CrossroadsProps) {
 
     return () => {
       clearTimeout(timeoutId);
+      clearTimeout(hardTimeoutId);
       controller.abort();
       generateDoorsRef.current = false;
     };

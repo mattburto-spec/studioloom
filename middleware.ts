@@ -87,7 +87,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Student routes — require student session cookie
-  if (pathname.startsWith("/dashboard") || pathname.startsWith("/unit") || pathname.startsWith("/open-studio")) {
+  if (pathname.startsWith("/dashboard") || pathname.startsWith("/unit") || pathname.startsWith("/open-studio") || pathname.startsWith("/discovery")) {
     const sessionToken = request.cookies.get(SESSION_COOKIE_NAME)?.value;
 
     if (!sessionToken) {
