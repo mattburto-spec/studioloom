@@ -55,6 +55,8 @@ export default function TeacherStudentView({
   const [showAssign, setShowAssign] = useState(false);
   const [assignClassId, setAssignClassId] = useState("");
   const [assigning, setAssigning] = useState(false);
+  const [activeTab, setActiveTab] = useState<"overview" | "discovery">("overview");
+  const [hasDiscovery, setHasDiscovery] = useState(false);
 
   async function loadAll() {
     const supabase = createClient();
@@ -143,6 +145,21 @@ export default function TeacherStudentView({
       .eq("student_id", studentId);
 
     setSafetyCerts(certs || []);
+
+    // Check if student has any discovery data (for tab visibility)
+    const { data: discoveryData } = await supabase
+      .from("discovery_sessions")
+      .select("id, profile")
+      .eq("student_id", studentId)
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    setHasDiscovery(
+      !!discoveryData?.profile &&
+      (discoveryData.profile as any).lastStationCompleted >= 2
+    );
+
     setLoading(false);
   }
 
@@ -329,6 +346,46 @@ export default function TeacherStudentView({
         </div>
       </div>
 
+      {/* Tab Bar */}
+      <div className="flex gap-1 border-b border-gray-200 mb-6">
+        <button
+          onClick={() => setActiveTab("overview")}
+          className={`px-4 py-2.5 text-sm font-semibold transition-colors relative ${
+            activeTab === "overview"
+              ? "text-purple-600"
+              : "text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          Overview
+          {activeTab === "overview" && (
+            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-purple-600 rounded-full" />
+          )}
+        </button>
+        {hasDiscovery && (
+          <button
+            onClick={() => setActiveTab("discovery")}
+            className={`px-4 py-2.5 text-sm font-semibold transition-colors relative flex items-center gap-1.5 ${
+              activeTab === "discovery"
+                ? "text-purple-600"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            <span>🧭</span> Discovery Profile
+            {activeTab === "discovery" && (
+              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-purple-600 rounded-full" />
+            )}
+          </button>
+        )}
+      </div>
+
+      {/* ─── Discovery Tab ─────────────────────────────────── */}
+      {activeTab === "discovery" && hasDiscovery && (
+        <StudentDiscoveryProfile studentId={studentId} defaultExpanded />
+      )}
+
+      {/* ─── Overview Tab ──────────────────────────────────── */}
+      {activeTab === "overview" && <>
+
       {/* Enrollment History Timeline */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-3">
@@ -466,9 +523,6 @@ export default function TeacherStudentView({
         <StatsStrip stats={stats} />
       </div>
 
-      {/* Discovery Profile (shows if student has completed Discovery Engine S0-S3+) */}
-      <StudentDiscoveryProfile studentId={studentId} />
-
       {/* Workshop Certs */}
       <div className="mb-6">
         <SkillsCerts certs={skillCerts} />
@@ -533,6 +587,8 @@ export default function TeacherStudentView({
           </div>
         )}
       </div>
+
+      </>}
     </main>
   );
 }

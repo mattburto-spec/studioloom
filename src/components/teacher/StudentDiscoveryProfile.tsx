@@ -51,13 +51,15 @@ const STYLE_LABELS: Record<keyof WorkingStyleVector, { label: string; options: [
 
 interface Props {
   studentId: string;
+  /** When true, profile renders fully expanded (used on Discovery tab) */
+  defaultExpanded?: boolean;
 }
 
-export function StudentDiscoveryProfile({ studentId }: Props) {
+export function StudentDiscoveryProfile({ studentId, defaultExpanded = false }: Props) {
   const [profile, setProfile] = useState<DiscoveryProfile | null>(null);
   const [sessionMeta, setSessionMeta] = useState<{ unit_title: string; completed_at: string | null; mode: string } | null>(null);
   const [loading, setLoading] = useState(true);
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(defaultExpanded);
 
   useEffect(() => {
     async function load() {
