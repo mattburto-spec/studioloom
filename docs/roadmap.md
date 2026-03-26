@@ -557,18 +557,54 @@ Architecture: Claude orchestrates, specialized APIs discover. Not a search featu
 - Lessons must scaffold properly: assume no prior knowledge, build up from intro → guided practice → independent task
 - External tools (TinkerCAD, Canva, Figma, etc.) should be linked directly with login/tutorial steps, not just mentioned
 
-### Student-Driven Unit Discovery (Guided Pathfinding)
-- Students who don't have a prescribed unit can discover their own through a guided AI conversation
-- **Problem-first flow**: AI walks the student through questions — "What problems have you noticed?", "What interests you?", "What skills do you want to develop?", "Who would benefit from a solution?"
-- Surfaces student's context: interests, available tools/materials, time constraints, skill level
-- **Three possible outcomes**:
-  1. **Match to existing unit** — AI suggests a unit from the library that fits their interests/goals
-  2. **Adapt an existing unit** — AI takes a library unit and tweaks the brief, context, or final product to match the student's direction
-  3. **Generate from scratch** — AI creates a new unit tailored to the student's problem/interest (uses the same generation pipeline as the teacher AI Unit Builder)
-- **Summative selection**: Student chooses their summative assessment format — e.g., physical prototype, digital product, presentation, service design, system design — and the unit adapts Criterion C/D pages accordingly
-- Teacher approves/modifies the generated unit before it goes live (student proposes, teacher validates)
-- Great for open-ended project terms, passion projects, or differentiated classrooms where students work on different briefs
-- Could pair with Vibe Unit Planning — teacher sets the broad constraints, students fill in the specifics
+### Discovery Engine ✅ BUILT (26 Mar 2026)
+**Master build plan:** `docs/specs/discovery-engine-build-plan.md` (2,441 lines). Supporting specs: `discovery-engine-spec.md` (data model), `discovery-engine-ai-integration.md` (AI touchpoints), `discovery-engine-ux-design.md` (visual design), `discovery-engine-v3-intelligence.md` (intelligence layer), `discovery-engine-research-audit.md` (research foundation).
+
+**What:** 8-station interactive journey (45-60 min) replacing old comic-strip DiscoveryFlow. Students complete stations to build a DiscoveryProfile (6 design archetypes: Maker, Researcher, Leader, Communicator, Creative, Systems Thinker) + working style vector + interest/fear mapping. Profile feeds into template door selection (3 doors per archetype) which becomes the student's Open Studio project brief. ~9,500 lines across 24+ files. State machine with 64 states. 9 AI reflection types via Haiku. Migration 047 APPLIED.
+
+**Two modes:**
+- **Mode 1 (MYP Design):** Lessons first → teacher unlocks Discovery → completes Discovery → enters Open Studio. Discovery is the bridge between guided lessons and self-directed work.
+- **Mode 2 (Service/PP/PYPx):** Discovery IS the unit entry point. Open Studio from day one. No prerequisite lessons. 36 template doors total (18 per mode × 6 archetypes × 3 door types: sweet spot, stretch, surprise).
+
+**8 stations:** S0 Design Identity Card → S1 Campfire (binary pairs) → S2 Workshop (scenarios, people grid) → S3 Collection Wall (interests, irritations, values) → S4 Window (problem finding) → S5 Toolkit (resources, efficacy) → S6 Crossroads (AI-generated doors, fear cards) → S7 Launchpad (project statement, criteria, grand reveal).
+
+**Key design decisions:** Kit is the only mentor (smart older cousin, not teacher). 8 interaction types (binary, scenario, card sort, visual scene, slider, icon grid, quick-fire, text). Every student input gets a caring response (19 dead ends audited and specced). Free-text irritation is the highest-weighted signal (0.20). Content pools are hardcoded TypeScript first, teacher-editable via DB override later (same copy-on-write pattern as unit forking). ~22 AI calls per student (~$0.10 — 17-18 Haiku + 3 Sonnet + 2 async Haiku).
+
+**Remaining polish:** Generate Discovery images (batches 4-7), playtest with real students, teacher content control panel (future).
+
+### Discovery Intelligence Layer (NEW — 26 Mar 2026)
+**What:** Discovery Engine evolves from a standalone onboarding experience into the student profiling backbone for the entire platform. The DiscoveryProfile already captures archetype, working style, interests, fears, self-efficacy, and values — this layer wires that data into every AI interaction across StudioLoom.
+
+**Three phases of evolution:**
+
+**Phase A: Profile-Aware Design Assistant (~2-3 days)**
+- When building the Design Assistant system prompt (`design-assistant-prompt.ts`), check if a `discovery_sessions` record exists for the student
+- If profile exists, inject a "What I know about this student" context block: archetype (e.g. "This student is primarily a Maker with Researcher secondary"), working style preferences (from S1 binary pairs), fear areas to be sensitive about (from S4), self-efficacy gaps to scaffold around (from S5), interests that can be used as hooks/analogies (from S3)
+- The AI goes from generic Socratic mentor to a mentor who actually knows the kid — massive differentiation vs Khanmigo
+- Same pattern for Open Studio AI: studio critic already gets some profile data, expand to use full Discovery profile
+- **Dependencies:** Discovery Engine built (done), Design Assistant working (done)
+- **Key decision:** Read-only consumption of profile data. Discovery writes, everything else reads. No feedback loops yet.
+
+**Phase B: Adaptive Discovery Flow (~3-4 days)**
+- For returning students (second unit onwards), skip stations where profile data already exists
+- `getResumeState()` extended to check profile section completeness, not just station visit history
+- **Progression:** First unit = full 8-station Discovery (45 min). Second unit = abbreviated S4-S7 only (20 min — new problem + new doors + fears). Third unit onwards = S4+S6 only (10 min — problem finding + door selection)
+- Kit acknowledges returning students: "I already know you're a Maker who cares about sustainability — let's skip straight to finding your problem"
+- Profile sections marked with `source_unit_id` so the system knows which Discovery populated each section
+- Cumulative profile gets richer with each unit — interests expand, self-efficacy updates, fear areas may shift
+- Teacher can force full re-discovery for a student if needed (e.g. student has changed significantly)
+
+**Phase C: Cross-Platform Intelligence (~5-7 days)**
+- Discovery becomes "Phase 0" of the `student-learning-intelligence.md` 4-phase profiling system
+- DiscoveryProfile (deliberate intake) + passive signals (toolkit depth, response quality, pace feedback, integrity metrics, NM self-assessments) merge into a unified StudentLearningProfile
+- AI generation uses the unified profile: lesson content adapts to student archetype distribution in a class (if 60% Makers, weight toward hands-on activities), scaffolding adapts to individual self-efficacy (low confidence on "choosing the right tools" → more tool guidance), analogies drawn from student interests
+- Teacher dashboard shows "class profile" aggregate: archetype distribution chart, common fear areas, self-efficacy gaps to address, interest themes for project inspiration
+- Portfolio narrative auto-writes using Discovery data: "As a Creative-Researcher who started worried about 'it being boring', you pushed through that fear by..."
+- **Dependencies:** Phase B complete, student-learning-intelligence architecture implemented, grading page functional
+
+**Estimated total:** ~10-14 days across all 3 phases, but Phase A alone delivers huge value in ~2-3 days and has zero dependencies beyond what's already built.
+
+**Why this matters:** Every other edtech platform treats students as blank slates in every interaction. StudioLoom would be the first to carry a rich, student-built personality profile through every AI touchpoint. The student CHOSE to share this about themselves (not scraped from behavior data) — that's ethically cleaner and pedagogically stronger.
 
 ### Teacher Resources (later layer)
 - Generate PPTs from unit content

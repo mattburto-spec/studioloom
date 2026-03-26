@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StudioLoom — Discovery Intelligence Layer</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; color: #1a1a2e; background: #fff; line-height: 1.6; }
+
+  /* ─── Utility ─── */
+  .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+  .text-center { text-align: center; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+
+  /* ─── Hero ─── */
+  .hero {
+    background: linear-gradient(135deg, #1a0533 0%, #2d1066 30%, #4c1d95 60%, #5b21b6 100%);
+    color: white;
+    padding: 80px 0 100px;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -120px; right: -120px;
+    width: 500px; height: 500px;
+    background: radial-gradient(circle, rgba(139,92,246,0.25), transparent 70%);
+    border-radius: 50%;
+  }
+  .hero::after {
+    content: '';
+    position: absolute;
+    bottom: -80px; left: -80px;
+    width: 400px; height: 400px;
+    background: radial-gradient(circle, rgba(236,72,153,0.15), transparent 70%);
+    border-radius: 50%;
+  }
+  .hero .container { position: relative; z-index: 2; }
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 16px;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 100px;
+    font-size: 13px;
+    font-weight: 500;
+    color: rgba(255,255,255,0.85);
+    margin-bottom: 24px;
+    backdrop-filter: blur(8px);
+  }
+  .hero h1 {
+    font-size: clamp(36px, 5vw, 56px);
+    font-weight: 800;
+    line-height: 1.1;
+    margin-bottom: 20px;
+    letter-spacing: -0.02em;
+  }
+  .hero h1 .accent { color: #c084fc; }
+  .hero p.subtitle {
+    font-size: clamp(16px, 2vw, 20px);
+    color: rgba(255,255,255,0.7);
+    max-width: 640px;
+    margin: 0 auto 40px;
+    line-height: 1.55;
+  }
+  .hero-stats {
+    display: flex;
+    justify-content: center;
+    gap: 48px;
+    flex-wrap: wrap;
+    margin-top: 48px;
+  }
+  .hero-stat {
+    text-align: center;
+  }
+  .hero-stat .number {
+    font-size: 36px;
+    font-weight: 800;
+    background: linear-gradient(135deg, #c084fc, #f472b6);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .hero-stat .label {
+    font-size: 13px;
+    color: rgba(255,255,255,0.5);
+    margin-top: 4px;
+  }
+
+  /* ─── Section base ─── */
+  section { padding: 80px 0; }
+  section.alt { background: #faf8ff; }
+  .section-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 14px;
+    background: #f3e8ff;
+    color: #7c3aed;
+    border-radius: 100px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 16px;
+  }
+  section h2 {
+    font-size: clamp(28px, 3.5vw, 40px);
+    font-weight: 800;
+    line-height: 1.15;
+    margin-bottom: 16px;
+    letter-spacing: -0.01em;
+  }
+  section h2 .accent { color: #7c3aed; }
+  section .section-desc {
+    font-size: 17px;
+    color: #64748b;
+    max-width: 620px;
+    margin: 0 auto 48px;
+    line-height: 1.6;
+  }
+
+  /* ─── Station Journey ─── */
+  .journey-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 20px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  @media (min-width: 640px) {
+    .journey-grid { grid-template-columns: 1fr 1fr; }
+  }
+  .station-card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    padding: 28px;
+    position: relative;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .station-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 40px rgba(124,58,237,0.08);
+  }
+  .station-card .station-num {
+    position: absolute;
+    top: -1px; left: 20px;
+    padding: 3px 12px;
+    background: linear-gradient(135deg, #7c3aed, #a855f7);
+    color: white;
+    font-size: 11px;
+    font-weight: 700;
+    border-radius: 0 0 8px 8px;
+    letter-spacing: 0.05em;
+  }
+  .station-card .station-emoji {
+    font-size: 32px;
+    margin-bottom: 12px;
+    display: block;
+    margin-top: 8px;
+  }
+  .station-card h3 {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+  .station-card p {
+    font-size: 14px;
+    color: #64748b;
+    line-height: 1.55;
+  }
+  .station-card .data-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 14px;
+  }
+  .station-card .data-pill {
+    padding: 3px 10px;
+    background: #f3e8ff;
+    color: #7c3aed;
+    border-radius: 100px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  /* ─── Module blocks ─── */
+  .modules-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 24px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  @media (min-width: 768px) {
+    .modules-row { grid-template-columns: 1fr 1fr 1fr; }
+  }
+  .module-block {
+    background: white;
+    border-radius: 20px;
+    padding: 32px 24px;
+    border: 2px solid transparent;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .module-block:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 16px 48px rgba(0,0,0,0.06);
+  }
+  .module-block.identity { border-color: #c084fc; background: linear-gradient(180deg, #faf5ff, white); }
+  .module-block.problem { border-color: #60a5fa; background: linear-gradient(180deg, #eff6ff, white); }
+  .module-block.commit { border-color: #f472b6; background: linear-gradient(180deg, #fdf2f8, white); }
+  .module-block .mod-icon {
+    width: 52px; height: 52px;
+    border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px;
+    margin-bottom: 16px;
+  }
+  .module-block.identity .mod-icon { background: #ede9fe; }
+  .module-block.problem .mod-icon { background: #dbeafe; }
+  .module-block.commit .mod-icon { background: #fce7f3; }
+  .module-block h3 { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+  .module-block .mod-question { font-size: 14px; color: #a78bfa; font-style: italic; margin-bottom: 12px; }
+  .module-block.problem .mod-question { color: #60a5fa; }
+  .module-block.commit .mod-question { color: #f472b6; }
+  .module-block p { font-size: 14px; color: #64748b; line-height: 1.55; }
+  .module-block .mod-lifecycle {
+    margin-top: 16px;
+    padding: 10px 14px;
+    background: rgba(0,0,0,0.03);
+    border-radius: 10px;
+    font-size: 12px;
+    color: #94a3b8;
+    line-height: 1.5;
+  }
+
+  /* ─── Adaptive timeline ─── */
+  .adaptive-row {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 20px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  @media (min-width: 768px) {
+    .adaptive-row { grid-template-columns: 1fr 1fr 1fr; }
+  }
+  .visit-card {
+    border-radius: 16px;
+    padding: 28px;
+    position: relative;
+  }
+  .visit-card.first { background: linear-gradient(135deg, #7c3aed, #a855f7); color: white; }
+  .visit-card.second { background: linear-gradient(135deg, #3b82f6, #60a5fa); color: white; }
+  .visit-card.third { background: linear-gradient(135deg, #10b981, #34d399); color: white; }
+  .visit-card .visit-time {
+    font-size: 42px;
+    font-weight: 800;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .visit-card .visit-unit { font-size: 13px; opacity: 0.7; margin-bottom: 16px; }
+  .visit-card h3 { font-size: 20px; font-weight: 700; margin-bottom: 10px; }
+  .visit-card p { font-size: 14px; opacity: 0.85; line-height: 1.5; }
+  .visit-card .kit-quote {
+    margin-top: 16px;
+    padding: 12px 16px;
+    background: rgba(255,255,255,0.15);
+    border-radius: 12px;
+    font-size: 13px;
+    font-style: italic;
+    line-height: 1.5;
+    border-left: 3px solid rgba(255,255,255,0.4);
+  }
+  .visit-card .kit-quote::before { content: '🧑‍🎨 Kit: '; font-style: normal; font-weight: 600; }
+
+  /* ─── Data collection ─── */
+  .data-split {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 24px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  @media (min-width: 768px) {
+    .data-split { grid-template-columns: 1fr 1fr; }
+  }
+  .data-column {
+    border-radius: 16px;
+    padding: 28px;
+  }
+  .data-column.deliberate {
+    background: linear-gradient(180deg, #faf5ff, white);
+    border: 1px solid #e9d5ff;
+  }
+  .data-column.passive {
+    background: linear-gradient(180deg, #eff6ff, white);
+    border: 1px solid #bfdbfe;
+  }
+  .data-column h3 {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .data-column .col-sub {
+    font-size: 13px;
+    color: #94a3b8;
+    margin-bottom: 16px;
+  }
+  .data-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(0,0,0,0.04);
+  }
+  .data-item:last-child { border-bottom: none; }
+  .data-item .di-icon {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+  .deliberate .di-icon { background: #ede9fe; }
+  .passive .di-icon { background: #dbeafe; }
+  .data-item .di-text h4 { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+  .data-item .di-text p { font-size: 12px; color: #94a3b8; }
+
+  /* ─── Framework variants ─── */
+  .fw-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  @media (max-width: 639px) {
+    .fw-grid { grid-template-columns: 1fr; }
+  }
+  .fw-card {
+    border-radius: 16px;
+    padding: 24px;
+    border: 1px solid #e5e7eb;
+    background: white;
+    transition: transform 0.2s;
+  }
+  .fw-card:hover { transform: translateY(-2px); }
+  .fw-card .fw-tag {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 100px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 12px;
+  }
+  .fw-card.myp .fw-tag { background: #dbeafe; color: #2563eb; }
+  .fw-card.saa .fw-tag { background: #fce7f3; color: #db2777; }
+  .fw-card.pp .fw-tag { background: #ede9fe; color: #7c3aed; }
+  .fw-card.pypx .fw-tag { background: #fef3c7; color: #d97706; }
+  .fw-card h3 { font-size: 17px; font-weight: 700; margin-bottom: 8px; }
+  .fw-card p { font-size: 13px; color: #64748b; line-height: 1.5; }
+  .fw-card .kit-tone {
+    margin-top: 12px;
+    padding: 8px 12px;
+    background: #f8fafc;
+    border-radius: 8px;
+    font-size: 12px;
+    color: #94a3b8;
+    font-style: italic;
+  }
+
+  /* ─── Phase roadmap ─── */
+  .phase-list {
+    max-width: 700px;
+    margin: 0 auto;
+    position: relative;
+  }
+  .phase-list::before {
+    content: '';
+    position: absolute;
+    left: 24px; top: 0; bottom: 0;
+    width: 2px;
+    background: linear-gradient(180deg, #c084fc, #60a5fa, #34d399, #f472b6);
+  }
+  .phase-item {
+    display: flex;
+    gap: 24px;
+    padding: 20px 0;
+    position: relative;
+  }
+  .phase-dot {
+    width: 48px; height: 48px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 2;
+  }
+  .phase-item:nth-child(1) .phase-dot { background: #ede9fe; }
+  .phase-item:nth-child(2) .phase-dot { background: #dbeafe; }
+  .phase-item:nth-child(3) .phase-dot { background: #d1fae5; }
+  .phase-item:nth-child(4) .phase-dot { background: #fce7f3; }
+  .phase-content h3 { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+  .phase-content .phase-time { font-size: 13px; color: #a78bfa; font-weight: 600; margin-bottom: 8px; }
+  .phase-content p { font-size: 14px; color: #64748b; line-height: 1.55; }
+
+  /* ─── Ethics ─── */
+  .ethics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  .ethics-card {
+    padding: 20px;
+    border-radius: 14px;
+    background: white;
+    border: 1px solid #e5e7eb;
+  }
+  .ethics-card .ec-icon { font-size: 24px; margin-bottom: 10px; }
+  .ethics-card h4 { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+  .ethics-card p { font-size: 13px; color: #64748b; line-height: 1.5; }
+
+  /* ─── CTA ─── */
+  .cta-section {
+    background: linear-gradient(135deg, #1a0533, #4c1d95);
+    color: white;
+    padding: 80px 0;
+    text-align: center;
+  }
+  .cta-section h2 { font-size: 36px; font-weight: 800; margin-bottom: 16px; }
+  .cta-section p { font-size: 17px; opacity: 0.7; max-width: 500px; margin: 0 auto 32px; }
+  .cta-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 32px;
+    background: white;
+    color: #4c1d95;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 700;
+    text-decoration: none;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .cta-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 32px rgba(0,0,0,0.3);
+  }
+
+  /* ─── Differentiator banner ─── */
+  .diff-banner {
+    max-width: 800px;
+    margin: 0 auto 48px;
+    padding: 24px 32px;
+    background: linear-gradient(135deg, #faf5ff, #eff6ff);
+    border: 2px solid #e9d5ff;
+    border-radius: 16px;
+    text-align: center;
+  }
+  .diff-banner p {
+    font-size: 16px;
+    color: #4c1d95;
+    font-weight: 600;
+    line-height: 1.5;
+  }
+  .diff-banner .diff-sub {
+    font-size: 14px;
+    color: #7c3aed;
+    font-weight: 400;
+    margin-top: 8px;
+  }
+
+  /* ─── Profile preview mock ─── */
+  .profile-mock {
+    max-width: 480px;
+    margin: 48px auto 0;
+    background: white;
+    border-radius: 20px;
+    border: 1px solid #e5e7eb;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.08);
+  }
+  .profile-mock .pm-header {
+    padding: 16px 20px;
+    background: linear-gradient(135deg, #4c1d95, #7c3aed);
+    color: white;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .profile-mock .pm-avatar {
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.2);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+    border: 2px solid rgba(255,255,255,0.3);
+  }
+  .profile-mock .pm-name { font-weight: 700; font-size: 15px; }
+  .profile-mock .pm-arch { font-size: 12px; opacity: 0.75; }
+  .profile-mock .pm-body { padding: 20px; }
+  .profile-mock .pm-section { margin-bottom: 16px; }
+  .profile-mock .pm-section h4 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #94a3b8; margin-bottom: 8px; font-weight: 700; }
+  .profile-mock .pm-bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .profile-mock .pm-bar-label { font-size: 12px; color: #64748b; width: 90px; flex-shrink: 0; }
+  .profile-mock .pm-bar { flex: 1; height: 8px; background: #f1f5f9; border-radius: 100px; overflow: hidden; }
+  .profile-mock .pm-bar-fill { height: 100%; border-radius: 100px; }
+  .profile-mock .pm-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+  .profile-mock .pm-tag {
+    padding: 4px 10px;
+    border-radius: 100px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .pm-tag.interest { background: #dbeafe; color: #2563eb; }
+  .pm-tag.fear { background: #fee2e2; color: #dc2626; }
+  .pm-tag.style { background: #d1fae5; color: #059669; }
+
+  /* ─── Nav ─── */
+  .top-nav {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(26,5,51,0.95);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    padding: 12px 0;
+  }
+  .top-nav .container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .top-nav .logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: white;
+    text-decoration: none;
+    font-weight: 700;
+    font-size: 18px;
+  }
+  .top-nav .logo-mark {
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.1);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .top-nav .nav-pill {
+    padding: 6px 16px;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 100px;
+    color: rgba(255,255,255,0.75);
+    font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
+    transition: background 0.2s;
+  }
+  .top-nav .nav-pill:hover { background: rgba(255,255,255,0.2); }
+
+  /* ─── Archetype row ─── */
+  .archetype-row {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 32px;
+  }
+  .archetype-chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 100px;
+    font-size: 13px;
+    color: rgba(255,255,255,0.8);
+    font-weight: 500;
+    backdrop-filter: blur(4px);
+  }
+  .archetype-chip .ac-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+  }
+
+  /* ─── Responsive ─── */
+  @media (max-width: 639px) {
+    .hero { padding: 60px 0 80px; }
+    .hero-stats { gap: 24px; }
+    section { padding: 60px 0; }
+    .visit-card .visit-time { font-size: 32px; }
+    .fw-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════ NAV ═══════ -->
+<nav class="top-nav">
+  <div class="container">
+    <a href="#" class="logo">
+      <div class="logo-mark">
+        <svg width="18" height="18" viewBox="0 0 32 32" fill="none">
+          <rect x="2" y="8" width="28" height="5" rx="2.5" fill="#7B2FF2"/>
+          <rect x="2" y="19" width="28" height="5" rx="2.5" fill="#7B2FF2"/>
+          <rect x="8" y="2" width="5" height="28" rx="2.5" fill="#7B2FF2"/>
+          <rect x="19" y="2" width="5" height="28" rx="2.5" fill="#7B2FF2"/>
+        </svg>
+      </div>
+      StudioLoom
+    </a>
+    <a href="#phases" class="nav-pill">Implementation →</a>
+  </div>
+</nav>
+
+<!-- ═══════ HERO ═══════ -->
+<header class="hero text-center">
+  <div class="container">
+    <div class="hero-badge">✨ Discovery Intelligence Layer</div>
+    <h1>Every student is <span class="accent">uniquely understood</span></h1>
+    <p class="subtitle">The Discovery Engine builds a rich, student-driven personality profile that follows every learner through every AI interaction on the platform — mentoring, project suggestions, toolkit guidance, and lesson scaffolding all adapt to who they are.</p>
+
+    <div class="hero-stats">
+      <div class="hero-stat">
+        <div class="number">8</div>
+        <div class="label">Interactive Stations</div>
+      </div>
+      <div class="hero-stat">
+        <div class="number">6</div>
+        <div class="label">Design Archetypes</div>
+      </div>
+      <div class="hero-stat">
+        <div class="number">45→10</div>
+        <div class="label">Minutes (adapts over time)</div>
+      </div>
+      <div class="hero-stat">
+        <div class="number">∞</div>
+        <div class="label">Personalisation Points</div>
+      </div>
+    </div>
+
+    <div class="archetype-row">
+      <div class="archetype-chip"><div class="ac-dot" style="background:#f97316"></div>Maker</div>
+      <div class="archetype-chip"><div class="ac-dot" style="background:#3b82f6"></div>Researcher</div>
+      <div class="archetype-chip"><div class="ac-dot" style="background:#ef4444"></div>Leader</div>
+      <div class="archetype-chip"><div class="ac-dot" style="background:#8b5cf6"></div>Communicator</div>
+      <div class="archetype-chip"><div class="ac-dot" style="background:#ec4899"></div>Creative</div>
+      <div class="archetype-chip"><div class="ac-dot" style="background:#10b981"></div>Systems Thinker</div>
+    </div>
+  </div>
+</header>
+
+<!-- ═══════ WHAT MAKES THIS DIFFERENT ═══════ -->
+<section class="text-center">
+  <div class="container">
+    <div class="diff-banner">
+      <p>No other edtech platform carries a structured, student-built personality profile through every AI touchpoint.</p>
+      <div class="diff-sub">Students build their profile through genuine self-reflection — not surveillance, not quizzes, not data mining.</div>
+    </div>
+
+    <div class="section-badge">🧑‍🎨 The Journey</div>
+    <h2>8 stations. One <span class="accent">design identity</span>.</h2>
+    <p class="section-desc">Students work through an immersive, interactive journey guided by Kit — their AI design mentor. Each station reveals a different dimension of who they are as a designer.</p>
+
+    <div class="journey-grid">
+      <div class="station-card">
+        <div class="station-num">S0</div>
+        <span class="station-emoji">🎨</span>
+        <h3>Design Identity Card</h3>
+        <p>Students choose their palette, tools, and workspace — visual preferences that signal design personality before a single question is asked.</p>
+        <div class="data-pills"><span class="data-pill">Tool preferences</span><span class="data-pill">Visual style</span></div>
+      </div>
+      <div class="station-card">
+        <div class="station-num">S1</div>
+        <span class="station-emoji">🔥</span>
+        <h3>Campfire</h3>
+        <p>12 binary working-style pairs presented around a campfire. "Plan it all first" or "Dive in and figure it out?" No wrong answers — both choices are equally aspirational.</p>
+        <div class="data-pills"><span class="data-pill">Working style vector</span></div>
+      </div>
+      <div class="station-card">
+        <div class="station-num">S2</div>
+        <span class="station-emoji">🏗️</span>
+        <h3>Workshop</h3>
+        <p>Kit shares a story about his own panic moment. Then micro-scenarios reveal how students respond under pressure — the highest-quality signal for archetype scoring.</p>
+        <div class="data-pills"><span class="data-pill">Archetype scores</span><span class="data-pill">Pressure response</span></div>
+      </div>
+      <div class="station-card">
+        <div class="station-num">S3</div>
+        <span class="station-emoji">📦</span>
+        <h3>Collection Wall</h3>
+        <p>Interests, irritations, values — the emotional core. Free-text irritation responses are AI-analysed and carry the highest scoring weight because they're authentic and self-generated.</p>
+        <div class="data-pills"><span class="data-pill">Interests</span><span class="data-pill">Irritations</span><span class="data-pill">Values</span></div>
+      </div>
+      <div class="station-card">
+        <div class="station-num">S4</div>
+        <span class="station-emoji">🪟</span>
+        <h3>Window</h3>
+        <p>Students look through a window at their community and identify a real problem that matters to them — with scale, urgency, and proximity dimensions.</p>
+        <div class="data-pills"><span class="data-pill">Problem statement</span><span class="data-pill">Scope profile</span></div>
+      </div>
+      <div class="station-card">
+        <div class="station-num">S5</div>
+        <span class="station-emoji">🧰</span>
+        <h3>Toolkit</h3>
+        <p>"Pack your bag" — students identify their resources, people network, self-efficacy across 7 design skill areas, past project experience, and how they handle failure.</p>
+        <div class="data-pills"><span class="data-pill">Resources</span><span class="data-pill">Self-efficacy</span><span class="data-pill">Resilience</span></div>
+      </div>
+      <div class="station-card">
+        <div class="station-num">S6</div>
+        <span class="station-emoji">🚪</span>
+        <h3>Crossroads</h3>
+        <p>3 AI-generated project "doors" tailored to the student's archetype, interests, and context. Fear cards acknowledge what scares them — Kit responds with genuine mentor-quality reframing.</p>
+        <div class="data-pills"><span class="data-pill">Project direction</span><span class="data-pill">Fear areas</span></div>
+      </div>
+      <div class="station-card">
+        <div class="station-num">S7</div>
+        <span class="station-emoji">🚀</span>
+        <h3>Launchpad</h3>
+        <p>Project statement, success criteria, excitement check, and the Grand Reveal — Kit synthesises everything into a personalised design identity portrait.</p>
+        <div class="data-pills"><span class="data-pill">Project brief</span><span class="data-pill">Success criteria</span><span class="data-pill">Identity reveal</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════ THREE MODULES ═══════ -->
+<section class="alt text-center">
+  <div class="container">
+    <div class="section-badge">🧱 Architecture</div>
+    <h2>Three modules, <span class="accent">not eight stations</span></h2>
+    <p class="section-desc">Under the hood, the 8 stations are architecturally three composable modules — each with its own lifecycle, refresh cadence, and data output.</p>
+
+    <div class="modules-row">
+      <div class="module-block identity">
+        <div class="mod-icon">🪞</div>
+        <h3>Identity</h3>
+        <div class="mod-question">"Who are you as a designer?"</div>
+        <p>Archetype scores, working style vector, interest map, irritation signals. The stable core of who a student is.</p>
+        <div class="mod-lifecycle">⏱️ Done well once, rarely repeated. Confirmed or adjusted on return visits.</div>
+      </div>
+      <div class="module-block problem">
+        <div class="mod-icon">🔍</div>
+        <h3>Problem Finding</h3>
+        <div class="mod-question">"What matters to you right now?"</div>
+        <p>Problem statement, resource inventory, confidence profile. Context-specific to each unit.</p>
+        <div class="mod-lifecycle">⏱️ Fresh each unit. Gets smarter with project history context.</div>
+      </div>
+      <div class="module-block commit">
+        <div class="mod-icon">🎯</div>
+        <h3>Commitment</h3>
+        <div class="mod-question">"What are you going to do about it?"</div>
+        <p>Chosen direction, fear areas, project brief, success criteria. Always specific to the project ahead.</p>
+        <div class="mod-lifecycle">⏱️ Always fresh — specific to each new project.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════ ADAPTIVE FLOW ═══════ -->
+<section class="text-center">
+  <div class="container">
+    <div class="section-badge">⚡ Adaptive</div>
+    <h2>Gets faster <span class="accent">every time</span></h2>
+    <p class="section-desc">Discovery doesn't waste time asking what it already knows. Each return visit is shorter, smarter, and more personal.</p>
+
+    <div class="adaptive-row">
+      <div class="visit-card first">
+        <div class="visit-time">~45 min</div>
+        <div class="visit-unit">First unit — full journey</div>
+        <h3>Full Discovery</h3>
+        <p>All 3 modules. Kit introduces himself. Student builds complete profile from scratch.</p>
+        <div class="kit-quote">Hey — I'm Kit. I'm not your teacher. I'm more like... a cousin who's been through the design thing and came out the other side. Let's figure out who you are.</div>
+      </div>
+      <div class="visit-card second">
+        <div class="visit-time">~20 min</div>
+        <div class="visit-unit">Second unit — confirm + focus</div>
+        <h3>Returning Student</h3>
+        <p>Identity module becomes a 5-minute confirm-and-adjust screen. Problem Finding is enriched with previous project history.</p>
+        <div class="kit-quote">Last time you told me you're a Maker who cares about waste. Still true? Anything changed?</div>
+      </div>
+      <div class="visit-card third">
+        <div class="visit-time">~10 min</div>
+        <div class="visit-unit">Third unit+ — streamlined</div>
+        <h3>Streamlined</h3>
+        <p>Identity skipped entirely. Problem Finding is faster with pre-populated context. Smarter doors based on cumulative profile.</p>
+        <div class="kit-quote">Your self-efficacy on "finding good resources" jumped from 3 to 5 since your first project. Nice.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════ DATA COLLECTION ═══════ -->
+<section class="alt text-center">
+  <div class="container">
+    <div class="section-badge">📊 Intelligence</div>
+    <h2>Two data streams, <span class="accent">one profile</span></h2>
+    <p class="section-desc">Discovery provides the student's self-reported identity. Platform usage adds passive behavioural signals. Together, they create the richest student understanding in edtech.</p>
+
+    <div class="data-split">
+      <div class="data-column deliberate">
+        <h3>🎯 Deliberate</h3>
+        <div class="col-sub">Student-driven through Discovery</div>
+        <div class="data-item"><div class="di-icon">🎨</div><div class="di-text"><h4>Design Identity Card</h4><p>Tool and material preferences</p></div></div>
+        <div class="data-item"><div class="di-icon">⚖️</div><div class="di-text"><h4>Binary Pairs</h4><p>Working style dimensions</p></div></div>
+        <div class="data-item"><div class="di-icon">😰</div><div class="di-text"><h4>Scenarios</h4><p>Archetype under pressure</p></div></div>
+        <div class="data-item"><div class="di-icon">💬</div><div class="di-text"><h4>Interests & Irritations</h4><p>Authentic emotional triggers</p></div></div>
+        <div class="data-item"><div class="di-icon">📏</div><div class="di-text"><h4>Self-Efficacy</h4><p>Confidence per skill area</p></div></div>
+        <div class="data-item"><div class="di-icon">😱</div><div class="di-text"><h4>Fear Cards</h4><p>Vulnerability areas</p></div></div>
+        <div class="data-item"><div class="di-icon">📝</div><div class="di-text"><h4>Project Statement</h4><p>Articulation ability, ambition</p></div></div>
+      </div>
+      <div class="data-column passive">
+        <h3>👁️ Passive</h3>
+        <div class="col-sub">Platform-observed over time</div>
+        <div class="data-item"><div class="di-icon">🔧</div><div class="di-text"><h4>Toolkit Usage</h4><p>Which tools used, frequency, depth</p></div></div>
+        <div class="data-item"><div class="di-icon">⌨️</div><div class="di-text"><h4>Response Patterns</h4><p>Typing speed, editing style, effort</p></div></div>
+        <div class="data-item"><div class="di-icon">🏃</div><div class="di-text"><h4>Pace Feedback</h4><p>Self-reported lesson pacing</p></div></div>
+        <div class="data-item"><div class="di-icon">💡</div><div class="di-text"><h4>AI Conversations</h4><p>What they ask about reveals priorities</p></div></div>
+        <div class="data-item"><div class="di-icon">📸</div><div class="di-text"><h4>Portfolio Style</h4><p>Visual-heavy vs written-heavy</p></div></div>
+        <div class="data-item"><div class="di-icon">📈</div><div class="di-text"><h4>Criterion Grades</h4><p>Performance trajectory over time</p></div></div>
+        <div class="data-item"><div class="di-icon">🧠</div><div class="di-text"><h4>Reflection Quality</h4><p>Metacognitive depth</p></div></div>
+      </div>
+    </div>
+
+    <!-- Profile mock -->
+    <div class="profile-mock">
+      <div class="pm-header">
+        <div class="pm-avatar">🧑‍🎨</div>
+        <div>
+          <div class="pm-name">Sarah Chen</div>
+          <div class="pm-arch">Primary: Maker · Secondary: Creative</div>
+        </div>
+      </div>
+      <div class="pm-body">
+        <div class="pm-section">
+          <h4>Archetype Scores</h4>
+          <div class="pm-bar-row"><span class="pm-bar-label">Maker</span><div class="pm-bar"><div class="pm-bar-fill" style="width:82%; background:#f97316"></div></div></div>
+          <div class="pm-bar-row"><span class="pm-bar-label">Creative</span><div class="pm-bar"><div class="pm-bar-fill" style="width:71%; background:#ec4899"></div></div></div>
+          <div class="pm-bar-row"><span class="pm-bar-label">Researcher</span><div class="pm-bar"><div class="pm-bar-fill" style="width:45%; background:#3b82f6"></div></div></div>
+          <div class="pm-bar-row"><span class="pm-bar-label">Sys. Thinker</span><div class="pm-bar"><div class="pm-bar-fill" style="width:38%; background:#10b981"></div></div></div>
+          <div class="pm-bar-row"><span class="pm-bar-label">Leader</span><div class="pm-bar"><div class="pm-bar-fill" style="width:29%; background:#ef4444"></div></div></div>
+          <div class="pm-bar-row"><span class="pm-bar-label">Communicator</span><div class="pm-bar"><div class="pm-bar-fill" style="width:22%; background:#8b5cf6"></div></div></div>
+        </div>
+        <div class="pm-section">
+          <h4>Interests</h4>
+          <div class="pm-tags">
+            <span class="pm-tag interest">Sustainability</span>
+            <span class="pm-tag interest">Gaming</span>
+            <span class="pm-tag interest">3D Printing</span>
+            <span class="pm-tag interest">Architecture</span>
+          </div>
+        </div>
+        <div class="pm-section">
+          <h4>Working Style</h4>
+          <div class="pm-tags">
+            <span class="pm-tag style">Hands-on first</span>
+            <span class="pm-tag style">Iterates quickly</span>
+            <span class="pm-tag style">Visual thinker</span>
+          </div>
+        </div>
+        <div class="pm-section">
+          <h4>Growth Areas</h4>
+          <div class="pm-tags">
+            <span class="pm-tag fear">Public presenting</span>
+            <span class="pm-tag fear">Asking for help</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════ FRAMEWORK VARIANTS ═══════ -->
+<section class="text-center">
+  <div class="container">
+    <div class="section-badge">🌐 Frameworks</div>
+    <h2>Same engine, <span class="accent">different journeys</span></h2>
+    <p class="section-desc">Discovery adapts its tone, scope, and project framing to the IB programme context — from 6-week MYP Design units to year-long Personal Projects.</p>
+
+    <div class="fw-grid">
+      <div class="fw-card myp">
+        <div class="fw-tag">MYP Design</div>
+        <h3>Mode 1 — Design Units</h3>
+        <p>Students complete guided lessons first, teacher unlocks Discovery, then Open Studio. Doors are 6-10 week project scale, Kit references MYP criteria.</p>
+        <div class="kit-tone">Kit's tone: Encouraging workshop buddy</div>
+      </div>
+      <div class="fw-card saa">
+        <div class="fw-tag">Service as Action</div>
+        <h3>Mode 2 — Service Projects</h3>
+        <p>Discovery IS the unit entry point — no prerequisites. Module 2 emphasises community needs and service orientation. Doors frame real-impact service projects.</p>
+        <div class="kit-tone">Kit's tone: Empathy and social responsibility</div>
+      </div>
+      <div class="fw-card pp">
+        <div class="fw-tag">Personal Project</div>
+        <h3>Year-Long Commitment</h3>
+        <p>Highest stakes. Module 2 is deeper and more personal. Doors are year-long commitments, not 8-week sprints. Additional milestone decomposition station.</p>
+        <div class="kit-tone">Kit: "This is a big decision. Let's make sure it's something you'll still care about in March."</div>
+      </div>
+      <div class="fw-card pypx">
+        <div class="fw-tag">PYP Exhibition</div>
+        <h3>Collaborative Discovery</h3>
+        <p>Individual profiles compared to form complementary teams. A team of all Makers with no Researcher will struggle with inquiry. Group-aware project doors.</p>
+        <div class="kit-tone">Kit: "Your team has strong Makers but no one who loves research. How will you handle the inquiry phase?"</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════ IMPLEMENTATION PHASES ═══════ -->
+<section class="alt text-center" id="phases">
+  <div class="container">
+    <div class="section-badge">🗺️ Roadmap</div>
+    <h2>Four phases to <span class="accent">full intelligence</span></h2>
+    <p class="section-desc">Each phase builds on the last. Phase A delivers immediate value with zero new infrastructure. Full intelligence accumulates over the school year.</p>
+
+    <div class="phase-list" style="text-align:left">
+      <div class="phase-item">
+        <div class="phase-dot">🅰️</div>
+        <div class="phase-content">
+          <h3>Profile-Aware Design Assistant</h3>
+          <div class="phase-time">~2-3 days · Zero new dependencies</div>
+          <p>Inject Discovery profile into the AI mentor's system prompt. The Design Assistant immediately knows: archetype, working style, fear areas, interests, self-efficacy gaps. Every conversation becomes personalised. A student who fears public speaking gets gentler critique scaffolding. A Maker gets hands-on examples instead of theory.</p>
+        </div>
+      </div>
+      <div class="phase-item">
+        <div class="phase-dot">🅱️</div>
+        <div class="phase-content">
+          <h3>Adaptive Discovery Flow</h3>
+          <div class="phase-time">~3-4 days · Requires Phase A</div>
+          <p>Discovery gets shorter and smarter on every return visit. "Confirm & Adjust" UI for returning students. Kit references previous projects and growth. First-time students get the full 45-minute journey; veterans get 10 minutes of context-specific problem finding and project selection.</p>
+        </div>
+      </div>
+      <div class="phase-item">
+        <div class="phase-dot">🅲</div>
+        <div class="phase-content">
+          <h3>Persistent Profile + Passive Signals</h3>
+          <div class="phase-time">~5-7 days · Requires Phase B</div>
+          <p>Canonical student profile table accumulates across sessions. Background jobs aggregate toolkit usage, pace data, and conversation patterns. Teacher dashboard shows class-wide archetype distribution and common growth areas. AI lesson generation uses class profile data.</p>
+        </div>
+      </div>
+      <div class="phase-item">
+        <div class="phase-dot">🅳</div>
+        <div class="phase-content">
+          <h3>Framework Variants + Group Discovery</h3>
+          <div class="phase-time">~5-8 days · Requires Phase C</div>
+          <p>Personal Project variant with year-long commitment framing and milestone decomposition. PYP Exhibition variant with group profiling and complementary team formation. First-time onboarding flow with avatar selection. Teacher content control panel for Discovery content pools.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════ ETHICS ═══════ -->
+<section class="text-center">
+  <div class="container">
+    <div class="section-badge">🛡️ Ethics</div>
+    <h2>Built on <span class="accent">student agency</span></h2>
+    <p class="section-desc">Every design decision puts students in control. This isn't surveillance — it's self-reflection that happens to make AI smarter.</p>
+
+    <div class="ethics-grid">
+      <div class="ethics-card">
+        <div class="ec-icon">✋</div>
+        <h4>Student Agency</h4>
+        <p>The profile is built through deliberate self-reflection, not surveillance. Students choose what to share.</p>
+      </div>
+      <div class="ethics-card">
+        <div class="ec-icon">👁️</div>
+        <h4>Full Transparency</h4>
+        <p>Students can see their own profile at any time. Nothing is hidden. Teachers see profiles to inform instruction.</p>
+      </div>
+      <div class="ethics-card">
+        <div class="ec-icon">🔄</div>
+        <h4>Self-Report First</h4>
+        <p>Passive signals enrich but never override self-reported identity. A student who says they're a Maker is a Maker.</p>
+      </div>
+      <div class="ethics-card">
+        <div class="ec-icon">🔒</div>
+        <h4>Private Profiles</h4>
+        <p>No class rankings, no public comparison, no "you're behind" messaging. Profiles are visible to the student and their teachers only.</p>
+      </div>
+      <div class="ethics-card">
+        <div class="ec-icon">🔁</div>
+        <h4>Reset Available</h4>
+        <p>Students can request a full profile reset at any time. Teachers can flag sections for refresh.</p>
+      </div>
+      <div class="ethics-card">
+        <div class="ec-icon">🧒</div>
+        <h4>Age-Appropriate</h4>
+        <p>Designed for ages 11-18. Archetypes are tendencies, not categories. No personality "typing" that feels reductive.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════ CTA ═══════ -->
+<section class="cta-section">
+  <div class="container">
+    <h2>The foundation is built.</h2>
+    <p>8 stations live. 9,500 lines of code. Kit is ready to meet your students. The intelligence layer turns a good experience into a transformative one.</p>
+    <a href="#" class="cta-btn">
+      <svg width="20" height="20" viewBox="0 0 32 32" fill="none">
+        <rect x="2" y="8" width="28" height="5" rx="2.5" fill="#7B2FF2"/>
+        <rect x="2" y="19" width="28" height="5" rx="2.5" fill="#7B2FF2"/>
+        <rect x="8" y="2" width="5" height="28" rx="2.5" fill="#7B2FF2"/>
+        <rect x="19" y="2" width="5" height="28" rx="2.5" fill="#7B2FF2"/>
+      </svg>
+      Try StudioLoom →
+    </a>
+  </div>
+</section>
+
+<!-- ═══════ Footer ═══════ -->
+<footer style="padding:24px 0; text-align:center; font-size:13px; color:#94a3b8; background:#faf8ff; border-top:1px solid #e5e7eb;">
+  <div class="container">
+    StudioLoom — Discovery Intelligence Layer · Architecture Showcase · March 2026
+  </div>
+</footer>
+
+</body>
+</html>
