@@ -1184,21 +1184,41 @@ Automatically generate thumbnail images and visual assets based on content:
 
 ## Phase 5: Social Learning & Peer Collaboration
 
+### ✅ Class Gallery & Peer Review — BUILT (26 Mar 2026)
+Complete digital pin-up crit system. 24 files, ~4,161 lines. Migration 049 APPLIED.
+
+**What's built:**
+- Teacher creates gallery round (title, description, review format, min reviews, anonymous toggle, deadline, page selection)
+- 3 review formats: comment (with sentence starters), PMI (Plus/Minus/Interesting), Two Stars & a Wish
+- Students submit portfolio page snapshots with context notes
+- Students browse & review peers' work with structured format UI
+- Effort-gated: must complete minimum reviews before seeing own feedback
+- Teacher monitoring dashboard (GalleryMonitor) with per-student submission/review status, one-click round management
+- Student dashboard integration (GalleryDashboardCard with progress indicators)
+- Gallery tab in Class Hub for teacher management
+- Full API: 7 student routes + 3 teacher routes
+- Spec: `docs/specs/class-gallery-peer-review.md`
+
+**What's remaining:**
+- "Share to Gallery" button from portfolio/unit pages (students currently access via dashboard card)
+- Teaching Mode integration (see gallery status during live teaching)
+- AI-assisted review quality scoring (flag low-effort reviews)
+
 ### Peer Inspiration Gallery (UX Philosophy #7 — Social Learning)
-- Class gallery where students see each other's work-in-progress — inspiration, not competition
-- Teacher toggles gallery visibility per page or per unit (opt-in, not default)
-- Students browse anonymously or with names (teacher choice)
-- No ranking, no likes count — just a visual grid of peer work
-- "Remix" option: student can reference a classmate's approach in their own response ("Inspired by...")
-- Class-level milestone celebrations: "12 students finished Criterion A this week!" on dashboard
+- ~~Class gallery where students see each other's work-in-progress — inspiration, not competition~~ ✅ Gallery rounds built
+- ~~Teacher toggles gallery visibility per page or per unit (opt-in, not default)~~ ✅ Per-round page selection
+- ~~Students browse anonymously or with names (teacher choice)~~ ✅ Anonymous toggle per round
+- No ranking, no likes count — just a visual grid of peer work ✅
+- "Remix" option: student can reference a classmate's approach in their own response ("Inspired by...") — FUTURE
+- Class-level milestone celebrations: "12 students finished Criterion A this week!" on dashboard — FUTURE
 - Inspired by Scratch (remix/fork as peer learning), Domestika (per-course community showcase)
 
 ### Peer Feedback & Collaboration
-- **Peer review cycles**: Teacher assigns pairs/groups, students give structured feedback using sentence stems and rubric-aligned prompts
-- **Gallery walk mode**: Students browse classmates' work and leave sticky-note style comments (anonymous option available)
-- **Teacher-prompted activities**: Teacher triggers class-wide feedback activities (e.g., "I like / I wish / What if" design critique, Two Stars & a Wish)
-- **Feedback templates**: Pre-built sentence starters for peer feedback mapped to MYP criteria
-- **Activity suggestions**: Teacher gets AI-suggested collaboration activities based on where students are in the design cycle (e.g., "Students are on B3 — suggest running a gallery walk of initial sketches")
+- ~~**Peer review cycles**: Teacher assigns pairs/groups, students give structured feedback using sentence stems and rubric-aligned prompts~~ ✅ Gallery rounds with structured review formats
+- ~~**Gallery walk mode**: Students browse classmates' work and leave sticky-note style comments (anonymous option available)~~ ✅ Browse & Review tab
+- ~~**Teacher-prompted activities**: Teacher triggers class-wide feedback activities (e.g., "I like / I wish / What if" design critique, Two Stars & a Wish)~~ ✅ Two Stars & a Wish + PMI formats
+- ~~**Feedback templates**: Pre-built sentence starters for peer feedback mapped to MYP criteria~~ ✅ Sentence starters per format
+- **Activity suggestions**: Teacher gets AI-suggested collaboration activities based on where students are in the design cycle (e.g., "Students are on B3 — suggest running a gallery walk of initial sketches") — FUTURE
 - Links naturally to Activity Library (Phase 2) — peer feedback activities available as insertable templates
 
 ### Inline Feedback System
