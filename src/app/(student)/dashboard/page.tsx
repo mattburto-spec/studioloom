@@ -12,7 +12,6 @@ import { UnitThumbnail } from "@/components/shared/UnitThumbnail";
 import { JourneyMap } from "@/components/student/JourneyMap";
 import { DueThisWeek } from "@/components/student/DueThisWeek";
 import { BadgeIcon } from "@/components/safety/BadgeIcon";
-import { StudentIntakeSurvey } from "@/components/student/StudentIntakeSurvey";
 import { GalleryDashboardCard } from "@/components/gallery/GalleryDashboardCard";
 import type { Unit, StudentProgress, PortfolioEntry, UnitPage } from "@/types";
 
@@ -74,7 +73,7 @@ export default function StudentDashboard() {
     formatted: string;
     short: string;
   } | null>(null);
-  const [showIntakeSurvey, setShowIntakeSurvey] = useState(false);
+  // Note: showIntakeSurvey removed — onboarding now handled in layout.tsx via StudioSetup
   const [galleryRounds, setGalleryRounds] = useState<any[]>([]);
 
   const loadPortfolio = useCallback(async () => {
@@ -337,55 +336,11 @@ export default function StudentDashboard() {
         />
       )}
 
-      {/* Intake Survey Modal — triggered by banner click */}
-      {showIntakeSurvey && student && (
-        <StudentIntakeSurvey
-          studentName={student.display_name || student.username}
-          onComplete={() => setShowIntakeSurvey(false)}
-        />
-      )}
-
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
 
-        {/* ============ Glowing Intake Survey Banner ============ */}
-        {!showIntakeSurvey && student && !(student as any).learning_profile && (
-          <button
-            onClick={() => setShowIntakeSurvey(true)}
-            className="w-full mb-5 group relative overflow-hidden rounded-2xl border-2 border-purple-300 bg-gradient-to-r from-purple-50 via-white to-indigo-50 px-5 py-4 text-left shadow-sm hover:shadow-md transition-all duration-300"
-          >
-            {/* Animated glow ring */}
-            <div className="absolute inset-0 rounded-2xl animate-pulse bg-gradient-to-r from-purple-200/30 via-transparent to-indigo-200/30 pointer-events-none" />
-
-            <div className="relative flex items-center gap-4">
-              {/* Pulsing icon */}
-              <div className="relative flex-shrink-0">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-500 flex items-center justify-center shadow-lg shadow-purple-200">
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                    <circle cx="9" cy="7" r="4" />
-                    <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                  </svg>
-                </div>
-                <span className="absolute -top-1 -right-1 flex h-4 w-4">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-4 w-4 bg-purple-500 border-2 border-white" />
-                </span>
-              </div>
-
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-bold text-purple-900">Tell us about yourself!</p>
-                <p className="text-xs text-purple-600/80 mt-0.5">Takes 30 seconds — helps your AI mentor understand how you learn best</p>
-              </div>
-
-              <div className="flex-shrink-0 text-purple-400 group-hover:text-purple-600 group-hover:translate-x-0.5 transition-all">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="9 18 15 12 9 6" />
-                </svg>
-              </div>
-            </div>
-          </button>
-        )}
+        {/* Note: Learning Profile intake is now handled by StudioSetup onboarding in layout.tsx.
+            The old glowing banner + StudentIntakeSurvey modal have been removed.
+            Students who completed onboarding already have their learning_profile saved. */}
 
         {/* ============ Compact Header ============ */}
         <div className="flex items-center justify-between mb-5">

@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
   // Step 2: Get the student
   const { data: student, error: studentError } = await supabase
     .from("students")
-    .select("id, username, display_name, ell_level, class_id, learning_profile")
+    .select("id, username, display_name, ell_level, class_id, learning_profile, mentor_id, theme_id, avatar_url")
     .eq("id", session.student_id)
     .single();
 

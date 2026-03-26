@@ -16,6 +16,8 @@ import { buildOpenStudioSystemPrompt } from "@/lib/ai/open-studio-prompt";
 import { getTeachingContext, getFrameworkFromContext } from "@/lib/ai/teacher-context";
 import { getFramework } from "@/lib/frameworks";
 import { logUsage } from "@/lib/usage-tracking";
+import { getMentorPromptModifier } from "@/lib/student/mentors";
+import type { MentorId } from "@/lib/student/mentors";
 
 // =========================================================================
 // CONVERSATION CRUD
@@ -256,8 +258,8 @@ export async function generateResponse(
     conversation.unitId
   );
 
-  // 7b. Load student's learning profile (intake survey) for personalisation
-  const studentProfile = await getStudentLearningProfile(conversation.studentId);
+  // 7b. Load student's learning profile (intake survey) + mentor preference for personalisation
+  const { profile: studentProfile, mentorId } = await getStudentLearningProfile(conversation.studentId);
 
   // 8. Build system prompt (guided vs Open Studio)
   let systemPrompt: string;
@@ -288,6 +290,12 @@ export async function generateResponse(
   // Append student learning profile context if available
   if (studentProfile) {
     systemPrompt += buildLearningProfileContext(studentProfile);
+  }
+
+  // Append mentor personality modifier (changes AI voice to match chosen mentor)
+  const mentorModifier = getMentorPromptModifier(mentorId as MentorId | null);
+  if (mentorModifier) {
+    systemPrompt += "\n\n" + mentorModifier;
   }
 
   // 8. Build conversation messages for AI
@@ -622,20 +630,22 @@ interface StudentLearningProfile {
 }
 
 /**
- * Load student's self-reported learning profile from the students table.
+ * Load student's self-reported learning profile + mentor preference from the students table.
  */
 async function getStudentLearningProfile(
   studentId: string
-): Promise<StudentLearningProfile | null> {
+): Promise<{ profile: StudentLearningProfile | null; mentorId: string | null }> {
   const supabase = createAdminClient();
   const { data } = await supabase
     .from("students")
-    .select("learning_profile")
+    .select("learning_profile, mentor_id")
     .eq("id", studentId)
     .single();
 
-  if (!data?.learning_profile) return null;
-  return data.learning_profile as StudentLearningProfile;
+  return {
+    profile: (data?.learning_profile as StudentLearningProfile) ?? null,
+    mentorId: data?.mentor_id ?? null,
+  };
 }
 
 /**

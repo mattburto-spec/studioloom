@@ -34,6 +34,9 @@ export interface Student {
   external_provider: string | null;
   // Self-reported intake survey (migration 048)
   learning_profile: StudentLearningIntake | null;
+  // Studio preferences — selected during onboarding (migration 050)
+  mentor_id: "kit" | "sage" | "spark" | null;
+  theme_id: "clean" | "bold" | "warm" | "dark" | null;
 }
 
 /** Self-reported intake survey data — collected once at first login.
