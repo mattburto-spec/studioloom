@@ -61,89 +61,18 @@ export function Station6Crossroads({ session }: Station6CrossroadsProps) {
   );
 
   // ─── Generate doors (with 20s timeout + manual retry) ──────
+  // Use refs for values needed in the fetch so the useEffect doesn't
+  // depend on profile/session/updateData (which change every render
+  // and would abort the inflight request via cleanup).
+  const profileRef = useRef(profile);
+  profileRef.current = profile;
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
+  const updateDataRef = useRef(updateData);
+  updateDataRef.current = updateData;
+
   const generateDoorsRef = useRef(false);
-  const generateDoors = useCallback(() => {
-    setIsLoadingDoors(true);
-    setGenerationTimedOut(false);
-    generateDoorsRef.current = true;
-
-    const primaryArchetype = profile.archetypeResult?.primary ?? "Maker";
-    const secondaryArchetype = profile.archetypeResult?.secondary;
-
-    // 20-second timeout — show retry/fallback buttons if API hangs
-    const timeoutId = setTimeout(() => {
-      if (generateDoorsRef.current) {
-        setGenerationTimedOut(true);
-      }
-    }, 20_000);
-
-    // 35-second hard timeout — auto-fallback to template doors
-    const hardTimeoutId = setTimeout(() => {
-      if (generateDoorsRef.current) {
-        console.warn("[Station6] Hard timeout — auto-falling back to template doors");
-        const fallback = getTemplateDoors(primaryArchetype, profile.mode);
-        updateData({ doors: fallback });
-        setIsLoadingDoors(false);
-        setGenerationTimedOut(false);
-        generateDoorsRef.current = false;
-        setTimeout(() => session.goToStep("station_6_explore_1"), 800);
-      }
-    }, 35_000);
-
-    const controller = new AbortController();
-
-    fetch("/api/discovery/reflect", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      signal: controller.signal,
-      body: JSON.stringify({
-        type: "s6_doors",
-        context: {
-          primaryArchetype,
-          secondaryArchetype,
-          interests: profile.station3.interests,
-          irritationSummary: profile.station3.irritationAiAnalysis?.summary_tag,
-          problemText: profile.station4.problemText,
-          resources: profile.station5.resources,
-          mode: profile.mode,
-        },
-      }),
-    })
-      .then((res) => {
-        if (res.ok) return res.json();
-        throw new Error(`API ${res.status}`);
-      })
-      .then((data) => {
-        if (!generateDoorsRef.current) return; // Stale
-        // API returns { result: { doors: [...] }, usage: {...} }
-        const doors = data.result?.doors ?? data.doors ?? [];
-        updateData({ doors });
-        setIsLoadingDoors(false);
-        clearTimeout(timeoutId);
-        clearTimeout(hardTimeoutId);
-        setTimeout(() => session.goToStep("station_6_explore_1"), 1500);
-      })
-      .catch((err) => {
-        if (err.name === "AbortError") return;
-        console.error("[Station6] Door generation failed:", err);
-        const fallback = getTemplateDoors(primaryArchetype, profile.mode);
-        updateData({ doors: fallback });
-        setIsLoadingDoors(false);
-        clearTimeout(timeoutId);
-        clearTimeout(hardTimeoutId);
-        setTimeout(() => session.goToStep("station_6_explore_1"), 1500);
-      })
-      .finally(() => {
-        generateDoorsRef.current = false;
-      });
-
-    return () => {
-      clearTimeout(timeoutId);
-      clearTimeout(hardTimeoutId);
-      controller.abort();
-      generateDoorsRef.current = false;
-    };
-  }, [profile, session, updateData]);
+  const doorsAbortRef = useRef<AbortController | null>(null);
 
   const useFallbackDoors = useCallback(() => {
     const fallback = getTemplateDoors(
@@ -156,14 +85,92 @@ export function Station6Crossroads({ session }: Station6CrossroadsProps) {
     setTimeout(() => session.goToStep("station_6_explore_1"), 800);
   }, [profile, session, updateData]);
 
-  const doorsRequestedRef = useRef(false);
+  // Single-fire effect: generate doors when entering station_6_generating
   useEffect(() => {
     if (current !== "station_6_generating") return;
-    if (station6.doors.length > 0) return; // Already generated
-    if (doorsRequestedRef.current) return; // Already in-flight — prevent re-trigger loop
-    doorsRequestedRef.current = true;
-    return generateDoors();
-  }, [current, station6.doors.length, generateDoors]);
+    if (station6.doors.length > 0) return; // Already have doors
+    if (generateDoorsRef.current) return; // Already in-flight
+
+    generateDoorsRef.current = true;
+    setIsLoadingDoors(true);
+    setGenerationTimedOut(false);
+
+    const p = profileRef.current;
+    const primaryArchetype = p.archetypeResult?.primary ?? "Maker";
+    const secondaryArchetype = p.archetypeResult?.secondary;
+
+    // 20-second soft timeout — show retry/fallback buttons
+    const timeoutId = setTimeout(() => {
+      if (generateDoorsRef.current) setGenerationTimedOut(true);
+    }, 20_000);
+
+    // 35-second hard timeout — auto-fallback to template doors
+    const hardTimeoutId = setTimeout(() => {
+      if (generateDoorsRef.current) {
+        console.warn("[Station6] Hard timeout — auto-falling back to template doors");
+        const fallback = getTemplateDoors(primaryArchetype, p.mode);
+        updateDataRef.current({ doors: fallback });
+        setIsLoadingDoors(false);
+        setGenerationTimedOut(false);
+        generateDoorsRef.current = false;
+        setTimeout(() => sessionRef.current.goToStep("station_6_explore_1"), 800);
+      }
+    }, 35_000);
+
+    const controller = new AbortController();
+    doorsAbortRef.current = controller;
+
+    fetch("/api/discovery/reflect", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify({
+        type: "s6_doors",
+        context: {
+          primaryArchetype,
+          secondaryArchetype,
+          interests: p.station3.interests,
+          irritationSummary: p.station3.irritationAiAnalysis?.summary_tag,
+          problemText: p.station4.problemText,
+          resources: p.station5.resources,
+          mode: p.mode,
+        },
+      }),
+    })
+      .then((res) => {
+        if (res.ok) return res.json();
+        throw new Error(`API ${res.status}`);
+      })
+      .then((data) => {
+        if (!generateDoorsRef.current) return; // Stale
+        // API returns { result: { doors: [...] }, usage: {...} }
+        const doors = data.result?.doors ?? data.doors ?? [];
+        updateDataRef.current({ doors });
+        setIsLoadingDoors(false);
+        clearTimeout(timeoutId);
+        clearTimeout(hardTimeoutId);
+        generateDoorsRef.current = false;
+        setTimeout(() => sessionRef.current.goToStep("station_6_explore_1"), 1500);
+      })
+      .catch((err) => {
+        if (err.name === "AbortError") return;
+        console.error("[Station6] Door generation failed:", err);
+        const fallback = getTemplateDoors(primaryArchetype, p.mode);
+        updateDataRef.current({ doors: fallback });
+        setIsLoadingDoors(false);
+        clearTimeout(timeoutId);
+        clearTimeout(hardTimeoutId);
+        generateDoorsRef.current = false;
+        setTimeout(() => sessionRef.current.goToStep("station_6_explore_1"), 1500);
+      });
+
+    // Cleanup only on unmount — do NOT abort on dependency changes
+    return () => {
+      clearTimeout(timeoutId);
+      clearTimeout(hardTimeoutId);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current]);
 
   // Preload fear card images
   useEffect(() => {
