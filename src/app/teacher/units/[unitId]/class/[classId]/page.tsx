@@ -17,6 +17,7 @@ import { resolveClassUnitContent } from "@/lib/units/resolve-content";
 import { OpenStudioUnlock, OpenStudioClassView } from "@/components/open-studio";
 import { PaceFeedbackSummary } from "@/components/teacher/PaceFeedbackSummary";
 import { ClassProfileOverview } from "@/components/teacher/ClassProfileOverview";
+import { GalleryRoundCreator, GalleryMonitor, GalleryRoundCard } from "@/components/gallery";
 import { getYearLevelNumber } from "@/lib/utils/year-level";
 import StudentDrawer from "@/components/teacher/class-hub/StudentDrawer";
 
@@ -28,12 +29,13 @@ import StudentDrawer from "@/components/teacher/class-hub/StudentDrawer";
 // URL: /teacher/units/[unitId]/class/[classId]
 // ---------------------------------------------------------------------------
 
-type HubTab = "progress" | "grade" | "students" | "studio" | "metrics" | "badges" | "settings";
+type HubTab = "progress" | "grade" | "students" | "gallery" | "studio" | "metrics" | "badges" | "settings";
 
 const TABS: { id: HubTab; label: string; icon: string }[] = [
   { id: "progress", label: "Progress", icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" },
   { id: "grade", label: "Grade", icon: "M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" },
   { id: "students", label: "Students", icon: "M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zm13 10v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" },
+  { id: "gallery", label: "Gallery", icon: "M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" },
   { id: "studio", label: "Open Studio", icon: "M3 11h18M3 11v8a2 2 0 002 2h14a2 2 0 002-2v-8M7 11V7a5 5 0 0110 0v4" },
   { id: "metrics", label: "New Metrics", icon: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" },
   { id: "badges", label: "Badges", icon: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" },
@@ -57,6 +59,131 @@ type StudentProgressMap = Record<string, Record<string, ProgressCell>>;
 // Component
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Gallery Tab — manages gallery rounds for this class+unit
+// ---------------------------------------------------------------------------
+function GalleryTab({ unitId, classId, unitPages }: { unitId: string; classId: string; unitPages: UnitPage[] }) {
+  const [rounds, setRounds] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreator, setShowCreator] = useState(false);
+  const [monitorRoundId, setMonitorRoundId] = useState<string | null>(null);
+
+  const loadRounds = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/teacher/gallery?unitId=${unitId}&classId=${classId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setRounds(data.rounds || []);
+      }
+    } catch (e) {
+      console.error("Failed to load gallery rounds:", e);
+    } finally {
+      setLoading(false);
+    }
+  }, [unitId, classId]);
+
+  useEffect(() => { loadRounds(); }, [loadRounds]);
+
+  return (
+    <div className="max-w-4xl space-y-6">
+      {/* Monitor modal */}
+      {monitorRoundId && (
+        <GalleryMonitor roundId={monitorRoundId} onClose={() => { setMonitorRoundId(null); loadRounds(); }} />
+      )}
+
+      {/* Creator modal */}
+      {showCreator && (
+        <GalleryRoundCreator
+          unitId={unitId}
+          classId={classId}
+          pages={unitPages.map(p => ({ id: p.id, title: p.title }))}
+          onCreated={() => { setShowCreator(false); loadRounds(); }}
+          onClose={() => setShowCreator(false)}
+        />
+      )}
+
+      {/* Header + New Round button */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-lg font-bold text-gray-900">Pin-Up Gallery</h2>
+          <p className="text-sm text-gray-500 mt-0.5">Create critique rounds where students share work and give peer feedback</p>
+        </div>
+        <button
+          onClick={() => setShowCreator(true)}
+          className="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 transition flex items-center gap-2"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+          New Gallery Round
+        </button>
+      </div>
+
+      {/* Rounds list */}
+      {loading ? (
+        <div className="space-y-3">
+          <div className="h-24 bg-gray-100 rounded-xl animate-pulse" />
+          <div className="h-24 bg-gray-100 rounded-xl animate-pulse" />
+        </div>
+      ) : rounds.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-purple-100 flex items-center justify-center mx-auto mb-4">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#7B2FF2" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </div>
+          <p className="text-gray-900 font-semibold mb-1">No gallery rounds yet</p>
+          <p className="text-gray-500 text-sm mb-4">Create a pin-up crit round for students to share work and give peer feedback.</p>
+          <button
+            onClick={() => setShowCreator(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 transition"
+          >
+            Create Your First Round
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {rounds.map((round: any) => (
+            <GalleryRoundCard
+              key={round.id}
+              round={round}
+              onClick={() => setMonitorRoundId(round.id)}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Info card */}
+      <div className="bg-purple-50 border border-purple-200 rounded-xl p-5">
+        <h3 className="font-semibold text-purple-900 flex items-center gap-2 mb-2">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" />
+          </svg>
+          About Pin-Up Gallery
+        </h3>
+        <p className="text-sm text-purple-700 leading-relaxed mb-3">
+          Pin-up crits are a core design studio practice. Students share work-in-progress, then browse and give structured feedback to classmates. Effort-gated: students must complete their reviews before seeing feedback on their own work.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+          <div className="bg-white/70 rounded-lg p-3 border border-purple-100">
+            <div className="font-semibold text-purple-800 mb-1">Review Formats</div>
+            <p className="text-purple-600 text-xs">Quick Comment, PMI Analysis, Two Stars & a Wish, or any toolkit tool.</p>
+          </div>
+          <div className="bg-white/70 rounded-lg p-3 border border-purple-100">
+            <div className="font-semibold text-purple-800 mb-1">Effort-Gating</div>
+            <p className="text-purple-600 text-xs">Students must complete minimum reviews before seeing their own feedback.</p>
+          </div>
+          <div className="bg-white/70 rounded-lg p-3 border border-purple-100">
+            <div className="font-semibold text-purple-800 mb-1">MYP Criterion D</div>
+            <p className="text-purple-600 text-xs">Structured peer evaluation maps directly to Criterion D (Evaluating).</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ClassHubPage({
   params,
 }: {
@@ -69,7 +196,7 @@ export default function ClassHubPage({
     if (typeof window !== "undefined") {
       const sp = new URLSearchParams(window.location.search);
       const tab = sp.get("tab");
-      if (tab === "progress" || tab === "grade" || tab === "students" || tab === "studio" || tab === "metrics" || tab === "badges" || tab === "settings") return tab;
+      if (tab === "progress" || tab === "grade" || tab === "students" || tab === "gallery" || tab === "studio" || tab === "metrics" || tab === "badges" || tab === "settings") return tab;
       if (tab === "safety") return "badges"; // backward compat
       if (tab === "open-studio") return "studio"; // backward compat
     }
@@ -1177,8 +1304,12 @@ export default function ClassHubPage({
       )}
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* SAFETY TAB (Badges & Certifications)                              */}
+      {/* GALLERY TAB (Pin-Up Crits & Peer Review)                          */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
+      {activeTab === "gallery" && (
+        <GalleryTab unitId={unitId} classId={classId} unitPages={unitPages} />
+      )}
+
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* OPEN STUDIO TAB                                                    */}
       {/* ═══════════════════════════════════════════════════════════════════ */}

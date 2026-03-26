@@ -458,11 +458,23 @@ export default function OpenStudioPage({
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.3 }}
             >
-              <DiscoveryFlow
-                unitId={unitId}
-                onComplete={handleDiscoveryComplete}
-                onStepChange={handleStepChange}
-              />
+              {/* Discovery Engine — full-screen immersive experience */}
+              <div className="text-center py-12">
+                <div className="text-6xl mb-4">🧭</div>
+                <h2 className="text-xl font-bold text-white mb-3">
+                  Discover Your Design Identity
+                </h2>
+                <p className="text-white/60 text-sm max-w-md mx-auto mb-8 leading-relaxed">
+                  An interactive journey with Kit, your design mentor.
+                  Takes about 45-60 minutes. Your progress is saved automatically.
+                </p>
+                <a
+                  href={`/discovery/${unitId}`}
+                  className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-purple-600 hover:bg-purple-500 text-white font-medium transition-colors"
+                >
+                  Start Discovery →
+                </a>
+              </div>
             </motion.div>
           )}
 

@@ -710,3 +710,57 @@ export interface StudentBadge {
   expires_at: string | null;
   created_at: string;
 }
+
+// --- Class Gallery & Peer Review System ---
+
+export type GalleryStatus = "open" | "closed";
+export type ReviewFormat = "comment" | "pmi" | "two-stars-wish" | string; // string for tool_id
+
+export interface GalleryRound {
+  id: string;
+  unit_id: string;
+  class_id: string;
+  teacher_id: string;
+  title: string;
+  description: string;
+  page_ids: string[];
+  review_format: ReviewFormat;
+  min_reviews: number;
+  anonymous: boolean;
+  status: GalleryStatus;
+  deadline: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GallerySubmission {
+  id: string;
+  round_id: string;
+  student_id: string;
+  context_note: string;
+  content: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface GalleryReview {
+  id: string;
+  submission_id: string;
+  round_id: string;
+  reviewer_id: string;
+  review_data: Record<string, unknown>;
+  created_at: string;
+}
+
+// Teacher monitoring view: gallery round with stats
+export interface GalleryRoundWithStats extends GalleryRound {
+  submission_count: number;
+  submissions: Array<{
+    id: string;
+    student_id: string;
+    student_name: string;
+    context_note: string;
+    created_at: string;
+    review_count: number;
+    is_complete: boolean;
+  }>;
+}

@@ -29,6 +29,20 @@ export function timeAgo(dateString: string): string {
   return `${months}mo ago`;
 }
 
+/** Format a date string as "Mon DD, YYYY" */
+export function formatDate(dateString: string): string {
+  const d = new Date(dateString);
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+/** Returns the number of days from now until a given date (negative if past) */
+export function getDaysUntil(dateString: string): number {
+  const now = new Date();
+  const target = new Date(dateString);
+  const diff = target.getTime() - now.getTime();
+  return Math.ceil(diff / (1000 * 60 * 60 * 24));
+}
+
 /** Extract the domain from a URL string */
 export function getDomain(url: string): string {
   try {
