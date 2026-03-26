@@ -171,7 +171,9 @@ export function DiscoveryShell({ unitId }: DiscoveryShellProps) {
       {/* Station Content — the main interactive area */}
       <div className="absolute inset-0 pt-12 pb-20 flex items-center justify-center">
         <div className="w-full max-w-2xl mx-auto px-6">
-          <StationRenderer session={session} />
+          <div className="backdrop-blur-md bg-black/40 rounded-3xl p-6 sm:p-8 shadow-2xl ring-1 ring-white/10">
+            <StationRenderer session={session} />
+          </div>
         </div>
       </div>
 
