@@ -144,8 +144,16 @@ export function Station6Crossroads({ session }: Station6CrossroadsProps) {
       .then((data) => {
         if (!generateDoorsRef.current) return; // Stale
         // API returns { result: { doors: [...] }, usage: {...} }
+        // If AI output didn't parse as { doors: [...] }, result will be { response: "..." }
         const doors = data.result?.doors ?? data.doors ?? [];
-        updateDataRef.current({ doors });
+        if (!Array.isArray(doors) || doors.length === 0) {
+          // AI returned something unexpected — fall back to template doors
+          console.warn("[Station6] AI doors empty or invalid, using templates. data.result:", JSON.stringify(data.result).slice(0, 200));
+          const fallback = getTemplateDoors(primaryArchetype, p.mode);
+          updateDataRef.current({ doors: fallback });
+        } else {
+          updateDataRef.current({ doors });
+        }
         setIsLoadingDoors(false);
         clearTimeout(timeoutId);
         clearTimeout(hardTimeoutId);
@@ -236,7 +244,11 @@ export function Station6Crossroads({ session }: Station6CrossroadsProps) {
             </p>
             <div className="flex gap-3 justify-center">
               <button
-                onClick={() => generateDoors()}
+                onClick={() => {
+                  generateDoorsRef.current = false;
+                  updateData({ doors: [] });
+                  session.goToStep("station_6_generating");
+                }}
                 className="px-4 py-2 bg-purple-500/80 hover:bg-purple-500 text-white rounded-full text-xs font-medium transition-colors"
               >
                 Try Again
