@@ -1,7 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { X, AlertCircle } from "lucide-react";
+// Inline SVG icons (no lucide-react dependency)
+const XIcon = ({ size = 24 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+);
+const AlertCircleIcon = ({ size = 20, className = "" }: { size?: number; className?: string }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+);
 import type { ReviewFormat } from "@/types";
 
 interface GalleryRoundCreatorProps {
@@ -114,7 +120,7 @@ export function GalleryRoundCreator({
             disabled={saving}
             className="text-purple-100 hover:text-white transition-colors disabled:opacity-50"
           >
-            <X size={24} />
+            <XIcon size={24} />
           </button>
         </div>
 
@@ -129,7 +135,7 @@ export function GalleryRoundCreator({
           {/* Error Display */}
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
-              <AlertCircle size={20} className="text-red-600 flex-shrink-0 mt-0.5" />
+              <AlertCircleIcon size={20} className="text-red-600 flex-shrink-0 mt-0.5" />
               <p className="text-red-800 text-sm">{error}</p>
             </div>
           )}

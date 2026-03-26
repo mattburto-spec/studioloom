@@ -1,7 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { ChevronDown, ChevronUp, AlertCircle, CheckCircle, Clock } from "lucide-react";
+// Inline SVG icons (no lucide-react dependency)
+const AlertCircleIcon = ({ size = 24, className = "" }: { size?: number; className?: string }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+);
+const CheckCircleIcon = ({ size = 20, className = "" }: { size?: number; className?: string }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+);
 import type { GalleryRound, GallerySubmission, GalleryReview } from "@/types";
 
 interface GalleryMonitorProps {
@@ -121,7 +127,7 @@ export function GalleryMonitor({ roundId, onClose }: GalleryMonitorProps) {
   if (error) {
     return (
       <div className="bg-red-50 border border-red-200 rounded-2xl p-6 flex items-start gap-4">
-        <AlertCircle size={24} className="text-red-600 flex-shrink-0 mt-1" />
+        <AlertCircleIcon size={24} className="text-red-600 flex-shrink-0 mt-1" />
         <div>
           <h3 className="font-semibold text-red-900">Error Loading Gallery</h3>
           <p className="text-sm text-red-800 mt-1">{error}</p>
@@ -257,7 +263,7 @@ export function GalleryMonitor({ roundId, onClose }: GalleryMonitorProps) {
                   </div>
                 </td>
                 <td className="px-6 py-4 text-center">
-                  <CheckCircle size={20} className="mx-auto text-green-600" />
+                  <CheckCircleIcon size={20} className="mx-auto text-green-600" />
                 </td>
                 <td className="px-6 py-4 text-center">
                   <span className="inline-block px-2.5 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">
