@@ -170,9 +170,10 @@ export function DiscoveryShell({ unitId }: DiscoveryShellProps) {
       })()}
 
       {/* Station Content — the main interactive area with crossfade transitions */}
-      <div className="absolute inset-0 pt-12 pb-20 flex items-center justify-center">
-        <div className="w-full max-w-2xl mx-auto px-6">
-          <div className="backdrop-blur-md bg-black/40 rounded-3xl p-6 sm:p-8 shadow-2xl ring-1 ring-white/10">
+      <div className="absolute inset-0 pt-12 pb-20 overflow-y-auto">
+        <div className="min-h-full flex items-center justify-center py-4">
+          <div className="w-full max-w-2xl mx-auto px-6">
+            <div className="backdrop-blur-md bg-black/40 rounded-3xl p-6 sm:p-8 shadow-2xl ring-1 ring-white/10">
             <AnimatePresence mode="wait">
               <motion.div
                 key={session.machine.currentStation}
@@ -184,6 +185,7 @@ export function DiscoveryShell({ unitId }: DiscoveryShellProps) {
                 <StationRenderer session={session} />
               </motion.div>
             </AnimatePresence>
+            </div>
           </div>
         </div>
       </div>

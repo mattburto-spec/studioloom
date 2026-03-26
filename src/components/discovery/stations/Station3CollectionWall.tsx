@@ -36,9 +36,7 @@ export function Station3CollectionWall({ session }: Station3CollectionWallProps)
   const [showFreeText, setShowFreeText] = useState(
     !!station3.irritationFreeText,
   );
-  const [activeTier, setActiveTier] = useState<keyof ValuesRanking | null>(
-    null,
-  );
+  const [draggingCard, setDraggingCard] = useState<string | null>(null);
   const [isAnalyzingIrritation, setIsAnalyzingIrritation] = useState(false);
   const [irritationAnalysis, setIrritationAnalysis] =
     useState<IrritationAnalysis | null>(null);
@@ -363,7 +361,7 @@ export function Station3CollectionWall({ session }: Station3CollectionWallProps)
     );
   }
 
-  // ─── Values Sort (tap-to-tier) ──────────────────────────────
+  // ─── Values Sort (drag-and-drop) ────────────────────────────
   if (current === "station_3_values_sort") {
     const tiers = station3.valuesRanking;
     const allPlaced = [
@@ -373,34 +371,44 @@ export function Station3CollectionWall({ session }: Station3CollectionWallProps)
     ];
     const unplaced = valueCards.filter((c) => !allPlaced.includes(c.id));
 
-    // Tailwind needs full class names at build time — no template literals
-    const tierStyles: Record<keyof ValuesRanking, { activeBg: string; activeText: string }> = {
-      core: { activeBg: 'bg-teal-400/20', activeText: 'text-teal-300' },
-      important: { activeBg: 'bg-cyan-400/20', activeText: 'text-cyan-300' },
-      nice: { activeBg: 'bg-white/20', activeText: 'text-white' },
-    };
+    const tierConfig = [
+      { key: "core" as const, label: kitDialogue.values_tiers.core, border: "border-teal-400/40", bg: "bg-teal-400/10", hoverBg: "bg-teal-400/20", text: "text-teal-300", chipBg: "bg-teal-400/15" },
+      { key: "important" as const, label: kitDialogue.values_tiers.important, border: "border-cyan-400/40", bg: "bg-cyan-400/10", hoverBg: "bg-cyan-400/20", text: "text-cyan-300", chipBg: "bg-cyan-400/15" },
+      { key: "nice" as const, label: kitDialogue.values_tiers.nice, border: "border-white/30", bg: "bg-white/5", hoverBg: "bg-white/15", text: "text-white/80", chipBg: "bg-white/10" },
+    ] as const;
 
-    const addToTier = (
-      cardId: string,
-      tier: keyof ValuesRanking,
-    ) => {
-      // Remove from any existing tier first
+    const moveCard = (cardId: string, toTier: keyof ValuesRanking | "unplaced") => {
       const newRanking: ValuesRanking = {
         core: tiers.core.filter((id) => id !== cardId),
         important: tiers.important.filter((id) => id !== cardId),
         nice: tiers.nice.filter((id) => id !== cardId),
       };
-      newRanking[tier] = [...newRanking[tier], cardId];
+      if (toTier !== "unplaced") {
+        newRanking[toTier] = [...newRanking[toTier], cardId];
+      }
       updateData({ valuesRanking: newRanking });
     };
 
-    const removeFromTier = (cardId: string) => {
-      const newRanking: ValuesRanking = {
-        core: tiers.core.filter((id) => id !== cardId),
-        important: tiers.important.filter((id) => id !== cardId),
-        nice: tiers.nice.filter((id) => id !== cardId),
-      };
-      updateData({ valuesRanking: newRanking });
+    const handleDragStart = (e: React.DragEvent, cardId: string) => {
+      e.dataTransfer.setData("text/plain", cardId);
+      e.dataTransfer.effectAllowed = "move";
+      setDraggingCard(cardId);
+    };
+
+    const handleDragEnd = () => {
+      setDraggingCard(null);
+    };
+
+    const handleDrop = (e: React.DragEvent, tier: keyof ValuesRanking) => {
+      e.preventDefault();
+      const cardId = e.dataTransfer.getData("text/plain");
+      if (cardId) moveCard(cardId, tier);
+      setDraggingCard(null);
+    };
+
+    const handleDragOver = (e: React.DragEvent) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
     };
 
     return (
@@ -409,61 +417,59 @@ export function Station3CollectionWall({ session }: Station3CollectionWallProps)
           {kitDialogue.values_intro}
         </p>
         <p className="text-white/60 text-sm mb-6 text-center">
-          Tap a card, then tap a tier to place it
+          Drag cards into the tier that fits — or tap a card then tap a tier
         </p>
 
-        {/* Tier buckets */}
-        <div className="space-y-4 mb-6">
-          {(
-            [
-              { key: "core" as const, label: kitDialogue.values_tiers.core },
-              { key: "important" as const, label: kitDialogue.values_tiers.important },
-              { key: "nice" as const, label: kitDialogue.values_tiers.nice },
-            ] as const
-          ).map(({ key, label }) => {
-            const style = tierStyles[key];
+        {/* Tier drop zones */}
+        <div className="space-y-3 mb-6">
+          {tierConfig.map(({ key, label, border, bg, hoverBg, text, chipBg }) => {
+            const isDragOver = draggingCard !== null;
             return (
-            <div key={key}>
-              <button
-                onClick={() =>
-                  setActiveTier(activeTier === key ? null : key)
-                }
-                className={`w-full text-left text-sm font-medium px-3 py-2 rounded-lg transition-all ${
-                  activeTier === key
-                    ? `${style.activeBg} ${style.activeText}`
-                    : "text-white/60 bg-white/5 hover:bg-white/10"
+              <div
+                key={key}
+                onDrop={(e) => handleDrop(e, key)}
+                onDragOver={handleDragOver}
+                className={`rounded-xl border-2 border-dashed p-3 transition-all duration-200 ${border} ${
+                  isDragOver ? hoverBg : bg
                 }`}
               >
-                {label}
-              </button>
-              <div className="flex flex-wrap gap-1.5 mt-2 min-h-[36px] px-2">
-                {tiers[key].map((cardId) => {
-                  const card = valueCards.find((c) => c.id === cardId);
-                  if (!card) return null;
-                  return (
-                    <button
-                      key={card.id}
-                      onClick={() => removeFromTier(card.id)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 text-sm text-white/80 hover:bg-red-400/10 hover:text-red-300 transition-colors"
-                      title="Click to remove"
-                    >
-                      <span>{card.icon}</span>
-                      <span>{card.label}</span>
-                      <span className="text-white/30 ml-1">×</span>
-                    </button>
-                  );
-                })}
-                {tiers[key].length === 0 && (
-                  <span className="text-white/40 text-xs py-1.5">
-                    Tap a card below to add here
-                  </span>
-                )}
+                <div className={`text-sm font-medium mb-2 ${text}`}>
+                  {label}
+                </div>
+                <div className="flex flex-wrap gap-1.5 min-h-[40px]">
+                  {tiers[key].map((cardId) => {
+                    const card = valueCards.find((c) => c.id === cardId);
+                    if (!card) return null;
+                    return (
+                      <div
+                        key={card.id}
+                        draggable
+                        onDragStart={(e) => handleDragStart(e, card.id)}
+                        onDragEnd={handleDragEnd}
+                        onClick={() => moveCard(card.id, "unplaced")}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full ${chipBg} text-sm text-white/80 cursor-grab active:cursor-grabbing hover:bg-red-400/10 hover:text-red-300 transition-colors select-none ${
+                          draggingCard === card.id ? "opacity-40" : ""
+                        }`}
+                        title="Drag to move · Click to remove"
+                      >
+                        <span>{card.icon}</span>
+                        <span>{card.label}</span>
+                        <span className="text-white/30 ml-1">×</span>
+                      </div>
+                    );
+                  })}
+                  {tiers[key].length === 0 && (
+                    <span className="text-white/30 text-xs py-2 px-1">
+                      Drop cards here
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
-          ); })}
+            );
+          })}
         </div>
 
-        {/* Unplaced cards */}
+        {/* Unplaced cards — draggable + tap-to-place fallback */}
         {unplaced.length > 0 && (
           <div className="border-t border-white/10 pt-4">
             <p className="text-white/50 text-xs mb-3 text-center">
@@ -472,17 +478,13 @@ export function Station3CollectionWall({ session }: Station3CollectionWallProps)
             </p>
             <div className="grid grid-cols-2 gap-2">
               {unplaced.map((card) => (
-                <button
+                <div
                   key={card.id}
-                  onClick={() => {
-                    if (activeTier) {
-                      addToTier(card.id, activeTier);
-                    }
-                  }}
-                  className={`text-left rounded-xl p-3 transition-all duration-200 ${
-                    activeTier
-                      ? "bg-white/5 hover:bg-white/10 ring-1 ring-white/10 hover:ring-white/30 cursor-pointer"
-                      : "bg-white/5 ring-1 ring-white/5 opacity-50"
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, card.id)}
+                  onDragEnd={handleDragEnd}
+                  className={`text-left rounded-xl p-3 transition-all duration-200 cursor-grab active:cursor-grabbing bg-white/5 hover:bg-white/10 ring-1 ring-white/10 hover:ring-white/30 select-none ${
+                    draggingCard === card.id ? "opacity-40 scale-95" : ""
                   }`}
                 >
                   <div className="flex items-center gap-2 mb-1">
@@ -494,16 +496,10 @@ export function Station3CollectionWall({ session }: Station3CollectionWallProps)
                   <p className="text-[10px] text-white/40 leading-snug">
                     {card.description}
                   </p>
-                </button>
+                </div>
               ))}
             </div>
           </div>
-        )}
-
-        {!activeTier && unplaced.length > 0 && (
-          <p className="text-teal-400/40 text-xs text-center mt-3">
-            ↑ Select a tier above first, then tap a card to place it
-          </p>
         )}
       </div>
     );

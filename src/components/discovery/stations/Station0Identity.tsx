@@ -24,15 +24,15 @@ import { TOOL_ICONS, WORKSPACE_ICONS } from "@/lib/discovery/assets";
 
 function ToolIcon({ toolId, emoji }: { toolId: string; emoji: string }) {
   const imagePath = TOOL_ICONS[toolId];
-  if (!imagePath) return <div className="text-2xl mb-1">{emoji}</div>;
+  if (!imagePath) return <div className="text-4xl">{emoji}</div>;
 
   return (
-    <div className="w-10 h-10 mx-auto mb-1">
+    <div className="w-16 h-16 sm:w-20 sm:h-20 mx-auto">
       <DiscoveryImage
         src={imagePath}
         alt={toolId}
         className="w-full h-full object-contain"
-        fallback={<div className="text-2xl text-center">{emoji}</div>}
+        fallback={<div className="text-4xl text-center">{emoji}</div>}
       />
     </div>
   );
@@ -148,13 +148,14 @@ export function Station0Identity({ session }: Station0IdentityProps) {
           Pick 3 — {station0.tools.length}/3 selected
         </p>
 
-        <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-3 sm:grid-cols-4 gap-4">
           {tools.map((tool) => {
             const isSelected = station0.tools.includes(tool.id);
             const atLimit = station0.tools.length >= 3;
             return (
               <button
                 key={tool.id}
+                title={tool.label}
                 onClick={() => {
                   if (isSelected) {
                     updateData({
@@ -165,16 +166,21 @@ export function Station0Identity({ session }: Station0IdentityProps) {
                   }
                 }}
                 disabled={!isSelected && atLimit}
-                className={`rounded-xl p-4 text-center transition-all duration-200 ${
+                className={`group relative rounded-2xl p-5 sm:p-6 text-center transition-all duration-200 aspect-square flex items-center justify-center ${
                   isSelected
-                    ? "ring-2 ring-white/60 bg-white/10 scale-105"
+                    ? "ring-2 ring-white/60 bg-white/15 scale-105 shadow-lg shadow-purple-500/20"
                     : atLimit
                       ? "opacity-30 cursor-not-allowed bg-white/5"
-                      : "bg-white/5 hover:bg-white/10 ring-1 ring-white/10 hover:ring-white/30"
+                      : "bg-white/5 hover:bg-white/12 ring-1 ring-white/10 hover:ring-white/30 hover:scale-105"
                 }`}
               >
                 <ToolIcon toolId={tool.id} emoji={tool.icon} />
-                <div className="text-sm text-white/80">{tool.label}</div>
+                {/* Hover tooltip */}
+                <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 translate-y-full opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                  <div className="bg-gray-900/90 text-white text-xs font-medium px-3 py-1.5 rounded-lg whitespace-nowrap backdrop-blur-sm">
+                    {tool.label}
+                  </div>
+                </div>
               </button>
             );
           })}

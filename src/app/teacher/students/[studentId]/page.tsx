@@ -11,6 +11,7 @@ import { StatsStrip } from "@/components/student/StatsStrip";
 import { computeStats, type BadgeInput } from "@/lib/badges/compute-badges";
 import type { Unit, StudentProgress, UnitPage } from "@/types";
 import { getYearLevelNumber, yearLevelToGraduationYear, YEAR_LEVEL_OPTIONS } from "@/lib/utils/year-level";
+import { StudentDiscoveryProfile } from "@/components/teacher/StudentDiscoveryProfile";
 
 /**
  * Teacher Per-Student Dashboard View
@@ -464,6 +465,9 @@ export default function TeacherStudentView({
       <div className="mb-5">
         <StatsStrip stats={stats} />
       </div>
+
+      {/* Discovery Profile (shows if student has completed Discovery Engine S0-S3+) */}
+      <StudentDiscoveryProfile studentId={studentId} />
 
       {/* Workshop Certs */}
       <div className="mb-6">
