@@ -109,8 +109,8 @@ export function Station2Workshop({ session }: Station2WorkshopProps) {
     return (
       <div className="text-center">
         <div className="text-5xl mb-4">🔧</div>
-        <h2 className="text-xl font-bold text-white mb-3">The Workshop</h2>
-        <p className="text-white/60 text-sm max-w-md mx-auto leading-relaxed">
+        <h2 className="text-2xl font-bold text-white mb-3">The Workshop</h2>
+        <p className="text-white/70 text-base max-w-md mx-auto leading-relaxed">
           {kitDialogue.intro}
         </p>
       </div>
@@ -122,10 +122,10 @@ export function Station2Workshop({ session }: Station2WorkshopProps) {
     return (
       <div className="text-center max-w-lg mx-auto">
         <div className="text-4xl mb-4">🪑</div>
-        <p className="text-white/70 text-sm leading-relaxed italic">
+        <p className="text-white/80 text-base leading-relaxed italic">
           &ldquo;{kitDialogue.story}&rdquo;
         </p>
-        <p className="text-white/40 text-xs mt-6">
+        <p className="text-white/60 text-sm mt-6">
           Kit pauses, then looks at you.
         </p>
       </div>
@@ -136,7 +136,7 @@ export function Station2Workshop({ session }: Station2WorkshopProps) {
   if (current === "station_2_text_prompt") {
     return (
       <div className="max-w-lg mx-auto">
-        <p className="text-white/70 text-sm mb-6 leading-relaxed text-center">
+        <p className="text-white/80 text-base mb-6 leading-relaxed text-center">
           {kitDialogue.text_prompt}
         </p>
 
@@ -145,19 +145,19 @@ export function Station2Workshop({ session }: Station2WorkshopProps) {
           onChange={(e) => updateData({ panicResponse: e.target.value })}
           placeholder="Tell them what to actually do..."
           rows={5}
-          className="w-full rounded-xl bg-white/5 border border-white/10 text-white/90 text-sm p-4 placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-amber-400/40 resize-none"
+          className="w-full rounded-xl bg-white/5 border border-white/10 text-white/90 text-base p-4 placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-amber-400/40 resize-none"
         />
 
         {/* Word count indicator */}
         <div className="flex justify-between items-center mt-2">
-          <p className="text-white/30 text-xs">
+          <p className="text-white/60 text-sm">
             Be specific — what's your actual plan for them?
           </p>
           <p
-            className={`text-xs ${
+            className={`text-sm ${
               (station2.panicResponse?.trim().length ?? 0) >= 10
                 ? "text-amber-400/60"
-                : "text-white/20"
+                : "text-white/40"
             }`}
           >
             {station2.panicResponse?.trim().split(/\s+/).filter(Boolean)
@@ -202,9 +202,9 @@ export function Station2Workshop({ session }: Station2WorkshopProps) {
         {(kitPanicResponse || isAnalyzingPanic) && (
           <div className="mb-5 p-3 rounded-xl bg-amber-400/5 border border-amber-400/10 max-w-lg mx-auto">
             {isAnalyzingPanic ? (
-              <p className="text-white/40 text-xs italic animate-pulse">Kit is thinking about what you said...</p>
+              <p className="text-white/60 text-sm italic animate-pulse">Kit is thinking about what you said...</p>
             ) : (
-              <p className="text-white/70 text-sm leading-relaxed italic">
+              <p className="text-white/80 text-base leading-relaxed italic">
                 &ldquo;{kitPanicResponse}&rdquo;
               </p>
             )}
@@ -212,7 +212,7 @@ export function Station2Workshop({ session }: Station2WorkshopProps) {
         )}
 
         {/* Header */}
-        <p className="text-white/50 text-xs text-center mb-2">
+        <p className="text-white/60 text-sm text-center mb-2">
           {kitDialogue.scenarios_intro}
         </p>
 
@@ -238,7 +238,7 @@ export function Station2Workshop({ session }: Station2WorkshopProps) {
         </div>
 
         {/* Scenario prompt */}
-        <p className="text-white/80 text-sm mb-5 leading-relaxed font-medium text-center max-w-lg mx-auto">
+        <p className="text-white/90 text-base mb-5 leading-relaxed font-medium text-center max-w-lg mx-auto">
           {scenario.prompt}
         </p>
 
@@ -256,7 +256,7 @@ export function Station2Workshop({ session }: Station2WorkshopProps) {
                     : "bg-white/5 hover:bg-white/10 ring-1 ring-white/10 hover:ring-white/30"
                 }`}
               >
-                <span className="text-sm text-white/80 leading-relaxed">
+                <span className="text-base text-white/90 leading-relaxed">
                   {option.text}
                 </span>
               </button>
@@ -265,7 +265,7 @@ export function Station2Workshop({ session }: Station2WorkshopProps) {
         </div>
 
         {/* Counter */}
-        <p className="text-white/30 text-xs text-center mt-4">
+        <p className="text-white/50 text-sm text-center mt-4">
           {answeredCount} / {scenarios.length}
         </p>
       </div>
@@ -279,10 +279,10 @@ export function Station2Workshop({ session }: Station2WorkshopProps) {
 
     return (
       <div>
-        <p className="text-white/70 text-sm mb-2 text-center">
+        <p className="text-white/80 text-base mb-2 text-center">
           {kitDialogue.people_grid_intro}
         </p>
-        <p className="text-white/40 text-xs mb-6 text-center">
+        <p className="text-white/60 text-sm mb-6 text-center">
           {kitDialogue.people_grid_subtitle} — {selectedCount}/3 selected
         </p>
 
@@ -315,7 +315,7 @@ export function Station2Workshop({ session }: Station2WorkshopProps) {
                 }`}
               >
                 <div className="text-2xl mb-1">{person.icon}</div>
-                <div className="text-xs text-white/70 leading-tight">
+                <div className="text-sm text-white/80 leading-tight">
                   {person.label}
                 </div>
               </button>

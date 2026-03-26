@@ -76,7 +76,7 @@ export function DiscoveryShell({ unitId }: DiscoveryShellProps) {
       <div className="fixed inset-0 flex items-center justify-center bg-gray-950">
         <div className="flex flex-col items-center gap-4">
           <div className="w-8 h-8 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
-          <p className="text-white/60 text-sm">Loading your journey...</p>
+          <p className="text-white/70 text-base">Loading your journey...</p>
         </div>
       </div>
     );
@@ -88,10 +88,10 @@ export function DiscoveryShell({ unitId }: DiscoveryShellProps) {
       <div className="fixed inset-0 flex items-center justify-center bg-gray-950">
         <div className="text-center max-w-md mx-auto px-6">
           <div className="text-4xl mb-4">⚠️</div>
-          <h1 className="text-xl font-bold text-white mb-2">
+          <h1 className="text-2xl font-bold text-white mb-2">
             Couldn&apos;t start your journey
           </h1>
-          <p className="text-white/60 mb-6 text-sm">
+          <p className="text-white/70 mb-6 text-base">
             Something went wrong loading the Discovery Engine. Try refreshing the page, or head back to your dashboard.
           </p>
           <div className="flex gap-3 justify-center">

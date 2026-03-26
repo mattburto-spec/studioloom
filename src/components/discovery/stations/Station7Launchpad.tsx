@@ -72,7 +72,7 @@ export function Station7Launchpad({ session }: Station7LaunchpadProps) {
       <div className="text-center">
         <div className="text-5xl mb-4">🚀</div>
         <h2 className="text-2xl font-bold text-white mb-3">The Launchpad</h2>
-        <p className="text-white/70 text-sm max-w-md mx-auto leading-relaxed">
+        <p className="text-white/80 text-base max-w-md mx-auto leading-relaxed">
           {S7_KIT_DIALOGUE.intro}
         </p>
       </div>
@@ -254,7 +254,7 @@ export function Station7Launchpad({ session }: Station7LaunchpadProps) {
         </p>
 
         {/* Excitement score display */}
-        <div className="text-4xl font-bold text-purple-400 mb-2">{score}</div>
+        <div className="text-4xl font-bold text-xsurple-400 mb-2">{score}</div>
 
         {/* Slider */}
         <div className="mb-6">
@@ -439,7 +439,7 @@ export function Station7Launchpad({ session }: Station7LaunchpadProps) {
         </div>
 
         {/* Privacy note */}
-        <p className="text-white/40 text-xs mb-6 italic">
+        <p className="text-white/60 text-sm mb-6 italic">
           Your full responses stay between you and Kit. Your teacher sees only
           what helps them support your learning.
         </p>

@@ -69,10 +69,10 @@ export function KitMentor({ expression, station, message }: KitMentorProps) {
   }, [imagePath]);
 
   return (
-    <div className="absolute bottom-24 left-6 z-40 flex items-end gap-3 max-w-sm">
+    <div className="absolute bottom-24 left-6 z-40 flex items-end gap-3 max-w-md">
       {/* Kit's avatar */}
       <div
-        className="w-12 h-12 rounded-full flex items-center justify-center shrink-0 shadow-lg overflow-hidden"
+        className="w-16 h-16 rounded-full flex items-center justify-center shrink-0 shadow-lg overflow-hidden"
         style={{
           background: hasImage ? "transparent" : `linear-gradient(135deg, ${accent}33, ${accent}66)`,
           border: `2px solid ${accent}88`,
@@ -85,14 +85,14 @@ export function KitMentor({ expression, station, message }: KitMentorProps) {
             className="w-full h-full object-cover"
           />
         ) : (
-          <span className="text-2xl">{emoji}</span>
+          <span className="text-3xl">{emoji}</span>
         )}
       </div>
 
       {/* Speech bubble */}
       {message && (
         <div
-          className="relative bg-white/10 backdrop-blur-md rounded-2xl rounded-bl-sm px-4 py-3 text-sm text-white/90 leading-relaxed"
+          className="relative bg-white/10 backdrop-blur-md rounded-2xl rounded-bl-sm px-4 py-3 text-base text-white/90 leading-relaxed"
           style={{ border: `1px solid ${accent}33` }}
         >
           {message}

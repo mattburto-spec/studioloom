@@ -76,10 +76,10 @@ export function Station0Identity({ session }: Station0IdentityProps) {
     return (
       <div className="text-center">
         <div className="text-5xl mb-4">🎨</div>
-        <h2 className="text-xl font-bold text-white mb-3">
+        <h2 className="text-2xl font-bold text-white mb-3">
           Design Identity Card
         </h2>
-        <p className="text-white/60 text-sm max-w-md mx-auto leading-relaxed">
+        <p className="text-white/70 text-base max-w-md mx-auto leading-relaxed">
           {STATION_0_KIT_DIALOGUE.intro}
         </p>
       </div>
@@ -90,7 +90,7 @@ export function Station0Identity({ session }: Station0IdentityProps) {
   if (current === "station_0_palette") {
     return (
       <div>
-        <p className="text-white/70 text-sm mb-6 text-center">
+        <p className="text-white/80 text-base mb-6 text-center">
           {STATION_0_KIT_DIALOGUE.palette_prompt}
         </p>
 
@@ -118,10 +118,10 @@ export function Station0Identity({ session }: Station0IdentityProps) {
                     />
                   ))}
                 </div>
-                <div className="text-xs text-white/70 font-medium">
+                <div className="text-sm text-white/80 font-medium">
                   {palette.label}
                 </div>
-                <div className="text-[10px] text-white/40">{palette.vibe}</div>
+                <div className="text-xs text-white/60">{palette.vibe}</div>
               </button>
             );
           })}
@@ -129,7 +129,7 @@ export function Station0Identity({ session }: Station0IdentityProps) {
 
         {/* Kit's response to selection */}
         {station0.palette && (
-          <p className="text-white/50 text-xs text-center mt-4 italic">
+          <p className="text-white/60 text-sm text-center mt-4 italic">
             {STATION_0_KIT_DIALOGUE.palette_response(station0.palette)}
           </p>
         )}
@@ -141,10 +141,10 @@ export function Station0Identity({ session }: Station0IdentityProps) {
   if (current === "station_0_tools") {
     return (
       <div>
-        <p className="text-white/70 text-sm mb-2 text-center">
+        <p className="text-white/80 text-base mb-2 text-center">
           {STATION_0_KIT_DIALOGUE.tools_prompt}
         </p>
-        <p className="text-white/40 text-xs mb-6 text-center">
+        <p className="text-white/60 text-sm mb-6 text-center">
           Pick 3 — {station0.tools.length}/3 selected
         </p>
 
@@ -174,14 +174,14 @@ export function Station0Identity({ session }: Station0IdentityProps) {
                 }`}
               >
                 <ToolIcon toolId={tool.id} emoji={tool.icon} />
-                <div className="text-xs text-white/70">{tool.label}</div>
+                <div className="text-sm text-white/80">{tool.label}</div>
               </button>
             );
           })}
         </div>
 
         {station0.tools.length === 3 && (
-          <p className="text-white/50 text-xs text-center mt-4 italic">
+          <p className="text-white/60 text-sm text-center mt-4 italic">
             {STATION_0_KIT_DIALOGUE.tools_response}
           </p>
         )}
@@ -193,10 +193,10 @@ export function Station0Identity({ session }: Station0IdentityProps) {
   if (current === "station_0_workspace") {
     return (
       <div>
-        <p className="text-white/70 text-sm mb-2 text-center">
+        <p className="text-white/80 text-base mb-2 text-center">
           {STATION_0_KIT_DIALOGUE.workspace_prompt}
         </p>
-        <p className="text-white/40 text-xs mb-6 text-center">
+        <p className="text-white/60 text-sm mb-6 text-center">
           Pick 4 — {station0.workspaceItems.length}/4 selected
         </p>
 
@@ -230,7 +230,7 @@ export function Station0Identity({ session }: Station0IdentityProps) {
                 }`}
               >
                 <WorkspaceIcon itemId={item.id} emoji={item.icon} />
-                <div className="text-[10px] text-white/70 leading-tight">
+                <div className="text-xs text-white/80 leading-tight">
                   {item.label}
                 </div>
               </button>
@@ -239,7 +239,7 @@ export function Station0Identity({ session }: Station0IdentityProps) {
         </div>
 
         {station0.workspaceItems.length === 4 && (
-          <p className="text-white/50 text-xs text-center mt-4 italic">
+          <p className="text-white/60 text-sm text-center mt-4 italic">
             {STATION_0_KIT_DIALOGUE.workspace_response}
           </p>
         )}

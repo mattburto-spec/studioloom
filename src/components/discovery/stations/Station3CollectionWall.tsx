@@ -128,10 +128,10 @@ export function Station3CollectionWall({ session }: Station3CollectionWallProps)
     return (
       <div className="text-center">
         <div className="text-5xl mb-4">📌</div>
-        <h2 className="text-xl font-bold text-white mb-3">
+        <h2 className="text-2xl font-bold text-white mb-3">
           The Collection Wall
         </h2>
-        <p className="text-white/60 text-sm max-w-md mx-auto leading-relaxed">
+        <p className="text-white/70 text-base max-w-md mx-auto leading-relaxed">
           {kitDialogue.intro}
         </p>
       </div>
@@ -145,10 +145,10 @@ export function Station3CollectionWall({ session }: Station3CollectionWallProps)
 
     return (
       <div>
-        <p className="text-white/70 text-sm mb-2 text-center">
+        <p className="text-white/80 text-base mb-2 text-center">
           {kitDialogue.interest_prompt}
         </p>
-        <p className="text-white/40 text-xs mb-6 text-center">
+        <p className="text-white/60 text-sm mb-6 text-center">
           {kitDialogue.interest_subtitle} — {selectedCount}/7 selected
         </p>
 
@@ -181,7 +181,7 @@ export function Station3CollectionWall({ session }: Station3CollectionWallProps)
                 }`}
               >
                 <div className="text-2xl mb-1">{item.icon}</div>
-                <div className="text-[10px] text-white/70 leading-tight">
+                <div className="text-xs text-white/80 leading-tight">
                   {item.label}
                 </div>
               </button>
@@ -190,7 +190,7 @@ export function Station3CollectionWall({ session }: Station3CollectionWallProps)
         </div>
 
         {selectedCount >= 5 && (
-          <p className="text-teal-300/50 text-xs text-center mt-4 italic">
+          <p className="text-teal-300/50 text-sm text-center mt-4 italic">
             Good spread. I can work with this.
           </p>
         )}
@@ -202,10 +202,10 @@ export function Station3CollectionWall({ session }: Station3CollectionWallProps)
   if (current === "station_3_irritation") {
     return (
       <div className="max-w-lg mx-auto">
-        <p className="text-white/70 text-sm mb-2 text-center">
+        <p className="text-white/80 text-base mb-2 text-center">
           {kitDialogue.irritation_prompt}
         </p>
-        <p className="text-white/40 text-xs mb-6 text-center">
+        <p className="text-white/60 text-sm mb-6 text-center">
           Pick 1-2 that resonate — or write your own
         </p>
 
@@ -242,10 +242,10 @@ export function Station3CollectionWall({ session }: Station3CollectionWallProps)
                       : "bg-white/5 hover:bg-white/10 ring-1 ring-white/10 hover:ring-white/30"
                 }`}
               >
-                <span className="text-sm text-white/80 leading-relaxed">
+                <span className="text-base text-white/90 leading-relaxed">
                   {item.text}
                 </span>
-                <span className="block text-[10px] text-white/30 mt-1">
+                <span className="block text-xs text-white/50 mt-1">
                   {item.category}
                 </span>
               </button>
@@ -258,13 +258,13 @@ export function Station3CollectionWall({ session }: Station3CollectionWallProps)
           {!showFreeText ? (
             <button
               onClick={() => setShowFreeText(true)}
-              className="text-teal-400/60 text-xs hover:text-teal-400/80 transition-colors"
+              className="text-teal-400/60 text-sm hover:text-teal-400/80 transition-colors"
             >
               ✍️ {kitDialogue.irritation_freetext_prompt}
             </button>
           ) : (
             <div>
-              <p className="text-white/50 text-xs mb-2">
+              <p className="text-white/60 text-sm mb-2">
                 {kitDialogue.irritation_freetext_prompt}
               </p>
               <textarea
@@ -275,9 +275,9 @@ export function Station3CollectionWall({ session }: Station3CollectionWallProps)
                 onBlur={() => analyzeIrritation(station3.irritationFreeText ?? "")}
                 placeholder="What genuinely bugs you..."
                 rows={3}
-                className="w-full rounded-xl bg-white/5 border border-white/10 text-white/90 text-sm p-4 placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-teal-400/40 resize-none"
+                className="w-full rounded-xl bg-white/5 border border-white/10 text-white/90 text-base p-4 placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-teal-400/40 resize-none"
               />
-              <p className="text-white/30 text-[10px] mt-1">
+              <p className="text-white/50 text-xs mt-1">
                 This is the most valuable signal — your own words carry more
                 weight than any preset.
               </p>
@@ -285,18 +285,18 @@ export function Station3CollectionWall({ session }: Station3CollectionWallProps)
               {/* Analysis loading state */}
               {isAnalyzingIrritation && (
                 <div className="mt-3 p-3 rounded-lg bg-teal-400/5 border border-teal-400/20">
-                  <p className="text-teal-400/70 text-xs">Kit is reading...</p>
+                  <p className="text-teal-400/70 text-sm">Kit is reading...</p>
                 </div>
               )}
 
               {/* Kit's response */}
               {irritationAnalysis && !isAnalyzingIrritation && (
                 <div className="mt-3 p-3 rounded-lg bg-teal-400/5 border border-teal-400/20">
-                  <p className="text-teal-300 text-xs italic leading-relaxed">
+                  <p className="text-teal-300 text-sm italic leading-relaxed">
                     {irritationAnalysis.kit_response}
                   </p>
                   {irritationAnalysis.summary_tag && (
-                    <p className="text-teal-400/50 text-[10px] mt-2">
+                    <p className="text-teal-400/50 text-xs mt-2">
                       → {irritationAnalysis.summary_tag}
                     </p>
                   )}
@@ -316,10 +316,10 @@ export function Station3CollectionWall({ session }: Station3CollectionWallProps)
 
     return (
       <div>
-        <p className="text-white/70 text-sm mb-2 text-center">
+        <p className="text-white/80 text-base mb-2 text-center">
           {kitDialogue.youtube_intro}
         </p>
-        <p className="text-white/40 text-xs mb-6 text-center">
+        <p className="text-white/60 text-sm mb-6 text-center">
           {kitDialogue.youtube_subtitle} — {selectedCount}/3 selected
         </p>
 
@@ -353,7 +353,7 @@ export function Station3CollectionWall({ session }: Station3CollectionWallProps)
               >
                 <div className="flex items-center gap-3">
                   <span className="text-xl">{topic.icon}</span>
-                  <span className="text-sm text-white/80">{topic.label}</span>
+                  <span className="text-base text-white/90">{topic.label}</span>
                 </div>
               </button>
             );
@@ -405,10 +405,10 @@ export function Station3CollectionWall({ session }: Station3CollectionWallProps)
 
     return (
       <div className="max-w-xl mx-auto">
-        <p className="text-white/70 text-sm mb-2 text-center">
+        <p className="text-white/80 text-base mb-2 text-center">
           {kitDialogue.values_intro}
         </p>
-        <p className="text-white/40 text-xs mb-6 text-center">
+        <p className="text-white/60 text-sm mb-6 text-center">
           Tap a card, then tap a tier to place it
         </p>
 
@@ -428,10 +428,10 @@ export function Station3CollectionWall({ session }: Station3CollectionWallProps)
                 onClick={() =>
                   setActiveTier(activeTier === key ? null : key)
                 }
-                className={`w-full text-left text-xs font-medium px-3 py-2 rounded-lg transition-all ${
+                className={`w-full text-left text-sm font-medium px-3 py-2 rounded-lg transition-all ${
                   activeTier === key
                     ? `${style.activeBg} ${style.activeText}`
-                    : "text-white/50 bg-white/5 hover:bg-white/10"
+                    : "text-white/60 bg-white/5 hover:bg-white/10"
                 }`}
               >
                 {label}
@@ -444,7 +444,7 @@ export function Station3CollectionWall({ session }: Station3CollectionWallProps)
                     <button
                       key={card.id}
                       onClick={() => removeFromTier(card.id)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 text-xs text-white/70 hover:bg-red-400/10 hover:text-red-300 transition-colors"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/10 text-sm text-white/80 hover:bg-red-400/10 hover:text-red-300 transition-colors"
                       title="Click to remove"
                     >
                       <span>{card.icon}</span>
@@ -454,7 +454,7 @@ export function Station3CollectionWall({ session }: Station3CollectionWallProps)
                   );
                 })}
                 {tiers[key].length === 0 && (
-                  <span className="text-white/20 text-[10px] py-1.5">
+                  <span className="text-white/40 text-xs py-1.5">
                     Tap a card below to add here
                   </span>
                 )}
@@ -466,7 +466,7 @@ export function Station3CollectionWall({ session }: Station3CollectionWallProps)
         {/* Unplaced cards */}
         {unplaced.length > 0 && (
           <div className="border-t border-white/10 pt-4">
-            <p className="text-white/30 text-[10px] mb-3 text-center">
+            <p className="text-white/50 text-xs mb-3 text-center">
               {unplaced.length} value{unplaced.length !== 1 ? "s" : ""}{" "}
               remaining
             </p>
@@ -501,7 +501,7 @@ export function Station3CollectionWall({ session }: Station3CollectionWallProps)
         )}
 
         {!activeTier && unplaced.length > 0 && (
-          <p className="text-teal-400/40 text-[10px] text-center mt-3">
+          <p className="text-teal-400/40 text-xs text-center mt-3">
             ↑ Select a tier above first, then tap a card to place it
           </p>
         )}
@@ -522,19 +522,19 @@ export function Station3CollectionWall({ session }: Station3CollectionWallProps)
 
     return (
       <div className="text-center max-w-lg mx-auto">
-        <p className="text-white/50 text-xs mb-6">{kitDialogue.reveal}</p>
+        <p className="text-white/60 text-sm mb-6">{kitDialogue.reveal}</p>
 
         {/* Interest highlights */}
         {topInterests.length > 0 && (
           <div className="mb-4">
-            <p className="text-white/40 text-[10px] mb-2">Top interests</p>
+            <p className="text-white/60 text-xs mb-2">Top interests</p>
             <div className="flex justify-center gap-2">
               {topInterests.map(
                 (item) =>
                   item && (
                     <span
                       key={item.id}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-teal-400/10 border border-teal-400/20 text-xs text-teal-300"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-teal-400/10 border border-teal-400/20 text-sm text-teal-300"
                     >
                       <span>{item.icon}</span> {item.label}
                     </span>
@@ -547,14 +547,14 @@ export function Station3CollectionWall({ session }: Station3CollectionWallProps)
         {/* Core values */}
         {coreValues.length > 0 && (
           <div className="mb-4">
-            <p className="text-white/40 text-[10px] mb-2">Core values</p>
+            <p className="text-white/60 text-xs mb-2">Core values</p>
             <div className="flex justify-center gap-2 flex-wrap">
               {coreValues.map(
                 (card) =>
                   card && (
                     <span
                       key={card.id}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs text-white/70"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-sm text-white/80"
                     >
                       <span>{card.icon}</span> {card.label}
                     </span>
@@ -567,10 +567,10 @@ export function Station3CollectionWall({ session }: Station3CollectionWallProps)
         {/* Free-text irritation highlight */}
         {station3.irritationFreeText && (
           <div className="mt-4 p-3 rounded-xl bg-white/5 border border-white/10">
-            <p className="text-white/40 text-[10px] mb-1">
+            <p className="text-white/60 text-xs mb-1">
               What bugs you
             </p>
-            <p className="text-white/60 text-xs italic leading-relaxed">
+            <p className="text-white/70 text-sm italic leading-relaxed">
               &ldquo;{station3.irritationFreeText}&rdquo;
             </p>
           </div>
@@ -579,15 +579,15 @@ export function Station3CollectionWall({ session }: Station3CollectionWallProps)
         {/* Kit's AI reflection on the combination */}
         <div className="mt-6 p-4 rounded-xl bg-teal-400/5 border border-teal-400/20">
           {revealLoading ? (
-            <p className="text-teal-300/50 text-xs italic">
+            <p className="text-teal-300/50 text-sm italic">
               Kit is thinking about what this all means together...
             </p>
           ) : revealReflection ? (
-            <p className="text-teal-300 text-sm leading-relaxed italic">
+            <p className="text-teal-300 text-base leading-relaxed italic">
               &ldquo;{revealReflection}&rdquo;
             </p>
           ) : (
-            <p className="text-white/40 text-xs italic">
+            <p className="text-white/60 text-sm italic">
               {kitDialogue.reveal}
             </p>
           )}

@@ -114,7 +114,7 @@ export function TransitionScreen({
           >
             😊
           </div>
-          <p className="text-white/80 text-sm leading-relaxed italic">
+          <p className="text-white/90 text-base leading-relaxed italic">
             &ldquo;{kitLine}&rdquo;
           </p>
         </div>
@@ -130,12 +130,12 @@ export function TransitionScreen({
       >
         <div className="text-5xl mb-3">{toEmoji}</div>
         <h2
-          className="text-xl font-bold mb-1"
+          className="text-2xl font-bold mb-1"
           style={{ color: `${accent}dd` }}
         >
           {toName}
         </h2>
-        <p className="text-white/40 text-sm">{toDescription}</p>
+        <p className="text-white/60 text-base">{toDescription}</p>
       </div>
 
       {/* Continue button */}

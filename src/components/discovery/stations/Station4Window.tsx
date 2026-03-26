@@ -98,8 +98,8 @@ export function Station4Window({ session }: Station4WindowProps) {
     return (
       <div className="text-center">
         <div className="text-5xl mb-4">🪟</div>
-        <h2 className="text-xl font-bold text-white mb-3">The Window</h2>
-        <p className="text-white/60 text-sm max-w-md mx-auto leading-relaxed">
+        <h2 className="text-2xl font-bold text-white mb-3">The Window</h2>
+        <p className="text-white/70 text-base max-w-md mx-auto leading-relaxed">
           {kitDialogue.intro}
         </p>
       </div>
@@ -111,7 +111,7 @@ export function Station4Window({ session }: Station4WindowProps) {
     return (
       <div className="text-center max-w-lg mx-auto">
         <div className="text-4xl mb-4">🚶</div>
-        <p className="text-white/70 text-sm leading-relaxed italic">
+        <p className="text-white/80 text-base leading-relaxed italic">
           &ldquo;{kitDialogue.story}&rdquo;
         </p>
       </div>
@@ -124,10 +124,10 @@ export function Station4Window({ session }: Station4WindowProps) {
 
     return (
       <div>
-        <p className="text-white/70 text-sm mb-2 text-center">
+        <p className="text-white/80 text-base mb-2 text-center">
           {kitDialogue.scene_prompt}
         </p>
-        <p className="text-white/40 text-xs mb-6 text-center">
+        <p className="text-white/60 text-sm mb-6 text-center">
           {clickCount} selected — tap at least 3
         </p>
 
@@ -362,11 +362,11 @@ export function Station4Window({ session }: Station4WindowProps) {
         {(kitProblemResponse || isAnalyzingProblem) && (
           <div className="mt-5 p-4 rounded-xl bg-blue-400/5 border border-blue-400/10 text-left">
             {isAnalyzingProblem ? (
-              <p className="text-white/40 text-xs italic animate-pulse text-center">
+              <p className="text-white/60 text-sm italic animate-pulse text-center">
                 Kit is reading what you wrote...
               </p>
             ) : (
-              <p className="text-white/70 text-sm leading-relaxed italic">
+              <p className="text-white/80 text-base leading-relaxed italic">
                 &ldquo;{kitProblemResponse}&rdquo;
               </p>
             )}

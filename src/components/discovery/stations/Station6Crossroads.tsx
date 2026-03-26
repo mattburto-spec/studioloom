@@ -187,8 +187,8 @@ export function Station6Crossroads({ session }: Station6CrossroadsProps) {
     return (
       <div className="text-center">
         <div className="text-5xl mb-4">🚪</div>
-        <h2 className="text-xl font-bold text-white mb-3">The Crossroads</h2>
-        <p className="text-white/60 text-sm max-w-md mx-auto leading-relaxed">
+        <h2 className="text-2xl font-bold text-white mb-3">The Crossroads</h2>
+        <p className="text-white/70 text-base max-w-md mx-auto leading-relaxed">
           {S6_KIT_DIALOGUE.intro}
         </p>
       </div>

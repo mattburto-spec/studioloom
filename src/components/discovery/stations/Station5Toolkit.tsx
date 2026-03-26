@@ -119,8 +119,8 @@ export function Station5Toolkit({ session }: Station5ToolkitProps) {
     return (
       <div className="text-center">
         <div className="text-5xl mb-4">🧰</div>
-        <h2 className="text-xl font-bold text-white mb-3">The Toolkit</h2>
-        <p className="text-white/60 text-sm max-w-md mx-auto leading-relaxed">
+        <h2 className="text-2xl font-bold text-white mb-3">The Toolkit</h2>
+        <p className="text-white/70 text-base max-w-md mx-auto leading-relaxed">
           {kitDialogue.intro}
         </p>
       </div>
@@ -140,7 +140,7 @@ export function Station5Toolkit({ session }: Station5ToolkitProps) {
         <div className="text-4xl font-bold text-emerald-400 mb-2">
           {hours}
         </div>
-        <p className="text-white/40 text-xs mb-6">hours per week</p>
+        <p className="text-white/60 text-sm mb-6">hours per week</p>
 
         <input
           type="range"
@@ -194,10 +194,10 @@ export function Station5Toolkit({ session }: Station5ToolkitProps) {
 
     return (
       <div className="max-w-xl mx-auto">
-        <p className="text-white/70 text-sm mb-2 text-center">
+        <p className="text-white/80 text-base mb-2 text-center">
           {kitDialogue.resources_intro}
         </p>
-        <p className="text-white/40 text-xs mb-6 text-center">
+        <p className="text-white/60 text-sm mb-6 text-center">
           Select a column, then tap cards to sort them
         </p>
 
@@ -285,10 +285,10 @@ export function Station5Toolkit({ session }: Station5ToolkitProps) {
   if (current === "station_5_people") {
     return (
       <div>
-        <p className="text-white/70 text-sm mb-2 text-center">
+        <p className="text-white/80 text-base mb-2 text-center">
           {kitDialogue.people_intro}
         </p>
-        <p className="text-white/40 text-xs mb-6 text-center">
+        <p className="text-white/60 text-sm mb-6 text-center">
           {kitDialogue.people_subtitle}
         </p>
 
@@ -386,7 +386,7 @@ export function Station5Toolkit({ session }: Station5ToolkitProps) {
         <h3 className="text-lg font-bold text-white text-center mb-1">
           {domain.label}
         </h3>
-        <p className="text-white/40 text-xs text-center mb-6">
+        <p className="text-white/60 text-sm text-center mb-6">
           {domain.description}
         </p>
 
@@ -503,7 +503,7 @@ export function Station5Toolkit({ session }: Station5ToolkitProps) {
   if (current === "station_5_failure") {
     return (
       <div className="max-w-lg mx-auto">
-        <p className="text-white/70 text-sm mb-2 text-center">
+        <p className="text-white/80 text-base mb-2 text-center">
           {kitDialogue.failure_intro}
         </p>
         <p className="text-white/50 text-xs mb-6 text-center">
@@ -722,7 +722,7 @@ export function Station5Toolkit({ session }: Station5ToolkitProps) {
               &ldquo;{revealReflection}&rdquo;
             </p>
           ) : (
-            <p className="text-white/40 text-xs italic">
+            <p className="text-white/60 text-sm italic">
               Full picture captured. Two more stations to go.
             </p>
           )}

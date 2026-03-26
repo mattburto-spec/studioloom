@@ -108,11 +108,11 @@ export function Station1Campfire({ session }: Station1CampfireProps) {
     return (
       <div className="text-center">
         <div className="text-5xl mb-4">🔥</div>
-        <h2 className="text-xl font-bold text-white mb-3">The Campfire</h2>
-        <p className="text-white/60 text-sm max-w-md mx-auto leading-relaxed mb-4">
+        <h2 className="text-2xl font-bold text-white mb-3">The Campfire</h2>
+        <p className="text-white/70 text-base max-w-md mx-auto leading-relaxed mb-4">
           {kitDialogue.intro}
         </p>
-        <p className="text-white/50 text-sm max-w-md mx-auto leading-relaxed">
+        <p className="text-white/60 text-base max-w-md mx-auto leading-relaxed">
           {kitDialogue.quickfire_setup}
         </p>
       </div>
@@ -153,13 +153,13 @@ export function Station1Campfire({ session }: Station1CampfireProps) {
 
         {/* Halfway message */}
         {isHalfway && !isSelected && (
-          <p className="text-orange-300/60 text-xs text-center mb-4 italic">
+          <p className="text-orange-300/60 text-sm text-center mb-4 italic">
             {kitDialogue.quickfire_halfway}
           </p>
         )}
 
         {/* Question */}
-        <p className="text-white/80 text-center text-sm mb-6 font-medium">
+        <p className="text-white/90 text-center text-base mb-6 font-medium">
           {pair.prompt}
         </p>
 
@@ -199,7 +199,7 @@ export function Station1Campfire({ session }: Station1CampfireProps) {
         </div>
 
         {/* Counter */}
-        <p className="text-white/30 text-xs text-center mt-4">
+        <p className="text-white/50 text-sm text-center mt-4">
           {answeredCount} / {binaryPairs.length}
         </p>
       </div>
@@ -213,31 +213,31 @@ export function Station1Campfire({ session }: Station1CampfireProps) {
 
     return (
       <div className="text-center">
-        <p className="text-orange-300/60 text-xs mb-4">
+        <p className="text-orange-300/60 text-sm mb-4">
           {kitDialogue.quickfire_done}
         </p>
 
         {/* Dominant style badge */}
         {style && (
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-orange-400/10 border border-orange-400/20 mb-6">
-            <span className="text-sm font-medium text-orange-300 capitalize">
+            <span className="text-base font-medium text-orange-300 capitalize">
               {style}
             </span>
           </div>
         )}
 
         {/* Kit's reflection */}
-        <p className="text-white/70 text-sm max-w-md mx-auto leading-relaxed mb-4">
+        <p className="text-white/80 text-base max-w-md mx-auto leading-relaxed mb-4">
           {kitDialogue.reflection_intro}
         </p>
 
         {reflection && (
-          <p className="text-white/60 text-sm max-w-md mx-auto leading-relaxed italic">
+          <p className="text-white/70 text-base max-w-md mx-auto leading-relaxed italic">
             &ldquo;{reflection}&rdquo;
           </p>
         )}
 
-        <p className="text-white/40 text-xs max-w-md mx-auto mt-6">
+        <p className="text-white/60 text-sm max-w-md mx-auto mt-6">
           {kitDialogue.complete}
         </p>
       </div>
