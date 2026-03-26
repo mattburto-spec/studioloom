@@ -129,7 +129,7 @@ export async function POST(request: NextRequest) {
   const driftFlagCount = driftFlags.length;
 
   // Build system prompt
-  const systemPrompt = buildOpenStudioSystemPrompt({
+  let systemPrompt = buildOpenStudioSystemPrompt({
     focusArea: osSession.focus_area || undefined,
     unitTopic: unit?.topic || unit?.title || undefined,
     gradeLevel: unit?.grade_level || undefined,
@@ -140,6 +140,57 @@ export async function POST(request: NextRequest) {
     driftFlagCount,
     interactionType,
   });
+
+  // Append student learning profile hints (non-critical — wrapped in try/catch)
+  try {
+    const { data: student } = await supabase
+      .from("students")
+      .select("learning_profile")
+      .eq("id", studentId)
+      .maybeSingle();
+
+    if (student?.learning_profile) {
+      const p = student.learning_profile as {
+        design_confidence?: number;
+        languages_at_home?: string[];
+        working_style?: string;
+        learning_differences?: string[];
+      };
+      const hints: string[] = [];
+
+      // Multilingual awareness
+      if (p.languages_at_home && p.languages_at_home.length > 1) {
+        hints.push("This student is multilingual — keep language clear and simple.");
+      }
+
+      // Design confidence
+      if (p.design_confidence && p.design_confidence <= 2) {
+        hints.push("Low design confidence — be extra encouraging, celebrate small progress.");
+      } else if (p.design_confidence && p.design_confidence >= 4) {
+        hints.push("High design confidence — challenge them, push for deeper thinking.");
+      }
+
+      // Learning accommodations
+      if (p.learning_differences?.includes("adhd")) {
+        hints.push("ADHD self-disclosed — keep responses very short, one action at a time.");
+      }
+      if (p.learning_differences?.includes("anxiety")) {
+        hints.push("Anxiety self-disclosed — use calm, reassuring language. Normalize uncertainty.");
+      }
+      if (p.learning_differences?.includes("dyslexia")) {
+        hints.push("Dyslexia self-disclosed — use simple sentence structure, never comment on spelling.");
+      }
+      if (p.learning_differences?.includes("autism")) {
+        hints.push("Autism self-disclosed — be explicit and literal. Respect detail-orientation.");
+      }
+
+      if (hints.length > 0) {
+        systemPrompt += `\n\n[STUDENT PROFILE — private, never mention directly]\n${hints.join("\n")}`;
+      }
+    }
+  } catch (profileErr) {
+    console.error("[open-studio] Profile load non-critical:", profileErr);
+  }
 
   // Build messages
   const messages: Array<{ role: "user" | "assistant"; content: string }> = [];

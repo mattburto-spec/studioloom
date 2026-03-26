@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireStudentAuth } from "@/lib/auth/student";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { callHaiku } from "@/lib/toolkit/shared-api";
 import { rateLimit } from "@/lib/rate-limit";
 
@@ -69,7 +70,42 @@ export async function POST(request: NextRequest) {
       context ?? {},
     );
 
-    const result = await callHaiku(systemPrompt, userPrompt, maxTokens);
+    // Load student's learning profile to personalize Kit's tone
+    let profileAppendix = "";
+    try {
+      const admin = createAdminClient();
+      const { data: student } = await admin
+        .from("students")
+        .select("learning_profile")
+        .eq("id", auth.studentId)
+        .single();
+
+      if (student?.learning_profile) {
+        const p = student.learning_profile;
+        const hints: string[] = [];
+        if (p.languages_at_home?.length > 1) {
+          hints.push(`Student is multilingual (${p.languages_at_home.join(", ")}) — keep language simple and clear.`);
+        }
+        if (p.design_confidence && p.design_confidence <= 2) {
+          hints.push("Student has LOW design confidence — be extra encouraging. Celebrate every small insight.");
+        } else if (p.design_confidence && p.design_confidence >= 4) {
+          hints.push("Student has HIGH design confidence — challenge them, push deeper.");
+        }
+        if (p.learning_differences?.includes("adhd")) {
+          hints.push("Student has ADHD — keep responses short and punchy.");
+        }
+        if (p.learning_differences?.includes("anxiety")) {
+          hints.push("Student has anxiety — use calm, normalizing language.");
+        }
+        if (hints.length > 0) {
+          profileAppendix = "\n\n[Student profile notes: " + hints.join(" ") + "]";
+        }
+      }
+    } catch {
+      // Non-critical — proceed without profile
+    }
+
+    const result = await callHaiku(systemPrompt + profileAppendix, userPrompt, maxTokens);
 
     // Try to parse as JSON, fall back to raw text
     let parsed: unknown;

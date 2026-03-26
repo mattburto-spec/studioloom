@@ -36,11 +36,30 @@ export interface Student {
   learning_profile: StudentLearningIntake | null;
 }
 
-/** Self-reported intake survey data — collected once at first login */
+/** Self-reported intake survey data — collected once at first login.
+ *  Research basis: docs/research/student-influence-factors.md
+ *  6 questions covering the highest-impact measurable factors:
+ *  - Languages (ELL scaffolding, peer grouping) — d=moderate
+ *  - Countries (cultural framing, TCK strengths) — d=variable
+ *  - Design confidence / self-efficacy — d=0.92 (highest effect size!)
+ *  - Working style preference — collectivist/individualist signal (d=0.35)
+ *  - Feedback preference — public/private channel (d=0.57 relationship quality)
+ *  - Learning differences — optional UDL accommodation (ADHD, dyslexia, etc.)
+ */
 export interface StudentLearningIntake {
+  // Step 1: Language background
   languages_at_home: string[];
+  // Step 2: Cultural background
   countries_lived_in: string[];
+  // Step 3: Design confidence (self-efficacy, d=0.92)
+  design_confidence: 1 | 2 | 3 | 4 | 5;
+  // Step 4: Working style preference
+  working_style: "solo" | "partner" | "small_group";
+  // Step 5: Feedback preference
   feedback_preference: "private" | "public";
+  // Step 6: Learning differences (optional, never shared with peers)
+  learning_differences: string[]; // e.g., ["adhd", "dyslexia"] — empty array if none/skipped
+  // Metadata
   collected_at: string;
 }
 

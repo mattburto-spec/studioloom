@@ -16,6 +16,7 @@ import type { AssessmentRecordRow } from "@/types/assessment";
 import { resolveClassUnitContent } from "@/lib/units/resolve-content";
 import { OpenStudioUnlock, OpenStudioClassView } from "@/components/open-studio";
 import { PaceFeedbackSummary } from "@/components/teacher/PaceFeedbackSummary";
+import { ClassProfileOverview } from "@/components/teacher/ClassProfileOverview";
 import { getYearLevelNumber } from "@/lib/utils/year-level";
 import StudentDrawer from "@/components/teacher/class-hub/StudentDrawer";
 
@@ -656,6 +657,11 @@ export default function ClassHubPage({
             </div>
           ) : (
             <>
+              {/* Student Learning Profiles */}
+              <div className="mb-4">
+                <ClassProfileOverview classId={classId} />
+              </div>
+
               {/* Legend */}
               <div className="flex items-center gap-4 text-xs mb-4">
                 <div className="flex items-center gap-1.5">

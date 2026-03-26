@@ -664,6 +664,39 @@ function buildLearningProfileContext(profile: StudentLearningProfile): string {
     );
   }
 
+  // Design confidence (self-efficacy, d=0.92 — highest effect size)
+  if (profile.design_confidence) {
+    const confidence = Number(profile.design_confidence);
+    if (confidence <= 2) {
+      parts.push(
+        `DESIGN CONFIDENCE: LOW (${confidence}/5). This student feels nervous about design. Start with what they CAN do. Celebrate small concrete wins ("You identified a real user need — that's the hardest part"). Break challenges into tiny steps. Never assume prior knowledge. Use encouraging but not patronising language. Offer explicit permission to struggle ("It's completely normal to feel stuck here").`
+      );
+    } else if (confidence === 3) {
+      parts.push(
+        `DESIGN CONFIDENCE: MODERATE (3/5). This student is building confidence. Acknowledge what they already know while gently stretching them. Ask "What have you tried before?" to build on existing experience. Provide scaffolding but pull it back when they show capability.`
+      );
+    } else {
+      parts.push(
+        `DESIGN CONFIDENCE: HIGH (${confidence}/5). This student feels confident about design. Challenge them — push for deeper analysis, more rigorous criteria, wilder ideas. Don't over-scaffold. Ask hard questions: "What would a professional designer critique about this?" / "What assumption are you making?"`
+      );
+    }
+  }
+
+  // Working style preference (collectivist/individualist signal, d=0.35)
+  if (profile.working_style === "solo") {
+    parts.push(
+      `WORKING STYLE: Prefers SOLO work. Respect their need for independent thinking. When suggesting collaboration, frame it as optional ("You might want to get a second opinion on..." not "Go discuss with your partner"). Don't push group work.`
+    );
+  } else if (profile.working_style === "partner") {
+    parts.push(
+      `WORKING STYLE: Prefers PARTNER work. Suggest peer check-ins when appropriate ("This might be a good moment to get a partner's reaction"). Frame feedback in dialogue terms ("What would someone else notice about this?").`
+    );
+  } else if (profile.working_style === "small_group") {
+    parts.push(
+      `WORKING STYLE: Prefers GROUP work. Encourage collaborative approaches. Suggest team-based toolkit activities when relevant. Frame challenges as team problems ("How might your group tackle this differently?").`
+    );
+  }
+
   if (profile.feedback_preference === "private") {
     parts.push(
       `FEEDBACK STYLE: This student PREFERS PRIVATE FEEDBACK. Keep your responses focused on the work, not the student. Use task-focused language ("The prototype addresses..." not "You did great"). Avoid effusive praise. Be direct and specific about what works and what to improve.`
@@ -672,6 +705,32 @@ function buildLearningProfileContext(profile: StudentLearningProfile): string {
     parts.push(
       `FEEDBACK STYLE: This student is comfortable with open feedback. You can be enthusiastic when warranted and use direct second-person language ("Your approach to..." / "You've clearly thought about...").`
     );
+  }
+
+  // Learning differences — UDL adaptation (optional, student chose to share)
+  if (profile.learning_differences?.length > 0) {
+    const diffs = profile.learning_differences;
+    const adaptations: string[] = [];
+
+    if (diffs.includes("adhd")) {
+      adaptations.push("ADHD: Keep responses short and focused. Use bullet points for multi-step advice. Offer one action at a time, not a long list. Celebrate their bursts of energy and creative connections.");
+    }
+    if (diffs.includes("dyslexia")) {
+      adaptations.push("DYSLEXIA: Use simple sentence structure. Avoid walls of text. Offer visual alternatives when possible ('Try sketching this idea instead of writing it'). Never judge spelling or grammar.");
+    }
+    if (diffs.includes("dyscalculia")) {
+      adaptations.push("DYSCALCULIA: When discussing measurements, costs, or quantities, use concrete visual examples. Offer estimation strategies rather than exact calculation.");
+    }
+    if (diffs.includes("autism")) {
+      adaptations.push("AUTISM/ASD: Be explicit and literal — avoid sarcasm, idioms, or vague instructions. State expectations clearly. Respect their detail-orientation and pattern-recognition as strengths.");
+    }
+    if (diffs.includes("anxiety")) {
+      adaptations.push("ANXIETY: Use calm, steady language. Break overwhelming tasks into small concrete steps. Normalise uncertainty ('Most designers feel this way at this stage'). Avoid time pressure language.");
+    }
+
+    if (adaptations.length > 0) {
+      parts.push(`LEARNING ACCOMMODATIONS (student self-disclosed — private, never mention directly):\n${adaptations.join("\n")}`);
+    }
   }
 
   return parts.length > 1 ? parts.join("\n") : "";

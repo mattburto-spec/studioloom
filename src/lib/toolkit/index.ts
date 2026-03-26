@@ -24,3 +24,5 @@ export {
 } from "./effort-assessment";
 
 export type { ELLTier } from "./effort-assessment";
+
+export { inferELLTier } from "./profile-utils";
