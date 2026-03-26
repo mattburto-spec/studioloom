@@ -470,14 +470,16 @@ export default function StudentDashboard() {
                             </div>
                           )}
                         </Link>
-                        {/* Discovery Engine link */}
-                        <Link
-                          href={`/discovery/${unit.id}?mode=mode_1${unit.class_id ? `&classId=${unit.class_id}` : ''}`}
-                          className="block bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-[11px] font-semibold flex items-center justify-center gap-1.5 py-1.5 rounded-b-2xl hover:from-indigo-500 hover:to-purple-500 transition-all"
-                        >
-                          <span>🧭</span>
-                          Start Discovery Journey
-                        </Link>
+                        {/* Discovery Engine link — Mode 2 units only (Service, PP, PYPx) */}
+                        {["SERVICE", "PP", "PYPX"].includes(subjectLabel) && (
+                          <Link
+                            href={`/discovery/${unit.id}?mode=mode_2${unit.class_id ? `&classId=${unit.class_id}` : ''}`}
+                            className="block bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-[11px] font-semibold flex items-center justify-center gap-1.5 py-1.5 rounded-b-2xl hover:from-indigo-500 hover:to-purple-500 transition-all"
+                          >
+                            <span>🧭</span>
+                            Start Discovery Journey
+                          </Link>
+                        )}
                         </div>
                       );
                     })}
