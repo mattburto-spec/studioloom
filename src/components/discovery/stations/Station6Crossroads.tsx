@@ -263,11 +263,16 @@ export function Station6Crossroads({ session }: Station6CrossroadsProps) {
     if (!door) {
       return (
         <div className="text-center max-w-md mx-auto">
-          <p className="text-white/60 text-sm mb-4">
+          <p className="text-white/70 text-base mb-4">
             Hmm, something went wrong loading this door. Let me take you back.
           </p>
           <button
-            onClick={() => session.goToStep("station_6_generating")}
+            onClick={() => {
+              // Reset guards so the generate effect can fire again
+              generateDoorsRef.current = false;
+              updateData({ doors: [] });
+              session.goToStep("station_6_generating");
+            }}
             className="px-4 py-2 bg-purple-500/80 hover:bg-purple-500 text-white rounded-full text-sm font-medium transition-colors"
           >
             Regenerate Doors

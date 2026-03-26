@@ -72,10 +72,11 @@ export function KitMentor({ expression, station, message }: KitMentorProps) {
     <div className="absolute bottom-24 left-6 z-40 flex items-end gap-3 max-w-md">
       {/* Kit's avatar */}
       <div
-        className="w-24 h-24 rounded-full flex items-center justify-center shrink-0 shadow-xl overflow-hidden"
+        className="w-20 h-20 sm:w-28 sm:h-28 rounded-full flex items-center justify-center shrink-0 shadow-2xl overflow-hidden"
         style={{
-          background: hasImage ? "transparent" : `linear-gradient(135deg, ${accent}44, ${accent}88)`,
-          border: `3px solid ${accent}aa`,
+          background: hasImage ? "transparent" : `linear-gradient(135deg, ${accent}55, ${accent}99)`,
+          border: `3px solid ${accent}cc`,
+          boxShadow: `0 0 20px ${accent}33`,
         }}
       >
         {hasImage ? (
@@ -85,7 +86,7 @@ export function KitMentor({ expression, station, message }: KitMentorProps) {
             className="w-full h-full object-cover"
           />
         ) : (
-          <span className="text-5xl">{emoji}</span>
+          <span className="text-4xl sm:text-6xl">{emoji}</span>
         )}
       </div>
 
