@@ -47,22 +47,27 @@ export async function POST(request: NextRequest) {
   }
 
   // Look up the student via class_students junction (migration 041)
-  // Try junction table first, fall back to legacy class_id
+  // Try junction table first, fall back to legacy class_id, then broadest search
   let student: { id: string; username: string; display_name: string | null; ell_level: number } | null = null;
+  const normalizedUsername = username.trim().toLowerCase();
 
   // New path: class_students junction
-  const { data: enrollment } = await supabase
+  const { data: enrollment, error: enrollmentError } = await supabase
     .from("class_students")
-    .select("student_id, ell_level_override, students(id, username, display_name, ell_level)")
+    .select("student_id, students(id, username, display_name, ell_level)")
     .eq("class_id", classData.id)
     .eq("is_active", true)
     .not("students", "is", null);
+
+  if (enrollmentError) {
+    console.error("[student-login] class_students query error:", enrollmentError.message);
+  }
 
   if (enrollment && enrollment.length > 0) {
     // Find matching student by username
     const match = enrollment.find((e: any) => {
       const s = e.students;
-      return s && s.username === username.trim().toLowerCase();
+      return s && s.username === normalizedUsername;
     });
     if (match) {
       const s = (match as any).students;
@@ -70,22 +75,50 @@ export async function POST(request: NextRequest) {
         id: s.id,
         username: s.username,
         display_name: s.display_name,
-        ell_level: (match as any).ell_level_override ?? s.ell_level,
+        ell_level: s.ell_level ?? 0,
       };
     }
   }
 
-  // Legacy fallback: students.class_id (for pre-migration data)
+  // Legacy fallback 1: students.class_id (for pre-junction data)
   if (!student) {
     const { data: legacyStudent } = await supabase
       .from("students")
       .select("id, username, display_name, ell_level")
       .eq("class_id", classData.id)
-      .eq("username", username.trim().toLowerCase())
+      .eq("username", normalizedUsername)
       .maybeSingle();
 
     if (legacyStudent) {
       student = legacyStudent;
+    }
+  }
+
+  // Legacy fallback 2: find student by username + check author_teacher_id matches class teacher
+  // Covers edge case where class_id was nulled but student exists
+  if (!student) {
+    const { data: classOwner } = await supabase
+      .from("classes")
+      .select("teacher_id")
+      .eq("id", classData.id)
+      .single();
+
+    if (classOwner) {
+      const { data: orphanStudent } = await supabase
+        .from("students")
+        .select("id, username, display_name, ell_level")
+        .eq("username", normalizedUsername)
+        .eq("author_teacher_id", classOwner.teacher_id)
+        .maybeSingle();
+
+      if (orphanStudent) {
+        student = orphanStudent;
+        // Re-link the student to this class for future logins
+        await supabase
+          .from("students")
+          .update({ class_id: classData.id })
+          .eq("id", orphanStudent.id);
+      }
     }
   }
 
