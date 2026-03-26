@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useToolSession } from '@/hooks/useToolSession';
 
 type EffortLevel = 'low' | 'medium' | 'high';
 
@@ -96,7 +97,7 @@ async function fetchAI(body: Record<string, unknown>): Promise<Record<string, un
 }
 
 /* ─── Main Component ─── */
-export function FishboneTool(props: { mode: 'public' | 'embedded' | 'standalone'; challenge?: string; onComplete?: (data: any) => void } = { mode: 'public' }) {
+export function FishboneTool(props: { mode: 'public' | 'embedded' | 'standalone'; challenge?: string; onComplete?: (data: any) => void; studentId?: string; unitId?: string; pageId?: string } = { mode: 'public' }) {
   const [stage, setStage] = useState<'intro' | 'working' | 'summary'>('intro');
   const [challenge, setChallenge] = useState(props.challenge || '');
   const [currentCategory, setCurrentCategory] = useState(0);
@@ -109,6 +110,27 @@ export function FishboneTool(props: { mode: 'public' | 'embedded' | 'standalone'
   const [nudge, setNudge] = useState('');
   const [summary, setSummary] = useState('');
   const [loadingSummary, setLoadingSummary] = useState(false);
+
+  const { session, updateState: updateToolSession } = useToolSession({
+    toolId: 'fishbone',
+    studentId: props.studentId,
+    mode: props.mode === 'public' ? 'standalone' : (props.mode as 'embedded' | 'standalone'),
+    challenge: challenge,
+    unitId: props.unitId,
+    pageId: props.pageId,
+  });
+
+  /* ─── Sync state to session ─── */
+  useEffect(() => {
+    if (props.studentId && props.mode !== 'public') {
+      updateToolSession({
+        stage,
+        challenge,
+        currentCategory,
+        causes,
+      });
+    }
+  }, [stage, challenge, currentCategory, causes, props.studentId, props.mode, updateToolSession]);
 
   /* ─── Micro-feedback auto-dismiss ─── */
   useEffect(() => {
@@ -200,6 +222,19 @@ export function FishboneTool(props: { mode: 'public' | 'embedded' | 'standalone'
   if (stage === 'intro') {
     return (
       <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #0f0c24 0%, #1a0818 100%)', padding: '2rem', fontFamily: 'Inter, sans-serif', color: '#fff' }}>
+        {session.saveStatus !== 'idle' && (
+          <div style={{
+            position: 'fixed', top: '16px', right: '16px', fontSize: '13px', fontWeight: '500',
+            padding: '8px 12px', borderRadius: '6px', zIndex: 1000,
+            opacity: session.saveStatus === 'saved' ? 1 : 0.8,
+            background: session.saveStatus === 'error' ? '#dc26261a' : '#10b98114',
+            color: session.saveStatus === 'error' ? '#ef4444' : '#10b981',
+          }}>
+            {session.saveStatus === 'saving' && '⟳ Saving...'}
+            {session.saveStatus === 'saved' && '✓ Saved'}
+            {session.saveStatus === 'error' && '✕ Save failed'}
+          </div>
+        )}
         <div style={{ maxWidth: '600px', margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
             <div style={{ fontSize: '3.5rem', marginBottom: '1rem' }}>🦴</div>

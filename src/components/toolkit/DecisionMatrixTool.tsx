@@ -7,6 +7,9 @@ export function DecisionMatrixTool({
   mode = 'public',
   challenge,
   sessionId,
+  studentId,
+  unitId,
+  pageId,
   onSave,
   onComplete,
 }: {
@@ -14,6 +17,9 @@ export function DecisionMatrixTool({
   mode: 'public' | 'embedded' | 'standalone';
   challenge?: string;
   sessionId?: string;
+  studentId?: string;
+  unitId?: string;
+  pageId?: string;
   onSave?: (state: any) => void;
   onComplete?: (data: any) => void;
 }) {

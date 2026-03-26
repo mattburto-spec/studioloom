@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { useToolSession } from '@/hooks/useToolSession';
 
 type StageType = 'intro' | 'working' | 'summary';
 type EffortLevel = 'low' | 'medium' | 'high';
@@ -96,6 +97,9 @@ export function DesignSpecificationTool({
   sessionId: initialSessionId,
   onSave,
   onComplete,
+  studentId,
+  unitId,
+  pageId,
 }: {
   toolId?: string;
   mode: 'public' | 'embedded' | 'standalone';
@@ -103,6 +107,9 @@ export function DesignSpecificationTool({
   sessionId?: string;
   onSave?: (state: ToolState) => void;
   onComplete?: (data: ToolResponse) => void;
+  studentId?: string;
+  unitId?: string;
+  pageId?: string;
 }) {
   const [stage, setStage] = useState<StageType>(initialChallenge ? 'working' : 'intro');
   const [designTopic, setDesignTopic] = useState(initialChallenge);
@@ -115,6 +122,28 @@ export function DesignSpecificationTool({
   const [showExample, setShowExample] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const startTimeRef = useRef(Date.now());
+
+  const { session, updateState: updateToolSession } = useToolSession({
+    toolId: 'design-specification',
+    studentId,
+    mode: mode === 'public' ? 'standalone' : (mode as 'embedded' | 'standalone'),
+    challenge: designTopic,
+    unitId,
+    pageId,
+  });
+
+  /* ─── Sync state to session ─── */
+  useEffect(() => {
+    if (studentId && mode !== 'public') {
+      updateToolSession({
+        stage,
+        designTopic,
+        sections,
+        currentSection,
+        efforts,
+      });
+    }
+  }, [stage, designTopic, sections, currentSection, efforts, studentId, mode, updateToolSession]);
 
   const section = SPEC_SECTIONS[currentSection];
 
@@ -198,6 +227,19 @@ export function DesignSpecificationTool({
   if (stage === 'intro') {
     return (
       <div style={{ background: 'linear-gradient(135deg, #0c0c24 0%, #1a0c2e 100%)', color: '#ffffff', minHeight: '100vh', padding: '60px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter, sans-serif' }}>
+        {session.saveStatus !== 'idle' && (
+          <div style={{
+            position: 'fixed', top: '16px', right: '16px', fontSize: '13px', fontWeight: '500',
+            padding: '8px 12px', borderRadius: '6px', zIndex: 1000,
+            opacity: session.saveStatus === 'saved' ? 1 : 0.8,
+            background: session.saveStatus === 'error' ? '#dc26261a' : '#10b98114',
+            color: session.saveStatus === 'error' ? '#ef4444' : '#10b981',
+          }}>
+            {session.saveStatus === 'saving' && '⟳ Saving...'}
+            {session.saveStatus === 'saved' && '✓ Saved'}
+            {session.saveStatus === 'error' && '✕ Save failed'}
+          </div>
+        )}
         <style>{`
           @keyframes toolFadeIn {
             from { opacity: 0; transform: translateY(12px); }

@@ -1,12 +1,16 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useToolSession } from '@/hooks/useToolSession';
 
 interface ToolkitToolProps {
   toolId?: string;
   mode: 'public' | 'embedded' | 'standalone';
   challenge?: string;
   sessionId?: string;
+  studentId?: string;
+  unitId?: string;
+  pageId?: string;
   onSave?: (state: ToolState) => void;
   onComplete?: (data: ToolResponse) => void;
 }
@@ -162,6 +166,9 @@ export function SixHatsTool({
   mode = 'public',
   challenge: initialChallenge = '',
   sessionId: initialSessionId,
+  studentId,
+  unitId,
+  pageId,
   onSave,
   onComplete,
 }: ToolkitToolProps) {
@@ -185,6 +192,16 @@ export function SixHatsTool({
   const challengeRef = useRef<HTMLTextAreaElement>(null);
   const microFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Tool session persistence (gracefully disabled in public mode)
+  const { session, updateState: updateToolSession } = useToolSession({
+    toolId: 'six-thinking-hats',
+    studentId,
+    mode: mode === 'public' ? 'standalone' : (mode as 'embedded' | 'standalone'),
+    challenge: initialChallenge,
+    unitId,
+    pageId,
+  });
+
   const hat = HATS[currentHat];
   const totalIdeas = ideas.reduce((sum, arr) => sum + arr.length, 0);
 
@@ -197,6 +214,12 @@ export function SixHatsTool({
       return () => clearTimeout(timer);
     }
   }, [stage, challenge, currentHat, ideas, ideaEfforts, mode, onSave]);
+
+  // Sync state to useToolSession for persistence
+  useEffect(() => {
+    const state = { stage, challenge, currentHat, ideas, ideaEfforts };
+    updateToolSession(state);
+  }, [stage, challenge, currentHat, ideas, ideaEfforts, updateToolSession]);
 
   const fetchAI = useCallback(async (body: Record<string, unknown>): Promise<Record<string, unknown>> => {
     const res = await fetch('/api/tools/six-hats', {
@@ -338,6 +361,19 @@ export function SixHatsTool({
         position: 'relative',
         overflow: 'hidden',
       }}>
+        {session.saveStatus !== 'idle' && (
+          <div style={{
+            position: 'fixed', top: '16px', right: '16px', fontSize: '13px', fontWeight: '500',
+            padding: '8px 12px', borderRadius: '6px', zIndex: 1000,
+            opacity: session.saveStatus === 'saved' ? 1 : 0.8,
+            background: session.saveStatus === 'error' ? '#dc26261a' : '#10b98114',
+            color: session.saveStatus === 'error' ? '#ef4444' : '#10b981',
+          }}>
+            {session.saveStatus === 'saving' && '⟳ Saving...'}
+            {session.saveStatus === 'saved' && '✓ Saved'}
+            {session.saveStatus === 'error' && '✕ Save failed'}
+          </div>
+        )}
         <style>{`
           @keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-10px); } }
           @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }

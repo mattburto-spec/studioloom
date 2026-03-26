@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useToolSession } from '@/hooks/useToolSession';
 
 type EffortLevel = 'low' | 'medium' | 'high';
 type StageType = 'intro' | 'dump' | 'cluster' | 'summary';
@@ -55,7 +56,7 @@ async function fetchAI(body: Record<string, unknown>): Promise<Record<string, un
 }
 
 /* ─── Main Component ─── */
-export function AffinityDiagramTool(props: { toolId?: string; mode: 'public' | 'embedded' | 'standalone'; challenge?: string; sessionId?: string; onSave?: (state: any) => void; onComplete?: (data: any) => void } = { mode: 'public' }) {
+export function AffinityDiagramTool(props: { toolId?: string; mode: 'public' | 'embedded' | 'standalone'; challenge?: string; sessionId?: string; onSave?: (state: any) => void; onComplete?: (data: any) => void; studentId?: string; unitId?: string; pageId?: string } = { mode: 'public' }) {
   const [stage, setStage] = useState<StageType>('intro');
   const [context, setContext] = useState('');
   const [observations, setObservations] = useState<string[]>([]);
@@ -71,6 +72,15 @@ export function AffinityDiagramTool(props: { toolId?: string; mode: 'public' | '
   const [microFeedback, setMicroFeedback] = useState<{ effort: EffortLevel; message: string } | null>(null);
   const microFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const contextRef = useRef<HTMLTextAreaElement>(null);
+
+  const { session, updateState: updateToolSession, completeSession } = useToolSession({
+    toolId: 'affinity-diagram',
+    studentId: props.studentId,
+    mode: (props.mode || 'public') === 'public' ? 'standalone' : ((props.mode || 'public') as 'embedded' | 'standalone'),
+    challenge: context || props.challenge,
+    unitId: props.unitId,
+    pageId: props.pageId,
+  });
 
   /* ─── Fetch nudge on observation ─── */
   const fetchNudge = useCallback(async (obs: string, allObs: string[], effort: EffortLevel) => {
@@ -140,6 +150,12 @@ export function AffinityDiagramTool(props: { toolId?: string; mode: 'public' | '
     }
   }, [clusters, observations, context]);
 
+  /* ─── State sync for persistence ─── */
+  useEffect(() => {
+    const state = { stage, context, observations, clusters, currentObs };
+    updateToolSession(state);
+  }, [stage, context, observations, clusters, currentObs, updateToolSession]);
+
   /* ─── Micro-feedback auto-dismiss ─── */
   useEffect(() => {
     if (microFeedback) {
@@ -206,6 +222,19 @@ export function AffinityDiagramTool(props: { toolId?: string; mode: 'public' | '
   if (stage === 'intro') {
     return (
       <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #0f0c24 0%, #1a0818 100%)', padding: '2rem', fontFamily: 'Inter, sans-serif', color: '#fff' }}>
+        {session.saveStatus !== 'idle' && (
+          <div style={{
+            position: 'fixed', top: '16px', right: '16px', fontSize: '13px', fontWeight: '500',
+            padding: '8px 12px', borderRadius: '6px', zIndex: 1000,
+            opacity: session.saveStatus === 'saved' ? 1 : 0.8,
+            background: session.saveStatus === 'error' ? '#dc26261a' : '#10b98114',
+            color: session.saveStatus === 'error' ? '#ef4444' : '#10b981',
+          }}>
+            {session.saveStatus === 'saving' && '⟳ Saving...'}
+            {session.saveStatus === 'saved' && '✓ Saved'}
+            {session.saveStatus === 'error' && '✕ Save failed'}
+          </div>
+        )}
         <div style={{ maxWidth: '600px', margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
             <div style={{ fontSize: '3.5rem', marginBottom: '1rem' }}>🔀</div>

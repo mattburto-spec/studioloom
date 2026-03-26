@@ -1,12 +1,16 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useToolSession } from '@/hooks/useToolSession';
 
 interface ToolkitToolProps {
   toolId?: string;
   mode: 'public' | 'embedded' | 'standalone';
   challenge?: string;
   sessionId?: string;
+  studentId?: string;
+  unitId?: string;
+  pageId?: string;
   onSave?: (state: ToolState) => void;
   onComplete?: (data: ToolResponse) => void;
 }
@@ -81,6 +85,9 @@ export function SystemsMapTool({
   mode = 'public',
   challenge: initialChallenge = '',
   sessionId: initialSessionId,
+  studentId,
+  unitId,
+  pageId,
   onSave,
   onComplete,
 }: ToolkitToolProps) {
@@ -100,8 +107,29 @@ export function SystemsMapTool({
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const microFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const { session, updateState: updateToolSession, completeSession } = useToolSession({
+    toolId: 'systems-map',
+    studentId,
+    mode: mode === 'public' ? 'standalone' : (mode as 'embedded' | 'standalone'),
+    challenge: initialChallenge,
+    unitId,
+    pageId,
+  });
+
   const step = STEPS[currentStep];
   const totalIdeas = ideas.reduce((sum, arr) => sum + arr.length, 0);
+
+  useEffect(() => {
+    if (mode !== 'public') {
+      updateToolSession({
+        stage,
+        challenge,
+        currentStep,
+        ideas,
+        ideaEfforts,
+      });
+    }
+  }, [stage, challenge, currentStep, ideas, ideaEfforts, mode, updateToolSession]);
 
   useEffect(() => {
     if (mode !== 'public' && onSave) {
@@ -229,6 +257,19 @@ export function SystemsMapTool({
   if (stage === 'intro') {
     return (
       <div style={{ minHeight: '100vh', background: 'linear-gradient(to bottom right, #1f2937, #111827)', padding: '60px 20px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter, system-ui, sans-serif' }}>
+        {session.saveStatus !== 'idle' && (
+          <div style={{
+            position: 'fixed', top: '16px', right: '16px', fontSize: '13px', fontWeight: '500',
+            padding: '8px 12px', borderRadius: '6px', zIndex: 1000,
+            opacity: session.saveStatus === 'saved' ? 1 : 0.8,
+            background: session.saveStatus === 'error' ? '#dc26261a' : '#10b98114',
+            color: session.saveStatus === 'error' ? '#ef4444' : '#10b981',
+          }}>
+            {session.saveStatus === 'saving' && '⟳ Saving...'}
+            {session.saveStatus === 'saved' && '✓ Saved'}
+            {session.saveStatus === 'error' && '✕ Save failed'}
+          </div>
+        )}
         <style>{`
           @keyframes toolFadeIn {
             from { opacity: 0; transform: translateY(12px); }
@@ -276,6 +317,19 @@ export function SystemsMapTool({
   if (stage === 'working') {
     return (
       <div style={{ minHeight: '100vh', background: 'linear-gradient(to bottom right, #1f2937, #111827)', padding: '40px 24px', fontFamily: 'Inter, system-ui, sans-serif' }}>
+        {session.saveStatus !== 'idle' && (
+          <div style={{
+            position: 'fixed', top: '16px', right: '16px', fontSize: '13px', fontWeight: '500',
+            padding: '8px 12px', borderRadius: '6px', zIndex: 1000,
+            opacity: session.saveStatus === 'saved' ? 1 : 0.8,
+            background: session.saveStatus === 'error' ? '#dc26261a' : '#10b98114',
+            color: session.saveStatus === 'error' ? '#ef4444' : '#10b981',
+          }}>
+            {session.saveStatus === 'saving' && '⟳ Saving...'}
+            {session.saveStatus === 'saved' && '✓ Saved'}
+            {session.saveStatus === 'error' && '✕ Save failed'}
+          </div>
+        )}
         <style>{`
           @keyframes toolFadeIn {
             from { opacity: 0; transform: translateY(12px); }
@@ -397,6 +451,19 @@ export function SystemsMapTool({
 
   return (
     <div style={{ minHeight: '100vh', background: 'linear-gradient(to bottom right, #1f2937, #111827)', padding: '40px 24px', fontFamily: 'Inter, system-ui, sans-serif' }}>
+      {session.saveStatus !== 'idle' && (
+        <div style={{
+          position: 'fixed', top: '16px', right: '16px', fontSize: '13px', fontWeight: '500',
+          padding: '8px 12px', borderRadius: '6px', zIndex: 1000,
+          opacity: session.saveStatus === 'saved' ? 1 : 0.8,
+          background: session.saveStatus === 'error' ? '#dc26261a' : '#10b98114',
+          color: session.saveStatus === 'error' ? '#ef4444' : '#10b981',
+        }}>
+          {session.saveStatus === 'saving' && '⟳ Saving...'}
+          {session.saveStatus === 'saved' && '✓ Saved'}
+          {session.saveStatus === 'error' && '✕ Save failed'}
+        </div>
+      )}
       <style>{`
         @keyframes toolFadeIn {
           from { opacity: 0; transform: translateY(12px); }
