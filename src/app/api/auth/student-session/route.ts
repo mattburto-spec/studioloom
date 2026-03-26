@@ -103,6 +103,8 @@ export async function GET(request: NextRequest) {
       class_id: classInfo?.id || student.class_id,
       classes: classInfo,
       learning_profile: (student as any).learning_profile ?? null,
+      mentor_id: (student as any).mentor_id ?? null,
+      theme_id: (student as any).theme_id ?? null,
     },
   });
   response.headers.set("Cache-Control", "private, no-cache, no-store, must-revalidate");

@@ -7,9 +7,17 @@ import { StudentContext } from "./student-context";
 import { StudentAvatar } from "@/components/student/StudentAvatar";
 import { QuickToolFAB } from "@/components/toolkit/QuickToolFAB";
 import { StudioSetup } from "@/components/student/StudioSetup";
-import { getThemeStyles, type ThemeId } from "@/lib/student/themes";
-import type { MentorId } from "@/lib/student/mentors";
+import { getThemeStyles, type ThemeId, THEMES } from "@/lib/student/themes";
+import { MENTORS, type MentorId } from "@/lib/student/mentors";
 import type { Student, Class } from "@/types";
+
+/** Inline gear icon — project doesn't use lucide-react */
+const GearIcon = ({ size = 18, color = "currentColor" }: { size?: number; color?: string }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+    <circle cx="12" cy="12" r="3" />
+  </svg>
+);
 
 export default function StudentLayout({
   children,
@@ -21,6 +29,7 @@ export default function StudentLayout({
   const [classInfo, setClassInfo] = useState<Class | null>(null);
   const [loading, setLoading] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
     async function loadSession() {
@@ -171,6 +180,14 @@ export default function StudentLayout({
                 </div>
               )}
               <button
+                onClick={() => setShowSettings(true)}
+                className="p-1.5 rounded-lg transition-opacity hover:opacity-100"
+                style={{ opacity: 0.5, color: themeStyles["--st-header-text"] }}
+                title="Studio settings"
+              >
+                <GearIcon size={16} />
+              </button>
+              <button
                 onClick={async () => {
                   await fetch("/api/auth/student-session", { method: "DELETE" });
                   router.push("/login");
@@ -187,6 +204,111 @@ export default function StudentLayout({
 
         {/* QuickToolFAB — available on all student pages */}
         <QuickToolFAB />
+
+        {/* Settings modal — quick mentor/theme switcher */}
+        {showSettings && student && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style={{ background: "rgba(0,0,0,0.5)" }}
+            onClick={(e) => { if (e.target === e.currentTarget) setShowSettings(false); }}
+          >
+            <div
+              className="w-full max-w-md rounded-2xl p-6 shadow-xl"
+              style={{ background: themeStyles["--st-surface"], color: themeStyles["--st-text"] }}
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-lg font-bold">Studio Settings</h2>
+                <button onClick={() => setShowSettings(false)} className="p-1 rounded-lg opacity-50 hover:opacity-100">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+                </button>
+              </div>
+
+              {/* Current mentor */}
+              <div className="mb-4">
+                <label className="text-xs font-semibold uppercase tracking-wider opacity-60">Your Mentor</label>
+                <div className="flex gap-2 mt-2">
+                  {(Object.values(MENTORS) as { id: MentorId; name: string; emoji: string; accent: string; tagline: string }[]).map((m) => {
+                    const isActive = (student as any).mentor_id === m.id;
+                    return (
+                      <button
+                        key={m.id}
+                        onClick={async () => {
+                          await fetch("/api/student/studio-preferences", {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ mentor_id: m.id }),
+                          });
+                          setStudent((prev) => prev ? { ...prev, mentor_id: m.id } as any : prev);
+                        }}
+                        className="flex-1 p-3 rounded-xl text-center transition-all"
+                        style={{
+                          border: isActive ? `2px solid ${m.accent}` : "2px solid transparent",
+                          background: isActive ? `${m.accent}18` : themeStyles["--st-bg"],
+                        }}
+                      >
+                        <div className="text-2xl mb-1">{m.emoji}</div>
+                        <div className="text-sm font-semibold">{m.name}</div>
+                        <div className="text-xs opacity-60">{m.tagline}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Current theme */}
+              <div className="mb-6">
+                <label className="text-xs font-semibold uppercase tracking-wider opacity-60">Visual Theme</label>
+                <div className="flex gap-2 mt-2">
+                  {(Object.values(THEMES) as { id: ThemeId; name: string; preview: { accent: string; bg: string } }[]).map((t) => {
+                    const isActive = (student as any).theme_id === t.id;
+                    return (
+                      <button
+                        key={t.id}
+                        onClick={async () => {
+                          await fetch("/api/student/studio-preferences", {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ theme_id: t.id }),
+                          });
+                          setStudent((prev) => prev ? { ...prev, theme_id: t.id } as any : prev);
+                        }}
+                        className="flex-1 p-3 rounded-xl text-center transition-all"
+                        style={{
+                          border: isActive ? `2px solid ${t.preview.accent}` : "2px solid transparent",
+                          background: t.preview.bg,
+                        }}
+                      >
+                        <div
+                          className="w-6 h-6 rounded-full mx-auto mb-1"
+                          style={{ background: t.preview.accent }}
+                        />
+                        <div className="text-xs font-semibold" style={{ color: t.id === "dark" ? "#fff" : "#333" }}>
+                          {t.name}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Re-run full setup */}
+              <button
+                onClick={() => {
+                  setShowSettings(false);
+                  setShowOnboarding(true);
+                }}
+                className="w-full py-2.5 rounded-xl text-sm font-medium transition-colors"
+                style={{
+                  background: themeStyles["--st-bg"],
+                  color: themeStyles["--st-text-secondary"],
+                  border: `1px solid ${themeStyles["--st-border"]}`,
+                }}
+              >
+                Redo full Studio Setup
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </StudentContext.Provider>
   );
