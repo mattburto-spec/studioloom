@@ -32,6 +32,16 @@ export interface Student {
   // LMS integration (provider-agnostic)
   external_id: string | null;
   external_provider: string | null;
+  // Self-reported intake survey (migration 048)
+  learning_profile: StudentLearningIntake | null;
+}
+
+/** Self-reported intake survey data — collected once at first login */
+export interface StudentLearningIntake {
+  languages_at_home: string[];
+  countries_lived_in: string[];
+  feedback_preference: "private" | "public";
+  collected_at: string;
 }
 
 // --- Class-Student Enrollment (many-to-many, migration 041) ---

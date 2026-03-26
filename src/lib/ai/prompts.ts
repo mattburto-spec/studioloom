@@ -264,7 +264,11 @@ You are generating content for design & technology education. Follow these princ
 
 9. ENERGY SEQUENCING: Don't put two high-cognitive activities back-to-back. Making can follow theory. Theory should NOT follow long workshop sessions. Always end with debrief.
 
-10. DIFFERENTIATION & EXTENSIONS: Design naturally differentiates (different paces, multiple valid solutions). Plan scaffolding for ELL students, extension activities for fast finishers (indexed to the current design phase — not busywork), and adapted tools for students with physical needs.${styleBlock}`;
+10. DIFFERENTIATION & EXTENSIONS: Design naturally differentiates (different paces, multiple valid solutions). Plan scaffolding for ELL students, extension activities for fast finishers (indexed to the current design phase — not busywork), and adapted tools for students with physical needs.
+
+11. 66% ACTIVE LEARNING RULE (RESEARCH-BACKED): At least 66% of all lesson activities must be ACTIVE — students creating, designing, building, discussing, analyzing, evaluating, presenting, collaborating, or using design tools. Achievement gaps across cultural, linguistic, and socioeconomic backgrounds ONLY close when active learning exceeds 66% of class time (effect size d=0.52). Passive content (reading, watching demos, teacher lectures) must stay below 34%. This rule is validated post-generation — the system will flag units that fall below the threshold.
+
+12. INCLUSIVE ASSESSMENT LANGUAGE: Frame all assessment activities as learning opportunities, never ability tests. Use "This helps us see what you're learning" NOT "This assesses your design ability." Stereotype threat (effect size d=-0.33) is triggered by ability-framing, especially for underrepresented groups. Always use growth framing in rubric descriptions, task instructions, and reflection prompts.${styleBlock}`;
 }
 
 // =========================================================================
@@ -858,7 +862,7 @@ Work Time is ONE sustained block (minimum 45% of usable time). Do NOT split it i
 10. Connect content to the specified global context and key concept
 11. Include practical, hands-on activities where relevant
 12. Vocab activity type can be: "matching", "fill-blank", or "drag-sort"
-13. Reflection type can be: "confidence-slider", "checklist", or "short-response"
+13. Reflection type can be: "confidence-slider", "checklist", or "short-response". Reflection items MUST include at least one emotion-aware prompt (e.g., "How did this activity make you feel?" or "What was frustrating or exciting about this?"). Research shows emotion regulation (d=0.53) is a stronger predictor of learning than cognitive ability alone. Naming feelings normalises struggle and builds metacognitive awareness. NEVER use ability-framing in reflections ("How well did you do?") — use growth-framing ("What did you learn about yourself as a designer?")
 14. When appropriate, incorporate design thinking frameworks (SCAMPER, Six Thinking Hats, PMI, Empathy Map, Decision Matrix, etc.) — adapt them to the specific topic
 15. Set "portfolioCapture": true on 1-2 sections per lesson that represent substantive design work (analysis, sketches, justifications, creation evidence, evaluations)
 16. Each lesson should be SELF-CONTAINED enough to work as a single class period, but CONNECTED enough that the unit tells a coherent story

@@ -135,8 +135,8 @@ export default function SafetyProjectorPage({
     // End slide
     builtSlides.push({
       type: "end",
-      title: "Ready for the Quiz?",
-      content: `You've covered all the safety material for "${badge.name}". Time to test your knowledge!`,
+      title: "Ready to Show What You Know?",
+      content: `You've covered all the safety material for "${badge.name}". Let's see what you've learned!`,
     });
 
     setSlides(builtSlides);

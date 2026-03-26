@@ -12,6 +12,7 @@ import { UnitThumbnail } from "@/components/shared/UnitThumbnail";
 import { JourneyMap } from "@/components/student/JourneyMap";
 import { DueThisWeek } from "@/components/student/DueThisWeek";
 import { BadgeIcon } from "@/components/safety/BadgeIcon";
+import { StudentIntakeSurvey } from "@/components/student/StudentIntakeSurvey";
 import type { Unit, StudentProgress, PortfolioEntry, UnitPage } from "@/types";
 
 interface ToolSession {
@@ -72,6 +73,7 @@ export default function StudentDashboard() {
     formatted: string;
     short: string;
   } | null>(null);
+  const [showIntakeSurvey, setShowIntakeSurvey] = useState(false);
 
   const loadPortfolio = useCallback(async () => {
     try {
@@ -159,6 +161,10 @@ export default function StudentDashboard() {
     loadPortfolio();
     loadToolSessions();
     loadPendingBadges();
+    // Show intake survey if student hasn't completed it yet
+    if (student && !(student as any).learning_profile) {
+      setShowIntakeSurvey(true);
+    }
   }, [student, loadPortfolio, loadToolSessions, loadOpenStudioStatus, loadPendingBadges, loadNextClass]);
 
   // === Helpers ===
@@ -318,6 +324,14 @@ export default function StudentDashboard() {
         <ToolModal
           toolId={selectedToolId}
           onClose={() => setSelectedToolId(null)}
+        />
+      )}
+
+      {/* Intake Survey — shown once for new students */}
+      {showIntakeSurvey && student && (
+        <StudentIntakeSurvey
+          studentName={student.display_name || student.username}
+          onComplete={() => setShowIntakeSurvey(false)}
         />
       )}
 

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useToolSession } from '@/hooks/useToolSession';
+import { assessEffort as sharedAssessEffort, getRandomMicroFeedback, type ELLTier } from '@/lib/toolkit';
 
 const STEPS = [
   {
@@ -122,6 +123,8 @@ interface ScamperToolProps {
   studentId?: string; // Optional — undefined in public mode
   unitId?: string;
   pageId?: string;
+  /** ELL tier for language-aware effort thresholds (1=beginning, 2=developing, 3=proficient). Defaults to 3. */
+  ellTier?: ELLTier;
   onSave?: (state: ToolState) => void;
   onComplete?: (data: ToolResponse) => void;
 }
@@ -146,32 +149,15 @@ interface ToolResponse {
   };
 }
 
-function assessEffort(idea: string): EffortLevel {
-  const words = idea.trim().split(/\s+/).length;
-  const hasReasoning = /\b(because|since|so that|in order to|this would|this could|which means|that way)\b/i.test(idea);
-  const hasSpecifics = /\b(for example|such as|like|using|made of|instead of|rather than|compared to)\b/i.test(idea);
-  const hasDetail = words >= 15;
-
-  if (words < 6) return 'low';
-  if ((hasDetail && hasSpecifics) || (hasDetail && hasReasoning) || (hasSpecifics && hasReasoning)) return 'high';
-  if (words >= 10 || hasSpecifics || hasReasoning) return 'medium';
-  return 'low';
+/**
+ * Language-tier-aware effort assessment.
+ * Uses shared assessEffort from @/lib/toolkit/effort-assessment.
+ * ELL Tier defaults to 3 (proficient) — pass student's tier for adjusted thresholds.
+ * See docs/research/student-influence-factors.md for research basis.
+ */
+function assessEffort(idea: string, ellTier: ELLTier = 3): EffortLevel {
+  return sharedAssessEffort(idea, ellTier);
 }
-
-const MICRO_FEEDBACK: Record<EffortLevel, { emoji: string; messages: string[] }> = {
-  high: {
-    emoji: '✦',
-    messages: ['Deep thinking!', 'Great detail!', 'Strong reasoning!', 'Specific and clear!', 'Well thought out!'],
-  },
-  medium: {
-    emoji: '→',
-    messages: ['Good — keep pushing!', 'Nice start!', 'Getting there!', 'Building momentum!'],
-  },
-  low: {
-    emoji: '↑',
-    messages: ['Try adding more detail', 'Can you be more specific?', 'What exactly would that look like?'],
-  },
-};
 
 export function ScamperTool({
   mode = 'public',
@@ -180,6 +166,7 @@ export function ScamperTool({
   studentId,
   unitId,
   pageId,
+  ellTier = 3,
   onSave,
   onComplete,
 }: ScamperToolProps) {
@@ -327,7 +314,7 @@ export function ScamperTool({
   const addIdea = useCallback(() => {
     if (!currentIdea.trim()) return;
     const newIdea = currentIdea.trim();
-    const effort = assessEffort(newIdea);
+    const effort = assessEffort(newIdea, ellTier);
 
     setIdeas(prev => {
       const next = [...prev];

@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
   // Step 2: Get the student
   const { data: student, error: studentError } = await supabase
     .from("students")
-    .select("id, username, display_name, ell_level, class_id")
+    .select("id, username, display_name, ell_level, class_id, learning_profile")
     .eq("id", session.student_id)
     .single();
 
@@ -86,6 +86,7 @@ export async function GET(request: NextRequest) {
       ell_level: student.ell_level,
       class_id: classInfo?.id || student.class_id,
       classes: classInfo,
+      learning_profile: (student as any).learning_profile ?? null,
     },
   });
   response.headers.set("Cache-Control", "private, no-cache, no-store, must-revalidate");

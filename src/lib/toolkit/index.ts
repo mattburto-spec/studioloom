@@ -13,3 +13,14 @@ export type {
   ToolkitRequestBody,
   EffortLevel,
 } from "./types";
+
+export {
+  assessEffort,
+  effortToDepth,
+  getRandomMicroFeedback,
+  countMeaningfulWords,
+  getMeaningfulWordThresholds,
+  MICRO_FEEDBACK,
+} from "./effort-assessment";
+
+export type { ELLTier } from "./effort-assessment";

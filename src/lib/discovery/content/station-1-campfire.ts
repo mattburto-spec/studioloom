@@ -116,6 +116,23 @@ export const BINARY_PAIRS: BinaryPair[] = [
     optionB: { label: 'Someone explains the idea behind why it works', icon: '💡', signal: 'concept', value: 'b' },
     ageBands: ['junior', 'senior', 'extended'],
   },
+  // Learning condition pairs (research-backed: self-regulation d=0.52, emotion regulation d=0.53)
+  {
+    id: 'pair_13',
+    dimension: 'autonomy',
+    prompt: 'You need to learn something new for a project. You...',
+    optionA: { label: 'Figure it out yourself — tutorials, experiments, trial and error', icon: '🧭', signal: 'self_directed', value: 'a' },
+    optionB: { label: 'Ask someone to walk you through it step by step first', icon: '🤝', signal: 'guided', value: 'b' },
+    ageBands: ['junior', 'senior', 'extended'],
+  },
+  {
+    id: 'pair_14',
+    dimension: 'stress_response',
+    prompt: "You're stressed about a deadline. You...",
+    optionA: { label: 'Push through — I work better under pressure', icon: '⚡', signal: 'push_through', value: 'a' },
+    optionB: { label: 'Take a break first — I need to clear my head before I can focus', icon: '🌿', signal: 'step_back', value: 'b' },
+    ageBands: ['junior', 'senior', 'extended'],
+  },
 ];
 
 // ─── Working Style Computation ───────────────────────────────────
@@ -137,6 +154,8 @@ const DIMENSION_MAP: Record<WorkingStyleDimension, { a: string; b: string }> = {
   expression: { a: 'visual', b: 'verbal' },
   learning_intake: { a: 'study', b: 'experiment' },
   learning_source: { a: 'example', b: 'concept' },
+  autonomy: { a: 'self_directed', b: 'guided' },
+  stress_response: { a: 'push_through', b: 'step_back' },
 };
 
 export function computeWorkingStyle(
@@ -159,6 +178,7 @@ export function computeDominantStyle(vector: WorkingStyleVector): DominantStyle 
     vector.structure === 'structured',
     vector.pace === 'slow_build',
     vector.decision === 'analytical',
+    vector.stress_response === 'step_back', // planners regulate before acting
   ].filter(Boolean).length;
 
   const doerSignals = [
@@ -166,6 +186,7 @@ export function computeDominantStyle(vector: WorkingStyleVector): DominantStyle 
     vector.pace === 'fast_start',
     vector.risk === 'risk_taker',
     vector.learning_intake === 'experiment',
+    vector.stress_response === 'push_through', // doers push through pressure
   ].filter(Boolean).length;
 
   const explorerSignals = [
@@ -173,6 +194,7 @@ export function computeDominantStyle(vector: WorkingStyleVector): DominantStyle 
     vector.structure === 'flexible',
     vector.risk === 'risk_taker',
     vector.feedback === 'big_picture',
+    vector.autonomy === 'self_directed', // explorers chart their own path
   ].filter(Boolean).length;
 
   const max = Math.max(plannerSignals, doerSignals, explorerSignals);

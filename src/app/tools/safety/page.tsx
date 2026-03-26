@@ -175,7 +175,7 @@ export default function SafetyToolsPage() {
                 🛡️ Workshop Safety
               </h1>
               <p style={{ fontSize: 'clamp(16px, 2vw, 18px)', color: '#a8adc7', margin: '0 0 32px 0', lineHeight: '1.6', maxWidth: '600px', marginLeft: 'auto', marginRight: 'auto', fontWeight: '400' }}>
-                Interactive safety training. Spot hazards, learn risks, test your knowledge. Play now — it takes 3 minutes.
+                Interactive safety training. Spot hazards, learn risks, see what you remember. Play now — it takes 3 minutes.
               </p>
             </div>
 
@@ -529,7 +529,7 @@ export default function SafetyToolsPage() {
               🛡️ Safety Badges
             </h1>
             <p style={{ fontSize: '18px', color: '#a8adc7', margin: '0', lineHeight: '1.6', fontWeight: '400' }}>
-              Free interactive safety training. Learn, test yourself, and track your progress.
+              Free interactive safety training. Learn, check your understanding, and track your progress.
             </p>
           </div>
         </div>

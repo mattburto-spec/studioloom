@@ -328,7 +328,79 @@ export function validateUnitTiming(
     });
   }
 
+  // ---- 66% Active Content Rule (research-backed) ----
+  // Achievement gaps only close when >66% of class time is active learning.
+  // Source: docs/research/student-influence-factors.md — active engagement d=0.52
+  const { activeCount, passiveCount, activePercent } = classifyUnitActivityBalance(lessons);
+  if (activePercent < 66) {
+    unitIssues.push({
+      code: "UNIT_ACTIVE_CONTENT_LOW",
+      severity: "warning",
+      message: `Only ${activePercent}% of activities are active learning (${activeCount} active, ${passiveCount} passive). Research shows achievement gaps close only when >66% of class time is active. Consider replacing passive content sections with hands-on, discussion, or creation activities.`,
+    });
+  }
+
   return { lessonResults, unitIssues };
+}
+
+/**
+ * Classify a section/activity as "active" or "passive" learning.
+ *
+ * Active: student is creating, discussing, analyzing, designing, collaborating,
+ *         building, sketching, prototyping, evaluating, presenting, or using tools.
+ * Passive: reading content, watching demonstrations, listening to instruction,
+ *          content-only blocks with no student response required.
+ *
+ * Research basis: Active engagement effect size d=0.52 (Hattie/Visible Learning).
+ * Achievement gaps close only when >66% of class time is active learning.
+ */
+function isActiveSection(section: LessonSection): boolean {
+  // Response types that require student action are always active
+  const activeResponseTypes = [
+    "text", "upload", "voice", "canvas", "multi",
+    "decision-matrix", "pmi", "pairwise", "trade-off-sliders",
+  ];
+  if (section.responseType && activeResponseTypes.includes(section.responseType)) {
+    return true;
+  }
+
+  // Check prompt text for active learning verbs
+  const prompt = (section.prompt || "").toLowerCase();
+  const activeVerbs = /\b(create|design|build|sketch|prototype|make|construct|write|discuss|debate|compare|analyze|evaluate|test|experiment|present|share|collaborate|brainstorm|investigate|research|interview|survey|reflect|plan|justify|explain|argue|demonstrate|model|role.?play|peer.?review|critique|annotate|map|diagram|sort|rank|categorise|categorize|assess|measure|document|photograph|record|film|draw|paint|sculpt|assemble|code|program|iterate|refine|improve)\b/;
+  if (activeVerbs.test(prompt)) return true;
+
+  // If it has criterion tags, it likely requires active work
+  if (section.criterionTags && section.criterionTags.length > 0) return true;
+
+  // Default: passive (content delivery, reading, intro text)
+  return false;
+}
+
+/**
+ * Calculate the active vs passive learning balance across all lessons in a unit.
+ * Returns counts and percentage.
+ */
+function classifyUnitActivityBalance(
+  lessons: Record<string, GeneratedLesson>
+): { activeCount: number; passiveCount: number; activePercent: number } {
+  let activeCount = 0;
+  let passiveCount = 0;
+
+  for (const lesson of Object.values(lessons)) {
+    if (!lesson.sections) continue;
+    for (const section of lesson.sections) {
+      if (isActiveSection(section)) {
+        activeCount++;
+      } else {
+        passiveCount++;
+      }
+    }
+  }
+
+  const total = activeCount + passiveCount;
+  const activePercent = total > 0 ? Math.round((activeCount / total) * 100) : 100;
+
+  return { activeCount, passiveCount, activePercent };
 }
 
 // =========================================================================

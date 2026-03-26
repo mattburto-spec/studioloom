@@ -256,6 +256,9 @@ export async function generateResponse(
     conversation.unitId
   );
 
+  // 7b. Load student's learning profile (intake survey) for personalisation
+  const studentProfile = await getStudentLearningProfile(conversation.studentId);
+
   // 8. Build system prompt (guided vs Open Studio)
   let systemPrompt: string;
   if (openStudioMode) {
@@ -280,6 +283,11 @@ export async function generateResponse(
       criterionTags: activityContext?.criterionTags,
       previousTurns: turns.length,
     });
+  }
+
+  // Append student learning profile context if available
+  if (studentProfile) {
+    systemPrompt += buildLearningProfileContext(studentProfile);
   }
 
   // 8. Build conversation messages for AI
@@ -603,4 +611,70 @@ function mapTurn(row: any): ConversationTurn {
     createdAt: row.created_at,
   };
 }
+// =========================================================================
+// STUDENT LEARNING PROFILE (intake survey → AI personalisation)
+// =========================================================================
+
+interface StudentLearningProfile {
+  languages_at_home?: string[];
+  countries_lived_in?: string[];
+  feedback_preference?: "private" | "public";
+}
+
+/**
+ * Load student's self-reported learning profile from the students table.
+ */
+async function getStudentLearningProfile(
+  studentId: string
+): Promise<StudentLearningProfile | null> {
+  const supabase = createAdminClient();
+  const { data } = await supabase
+    .from("students")
+    .select("learning_profile")
+    .eq("id", studentId)
+    .single();
+
+  if (!data?.learning_profile) return null;
+  return data.learning_profile as StudentLearningProfile;
+}
+
+/**
+ * Build a system prompt appendix from the student's learning profile.
+ * This provides the AI with concrete signals for personalisation.
+ */
+function buildLearningProfileContext(profile: StudentLearningProfile): string {
+  const parts: string[] = ["\n\n## Student Learning Profile (self-reported)"];
+
+  if (profile.languages_at_home?.length) {
+    const langs = profile.languages_at_home.join(", ");
+    const isMultilingual = profile.languages_at_home.length > 1;
+    parts.push(
+      `LANGUAGES: This student speaks ${langs} at home.${
+        isMultilingual
+          ? " They are multilingual — judge the DEPTH of their thinking, not the polish of their English. Short sentences with reasoning words ('because', 'so that', 'but') show strong thinking even if grammar is imperfect."
+          : ""
+      }`
+    );
+  }
+
+  if (profile.countries_lived_in?.length) {
+    const countries = profile.countries_lived_in.join(", ");
+    parts.push(
+      `CULTURAL BACKGROUND: Has lived in ${countries}. Draw on this international experience when relevant — they may approach design problems through a different cultural lens, which is a strength. Accept both collectivist framing ("we should...") and individualist framing ("I want to...") as equally valid.`
+    );
+  }
+
+  if (profile.feedback_preference === "private") {
+    parts.push(
+      `FEEDBACK STYLE: This student PREFERS PRIVATE FEEDBACK. Keep your responses focused on the work, not the student. Use task-focused language ("The prototype addresses..." not "You did great"). Avoid effusive praise. Be direct and specific about what works and what to improve.`
+    );
+  } else if (profile.feedback_preference === "public") {
+    parts.push(
+      `FEEDBACK STYLE: This student is comfortable with open feedback. You can be enthusiastic when warranted and use direct second-person language ("Your approach to..." / "You've clearly thought about...").`
+    );
+  }
+
+  return parts.length > 1 ? parts.join("\n") : "";
+}
+
 /* eslint-enable @typescript-eslint/no-explicit-any */

@@ -38,6 +38,9 @@ export interface WorkingStyleVector {
   expression: 'visual' | 'verbal';
   learning_intake: 'study' | 'experiment';
   learning_source: 'example' | 'concept';
+  // Learning condition pairs (research: self-regulation d=0.52, emotion regulation d=0.53)
+  autonomy: 'self_directed' | 'guided';
+  stress_response: 'push_through' | 'step_back';
 }
 
 export type WorkingStyleDimension = keyof WorkingStyleVector;
