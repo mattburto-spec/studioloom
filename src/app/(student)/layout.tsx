@@ -35,7 +35,9 @@ export default function StudentLayout({
         setClassInfo(data.student.classes);
 
         // Show onboarding if student hasn't picked a mentor yet
-        if (!data.student.mentor_id) {
+        // Only trigger when mentor_id is explicitly null (column exists, not set)
+        // — not when it's undefined (pre-migration 050, column doesn't exist yet)
+        if ("mentor_id" in data.student && data.student.mentor_id === null) {
           setShowOnboarding(true);
         }
       } catch {

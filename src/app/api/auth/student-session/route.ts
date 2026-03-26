@@ -32,12 +32,28 @@ export async function GET(request: NextRequest) {
     return response;
   }
 
-  // Step 2: Get the student
-  const { data: student, error: studentError } = await supabase
+  // Step 2: Get the student (try with new columns, fall back if migration 050 not applied)
+  let student: Record<string, unknown> | null = null;
+  let studentError: unknown = null;
+
+  const { data: s1, error: e1 } = await supabase
     .from("students")
-    .select("id, username, display_name, ell_level, class_id, learning_profile, mentor_id, theme_id, avatar_url")
+    .select("id, username, display_name, ell_level, class_id, learning_profile, mentor_id, theme_id")
     .eq("id", session.student_id)
     .single();
+
+  if (!e1 && s1) {
+    student = s1;
+  } else {
+    // Fallback: mentor_id/theme_id columns may not exist yet (pre-migration 050)
+    const { data: s2, error: e2 } = await supabase
+      .from("students")
+      .select("id, username, display_name, ell_level, class_id, learning_profile")
+      .eq("id", session.student_id)
+      .single();
+    student = s2;
+    studentError = e2;
+  }
 
   if (studentError || !student) {
     const response = NextResponse.json(
