@@ -58,25 +58,38 @@ export default function TeacherLayout({
 
   useEffect(() => {
     async function loadTeacher() {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
+      try {
+        const supabase = createClient();
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
 
-      if (!user) {
-        if (pathname !== "/teacher/login") {
-          router.push("/teacher/login");
+        if (authError) {
+          console.error("[TeacherLayout] Auth error:", authError.message);
         }
+
+        if (!user) {
+          if (pathname !== "/teacher/login") {
+            router.push("/teacher/login");
+          }
+          setLoading(false);
+          return;
+        }
+
+        const { data: teacherData, error: teacherError } = await supabase
+          .from("teachers")
+          .select("*")
+          .eq("id", user.id)
+          .single();
+
+        if (teacherError) {
+          console.error("[TeacherLayout] Teacher query error:", teacherError.message);
+        }
+
+        setTeacher(teacherData);
+      } catch (err) {
+        console.error("[TeacherLayout] Unexpected error:", err);
+      } finally {
         setLoading(false);
-        return;
       }
-
-      const { data: teacherData } = await supabase
-        .from("teachers")
-        .select("*")
-        .eq("id", user.id)
-        .single();
-
-      setTeacher(teacherData);
-      setLoading(false);
     }
     loadTeacher();
   }, [router, pathname]);
