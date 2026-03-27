@@ -507,6 +507,19 @@ export default function StudentDashboard() {
                 )}
               </div>
 
+              {/* ── Coming Up — unified card for safety tests, gallery rounds, due items ── */}
+              <ComingUpCard
+                pendingBadges={pendingBadges}
+                galleryRounds={galleryRounds.map((round: any) => {
+                  const matchedUnit = units.find((u: UnitWithProgress) => u.id === round.unitId);
+                  return {
+                    ...round,
+                    unitTitle: round.unitTitle || matchedUnit?.title || "",
+                  };
+                })}
+                dueItems={dueItems}
+              />
+
               {/* ── Earned Badges — horizontal strip ── */}
               {earnedBadges.length > 0 && (
                 <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden shadow-sm">
@@ -553,19 +566,6 @@ export default function StudentDashboard() {
                   </div>
                 </div>
               )}
-
-              {/* ── Coming Up — unified card for safety tests, gallery rounds, due items ── */}
-              <ComingUpCard
-                pendingBadges={pendingBadges}
-                galleryRounds={galleryRounds.map((round: any) => {
-                  const matchedUnit = units.find((u: UnitWithProgress) => u.id === round.unitId);
-                  return {
-                    ...round,
-                    unitTitle: round.unitTitle || matchedUnit?.title || "",
-                  };
-                })}
-                dueItems={dueItems}
-              />
             </div>
 
             {/* ============ My Tools (compact) ============ */}
