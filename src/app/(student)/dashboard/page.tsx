@@ -5,14 +5,13 @@ import Link from "next/link";
 import { useStudent } from "../student-context";
 import { CRITERIA, type CriterionKey } from "@/lib/constants";
 import { getPageList } from "@/lib/unit-adapter";
-import { timeAgo, getDomain } from "@/lib/utils";
+// timeAgo and getDomain moved to ComingUpCard
 // QuickCaptureFAB removed from dashboard (27 Mar 2026) — still available inside unit pages
 import { ToolModal } from "@/components/toolkit/ToolModal";
 import { UnitThumbnail } from "@/components/shared/UnitThumbnail";
 import { JourneyMap } from "@/components/student/JourneyMap";
-import { DueThisWeek } from "@/components/student/DueThisWeek";
 import { BadgeIcon } from "@/components/safety/BadgeIcon";
-import { GalleryDashboardCard } from "@/components/gallery/GalleryDashboardCard";
+import { ComingUpCard } from "@/components/student/ComingUpCard";
 import type { Unit, StudentProgress, PortfolioEntry, UnitPage } from "@/types";
 
 interface ToolSession {
@@ -176,14 +175,7 @@ export default function StudentDashboard() {
     loadGalleryRounds();
   }, [student, loadPortfolio, loadToolSessions, loadOpenStudioStatus, loadPendingBadges, loadGalleryRounds, loadNextClass]);
 
-  // Scroll to #gallery hash after gallery rounds load
-  useEffect(() => {
-    if (galleryRounds.length > 0 && window.location.hash === "#gallery") {
-      setTimeout(() => {
-        document.getElementById("gallery")?.scrollIntoView({ behavior: "smooth", block: "start" });
-      }, 100);
-    }
-  }, [galleryRounds]);
+  // Gallery scroll removed — gallery items now in unified ComingUpCard
 
   // === Helpers ===
 
@@ -562,91 +554,19 @@ export default function StudentDashboard() {
                 </div>
               )}
 
-              {/* ── Pending Safety Tests — grid of cards ── */}
-              {pendingBadges.length > 0 && (
-                <div className="rounded-2xl border-2 border-amber-300 bg-amber-50 overflow-hidden shadow-sm">
-                  <div className="px-4 py-2.5 bg-amber-100/80 border-b border-amber-200 flex items-center gap-2">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                    </svg>
-                    <h2 className="text-sm font-bold text-amber-800">
-                      Safety Tests ({pendingBadges.length})
-                    </h2>
-                  </div>
-                  <div className="p-2.5 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {pendingBadges.map((badge) => {
-                      const isCooldown = badge.student_status === "cooldown";
-                      return (
-                        <Link
-                          key={badge.badge_id}
-                          href={isCooldown ? "#" : `/safety/${badge.badge_id}`}
-                          onClick={(e) => isCooldown && e.preventDefault()}
-                          className={`block rounded-xl p-3 border transition-all ${
-                            isCooldown
-                              ? "bg-gray-50 border-gray-200 cursor-not-allowed"
-                              : "bg-white border-amber-200/60 hover:border-amber-400 hover:shadow-sm"
-                          }`}
-                        >
-                          <div className="flex items-start gap-2.5">
-                            <div
-                              className="w-9 h-9 rounded-lg flex items-center justify-center text-base flex-shrink-0"
-                              style={{ backgroundColor: badge.badge_color + "20", border: `2px solid ${badge.badge_color}` }}
-                            >
-                              {badgeIconEl(badge.badge_icon, badge.badge_color)}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="font-semibold text-sm text-gray-900 leading-tight">{badge.badge_name}</p>
-                              <p className="text-[11px] text-gray-500 mt-0.5">
-                                {badge.question_count}q · {badge.pass_threshold}% to pass
-                              </p>
-                              {isCooldown && badge.cooldown_until && (
-                                <p className="text-[11px] text-amber-600 mt-0.5 font-medium">Retake {timeAgo(badge.cooldown_until)}</p>
-                              )}
-                              {badge.student_status === "expired" && (
-                                <p className="text-[11px] text-red-600 mt-0.5 font-medium">Expired — retake required</p>
-                              )}
-                            </div>
-                          </div>
-                          <div className={`mt-2 text-center py-1.5 rounded-lg text-xs font-semibold ${
-                            isCooldown
-                              ? "bg-gray-100 text-gray-400"
-                              : "bg-amber-500 text-white"
-                          }`}>
-                            {isCooldown ? "Cooldown" : badge.student_status === "expired" ? "Retake" : "Take Test"}
-                          </div>
-                        </Link>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
+              {/* ── Coming Up — unified card for safety tests, gallery rounds, due items ── */}
+              <ComingUpCard
+                pendingBadges={pendingBadges}
+                galleryRounds={galleryRounds.map((round: any) => {
+                  const matchedUnit = units.find((u: UnitWithProgress) => u.id === round.unitId);
+                  return {
+                    ...round,
+                    unitTitle: round.unitTitle || matchedUnit?.title || "",
+                  };
+                })}
+                dueItems={dueItems}
+              />
             </div>
-
-            {/* ============ Active Gallery Rounds ============ */}
-            {galleryRounds.length > 0 && (
-              <div id="gallery" className="mt-5 scroll-mt-24">
-                <h2 className="text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7B2FF2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                  Pin-Up Gallery
-                </h2>
-                <div className="space-y-2">
-                  {galleryRounds.map((round: any) => {
-                    const matchedUnit = units.find((u) => u.id === round.unitId);
-                    const enrichedRound = { ...round, unitTitle: round.unitTitle || matchedUnit?.title || "" };
-                    return <GalleryDashboardCard key={round.id} round={enrichedRound} unitId={round.unitId || ""} />;
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* ============ Due This Week ============ */}
-            {dueItems.length > 0 && (
-              <div className="mt-5">
-                <DueThisWeek items={dueItems} />
-              </div>
-            )}
 
             {/* ============ My Tools (compact) ============ */}
             {recentToolSessions.length > 0 && (
