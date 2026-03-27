@@ -74,39 +74,33 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    // Retrieve RAG context for outline generation
+    // Retrieve RAG context + lesson profiles in parallel (both are optional enhancements)
     let ragContext = "";
     let lessonContext = "";
-    try {
-      const query = `${wizardInput.topic} ${wizardInput.title} MYP Design unit ${wizardInput.gradeLevel} ${wizardInput.globalContext}`;
-      const chunks = await retrieveContext({
-        query,
+    const ragQuery = `${wizardInput.topic} ${wizardInput.title} MYP Design unit ${wizardInput.gradeLevel} ${wizardInput.globalContext}`;
+    const profileQuery = `${wizardInput.topic} ${wizardInput.title} MYP Design ${wizardInput.gradeLevel}`;
+
+    const [chunksResult, profilesResult] = await Promise.allSettled([
+      retrieveContext({
+        query: ragQuery,
         teacherId: user.id,
         includePublic: true,
         maxChunks: 8,
-      });
-      if (chunks.length > 0) {
-        ragContext = formatRetrievedContext(chunks);
-      }
-    } catch {
-      // RAG is optional enhancement
-    }
-
-    // Retrieve lesson profiles — structured pedagogical intelligence
-    try {
-      const query = `${wizardInput.topic} ${wizardInput.title} MYP Design ${wizardInput.gradeLevel}`;
-      const profiles = await retrieveLessonProfiles({
-        query,
+      }),
+      retrieveLessonProfiles({
+        query: profileQuery,
         gradeLevel: wizardInput.gradeLevel,
         teacherId: user.id,
         maxProfiles: 3,
-      });
-      if (profiles.length > 0) {
-        lessonContext = formatLessonProfiles(profiles);
-        incrementProfileReferences(profiles.map((p) => p.id)).catch(() => {});
-      }
-    } catch {
-      // Lesson profiles are optional enhancement
+      }),
+    ]);
+
+    if (chunksResult.status === "fulfilled" && chunksResult.value.length > 0) {
+      ragContext = formatRetrievedContext(chunksResult.value);
+    }
+    if (profilesResult.status === "fulfilled" && profilesResult.value.length > 0) {
+      lessonContext = formatLessonProfiles(profilesResult.value);
+      incrementProfileReferences(profilesResult.value.map((p) => p.id)).catch(() => {});
     }
 
     // Build prompt — combine lesson profiles + chunk context

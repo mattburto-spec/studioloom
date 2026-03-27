@@ -537,54 +537,41 @@ export async function buildRAGCriterionPrompt(
 
   const basePrompt = buildCriterionPrompt(criterion, input, activitySummary);
 
-  // Retrieve relevant context from knowledge base
+  // Retrieve RAG context + lesson profiles in parallel (both are optional enhancements)
   const criterionDef = getCriterion(criterion, input.unitType || "design");
-  const query = `${input.topic} ${input.title} Criterion ${criterion} ${criterionDef?.name || criterion} ${input.gradeLevel} ${input.globalContext}`;
+  const ragQuery = `${input.topic} ${input.title} Criterion ${criterion} ${criterionDef?.name || criterion} ${input.gradeLevel} ${input.globalContext}`;
+  const profileQuery = `${input.topic} ${input.title} ${criterionDef?.name || criterion} ${input.gradeLevel}`;
 
   let ragContext = "";
   let lessonContext = "";
   let chunkIds: string[] = [];
 
-  try {
-    const chunks = await retrieveContext({
-      query,
+  const [chunksResult, profilesResult] = await Promise.allSettled([
+    retrieveContext({
+      query: ragQuery,
       criterion,
       gradeLevel: input.gradeLevel,
       teacherId,
       includePublic: true,
       maxChunks: 5,
-    });
-
-    if (chunks.length > 0) {
-      ragContext = formatRetrievedContext(chunks);
-      chunkIds = chunks.map((c) => c.id);
-
-      // Record retrieval for quality tracking (fire-and-forget)
-      recordRetrieval(chunkIds).catch(() => {});
-    }
-  } catch {
-    // RAG is enhancement, not requirement — continue without it
-  }
-
-  // Retrieve lesson profiles — structured pedagogical intelligence
-  try {
-    const profiles = await retrieveLessonProfiles({
-      query: `${input.topic} ${input.title} ${criterionDef?.name || criterion} ${input.gradeLevel}`,
+    }),
+    retrieveLessonProfiles({
+      query: profileQuery,
       gradeLevel: input.gradeLevel,
       criteria: [criterion],
       teacherId,
       maxProfiles: 3,
-    });
+    }),
+  ]);
 
-    if (profiles.length > 0) {
-      lessonContext = formatLessonProfiles(profiles);
-      const profileIds = profiles.map((p) => p.id);
-
-      // Record retrieval for quality tracking (fire-and-forget)
-      incrementProfileReferences(profileIds).catch(() => {});
-    }
-  } catch {
-    // Lesson profiles are enhancement, not requirement
+  if (chunksResult.status === "fulfilled" && chunksResult.value.length > 0) {
+    ragContext = formatRetrievedContext(chunksResult.value);
+    chunkIds = chunksResult.value.map((c) => c.id);
+    recordRetrieval(chunkIds).catch(() => {});
+  }
+  if (profilesResult.status === "fulfilled" && profilesResult.value.length > 0) {
+    lessonContext = formatLessonProfiles(profilesResult.value);
+    incrementProfileReferences(profilesResult.value.map((p) => p.id)).catch(() => {});
   }
 
   // Build outline instruction if teacher selected an approach

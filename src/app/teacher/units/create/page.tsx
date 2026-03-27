@@ -147,9 +147,18 @@ export default function CreateUnitWizardPage() {
     const outline =
       state.selectedOutline !== null ? state.outlineOptions[state.selectedOutline] : null;
 
-    for (const criterion of criteria) {
-      const success = await generateCriterionStreaming(criterion, outline);
-      if (!success) return;
+    // Generate all criteria in parallel — each updates its own status independently
+    const results = await Promise.allSettled(
+      criteria.map((criterion) => generateCriterionStreaming(criterion, outline))
+    );
+
+    // Report first failure if any
+    const firstFailure = results.find(
+      (r) => r.status === "rejected" || (r.status === "fulfilled" && !r.value)
+    );
+    if (firstFailure) {
+      // Individual criterion errors already dispatched inside generateCriterionStreaming
+      return;
     }
   }
 
