@@ -66,12 +66,32 @@ interface Props {
   onSelectMode?: (mode: WizardMode) => void;
 }
 
+const LANE_STORAGE_KEY = "studioloom_wizard_lane";
+
 export function GoalInput({ state, dispatch, onSelectMode }: Props) {
   const [keywordStatus, setKeywordStatus] = useState<"idle" | "loading" | "done">("idle");
   const abortRef = useRef<AbortController | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [dragOverBucket, setDragOverBucket] = useState<KeywordPriority | null>(null);
+  const [lastUsedLane, setLastUsedLane] = useState<WizardMode | null>(null);
+
+  // Load last-used lane from localStorage
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(LANE_STORAGE_KEY);
+      if (stored && ["build-for-me", "guide-me", "architect"].includes(stored)) {
+        setLastUsedLane(stored as WizardMode);
+      }
+    } catch { /* SSR or private browsing */ }
+  }, []);
+
+  // Wrap onSelectMode to persist the choice
+  const handleSelectMode = useCallback((mode: WizardMode) => {
+    try { localStorage.setItem(LANE_STORAGE_KEY, mode); } catch { /* noop */ }
+    setLastUsedLane(mode);
+    onSelectMode?.(mode);
+  }, [onSelectMode]);
 
   const goalText = state.input.topic;
   const keywords = state.suggestedKeywords;
@@ -344,7 +364,7 @@ export function GoalInput({ state, dispatch, onSelectMode }: Props) {
               <h2 className="text-lg font-bold text-text-primary">How do you want to build this?</h2>
               <p className="text-xs text-text-secondary mt-1">Choose your level of control</p>
             </div>
-            <ModeSelector onSelectMode={onSelectMode} />
+            <ModeSelector onSelectMode={handleSelectMode} lastUsed={lastUsedLane} />
 
             {/* Subtle link to switch journey/criterion mode */}
             <div className="mt-3 text-center">

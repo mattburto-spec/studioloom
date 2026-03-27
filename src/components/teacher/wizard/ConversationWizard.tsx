@@ -16,6 +16,64 @@ import { DeckBuilder } from "./DeckBuilder";
 import { StickyBuildBar } from "./StickyBuildBar";
 import { ActivitySidebar } from "./ActivitySidebar";
 import { SkeletonReview } from "./SkeletonReview";
+import { LaneSwitcher } from "./LaneSwitcher";
+import type { UnitType } from "@/lib/ai/unit-types";
+
+/**
+ * Detect unit type from topic text using keyword heuristics.
+ * Returns "design" as default if no strong signal found.
+ */
+function detectUnitTypeFromTopic(topic: string): UnitType {
+  const t = ` ${topic} `; // pad for word boundary matching
+
+  // Service learning signals
+  const serviceKeywords = [
+    "service", "community", "volunteer", "charity", "fundrais", "outreach",
+    "social justice", "sdg", "sustainable development", "campaign", "awareness",
+    "civic", "helping", "donate", "equity", "humanitarian",
+  ];
+  const serviceScore = serviceKeywords.filter(k => t.includes(k)).length;
+
+  // Personal project signals
+  const ppKeywords = [
+    "personal project", "passion", "self-directed", "process journal",
+    "exhibition", "independent", "my own", "personal interest",
+    "long-term project", "personal goal",
+  ];
+  const ppScore = ppKeywords.filter(k => t.includes(k)).length;
+
+  // Inquiry signals
+  const inquiryKeywords = [
+    "inquiry", "enquiry", "investigate", "research", "question",
+    "explore how", "explore why", "what causes", "what effect",
+    "hypothesis", "experiment", "analyse", "analyze", "transdisciplinary",
+    "central idea", "lines of inquiry",
+  ];
+  const inquiryScore = inquiryKeywords.filter(k => t.includes(k)).length;
+
+  // Design signals (explicit — only override default if others are stronger)
+  const designKeywords = [
+    "design", "build", "create", "prototype", "product", "make",
+    "fabricat", "construct", "model", "blueprint", "sketch",
+    "workshop", "material", "tool", "machine", "laser", "3d print",
+  ];
+  const designScore = designKeywords.filter(k => t.includes(k)).length;
+
+  // Require at least 2 keyword hits for non-design types (avoid false positives)
+  const scores: Array<[UnitType, number]> = [
+    ["service", serviceScore >= 2 ? serviceScore : 0],
+    ["personal_project", ppScore >= 2 ? ppScore : 0],
+    ["inquiry", inquiryScore >= 2 ? inquiryScore : 0],
+    ["design", designScore], // design is default, so any score counts
+  ];
+
+  scores.sort((a, b) => b[1] - a[1]);
+  // Only switch away from design if the top non-design score is meaningfully higher
+  if (scores[0][0] !== "design" && scores[0][1] > 0) {
+    return scores[0][0];
+  }
+  return "design";
+}
 
 interface Props {
   state: WizardState;
@@ -57,6 +115,18 @@ export function ConversationWizard({
     dispatch({ type: "SET_MODE", mode });
 
     if (mode === "build-for-me") {
+      // Auto-detect unit type from topic text if not already set
+      const topic = (journeyMode ? state.journeyInput.endGoal || state.journeyInput.topic : state.input.topic).toLowerCase();
+      const currentType = state.input.unitType || "design";
+      if (currentType === "design") {
+        // Only auto-detect if still on default — don't override explicit teacher choice
+        const detected = detectUnitTypeFromTopic(topic);
+        if (detected !== "design") {
+          dispatch({ type: "SET_INPUT", key: "unitType", value: detected });
+          if (journeyMode) dispatch({ type: "SET_JOURNEY_INPUT", key: "unitType", value: detected });
+        }
+      }
+
       // Fast path: auto-fill everything with AI
       dispatch({ type: "SET_PHASE", phase: "approaches" });
       dispatch({ type: "SET_OUTLINE_STATUS", status: "loading" });
@@ -131,6 +201,23 @@ export function ConversationWizard({
     }
   }, [dispatch, state.input, state.journeyInput, state.suggestedKeywords, journeyMode, onGenerateOutlines]);
 
+  // Lane switching: answers carry over because all lanes write to state.input
+  const handleLaneSwitch = useCallback((newMode: WizardMode) => {
+    dispatch({ type: "SET_MODE", mode: newMode });
+    try { localStorage.setItem("studioloom_wizard_lane", newMode); } catch { /* noop */ }
+    if (newMode === "build-for-me") {
+      // Express: jump straight to approach generation
+      handleSelectMode("build-for-me");
+    } else if (newMode === "guide-me") {
+      // Reset turns so GuidedConversation re-initializes for current unitType
+      // (state.input data persists — it's the source of truth for generation)
+      dispatch({ type: "SET_TURNS", turns: [] });
+      dispatch({ type: "SET_PHASE", phase: "guided" });
+    } else if (newMode === "architect") {
+      dispatch({ type: "SET_PHASE", phase: "architect" });
+    }
+  }, [dispatch, handleSelectMode]);
+
   // Detect timeline mode (v4) vs journey mode (v3) based on selected outline type
   const isTimelineMode = journeyMode && state.selectedTimelineOutline !== null;
 
@@ -191,6 +278,11 @@ export function ConversationWizard({
       {/* Phase: Goal Input (unified screen with config + mode selector) */}
       {(phase === "goal" || phase === "configure") && (
         <GoalInput state={state} dispatch={dispatch} onSelectMode={handleSelectMode} />
+      )}
+
+      {/* Lane switcher — visible during guided and architect phases */}
+      {(phase === "guided" || phase === "architect") && (
+        <LaneSwitcher currentMode={state.mode} onSwitch={handleLaneSwitch} />
       )}
 
       {/* Phase: Guided Conversation */}
