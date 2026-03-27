@@ -141,7 +141,8 @@ export const POST = withErrorHandler("teacher/generate-journey:POST", async (req
             const gen = provider.streamLessonPages!(
               lessonIds,
               systemPrompt,
-              userPrompt
+              userPrompt,
+              unitType
             );
 
             for await (const event of gen) {
@@ -188,7 +189,8 @@ export const POST = withErrorHandler("teacher/generate-journey:POST", async (req
     const rawPages = await provider.generateLessonPages!(
       lessonIds,
       systemPrompt,
-      userPrompt
+      userPrompt,
+      unitType
     );
 
     const validation = validateGeneratedPages(rawPages);

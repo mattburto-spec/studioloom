@@ -6,6 +6,7 @@
 
 import type { PageContent, UnitWizardInput, TimelineActivity, TimelineSkeleton } from "@/types";
 import type { CriterionKey } from "@/lib/constants";
+import type { UnitType } from "./unit-types";
 
 export interface AIProvider {
   /**
@@ -16,7 +17,8 @@ export interface AIProvider {
     criterion: CriterionKey,
     input: UnitWizardInput,
     systemPrompt: string,
-    userPrompt: string
+    userPrompt: string,
+    unitType?: UnitType
   ): Promise<Record<string, PageContent>>;
 
   /**
@@ -27,7 +29,8 @@ export interface AIProvider {
     criterion: CriterionKey,
     input: UnitWizardInput,
     systemPrompt: string,
-    userPrompt: string
+    userPrompt: string,
+    unitType?: UnitType
   ): AsyncGenerator<
     | { type: "partial_json"; json: string }
     | { type: "complete"; pages: Record<string, PageContent> }
@@ -62,7 +65,8 @@ export interface AIProvider {
   generateLessonPages?(
     lessonIds: string[],
     systemPrompt: string,
-    userPrompt: string
+    userPrompt: string,
+    unitType?: UnitType
   ): Promise<Record<string, PageContent>>;
 
   /**
@@ -72,7 +76,8 @@ export interface AIProvider {
   streamLessonPages?(
     lessonIds: string[],
     systemPrompt: string,
-    userPrompt: string
+    userPrompt: string,
+    unitType?: UnitType
   ): AsyncGenerator<
     | { type: "partial_json"; json: string }
     | { type: "complete"; pages: Record<string, PageContent> }

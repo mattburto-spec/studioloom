@@ -1,6 +1,7 @@
 "use client";
 
 import type { WizardState } from "@/hooks/useWizardState";
+import type { UnitType } from "@/lib/ai/unit-types";
 
 interface Props {
   state: WizardState;
@@ -8,12 +9,31 @@ interface Props {
 
 export function SummaryRail({ state }: Props) {
   const { input } = state;
+  const unitType = input.unitType || "design";
   const items: Array<{ label: string; value: string }> = [];
 
-  if (input.globalContext) items.push({ label: "Global Context", value: input.globalContext });
-  if (input.keyConcept) items.push({ label: "Key Concept", value: input.keyConcept });
-  if (input.relatedConcepts.length > 0) items.push({ label: "Related", value: input.relatedConcepts.join(", ") });
-  if (input.specificSkills.length > 0) items.push({ label: "Skills", value: input.specificSkills.join(", ") });
+  // Type-aware field extraction
+  if (unitType === "design") {
+    if (input.globalContext) items.push({ label: "Global Context", value: input.globalContext });
+    if (input.keyConcept) items.push({ label: "Key Concept", value: input.keyConcept });
+    if (input.relatedConcepts.length > 0) items.push({ label: "Related", value: input.relatedConcepts.join(", ") });
+    if (input.specificSkills.length > 0) items.push({ label: "Skills", value: input.specificSkills.join(", ") });
+  } else if (unitType === "service") {
+    if (input.communityContext) items.push({ label: "Community", value: input.communityContext });
+    if (input.sdgConnection) items.push({ label: "SDG", value: input.sdgConnection });
+    if (input.serviceOutcomes?.length) items.push({ label: "Outcomes", value: input.serviceOutcomes.join(", ") });
+    if (input.partnerType) items.push({ label: "Partner", value: input.partnerType });
+  } else if (unitType === "personal_project") {
+    if (input.personalInterest) items.push({ label: "Interest", value: input.personalInterest });
+    if (input.goalType) items.push({ label: "Goal", value: input.goalType });
+    if (input.presentationFormat) items.push({ label: "Format", value: input.presentationFormat });
+  } else if (unitType === "inquiry") {
+    if (input.centralIdea) items.push({ label: "Central Idea", value: input.centralIdea });
+    if (input.transdisciplinaryTheme) items.push({ label: "Theme", value: input.transdisciplinaryTheme });
+    if (input.linesOfInquiry?.length) items.push({ label: "Lines of Inquiry", value: input.linesOfInquiry.join(", ") });
+  }
+
+  // Shared fields across all types
   if (input.atlSkills.length > 0) items.push({ label: "ATL Skills", value: input.atlSkills.join(", ") });
 
   const emphasis = Object.entries(input.criteriaFocus)

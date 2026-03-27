@@ -36,15 +36,25 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { field, phase, lessonTitle, learningGoal, currentValue, extra } = body;
+    const { field, phase, lessonTitle, learningGoal, currentValue, extra, unitType } = body;
 
     const fieldPrompt = FIELD_PROMPTS[field] || FIELD_PROMPTS.focus;
 
     const anthropic = new Anthropic();
+
+    // Type-aware system prompt
+    const roleMap: Record<string, string> = {
+      design: "design & technology teachers",
+      service: "service learning coordinators",
+      personal_project: "MYP Personal Project supervisors",
+      inquiry: "inquiry-based learning facilitators",
+    };
+    const role = roleMap[unitType] || "design & technology teachers";
+
     const response = await anthropic.messages.create({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 500,
-      system: `You are a lesson planning assistant for design & technology teachers. You generate practical, specific suggestions for lesson planning fields. Always return valid JSON.`,
+      system: `You are a lesson planning assistant for ${role}. You generate practical, specific suggestions for lesson planning fields. Always return valid JSON.`,
       messages: [
         {
           role: "user",

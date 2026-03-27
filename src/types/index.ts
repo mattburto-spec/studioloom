@@ -461,6 +461,19 @@ export interface UnitWizardInput {
   unitType?: UnitType;
   /** Free-text curriculum context for AI generation (e.g. "IB MYP Design Year 4", "PYP Exhibition") */
   curriculumContext?: string;
+  // Service-specific
+  communityContext?: string;
+  sdgConnection?: string;
+  serviceOutcomes?: string[];
+  partnerType?: string;
+  // Personal Project-specific
+  personalInterest?: string;
+  goalType?: string;
+  presentationFormat?: string;
+  // Inquiry-specific
+  centralIdea?: string;
+  transdisciplinaryTheme?: string;
+  linesOfInquiry?: string[];
 }
 
 // --- Journey-Based Unit Generation Types (v3) ---
@@ -489,6 +502,19 @@ export interface LessonJourneyInput {
   unitType?: UnitType;
   /** Free-text curriculum context for AI generation (e.g. "IB MYP Design Year 4", "PYP Exhibition") */
   curriculumContext?: string;
+  // Service-specific
+  communityContext?: string;
+  sdgConnection?: string;
+  serviceOutcomes?: string[];
+  partnerType?: string;
+  // Personal Project-specific
+  personalInterest?: string;
+  goalType?: string;
+  presentationFormat?: string;
+  // Inquiry-specific
+  centralIdea?: string;
+  transdisciplinaryTheme?: string;
+  linesOfInquiry?: string[];
 }
 
 /** A single lesson in a journey outline. */

@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
   const { data: unit, error: unitError } = await supabase
     .from("units")
     .select(
-      "title, topic, grade_level, duration_weeks, global_context, key_concept, content_data, unit_type"
+      "title, topic, grade_level, duration_weeks, global_context, key_concept, content_data, unit_type, curriculum_context"
     )
     .eq("id", unitId)
     .single();

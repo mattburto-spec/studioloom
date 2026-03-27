@@ -3,6 +3,7 @@ import type { AIProvider, AIProviderConfig } from "./types";
 import type { PageContent, UnitWizardInput, LessonJourneyInput, TimelineActivity, TimelineSkeleton } from "@/types";
 import { type CriterionKey, EMPHASIS_PAGE_COUNT } from "@/lib/constants";
 import { buildPageGenerationTool, buildLessonGenerationTool, buildTimelineGenerationTool, buildSkeletonGenerationTool } from "./schemas";
+import type { UnitType } from "./unit-types";
 
 /**
  * Anthropic Claude provider — uses the official SDK.
@@ -29,11 +30,12 @@ export class AnthropicProvider implements AIProvider {
     criterion: CriterionKey,
     input: UnitWizardInput,
     systemPrompt: string,
-    userPrompt: string
+    userPrompt: string,
+    unitType: UnitType = "design"
   ): Promise<Record<string, PageContent>> {
     const emphasis = input.criteriaFocus?.[criterion] || "standard";
     const pageCount = EMPHASIS_PAGE_COUNT[emphasis] || 3;
-    const tool = buildPageGenerationTool(criterion, pageCount);
+    const tool = buildPageGenerationTool(criterion, pageCount, unitType);
 
     const response = await this.client.messages.create({
       model: this.config.modelName || "claude-sonnet-4-6",
@@ -104,11 +106,12 @@ export class AnthropicProvider implements AIProvider {
     criterion: CriterionKey,
     input: UnitWizardInput,
     systemPrompt: string,
-    userPrompt: string
+    userPrompt: string,
+    unitType: UnitType = "design"
   ): AsyncGenerator<{ type: "partial_json"; json: string } | { type: "complete"; pages: Record<string, PageContent> }> {
     const emphasis = input.criteriaFocus?.[criterion] || "standard";
     const pageCount = EMPHASIS_PAGE_COUNT[emphasis] || 3;
-    const tool = buildPageGenerationTool(criterion, pageCount);
+    const tool = buildPageGenerationTool(criterion, pageCount, unitType);
 
     const stream = this.client.messages.stream({
       model: this.config.modelName || "claude-sonnet-4-6",
@@ -154,9 +157,10 @@ export class AnthropicProvider implements AIProvider {
   async generateLessonPages(
     lessonIds: string[],
     systemPrompt: string,
-    userPrompt: string
+    userPrompt: string,
+    unitType: UnitType = "design"
   ): Promise<Record<string, PageContent>> {
-    const tool = buildLessonGenerationTool(lessonIds);
+    const tool = buildLessonGenerationTool(lessonIds, unitType);
     const maxTokens = Math.max(16000, lessonIds.length * 2500);
 
     const response = await this.client.messages.create({
@@ -195,9 +199,10 @@ export class AnthropicProvider implements AIProvider {
   async *streamLessonPages(
     lessonIds: string[],
     systemPrompt: string,
-    userPrompt: string
+    userPrompt: string,
+    unitType: UnitType = "design"
   ): AsyncGenerator<{ type: "partial_json"; json: string } | { type: "complete"; pages: Record<string, PageContent> }> {
-    const tool = buildLessonGenerationTool(lessonIds);
+    const tool = buildLessonGenerationTool(lessonIds, unitType);
     const maxTokens = Math.max(16000, lessonIds.length * 2500);
 
     const stream = this.client.messages.stream({

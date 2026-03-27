@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { tier, context } = body as { tier: 1 | 2 | 3; context: SuggestContext };
+  const { tier, context, unitType } = body as { tier: 1 | 2 | 3; context: SuggestContext; unitType?: string };
 
   if (!tier || !context?.topic) {
     return NextResponse.json({ error: "tier and context.topic are required" }, { status: 400 });
@@ -140,7 +140,21 @@ export async function POST(request: NextRequest) {
 
   try {
     const userPrompt = buildSuggestPrompt(tier, context);
-    const systemPrompt = SUGGEST_SYSTEM_PROMPT + "\n\nReturn ONLY valid JSON. No markdown fences, no explanations.";
+    let systemPrompt = SUGGEST_SYSTEM_PROMPT + "\n\nReturn ONLY valid JSON. No markdown fences, no explanations.";
+
+    // Add unit type context to suggestions
+    if (unitType) {
+      const typeContext = {
+        design: "This is a DESIGN unit. Suggest design tools, materials, techniques, processes, and making activities relevant to this project.",
+        service: "This is a SERVICE LEARNING unit. Suggest community contexts, stakeholder types, ethical considerations, documentation methods, reflection frameworks, and impact assessment approaches.",
+        personal_project: "This is a PERSONAL PROJECT unit. Suggest research methods, skill-building approaches, presentation formats, ATL skill applications, and process journal strategies.",
+        inquiry: "This is an INQUIRY unit. Suggest inquiry questions, exploration methods, thinking routines (See-Think-Wonder, Claim-Support-Question, etc.), evidence-gathering approaches, and authentic sharing formats.",
+      }[unitType as string];
+
+      if (typeContext) {
+        systemPrompt += `\n\n${typeContext}`;
+      }
+    }
 
     let responseText: string;
 

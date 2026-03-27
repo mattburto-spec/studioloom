@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
 
     // Build prompt — combine lesson profiles + chunk context
     const combinedContext = [lessonContext, ragContext].filter(Boolean).join("\n\n---\n\n") || undefined;
-    const userPrompt = buildOutlinePrompt(wizardInput, combinedContext);
+    const userPrompt = buildOutlinePrompt(wizardInput, combinedContext, wizardInput.curriculumContext);
 
     // Create provider
     const provider = createAIProvider(creds.provider, {

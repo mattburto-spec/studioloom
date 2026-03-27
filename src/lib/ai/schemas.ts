@@ -6,189 +6,228 @@
  */
 
 import type { Tool } from "@anthropic-ai/sdk/resources/messages";
+import type { UnitType } from "./unit-types";
 
-// --- Page generation schema ---
+// =========================================================================
+// Unit Type-Aware Phase Enums
+// =========================================================================
 
-const activitySectionSchema = {
-  type: "object" as const,
-  required: ["prompt", "responseType"],
-  properties: {
-    prompt: { type: "string" as const, description: "Activity instructions for the student" },
-    responseType: {
-      type: "string" as const,
-      enum: ["text", "upload", "voice", "link", "multi", "decision-matrix", "pmi", "pairwise", "trade-off-sliders"],
-    },
-    exampleResponse: { type: "string" as const, description: "Model response showing what good work looks like" },
-    durationMinutes: { type: "number" as const, description: "Estimated minutes for this activity (e.g. 5, 10, 15, 20)" },
-    portfolioCapture: {
-      type: "boolean" as const,
-      description: "Set true for substantive design work (analysis, ideation, creation evidence, evaluation). Omit or false for scaffolding, warm-ups, and practice tasks.",
-    },
-    scaffolding: {
+/**
+ * Get the activity phase enum values for a specific unit type.
+ * This makes schemas dynamic per unit type, so the AI outputs the correct phases.
+ */
+export function getActivityPhaseEnum(unitType: UnitType = "design"): string[] {
+  const phaseMap: Record<UnitType, string[]> = {
+    design: ["investigation", "ideation", "prototyping", "evaluation"],
+    service: ["investigation", "planning", "action", "reflection", "demonstration"],
+    personal_project: ["defining", "planning", "creating", "reflecting", "reporting"],
+    inquiry: ["wondering", "exploring", "creating", "sharing"],
+  };
+  return phaseMap[unitType];
+}
+
+// --- Page generation schema (dynamic) ---
+// Static schemas have been replaced with dynamic builders that are unit-type-aware.
+// See buildPageContentSchema() for the dynamic schema builder.
+
+/**
+ * Build a dynamic extensions schema for a specific unit type.
+ * This ensures the AI only outputs valid phase enums for the unit type.
+ */
+function buildExtensionSchema(unitType: UnitType = "design") {
+  const phases = getActivityPhaseEnum(unitType);
+  return {
+    type: "array" as const,
+    description: `2-3 extension activities for early finishers, indexed to the current ${
+      { design: "design", service: "service", personal_project: "personal project", inquiry: "inquiry" }[unitType]
+    } phase`,
+    items: {
       type: "object" as const,
+      required: ["title", "description", "durationMinutes"],
       properties: {
-        ell1: {
-          type: "object" as const,
-          properties: {
-            sentenceStarters: { type: "array" as const, items: { type: "string" as const } },
-            hints: { type: "array" as const, items: { type: "string" as const } },
-          },
-        },
-        ell2: {
-          type: "object" as const,
-          properties: {
-            sentenceStarters: { type: "array" as const, items: { type: "string" as const } },
-          },
-        },
-        ell3: {
-          type: "object" as const,
-          properties: {
-            extensionPrompts: { type: "array" as const, items: { type: "string" as const } },
-          },
+        title: { type: "string" as const },
+        description: { type: "string" as const },
+        durationMinutes: { type: "number" as const },
+        designPhase: {
+          type: "string" as const,
+          enum: phases,
+          description: "Activity phase for this unit type",
         },
       },
     },
-  },
-};
+  };
+}
 
-const pageContentSchema = {
-  type: "object" as const,
-  required: ["title", "learningGoal", "sections"],
-  properties: {
-    title: { type: "string" as const, description: "Page title" },
-    learningGoal: { type: "string" as const, description: "Clear learning objective for this page" },
-    vocabWarmup: {
-      type: "object" as const,
-      properties: {
-        terms: {
-          type: "array" as const,
-          items: {
-            type: "object" as const,
-            required: ["term", "definition"],
-            properties: {
-              term: { type: "string" as const },
-              definition: { type: "string" as const },
-              example: { type: "string" as const },
+/**
+ * Build a dynamic page content schema for a specific unit type.
+ * Extensions enum is tailored to the unit type.
+ */
+function buildPageContentSchema(unitType: UnitType = "design") {
+  return {
+    type: "object" as const,
+    required: ["title", "learningGoal", "sections"],
+    properties: {
+      title: { type: "string" as const, description: "Page title" },
+      learningGoal: { type: "string" as const, description: "Clear learning objective for this page" },
+      vocabWarmup: {
+        type: "object" as const,
+        properties: {
+          terms: {
+            type: "array" as const,
+            items: {
+              type: "object" as const,
+              required: ["term", "definition"],
+              properties: {
+                term: { type: "string" as const },
+                definition: { type: "string" as const },
+                example: { type: "string" as const },
+              },
             },
           },
-        },
-        activity: {
-          type: "object" as const,
-          properties: {
-            type: { type: "string" as const, enum: ["matching", "fill-blank", "drag-sort"] },
-            items: {
-              type: "array" as const,
+          activity: {
+            type: "object" as const,
+            properties: {
+              type: { type: "string" as const, enum: ["matching", "fill-blank", "drag-sort"] },
               items: {
-                type: "object" as const,
-                properties: {
-                  question: { type: "string" as const },
-                  answer: { type: "string" as const },
+                type: "array" as const,
+                items: {
+                  type: "object" as const,
+                  properties: {
+                    question: { type: "string" as const },
+                    answer: { type: "string" as const },
+                  },
                 },
               },
             },
           },
         },
       },
-    },
-    introduction: {
-      type: "object" as const,
-      properties: {
-        text: { type: "string" as const },
-        media: {
-          type: "object" as const,
-          properties: {
-            type: { type: "string" as const, enum: ["image", "video"] },
-            url: { type: "string" as const },
-          },
-        },
-      },
-    },
-    sections: {
-      type: "array" as const,
-      items: activitySectionSchema,
-      description: "2-4 activity sections with student tasks",
-    },
-    reflection: {
-      type: "object" as const,
-      properties: {
-        type: { type: "string" as const, enum: ["confidence-slider", "checklist", "short-response"] },
-        items: { type: "array" as const, items: { type: "string" as const } },
-      },
-    },
-    workshopPhases: {
-      type: "object" as const,
-      description: "Workshop Model timing: 4-phase structure for every lesson. Opening (5-10 min), Mini-Lesson (max 1+age min), Work Time (≥45% of usable time), Debrief (5-10 min).",
-      properties: {
-        opening: {
-          type: "object" as const,
-          required: ["durationMinutes"],
-          properties: {
-            durationMinutes: { type: "number" as const, description: "5-10 minutes" },
-            hook: { type: "string" as const, description: "Engaging opening activity or question" },
-          },
-        },
-        miniLesson: {
-          type: "object" as const,
-          required: ["durationMinutes"],
-          properties: {
-            durationMinutes: { type: "number" as const, description: "Max 1+avg student age minutes of direct instruction" },
-            focus: { type: "string" as const, description: "Key concept or skill being taught" },
-          },
-        },
-        workTime: {
-          type: "object" as const,
-          required: ["durationMinutes"],
-          properties: {
-            durationMinutes: { type: "number" as const, description: "≥45% of usable time — ONE sustained block" },
-            focus: { type: "string" as const, description: "What students are doing during work time" },
-            checkpoints: {
-              type: "array" as const,
-              items: { type: "string" as const },
-              description: "1-2 brief teacher check-in points during work time",
+      introduction: {
+        type: "object" as const,
+        properties: {
+          text: { type: "string" as const },
+          media: {
+            type: "object" as const,
+            properties: {
+              type: { type: "string" as const, enum: ["image", "video"] },
+              url: { type: "string" as const },
             },
           },
         },
-        debrief: {
+      },
+      sections: {
+        type: "array" as const,
+        items: {
           type: "object" as const,
-          required: ["durationMinutes"],
+          required: ["prompt", "responseType"],
           properties: {
-            durationMinutes: { type: "number" as const, description: "5-10 minutes — never skip" },
-            protocol: { type: "string" as const, description: "e.g. quick-share, i-like-i-wish, exit-ticket, two-stars-a-wish" },
-            prompt: { type: "string" as const, description: "The debrief question or activity instructions" },
+            prompt: { type: "string" as const, description: "Activity instructions for the student" },
+            responseType: {
+              type: "string" as const,
+              enum: ["text", "upload", "voice", "link", "multi", "decision-matrix", "pmi", "pairwise", "trade-off-sliders"],
+            },
+            exampleResponse: { type: "string" as const, description: "Model response showing what good work looks like" },
+            durationMinutes: { type: "number" as const, description: "Estimated minutes for this activity (e.g. 5, 10, 15, 20)" },
+            portfolioCapture: {
+              type: "boolean" as const,
+              description: "Set true for substantive design work (analysis, ideation, creation evidence, evaluation). Omit or false for scaffolding, warm-ups, and practice tasks.",
+            },
+            scaffolding: {
+              type: "object" as const,
+              properties: {
+                ell1: {
+                  type: "object" as const,
+                  properties: {
+                    sentenceStarters: { type: "array" as const, items: { type: "string" as const } },
+                    hints: { type: "array" as const, items: { type: "string" as const } },
+                  },
+                },
+                ell2: {
+                  type: "object" as const,
+                  properties: {
+                    sentenceStarters: { type: "array" as const, items: { type: "string" as const } },
+                  },
+                },
+                ell3: {
+                  type: "object" as const,
+                  properties: {
+                    extensionPrompts: { type: "array" as const, items: { type: "string" as const } },
+                  },
+                },
+              },
+            },
           },
         },
+        description: "2-4 activity sections with student tasks",
       },
-    },
-    extensions: {
-      type: "array" as const,
-      description: "2-3 extension activities for early finishers, indexed to the current design phase",
-      items: {
+      reflection: {
         type: "object" as const,
-        required: ["title", "description", "durationMinutes"],
         properties: {
-          title: { type: "string" as const },
-          description: { type: "string" as const },
-          durationMinutes: { type: "number" as const },
-          designPhase: {
-            type: "string" as const,
-            enum: ["investigation", "ideation", "prototyping", "evaluation"],
+          type: { type: "string" as const, enum: ["confidence-slider", "checklist", "short-response"] },
+          items: { type: "array" as const, items: { type: "string" as const } },
+        },
+      },
+      workshopPhases: {
+        type: "object" as const,
+        description: "Workshop Model timing: 4-phase structure for every lesson. Opening (5-10 min), Mini-Lesson (max 1+age min), Work Time (≥45% of usable time), Debrief (5-10 min).",
+        properties: {
+          opening: {
+            type: "object" as const,
+            required: ["durationMinutes"],
+            properties: {
+              durationMinutes: { type: "number" as const, description: "5-10 minutes" },
+              hook: { type: "string" as const, description: "Engaging opening activity or question" },
+            },
+          },
+          miniLesson: {
+            type: "object" as const,
+            required: ["durationMinutes"],
+            properties: {
+              durationMinutes: { type: "number" as const, description: "Max 1+avg student age minutes of direct instruction" },
+              focus: { type: "string" as const, description: "Key concept or skill being taught" },
+            },
+          },
+          workTime: {
+            type: "object" as const,
+            required: ["durationMinutes"],
+            properties: {
+              durationMinutes: { type: "number" as const, description: "≥45% of usable time — ONE sustained block" },
+              focus: { type: "string" as const, description: "What students are doing during work time" },
+              checkpoints: {
+                type: "array" as const,
+                items: { type: "string" as const },
+                description: "1-2 brief teacher check-in points during work time",
+              },
+            },
+          },
+          debrief: {
+            type: "object" as const,
+            required: ["durationMinutes"],
+            properties: {
+              durationMinutes: { type: "number" as const, description: "5-10 minutes — never skip" },
+              protocol: { type: "string" as const, description: "e.g. quick-share, i-like-i-wish, exit-ticket, two-stars-a-wish" },
+              prompt: { type: "string" as const, description: "The debrief question or activity instructions" },
+            },
           },
         },
       },
+      extensions: buildExtensionSchema(unitType),
     },
-  },
-};
+  };
+}
 
 /**
  * Tool definition for generating criterion pages.
  * The criterion letter (A/B/C/D) is injected at call time.
+ * unitType defaults to "design" for backward compatibility.
  */
-export function buildPageGenerationTool(criterion: string, pageCount: number = 4): Tool {
+export function buildPageGenerationTool(criterion: string, pageCount: number = 4, unitType: UnitType = "design"): Tool {
   const pageKeys = Array.from({ length: pageCount }, (_, i) => `${criterion}${i + 1}`);
+  const pageSchema = buildPageContentSchema(unitType);
 
-  const pagesProperties: Record<string, typeof pageContentSchema> = {};
+  const pagesProperties: Record<string, typeof pageSchema> = {};
   for (const key of pageKeys) {
-    pagesProperties[key] = pageContentSchema;
+    pagesProperties[key] = pageSchema;
   }
 
   return {
@@ -250,42 +289,90 @@ export const OUTLINE_GENERATION_TOOL: Tool = {
 // Journey Mode — Lesson-based generation schemas
 // =========================================================================
 
-/** Activity section schema extended with criterionTags for journey mode. */
-const journeyActivitySectionSchema = {
-  type: "object" as const,
-  required: ["prompt", "responseType", "criterionTags"],
-  properties: {
-    ...activitySectionSchema.properties,
-    criterionTags: {
-      type: "array" as const,
-      items: { type: "string" as const },
-      description: "Assessment criteria this activity addresses (e.g. [\"A\"], [\"B\",\"C\"])",
+/**
+ * Build a dynamic journey activity section schema for a specific unit type.
+ */
+function buildJourneyActivitySectionSchema() {
+  return {
+    type: "object" as const,
+    required: ["prompt", "responseType", "criterionTags"],
+    properties: {
+      prompt: { type: "string" as const, description: "Activity instructions for the student" },
+      responseType: {
+        type: "string" as const,
+        enum: ["text", "upload", "voice", "link", "multi", "decision-matrix", "pmi", "pairwise", "trade-off-sliders"],
+      },
+      exampleResponse: { type: "string" as const, description: "Model response showing what good work looks like" },
+      durationMinutes: { type: "number" as const, description: "Estimated minutes for this activity (e.g. 5, 10, 15, 20)" },
+      portfolioCapture: {
+        type: "boolean" as const,
+        description: "Set true for substantive design work. Omit or false for scaffolding, warm-ups, and practice tasks.",
+      },
+      scaffolding: {
+        type: "object" as const,
+        properties: {
+          ell1: {
+            type: "object" as const,
+            properties: {
+              sentenceStarters: { type: "array" as const, items: { type: "string" as const } },
+              hints: { type: "array" as const, items: { type: "string" as const } },
+            },
+          },
+          ell2: {
+            type: "object" as const,
+            properties: {
+              sentenceStarters: { type: "array" as const, items: { type: "string" as const } },
+            },
+          },
+          ell3: {
+            type: "object" as const,
+            properties: {
+              extensionPrompts: { type: "array" as const, items: { type: "string" as const } },
+            },
+          },
+        },
+      },
+      criterionTags: {
+        type: "array" as const,
+        items: { type: "string" as const },
+        description: "Assessment criteria this activity addresses (e.g. [\"A\"], [\"B\",\"C\"])",
+      },
     },
-  },
-};
+  };
+}
 
-/** Lesson content schema — same as pageContentSchema but using journey sections. */
-const lessonContentSchema = {
-  type: "object" as const,
-  required: ["title", "learningGoal", "sections"],
-  properties: {
-    ...pageContentSchema.properties,
-    sections: {
-      type: "array" as const,
-      items: journeyActivitySectionSchema,
-      description: "2-4 activity sections with student tasks, each tagged with criterionTags",
+/**
+ * Build a dynamic lesson content schema for journey mode.
+ * Uses journey-specific activity sections with criterionTags.
+ */
+function buildLessonContentSchema(unitType: UnitType = "design") {
+  const basePageSchema = buildPageContentSchema(unitType);
+  const journeyActivitySection = buildJourneyActivitySectionSchema();
+
+  return {
+    type: "object" as const,
+    required: ["title", "learningGoal", "sections"],
+    properties: {
+      ...basePageSchema.properties,
+      sections: {
+        type: "array" as const,
+        items: journeyActivitySection,
+        description: "2-4 activity sections with student tasks, each tagged with criterionTags",
+      },
     },
-  },
-};
+  };
+}
 
 /**
  * Tool definition for generating journey lesson pages.
  * Lesson IDs like "L01", "L02" are injected at call time.
+ * unitType defaults to "design" for backward compatibility.
  */
-export function buildLessonGenerationTool(lessonIds: string[]): Tool {
-  const lessonsProperties: Record<string, typeof lessonContentSchema> = {};
+export function buildLessonGenerationTool(lessonIds: string[], unitType: UnitType = "design"): Tool {
+  const lessonSchema = buildLessonContentSchema(unitType);
+  const lessonsProperties: Record<string, typeof lessonSchema> = {};
   for (const id of lessonIds) {
-    lessonsProperties[id] = lessonContentSchema;
+    lessonsProperties[id] = lessonSchema;
   }
 
   return {
@@ -419,7 +506,30 @@ const timelineActivitySchema = {
       description: "Assessment criteria this activity addresses (e.g. [\"A\"], [\"B\",\"C\"])",
     },
     phaseLabel: { type: "string" as const, description: "Phase grouping label (e.g. 'Research', 'Prototyping', 'Evaluation')" },
-    scaffolding: activitySectionSchema.properties.scaffolding,
+    scaffolding: {
+      type: "object" as const,
+      properties: {
+        ell1: {
+          type: "object" as const,
+          properties: {
+            sentenceStarters: { type: "array" as const, items: { type: "string" as const } },
+            hints: { type: "array" as const, items: { type: "string" as const } },
+          },
+        },
+        ell2: {
+          type: "object" as const,
+          properties: {
+            sentenceStarters: { type: "array" as const, items: { type: "string" as const } },
+          },
+        },
+        ell3: {
+          type: "object" as const,
+          properties: {
+            extensionPrompts: { type: "array" as const, items: { type: "string" as const } },
+          },
+        },
+      },
+    },
     vocabTerms: {
       type: "array" as const,
       items: {

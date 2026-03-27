@@ -266,7 +266,7 @@ function reducer(state: WizardState, action: Action): WizardState {
         input: { ...state.input, [action.key]: action.value },
       };
       // Keep journey input in sync with shared fields
-      // When unitType changes, update criteria to match the new type's criteria set
+      // When unitType changes, update criteria to match the new type's criteria set and reset type-specific fields
       if (action.key === "unitType") {
         const newType = action.value as UnitType;
         const newCriteriaKeys = getCriterionKeys(newType);
@@ -275,12 +275,34 @@ function reducer(state: WizardState, action: Action): WizardState {
           ...newState.input,
           selectedCriteria: newCriteriaKeys as CriterionKey[],
           criteriaFocus: Object.fromEntries(newCriteriaKeys.map(k => [k, "standard"])) as Record<CriterionKey, "light" | "standard" | "emphasis">,
+          // Reset all type-specific fields to empty defaults
+          communityContext: "",
+          sdgConnection: "",
+          serviceOutcomes: [],
+          partnerType: "",
+          personalInterest: "",
+          goalType: "",
+          presentationFormat: "",
+          centralIdea: "",
+          transdisciplinaryTheme: "",
+          linesOfInquiry: [],
         };
         // Sync journey input
         newState.journeyInput = {
           ...newState.journeyInput,
           unitType: newType,
           assessmentCriteria: newCriteriaKeys,
+          // Reset all type-specific fields in journey mode too
+          communityContext: "",
+          sdgConnection: "",
+          serviceOutcomes: [],
+          partnerType: "",
+          personalInterest: "",
+          goalType: "",
+          presentationFormat: "",
+          centralIdea: "",
+          transdisciplinaryTheme: "",
+          linesOfInquiry: [],
         };
         // Reset criteria emphasis sliders
         newState.criteriaEmphasis = Object.fromEntries(newCriteriaKeys.map(k => [k, 50])) as Record<string, number>;
@@ -822,6 +844,19 @@ const initialState: WizardState = {
     resourceUrls: [],
     specialRequirements: "",
     unitType: "design" as UnitType,
+    // Service-specific
+    communityContext: "",
+    sdgConnection: "",
+    serviceOutcomes: [],
+    partnerType: "",
+    // Personal Project-specific
+    personalInterest: "",
+    goalType: "",
+    presentationFormat: "",
+    // Inquiry-specific
+    centralIdea: "",
+    transdisciplinaryTheme: "",
+    linesOfInquiry: [],
   },
   criteriaEmphasis: { A: 50, B: 50, C: 50, D: 50 },
   expandedSections: new Set(["basics"]),
@@ -859,6 +894,19 @@ const initialState: WizardState = {
     specialRequirements: "",
     assessmentCriteria: ["A", "B", "C", "D"],
     unitType: "design" as UnitType,
+    // Service-specific
+    communityContext: "",
+    sdgConnection: "",
+    serviceOutcomes: [],
+    partnerType: "",
+    // Personal Project-specific
+    personalInterest: "",
+    goalType: "",
+    presentationFormat: "",
+    // Inquiry-specific
+    centralIdea: "",
+    transdisciplinaryTheme: "",
+    linesOfInquiry: [],
   },
   totalLessons: 18,
   generationBatches: [],

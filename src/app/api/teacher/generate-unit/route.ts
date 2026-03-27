@@ -112,7 +112,8 @@ export const POST = withErrorHandler("teacher/generate-unit:POST", async (reques
               criterion,
               wizardInput,
               systemPrompt,
-              userPrompt
+              userPrompt,
+              unitType
             );
 
             for await (const event of gen) {
@@ -161,7 +162,8 @@ export const POST = withErrorHandler("teacher/generate-unit:POST", async (reques
       criterion,
       wizardInput,
       systemPrompt,
-      userPrompt
+      userPrompt,
+      unitType
     );
 
     // Validate output (structural)

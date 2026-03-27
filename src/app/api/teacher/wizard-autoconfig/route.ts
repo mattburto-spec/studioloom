@@ -124,11 +124,12 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { goalText, gradeLevel, durationWeeks, keywords } = body as {
+  const { goalText, gradeLevel, durationWeeks, keywords, unitType } = body as {
     goalText: string;
     gradeLevel: string;
     durationWeeks: number;
     keywords: string[];
+    unitType?: string;
   };
 
   if (!goalText?.trim()) {
@@ -143,7 +144,20 @@ export async function POST(request: NextRequest) {
 
   try {
     const userPrompt = buildAutoConfigPrompt(goalText, gradeLevel || "Year 3 (Grade 8)", durationWeeks || 6, keywords || []);
-    const systemPrompt = AUTOCONFIG_SYSTEM_PROMPT + "\n\nReturn ONLY valid JSON. No markdown fences, no explanations.";
+    let systemPrompt = AUTOCONFIG_SYSTEM_PROMPT + "\n\nReturn ONLY valid JSON. No markdown fences, no explanations.";
+
+    // Add unit type context to emphasis suggestions
+    if (unitType && unitType !== "design") {
+      const typeEmphasisContext = {
+        service: "This is a SERVICE LEARNING unit. Emphasis levels should reflect that service units need strong reflection and ethical reasoning. Consider emphasizing criteria that assess community engagement, ethical thinking, and impact documentation.",
+        personal_project: "This is a PERSONAL PROJECT unit. Emphasis levels should reflect that PP units focus on ATL skill development and process. Consider emphasizing criteria that assess process documentation and self-management.",
+        inquiry: "This is an INQUIRY unit. Emphasis levels should reflect that inquiry units focus on evidence-based thinking and conceptual understanding. Consider emphasizing criteria that assess research quality and thinking skills.",
+      }[unitType as string];
+
+      if (typeEmphasisContext) {
+        systemPrompt += `\n\n${typeEmphasisContext}`;
+      }
+    }
 
     let responseText: string;
 

@@ -309,6 +309,55 @@ export const DESIGN_SKILLS = [
   "CNC Machining",
 ] as const;
 
+// === Service Learning option sets ===
+export const SERVICE_COMMUNITY_CONTEXTS = [
+  "Environmental sustainability",
+  "Health & wellbeing",
+  "Education access",
+  "Cultural preservation",
+  "Food security",
+  "Animal welfare",
+  "Homelessness & housing",
+  "Technology access",
+  "Elderly care",
+  "Youth empowerment",
+] as const;
+
+export const SERVICE_SDG_OPTIONS = [
+  "1: No Poverty", "2: Zero Hunger", "3: Good Health", "4: Quality Education",
+  "5: Gender Equality", "6: Clean Water", "7: Affordable Energy", "8: Decent Work",
+  "9: Industry & Innovation", "10: Reduced Inequalities", "11: Sustainable Cities",
+  "12: Responsible Consumption", "13: Climate Action", "14: Life Below Water",
+  "15: Life on Land", "16: Peace & Justice", "17: Partnerships",
+] as const;
+
+export const SERVICE_OUTCOMES = [
+  "Awareness raising", "Direct service", "Advocacy", "Resource creation",
+  "Policy change", "Community building", "Fundraising", "Mentoring/tutoring",
+] as const;
+
+export const SERVICE_PARTNER_TYPES = [
+  "Community organisation", "Government agency", "Individual/family",
+  "School community", "Online community", "No partner (student-led)",
+] as const;
+
+// === Personal Project option sets ===
+export const PP_GOAL_TYPES = [
+  "Create a product", "Develop a skill", "Organise an event",
+  "Conduct research", "Build something", "Write/create art",
+] as const;
+
+export const PP_PRESENTATION_FORMATS = [
+  "Exhibition display", "Live demonstration", "Digital portfolio",
+  "Written report", "Video documentary", "Oral presentation",
+] as const;
+
+// === Inquiry option sets ===
+export const INQUIRY_THEMES = [
+  "Who We Are", "Where We Are in Place and Time", "How We Express Ourselves",
+  "How the World Works", "How We Organize Ourselves", "Sharing the Planet",
+] as const;
+
 export const SESSION_COOKIE_NAME = "questerra_student_session";
 export const SESSION_DURATION_DAYS = 7;
 

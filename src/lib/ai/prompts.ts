@@ -19,6 +19,7 @@ import type { PartialTeachingContext } from "@/types/lesson-intelligence";
 import { getFrameworkFromContext } from "@/lib/ai/teacher-context";
 import type { TeacherStyleProfile } from "@/types/teacher-style";
 import { buildTeacherStyleBlock } from "@/lib/teacher-style/profile-service";
+import type { UnitType } from "@/lib/ai/unit-types";
 
 // =========================================================================
 // Grade-Aware Timing Profiles
@@ -157,15 +158,25 @@ export function getGradeTimingProfile(gradeLevel: string, configProfiles?: Recor
 export function buildTimingBlock(
   profile: GradeTimingProfile,
   lessonLengthMinutes: number,
-  timingCtx?: TimingContext
+  timingCtx?: TimingContext,
+  unitType?: UnitType
 ): string {
   // Always use usable time — construct default TimingContext if none provided
   const ctx: TimingContext = timingCtx || buildTimingContext(profile, lessonLengthMinutes, false);
   const usable = calculateUsableTime(ctx);
   const lessonType = ctx.isWorkshop ? "WORKSHOP" : "THEORY";
   const instructionCap = maxInstructionMinutes(profile);
-  const minWorkTime = Math.round(usable * MIN_WORK_TIME_PERCENT);
-  const idealWorkTime = Math.round(usable * IDEAL_WORK_TIME_PERCENT);
+
+  // Type-specific work time floor (as % of usable time)
+  const workTimeFloor: Record<string, number> = {
+    design: 0.45,
+    service: 0.30,      // Service learning has fieldwork, meetings — less structured class time
+    personal_project: 0.40,  // PP is mostly independent work, supervisions are check-ins
+    inquiry: 0.35,      // Inquiry is mixed investigation and instruction
+  };
+  const floor = workTimeFloor[unitType || "design"] || 0.45;
+  const minWorkTime = Math.round(usable * floor);
+  const idealWorkTime = Math.round(usable * Math.max(floor + 0.15, 0.60)); // Ideal is floor + 15%, or 60% min
 
   return `## Timing Context
 Schedule: ${ctx.periodMinutes}-minute period | Lesson type: ${lessonType} | MYP Year ${profile.mypYear} (avg age ${profile.avgStudentAge})
@@ -186,7 +197,7 @@ Teach ONE skill or concept. Demonstrate a technique. Short and focused.
 Maximum ${instructionCap} minutes of direct instruction (1 + avg student age of ${profile.avgStudentAge}).
 After ${instructionCap} minutes, student attention drops sharply. Stop teaching and start working.
 
-### Phase 3: WORK TIME (minimum ${minWorkTime} min, ideally ${idealWorkTime}+ min — at least 45% of usable time)
+### Phase 3: WORK TIME (minimum ${minWorkTime} min, ideally ${idealWorkTime}+ min — at least ${Math.round(floor * 100)}% of usable time)
 THE MAIN EVENT. Students create, research, prototype, test, build.
 This is ONE sustained block — do NOT fragment it into multiple small activities.
 Teacher circulates: 1-on-1 conferences, formative assessment, just-in-time teaching.
@@ -237,9 +248,91 @@ Format: Include an "extensions" array on each lesson with 2-3 items: { "title": 
 // =========================================================================
 
 /**
+ * Build type-aware teaching context block for injection into generation prompts.
+ * Includes pedagogical principles specific to the unit type, the Workshop Model requirement,
+ * and the teacher's learned style profile (Layer 4) if available.
+ */
+export function buildTeachingContext(unitType: string = "design", teacherProfile?: TeacherStyleProfile | null): string {
+  const styleBlock = teacherProfile ? buildTeacherStyleBlock(teacherProfile) : "";
+
+  if (unitType === "service") {
+    return `## Service Learning Teaching Principles
+You are generating content for service learning education. Follow these principles:
+
+1. IPARD CYCLE (HIGHEST PRIORITY): Every lesson follows Investigation → Planning → Action → Reflection → Demonstration. This is NOT linear — students cycle between phases based on real community feedback and changing circumstances.
+
+2. RECIPROCITY: Service must benefit BOTH the community partner AND the student. Avoid charity mindset — use partnership language. The community partner defines needs, not student assumptions.
+
+3. COMMUNITY VOICE: Community partners are co-creators, not passive recipients. Include them in planning and decision-making. Student assumptions about "what they need" must be challenged and verified.
+
+4. REFLECTION AS PRIMARY MECHANISM: Reflection isn't journaling — it's the main learning vehicle. Use 4 types: mirror (what happened), microscope (detail analysis), binoculars (broader implications), window (others' perspectives).
+
+5. ETHICAL ACTION: Students must consider unintended consequences. "Helping" can harm. Build in ethical checkpoints — consult community partners, audit for assumptions, pivot if needed.
+
+6. DOCUMENTATION CULTURE: Process documentation is continuous, not retrospective. Photo, video, journal throughout. Both successes AND failures are learning evidence.
+
+7. AUTHENTIC AUDIENCE: Service outcomes are shared with real stakeholders (community partners, local government, media), not just the teacher.
+
+8. SUSTAINABLE IMPACT: One-off events are less valuable than sustained projects (3+ sessions, ongoing relationship). Push for lasting change and ongoing feedback loops.
+
+9. STUDENT AGENCY: Students choose their service focus within structured parameters. Teacher guides constraints and ethical gates, not assigns tasks.
+
+10. CELEBRATION & CRITIQUE: Share outcomes publicly with community. Celebrate effort, learning, and impact. Also conduct peer and community critique — what could have been done better?${styleBlock}`;
+  }
+
+  if (unitType === "personal_project") {
+    return `## Personal Project Teaching Principles
+You are generating content for MYP Personal Project supervision. Follow these principles:
+
+1. STUDENT-DRIVEN: The student owns every decision — research direction, methodology, format, presentation. Teacher is a supervisor/mentor, not a director. Resistance signals misalignment — restart the goal-setting conversation.
+
+2. PROCESS JOURNAL: The process journal IS the assessment evidence. Regular (weekly minimum), multimedia (text, sketches, photos, video, mind maps), and reflective. It shows thinking, not just final product.
+
+3. SMART GOAL SETTING: Goals must be Specific, Measurable, Achievable, Relevant, Time-bound. Revisit quarterly. Vague goals ("learn more about fashion") must be sharpened to observable, time-bound outcomes.
+
+4. ATL SKILLS FOCUS: Every PP must demonstrate specific Approaches to Learning (ATL) skills. Make them explicit — "this stage develops Research skills and Creative Thinking." Track and assess ATL progression.
+
+5. GLOBAL CONTEXT: PP must connect to a genuine global context (not grafted on). The context should frame the research question, not be an afterthought. It explains WHY this project matters.
+
+6. ACADEMIC HONESTY: Extensive citation and attribution throughout (MLA/APA). The line between research and original work must be crystal clear. Plagiarism checks run in both directions (student work + teacher feedback must be original too).
+
+7. PRESENTATION QUALITY: The final presentation IS part of the assessment. Not an afterthought. It shows communication and synthesis skills. Support students in creating polished deliverables (slide decks, videos, posters, websites).
+
+8. SUPERVISOR MEETINGS: Regular structured meetings (fortnightly minimum). Use an agenda template. Documented discussions with agreed-upon action items. Students see notes — this builds transparency and accountability.${styleBlock}`;
+  }
+
+  if (unitType === "inquiry") {
+    return `## Inquiry-Based Learning Teaching Principles
+You are generating content for transdisciplinary inquiry units. Follow these principles:
+
+1. WONDER-DRIVEN: Start with genuine student questions, not teacher-imposed topics. "I wonder what happens if..." frames learning. Teachers help students sharpen questions, not replace them.
+
+2. TRANSDISCIPLINARY: Connections across subject areas are explicit and intentional. Avoid forced interdisciplinary connections. Example: "How does economics explain fashion trends?" is disciplinary thinking made visible, not busywork.
+
+3. CONCEPTUAL UNDERSTANDING: Facts serve concepts, not the other way around. Push for big ideas — "Why do civilisations fall?", "What makes something alive?" — not memorisation of dates or definitions.
+
+4. LEARNER PROFILE: IB Learner Profile attributes are woven into every activity. Curiosity, open-mindedness, principled thinking are content. "Today we're developing critical thinking by..." makes it explicit.
+
+5. STUDENT AGENCY: Students have genuine choice in how they investigate (methods, sources, collaborators) and how they demonstrate learning (oral, visual, written, creative). Choice drives engagement.
+
+6. ACTION AS OUTCOME: Inquiry should lead to informed action — not just understanding. Students take steps based on learning (write a letter, create advocacy, conduct an experiment, produce a guide for peers).
+
+7. COLLABORATIVE CONSTRUCTION: Knowledge is built together through discussion, debate, and investigation. Peer critique shapes thinking. Communities of inquiry (not isolated individuals) do the thinking work.
+
+8. WORKSHOP MODEL (HIGHEST PRIORITY): Even inquiry units follow 4 phases — Opening (activate wonder) → Mini-Lesson (teach inquiry methods/skills) → Work Time (investigate, discuss, create) → Debrief (synthesise, share, plan next inquiry).${styleBlock}`;
+  }
+
+  // Default to design
+  return buildDesignTeachingContext(teacherProfile);
+}
+
+/**
  * Build a concise design teaching context block for injection into generation prompts.
  * Includes the Design Teaching Corpus (Layer 1) principles, the Workshop Model requirement,
  * and the teacher's learned style profile (Layer 4) if available.
+ *
+ * DEPRECATED: Use buildTeachingContext(unitType, teacherProfile) instead.
+ * This is kept for backward compatibility.
  */
 export function buildDesignTeachingContext(teacherProfile?: TeacherStyleProfile | null): string {
   const styleBlock = teacherProfile ? buildTeacherStyleBlock(teacherProfile) : "";
@@ -410,7 +503,7 @@ ${activitySuggestions}
 - Key Concept: ${input.keyConcept}
 - Related Concepts: ${(input.relatedConcepts || []).join(", ")}
 - Statement of Inquiry: ${input.statementOfInquiry}
-- ATL Skills: ${(input.atlSkills || []).join(", ")}${skillsSection}${resourceSection}${requirementsSection}${curriculumSection}
+- ATL Skills: ${(input.atlSkills || []).join(", ")}${skillsSection}${resourceSection}${requirementsSection}${curriculumSection}${buildTypeSpecificContext(input)}
 
 ## Pages to Generate
 ${pageDescriptions}
@@ -554,11 +647,58 @@ Rules:
 5. Output ONLY valid JSON — no markdown, no explanations`;
 
 /**
+ * Build a block of type-specific context fields to include in generation prompts.
+ * Only includes fields that are populated (non-null, non-empty).
+ */
+export function buildTypeSpecificContext(input: UnitWizardInput | LessonJourneyInput): string {
+  const fields: string[] = [];
+
+  // Service Learning fields
+  if (input.communityContext) {
+    fields.push(`- Community Focus: ${input.communityContext}`);
+  }
+  if ((input as any).sdgConnection) {
+    fields.push(`- SDG Connection: ${(input as any).sdgConnection}`);
+  }
+  if ((input as any).serviceOutcomes?.length) {
+    fields.push(`- Service Outcomes: ${(input as any).serviceOutcomes.join(", ")}`);
+  }
+  if ((input as any).partnerType) {
+    fields.push(`- Partner Type: ${(input as any).partnerType}`);
+  }
+
+  // Personal Project fields
+  if (input.personalInterest) {
+    fields.push(`- Personal Interest: ${input.personalInterest}`);
+  }
+  if ((input as any).goalType) {
+    fields.push(`- Goal Type: ${(input as any).goalType}`);
+  }
+  if ((input as any).presentationFormat) {
+    fields.push(`- Presentation Format: ${(input as any).presentationFormat}`);
+  }
+
+  // Inquiry fields
+  if (input.centralIdea) {
+    fields.push(`- Central Idea: ${input.centralIdea}`);
+  }
+  if ((input as any).transdisciplinaryTheme) {
+    fields.push(`- Transdisciplinary Theme: ${(input as any).transdisciplinaryTheme}`);
+  }
+  if ((input as any).linesOfInquiry?.length) {
+    fields.push(`- Lines of Inquiry: ${(input as any).linesOfInquiry.join(", ")}`);
+  }
+
+  return fields.length > 0 ? `\n## Unit-Specific Context\n${fields.join("\n")}` : "";
+}
+
+/**
  * Build the user prompt for multi-option outline generation.
  */
 export function buildOutlinePrompt(
   input: UnitWizardInput,
-  ragContext?: string
+  ragContext?: string,
+  curriculumContext?: string
 ): string {
   const skillsSection = input.specificSkills?.length > 0
     ? `\nSpecific Making Skills: ${input.specificSkills.join(", ")}`
@@ -566,6 +706,10 @@ export function buildOutlinePrompt(
 
   const requirementsSection = input.specialRequirements
     ? `\nSpecial Requirements: ${input.specialRequirements}`
+    : "";
+
+  const curriculumSection = curriculumContext
+    ? `\nCurriculum Context: ${curriculumContext}`
     : "";
 
   const ragSection = ragContext
@@ -601,7 +745,7 @@ ${ragSection}
 - Key Concept: ${input.keyConcept}
 - Related Concepts: ${(input.relatedConcepts || []).join(", ")}
 - Statement of Inquiry: ${input.statementOfInquiry}
-- ATL Skills: ${(input.atlSkills || []).join(", ")}${skillsSection}${requirementsSection}
+- ATL Skills: ${(input.atlSkills || []).join(", ")}${skillsSection}${requirementsSection}${curriculumSection}${buildTypeSpecificContext(input)}
 - Criteria Focus: ${criteriaFocusStr}
 
 ## Page Structure (${totalPages} pages total)
@@ -998,11 +1142,11 @@ ${activitySuggestions}
 - Related Concepts: ${(input.relatedConcepts || []).join(", ")}
 - Statement of Inquiry: ${input.statementOfInquiry}
 - ATL Skills: ${(input.atlSkills || []).join(", ")}${skillsSection}${resourceSection}${requirementsSection}
-- Assessment Criteria: ${(input.assessmentCriteria || []).join(", ")} (tag each section with the relevant criteria)${input.curriculumContext ? `\n- Curriculum Context: ${input.curriculumContext}` : ""}
+- Assessment Criteria: ${(input.assessmentCriteria || []).join(", ")} (tag each section with the relevant criteria)${input.curriculumContext ? `\n- Curriculum Context: ${input.curriculumContext}` : ""}${buildTypeSpecificContext(input)}
 
-${buildDesignTeachingContext(options?.teacherStyleProfile)}
+${buildTeachingContext(input.unitType || "design", options?.teacherStyleProfile)}
 
-${buildTimingBlock(getGradeTimingProfile(input.gradeLevel), input.lessonLengthMinutes)}
+${buildTimingBlock(getGradeTimingProfile(input.gradeLevel), input.lessonLengthMinutes, undefined, input.unitType)}
 
 ## Lessons to Generate
 Generate these ${lessonIds.length} lessons (of ${totalLessons} total):
@@ -1503,11 +1647,11 @@ ${activitySuggestions}
 - Related Concepts: ${(input.relatedConcepts || []).join(", ")}
 - Statement of Inquiry: ${input.statementOfInquiry}
 - ATL Skills: ${(input.atlSkills || []).join(", ")}${skillsSection}${resourceSection}${requirementsSection}
-- Assessment Criteria: ${(input.assessmentCriteria || []).join(", ")} (tag each core activity)
+- Assessment Criteria: ${(input.assessmentCriteria || []).join(", ")} (tag each core activity)${buildTypeSpecificContext(input)}
 
-${buildDesignTeachingContext(options?.teacherStyleProfile)}
+${buildTeachingContext(input.unitType || "design", options?.teacherStyleProfile)}
 
-${buildTimingBlock(getGradeTimingProfile(input.gradeLevel), input.lessonLengthMinutes)}
+${buildTimingBlock(getGradeTimingProfile(input.gradeLevel), input.lessonLengthMinutes, undefined, input.unitType)}
 
 ## Generation Target
 Generate a flat list of activities. Total duration should be approximately ${totalMinutes} minutes.
@@ -2123,11 +2267,11 @@ ${activitySuggestions}
 - Grade Level: ${input.gradeLevel}
 - Lesson Length: ${input.lessonLengthMinutes} minutes
 - Key Concept: ${input.keyConcept}
-- Assessment Criteria: ${(input.assessmentCriteria || []).join(", ")}
+- Assessment Criteria: ${(input.assessmentCriteria || []).join(", ")}${buildTypeSpecificContext(input)}
 
-${buildDesignTeachingContext(options?.teacherStyleProfile)}
+${buildTeachingContext(input.unitType || "design", options?.teacherStyleProfile)}
 
-${buildTimingBlock(getGradeTimingProfile(input.gradeLevel), input.lessonLengthMinutes)}
+${buildTimingBlock(getGradeTimingProfile(input.gradeLevel), input.lessonLengthMinutes, undefined, input.unitType)}
 
 ## Generation Target
 Generate 3-6 activities totalling approximately ${lesson.estimatedMinutes} minutes.
