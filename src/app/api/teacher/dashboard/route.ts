@@ -98,7 +98,7 @@ export const GET = withErrorHandler("teacher/dashboard:GET", async (request: Nex
     // Active class_units with unit title + content_data
     supabase
       .from("class_units")
-      .select("class_id, unit_id, nm_config, content_data, units!inner(id, title, content_data, nm_config, unit_type)")
+      .select("class_id, unit_id, nm_config, content_data, units!inner(id, title, content_data, nm_config)")
       .in("class_id", classIds)
       .eq("is_active", true),
     // All students in teacher's classes (via class_students junction — migration 041)
@@ -165,6 +165,25 @@ export const GET = withErrorHandler("teacher/dashboard:GET", async (request: Nex
     studentsByClass.set(s.class_id, arr);
   }
 
+  // Fetch unit_type separately (resilient — column may not exist if migration 051 not applied)
+  const unitTypeMap = new Map<string, string>();
+  const uniqueUnitIds = [...new Set(classUnits.map((cu) => cu.unit_id))];
+  if (uniqueUnitIds.length > 0) {
+    try {
+      const { data: unitTypeData } = await supabase
+        .from("units")
+        .select("id, unit_type")
+        .in("id", uniqueUnitIds);
+      if (unitTypeData) {
+        for (const row of unitTypeData as { id: string; unit_type?: string }[]) {
+          if (row.unit_type) unitTypeMap.set(row.id, row.unit_type);
+        }
+      }
+    } catch {
+      // unit_type column may not exist — silently ignore
+    }
+  }
+
   // Build unit lookup (unitId -> { title, totalPages })
   // nmEnabled is per class-unit, not per unit — resolved later
   const unitInfo = new Map<
@@ -177,7 +196,7 @@ export const GET = withErrorHandler("teacher/dashboard:GET", async (request: Nex
       unitInfo.set(cu.unit_id, {
         title: cu.units.title,
         totalPages: pages.length,
-        unitType: (cu.units as Record<string, unknown>).unit_type as string | undefined,
+        unitType: unitTypeMap.get(cu.unit_id),
       });
     }
   }
