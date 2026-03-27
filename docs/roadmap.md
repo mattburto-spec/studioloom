@@ -1518,14 +1518,22 @@ Units are now content templates assignable to multiple classes with per-class co
 
 **Pending:** ~~Migration 032 (page_id fix) + 033 must be applied in Supabase.~~ ✅ Migrations 032 + 033 APPLIED 21 Mar 2026. Archive UI (button to set is_archived) not built yet.
 
+### Phase 1.5 — NM Rocket Report Generation (next up — awaiting Melbourne materials)
+Matt is providing Melbourne Metrics Rocket Report materials + question formats. Once received:
+- **Rocket Report builder** — "Create Report" button in NM Results tab. Teacher answers behavioural-based indicator questions per student per competency (professional judgement on typical behaviour). Questions come from Melbourne's competency kits.
+- **Rocket Report output** — per-student per-competency progression report matching Melbourne's official Rocket format (visual rocket showing progression level). Uses all collected data: student self-assessments, teacher observations, teacher report answers, checkpoint comments.
+- **Bulk report generation** — generate reports for all students in a class at once (similar to Report Writer bulk flow).
+- **Remaining 6 competencies** — add element definitions + progression descriptors + report questions as Melbourne kits are obtained. Currently only Agency in Learning has full data.
+- **Export** — PDF export of Rocket Reports for parent conferences, IB coordinator reviews, school records.
+
+**Status:** Awaiting Melbourne Metrics materials from Matt (expected 28 Mar 2026). Build estimate: ~2-3 days once question format is known.
+
 ### Phase 2 (Future)
 - **Progression tracking over time** — show student growth across units on a progression level timeline
 - **NM-aware AI mentor** — Design Assistant references NM data ("I notice you rated yourself low on 'Being Reflective' — let's work on that")
 - **NM portfolio integration** — auto-capture NM pulse responses as portfolio entries showing competency growth
-- **Remaining 6 competencies** — add element definitions as Melbourne kits are obtained
 - **Class-wide NM dashboard** — dedicated `/teacher/nm-dashboard` page with heat maps, trend lines, cohort comparisons
 - **Student NM profile** — student-facing view of their competency growth with progression level visualisation
-- **Export/reporting** — generate NM progress reports for parent conferences, IB coordinator reviews
 
 ---
 
