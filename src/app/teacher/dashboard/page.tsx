@@ -332,6 +332,7 @@ function TwoColumnDashboard({
     completedCount: number; notStartedCount: number;
     classIdx: number;
     unitType?: string;
+    thumbnailUrl?: string;
   }> = [];
   const seen = new Set<string>();
   for (const cls of data.classes) {
@@ -351,6 +352,7 @@ function TwoColumnDashboard({
           completedCount: u.completedCount, notStartedCount: u.notStartedCount,
           classIdx: classIndexMap.get(cls.id) ?? 0,
           unitType: u.unitType,
+          thumbnailUrl: u.thumbnailUrl,
         });
       }
     }
@@ -523,7 +525,7 @@ function TwoColumnDashboard({
             const c = getClassColor(u.classIdx);
             const detectedType = detectUnitType(u.unitType, u.className, u.unitTitle);
             const typeBadge = getUnitTypeBadge(detectedType);
-            const photoUrl = getUnitPhotoUrl(u.unitTitle);
+            const photoUrl = u.thumbnailUrl || getUnitPhotoUrl(u.unitTitle);
             return (
               <div
                 key={`card-${u.unitId}-${u.classId}`}

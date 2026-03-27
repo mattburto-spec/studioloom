@@ -4,6 +4,7 @@ import { useState, useEffect, use } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import TeacherFeedbackForm from "@/components/teacher/knowledge/TeacherFeedbackForm";
+import UnitThumbnailPicker from "@/components/teacher/UnitThumbnailPicker";
 import {
   getPageList,
   normalizeContentData,
@@ -63,6 +64,7 @@ export default function UnitDetailPage({
 }) {
   const { unitId } = use(params);
   const [unit, setUnit] = useState<Unit | null>(null);
+  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [showFeedback, setShowFeedback] = useState(false);
   const [showLessons, setShowLessons] = useState(false);
@@ -118,6 +120,8 @@ export default function UnitDetailPage({
         .eq("id", unitId)
         .single();
       setUnit(data);
+      // Load thumbnail_url (may not exist if migration 052 not applied)
+      setThumbnailUrl(data?.thumbnail_url ?? null);
 
       // Fetch ALL teacher's classes + which ones have this unit assigned + terms
       const [classesRes, classUnitsRes, studentsRes, termsRes] = await Promise.all([
@@ -390,6 +394,16 @@ export default function UnitDetailPage({
       {unit.description && (
         <p className="text-base text-text-secondary mt-2 leading-relaxed">{unit.description}</p>
       )}
+
+      {/* Cover image picker */}
+      <div className="mt-4 mb-2">
+        <UnitThumbnailPicker
+          unitId={unitId}
+          unitTitle={unit.title}
+          currentThumbnailUrl={thumbnailUrl}
+          onThumbnailChange={setThumbnailUrl}
+        />
+      </div>
 
       {/* Stats bar */}
       <div className="flex items-center gap-4 mt-3 mb-5 text-sm text-text-tertiary">

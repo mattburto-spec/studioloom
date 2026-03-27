@@ -33,6 +33,8 @@ export interface DashboardUnit {
   isForked?: boolean;
   /** Unit type: design, service, pp, inquiry (from units.unit_type) */
   unitType?: string;
+  /** Custom thumbnail URL (from units.thumbnail_url — gallery pick or upload) */
+  thumbnailUrl?: string;
 }
 
 export interface StuckStudent {

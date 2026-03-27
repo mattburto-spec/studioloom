@@ -165,8 +165,9 @@ export const GET = withErrorHandler("teacher/dashboard:GET", async (request: Nex
     studentsByClass.set(s.class_id, arr);
   }
 
-  // Fetch unit_type separately (resilient — column may not exist if migration 051 not applied)
+  // Fetch unit_type + thumbnail_url separately (resilient — columns may not exist)
   const unitTypeMap = new Map<string, string>();
+  const thumbnailMap = new Map<string, string>();
   const uniqueUnitIds = [...new Set(classUnits.map((cu) => cu.unit_id))];
   if (uniqueUnitIds.length > 0) {
     try {
@@ -182,13 +183,26 @@ export const GET = withErrorHandler("teacher/dashboard:GET", async (request: Nex
     } catch {
       // unit_type column may not exist — silently ignore
     }
+    try {
+      const { data: thumbData } = await supabase
+        .from("units")
+        .select("id, thumbnail_url")
+        .in("id", uniqueUnitIds);
+      if (thumbData) {
+        for (const row of thumbData as { id: string; thumbnail_url?: string }[]) {
+          if (row.thumbnail_url) thumbnailMap.set(row.id, row.thumbnail_url);
+        }
+      }
+    } catch {
+      // thumbnail_url column may not exist (migration 052) — silently ignore
+    }
   }
 
   // Build unit lookup (unitId -> { title, totalPages })
   // nmEnabled is per class-unit, not per unit — resolved later
   const unitInfo = new Map<
     string,
-    { title: string; totalPages: number; unitType?: string }
+    { title: string; totalPages: number; unitType?: string; thumbnailUrl?: string }
   >();
   for (const cu of classUnits) {
     if (!unitInfo.has(cu.unit_id)) {
@@ -197,6 +211,7 @@ export const GET = withErrorHandler("teacher/dashboard:GET", async (request: Nex
         title: cu.units.title,
         totalPages: pages.length,
         unitType: unitTypeMap.get(cu.unit_id),
+        thumbnailUrl: thumbnailMap.get(cu.unit_id),
       });
     }
   }
@@ -364,6 +379,7 @@ export const GET = withErrorHandler("teacher/dashboard:GET", async (request: Nex
         badgeRequirementCount: badgeReqByUnit.get(cu.unit_id) || 0,
         isForked: !!(cu as Record<string, unknown>).content_data,
         unitType: unitInfo.get(cu.unit_id)?.unitType || undefined,
+        thumbnailUrl: unitInfo.get(cu.unit_id)?.thumbnailUrl || undefined,
       };
     });
 
