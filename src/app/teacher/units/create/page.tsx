@@ -736,7 +736,7 @@ export default function CreateUnitWizardPage() {
     dispatch({ type: "INIT_LESSON_GENERATION" });
 
     const skeleton = state.timelineSkeleton;
-    const concurrency = 2;
+    const concurrency = 4;
     const lessons = [...skeleton.lessons];
     let nextIndex = 0;
 

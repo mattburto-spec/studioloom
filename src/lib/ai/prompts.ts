@@ -1807,82 +1807,65 @@ export async function buildRAGTimelinePrompt(
   activitiesGeneratedSoFar?: number,
   teachingContext?: PartialTeachingContext | null
 ): Promise<{ prompt: string; chunkIds: string[] }> {
-  // Fetch enriched activity card summary from DB
-  let activitySummary: string | undefined;
-  try {
-    activitySummary = await getActivityCardSummaryEnriched();
-  } catch {
-    // DB unavailable — will fall back to hardcoded
-  }
-
   const totalLessons = input.durationWeeks * input.lessonsPerWeek;
-
-  // Retrieve relevant context from knowledge base
   const query = `${input.topic} ${input.title} ${input.endGoal} ${input.gradeLevel}`;
 
-  let ragContext = "";
-  let lessonContext = "";
-  let chunkIds: string[] = [];
+  // Parallelize all independent async lookups
+  const stylePromise = teacherId
+    ? import("@/lib/teacher-style/profile-service").then(m => m.loadStyleProfile(teacherId)).catch(() => null)
+    : Promise.resolve(null);
 
-  try {
-    const chunks = await retrieveContext({
+  const [activityResult, chunksResult, profilesResult, teacherStyle] = await Promise.allSettled([
+    getActivityCardSummaryEnriched(),
+    retrieveContext({
       query,
       gradeLevel: input.gradeLevel,
       teacherId,
       includePublic: true,
       maxChunks: 5,
-    });
-
-    if (chunks.length > 0) {
-      ragContext = formatRetrievedContext(chunks);
-      chunkIds = chunks.map((c) => c.id);
-      recordRetrieval(chunkIds).catch(() => {});
-    }
-  } catch {
-    // RAG is enhancement, not requirement
-  }
-
-  // Retrieve lesson profiles + their aggregated feedback
-  let feedbackContext = "";
-  try {
-    const profiles = await retrieveLessonProfiles({
+    }),
+    retrieveLessonProfiles({
       query,
       gradeLevel: input.gradeLevel,
       teacherId,
       maxProfiles: 3,
-    });
+    }),
+    stylePromise,
+  ]);
 
-    if (profiles.length > 0) {
-      lessonContext = formatLessonProfiles(profiles);
-      const profileIds = profiles.map((p) => p.id);
-      incrementProfileReferences(profileIds).catch(() => {});
+  const activitySummary = activityResult.status === "fulfilled" ? activityResult.value : undefined;
 
-      // Close the feedback loop: inject real teaching experience
-      try {
-        const aggregatedFeedback = await retrieveAggregatedFeedback(profileIds);
-        if (aggregatedFeedback.length > 0) {
-          feedbackContext = formatFeedbackContext(aggregatedFeedback);
-        }
-      } catch {
-        // Feedback is enhancement, not requirement
+  let ragContext = "";
+  let chunkIds: string[] = [];
+  if (chunksResult.status === "fulfilled" && chunksResult.value.length > 0) {
+    ragContext = formatRetrievedContext(chunksResult.value);
+    chunkIds = chunksResult.value.map((c) => c.id);
+    recordRetrieval(chunkIds).catch(() => {});
+  }
+
+  let lessonContext = "";
+  let feedbackContext = "";
+  if (profilesResult.status === "fulfilled" && profilesResult.value.length > 0) {
+    lessonContext = formatLessonProfiles(profilesResult.value);
+    const profileIds = profilesResult.value.map((p) => p.id);
+    incrementProfileReferences(profileIds).catch(() => {});
+
+    // Close the feedback loop: inject real teaching experience
+    try {
+      const aggregatedFeedback = await retrieveAggregatedFeedback(profileIds);
+      if (aggregatedFeedback.length > 0) {
+        feedbackContext = formatFeedbackContext(aggregatedFeedback);
       }
+    } catch {
+      // Feedback is enhancement, not requirement
     }
-  } catch {
-    // Lesson profiles are enhancement, not requirement
   }
 
   // Build teaching context + framework vocabulary blocks
   const teachingContextBlock = buildTeachingContextBlock(teachingContext || undefined);
   const frameworkBlock = buildFrameworkPromptBlock(getFrameworkFromContext(teachingContext));
 
-  // Load teacher style profile
-  let teacherStyle: TeacherStyleProfile | null = null;
-  if (teacherId) {
-    try {
-      const { loadStyleProfile } = await import("@/lib/teacher-style/profile-service");
-      teacherStyle = await loadStyleProfile(teacherId);
-    } catch { /* non-fatal */ }
-  }
+  const resolvedStyle = teacherStyle.status === "fulfilled" ? teacherStyle.value : null;
 
   const prompt = buildTimelinePrompt(input, {
     selectedOutline,
@@ -1894,7 +1877,7 @@ export async function buildRAGTimelinePrompt(
     previousActivitiesSummary,
     activitiesGeneratedSoFar,
     teachingContextBlock: (frameworkBlock + teachingContextBlock) || undefined,
-    teacherStyleProfile: teacherStyle || undefined,
+    teacherStyleProfile: resolvedStyle || undefined,
   });
 
   return { prompt, chunkIds };
@@ -2287,62 +2270,52 @@ export async function buildRAGPerLessonPrompt(
   teachingContext?: PartialTeachingContext | null,
   teacherStyleProfile?: TeacherStyleProfile | null
 ): Promise<{ prompt: string; chunkIds: string[] }> {
-  let activitySummary: string | undefined;
-  try {
-    activitySummary = await getActivityCardSummaryEnriched();
-  } catch {
-    // Fall back to hardcoded
-  }
-
   const query = `${input.topic} ${lesson.title} ${lesson.keyQuestion} ${input.gradeLevel}`;
 
-  let ragContext = "";
-  let lessonContext = "";
-  let chunkIds: string[] = [];
-
-  try {
-    const chunks = await retrieveContext({
+  // Parallelize all 3 async lookups — they are independent
+  const [activityResult, chunksResult, profilesResult] = await Promise.allSettled([
+    getActivityCardSummaryEnriched(),
+    retrieveContext({
       query,
       gradeLevel: input.gradeLevel,
       teacherId,
       includePublic: true,
       maxChunks: 3,
-    });
-    if (chunks.length > 0) {
-      ragContext = formatRetrievedContext(chunks);
-      chunkIds = chunks.map((c) => c.id);
-      recordRetrieval(chunkIds).catch(() => {});
-    }
-  } catch {
-    // RAG is enhancement
-  }
-
-  // Retrieve lesson profiles + aggregated feedback
-  let feedbackContext = "";
-  try {
-    const profiles = await retrieveLessonProfiles({
+    }),
+    retrieveLessonProfiles({
       query,
       gradeLevel: input.gradeLevel,
       teacherId,
       maxProfiles: 2,
-    });
-    if (profiles.length > 0) {
-      lessonContext = formatLessonProfiles(profiles);
-      const profileIds = profiles.map((p) => p.id);
-      incrementProfileReferences(profileIds).catch(() => {});
+    }),
+  ]);
 
-      // Close the feedback loop: inject real teaching experience
-      try {
-        const aggregatedFeedback = await retrieveAggregatedFeedback(profileIds);
-        if (aggregatedFeedback.length > 0) {
-          feedbackContext = formatFeedbackContext(aggregatedFeedback);
-        }
-      } catch {
-        // Feedback is enhancement, not requirement
+  const activitySummary = activityResult.status === "fulfilled" ? activityResult.value : undefined;
+
+  let ragContext = "";
+  let chunkIds: string[] = [];
+  if (chunksResult.status === "fulfilled" && chunksResult.value.length > 0) {
+    ragContext = formatRetrievedContext(chunksResult.value);
+    chunkIds = chunksResult.value.map((c) => c.id);
+    recordRetrieval(chunkIds).catch(() => {});
+  }
+
+  let lessonContext = "";
+  let feedbackContext = "";
+  if (profilesResult.status === "fulfilled" && profilesResult.value.length > 0) {
+    lessonContext = formatLessonProfiles(profilesResult.value);
+    const profileIds = profilesResult.value.map((p) => p.id);
+    incrementProfileReferences(profileIds).catch(() => {});
+
+    // Close the feedback loop: inject real teaching experience
+    try {
+      const aggregatedFeedback = await retrieveAggregatedFeedback(profileIds);
+      if (aggregatedFeedback.length > 0) {
+        feedbackContext = formatFeedbackContext(aggregatedFeedback);
       }
+    } catch {
+      // Feedback is enhancement, not requirement
     }
-  } catch {
-    // Enhancement
   }
 
   // Build teaching context + framework vocabulary
