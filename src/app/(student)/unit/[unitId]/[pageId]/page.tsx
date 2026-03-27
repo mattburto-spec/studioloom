@@ -609,7 +609,7 @@ export default function UnitPageView({
               Class Gallery
             </span>
             <button
-              onClick={() => router.push("/dashboard#gallery")}
+              onClick={() => window.open("/dashboard#gallery", "_blank")}
               className="w-11 h-11 rounded-full text-white shadow-lg hover:scale-110 hover:shadow-xl active:scale-95 transition-all duration-150 flex items-center justify-center"
               style={{ background: "linear-gradient(135deg, #EC4899, #DB2777)", boxShadow: "0 4px 14px rgba(236, 72, 153, 0.35)" }}
             >

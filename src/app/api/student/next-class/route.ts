@@ -70,10 +70,7 @@ async function GET(request: NextRequest) {
       .single();
 
     if (!student?.class_id) {
-      return NextResponse.json(
-        { error: "Student not assigned to a class" },
-        { status: 404 }
-      );
+      return NextResponse.json({ nextClass: null, reason: "no_class" });
     }
 
     // Find the teacher who owns this unit (to look up their timetable)
@@ -81,13 +78,10 @@ async function GET(request: NextRequest) {
       .from("units")
       .select("author_teacher_id")
       .eq("id", unitId)
-      .single();
+      .maybeSingle();
 
     if (!unit?.author_teacher_id) {
-      return NextResponse.json(
-        { error: "Unit not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ nextClass: null, reason: "no_unit" });
     }
 
     // Load teacher's timetable
