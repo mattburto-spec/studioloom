@@ -526,7 +526,6 @@ export function AIControlPanel({
 }: AIControlPanelProps) {
   const [macro, setMacro] = useState<MacroValues>(initialMacro);
   const [school, setSchool] = useState<SchoolProfile>(initialSchool);
-  const [expandedAdvanced, setExpandedAdvanced] = useState(false);
   const [activePreset, setActivePreset] = useState<string | null>(null);
 
   // Determine active preset
@@ -650,14 +649,6 @@ export function AIControlPanel({
           />
         </div>
 
-        {/* Assessment Focus */}
-        <div className="mt-8 pt-6 border-t border-gray-100">
-          <p className="text-sm font-semibold text-gray-700 mb-3">Assessment Focus</p>
-          <AssessmentFocus
-            value={macro.assessmentFocus}
-            onChange={(v) => handleMacroChange('assessmentFocus', v)}
-          />
-        </div>
       </div>
 
       {/* School profile note — settings live in Teacher Settings > School & Teaching */}
@@ -666,23 +657,6 @@ export function AIControlPanel({
         School profile (period length, workshop access) is set in <a href="/teacher/settings?tab=school" className="text-brand-purple hover:underline font-medium ml-0.5">Teacher Settings</a>
       </div>
 
-      {/* Advanced Settings */}
-      <div className="mt-8">
-        <button
-          onClick={() => setExpandedAdvanced(!expandedAdvanced)}
-          className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-gray-900 py-3"
-        >
-          {expandedAdvanced ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-          Advanced Settings
-        </button>
-        {expandedAdvanced && (
-          <div className="mt-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-            <p className="text-sm text-amber-800">
-              50+ micro sliders — coming soon. These will let you fine-tune individual generation parameters.
-            </p>
-          </div>
-        )}
-      </div>
 
       {/* Footer Buttons */}
       <div className="mt-8 pt-6 border-t border-gray-200 flex gap-3 justify-between">
