@@ -8,55 +8,112 @@ import { ModeSelector } from "./ModeSelector";
 import { SuggestionLoading } from "./shared/SuggestionBadge";
 import type { UnitType } from "@/lib/ai/unit-types";
 
+/* SVG icons for unit types — inline to avoid lucide-react dependency */
+function DesignIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 19l7-7 3 3-7 7-3-3z" />
+      <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z" />
+      <path d="M2 2l7.586 7.586" />
+      <circle cx="11" cy="11" r="2" />
+    </svg>
+  );
+}
+function ServiceIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  );
+}
+function PPIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 16v-4" />
+      <path d="M12 8h.01" />
+      <path d="M8 12h8" />
+      <path d="M12 2v4" />
+      <path d="M12 18v4" />
+    </svg>
+  );
+}
+function InquiryIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="8" />
+      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+      <line x1="11" y1="8" x2="11" y2="14" />
+      <line x1="8" y1="11" x2="14" y2="11" />
+    </svg>
+  );
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const UNIT_TYPE_ICONS: Record<string, () => any> = {
+  design: DesignIcon,
+  service: ServiceIcon,
+  personal_project: PPIcon,
+  inquiry: InquiryIcon,
+};
+
 const UNIT_TYPE_OPTIONS: Array<{
   type: UnitType;
   label: string;
   shortLabel: string;
-  icon: string;
   description: string;
-  color: string;
-  bgColor: string;
-  borderColor: string;
+  accentColor: string;     // for selected icon bg + border
+  accentBorder: string;    // border when selected
+  accentText: string;      // text color when selected
+  accentIconBg: string;    // icon background when selected
+  accentStroke: string;    // SVG stroke when selected
 }> = [
   {
     type: "design",
     label: "Design Project",
     shortLabel: "Design",
-    icon: "✏️",
-    description: "MYP Design Cycle — create a product or solution",
-    color: "text-teal-700",
-    bgColor: "bg-teal-50",
-    borderColor: "border-teal-300",
+    description: "Create a product or solution",
+    accentColor: "teal",
+    accentBorder: "border-teal-400",
+    accentText: "text-teal-700",
+    accentIconBg: "bg-teal-100",
+    accentStroke: "#0f766e",
   },
   {
     type: "service",
     label: "Service Learning",
     shortLabel: "Service",
-    icon: "🤝",
-    description: "Community-focused — investigate, plan, act, reflect",
-    color: "text-pink-700",
-    bgColor: "bg-pink-50",
-    borderColor: "border-pink-300",
+    description: "Community-focused learning",
+    accentColor: "pink",
+    accentBorder: "border-pink-400",
+    accentText: "text-pink-700",
+    accentIconBg: "bg-pink-100",
+    accentStroke: "#be185d",
   },
   {
     type: "personal_project",
     label: "Personal Project",
     shortLabel: "PP",
-    icon: "🎯",
-    description: "Extended self-directed project with process journal",
-    color: "text-purple-700",
-    bgColor: "bg-purple-50",
-    borderColor: "border-purple-300",
+    description: "Self-directed extended project",
+    accentColor: "purple",
+    accentBorder: "border-purple-400",
+    accentText: "text-purple-700",
+    accentIconBg: "bg-purple-100",
+    accentStroke: "#7e22ce",
   },
   {
     type: "inquiry",
     label: "Inquiry Unit",
     shortLabel: "Inquiry",
-    icon: "🔍",
-    description: "Question-driven — research, analyse, communicate",
-    color: "text-amber-700",
-    bgColor: "bg-amber-50",
-    borderColor: "border-amber-300",
+    description: "Question-driven research",
+    accentColor: "amber",
+    accentBorder: "border-amber-400",
+    accentText: "text-amber-700",
+    accentIconBg: "bg-amber-100",
+    accentStroke: "#b45309",
   },
 ];
 
@@ -290,31 +347,41 @@ export function GoalInput({ state, dispatch, onSelectMode }: Props) {
       </div>
 
       {/* Unit type selector */}
-      <div className="max-w-2xl mx-auto mb-4">
-        <div className="grid grid-cols-4 gap-2">
+      <div className="max-w-3xl mx-auto mb-5">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {UNIT_TYPE_OPTIONS.map((opt) => {
             const selected = (state.input.unitType || "design") === opt.type;
+            const IconComponent = UNIT_TYPE_ICONS[opt.type];
             return (
               <button
                 key={opt.type}
                 onClick={() => {
                   dispatch({ type: "SET_INPUT", key: "unitType", value: opt.type });
                 }}
-                className={`relative flex flex-col items-center gap-1 px-2 py-3 rounded-xl border-2 transition-all duration-200 text-center ${
+                className={`group relative flex flex-col items-center gap-2.5 px-3 py-4 rounded-2xl border-2 transition-all duration-200 ${
                   selected
-                    ? `${opt.borderColor} ${opt.bgColor} shadow-sm scale-[1.02]`
-                    : "border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50"
+                    ? `${opt.accentBorder} bg-white shadow-md scale-[1.02]`
+                    : "border-gray-100 bg-white hover:border-gray-200 hover:shadow-sm"
                 }`}
               >
-                <span className="text-lg leading-none">{opt.icon}</span>
-                <span className={`text-xs font-semibold ${selected ? opt.color : "text-text-secondary"}`}>
-                  {opt.shortLabel}
-                </span>
-                {selected && (
-                  <span className={`text-[10px] ${opt.color} opacity-70 leading-tight`}>
+                <div
+                  className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
+                    selected ? opt.accentIconBg : "bg-gray-100 group-hover:bg-gray-200/70"
+                  }`}
+                  style={selected ? { color: opt.accentStroke } : { color: "#9ca3af" }}
+                >
+                  {IconComponent && <IconComponent />}
+                </div>
+                <div className="text-center">
+                  <div className={`text-sm font-bold transition-colors ${selected ? opt.accentText : "text-text-primary"}`}>
+                    {opt.shortLabel}
+                  </div>
+                  <div className={`text-[10px] leading-tight mt-0.5 transition-all ${
+                    selected ? `${opt.accentText} opacity-80` : "text-text-tertiary"
+                  }`}>
                     {opt.description}
-                  </span>
-                )}
+                  </div>
+                </div>
               </button>
             );
           })}
