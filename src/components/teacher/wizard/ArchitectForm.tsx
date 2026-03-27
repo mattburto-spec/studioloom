@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { WizardState, WizardDispatch } from "@/hooks/useWizardState";
 import type { UnitType } from "@/lib/ai/unit-types";
 import {
@@ -23,6 +24,86 @@ interface Props {
   state: WizardState;
   dispatch: WizardDispatch;
   onGenerate: () => void;
+}
+
+/* ── Curriculum Context dropdown options per unit type ── */
+const ARCHITECT_CURRICULUM_OPTIONS: Record<UnitType, { label: string; value: string }[]> = {
+  design: [
+    { label: "IB MYP Design", value: "IB MYP Design" },
+    { label: "GCSE Design & Technology", value: "GCSE Design & Technology" },
+    { label: "A-Level Design & Technology", value: "A-Level Design & Technology" },
+    { label: "IGCSE Design & Technology", value: "IGCSE Design & Technology" },
+    { label: "Australian D&T (ACARA)", value: "ACARA Design & Technologies" },
+    { label: "PLTW (Project Lead The Way)", value: "PLTW" },
+  ],
+  service: [
+    { label: "IB MYP Community Project", value: "IB MYP Community Project" },
+    { label: "IB MYP Service as Action", value: "IB MYP Service as Action" },
+    { label: "IB DP CAS (Creativity, Activity, Service)", value: "IB DP CAS" },
+    { label: "Duke of Edinburgh Award", value: "Duke of Edinburgh Award" },
+    { label: "National Community Service (General)", value: "National Community Service" },
+  ],
+  personal_project: [
+    { label: "IB MYP Personal Project", value: "IB MYP Personal Project" },
+    { label: "PYP Exhibition (Grade 5/6)", value: "PYP Exhibition" },
+    { label: "IB DP Extended Essay", value: "IB DP Extended Essay" },
+    { label: "Independent Study / Capstone", value: "Independent Study" },
+  ],
+  inquiry: [
+    { label: "IB MYP Interdisciplinary Unit", value: "IB MYP Interdisciplinary Unit" },
+    { label: "PYP Unit of Inquiry", value: "PYP Unit of Inquiry" },
+    { label: "Project-Based Learning (PBL)", value: "Project-Based Learning" },
+    { label: "STEM / STEAM Inquiry", value: "STEM Inquiry" },
+  ],
+};
+
+function ArchitectCurriculumPicker({
+  unitType,
+  value,
+  onChange,
+}: {
+  unitType: UnitType;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const options = ARCHITECT_CURRICULUM_OPTIONS[unitType] || [];
+  const isCustom = value !== "" && !options.some((o) => o.value === value);
+  const [showCustom, setShowCustom] = useState(isCustom);
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <select
+        value={showCustom ? "__custom__" : value}
+        onChange={(e) => {
+          if (e.target.value === "__custom__") {
+            setShowCustom(true);
+            onChange("");
+          } else {
+            setShowCustom(false);
+            onChange(e.target.value);
+          }
+        }}
+        className="w-full p-3 rounded-lg border border-border bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/20 appearance-none"
+        style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 4l4 4 4-4'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center" }}
+      >
+        <option value="">Select curriculum (optional)</option>
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>{o.label}</option>
+        ))}
+        <option value="__custom__">Other (type your own)...</option>
+      </select>
+      {showCustom && (
+        <input
+          type="text"
+          autoFocus
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="Type your curriculum context..."
+          className="w-full p-3 rounded-lg border border-border bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/20"
+        />
+      )}
+    </div>
+  );
 }
 
 const UNIT_TYPE_OPTIONS: Array<{
@@ -159,12 +240,10 @@ export function ArchitectForm({ state, dispatch, onGenerate }: Props) {
             <label className="block text-xs font-semibold text-text-secondary mb-2 uppercase tracking-wide">
               Curriculum Context (optional)
             </label>
-            <input
-              type="text"
+            <ArchitectCurriculumPicker
+              unitType={(state.input.unitType || "design") as UnitType}
               value={state.input.curriculumContext || ""}
-              onChange={(e) => handleInputChange("curriculumContext", e.target.value)}
-              placeholder="e.g. GCSE Design & Technology, Australian D&T"
-              className="w-full p-3 rounded-lg border border-border bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/20"
+              onChange={(v) => handleInputChange("curriculumContext", v)}
             />
           </div>
         </div>

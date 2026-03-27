@@ -123,6 +123,78 @@ interface Props {
   onSelectMode?: (mode: WizardMode) => void;
 }
 
+/* ── Curriculum Context dropdown options per unit type ── */
+const CURRICULUM_OPTIONS: Record<"service" | "personal_project" | "inquiry", { label: string; value: string }[]> = {
+  service: [
+    { label: "IB MYP Community Project", value: "IB MYP Community Project" },
+    { label: "IB MYP Service as Action", value: "IB MYP Service as Action" },
+    { label: "IB DP CAS (Creativity, Activity, Service)", value: "IB DP CAS" },
+    { label: "Duke of Edinburgh Award", value: "Duke of Edinburgh Award" },
+    { label: "National Community Service (General)", value: "National Community Service" },
+  ],
+  personal_project: [
+    { label: "IB MYP Personal Project", value: "IB MYP Personal Project" },
+    { label: "PYP Exhibition (Grade 5/6)", value: "PYP Exhibition" },
+    { label: "IB DP Extended Essay", value: "IB DP Extended Essay" },
+    { label: "Independent Study / Capstone", value: "Independent Study" },
+  ],
+  inquiry: [
+    { label: "IB MYP Interdisciplinary Unit", value: "IB MYP Interdisciplinary Unit" },
+    { label: "PYP Unit of Inquiry", value: "PYP Unit of Inquiry" },
+    { label: "Project-Based Learning (PBL)", value: "Project-Based Learning" },
+    { label: "STEM / STEAM Inquiry", value: "STEM Inquiry" },
+  ],
+};
+
+function CurriculumContextPicker({
+  unitType,
+  value,
+  onChange,
+}: {
+  unitType: "service" | "personal_project" | "inquiry";
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const options = CURRICULUM_OPTIONS[unitType] || [];
+  const isCustom = value !== "" && !options.some((o) => o.value === value);
+  const [showCustom, setShowCustom] = useState(isCustom);
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <select
+        value={showCustom ? "__custom__" : value}
+        onChange={(e) => {
+          if (e.target.value === "__custom__") {
+            setShowCustom(true);
+            onChange("");
+          } else {
+            setShowCustom(false);
+            onChange(e.target.value);
+          }
+        }}
+        className="w-full px-4 py-2.5 border border-border rounded-xl text-sm focus:outline-none focus:border-brand-purple/50 focus:ring-2 focus:ring-brand-purple/10 bg-white appearance-none"
+        style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 4l4 4 4-4'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center" }}
+      >
+        <option value="">Curriculum context (optional)</option>
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>{o.label}</option>
+        ))}
+        <option value="__custom__">Other (type your own)...</option>
+      </select>
+      {showCustom && (
+        <input
+          type="text"
+          autoFocus
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="Type your curriculum context..."
+          className="w-full px-4 py-2.5 border border-border rounded-xl text-sm focus:outline-none focus:border-brand-purple/50 focus:ring-2 focus:ring-brand-purple/10"
+        />
+      )}
+    </div>
+  );
+}
+
 const LANE_STORAGE_KEY = "studioloom_wizard_lane";
 
 export function GoalInput({ state, dispatch, onSelectMode }: Props) {
@@ -388,15 +460,13 @@ export function GoalInput({ state, dispatch, onSelectMode }: Props) {
         </div>
       </div>
 
-      {/* Curriculum context — free-text, per architecture spec Phase 0 */}
+      {/* Curriculum context — dropdown with common options + custom */}
       {(state.input.unitType || "design") !== "design" && (
         <div className="max-w-2xl mx-auto mb-3">
-          <input
-            type="text"
+          <CurriculumContextPicker
+            unitType={(state.input.unitType || "design") as "service" | "personal_project" | "inquiry"}
             value={state.input.curriculumContext || ""}
-            onChange={(e) => dispatch({ type: "SET_INPUT", key: "curriculumContext", value: e.target.value })}
-            placeholder="Curriculum context (optional) — e.g. IB MYP Community Project, PYP Exhibition Grade 5, GCSE D&T..."
-            className="w-full px-4 py-2.5 border border-border rounded-xl text-sm focus:outline-none focus:border-brand-purple/50 focus:ring-2 focus:ring-brand-purple/10 placeholder:text-text-secondary/40"
+            onChange={(v) => dispatch({ type: "SET_INPUT", key: "curriculumContext", value: v })}
           />
           <p className="text-[11px] text-text-secondary mt-1 ml-1">
             Helps the AI adapt vocabulary and assessment expectations to your specific curriculum.
