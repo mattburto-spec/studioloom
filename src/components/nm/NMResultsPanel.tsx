@@ -313,7 +313,7 @@ export function NMResultsPanel({ unitId, classId }: NMResultsPanelProps) {
                     borderRight: v === "students" ? `2px solid ${POP.black}` : "none",
                   }}
                 >
-                  {v === "students" ? "👤 By Student" : "📊 By Element"}
+                  {v === "students" ? "📋 Checkpoints" : "📊 By Element"}
                 </button>
               ))}
             </div>
@@ -387,10 +387,10 @@ export function NMResultsPanel({ unitId, classId }: NMResultsPanelProps) {
                                     <th style={{ padding: "8px 10px", textAlign: "left", fontWeight: 800, fontFamily: "'Arial Black', sans-serif", fontSize: "11px", color: POP.black }}>
                                       Lesson
                                     </th>
-                                    <th style={{ padding: "8px 10px", textAlign: "center", fontWeight: 800, fontFamily: "'Arial Black', sans-serif", fontSize: "11px", color: POP.black }}>
+                                    <th style={{ padding: "10px 10px", textAlign: "center", fontWeight: 800, fontFamily: "'Arial Black', sans-serif", fontSize: "14px", color: POP.black, background: "#e0f7fa" }}>
                                       Student Self
                                     </th>
-                                    <th style={{ padding: "8px 10px", textAlign: "center", fontWeight: 800, fontFamily: "'Arial Black', sans-serif", fontSize: "11px", color: POP.purple }}>
+                                    <th style={{ padding: "10px 10px", textAlign: "center", fontWeight: 800, fontFamily: "'Arial Black', sans-serif", fontSize: "14px", color: POP.purple, background: "#f3e5f5" }}>
                                       Teacher Obs
                                     </th>
                                   </tr>
@@ -411,7 +411,7 @@ export function NMResultsPanel({ unitId, classId }: NMResultsPanelProps) {
                                         </td>
 
                                         {/* Student self column */}
-                                        <td style={{ padding: "10px", verticalAlign: "top" }}>
+                                        <td style={{ padding: "10px", verticalAlign: "top", background: "#f0fafb" }}>
                                           <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", justifyContent: "center", marginBottom: cp.selfComment ? "6px" : "0" }}>
                                             {elements.map(elemId => {
                                               const selfRating = cp.selfRatings[elemId];
@@ -435,7 +435,7 @@ export function NMResultsPanel({ unitId, classId }: NMResultsPanelProps) {
                                         </td>
 
                                         {/* Teacher observation column */}
-                                        <td style={{ padding: "10px", verticalAlign: "top" }}>
+                                        <td style={{ padding: "10px", verticalAlign: "top", background: "#faf0fc" }}>
                                           <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", justifyContent: "center", marginBottom: cp.teacherComment ? "6px" : "0" }}>
                                             {elements.map(elemId => {
                                               const teacherRating = cp.teacherRatings[elemId];
