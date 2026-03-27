@@ -326,22 +326,22 @@ Supports `"design" | "service" | "personal_project" | "inquiry"` with per-type A
 - All `CRITERIA[criterion]` references in prompts.ts replaced with dynamic `getCriterion(criterion, unitType)`
 - TypeScript compilation clean (0 errors in modified files)
 
-**Phase 1: Gateway — Wizard + Converter (next, ~3-4 days)**
-- Conditional wizard fields per unit type (Service: community context, SDGs; PP: ATL skills focus; Inquiry: central idea, lines of inquiry)
-- Framework selector as Step 3 (visual cards, adapts per unit type)
-- Unit type auto-detection from topic text in Express lane
-- Curriculum context free-text wired into converter
-- Service Learning keyword suggestions in keyword buckets
+**Phase 1+2: Gateway + AI Brain — ✅ COMPLETE (27 March 2026)**
+- Conditional wizard fields per unit type: `GuidedConversation.tsx` rewritten with `buildTurns(unitType)` returning type-specific turn sequences (Design 7, Service 7, PP 6, Inquiry 6)
+- New wizard fields: communityContext, sdgConnection, serviceOutcomes, partnerType (Service); personalInterest, goalType, presentationFormat (PP); centralIdea, transdisciplinaryTheme, linesOfInquiry (Inquiry)
+- `SummaryRail.tsx` shows type-appropriate labels; `useWizardState.ts` has 10 new fields with reset on type change
+- New constants: `SERVICE_COMMUNITY_CONTEXTS`, `SERVICE_SDG_OPTIONS`, `SERVICE_OUTCOMES`, `SERVICE_PARTNER_TYPES`, `PP_GOAL_TYPES`, `PP_PRESENTATION_FORMATS`, `INQUIRY_THEMES`
+- `buildTeachingContext(unitType)` replaces `buildDesignTeachingContext()` — 4 type-specific teaching principle sets (12 Design, 10 Service, 8 PP, 7 Inquiry)
+- `buildTypeSpecificContext(input)` extracts non-null type-specific fields into prompt blocks
+- `buildTimingBlock()` accepts optional `unitType` with dynamic work time floors (Design 45%, Service 30%, PP 40%, Inquiry 35%)
+- `schemas.ts`: `getActivityPhaseEnum(unitType)` + dynamic schema builders for page content, lesson content, extensions per type
+- `anthropic.ts` + `types.ts` (AIProvider interface): `unitType` param on all generation methods
+- All generation routes updated: generate-unit, generate-journey, regenerate-page, generate-outlines, wizard-suggest, wizard-autoconfig, ai-field
+- Dynamic criteria via `getCriteriaForType(unitType)` throughout wizard + generation
+- TypeScript compilation clean (0 errors in modified files)
+- **Remaining from original Phase 1 plan:** Framework selector as Step 3, unit type auto-detection from topic text (Express lane), Service Learning keyword suggestions — deferred to Phase 3 (wizard lanes)
 
-**Phase 2: AI Brain — Generation Prompts (~4-5 days)**
-- Service Learning Teaching Corpus (parallel to Design Teaching Corpus, 10+ principles from IPARD/NYLC research)
-- Personal Project + Inquiry Teaching Corpus stubs (in architecture spec Appendix A)
-- Parameterize `buildTimingBlock(unitType)` — Service: 30-40% action time (vs Design's 45%+ work time)
-- Parameterize `validateLessonTiming(unitType)` — per-type timing rules
-- Make `designPhase` → `activityPhase` with type-specific enum in schemas
-- Wire unit type through all 4 generation routes + regenerate-page
-
-**Phase 3: Wizard Lanes — Express/Guided/Architect (~3-4 days)**
+**Phase 3: Wizard Lanes + Remaining Gateway (~3-4 days)**
 - 3-lane selector UI at top of wizard (see `docs/specs/wizard-lanes-spec.md`)
 - Express: 3 clicks (AI auto-infers everything from topic text)
 - Guided: 5-7 steps (current wizard flow, enhanced with type-aware questions)
