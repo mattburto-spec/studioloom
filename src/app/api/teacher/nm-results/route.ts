@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyTeacherHasUnit, getNmConfigForClassUnit } from "@/lib/auth/verify-teacher-unit";
+import { resolveClassUnitContent } from "@/lib/units/resolve-content";
+import { normalizeContentData } from "@/lib/unit-adapter";
 
 /**
  * Teacher NM Results API
@@ -45,16 +47,9 @@ export async function GET(request: NextRequest) {
 
   const db = createAdminClient();
 
-  // Check global NM toggle (stored in teacher_profiles, not teachers)
-  const { data: teacherProfile } = await db
-    .from("teacher_profiles")
-    .select("school_context")
-    .eq("teacher_id", user.id)
-    .single();
-  const globalNmEnabled = !!(teacherProfile?.school_context as { use_new_metrics?: boolean } | null)?.use_new_metrics;
-  if (!globalNmEnabled) {
-    return NextResponse.json({ students: [], assessments: [], nmConfig: null });
-  }
+  // Note: The per-class NM config with enabled=true is sufficient intent.
+  // The global use_new_metrics toggle in teacher settings is NOT required here —
+  // if a teacher configured NM checkpoints on a class-unit, that's explicit enough.
 
   // Get NM config — class-specific with fallback to unit-level
   let nmConfig = null;
@@ -67,6 +62,29 @@ export async function GET(request: NextRequest) {
       .eq("id", unitId)
       .single();
     nmConfig = unit?.nm_config || null;
+  }
+
+  // Build page name mapping from unit content
+  const pageNames: Record<string, string> = {};
+  try {
+    const { data: unitRow } = await db.from("units").select("content_data").eq("id", unitId).single();
+    let contentData = unitRow?.content_data;
+    if (classId) {
+      const { data: cuRow } = await db.from("class_units").select("content_data").eq("class_id", classId).eq("unit_id", unitId).maybeSingle();
+      contentData = resolveClassUnitContent(contentData, cuRow?.content_data);
+    }
+    if (contentData) {
+      const normalized = normalizeContentData(contentData);
+      if (normalized?.pages) {
+        for (const page of normalized.pages) {
+          if (page.id && page.title) {
+            pageNames[page.id] = page.title;
+          }
+        }
+      }
+    }
+  } catch {
+    // Non-critical — results still work without page names
   }
 
   // Build assessment query
@@ -129,6 +147,7 @@ export async function GET(request: NextRequest) {
       assessments: assessments || [],
       students,
       nmConfig,
+      pageNames,
     });
   }
 

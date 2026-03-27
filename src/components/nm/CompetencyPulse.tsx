@@ -66,12 +66,12 @@ export function CompetencyPulse({
         body: JSON.stringify({
           pageId,
           unitId,
-          assessments: elements.map((e) => ({
+          assessments: elements.map((e, i) => ({
             element: e.id,
             rating: ratings[e.id],
-            comment: null,
+            // Attach reflection text to the first element's comment
+            comment: i === 0 && reflection.trim() ? reflection.trim() : null,
           })),
-          reflection: reflection || null,
         }),
       });
       if (res.ok) {
