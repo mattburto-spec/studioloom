@@ -128,7 +128,7 @@ export default function StudentDashboard() {
       const res = await fetch("/api/student/gallery/rounds");
       if (res.ok) {
         const data = await res.json();
-        setGalleryRounds(data.rounds || []);
+        setGalleryRounds(Array.isArray(data) ? data : data.rounds || []);
       }
     } catch { /* silent */ }
   }, []);
@@ -175,6 +175,15 @@ export default function StudentDashboard() {
     // Intake survey is triggered by the glowing banner on the dashboard — no auto-pop
     loadGalleryRounds();
   }, [student, loadPortfolio, loadToolSessions, loadOpenStudioStatus, loadPendingBadges, loadGalleryRounds, loadNextClass]);
+
+  // Scroll to #gallery hash after gallery rounds load
+  useEffect(() => {
+    if (galleryRounds.length > 0 && window.location.hash === "#gallery") {
+      setTimeout(() => {
+        document.getElementById("gallery")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 100);
+    }
+  }, [galleryRounds]);
 
   // === Helpers ===
 
@@ -615,7 +624,7 @@ export default function StudentDashboard() {
 
             {/* ============ Active Gallery Rounds ============ */}
             {galleryRounds.length > 0 && (
-              <div className="mt-5">
+              <div id="gallery" className="mt-5 scroll-mt-24">
                 <h2 className="text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7B2FF2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
