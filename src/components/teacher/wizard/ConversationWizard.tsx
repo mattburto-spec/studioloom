@@ -6,6 +6,7 @@ import type { WizardState, WizardDispatch, WizardMode } from "@/hooks/useWizardS
 import type { Suggestions, SuggestionStatus } from "@/hooks/useWizardSuggestions";
 import { GoalInput } from "./GoalInput";
 import { GuidedConversation } from "./GuidedConversation";
+import { ArchitectForm } from "./ArchitectForm";
 import { ApproachPicker } from "./ApproachPicker";
 import { GenerationProgress } from "./GenerationProgress";
 import { PageCarousel } from "./PageCarousel";
@@ -121,6 +122,9 @@ export function ConversationWizard({
           error: err instanceof Error ? err.message : "Something went wrong",
         });
       }
+    } else if (mode === "architect") {
+      // Architect: enter the architect form
+      dispatch({ type: "SET_PHASE", phase: "architect" });
     } else {
       // Guide Me: enter guided conversation
       dispatch({ type: "SET_PHASE", phase: "guided" });
@@ -167,8 +171,8 @@ export function ConversationWizard({
     Promise.resolve().then(() => dispatch({ type: "SET_PHASE", phase: "review" }));
   }
 
-  // Auto-generate outlines when guided flow completes and reaches approaches phase
-  if (phase === "approaches" && state.outlineStatus === "idle" && state.mode === "guide-me") {
+  // Auto-generate outlines when guided or architect flow completes and reaches approaches phase
+  if (phase === "approaches" && state.outlineStatus === "idle" && (state.mode === "guide-me" || state.mode === "architect")) {
     Promise.resolve().then(() => onGenerateOutlines());
   }
 
@@ -196,6 +200,18 @@ export function ConversationWizard({
           dispatch={dispatch}
           suggestions={suggestions}
           suggestionStatus={suggestionStatus}
+        />
+      )}
+
+      {/* Phase: Architect Form */}
+      {phase === "architect" && (
+        <ArchitectForm
+          state={state}
+          dispatch={dispatch}
+          onGenerate={() => {
+            dispatch({ type: "SET_PHASE", phase: "approaches" });
+            onGenerateOutlines();
+          }}
         />
       )}
 

@@ -17,8 +17,8 @@ export type GenerationStatus = "idle" | "generating" | "done" | "error";
 
 // --- Conversational wizard types ---
 
-export type WizardPhase = "goal" | "configure" | "guided" | "approaches" | "skeleton" | "generating" | "review";
-export type WizardMode = "undecided" | "build-for-me" | "guide-me";
+export type WizardPhase = "goal" | "configure" | "guided" | "architect" | "approaches" | "skeleton" | "generating" | "review";
+export type WizardMode = "undecided" | "build-for-me" | "guide-me" | "architect";
 
 export type KeywordCategory = "skill" | "context" | "topic" | "concept" | "activity" | "groupwork" | "tool" | "resource";
 

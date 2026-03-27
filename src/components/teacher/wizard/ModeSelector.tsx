@@ -1,50 +1,83 @@
 "use client";
 
 import Link from "next/link";
-import type { WizardDispatch, WizardMode } from "@/hooks/useWizardState";
+import type { WizardMode } from "@/hooks/useWizardState";
 
 interface Props {
-  dispatch: WizardDispatch;
   onSelectMode: (mode: WizardMode) => void;
 }
 
+/**
+ * LaneSelector - Choose between 3 wizard lanes
+ * Exported as ModeSelector for backward compatibility with imports
+ */
 export function ModeSelector({ onSelectMode }: Props) {
   return (
-    <div className="animate-slide-up max-w-lg mx-auto" style={{ animationDelay: "100ms" }}>
-      <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+    <div className="animate-slide-up max-w-4xl mx-auto" style={{ animationDelay: "100ms" }}>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {/* Express Lane */}
         <button
           onClick={() => onSelectMode("build-for-me")}
-          className="group w-full sm:w-auto flex-1 flex items-center gap-3 px-6 py-4 rounded-2xl bg-brand-purple text-white hover:bg-brand-violet transition-all duration-200 shadow-lg shadow-brand-purple/20 hover:shadow-xl hover:shadow-brand-purple/30 hover:scale-[1.02]"
+          className="group relative flex flex-col items-start p-6 rounded-2xl bg-brand-purple text-white hover:bg-brand-violet transition-all duration-200 shadow-lg shadow-brand-purple/20 hover:shadow-xl hover:shadow-brand-purple/30 hover:scale-[1.02]"
         >
-          <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-            </svg>
+          <div className="mb-4">
+            <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
+              {/* Lightning bolt icon */}
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+              </svg>
+            </div>
           </div>
-          <div className="text-left">
-            <div className="text-sm font-bold">Build it for me</div>
-            <div className="text-xs text-white/70">AI fills in the details</div>
+          <div className="text-left flex-1">
+            <div className="text-lg font-bold mb-1">Express</div>
+            <div className="text-sm text-white/80 mb-3">Just build it</div>
+            <div className="text-xs text-white/70">3 clicks — AI makes all decisions</div>
           </div>
         </button>
 
+        {/* Guided Lane */}
         <button
           onClick={() => onSelectMode("guide-me")}
-          className="group w-full sm:w-auto flex-1 flex items-center gap-3 px-6 py-4 rounded-2xl border-2 border-border bg-white text-text-primary hover:border-brand-purple/30 hover:bg-brand-purple/5 transition-all duration-200 hover:scale-[1.02]"
+          className="group relative flex flex-col items-start p-6 rounded-2xl border-2 border-border bg-white text-text-primary hover:border-brand-purple/30 hover:bg-brand-purple/5 transition-all duration-200 hover:scale-[1.02]"
         >
-          <div className="w-10 h-10 rounded-xl bg-brand-purple/10 flex items-center justify-center flex-shrink-0">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7B2FF2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
-            </svg>
+          <div className="mb-4">
+            <div className="w-12 h-12 rounded-xl bg-brand-purple/10 flex items-center justify-center">
+              {/* Chat bubble icon */}
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#7B2FF2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+              </svg>
+            </div>
           </div>
-          <div className="text-left">
-            <div className="text-sm font-bold">Guide me through it</div>
+          <div className="text-left flex-1">
+            <div className="text-lg font-bold mb-1">Guided</div>
+            <div className="text-sm text-text-primary mb-3">Walk me through it</div>
             <div className="text-xs text-text-secondary">Step-by-step with AI help</div>
+          </div>
+        </button>
+
+        {/* Architect Lane */}
+        <button
+          onClick={() => onSelectMode("architect" as WizardMode)}
+          className="group relative flex flex-col items-start p-6 rounded-2xl border-2 border-border bg-white text-text-primary hover:border-brand-purple/30 hover:bg-brand-purple/5 transition-all duration-200 hover:scale-[1.02]"
+        >
+          <div className="mb-4">
+            <div className="w-12 h-12 rounded-xl bg-brand-purple/10 flex items-center justify-center">
+              {/* Wrench icon */}
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#7B2FF2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 1 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+              </svg>
+            </div>
+          </div>
+          <div className="text-left flex-1">
+            <div className="text-lg font-bold mb-1">Architect</div>
+            <div className="text-sm text-text-primary mb-3">Full control</div>
+            <div className="text-xs text-text-secondary">Every field visible, power users</div>
           </div>
         </button>
       </div>
 
       {/* Import existing option */}
-      <div className="mt-4 text-center">
+      <div className="mt-6 text-center">
         <Link
           href="/teacher/units/import"
           className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-dashed border-gray-300 text-sm text-text-secondary hover:border-purple-300 hover:text-purple-600 hover:bg-purple-50/30 transition-all"
