@@ -380,8 +380,13 @@ export function NMResultsPanel({ unitId, classId }: NMResultsPanelProps) {
                             <div style={{ overflowX: "auto" }}>
                               <table style={{
                                 width: "100%", borderCollapse: "collapse",
-                                fontSize: "12px",
+                                fontSize: "12px", tableLayout: "fixed",
                               }}>
+                                <colgroup>
+                                  <col style={{ width: "30%" }} />
+                                  <col style={{ width: "35%" }} />
+                                  <col style={{ width: "35%" }} />
+                                </colgroup>
                                 <thead>
                                   <tr style={{ borderBottom: `2px solid ${POP.black}`, background: POP.cream }}>
                                     <th style={{ padding: "8px 10px", textAlign: "left", fontWeight: 800, fontFamily: "'Arial Black', sans-serif", fontSize: "11px", color: POP.black }}>
@@ -401,8 +406,8 @@ export function NMResultsPanel({ unitId, classId }: NMResultsPanelProps) {
                                     .map(([pid, cp]) => (
                                       <tr key={pid} style={{ borderBottom: `1px solid #e5e7eb` }}>
                                         {/* Lesson column */}
-                                        <td style={{ padding: "10px", verticalAlign: "top", minWidth: "140px" }}>
-                                          <div style={{ fontWeight: 700, color: POP.black, marginBottom: "2px" }}>
+                                        <td style={{ padding: "10px", verticalAlign: "top" }} title={pageNames[pid] || "Checkpoint"}>
+                                          <div style={{ fontWeight: 700, color: POP.black, marginBottom: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                             📍 {pageNames[pid] || "Checkpoint"}
                                           </div>
                                           <div style={{ fontSize: "11px", color: "#888" }}>
