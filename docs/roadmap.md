@@ -341,13 +341,14 @@ Supports `"design" | "service" | "personal_project" | "inquiry"` with per-type A
 - TypeScript compilation clean (0 errors in modified files)
 - **Remaining from original Phase 1 plan:** Framework selector as Step 3, unit type auto-detection from topic text (Express lane), Service Learning keyword suggestions — deferred to Phase 3 (wizard lanes)
 
-**Phase 3: Wizard Lanes + Remaining Gateway (~3-4 days)**
-- 3-lane selector UI at top of wizard (see `docs/specs/wizard-lanes-spec.md`)
-- Express: 3 clicks (AI auto-infers everything from topic text)
-- Guided: 5-7 steps (current wizard flow, enhanced with type-aware questions)
-- Architect: single scrollable form with all fields visible
-- Lane switching mid-flow with answer carryover
-- Framework memory (remembers teacher's preference after first unit)
+**Phase 3: Wizard Lanes + Remaining Gateway — ✅ CORE COMPLETE (27 March 2026)**
+- 3-lane selector UI: `ModeSelector.tsx` rewritten as 3-card selector (Express ⚡ / Guided 💬 / Architect 🔧)
+- `ArchitectForm.tsx` created (~598 lines): single scrollable form with 5 sections (Unit Identity, MYP Framework, Type-Specific Fields, Duration & Grade, Criteria Emphasis). Shows/hides fields based on unitType.
+- `WizardMode` extended with `"architect"`, `WizardPhase` extended with `"architect"` phase
+- `ConversationWizard.tsx` routes architect mode → ArchitectForm → approach selection → generation
+- Express lane uses existing auto-config flow (topic text → AI infers all settings)
+- Guided lane uses type-aware conversational flow from Phase 1+2
+- **Remaining:** Lane switching mid-flow with answer carryover, framework memory (remembers teacher's preference), unit type auto-detection from topic text (Express lane), Service Learning keyword suggestions
 
 **Phase 4+: Editor + Assessment, Knowledge Base + Standards, Design Assistant + Discovery** — see architecture spec for full details
 
