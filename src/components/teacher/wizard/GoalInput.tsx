@@ -357,33 +357,39 @@ export function GoalInput({ state, dispatch, onSelectMode }: Props) {
           )}
         </div>
 
-        {/* ── Lane Selector — the primary next step after topic entry ── */}
-        {showConfig && onSelectMode && (
-          <div className="mt-8 animate-slide-up">
+        {/* ── Lane Selector — always visible, dims when topic too short ── */}
+        {onSelectMode && (
+          <div className={`mt-8 transition-opacity duration-300 ${showConfig ? "opacity-100" : "opacity-40 pointer-events-none"}`}>
             <div className="text-center mb-4">
-              <h2 className="text-lg font-bold text-text-primary">How do you want to build this?</h2>
-              <p className="text-xs text-text-secondary mt-1">Choose your level of control</p>
+              <h2 className="text-lg font-bold text-text-primary">
+                {showConfig ? "How do you want to build this?" : "Next: choose your approach"}
+              </h2>
+              <p className="text-xs text-text-secondary mt-1">
+                {showConfig ? "Choose your level of control" : "Describe your topic above to unlock"}
+              </p>
             </div>
             <ModeSelector onSelectMode={handleSelectMode} lastUsed={lastUsedLane} />
 
             {/* Subtle link to switch journey/criterion mode */}
-            <div className="mt-3 text-center">
-              {state.journeyMode ? (
-                <button
-                  onClick={() => dispatch({ type: "SET_JOURNEY_MODE", enabled: false })}
-                  className="text-[11px] text-text-secondary/50 hover:text-text-secondary transition-colors"
-                >
-                  Using a different structure? Switch to Design Cycle →
-                </button>
-              ) : (
-                <button
-                  onClick={() => dispatch({ type: "SET_JOURNEY_MODE", enabled: true })}
-                  className="text-[11px] text-text-secondary/50 hover:text-text-secondary transition-colors"
-                >
-                  ← Switch back to Learning Journey
-                </button>
-              )}
-            </div>
+            {showConfig && (
+              <div className="mt-3 text-center">
+                {state.journeyMode ? (
+                  <button
+                    onClick={() => dispatch({ type: "SET_JOURNEY_MODE", enabled: false })}
+                    className="text-[11px] text-text-secondary/50 hover:text-text-secondary transition-colors"
+                  >
+                    Using a different structure? Switch to Design Cycle →
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => dispatch({ type: "SET_JOURNEY_MODE", enabled: true })}
+                    className="text-[11px] text-text-secondary/50 hover:text-text-secondary transition-colors"
+                  >
+                    ← Switch back to Learning Journey
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         )}
 
