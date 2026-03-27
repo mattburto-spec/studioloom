@@ -335,7 +335,7 @@ export function StudioSetup({ studentName, onComplete }: StudioSetupProps) {
                   <div
                     className="rounded-xl px-3 py-2.5 text-sm italic leading-relaxed"
                     style={{
-                      background: isSelected ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.04)",
+                      background: isSelected ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.08)",
                       color: isSelected ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.5)",
                     }}
                   >
@@ -543,7 +543,7 @@ export function StudioSetup({ studentName, onComplete }: StudioSetupProps) {
                     }
                   }}
                   placeholder="Other language..."
-                  className="flex-1 rounded-xl px-3 py-2 text-sm bg-white/5 border border-white/10 text-white placeholder:text-white/30 focus:outline-none focus:border-white/20"
+                  className="flex-1 rounded-xl px-3 py-2 text-sm bg-white/10 border border-white/15 text-white placeholder:text-white/40 focus:outline-none focus:border-white/30"
                 />
               </div>
               <div className="flex justify-end mt-4">
@@ -575,13 +575,13 @@ export function StudioSetup({ studentName, onComplete }: StudioSetupProps) {
                     onClick={() => reactToConfidence(level.value)}
                     className="flex flex-col items-center gap-1 rounded-xl py-3 transition-all duration-300"
                     style={{
-                      background: designConfidence === level.value ? `${mentor.accent}20` : "rgba(255,255,255,0.04)",
-                      border: designConfidence === level.value ? `2px solid ${mentor.accent}` : "2px solid rgba(255,255,255,0.06)",
+                      background: designConfidence === level.value ? `${mentor.accent}20` : "rgba(255,255,255,0.08)",
+                      border: designConfidence === level.value ? `2px solid ${mentor.accent}` : "2px solid rgba(255,255,255,0.12)",
                       transform: designConfidence === level.value ? "scale(1.05)" : "scale(1)",
                     }}
                   >
                     <span className="text-2xl">{level.emoji}</span>
-                    <span className="text-[9px] text-white/50 text-center leading-tight">{level.label}</span>
+                    <span className="text-[10px] text-white/70 text-center leading-tight">{level.label}</span>
                   </button>
                 ))}
               </div>
@@ -601,14 +601,14 @@ export function StudioSetup({ studentName, onComplete }: StudioSetupProps) {
                     onClick={() => reactToWorkingStyle(opt.id)}
                     className="flex flex-col items-center gap-1.5 rounded-xl py-4 transition-all duration-300"
                     style={{
-                      background: workingStyle === opt.id ? `${mentor.accent}20` : "rgba(255,255,255,0.04)",
-                      border: workingStyle === opt.id ? `2px solid ${mentor.accent}` : "2px solid rgba(255,255,255,0.06)",
+                      background: workingStyle === opt.id ? `${mentor.accent}20` : "rgba(255,255,255,0.08)",
+                      border: workingStyle === opt.id ? `2px solid ${mentor.accent}` : "2px solid rgba(255,255,255,0.12)",
                       transform: workingStyle === opt.id ? "scale(1.04)" : "scale(1)",
                     }}
                   >
                     <span className="text-2xl">{opt.emoji}</span>
                     <span className="text-sm font-semibold text-white">{opt.label}</span>
-                    <span className="text-[10px] text-white/40">{opt.desc}</span>
+                    <span className="text-[10px] text-white/60">{opt.desc}</span>
                   </button>
                 ))}
               </div>
@@ -627,14 +627,14 @@ export function StudioSetup({ studentName, onComplete }: StudioSetupProps) {
                     onClick={() => reactToFeedback(opt.id)}
                     className="flex flex-col items-center gap-1.5 rounded-xl py-4 px-3 transition-all duration-300"
                     style={{
-                      background: feedbackPref === opt.id ? `${mentor.accent}20` : "rgba(255,255,255,0.04)",
-                      border: feedbackPref === opt.id ? `2px solid ${mentor.accent}` : "2px solid rgba(255,255,255,0.06)",
+                      background: feedbackPref === opt.id ? `${mentor.accent}20` : "rgba(255,255,255,0.08)",
+                      border: feedbackPref === opt.id ? `2px solid ${mentor.accent}` : "2px solid rgba(255,255,255,0.12)",
                       transform: feedbackPref === opt.id ? "scale(1.04)" : "scale(1)",
                     }}
                   >
                     <span className="text-2xl">{opt.emoji}</span>
                     <span className="text-sm font-semibold text-white">{opt.label}</span>
-                    <span className="text-[10px] text-white/40 text-center">{opt.desc}</span>
+                    <span className="text-[10px] text-white/60 text-center">{opt.desc}</span>
                   </button>
                 ))}
               </div>
@@ -762,9 +762,9 @@ export function StudioSetup({ studentName, onComplete }: StudioSetupProps) {
 
 function ConvoCard({ title, hint, children }: { title: string; hint: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl p-5 animate-fadeIn" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+    <div className="rounded-2xl p-5 animate-fadeIn" style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)" }}>
       <h2 className="text-lg font-bold text-white mb-1">{title}</h2>
-      <p className="text-xs text-white/40 mb-4">{hint}</p>
+      <p className="text-xs text-white/50 mb-4">{hint}</p>
       {children}
     </div>
   );
@@ -784,11 +784,11 @@ function PillButton({
   return (
     <button
       onClick={onClick}
-      className="px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200"
+      className="px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200"
       style={{
-        background: selected ? `${accent}20` : "rgba(255,255,255,0.04)",
-        border: selected ? `1.5px solid ${accent}` : "1.5px solid rgba(255,255,255,0.08)",
-        color: selected ? "white" : "rgba(255,255,255,0.5)",
+        background: selected ? `${accent}25` : "rgba(255,255,255,0.08)",
+        border: selected ? `1.5px solid ${accent}` : "1.5px solid rgba(255,255,255,0.15)",
+        color: selected ? "white" : "rgba(255,255,255,0.75)",
       }}
     >
       {label}
