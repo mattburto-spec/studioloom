@@ -249,6 +249,44 @@ function formatStuckTime(hours: number): string {
 // Class color palette + gradients
 import { CLASS_COLORS, getClassColor, getClassGradient } from "@/lib/ui/class-colors";
 
+// ── Unit type badge config ──
+const UNIT_TYPE_CONFIG: Record<string, { label: string; bg: string; text: string }> = {
+  design:  { label: "DESIGN",  bg: "#0D9488", text: "#fff" },   // teal
+  service: { label: "SERVICE", bg: "#EC4899", text: "#fff" },   // pink
+  pp:      { label: "PERSONAL PROJECT", bg: "#8B5CF6", text: "#fff" },   // purple
+  inquiry: { label: "INQUIRY", bg: "#F59E0B", text: "#fff" },   // amber
+};
+function getUnitTypeBadge(unitType?: string) {
+  if (!unitType) return UNIT_TYPE_CONFIG.design; // default to design
+  return UNIT_TYPE_CONFIG[unitType.toLowerCase()] || UNIT_TYPE_CONFIG.design;
+}
+
+// ── Deterministic photo for unit cards ──
+// Curated Unsplash photo IDs — real, stable URLs (free to use)
+const UNIT_PHOTOS = [
+  "https://images.unsplash.com/photo-1581783898377-1c85bf937427?w=400&h=300&fit=crop", // workshop tools
+  "https://images.unsplash.com/photo-1504917595217-d4dc5ede4c48?w=400&h=300&fit=crop", // 3d printing
+  "https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=400&h=300&fit=crop", // design sketching
+  "https://images.unsplash.com/photo-1572981779307-38b8cabb2407?w=400&h=300&fit=crop", // woodworking
+  "https://images.unsplash.com/photo-1581092160562-40aa08e78837?w=400&h=300&fit=crop", // robotics
+  "https://images.unsplash.com/photo-1565034946487-077786996e27?w=400&h=300&fit=crop", // maker space
+  "https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=400&h=300&fit=crop", // art studio
+  "https://images.unsplash.com/photo-1503387762-592deb58ef4e?w=400&h=300&fit=crop", // architecture
+  "https://images.unsplash.com/photo-1452587925148-ce544e77e70d?w=400&h=300&fit=crop", // photography
+  "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=400&h=300&fit=crop", // laptop design
+  "https://images.unsplash.com/photo-1544717305-2782549b5136?w=400&h=300&fit=crop", // students
+  "https://images.unsplash.com/photo-1577896851231-70ef18881754?w=400&h=300&fit=crop", // classroom
+  "https://images.unsplash.com/photo-1531482615713-2afd69097998?w=400&h=300&fit=crop", // teamwork
+  "https://images.unsplash.com/photo-1563013544-824ae1b704d3?w=400&h=300&fit=crop", // prototyping
+  "https://images.unsplash.com/photo-1581092918056-0c4c3acd3789?w=400&h=300&fit=crop", // electronics
+  "https://images.unsplash.com/photo-1541462608143-67571c6738dd?w=400&h=300&fit=crop", // creative process
+];
+function getUnitPhotoUrl(title: string): string {
+  let hash = 0;
+  for (let i = 0; i < title.length; i++) hash = ((hash << 5) - hash + title.charCodeAt(i)) | 0;
+  return UNIT_PHOTOS[Math.abs(hash) % UNIT_PHOTOS.length];
+}
+
 interface ScheduleEntry {
   date: string;
   cycleDay: number;
@@ -284,6 +322,7 @@ function TwoColumnDashboard({
     isForked: boolean;
     completedCount: number; notStartedCount: number;
     classIdx: number;
+    unitType?: string;
   }> = [];
   const seen = new Set<string>();
   for (const cls of data.classes) {
@@ -302,6 +341,7 @@ function TwoColumnDashboard({
           isForked: u.isForked ?? false,
           completedCount: u.completedCount, notStartedCount: u.notStartedCount,
           classIdx: classIndexMap.get(cls.id) ?? 0,
+          unitType: u.unitType,
         });
       }
     }
@@ -472,79 +512,91 @@ function TwoColumnDashboard({
         ) : (
           classCards.map((u) => {
             const c = getClassColor(u.classIdx);
+            const typeBadge = getUnitTypeBadge(u.unitType);
+            const photoUrl = getUnitPhotoUrl(u.unitTitle);
             return (
               <div
                 key={`card-${u.unitId}-${u.classId}`}
                 className="bg-white rounded-2xl border border-gray-200 overflow-hidden hover:shadow-lg transition-all duration-200"
               >
                 <div className="flex items-stretch">
-                  {/* Class identity panel — clickable, links to Class Hub */}
+                  {/* Photo panel with unit type overlay */}
                   <Link
                     href={`/teacher/units/${u.unitId}/class/${u.classId}`}
-                    className="w-44 shrink-0 flex flex-col items-center justify-center py-6 text-white relative overflow-hidden hover:opacity-90 transition-opacity"
-                    style={{ background: getClassGradient(u.classIdx) }}
+                    className="w-48 shrink-0 relative overflow-hidden group"
+                    style={{ minHeight: "140px" }}
                   >
-                    {/* Decorative circles */}
-                    <div className="absolute -top-6 -left-6 w-24 h-24 rounded-full opacity-10" style={{ background: "#fff" }} />
-                    <div className="absolute -bottom-4 -right-4 w-20 h-20 rounded-full opacity-10" style={{ background: "#fff" }} />
-                    <div className="absolute top-3 right-3 w-8 h-8 rounded-full opacity-5" style={{ background: "#fff" }} />
-                    <p className="text-lg font-extrabold leading-tight text-center px-3 relative z-10 drop-shadow-sm">{u.className}</p>
-                    <p className="text-xs opacity-75 mt-1.5 relative z-10 font-medium">{u.studentCount} student{u.studentCount !== 1 ? "s" : ""}</p>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={photoUrl}
+                      alt=""
+                      className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      loading="lazy"
+                    />
+                    {/* Dark gradient overlay for readability */}
+                    <div className="absolute inset-0" style={{ background: "linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.1) 50%, rgba(0,0,0,0.25) 100%)" }} />
+                    {/* Unit type badge — top left */}
+                    <span
+                      className="absolute top-2.5 left-2.5 text-[10px] font-black tracking-wider px-2 py-0.5 rounded"
+                      style={{ background: typeBadge.bg, color: typeBadge.text, letterSpacing: "0.05em" }}
+                    >
+                      {typeBadge.label}
+                    </span>
+                    {/* Student count — bottom left */}
+                    <span className="absolute bottom-2.5 left-2.5 text-[11px] font-semibold text-white/80 z-10">
+                      {u.studentCount} student{u.studentCount !== 1 ? "s" : ""}
+                    </span>
                   </Link>
 
-                  <div className="flex-1 px-5 py-4 flex flex-col">
-                    {/* Unit title — bigger and bolder */}
+                  <div className="flex-1 px-5 py-4 flex flex-col min-w-0">
+                    {/* Class name + unit title */}
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <Link href={`/teacher/units/${u.unitId}/class/${u.classId}`} className="text-xl font-extrabold text-text-primary leading-snug tracking-tight hover:text-purple-700 transition">
+                        {/* Class name — colored, above unit title */}
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-sm font-bold" style={{ color: c.fill }}>
+                            {u.className}
+                          </span>
+                        </div>
+                        {/* Unit title */}
+                        <Link href={`/teacher/units/${u.unitId}/class/${u.classId}`} className="text-lg font-extrabold text-text-primary leading-snug tracking-tight hover:text-purple-700 transition block">
                           {u.unitTitle}
                         </Link>
-                        {/* Status badges */}
-                        {u.isForked && (
-                          <div className="mt-2">
-                            <span className="inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
-                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="18" r="3" /><circle cx="6" cy="6" r="3" /><circle cx="18" cy="6" r="3" /><path d="M18 9v1a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V9" /><path d="M12 12v3" /></svg>
-                              Customized
-                            </span>
-                          </div>
-                        )}
                       </div>
 
                       {/* Progress ring */}
-                      <div className="relative w-14 h-14 flex-shrink-0">
-                        <svg viewBox="0 0 36 36" className="w-14 h-14 -rotate-90">
-                          <circle cx="18" cy="18" r="15" fill="none" stroke="#f3f4f6" strokeWidth="2.5" />
-                          <circle cx="18" cy="18" r="15" fill="none" strokeWidth="2.5" stroke={c.fill} strokeDasharray={`${u.completionPct * 0.942} 94.2`} strokeLinecap="round" />
+                      <div className="relative w-12 h-12 flex-shrink-0 mt-1">
+                        <svg viewBox="0 0 36 36" className="w-12 h-12 -rotate-90">
+                          <circle cx="18" cy="18" r="15" fill="none" stroke="#f3f4f6" strokeWidth="3" />
+                          <circle cx="18" cy="18" r="15" fill="none" strokeWidth="3" stroke={c.fill} strokeDasharray={`${u.completionPct * 0.942} 94.2`} strokeLinecap="round" />
                         </svg>
-                        <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-text-secondary">{Math.round(u.completionPct)}%</span>
+                        <span className="absolute inset-0 flex items-center justify-center text-[11px] font-bold text-text-secondary">{Math.round(u.completionPct)}%</span>
                       </div>
                     </div>
 
                     {/* Bottom row — action buttons + feature badges */}
-                    <div className="flex items-center justify-between gap-3 mt-auto pt-4">
+                    <div className="flex items-center justify-between gap-3 mt-auto pt-3">
                       {/* Action buttons */}
                       <div className="flex items-center gap-2 flex-wrap">
                         <Link
                           href={`/teacher/teach/${u.unitId}?classId=${u.classId}`}
-                          className="inline-flex items-center gap-1.5 text-sm font-bold px-4 py-2 rounded-xl text-white shadow-sm transition hover:opacity-90"
+                          className="inline-flex items-center gap-1.5 text-xs font-bold px-3.5 py-1.5 rounded-lg text-white shadow-sm transition hover:opacity-90"
                           style={{ background: "linear-gradient(135deg, #7C3AED, #6D28D9)" }}
                         >
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="white" stroke="none"><polygon points="6 3 20 12 6 21 6 3" /></svg>
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="white" stroke="none"><polygon points="6 3 20 12 6 21 6 3" /></svg>
                           Teach
                         </Link>
                         <Link
                           href={`/teacher/units/${u.unitId}/class/${u.classId}`}
-                          className="inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl border-2 border-purple-200 text-purple-700 transition hover:bg-purple-50"
+                          className="inline-flex items-center gap-1.5 text-xs font-semibold px-3.5 py-1.5 rounded-lg border border-gray-200 text-text-secondary transition hover:bg-gray-50"
                         >
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
                           Class Hub
                         </Link>
                         <Link
                           href={`/teacher/units/${u.unitId}/class/${u.classId}/edit`}
-                          className="inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-xl border-2 border-gray-200 text-text-secondary transition hover:bg-gray-50"
+                          className="inline-flex items-center gap-1.5 text-xs font-semibold px-3.5 py-1.5 rounded-lg border border-gray-200 text-text-secondary transition hover:bg-gray-50"
                         >
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
-                          Edit Unit
+                          Edit
                         </Link>
                       </div>
 
@@ -552,16 +604,16 @@ function TwoColumnDashboard({
                       <div className="flex items-center gap-1.5 shrink-0">
                         {u.openStudioCount > 0 && (
                           <span
-                            className="inline-flex items-center justify-center w-7 h-7 rounded-lg"
+                            className="inline-flex items-center justify-center w-6 h-6 rounded-md"
                             style={{ background: "#F3E8FF" }}
                             title={`${u.openStudioCount} student${u.openStudioCount !== 1 ? "s" : ""} in Open Studio`}
                           >
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" /></svg>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" /></svg>
                           </span>
                         )}
                         {u.nmEnabled && (
                           <span
-                            className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-[9px] font-black"
+                            className="inline-flex items-center justify-center w-6 h-6 rounded-md text-[8px] font-black"
                             style={{ background: "#FF2D78", color: "#fff", fontFamily: "'Arial Black', sans-serif" }}
                             title="New Metrics enabled"
                           >
@@ -570,11 +622,11 @@ function TwoColumnDashboard({
                         )}
                         {u.badgeRequirementCount > 0 && (
                           <span
-                            className="inline-flex items-center justify-center w-7 h-7 rounded-lg"
+                            className="inline-flex items-center justify-center w-6 h-6 rounded-md"
                             style={{ background: "#FEF3C7", border: "1px solid #FDE68A" }}
                             title={`${u.badgeRequirementCount} safety badge${u.badgeRequirementCount !== 1 ? "s" : ""} required`}
                           >
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="#F59E0B" stroke="#92400E" strokeWidth="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="#F59E0B" stroke="#92400E" strokeWidth="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
                           </span>
                         )}
                       </div>

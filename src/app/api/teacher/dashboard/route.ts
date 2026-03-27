@@ -98,7 +98,7 @@ export const GET = withErrorHandler("teacher/dashboard:GET", async (request: Nex
     // Active class_units with unit title + content_data
     supabase
       .from("class_units")
-      .select("class_id, unit_id, nm_config, content_data, units!inner(id, title, content_data, nm_config)")
+      .select("class_id, unit_id, nm_config, content_data, units!inner(id, title, content_data, nm_config, unit_type)")
       .in("class_id", classIds)
       .eq("is_active", true),
     // All students in teacher's classes (via class_students junction — migration 041)
@@ -169,7 +169,7 @@ export const GET = withErrorHandler("teacher/dashboard:GET", async (request: Nex
   // nmEnabled is per class-unit, not per unit — resolved later
   const unitInfo = new Map<
     string,
-    { title: string; totalPages: number }
+    { title: string; totalPages: number; unitType?: string }
   >();
   for (const cu of classUnits) {
     if (!unitInfo.has(cu.unit_id)) {
@@ -177,6 +177,7 @@ export const GET = withErrorHandler("teacher/dashboard:GET", async (request: Nex
       unitInfo.set(cu.unit_id, {
         title: cu.units.title,
         totalPages: pages.length,
+        unitType: (cu.units as Record<string, unknown>).unit_type as string | undefined,
       });
     }
   }
@@ -343,6 +344,7 @@ export const GET = withErrorHandler("teacher/dashboard:GET", async (request: Nex
         nmEnabled: !!nmEnabled,
         badgeRequirementCount: badgeReqByUnit.get(cu.unit_id) || 0,
         isForked: !!(cu as Record<string, unknown>).content_data,
+        unitType: unitInfo.get(cu.unit_id)?.unitType || undefined,
       };
     });
 

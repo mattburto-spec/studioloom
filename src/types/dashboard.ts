@@ -31,6 +31,8 @@ export interface DashboardUnit {
   badgeRequirementCount?: number;
   /** Whether this class-unit has forked content (content_data IS NOT NULL) */
   isForked?: boolean;
+  /** Unit type: design, service, pp, inquiry (from units.unit_type) */
+  unitType?: string;
 }
 
 export interface StuckStudent {
