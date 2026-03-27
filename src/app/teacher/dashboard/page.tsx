@@ -256,9 +256,18 @@ const UNIT_TYPE_CONFIG: Record<string, { label: string; bg: string; text: string
   pp:      { label: "PERSONAL PROJECT", bg: "#8B5CF6", text: "#fff" },   // purple
   inquiry: { label: "INQUIRY", bg: "#F59E0B", text: "#fff" },   // amber
 };
-function getUnitTypeBadge(unitType?: string) {
-  if (!unitType) return UNIT_TYPE_CONFIG.design; // default to design
-  return UNIT_TYPE_CONFIG[unitType.toLowerCase()] || UNIT_TYPE_CONFIG.design;
+function detectUnitType(unitType?: string, className?: string, unitTitle?: string): string {
+  // 1. Explicit unit_type from DB
+  if (unitType) return unitType.toLowerCase();
+  // 2. Detect from class name or unit title keywords
+  const text = `${className || ""} ${unitTitle || ""}`.toLowerCase();
+  if (/\bservice\b/.test(text)) return "service";
+  if (/\bpersonal\s*project\b|\b\bpp\b/.test(text)) return "pp";
+  if (/\binquiry\b|\bpyp\b|\btrans\s*disc/.test(text)) return "inquiry";
+  return "design";
+}
+function getUnitTypeBadge(type: string) {
+  return UNIT_TYPE_CONFIG[type] || UNIT_TYPE_CONFIG.design;
 }
 
 // ── Deterministic photo for unit cards ──
@@ -512,7 +521,8 @@ function TwoColumnDashboard({
         ) : (
           classCards.map((u) => {
             const c = getClassColor(u.classIdx);
-            const typeBadge = getUnitTypeBadge(u.unitType);
+            const detectedType = detectUnitType(u.unitType, u.className, u.unitTitle);
+            const typeBadge = getUnitTypeBadge(detectedType);
             const photoUrl = getUnitPhotoUrl(u.unitTitle);
             return (
               <div
@@ -542,10 +552,6 @@ function TwoColumnDashboard({
                     >
                       {typeBadge.label}
                     </span>
-                    {/* Student count — bottom left */}
-                    <span className="absolute bottom-2.5 left-2.5 text-[11px] font-semibold text-white/80 z-10">
-                      {u.studentCount} student{u.studentCount !== 1 ? "s" : ""}
-                    </span>
                   </Link>
 
                   <div className="flex-1 px-5 py-4 flex flex-col min-w-0">
@@ -556,6 +562,9 @@ function TwoColumnDashboard({
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-sm font-bold" style={{ color: c.fill }}>
                             {u.className}
+                          </span>
+                          <span className="text-xs text-gray-400 font-medium">
+                            {u.studentCount} student{u.studentCount !== 1 ? "s" : ""}
                           </span>
                         </div>
                         {/* Unit title */}
