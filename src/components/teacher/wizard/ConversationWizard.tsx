@@ -441,6 +441,7 @@ export function ConversationWizard({
         phase={phase}
         canBuild={canBuild}
         saving={state.saving}
+        error={state.error}
         onBuild={handleBuild}
         onSave={onSave}
         onRegenerate={handleRegenerate}

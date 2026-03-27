@@ -873,27 +873,42 @@ export default function CreateUnitWizardPage() {
     // Resolve unit type from wizard input (default: design)
     const unitType = state.input?.unitType || state.journeyInput?.unitType || "design";
 
-    const { data: newUnit, error } = await supabase
+    const insertPayload: Record<string, unknown> = {
+      title,
+      description,
+      content_data: contentData,
+      grade_level: gradeLevel,
+      duration_weeks: durationWeeks,
+      topic,
+      global_context: globalContext,
+      key_concept: keyConcept,
+      tags,
+      author_teacher_id: user?.id || null,
+      teacher_id: user?.id || null,
+      quality_report: state.qualityReport || null,
+      unit_type: unitType,
+    };
+
+    let { data: newUnit, error } = await supabase
       .from("units")
-      .insert({
-        title,
-        description,
-        content_data: contentData,
-        grade_level: gradeLevel,
-        duration_weeks: durationWeeks,
-        topic,
-        global_context: globalContext,
-        key_concept: keyConcept,
-        tags,
-        author_teacher_id: user?.id || null,
-        teacher_id: user?.id || null,
-        quality_report: state.qualityReport || null,
-        unit_type: unitType,
-      })
+      .insert(insertPayload)
       .select("id")
       .single();
 
+    // Retry without unit_type if column doesn't exist yet (migration 051 not applied)
+    if (error && (error.message.includes("unit_type") || error.code === "PGRST204")) {
+      delete insertPayload.unit_type;
+      const retry = await supabase
+        .from("units")
+        .insert(insertPayload)
+        .select("id")
+        .single();
+      newUnit = retry.data;
+      error = retry.error;
+    }
+
     if (error) {
+      console.error("[saveUnit] Insert failed:", error);
       dispatch({ type: "SET_ERROR", error: error.message });
       dispatch({ type: "SET_SAVING", saving: false });
       return;
