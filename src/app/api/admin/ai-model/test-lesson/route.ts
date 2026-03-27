@@ -17,6 +17,7 @@ import type { LessonJourneyInput } from "@/types";
 import Anthropic from "@anthropic-ai/sdk";
 import { buildUnitTypeSystemPrompt, UNIT_TYPES } from "@/lib/ai/unit-types";
 import type { UnitType } from "@/lib/ai/unit-types";
+import { getCriterionKeys } from "@/lib/constants";
 
 const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "mattburto@gmail.com")
   .split(",")
@@ -67,9 +68,9 @@ export async function POST(request: NextRequest) {
 
     const resolvedConfig = resolveConfigFromOverrides(config);
     const lessonLengthMinutes = testInput.lessonLengthMinutes || 50;
-    const criteria = testInput.assessmentCriteria || ["A", "B", "C", "D"];
-    const framework = testInput.curriculumFramework || "IB_MYP";
     const unitType: UnitType = testInput.unitType || "design";
+    const criteria = testInput.assessmentCriteria || getCriterionKeys(unitType);
+    const framework = testInput.curriculumFramework || "IB_MYP";
 
     // Build a minimal journey input for a single lesson
     const input: LessonJourneyInput = {

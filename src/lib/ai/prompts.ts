@@ -1,5 +1,5 @@
 import type { UnitWizardInput, LessonJourneyInput, JourneyOutlineOption, TimelineOutlineOption, TimelinePhase, TimelineLessonSkeleton, TimelineSkeleton, DesignLessonType } from "@/types";
-import { CRITERIA, type CriterionKey, MYP_GLOBAL_CONTEXTS, MYP_KEY_CONCEPTS, MYP_RELATED_CONCEPTS_DESIGN, EMPHASIS_PAGE_COUNT, buildPageDefinitions } from "@/lib/constants";
+import { CRITERIA, type CriterionKey, MYP_GLOBAL_CONTEXTS, MYP_KEY_CONCEPTS, MYP_RELATED_CONCEPTS_DESIGN, EMPHASIS_PAGE_COUNT, buildPageDefinitions, getCriterion } from "@/lib/constants";
 import { getActivityLibrarySummary } from "@/lib/activity-library";
 import { getActivityCardSummaryEnriched } from "@/lib/activity-cards";
 import {
@@ -366,10 +366,11 @@ export function buildCriterionPrompt(
   input: UnitWizardInput,
   activitySummary?: string
 ): string {
-  const criterionInfo = CRITERIA[criterion];
+  const unitType = input.unitType || "design";
+  const criterionInfo = getCriterion(criterion, unitType) || { name: criterion, key: criterion };
   const focusLevel = input.criteriaFocus[criterion] || "standard";
   const pageCount = EMPHASIS_PAGE_COUNT[focusLevel];
-  const pageDefs = buildPageDefinitions([criterion], { [criterion]: focusLevel });
+  const pageDefs = buildPageDefinitions([criterion], { [criterion]: focusLevel }, unitType);
 
   const pageDescriptions = pageDefs
     .map((p) => `  - ${p.id}: ${p.title}`)
@@ -385,6 +386,10 @@ export function buildCriterionPrompt(
 
   const requirementsSection = input.specialRequirements
     ? `\nSpecial Requirements: ${input.specialRequirements}`
+    : "";
+
+  const curriculumSection = input.curriculumContext
+    ? `\n- Curriculum Context: ${input.curriculumContext}`
     : "";
 
   // Use DB-backed summary if available, fall back to hardcoded library
@@ -405,7 +410,7 @@ ${activitySuggestions}
 - Key Concept: ${input.keyConcept}
 - Related Concepts: ${(input.relatedConcepts || []).join(", ")}
 - Statement of Inquiry: ${input.statementOfInquiry}
-- ATL Skills: ${(input.atlSkills || []).join(", ")}${skillsSection}${resourceSection}${requirementsSection}
+- ATL Skills: ${(input.atlSkills || []).join(", ")}${skillsSection}${resourceSection}${requirementsSection}${curriculumSection}
 
 ## Pages to Generate
 ${pageDescriptions}
@@ -440,7 +445,8 @@ export async function buildRAGCriterionPrompt(
   const basePrompt = buildCriterionPrompt(criterion, input, activitySummary);
 
   // Retrieve relevant context from knowledge base
-  const query = `${input.topic} ${input.title} Criterion ${criterion} ${CRITERIA[criterion].name} ${input.gradeLevel} ${input.globalContext}`;
+  const criterionDef = getCriterion(criterion, input.unitType || "design");
+  const query = `${input.topic} ${input.title} Criterion ${criterion} ${criterionDef?.name || criterion} ${input.gradeLevel} ${input.globalContext}`;
 
   let ragContext = "";
   let lessonContext = "";
@@ -470,7 +476,7 @@ export async function buildRAGCriterionPrompt(
   // Retrieve lesson profiles — structured pedagogical intelligence
   try {
     const profiles = await retrieveLessonProfiles({
-      query: `${input.topic} ${input.title} ${CRITERIA[criterion].name} ${input.gradeLevel}`,
+      query: `${input.topic} ${input.title} ${criterionDef?.name || criterion} ${input.gradeLevel}`,
       gradeLevel: input.gradeLevel,
       criteria: [criterion],
       teacherId,
@@ -567,20 +573,24 @@ export function buildOutlinePrompt(
     : "";
 
   // Build page specification from selected criteria and emphasis
-  const pageDefs = buildPageDefinitions(input.selectedCriteria, input.criteriaFocus);
+  const pageDefs = buildPageDefinitions(input.selectedCriteria, input.criteriaFocus, input.unitType || "design");
   const totalPages = pageDefs.length;
   const pageSpec = (input.selectedCriteria || []).map(c => {
     const emphasis = (input.criteriaFocus || {})[c] || "standard";
     const count = EMPHASIS_PAGE_COUNT[emphasis];
     const pageIds = Array.from({ length: count }, (_, i) => `${c}${i + 1}`);
-    return `- Criterion ${c} (${CRITERIA[c].name}): ${count} pages (${pageIds.join(", ")})`;
+    const cDef = getCriterion(c, input.unitType || "design");
+    return `- Criterion ${c} (${cDef?.name || c}): ${count} pages (${pageIds.join(", ")})`;
   }).join("\n");
 
   const criteriaFocusStr = (input.selectedCriteria || [])
     .map(c => `${c}=${(input.criteriaFocus || {})[c] || "standard"}`)
     .join(", ");
 
-  return `Generate 3 distinct unit outline options for the following MYP Design unit:
+  const unitTypeLabel = input.unitType && input.unitType !== "design"
+    ? { service: "Service Learning", personal_project: "Personal Project", inquiry: "Inquiry" }[input.unitType] || "Design"
+    : "MYP Design";
+  return `Generate 3 distinct unit outline options for the following ${unitTypeLabel} unit:
 ${ragSection}
 ## Unit Context
 - Title: ${input.title}
@@ -988,7 +998,7 @@ ${activitySuggestions}
 - Related Concepts: ${(input.relatedConcepts || []).join(", ")}
 - Statement of Inquiry: ${input.statementOfInquiry}
 - ATL Skills: ${(input.atlSkills || []).join(", ")}${skillsSection}${resourceSection}${requirementsSection}
-- Assessment Criteria: ${(input.assessmentCriteria || []).join(", ")} (tag each section with the relevant criteria)
+- Assessment Criteria: ${(input.assessmentCriteria || []).join(", ")} (tag each section with the relevant criteria)${input.curriculumContext ? `\n- Curriculum Context: ${input.curriculumContext}` : ""}
 
 ${buildDesignTeachingContext(options?.teacherStyleProfile)}
 

@@ -3,6 +3,7 @@ import { createServerClient } from "@supabase/ssr";
 import { resolveCredentials } from "@/lib/ai/resolve-credentials";
 import { createAIProvider } from "@/lib/ai";
 import { SKELETON_SYSTEM_PROMPT, buildSkeletonPrompt, buildRAGSkeletonPrompt } from "@/lib/ai/prompts";
+import { buildUnitTypeSystemPrompt } from "@/lib/ai/unit-types";
 import { getTeachingContext } from "@/lib/ai/teacher-context";
 import type { LessonJourneyInput, TimelineOutlineOption } from "@/types";
 
@@ -72,6 +73,12 @@ export async function POST(request: NextRequest) {
   if (!journeyInput.lessonLengthMinutes) journeyInput.lessonLengthMinutes = 50;
   if (!journeyInput.lessonsPerWeek) journeyInput.lessonsPerWeek = 3;
 
+  // Resolve system prompt based on unit type (falls back to Design)
+  const unitType = journeyInput.unitType || "design";
+  const systemPrompt = unitType !== "design"
+    ? buildUnitTypeSystemPrompt(unitType)
+    : SKELETON_SYSTEM_PROMPT;
+
   // Resolve AI credentials
   const creds = await resolveCredentials(supabase, user.id);
   if (!creds) {
@@ -119,7 +126,7 @@ export async function POST(request: NextRequest) {
     }
 
     const skeleton = await provider.generateSkeleton(
-      SKELETON_SYSTEM_PROMPT,
+      systemPrompt,
       userPrompt,
       totalLessons
     );

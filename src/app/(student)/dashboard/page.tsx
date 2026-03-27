@@ -6,7 +6,7 @@ import { useStudent } from "../student-context";
 import { CRITERIA, type CriterionKey } from "@/lib/constants";
 import { getPageList } from "@/lib/unit-adapter";
 import { timeAgo, getDomain } from "@/lib/utils";
-import { QuickCaptureFAB } from "@/components/portfolio/QuickCaptureFAB";
+// QuickCaptureFAB removed from dashboard (27 Mar 2026) — still available inside unit pages
 import { ToolModal } from "@/components/toolkit/ToolModal";
 import { UnitThumbnail } from "@/components/shared/UnitThumbnail";
 import { JourneyMap } from "@/components/student/JourneyMap";
@@ -321,13 +321,13 @@ export default function StudentDashboard() {
       }
     }
 
-    // Deterministic fallback
+    // Deterministic fallback — varied labels so nothing says "UNIT"
     const fallbacks: [string, string][] = [
       ["from-teal-500 to-emerald-400", "DESIGN"],
       ["from-violet-500 to-purple-400", "PROJECT"],
-      ["from-pink-400 to-rose-300", "UNIT"],
-      ["from-sky-500 to-blue-400", "UNIT"],
-      ["from-amber-400 to-yellow-300", "UNIT"],
+      ["from-pink-400 to-rose-300", "CREATIVE"],
+      ["from-sky-500 to-blue-400", "STUDIO"],
+      ["from-amber-400 to-yellow-300", "WORKSHOP"],
     ];
     let hash = 0;
     for (let i = 0; i < unit.id.length; i++) hash = ((hash << 5) - hash + unit.id.charCodeAt(i)) | 0;
@@ -632,9 +632,11 @@ export default function StudentDashboard() {
                   Pin-Up Gallery
                 </h2>
                 <div className="space-y-2">
-                  {galleryRounds.map((round: any) => (
-                    <GalleryDashboardCard key={round.id} round={round} unitId={round.unitId || ""} />
-                  ))}
+                  {galleryRounds.map((round: any) => {
+                    const matchedUnit = units.find((u) => u.id === round.unitId);
+                    const enrichedRound = { ...round, unitTitle: round.unitTitle || matchedUnit?.title || "" };
+                    return <GalleryDashboardCard key={round.id} round={enrichedRound} unitId={round.unitId || ""} />;
+                  })}
                 </div>
               </div>
             )}
@@ -680,13 +682,7 @@ export default function StudentDashboard() {
           </>
         )}
 
-        {/* Quick Capture FAB */}
-        {units.length > 0 && (
-          <QuickCaptureFAB
-            availableUnits={units.map((u) => ({ id: u.id, title: u.title }))}
-            onEntryCreated={loadPortfolio}
-          />
-        )}
+        {/* Quick Capture FAB — removed from dashboard (27 Mar 2026), still available inside unit pages */}
       </div>
     </main>
   );

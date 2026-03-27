@@ -3,6 +3,7 @@ import { createServerClient } from "@supabase/ssr";
 import { decrypt } from "@/lib/encryption";
 import { createAIProvider } from "@/lib/ai";
 import { UNIT_SYSTEM_PROMPT, getGradeTimingProfile, buildTimingContext } from "@/lib/ai/prompts";
+import { buildUnitTypeSystemPrompt, type UnitType } from "@/lib/ai/unit-types";
 import { validateGeneratedPages } from "@/lib/ai/validation";
 import { validateLessonTiming } from "@/lib/ai/timing-validation";
 import { CRITERIA, DEFAULT_MYP_PAGES, type CriterionKey } from "@/lib/constants";
@@ -62,7 +63,7 @@ export async function POST(request: NextRequest) {
   const { data: unit, error: unitError } = await supabase
     .from("units")
     .select(
-      "title, topic, grade_level, duration_weeks, global_context, key_concept, content_data"
+      "title, topic, grade_level, duration_weeks, global_context, key_concept, content_data, unit_type"
     )
     .eq("id", unitId)
     .single();
@@ -73,6 +74,12 @@ export async function POST(request: NextRequest) {
       { status: 404 }
     );
   }
+
+  // Resolve system prompt based on unit type
+  const unitType = (unit.unit_type || "design") as UnitType;
+  const systemPrompt = unitType !== "design"
+    ? buildUnitTypeSystemPrompt(unitType)
+    : UNIT_SYSTEM_PROMPT;
 
   // Find the page definition from unit data or default MYP pages
   const unitPages = getPageList(unit.content_data);
@@ -169,8 +176,9 @@ Remember to include ELL scaffolding (ell1, ell2, ell3) for every section.`;
         specificSkills: [],
         resourceUrls: [],
         specialRequirements: instruction || "",
+        unitType,
       },
-      UNIT_SYSTEM_PROMPT,
+      systemPrompt,
       userPrompt
     );
 

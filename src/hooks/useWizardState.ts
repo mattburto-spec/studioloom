@@ -2,7 +2,9 @@ import { useReducer } from "react";
 import type { UnitWizardInput, PageContent, LessonJourneyInput, JourneyOutlineOption, TimelineActivity, ComputedLesson, TimelineOutlineOption, TimelineSkeleton, TimelineLessonSkeleton } from "@/types";
 import type { QualityReport } from "@/types/lesson-intelligence";
 import type { CriterionKey } from "@/lib/constants";
+import { getCriterionKeys } from "@/lib/constants";
 import { computeLessonBoundaries } from "@/lib/timeline";
+import type { UnitType } from "@/lib/ai/unit-types";
 
 export interface OutlineOption {
   approach: string;
@@ -216,11 +218,17 @@ function reducer(state: WizardState, action: Action): WizardState {
       return { ...state, suggestedKeywords: keywords };
     }
 
-    case "BULK_SET_INPUT":
-      return {
+    case "BULK_SET_INPUT": {
+      const newState2 = {
         ...state,
         input: { ...state.input, ...action.values },
       };
+      // Sync unitType to journeyInput when bulk-setting
+      if (action.values.unitType) {
+        newState2.journeyInput = { ...newState2.journeyInput, unitType: action.values.unitType };
+      }
+      return newState2;
+    }
 
     case "SET_TURNS":
       return { ...state, conversationTurns: action.turns, currentTurnIndex: 0 };
@@ -258,10 +266,29 @@ function reducer(state: WizardState, action: Action): WizardState {
         input: { ...state.input, [action.key]: action.value },
       };
       // Keep journey input in sync with shared fields
+      // When unitType changes, update criteria to match the new type's criteria set
+      if (action.key === "unitType") {
+        const newType = action.value as UnitType;
+        const newCriteriaKeys = getCriterionKeys(newType);
+        // Reset selectedCriteria to the new type's full set
+        newState.input = {
+          ...newState.input,
+          selectedCriteria: newCriteriaKeys as CriterionKey[],
+          criteriaFocus: Object.fromEntries(newCriteriaKeys.map(k => [k, "standard"])) as Record<CriterionKey, "light" | "standard" | "emphasis">,
+        };
+        // Sync journey input
+        newState.journeyInput = {
+          ...newState.journeyInput,
+          unitType: newType,
+          assessmentCriteria: newCriteriaKeys,
+        };
+        // Reset criteria emphasis sliders
+        newState.criteriaEmphasis = Object.fromEntries(newCriteriaKeys.map(k => [k, 50])) as Record<string, number>;
+      }
       if (state.journeyMode) {
         const sharedKeys: Array<keyof typeof state.journeyInput> = [
           "title", "gradeLevel", "topic", "globalContext", "keyConcept",
-          "statementOfInquiry", "specialRequirements",
+          "statementOfInquiry", "specialRequirements", "curriculumContext",
         ];
         if (sharedKeys.includes(action.key as keyof typeof state.journeyInput)) {
           newState.journeyInput = { ...newState.journeyInput, [action.key]: action.value };
@@ -794,6 +821,7 @@ const initialState: WizardState = {
     specificSkills: [],
     resourceUrls: [],
     specialRequirements: "",
+    unitType: "design" as UnitType,
   },
   criteriaEmphasis: { A: 50, B: 50, C: 50, D: 50 },
   expandedSections: new Set(["basics"]),
@@ -830,6 +858,7 @@ const initialState: WizardState = {
     resourceUrls: [],
     specialRequirements: "",
     assessmentCriteria: ["A", "B", "C", "D"],
+    unitType: "design" as UnitType,
   },
   totalLessons: 18,
   generationBatches: [],

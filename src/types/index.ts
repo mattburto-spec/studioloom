@@ -1,4 +1,5 @@
 import type { EllLevel, CriterionKey } from "@/lib/constants";
+import type { UnitType } from "@/lib/ai/unit-types";
 
 export interface Teacher {
   id: string;
@@ -108,6 +109,10 @@ export interface Unit {
   key_concept: string | null;
   fork_count: number;
   forked_from: string | null;
+  /** Unit pedagogical type — determines phases, AI persona, teaching principles. Default: "design" */
+  unit_type?: UnitType;
+  /** Free-text curriculum context for AI generation (e.g. "IB MYP Design Year 4", "GCSE D&T AQA") */
+  curriculum_context?: string | null;
 }
 
 export interface ClassUnit {
@@ -452,6 +457,10 @@ export interface UnitWizardInput {
   specificSkills: string[];
   resourceUrls: string[];
   specialRequirements: string;
+  /** Unit pedagogical type — determines phases, AI persona, teaching principles. Default: "design" */
+  unitType?: UnitType;
+  /** Free-text curriculum context for AI generation (e.g. "IB MYP Design Year 4", "PYP Exhibition") */
+  curriculumContext?: string;
 }
 
 // --- Journey-Based Unit Generation Types (v3) ---
@@ -476,6 +485,10 @@ export interface LessonJourneyInput {
   /** Which assessment criteria exist for tagging (e.g. ["A","B","C","D"] for MYP). Not structural. */
   assessmentCriteria: string[];
   curriculumFramework?: string;
+  /** Unit pedagogical type — determines phases, AI persona, teaching principles. Default: "design" */
+  unitType?: UnitType;
+  /** Free-text curriculum context for AI generation (e.g. "IB MYP Design Year 4", "PYP Exhibition") */
+  curriculumContext?: string;
 }
 
 /** A single lesson in a journey outline. */

@@ -125,7 +125,7 @@ export default function StudentGradesPage({
             >
               <div className="flex items-center justify-between mb-1">
                 <div className={`text-sm font-semibold ${colors.text}`}>
-                  Criterion {key}: {criterion?.label || key}
+                  Criterion {key}: {criterion?.name || key}
                 </div>
                 {score ? (
                   <div

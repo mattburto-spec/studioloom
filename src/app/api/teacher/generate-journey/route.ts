@@ -4,6 +4,7 @@ import { withErrorHandler } from "@/lib/api/error-handler";
 import { resolveCredentials } from "@/lib/ai/resolve-credentials";
 import { createAIProvider } from "@/lib/ai";
 import { JOURNEY_SYSTEM_PROMPT, buildRAGJourneyPrompt } from "@/lib/ai/prompts";
+import { buildUnitTypeSystemPrompt } from "@/lib/ai/unit-types";
 import { validateGeneratedPages } from "@/lib/ai/validation";
 import { getTeachingContext } from "@/lib/ai/teacher-context";
 import { getGradeTimingProfile } from "@/lib/ai/prompts";
@@ -96,6 +97,12 @@ export const POST = withErrorHandler("teacher/generate-journey:POST", async (req
   if (!journeyInput.lessonLengthMinutes) journeyInput.lessonLengthMinutes = 50;
   if (!journeyInput.lessonsPerWeek) journeyInput.lessonsPerWeek = 3;
 
+  // Resolve system prompt based on unit type (falls back to Design)
+  const unitType = journeyInput.unitType || "design";
+  const systemPrompt = unitType !== "design"
+    ? buildUnitTypeSystemPrompt(unitType)
+    : JOURNEY_SYSTEM_PROMPT;
+
   // Resolve AI credentials
   const creds = await resolveCredentials(supabase, user.id);
   if (!creds) {
@@ -133,7 +140,7 @@ export const POST = withErrorHandler("teacher/generate-journey:POST", async (req
           try {
             const gen = provider.streamLessonPages!(
               lessonIds,
-              JOURNEY_SYSTEM_PROMPT,
+              systemPrompt,
               userPrompt
             );
 
@@ -180,7 +187,7 @@ export const POST = withErrorHandler("teacher/generate-journey:POST", async (req
     // --- Non-streaming path ---
     const rawPages = await provider.generateLessonPages!(
       lessonIds,
-      JOURNEY_SYSTEM_PROMPT,
+      systemPrompt,
       userPrompt
     );
 

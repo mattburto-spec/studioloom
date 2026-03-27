@@ -82,7 +82,9 @@ function validateConfig(raw: Record<string, unknown>): AutoConfigResponse {
     const cf = raw.criteriaFocus as Record<string, string>;
     const validValues = ["light", "standard", "emphasis"];
     const validated: Record<string, string> = {};
-    for (const key of ["A", "B", "C", "D"]) {
+    // Validate criteria focus values for whatever criteria keys the AI returned
+    // (still defaults to A/B/C/D for Design, but accepts any keys for other types)
+    for (const key of Object.keys(cf)) {
       const val = cf[key]?.toLowerCase();
       validated[key] = validValues.includes(val || "") ? val! : "standard";
     }

@@ -861,6 +861,9 @@ export default function CreateUnitWizardPage() {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
+    // Resolve unit type from wizard input (default: design)
+    const unitType = state.input?.unitType || state.journeyInput?.unitType || "design";
+
     const { data: newUnit, error } = await supabase
       .from("units")
       .insert({
@@ -876,6 +879,7 @@ export default function CreateUnitWizardPage() {
         author_teacher_id: user?.id || null,
         teacher_id: user?.id || null,
         quality_report: state.qualityReport || null,
+        unit_type: unitType,
       })
       .select("id")
       .single();

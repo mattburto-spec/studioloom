@@ -14,7 +14,7 @@ import {
   incrementProfileReferences,
 } from "@/lib/knowledge/retrieve-lesson-profiles";
 import type { UnitWizardInput } from "@/types";
-import { buildPageDefinitions } from "@/lib/constants";
+import { buildPageDefinitions, getCriterionKeys } from "@/lib/constants";
 
 function createSupabaseServer(request: NextRequest) {
   return createServerClient(
@@ -176,8 +176,9 @@ export async function POST(request: NextRequest) {
 
     // Validate each option has enough pages (75% of expected total)
     const expectedTotal = buildPageDefinitions(
-      wizardInput.selectedCriteria || ["A", "B", "C", "D"],
-      wizardInput.criteriaFocus || {}
+      wizardInput.selectedCriteria || getCriterionKeys(wizardInput.unitType || "design"),
+      wizardInput.criteriaFocus || {},
+      wizardInput.unitType || "design"
     ).length;
     const minPages = Math.ceil(expectedTotal * 0.75);
     const validOptions = options.filter(

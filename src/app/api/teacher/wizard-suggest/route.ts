@@ -89,9 +89,10 @@ function validateSuggestions(raw: Record<string, unknown>): SuggestResponse {
   }
 
   if (Array.isArray(raw.criteriaEmphasis)) {
+    // Accept any criterion key (not just A/B/C/D) — other unit types have different criteria
     result.criteriaEmphasis = (raw.criteriaEmphasis as SuggestResponse["criteriaEmphasis"])?.filter(
       (e) =>
-        ["A", "B", "C", "D"].includes(e?.criterion) &&
+        typeof e?.criterion === "string" && e.criterion.length > 0 &&
         ["emphasis", "light"].includes(e?.direction)
     );
     if (result.criteriaEmphasis && result.criteriaEmphasis.length === 0) delete result.criteriaEmphasis;

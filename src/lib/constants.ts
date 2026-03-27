@@ -1,4 +1,20 @@
-export const CRITERIA = {
+// ---------------------------------------------------------------------------
+// Criterion Definition — the universal shape for any assessment criterion
+// ---------------------------------------------------------------------------
+
+export interface CriterionDefinition {
+  key: string;
+  name: string;
+  color: string;
+  bgClass: string;
+  textClass: string;
+}
+
+/**
+ * MYP Design criteria — the original 4-criterion set.
+ * Still the default for Design units and backward compatibility.
+ */
+export const CRITERIA: Record<string, CriterionDefinition> = {
   A: {
     key: "A",
     name: "Inquiring & Analysing",
@@ -27,9 +43,84 @@ export const CRITERIA = {
     bgClass: "bg-accent-purple",
     textClass: "text-accent-purple",
   },
-} as const;
+};
 
-export type CriterionKey = keyof typeof CRITERIA;
+/** Alias for backward compatibility — the MYP A/B/C/D keys */
+export const MYP_CRITERIA = CRITERIA;
+
+/**
+ * CriterionKey is now `string` to support any framework's criteria.
+ * MYP uses "A"|"B"|"C"|"D", GCSE uses "AO1"-"AO5", Service uses "I"|"P"|"A"|"R"|"D", etc.
+ * The specific valid keys are determined by unit type + programme at runtime.
+ */
+export type CriterionKey = string;
+
+// ---------------------------------------------------------------------------
+// Per-Unit-Type Criteria Definitions
+// ---------------------------------------------------------------------------
+
+/** Service Learning (IPARD) criteria */
+export const SERVICE_CRITERIA: Record<string, CriterionDefinition> = {
+  I: { key: "I", name: "Investigate", color: "#3B82F6", bgClass: "bg-blue-100", textClass: "text-blue-700" },
+  P: { key: "P", name: "Plan", color: "#8B5CF6", bgClass: "bg-violet-100", textClass: "text-violet-700" },
+  A: { key: "A", name: "Act", color: "#10B981", bgClass: "bg-emerald-100", textClass: "text-emerald-700" },
+  R: { key: "R", name: "Reflect", color: "#F59E0B", bgClass: "bg-amber-100", textClass: "text-amber-700" },
+  D: { key: "D", name: "Demonstrate", color: "#EF4444", bgClass: "bg-red-100", textClass: "text-red-700" },
+};
+
+/** Personal Project criteria (MYP Year 5) */
+export const PP_CRITERIA: Record<string, CriterionDefinition> = {
+  A: { key: "A", name: "Planning", color: "#6366F1", bgClass: "bg-accent-blue", textClass: "text-accent-blue" },
+  B: { key: "B", name: "Applying Skills", color: "#10B981", bgClass: "bg-accent-green", textClass: "text-accent-green" },
+  C: { key: "C", name: "Reflecting", color: "#F59E0B", bgClass: "bg-accent-orange", textClass: "text-accent-orange" },
+};
+
+/** Inquiry criteria */
+export const INQUIRY_CRITERIA: Record<string, CriterionDefinition> = {
+  A: { key: "A", name: "Inquiring", color: "#6366F1", bgClass: "bg-accent-blue", textClass: "text-accent-blue" },
+  B: { key: "B", name: "Exploring", color: "#3B82F6", bgClass: "bg-blue-100", textClass: "text-blue-700" },
+  C: { key: "C", name: "Creating", color: "#10B981", bgClass: "bg-accent-green", textClass: "text-accent-green" },
+  D: { key: "D", name: "Sharing", color: "#F59E0B", bgClass: "bg-accent-orange", textClass: "text-accent-orange" },
+};
+
+// ---------------------------------------------------------------------------
+// Criteria Lookup Helpers
+// ---------------------------------------------------------------------------
+
+import type { UnitType } from "@/lib/ai/unit-types";
+
+/** All criteria sets indexed by unit type */
+const CRITERIA_BY_TYPE: Record<string, Record<string, CriterionDefinition>> = {
+  design: CRITERIA,
+  service: SERVICE_CRITERIA,
+  personal_project: PP_CRITERIA,
+  inquiry: INQUIRY_CRITERIA,
+};
+
+/**
+ * Get the criteria definitions for a given unit type.
+ * Returns the full Record<key, CriterionDefinition>.
+ * Falls back to MYP Design criteria if type is unknown.
+ */
+export function getCriteriaForType(unitType: UnitType | string = "design"): Record<string, CriterionDefinition> {
+  return CRITERIA_BY_TYPE[unitType] || CRITERIA;
+}
+
+/**
+ * Get ordered criterion keys for a unit type (e.g. ["A","B","C","D"] for design, ["I","P","A","R","D"] for service).
+ */
+export function getCriterionKeys(unitType: UnitType | string = "design"): string[] {
+  return Object.keys(getCriteriaForType(unitType));
+}
+
+/**
+ * Look up a single criterion definition by key, checking the type-specific set first,
+ * then falling back to the universal MYP set.
+ */
+export function getCriterion(key: string, unitType: UnitType | string = "design"): CriterionDefinition | undefined {
+  const typeSpecific = getCriteriaForType(unitType);
+  return typeSpecific[key] || CRITERIA[key];
+}
 
 /** Default MYP Design pages — used as a template for new units and v1→v2 migration. */
 export const DEFAULT_MYP_PAGES = [
@@ -68,22 +159,32 @@ export const EMPHASIS_PAGE_COUNT: Record<string, number> = {
 /**
  * Build page definitions for a set of selected criteria with emphasis levels.
  * Returns an ordered array of page metadata with IDs like A1, A2, B1, etc.
+ *
+ * Now unit-type-aware: for MYP Design, falls back to DEFAULT_MYP_PAGES titles.
+ * For other types, uses the criterion name from getCriteriaForType().
  */
 export function buildPageDefinitions(
   selectedCriteria: CriterionKey[],
-  criteriaFocus: Partial<Record<CriterionKey, "light" | "standard" | "emphasis">>
+  criteriaFocus: Partial<Record<CriterionKey, "light" | "standard" | "emphasis">>,
+  unitType: UnitType | string = "design"
 ): Array<{ id: string; criterion: CriterionKey; title: string; strandIndex: number }> {
+  const criteriaMap = getCriteriaForType(unitType);
   const result: Array<{ id: string; criterion: CriterionKey; title: string; strandIndex: number }> = [];
   for (const criterion of selectedCriteria) {
     const emphasis = criteriaFocus[criterion] || "standard";
     const count = EMPHASIS_PAGE_COUNT[emphasis];
-    const defaultPages = DEFAULT_MYP_PAGES.filter(p => p.criterion === criterion);
+    // For MYP Design, use the default page titles; for other types, use criterion name
+    const defaultPages = unitType === "design"
+      ? DEFAULT_MYP_PAGES.filter(p => p.criterion === criterion)
+      : [];
+    const criterionDef = criteriaMap[criterion];
     for (let i = 0; i < count; i++) {
       const defaultPage = defaultPages[i];
+      const fallbackName = criterionDef?.name || criterion;
       result.push({
         id: `${criterion}${i + 1}`,
         criterion,
-        title: defaultPage?.title || `${CRITERIA[criterion].name} - Page ${i + 1}`,
+        title: defaultPage?.title || `${fallbackName} - Page ${i + 1}`,
         strandIndex: i + 1,
       });
     }

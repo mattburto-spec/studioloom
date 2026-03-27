@@ -52,6 +52,7 @@ export async function POST(request: NextRequest) {
     };
 
     const resolvedConfig = resolveConfigFromOverrides(config);
+    // Default to MYP Design criteria — will be dynamic when unitType is added to skeleton test input
     const criteria = testInput.assessmentCriteria || ["A", "B", "C", "D"];
     const framework = testInput.curriculumFramework || "IB_MYP";
 

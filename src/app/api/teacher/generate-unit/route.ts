@@ -4,9 +4,11 @@ import { withErrorHandler } from "@/lib/api/error-handler";
 import { resolveCredentials } from "@/lib/ai/resolve-credentials";
 import { createAIProvider } from "@/lib/ai";
 import { UNIT_SYSTEM_PROMPT, buildRAGCriterionPrompt, getGradeTimingProfile, buildTimingContext, calculateUsableTime, maxInstructionMinutes } from "@/lib/ai/prompts";
+import { buildUnitTypeSystemPrompt } from "@/lib/ai/unit-types";
 import { validateGeneratedPages } from "@/lib/ai/validation";
 import { validateLessonTiming } from "@/lib/ai/timing-validation";
 import type { UnitWizardInput } from "@/types";
+import { getCriterionKeys } from "@/lib/constants";
 import type { CriterionKey } from "@/lib/constants";
 import { onUnitCreated } from "@/lib/teacher-style/profile-service";
 
@@ -24,8 +26,6 @@ function createSupabaseServer(request: NextRequest) {
     }
   );
 }
-
-const VALID_CRITERIA: CriterionKey[] = ["A", "B", "C", "D"];
 
 /**
  * POST /api/teacher/generate-unit
@@ -54,6 +54,12 @@ export const POST = withErrorHandler("teacher/generate-unit:POST", async (reques
     stream?: boolean;
   };
 
+  // Resolve system prompt based on unit type (falls back to Design)
+  const unitType = wizardInput.unitType || "design";
+  const systemPrompt = unitType !== "design"
+    ? buildUnitTypeSystemPrompt(unitType)
+    : UNIT_SYSTEM_PROMPT;
+
   // Validate inputs
   if (!wizardInput || !criterion) {
     return NextResponse.json(
@@ -62,9 +68,11 @@ export const POST = withErrorHandler("teacher/generate-unit:POST", async (reques
     );
   }
 
-  if (!VALID_CRITERIA.includes(criterion)) {
+  // Validate criterion against the unit type's criteria set (dynamic, not hardcoded A/B/C/D)
+  const validCriteria = getCriterionKeys(unitType);
+  if (!validCriteria.includes(criterion)) {
     return NextResponse.json(
-      { error: "criterion must be A, B, C, or D" },
+      { error: `Invalid criterion "${criterion}" for unit type "${unitType}". Valid: ${validCriteria.join(", ")}` },
       { status: 400 }
     );
   }
@@ -103,7 +111,7 @@ export const POST = withErrorHandler("teacher/generate-unit:POST", async (reques
             const gen = provider.streamCriterionPages!(
               criterion,
               wizardInput,
-              UNIT_SYSTEM_PROMPT,
+              systemPrompt,
               userPrompt
             );
 
@@ -152,7 +160,7 @@ export const POST = withErrorHandler("teacher/generate-unit:POST", async (reques
     const rawPages = await provider.generateCriterionPages(
       criterion,
       wizardInput,
-      UNIT_SYSTEM_PROMPT,
+      systemPrompt,
       userPrompt
     );
 

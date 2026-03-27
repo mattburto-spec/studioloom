@@ -6,6 +6,59 @@ import { KeywordCard } from "./KeywordCard";
 import { CompactConfig } from "./CompactConfig";
 import { ModeSelector } from "./ModeSelector";
 import { SuggestionLoading } from "./shared/SuggestionBadge";
+import type { UnitType } from "@/lib/ai/unit-types";
+
+const UNIT_TYPE_OPTIONS: Array<{
+  type: UnitType;
+  label: string;
+  shortLabel: string;
+  icon: string;
+  description: string;
+  color: string;
+  bgColor: string;
+  borderColor: string;
+}> = [
+  {
+    type: "design",
+    label: "Design Project",
+    shortLabel: "Design",
+    icon: "✏️",
+    description: "MYP Design Cycle — create a product or solution",
+    color: "text-teal-700",
+    bgColor: "bg-teal-50",
+    borderColor: "border-teal-300",
+  },
+  {
+    type: "service",
+    label: "Service Learning",
+    shortLabel: "Service",
+    icon: "🤝",
+    description: "Community-focused — investigate, plan, act, reflect",
+    color: "text-pink-700",
+    bgColor: "bg-pink-50",
+    borderColor: "border-pink-300",
+  },
+  {
+    type: "personal_project",
+    label: "Personal Project",
+    shortLabel: "PP",
+    icon: "🎯",
+    description: "Extended self-directed project with process journal",
+    color: "text-purple-700",
+    bgColor: "bg-purple-50",
+    borderColor: "border-purple-300",
+  },
+  {
+    type: "inquiry",
+    label: "Inquiry Unit",
+    shortLabel: "Inquiry",
+    icon: "🔍",
+    description: "Question-driven — research, analyse, communicate",
+    color: "text-amber-700",
+    bgColor: "bg-amber-50",
+    borderColor: "border-amber-300",
+  },
+];
 
 interface Props {
   state: WizardState;
@@ -215,6 +268,54 @@ export function GoalInput({ state, dispatch, onSelectMode }: Props) {
           Describe the final product or outcome. AI will plan the learning journey backwards from here.
         </p>
       </div>
+
+      {/* Unit type selector */}
+      <div className="max-w-2xl mx-auto mb-4">
+        <div className="grid grid-cols-4 gap-2">
+          {UNIT_TYPE_OPTIONS.map((opt) => {
+            const selected = (state.input.unitType || "design") === opt.type;
+            return (
+              <button
+                key={opt.type}
+                onClick={() => {
+                  dispatch({ type: "SET_INPUT", key: "unitType", value: opt.type });
+                }}
+                className={`relative flex flex-col items-center gap-1 px-2 py-3 rounded-xl border-2 transition-all duration-200 text-center ${
+                  selected
+                    ? `${opt.borderColor} ${opt.bgColor} shadow-sm scale-[1.02]`
+                    : "border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50"
+                }`}
+              >
+                <span className="text-lg leading-none">{opt.icon}</span>
+                <span className={`text-xs font-semibold ${selected ? opt.color : "text-text-secondary"}`}>
+                  {opt.shortLabel}
+                </span>
+                {selected && (
+                  <span className={`text-[10px] ${opt.color} opacity-70 leading-tight`}>
+                    {opt.description}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Curriculum context — free-text, per architecture spec Phase 0 */}
+      {(state.input.unitType || "design") !== "design" && (
+        <div className="max-w-2xl mx-auto mb-3">
+          <input
+            type="text"
+            value={state.input.curriculumContext || ""}
+            onChange={(e) => dispatch({ type: "SET_INPUT", key: "curriculumContext", value: e.target.value })}
+            placeholder="Curriculum context (optional) — e.g. IB MYP Community Project, PYP Exhibition Grade 5, GCSE D&T..."
+            className="w-full px-4 py-2.5 border border-border rounded-xl text-sm focus:outline-none focus:border-brand-purple/50 focus:ring-2 focus:ring-brand-purple/10 placeholder:text-text-secondary/40"
+          />
+          <p className="text-[11px] text-text-secondary mt-1 ml-1">
+            Helps the AI adapt vocabulary and assessment expectations to your specific curriculum.
+          </p>
+        </div>
+      )}
 
       {/* Goal textarea */}
       <div className="max-w-2xl mx-auto">

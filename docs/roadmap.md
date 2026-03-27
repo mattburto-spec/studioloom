@@ -31,6 +31,68 @@ For 11-16 year olds: seeing peer work (inspiration), getting teacher/peer feedba
 
 ---
 
+## Current Sprint — March 2026
+
+Based on the [full site audit](full-site-audit-2026-03-24.md): ~25% of code is built but untested end-to-end, ~15% is unwired. Priority: verify foundation before building new features.
+
+### TIER 0 — Unblock Everything (done or trivial)
+- ✅ Migration 037 APPLIED (school calendar + schedule_overrides)
+- ✅ Migration 025 APPLIED (ai_usage_log — usage tracking live)
+- ✅ Migration 050 APPLIED (studio preferences — mentor_id + theme_id)
+- ⬜ **Push 13+ pending commits** — blocked by school network proxy (HTTP 403). Includes: toolkit wiring, Discovery Engine (~9,500 lines), Class Gallery, student onboarding, playability fixes. Push when on non-proxied network.
+- ✅ Grading page partially tested (25 Mar) — exists at 1,311 lines. Class Hub inline grading works. Architecture finding: grades scoped to (student_id, unit_id, class_id).
+- ⬜ **Update this roadmap** — mark completed features, fix stale sections (this consolidation).
+
+### TIER 1 — Close the Gaps (~3-5 days, before building anything new)
+- ⬜ **Wire MonitoredTextarea into ResponseInput** (~2 hours) — prop `enableIntegrityMonitoring` exists but unused. Every submission after this has integrity data.
+- ✅ Wire useToolSession into all 24 toolkit tools — COMPLETE (26 Mar).
+- ⬜ **Content forking e2e test** (~half day) — 7-point checklist in CLAUDE.md.
+- ⬜ **NM e2e test** (~half day) — checklist at `docs/nm-test-checklist.md`.
+- ⬜ **Open Studio e2e test** (~half day) — checklist at `docs/open-studio-test-checklist.md`.
+- ⬜ **Safety badge e2e test** (~half day) — create → assign → student takes test → passes → accesses unit → teacher sees results.
+- ⬜ **Pace feedback test** — student completes lesson → taps pulse → saves → teacher sees aggregation.
+- ⬜ **Timetable/scheduling test** (~half day) — full checklist in CLAUDE.md.
+- ⬜ **Run backfill-activity-ids script** — required before drag-to-reorder is safe in production.
+
+### TIER 2 — Foundation for Content (~8-10 days)
+- ✅ Phase 0.5 inline editor COMPLETE (24 Mar) — 12 components, ~3,962 lines.
+- ⬜ **Phase 0.5 remaining:** debrief protocol library, prompt enrichment for generation quality, student preview mode.
+- ⬜ **Fix grading page if testing reveals issues** (forked content resolution, class_students junction).
+
+### TIER 3 — New Features (only after Tiers 0-2)
+- ✅ Class Gallery & Peer Review BUILT (26 Mar) — 24 files, ~4,200 lines.
+- ✅ Discovery Engine BUILT (26 Mar) — ~9,500 lines, 8 stations, all content.
+- ✅ Student Onboarding ("Studio Setup") BUILT (27 Mar) — 4-screen character creation, 3 mentors, 4 themes.
+- ✅ Landing Page Rebuild (27 Mar) — complete rewrite showcasing all features.
+- ⬜ Lesson Plan Converter — spec at `docs/specs/lesson-plan-converter.md`.
+- ⬜ Year Planner & Curriculum Connection — spec at `docs/specs/year-planner-spec.md`.
+
+### Wiring Sprint (from site audit — ~2-3 days)
+- ⬜ Wire MonitoredTextarea into submissions (see Tier 1)
+- ⬜ Add integrity column to teacher grading view
+- ⬜ Connect Discovery Engine profiles to Design Assistant system prompt (~2-3 days)
+
+### E2E Testing Sprint (from site audit — ~2-3 days)
+- Run all existing test checklists: forking, NM, Open Studio, safety badges, pace feedback, timetable, grading.
+
+### API Deduplication (from site audit — ~2 days)
+- Extract shared `callHaiku()` utility (copied 17 times across toolkit API routes)
+- Extract shared effort-assessment logic
+- Extract shared tool API pattern
+- Cuts ~2,890 wasted lines
+
+### Key Dependency Warnings
+| If you build this... | Before this... | You'll have to redo... |
+|---------------------|----------------|----------------------|
+| New unit content | Phase 0.5 lesson editing remaining | Manually fixing every lesson's JSONB |
+| AI-assisted grading | Testing existing grading page | Potentially rebuilding UI that already works |
+| Peer review enhancements | Grading works | Nothing meaningful to compare feedback against |
+| NM Phase 2 (progression) | NM Phase 1 e2e testing | Fixing data integrity issues |
+| Monetisation gates | Usage tracking analysis | No data to base tier limits on |
+| Parent portal | Grading + progress working | Nothing meaningful to show parents |
+
+---
+
 ## Phase 0: Flexible Unit Architecture ✅ COMPLETE
 
 Rearchitected units from fixed 16-page structure to flexible, teacher-defined page lists.
@@ -245,6 +307,51 @@ Students progress through levels like a game — but tied to real, demonstrated 
 **Dependencies:** School calendar terms must exist, timetable helps but not required (defaults to 1 meeting/week estimate).
 
 **Phase:** Build after Tier 1 gap-closing. Pairs well with the Lesson Scheduling system already built.
+
+### Unit Generation Project (Multi-Unit-Type Architecture)
+**Master spec:** `docs/specs/unit-type-framework-architecture.md` (770 lines — 4-dimension model, competitive analysis, UX vision, 6-phase build plan)
+**Wizard UX spec:** `docs/specs/wizard-lanes-spec.md` (3-lane wizard — Express/Guided/Architect)
+**Deep audit:** `docs/specs/design-hardcoding-deep-audit.md` (90 hardcoded Design instances, severity ratings)
+
+Supports `"design" | "service" | "personal_project" | "inquiry"` with per-type AI personas, teaching principles, pedagogical cycles, criteria, and timing. 4-dimension model: Unit Type × Programme × Curriculum × Standards.
+
+**Phase 0: Schema + Types — ✅ COMPLETE (27 March 2026)**
+- Migration 051: `unit_type TEXT NOT NULL DEFAULT 'design'` + `curriculum_context TEXT` on units table
+- `CriterionKey` extended from literal `"A"|"B"|"C"|"D"` to `string` — supports GCSE AO1-AO5, Service IPARD, etc.
+- Per-type criteria: `SERVICE_CRITERIA` (I/P/A/R/D), `PP_CRITERIA` (A/B/C), `INQUIRY_CRITERIA` (A/B/C/D different names)
+- Helper functions: `getCriteriaForType()`, `getCriterionKeys()`, `getCriterion()`, `buildUnitTypeSystemPrompt()`, `getPhaseLabels()`, `getPhaseIds()`
+- Full type definitions in `src/lib/ai/unit-types.ts` (509 lines — phases, AI persona, teaching principles, timing notes, detection keywords per type)
+- Unit type selector in wizard GoalInput (4 cards) + cascading state resets on type change
+- Dynamic criteria validation in generate-unit/generate-outlines/test-lesson routes
+- All `CRITERIA[criterion]` references in prompts.ts replaced with dynamic `getCriterion(criterion, unitType)`
+- TypeScript compilation clean (0 errors in modified files)
+
+**Phase 1: Gateway — Wizard + Converter (next, ~3-4 days)**
+- Conditional wizard fields per unit type (Service: community context, SDGs; PP: ATL skills focus; Inquiry: central idea, lines of inquiry)
+- Framework selector as Step 3 (visual cards, adapts per unit type)
+- Unit type auto-detection from topic text in Express lane
+- Curriculum context free-text wired into converter
+- Service Learning keyword suggestions in keyword buckets
+
+**Phase 2: AI Brain — Generation Prompts (~4-5 days)**
+- Service Learning Teaching Corpus (parallel to Design Teaching Corpus, 10+ principles from IPARD/NYLC research)
+- Personal Project + Inquiry Teaching Corpus stubs (in architecture spec Appendix A)
+- Parameterize `buildTimingBlock(unitType)` — Service: 30-40% action time (vs Design's 45%+ work time)
+- Parameterize `validateLessonTiming(unitType)` — per-type timing rules
+- Make `designPhase` → `activityPhase` with type-specific enum in schemas
+- Wire unit type through all 4 generation routes + regenerate-page
+
+**Phase 3: Wizard Lanes — Express/Guided/Architect (~3-4 days)**
+- 3-lane selector UI at top of wizard (see `docs/specs/wizard-lanes-spec.md`)
+- Express: 3 clicks (AI auto-infers everything from topic text)
+- Guided: 5-7 steps (current wizard flow, enhanced with type-aware questions)
+- Architect: single scrollable form with all fields visible
+- Lane switching mid-flow with answer carryover
+- Framework memory (remembers teacher's preference after first unit)
+
+**Phase 4+: Editor + Assessment, Knowledge Base + Standards, Design Assistant + Discovery** — see architecture spec for full details
+
+Discovery Engine already supports Mode 1 (Design) vs Mode 2 (Service/PP/PYPx) — this project extends that pattern to the full unit lifecycle
 
 ### Remove/Deprecate Drawing Tool
 - Students use Canva, Figma, TinkerCAD etc. for creation
@@ -760,6 +867,18 @@ Currently students belong to individual classes created by individual teachers. 
 - Default to GDPR as baseline — most restrictive, so meeting it covers most cases
 - AI processing consent tracked separately (some schools may want AI generation but not AI analysis of student work)
 - All types built in `src/types/school.ts` — migrations needed when building UI
+
+### Intelligence Profile System (~3-4 days)
+Compact JSONB profiles that condense raw event data into AI-readable summaries. Updated incrementally at write time (moving averages), not recomputed at read time. Industry pattern from Duolingo/Netflix/Khan Academy feature stores.
+
+**3 Profiles:**
+1. **Student Intelligence Profile** — `student_intelligence` JSONB on students table. Archetype scores (from Discovery), working style, design confidence trajectory, toolkit depth per tool, response quality trend (word count, effort scores), pace preference, active hours, strengths/growth areas. Updated on: Discovery completion, toolkit session save, response submission, pace feedback, reflection submission.
+2. **Teacher Intelligence Profile** — `teacher_intelligence` JSONB on teachers table. Teaching style (instruction:practice ratio, scaffolding level, feedback tone), generation preferences (what they edit most), content patterns (avg lesson length, phase time splits, activity type frequency), upload patterns. Updated on: unit generation, lesson edit save, knowledge upload, Teaching Mode session end.
+3. **Class Climate Profile** — `class_climate` JSONB on classes table. Avg pace distribution, engagement level (response rate, reflection depth), competency heat map, toolkit adoption, safety badge completion rate, gallery participation. Updated on: pace feedback, response submission, NM assessment, gallery review, safety badge completion.
+
+**Architecture:** Each profile has a `version` field + `last_computed` timestamp. `updateStudentProfile(studentId, event)` function applies incremental update using exponential moving average (α=0.3 for recent-biased). AI reads the compact profile instead of querying raw tables.
+
+**Depends on:** Grading page working (criterion scores are primary signal for Student profile), Discovery Engine deployed (archetype data), toolkit persistence wired (✅ done).
 
 ---
 
@@ -1700,44 +1819,31 @@ International schools in mainland China can't reach `api.anthropic.com` or `api.
 
 ---
 
-## Priority Summary (What to Tackle)
+## Priority Summary (What to Tackle Next)
 
-### 0. Operational Quick Wins (from 2026-03 audit — Do First, ~5 hours total)
-These are pre-scaling essentials. No architectural changes, just plugging gaps before more users arrive:
+**See "Current Sprint — March 2026" at the top for the active work plan.**
 
-1. **AI Usage Tracking Table** (~1h) — `ai_usage_log` table logging every API call with tokens/cost. You need cost visibility before scaling.
-2. **Rate Limiting on Student Endpoints** (~1-2h) — In-memory rate limiter on `/api/student/design-assistant`. Prevents credit exhaustion.
-3. **Sentry Integration** (~1h) — `@sentry/nextjs`. Currently all errors go to `console.error` — in production, failures are invisible.
-4. **Prompt Snapshot Tests** (~2-3h) — Zero test files in the repo. Start with snapshot tests for the 3 key prompt builders. Prevents silent regressions.
-5. ~~**Response Flagging Heuristic** (~30m)~~ — Superseded by MonitoredTextarea + analyzeIntegrity() built 19 Mar 2026. Full integrity system with 6-rule scoring, playback, and teacher report.
+### Immediate (This Week)
+1. Push pending commits (blocked by school proxy)
+2. Run backfill-activity-ids script
+3. Wire MonitoredTextarea into submissions
 
-### Immediate Impact (Build Next)
-These deliver the most value for the least effort and fill the biggest gaps:
+### Next Sprint (~1-2 weeks)
+4. E2E testing sprint (forking, NM, Open Studio, safety badges, pace, timetable, grading)
+5. Phase 0.5 remaining (debrief library, prompt enrichment, student preview)
+6. API deduplication (~2,890 wasted lines)
 
-6. **Teacher Review UI** (Phase 2 — Lesson Intelligence) — upload pipeline is built but no way to see/verify the analysis. Quick win: rich display of LessonProfile after upload.
-7. **Real-time Teacher Dashboard** (Phase 4) — the #1 daily-driver feature teachers don't have. "Who's stuck, who's done" at a glance.
-8. **Grading/Marking UI + Agentic Assessment** (Phase 4) — no way to record grades currently. Assessment types are ready, need the UI. 2026-03 audit identified an agentic assessment workflow (retrieve rubric → evaluate → strand-level feedback → improvements) as the highest-value feature gap. Claude vision could also analyse student prototype photos against design specs.
-9. **AI Insights Dashboard** (Phase 4) — data model already captures signals (retrieval counts, Bloom's progression, quality scores). Primarily a UI build. Pairs with real-time dashboard.
-10. **Batch Upload UI** (Phase 2) — multi-file drag-and-drop for knowledge base. Currently single-file only. Component built 19 Mar 2026 (`src/components/teacher/BatchUpload.tsx`), needs integration into knowledge upload page.
-
-### Foundation Work (Enables Everything Else)
-11. **Teaching Context Onboarding** (Phase 2.5) — school context + teacher preferences feed into every AI generation
-12. **School Entity + Student Registry** (Phase 3.5) — prerequisite for parent portal, data compliance, multi-teacher schools
-
-### Differentiators (What Makes StudioLoom World-Class)
-13. **Teaching Mode Quick-Access Toolbar** — Floating toolbar at bottom of Teaching Mode with 6 tool groups: Clock/Time (elapsed + period remaining + quick countdown presets), Phase Timer (compact controls), Quick Edit (inline-edit lesson content from teaching view — no other tool does this), On-the-Fly Activities (push instant polls/exit tickets/show-me/collaborate boards to student screens), Classroom Tools (random picker, group maker, stopwatch, noise meter), Projection Controls. Based on Nearpod "On the Fly" + ClassPoint toolbar patterns. Noise meter is the "wow" differentiator (no competitor has it built in). ~11-13 days across 4 phases. Full spec at `docs/specs/teaching-mode-quick-access.md`.
-14. **Wizard RAG Enhancement** (Phase 2) — lesson-level retrieval makes AI generation dramatically better
-15. **Cross-Encoder Re-Ranking** (Phase 2, from audit) — retrieve top 15-20, re-rank with Cohere/Voyage reranker, return top 5. ~1 week. Matters when KB exceeds ~1000 chunks.
-16. **Safety Certification Tracking UI** (Phase 3) — elevated to USP, builds trust with schools and insurance
-17. **Multi-Modal Student Work Analysis** (from audit) — Claude vision on student prototype photos/sketches against design specs. Natural extension of existing vision extraction pipeline. ~2 weeks.
-18. **Offline/Service Worker** (Cross-cutting) — workshop WiFi is terrible, this is a differentiator
-19. **Peer Inspiration Gallery** (Phase 5) — social learning for teens, lightweight but high-engagement
+### After Foundation Verified
+7. Lesson Plan Converter (spec ready)
+8. Year Planner & Curriculum Connection (spec ready)
+9. Intelligence Profile System (Student, Teacher, Class Climate — see Phase 3.5)
+10. Teaching Mode Quick-Access Toolbar (spec ready, ~11-13 days)
 
 ### Trust Builders (Required for School Sales)
-20. **Data Privacy/Compliance UI** (Phase 3.5) — schools won't adopt without seeing compliance tools
-21. **Report Generation** (Phase 4) — end-of-term reports are a basic expectation
-22. **Parent Portal** (Phase 5.5) — read-only access for parents, required by many school policies
-23. **Product Analytics** (Cross-cutting) — Plausible for page analytics (cookie-free, COPPA-safe), PostHog for product funnels if needed. Essential for Phase 7 freemium conversion tracking. Never track students individually.
+11. Data Privacy/Compliance UI
+12. Report Generation for parent conferences
+13. Parent Portal (read-only)
+14. Product Analytics (Plausible/PostHog)
 
 ---
 
@@ -1745,9 +1851,22 @@ These deliver the most value for the least effort and fill the biggest gaps:
 
 Ideas parked for future consideration. Not prioritised, not committed — just captured so they don't get lost.
 
+### UX Polish Items (from legacy todo list)
+- **Skeleton → approaches flicker bug in wizard** — Skeletons appear, then disappear (blank gap), then real approaches render. Keep skeletons visible until crossfade.
+- **Keyword chip selection UX in wizard** — Make chips clearly clickable with selection affordance. Helper text. Optionally require 2-3 selections.
+- **Fun thinking messages during AI generation** — ~20 rotating messages during wizard waits: "Consulting with Bloom about taxonomy levels...", "Asking Hattie what works best..."
+- **Feature flag system** — PostHog feature flags or custom `feature_flags` table. Super admin toggle page.
+- **Feedback Station activity type** — Student device as feedback collection point. QR code access. Structured prompts. Data flows back to original student.
+- **Source restriction flags for knowledge base** — `unrestricted | reference_only | excluded` on knowledge_items. Filter in RAG retrieval.
+- **Kahoot-style quiz activity cards** — Self-paced quiz cards with class results view. Live/synchronous mode later.
+- **"Generate one with..." variation buttons** — Replace single Regenerate with 3 contextual buttons: "more hands-on", "stronger scaffolding", "real-world connections".
+- **VEX/Robotics curriculum profile** — Specialized CurriculumProfile for robotics/engineering. Engineering notebook format.
+- **Clickable hotspot annotations on images** — Teacher places interactive hotspots on diagrams. Students click to reveal info.
+- **Free competitive design challenges** — Timed ideation sprints, design battles, constraint challenges with peer voting.
+
 ### Student Screen Skins / Themes
 Let students choose a visual skin for their entire student experience — different color palettes, card styles, gradients, and vibes. Inspired by [Scape student living](https://www.scape.com.au/) (bold pops of color, quirky/playful aesthetic, exposed textures contrasted with vibrant graphics). Implementation would involve a ThemeProvider context wrapping the student layout, 5-6 curated skins (e.g. Default purple, Bold/Scape-style neon pops, Dark Mode, Pastel/Soft, Ocean, Retro), CSS variable swapping for colors + gradients + card border-radius + font weight, skin selector on student dashboard or profile area, preference stored in `students` table or localStorage. Medium effort (~2-3 days). Nice personalization touch for the 11-16 age group — teens love customizing their space. Not urgent because it's cosmetic, but could boost engagement and "this is MY space" ownership feeling.
 
 ---
 
-*Last updated: 2026-03-21 (student skins idea parked in Someday/Maybe)*
+*Last updated: 2026-03-27 (consolidated from priority-todo.md + site audit + CLAUDE.md)*
