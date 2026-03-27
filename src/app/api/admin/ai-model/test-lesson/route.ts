@@ -15,6 +15,8 @@ import { buildLessonGenerationTool } from "@/lib/ai/schemas";
 import type { AIModelConfig } from "@/types/ai-model-config";
 import type { LessonJourneyInput } from "@/types";
 import Anthropic from "@anthropic-ai/sdk";
+import { buildUnitTypeSystemPrompt, UNIT_TYPES } from "@/lib/ai/unit-types";
+import type { UnitType } from "@/lib/ai/unit-types";
 
 const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "mattburto@gmail.com")
   .split(",")
@@ -59,6 +61,7 @@ export async function POST(request: NextRequest) {
         lessonLengthMinutes?: number;
         curriculumFramework?: string;
         assessmentCriteria?: string[];
+        unitType?: UnitType;
       };
     };
 
@@ -66,6 +69,7 @@ export async function POST(request: NextRequest) {
     const lessonLengthMinutes = testInput.lessonLengthMinutes || 50;
     const criteria = testInput.assessmentCriteria || ["A", "B", "C", "D"];
     const framework = testInput.curriculumFramework || "IB_MYP";
+    const unitType: UnitType = testInput.unitType || "design";
 
     // Build a minimal journey input for a single lesson
     const input: LessonJourneyInput = {
@@ -129,11 +133,16 @@ export async function POST(request: NextRequest) {
 
     const startTime = Date.now();
 
+    // Use unit-type-aware system prompt instead of hardcoded JOURNEY_SYSTEM_PROMPT
+    const systemPrompt = unitType === "design"
+      ? JOURNEY_SYSTEM_PROMPT  // Preserve existing Design prompt for backward compat
+      : buildUnitTypeSystemPrompt(unitType);
+
     // Note: thinking cannot be used with tool_choice, so we disable it here
     const response = await client.messages.create({
       model: "claude-sonnet-4-20250514",
       max_tokens: 16000,
-      system: JOURNEY_SYSTEM_PROMPT + "\n\n" + timingBlock,
+      system: systemPrompt + "\n\n" + timingBlock,
       messages: [{ role: "user", content: userPrompt }],
       tools: [tool],
       tool_choice: { type: "tool", name: tool.name },
@@ -186,6 +195,8 @@ export async function POST(request: NextRequest) {
       elapsed,
       tokensUsed: response.usage,
       timingValidation,
+      unitType,
+      unitTypeLabel: UNIT_TYPES[unitType].label,
       configApplied: {
         timingProfile,
         generationEmphasis: resolvedConfig.generationEmphasis,

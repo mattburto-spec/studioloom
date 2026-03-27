@@ -9,8 +9,47 @@ import { TestResultsView } from "./TestResultsView";
 // Constants
 // =========================================================================
 
+type UnitType = "design" | "service" | "personal_project" | "inquiry";
+
+const UNIT_TYPE_OPTIONS: { value: UnitType; label: string; icon: string; color: string }[] = [
+  { value: "design", label: "Design", icon: "🛠", color: "#6366F1" },
+  { value: "service", label: "Service", icon: "🤝", color: "#3B82F6" },
+  { value: "personal_project", label: "Personal Project", icon: "🎯", color: "#8B5CF6" },
+  { value: "inquiry", label: "Inquiry", icon: "🔎", color: "#10B981" },
+];
+
+/** Quick-fill presets for testing each unit type */
+const UNIT_TYPE_PRESETS: Record<UnitType, { topic: string; endGoal: string; framework: string; criteria: string[] }> = {
+  design: {
+    topic: "Sustainable Packaging Design",
+    endGoal: "Design and prototype a sustainable food container that reduces plastic waste",
+    framework: "IB_MYP",
+    criteria: ["A", "B", "C", "D"],
+  },
+  service: {
+    topic: "School Garden Community Project",
+    endGoal: "Investigate food waste in the school community and take sustainable action through a school garden initiative",
+    framework: "IB_MYP",
+    criteria: ["A", "B", "C", "D"],
+  },
+  personal_project: {
+    topic: "Photography Portfolio",
+    endGoal: "Create a curated photography portfolio exploring a personal theme, documenting the creative process and ATL skill development",
+    framework: "IB_MYP",
+    criteria: ["A", "B", "C", "D"],
+  },
+  inquiry: {
+    topic: "Water: A Shared Resource",
+    endGoal: "Investigate how access to clean water varies globally and create an awareness campaign for the school community",
+    framework: "IB_MYP",
+    criteria: ["A", "B", "C", "D"],
+  },
+};
+
 export const FRAMEWORKS = [
   { value: "IB_MYP", label: "IB MYP Design", criteria: ["A", "B", "C", "D"] },
+  { value: "IB_MYP_SERVICE", label: "IB MYP Community Project", criteria: ["A", "B", "C", "D"] },
+  { value: "IB_CAS", label: "IB DP CAS", criteria: ["LO1", "LO2", "LO3", "LO4", "LO5", "LO6", "LO7"] },
   { value: "GCSE_DT", label: "GCSE Design & Technology", criteria: ["AO1", "AO2", "AO3", "AO4", "AO5"] },
   { value: "ACARA_DT", label: "Australian Curriculum DT", criteria: ["KU", "P&P"] },
   { value: "PLTW", label: "Project Lead The Way (US)", criteria: ["IED", "POE", "CEA", "DE"] },
@@ -25,6 +64,10 @@ export const LESSON_TYPES = [
   { value: "making", label: "Making", icon: "🏗" },
   { value: "testing", label: "Testing", icon: "🧪" },
   { value: "critique", label: "Critique", icon: "📋" },
+  { value: "community-action", label: "Community Action", icon: "🤝" },
+  { value: "reflection", label: "Reflection", icon: "🪞" },
+  { value: "investigation", label: "Investigation", icon: "🔬" },
+  { value: "presentation", label: "Presentation", icon: "📊" },
 ];
 
 const GRADE_OPTIONS = [
@@ -47,6 +90,7 @@ export function TestSandbox({
   config: ResolvedModelConfig;
 }) {
   const [testMode, setTestMode] = useState<TestMode>("skeleton");
+  const [unitType, setUnitType] = useState<UnitType>("design");
   const [testInput, setTestInput] = useState<TestInput>({
     topic: "Sustainable Packaging Design",
     gradeLevel: "Year 3 (Grade 8)",
@@ -57,6 +101,19 @@ export function TestSandbox({
   const [lessonType, setLessonType] = useState("research");
   const [framework, setFramework] = useState("IB_MYP");
   const [selectedCriteria, setSelectedCriteria] = useState<string[]>(["A", "B", "C", "D"]);
+
+  /** Apply a unit type preset — fills in topic, endGoal, framework, criteria */
+  const applyPreset = (type: UnitType) => {
+    setUnitType(type);
+    const preset = UNIT_TYPE_PRESETS[type];
+    setTestInput({
+      ...testInput,
+      topic: preset.topic,
+      endGoal: preset.endGoal,
+    });
+    setFramework(preset.framework);
+    setSelectedCriteria([...preset.criteria]);
+  };
   const [loading, setLoading] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [result, setResult] = useState<any>(null);
@@ -101,6 +158,7 @@ export function TestSandbox({
             testInput: {
               ...sharedInput,
               lessonType,
+              unitType,
             },
           }),
         });
@@ -139,6 +197,28 @@ export function TestSandbox({
 
       {expanded && (
         <div className="px-6 pb-6">
+          {/* Unit Type Selector */}
+          <div className="mb-4">
+            <label className="block text-xs font-medium text-gray-600 mb-2">Unit Type</label>
+            <div className="flex gap-2">
+              {UNIT_TYPE_OPTIONS.map((ut) => (
+                <button
+                  key={ut.value}
+                  onClick={() => applyPreset(ut.value)}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border-2 transition-all ${
+                    unitType === ut.value
+                      ? "border-current shadow-sm"
+                      : "border-gray-200 text-gray-500 hover:border-gray-300"
+                  }`}
+                  style={unitType === ut.value ? { color: ut.color, borderColor: ut.color, backgroundColor: ut.color + "10" } : {}}
+                >
+                  <span>{ut.icon}</span>
+                  <span>{ut.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Mode Toggle */}
           <div className="flex gap-1 mb-4 bg-gray-100 p-1 rounded-lg w-fit">
             <button
@@ -295,10 +375,10 @@ export function TestSandbox({
                   <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
                   <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" className="opacity-75" />
                 </svg>
-                Generating{testMode === "lesson" ? " Full Lesson" : " Skeleton"}...
+                Generating {UNIT_TYPE_OPTIONS.find(u => u.value === unitType)?.label} {testMode === "lesson" ? "Lesson" : "Skeleton"}...
               </>
             ) : (
-              <>{testMode === "skeleton" ? "Generate Unit Skeleton" : "Generate Full Lesson"}</>
+              <>Generate {UNIT_TYPE_OPTIONS.find(u => u.value === unitType)?.label} {testMode === "skeleton" ? "Skeleton" : "Lesson"}</>
             )}
           </button>
 
