@@ -337,117 +337,110 @@ export function GoalInput({ state, dispatch, onSelectMode }: Props) {
           )}
         </div>
 
-        {/* Buckets + keyword bank — show as soon as text is long enough */}
-        {showKeywordSection && (
-          <div className="mt-4 space-y-3 animate-slide-up">
-            {/* Buckets first — always visible once text is long enough */}
-            <div className="grid grid-cols-2 gap-2.5">
-              {/* Must Have bucket — tap sends back to bank */}
-              <DropBucket
-                label="Must Have"
-                icon="star"
-                priority="essential"
-                keywords={mustHave}
-                compact={!hasPlacedKeywords}
-                isDragOver={dragOverBucket === "essential"}
-                onDragOver={handleDragOver}
-                onDrop={handleDrop("essential")}
-                onDragEnter={handleDragEnter("essential")}
-                onDragLeave={handleDragLeave("essential")}
-                onToggle={handleToggleKeyword}
-                onChipTap={(idx) => handleSetPriority(idx, "none")}
-              />
-
-              {/* Nice to Have bucket — tap promotes to Must Have */}
-              <DropBucket
-                label="Nice to Have"
-                icon="check"
-                priority="included"
-                keywords={niceToHave}
-                compact={!hasPlacedKeywords}
-                isDragOver={dragOverBucket === "included"}
-                onDragOver={handleDragOver}
-                onDrop={handleDrop("included")}
-                onDragEnter={handleDragEnter("included")}
-                onDragLeave={handleDragLeave("included")}
-                onToggle={handleToggleKeyword}
-                onChipTap={(idx) => handleSetPriority(idx, "essential")}
-              />
-            </div>
-
-            {/* Word Bank — always show section, with loading/empty states */}
-            <div
-              onDragOver={handleDragOver}
-              onDrop={handleDrop("none")}
-              onDragEnter={handleDragEnter("none")}
-              onDragLeave={handleDragLeave("none")}
-            >
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-xs font-medium text-text-secondary">
-                  Suggestions
-                </span>
-                {bankKeywords.length > 0 && (
-                  <span className="text-[10px] text-text-secondary/50">
-                    drag into buckets above, or tap
-                  </span>
-                )}
-                {keywordStatus === "loading" && <SuggestionLoading />}
-              </div>
-              {bankKeywords.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {bankKeywords.map((kw) => (
-                    <KeywordCard
-                      key={`${kw.label}-${kw.category}`}
-                      label={kw.label}
-                      category={kw.category}
-                      priority={kw.priority}
-                      index={kw.originalIndex}
-                      onToggle={() => handleToggleKeyword(kw.originalIndex)}
-                      delay={kw.originalIndex * 60}
-                    />
-                  ))}
-                </div>
-              ) : keywordStatus === "loading" ? (
-                <div className="flex gap-2">
-                  {[1, 2, 3].map((i) => (
-                    <div key={i} className="h-7 rounded-full bg-gray-100 animate-pulse" style={{ width: `${60 + i * 20}px` }} />
-                  ))}
-                </div>
-              ) : keywordStatus === "done" && keywords.length === 0 ? (
-                <p className="text-[11px] text-text-tertiary">No suggestions yet — try adding more detail above</p>
-              ) : null}
-            </div>
-          </div>
-        )}
-
-        {/* Grade + Duration + Build/Guide — appears when goal is long enough */}
+        {/* ── Lane Selector — the primary next step after topic entry ── */}
         {showConfig && onSelectMode && (
-          <div className="mt-6 space-y-4 animate-slide-up">
-            <CompactConfig state={state} dispatch={dispatch} />
-            <ModeSelector dispatch={dispatch} onSelectMode={onSelectMode} />
+          <div className="mt-8 animate-slide-up">
+            <div className="text-center mb-4">
+              <h2 className="text-lg font-bold text-text-primary">How do you want to build this?</h2>
+              <p className="text-xs text-text-secondary mt-1">Choose your level of control</p>
+            </div>
+            <ModeSelector onSelectMode={onSelectMode} />
 
-            {/* Subtle link to switch to criterion mode */}
-            {state.journeyMode && (
-              <p className="text-center">
+            {/* Subtle link to switch journey/criterion mode */}
+            <div className="mt-3 text-center">
+              {state.journeyMode ? (
                 <button
                   onClick={() => dispatch({ type: "SET_JOURNEY_MODE", enabled: false })}
                   className="text-[11px] text-text-secondary/50 hover:text-text-secondary transition-colors"
                 >
                   Using a different structure? Switch to Design Cycle →
                 </button>
-              </p>
-            )}
-            {!state.journeyMode && (
-              <p className="text-center">
+              ) : (
                 <button
                   onClick={() => dispatch({ type: "SET_JOURNEY_MODE", enabled: true })}
                   className="text-[11px] text-text-secondary/50 hover:text-text-secondary transition-colors"
                 >
                   ← Switch back to Learning Journey
                 </button>
-              </p>
-            )}
+              )}
+            </div>
           </div>
+        )}
+
+        {/* Keyword suggestions — secondary, collapsible */}
+        {showKeywordSection && keywords.length > 0 && (
+          <details className="mt-5 group">
+            <summary className="text-xs font-medium text-text-secondary cursor-pointer hover:text-text-primary transition-colors list-none flex items-center gap-1.5">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="transition-transform group-open:rotate-90">
+                <path d="M9 18l6-6-6-6" />
+              </svg>
+              AI-suggested keywords ({keywords.length})
+            </summary>
+            <div className="mt-3 space-y-3 animate-slide-up">
+              {/* Buckets */}
+              <div className="grid grid-cols-2 gap-2.5">
+                <DropBucket
+                  label="Must Have"
+                  icon="star"
+                  priority="essential"
+                  keywords={mustHave}
+                  compact={!hasPlacedKeywords}
+                  isDragOver={dragOverBucket === "essential"}
+                  onDragOver={handleDragOver}
+                  onDrop={handleDrop("essential")}
+                  onDragEnter={handleDragEnter("essential")}
+                  onDragLeave={handleDragLeave("essential")}
+                  onToggle={handleToggleKeyword}
+                  onChipTap={(idx) => handleSetPriority(idx, "none")}
+                />
+                <DropBucket
+                  label="Nice to Have"
+                  icon="check"
+                  priority="included"
+                  keywords={niceToHave}
+                  compact={!hasPlacedKeywords}
+                  isDragOver={dragOverBucket === "included"}
+                  onDragOver={handleDragOver}
+                  onDrop={handleDrop("included")}
+                  onDragEnter={handleDragEnter("included")}
+                  onDragLeave={handleDragLeave("included")}
+                  onToggle={handleToggleKeyword}
+                  onChipTap={(idx) => handleSetPriority(idx, "essential")}
+                />
+              </div>
+
+              {/* Word Bank */}
+              <div
+                onDragOver={handleDragOver}
+                onDrop={handleDrop("none")}
+                onDragEnter={handleDragEnter("none")}
+                onDragLeave={handleDragLeave("none")}
+              >
+                {bankKeywords.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {bankKeywords.map((kw) => (
+                      <KeywordCard
+                        key={`${kw.label}-${kw.category}`}
+                        label={kw.label}
+                        category={kw.category}
+                        priority={kw.priority}
+                        index={kw.originalIndex}
+                        onToggle={() => handleToggleKeyword(kw.originalIndex)}
+                        delay={kw.originalIndex * 60}
+                      />
+                    ))}
+                  </div>
+                )}
+                {keywordStatus === "loading" && (
+                  <div className="flex gap-2">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="h-7 rounded-full bg-gray-100 animate-pulse" style={{ width: `${60 + i * 20}px` }} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </details>
         )}
       </div>
     </div>
