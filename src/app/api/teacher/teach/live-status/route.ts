@@ -42,12 +42,31 @@ export const GET = withErrorHandler("teacher/teach/live-status:GET", async (requ
     .eq("id", classId)
     .single();
 
-  // Get students in class
-  const { data: students } = await db
-    .from("students")
-    .select("id, username, display_name, avatar_url, ell_level")
-    .eq("class_id", classId)
-    .order("display_name");
+  // Get students in class — junction table first, legacy fallback
+  const { data: junctionRows } = await db
+    .from("class_students")
+    .select("student_id")
+    .eq("class_id", classId);
+  const junctionStudentIds = (junctionRows || []).map((r: { student_id: string }) => r.student_id);
+
+  let students: { id: string; username: string; display_name: string; avatar_url: string | null; ell_level: string | null }[] | null = null;
+  if (junctionStudentIds.length > 0) {
+    const { data } = await db
+      .from("students")
+      .select("id, username, display_name, avatar_url, ell_level")
+      .in("id", junctionStudentIds)
+      .order("display_name");
+    students = data;
+  }
+  if (!students || students.length === 0) {
+    // Legacy fallback — students.class_id
+    const { data } = await db
+      .from("students")
+      .select("id, username, display_name, avatar_url, ell_level")
+      .eq("class_id", classId)
+      .order("display_name");
+    students = data;
+  }
 
   if (!students || students.length === 0) {
     return NextResponse.json({
