@@ -36,26 +36,39 @@ export async function GET(
 
   const supabase = createAdminClient();
 
-  // Get student's class_id for per-class NM config lookup
-  const { data: student } = await supabase
-    .from("students")
+  // Get student's class IDs — try junction table first, then legacy class_id
+  const { data: junctionRows } = await supabase
+    .from("class_students")
     .select("class_id")
-    .eq("id", studentId)
-    .single();
+    .eq("student_id", studentId);
+
+  const classIds: string[] = (junctionRows || []).map((r: { class_id: string }) => r.class_id);
+
+  // Legacy fallback: students.class_id
+  if (classIds.length === 0) {
+    const { data: student } = await supabase
+      .from("students")
+      .select("class_id")
+      .eq("id", studentId)
+      .single();
+    if (student?.class_id) classIds.push(student.class_id);
+  }
 
   // Get NM config: class-specific (class_units) with fallback to unit-level (units)
   let nmConfig: NMUnitConfig | null = null;
 
-  if (student?.class_id) {
-    const { data: classUnit } = await supabase
+  if (classIds.length > 0) {
+    // Check all enrolled classes for this unit's NM config
+    const { data: classUnits } = await supabase
       .from("class_units")
       .select("nm_config")
-      .eq("class_id", student.class_id)
-      .eq("unit_id", unitId)
-      .single();
+      .in("class_id", classIds)
+      .eq("unit_id", unitId);
 
-    if (classUnit?.nm_config) {
-      nmConfig = classUnit.nm_config as NMUnitConfig;
+    // Use the first class-unit with NM config
+    const cuWithNm = (classUnits || []).find((cu: { nm_config: NMUnitConfig | null }) => cu.nm_config);
+    if (cuWithNm?.nm_config) {
+      nmConfig = cuWithNm.nm_config as NMUnitConfig;
     }
   }
 
@@ -77,23 +90,10 @@ export async function GET(
     return NextResponse.json({ checkpoint: null });
   }
 
-  // Check global NM toggle (stored in teacher_profiles, not teachers)
-  const { data: unit } = await supabase
-    .from("units")
-    .select("author_teacher_id")
-    .eq("id", unitId)
-    .single();
-  if (unit?.author_teacher_id) {
-    const { data: teacherProfile } = await supabase
-      .from("teacher_profiles")
-      .select("school_context")
-      .eq("teacher_id", unit.author_teacher_id)
-      .single();
-    const sc = teacherProfile?.school_context as { use_new_metrics?: boolean } | null;
-    if (!sc?.use_new_metrics) {
-      return NextResponse.json({ checkpoint: null });
-    }
-  }
+  // Note: The per-class NM config with enabled=true is sufficient intent.
+  // The global use_new_metrics toggle in teacher settings is checked for
+  // dashboard display but NOT required here — if a teacher configured NM
+  // checkpoints on a class-unit, that's explicit enough.
 
   const checkpoint = nmConfig.checkpoints?.[pageId];
   if (!checkpoint) {

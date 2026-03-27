@@ -83,29 +83,43 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Get student's class_id for per-class NM config + assessment scoping
-  const { data: student } = await supabase
-    .from("students")
+  // Get student's class IDs — junction table first, then legacy fallback
+  const { data: junctionRows } = await supabase
+    .from("class_students")
     .select("class_id")
-    .eq("id", studentId)
-    .single();
+    .eq("student_id", studentId);
 
-  const classId = student?.class_id || null;
+  const classIds: string[] = (junctionRows || []).map((r: { class_id: string }) => r.class_id);
+
+  if (classIds.length === 0) {
+    const { data: student } = await supabase
+      .from("students")
+      .select("class_id")
+      .eq("id", studentId)
+      .single();
+    if (student?.class_id) classIds.push(student.class_id);
+  }
+
+  // Use the first class that has this unit assigned
+  let classId: string | null = null;
 
   // Get NM config: class-specific (class_units) with fallback to unit-level (units)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let nmConfig: any = null;
 
-  if (classId) {
-    const { data: classUnit } = await supabase
+  if (classIds.length > 0) {
+    const { data: classUnits } = await supabase
       .from("class_units")
-      .select("nm_config")
-      .eq("class_id", classId)
-      .eq("unit_id", unitId)
-      .single();
+      .select("class_id, nm_config")
+      .in("class_id", classIds)
+      .eq("unit_id", unitId);
 
-    if (classUnit?.nm_config) {
-      nmConfig = classUnit.nm_config;
+    const cuWithNm = (classUnits || []).find((cu: { nm_config: unknown }) => cu.nm_config);
+    if (cuWithNm) {
+      classId = cuWithNm.class_id;
+      nmConfig = cuWithNm.nm_config;
+    } else if (classUnits && classUnits.length > 0) {
+      classId = classUnits[0].class_id;
     }
   }
 
