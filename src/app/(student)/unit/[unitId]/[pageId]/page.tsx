@@ -26,10 +26,19 @@ import { useStudent } from "@/app/(student)/student-context";
 import { OpenStudioBanner } from "@/components/open-studio";
 import { useOpenStudio } from "@/hooks/useOpenStudio";
 import { CompetencyPulse } from "@/components/nm";
+import { ErrorBoundary } from "@/components/student/ErrorBoundary";
 import type { PageContent } from "@/types";
 import type { IntegrityMetadata } from "@/components/student/MonitoredTextarea";
 
-export default function UnitPageView({
+export default function UnitPageView(props: { params: Promise<{ unitId: string; pageId: string }> }) {
+  return (
+    <ErrorBoundary>
+      <UnitPageViewInner {...props} />
+    </ErrorBoundary>
+  );
+}
+
+function UnitPageViewInner({
   params,
 }: {
   params: Promise<{ unitId: string; pageId: string }>;

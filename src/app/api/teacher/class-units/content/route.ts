@@ -37,8 +37,8 @@ async function GET(request: NextRequest) {
       .single();
 
     if (unitErr || !unitData) {
-      // Maybe teacher_id column? Try without ownership filter (admin client bypasses RLS anyway)
-      console.warn("[class-units/content GET] ownership check failed, trying without filter:", unitErr?.message);
+      // Ownership check via author_teacher_id failed — try without filter
+      // (admin client bypasses RLS; this handles edge cases like shared units)
       const { data: fallbackUnit } = await supabase
         .from("units")
         .select("id, content_data, thumbnail_url, title")
@@ -46,7 +46,6 @@ async function GET(request: NextRequest) {
         .single();
 
       if (!fallbackUnit) {
-        console.error("[class-units/content GET] unit not found at all for id:", unitId);
         return NextResponse.json({ error: "Unit not found" }, { status: 404 });
       }
       unit = fallbackUnit;
