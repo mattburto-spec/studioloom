@@ -4,7 +4,7 @@ import { useState, useEffect, use, useCallback, useRef } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { NMConfigPanel, NMResultsPanel, ObservationSnap } from "@/components/nm";
-import { CertManager } from "@/components/teacher/CertManager";
+import { BadgesTab } from "@/components/teacher/class-hub/BadgesTab";
 import { LessonSchedule } from "@/components/teacher/LessonSchedule";
 import type { ScheduleOverrides } from "@/components/teacher/LessonSchedule";
 import type { NMUnitConfig } from "@/lib/nm/constants";
@@ -1413,23 +1413,11 @@ export default function ClassHubPage({
       {/* BADGES TAB                                                        */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {activeTab === "badges" && (
-        <div className="max-w-3xl space-y-6">
-          <CertManager classId={classId} students={students.map((s) => ({ student_id: s.id, display_name: s.display_name, username: s.username }))} />
-          <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center justify-between">
-            <div>
-              <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                </svg>
-                Safety Badge Library
-              </h3>
-              <p className="text-sm text-gray-500 mt-1">Create new badges, edit questions, and manage unit requirements.</p>
-            </div>
-            <Link href="/teacher/safety" className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-50 text-amber-700 font-medium text-sm hover:bg-amber-100 transition shrink-0">
-              Manage Badges
-            </Link>
-          </div>
-        </div>
+        <BadgesTab
+          unitId={unitId}
+          classId={classId}
+          students={students.map((s) => ({ id: s.id, display_name: s.display_name, username: s.username }))}
+        />
       )}
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
