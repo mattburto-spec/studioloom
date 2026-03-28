@@ -111,43 +111,101 @@ export function buildTimingContext(
   };
 }
 
-const TIMING_PROFILES: Record<number, GradeTimingProfile> = {
-  1: {
+/** Age-based timing profiles. Keyed by student age (11-18). */
+const AGE_TIMING_PROFILES: Record<number, GradeTimingProfile> = {
+  11: {
     mypYear: 1, avgStudentAge: 11, warmupMinutes: 5, introMinutes: 5, reflectionMinutes: 5,
     maxHighCognitiveMinutes: 12, maxHandsOnMinutes: 40, maxCollaborativeMinutes: 15, maxDigitalMinutes: 15,
-    pacingNote: "MYP Year 1 (age 11): Students sustain cognitive focus for ~10-12 minutes but can engage in hands-on making for much longer. Reading, writing, and analysis tasks must be SHORT (≤12 min) and heavily scaffolded with checklists, sentence starters, and worked examples. Hands-on/making activities can run 20-40 min as long as they have clear checkpoints. Break reading-heavy tasks into small chunks with partner discussion between them.",
+    pacingNote: "Age 11 (typically Year 1): Students sustain cognitive focus for ~10-12 minutes but can engage in hands-on making for much longer. Reading, writing, and analysis tasks must be SHORT (≤12 min) and heavily scaffolded with checklists, sentence starters, and worked examples. Hands-on/making activities can run 20-40 min as long as they have clear checkpoints. Break reading-heavy tasks into small chunks with partner discussion between them.",
   },
-  2: {
+  12: {
     mypYear: 2, avgStudentAge: 12, warmupMinutes: 5, introMinutes: 5, reflectionMinutes: 5,
     maxHighCognitiveMinutes: 13, maxHandsOnMinutes: 40, maxCollaborativeMinutes: 15, maxDigitalMinutes: 20,
-    pacingNote: "MYP Year 2 (age 12): Cognitive focus extends to ~12-13 minutes (1+age rule). Still scaffold reading/analysis tasks with sentence starters and templates, but allow some choice in how students respond. Hands-on making activities can run 20-40 min. Mix active and passive tasks — avoid back-to-back reading/writing activities.",
+    pacingNote: "Age 12 (typically Year 2): Cognitive focus extends to ~12-13 minutes (1+age rule). Still scaffold reading/analysis tasks with sentence starters and templates, but allow some choice in how students respond. Hands-on making activities can run 20-40 min. Mix active and passive tasks — avoid back-to-back reading/writing activities.",
   },
-  3: {
+  13: {
     mypYear: 3, avgStudentAge: 13, warmupMinutes: 5, introMinutes: 5, reflectionMinutes: 5,
     maxHighCognitiveMinutes: 14, maxHandsOnMinutes: 45, maxCollaborativeMinutes: 20, maxDigitalMinutes: 25,
-    pacingNote: "MYP Year 3 (age 13): Cognitive focus ~14 minutes (1+age rule). Balance structured guidance with growing autonomy. Provide reference materials and exemplars but reduce step-by-step scaffolding. Students can handle longer research tasks and sustained making sessions.",
+    pacingNote: "Age 13 (typically Year 3): Cognitive focus ~14 minutes (1+age rule). Balance structured guidance with growing autonomy. Provide reference materials and exemplars but reduce step-by-step scaffolding. Students can handle longer research tasks and sustained making sessions.",
   },
-  4: {
-    mypYear: 4, avgStudentAge: 15, warmupMinutes: 5, introMinutes: 5, reflectionMinutes: 5,
+  14: {
+    mypYear: 4, avgStudentAge: 14, warmupMinutes: 5, introMinutes: 5, reflectionMinutes: 5,
+    maxHighCognitiveMinutes: 15, maxHandsOnMinutes: 45, maxCollaborativeMinutes: 25, maxDigitalMinutes: 30,
+    pacingNote: "Age 14 (typically Year 4 or GCSE Year 10): Cognitive focus ~15 minutes (1+age rule). Support extended independent work with clear success criteria. Scaffold through exemplars and peer critique rather than templates. Students can manage longer analysis and documentation tasks.",
+  },
+  15: {
+    mypYear: 5, avgStudentAge: 15, warmupMinutes: 5, introMinutes: 3, reflectionMinutes: 5,
     maxHighCognitiveMinutes: 16, maxHandsOnMinutes: 45, maxCollaborativeMinutes: 25, maxDigitalMinutes: 30,
-    pacingNote: "MYP Year 4 (age 15): Cognitive focus ~16 minutes (1+age rule). Support extended independent work with clear success criteria. Scaffold through exemplars and peer critique rather than templates. Students can manage longer analysis and documentation tasks.",
+    pacingNote: "Age 15 (typically Year 5 or GCSE Year 11): Cognitive focus ~16 minutes (1+age rule). Support extended independent work with clear success criteria. Scaffold through exemplars and peer critique rather than templates. Students can manage longer analysis and documentation tasks.",
   },
-  5: {
+  16: {
     mypYear: 5, avgStudentAge: 16, warmupMinutes: 5, introMinutes: 3, reflectionMinutes: 5,
     maxHighCognitiveMinutes: 17, maxHandsOnMinutes: 45, maxCollaborativeMinutes: 25, maxDigitalMinutes: 35,
-    pacingNote: "MYP Year 5 (age 16): Cognitive focus ~17 minutes (1+age rule). Minimise unnecessary transitions to allow flow state during deep work. Scaffold through prompts and peer critique. Students can sustain extended analysis, documentation, and independent making sessions.",
+    pacingNote: "Age 16 (typically A-Level Year 12): Cognitive focus ~17 minutes (1+age rule). Minimise unnecessary transitions to allow flow state during deep work. Scaffold through prompts and peer critique. Students can sustain extended analysis, documentation, and independent making sessions.",
+  },
+  17: {
+    mypYear: 5, avgStudentAge: 17, warmupMinutes: 5, introMinutes: 3, reflectionMinutes: 5,
+    maxHighCognitiveMinutes: 18, maxHandsOnMinutes: 45, maxCollaborativeMinutes: 25, maxDigitalMinutes: 35,
+    pacingNote: "Age 17 (typically A-Level Year 13): Cognitive focus ~18 minutes (1+age rule). Students can sustain extended analysis, documentation, and independent making sessions. Minimise scaffolding — provide autonomy and feedback.",
+  },
+  18: {
+    mypYear: 5, avgStudentAge: 18, warmupMinutes: 5, introMinutes: 3, reflectionMinutes: 5,
+    maxHighCognitiveMinutes: 19, maxHandsOnMinutes: 45, maxCollaborativeMinutes: 25, maxDigitalMinutes: 35,
+    pacingNote: "Age 18: Cognitive focus ~19 minutes (1+age rule). Full autonomy with feedback. Minimal scaffolding needed.",
   },
 };
 
 /**
- * Parse the MYP year from a gradeLevel string like "Year 3 (Grade 8)".
- * Returns the timing profile for that year, defaulting to Year 3 if parsing fails.
+ * Convert a grade string (any format) to an approximate student age.
+ * Handles: MYP Year X, GCSE Year N, A-Level Year N, ACARA Year N, PLTW Grade N, etc.
+ *
+ * Key mappings:
+ * - MYP: Year 1=11, Year 2=12, Year 3=13, Year 4=14, Year 5=15
+ * - GCSE: Year 10=14, Year 11=15
+ * - A-Level: Year 12=16, Year 13=17
+ * - ACARA: Year 7=12, Year 8=13, Year 9=14, Year 10=15
+ * - PLTW: Grade 9=14, Grade 10=15, Grade 11=16, Grade 12=17
  */
-export function getGradeTimingProfile(gradeLevel: string, configProfiles?: Record<number, GradeTimingProfile>): GradeTimingProfile {
-  const match = gradeLevel?.match(/Year\s*(\d+)/i);
-  const year = match ? parseInt(match[1], 10) : 3;
-  const profiles = configProfiles || TIMING_PROFILES;
-  return profiles[year] || profiles[3] || TIMING_PROFILES[3];
+export function gradeStringToAge(gradeString: string, framework?: string): number {
+  const lower = gradeString.toLowerCase();
+
+  // Try parsing MYP Year X format
+  const mypMatch = lower.match(/year\s*(\d+)/);
+  if (mypMatch) {
+    const year = parseInt(mypMatch[1], 10);
+    if (framework === "IB_MYP" || !framework) {
+      // MYP: Year 1→11, Year 2→12, Year 3→13, Year 4→14, Year 5→15
+      return Math.min(11 + (year - 1), 15);
+    }
+    // For other frameworks, Year 10 = 14, Year 11 = 15, Year 12 = 16, Year 13 = 17
+    if (year === 10) return 14;
+    if (year === 11) return 15;
+    if (year === 12) return 16;
+    if (year === 13) return 17;
+    if (year >= 7) return 12 + (year - 7); // ACARA: Year 7→12, Year 8→13, etc.
+  }
+
+  // Try parsing PLTW Grade N format
+  const pltMatch = lower.match(/grade\s*(\d+)/);
+  if (pltMatch) {
+    const grade = parseInt(pltMatch[1], 10);
+    // PLTW: Grade 9→14, Grade 10→15, Grade 11→16, Grade 12→17
+    if (grade >= 9 && grade <= 12) return 5 + grade;
+  }
+
+  // Fallback: age 13 (Year 3 / Grade 8 equivalent)
+  return 13;
+}
+
+/**
+ * Parse the grade string and return the matching timing profile.
+ * Converts grade to age, then looks up age in AGE_TIMING_PROFILES.
+ * Defaults to age 13 (Year 3) if parsing fails.
+ */
+export function getGradeTimingProfile(gradeLevel: string, framework?: string, configProfiles?: Record<number, GradeTimingProfile>): GradeTimingProfile {
+  const age = gradeStringToAge(gradeLevel, framework);
+  const profiles = configProfiles || AGE_TIMING_PROFILES;
+  return profiles[age] || profiles[13] || AGE_TIMING_PROFILES[13];
 }
 
 /**

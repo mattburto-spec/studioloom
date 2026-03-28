@@ -183,7 +183,7 @@ export const POST = withErrorHandler("teacher/generate-unit:POST", async (reques
 
     // Timing validation — Workshop Model auto-repair on pages with workshopPhases
     const gradeLevel = wizardInput.gradeLevel || "Year 3 (Grade 8)";
-    const profile = getGradeTimingProfile(gradeLevel);
+    const profile = getGradeTimingProfile(gradeLevel, framework);
     const timingCtx = buildTimingContext(profile, 60, false); // default 60-min theory
     const timingResults: Record<string, unknown> = {};
 

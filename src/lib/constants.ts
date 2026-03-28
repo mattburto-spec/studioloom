@@ -240,6 +240,42 @@ export const MYP_GRADE_LEVELS = [
   "Year 5 (Grade 10)",
 ] as const;
 
+// =========================================================================
+// Framework-Aware Grade Levels Registry
+// =========================================================================
+
+/** Framework-aware grade levels. Key = framework ID from CURRICULUM_FRAMEWORKS. */
+export const FRAMEWORK_GRADE_LEVELS: Record<string, readonly string[]> = {
+  IB_MYP: MYP_GRADE_LEVELS,
+  GCSE_DT: ["Year 10 (Grade 9)", "Year 11 (Grade 10)"],
+  IGCSE_DT: ["Year 10 (Grade 9)", "Year 11 (Grade 10)"],
+  A_LEVEL_DT: ["Year 12 (Grade 11)", "Year 13 (Grade 12)"],
+  ACARA_DT: ["Year 5", "Year 6", "Year 7", "Year 8", "Year 9", "Year 10"],
+  PLTW: ["Grade 9", "Grade 10", "Grade 11", "Grade 12"],
+  NESA_DT: ["Year 7", "Year 8", "Year 9", "Year 10"],
+  VIC_DT: ["Year 7", "Year 8", "Year 9", "Year 10"],
+};
+
+/** Get grade levels for a framework. Falls back to MYP if unknown. */
+export function getFrameworkGradeLevels(framework?: string): readonly string[] {
+  return FRAMEWORK_GRADE_LEVELS[framework || "IB_MYP"] || MYP_GRADE_LEVELS;
+}
+
+/** Get a sensible default grade level for a framework. */
+export function getDefaultGradeLevel(framework?: string): string {
+  const defaults: Record<string, string> = {
+    IB_MYP: "Year 3 (Grade 8)",
+    GCSE_DT: "Year 10 (Grade 9)",
+    IGCSE_DT: "Year 10 (Grade 9)",
+    A_LEVEL_DT: "Year 12 (Grade 11)",
+    ACARA_DT: "Year 8",
+    PLTW: "Grade 10",
+    NESA_DT: "Year 9",
+    VIC_DT: "Year 9",
+  };
+  return defaults[framework || "IB_MYP"] || "Year 3 (Grade 8)";
+}
+
 export const MYP_GLOBAL_CONTEXTS = [
   { value: "identities-and-relationships", label: "Identities and relationships", description: "Who we are; health; beliefs and values" },
   { value: "orientation-in-space-and-time", label: "Orientation in space and time", description: "Our relationship to place, time, and history" },

@@ -1,6 +1,6 @@
 "use client";
 
-import { MYP_GRADE_LEVELS } from "@/lib/constants";
+import { getFrameworkGradeLevels } from "@/lib/constants";
 import type { WizardDispatch, WizardState } from "@/hooks/useWizardState";
 
 interface Props {
@@ -10,6 +10,7 @@ interface Props {
 
 export function CompactConfig({ state, dispatch }: Props) {
   const { input } = state;
+  const gradeLevels = getFrameworkGradeLevels(input.framework);
 
   return (
     <div className="animate-slide-up flex flex-wrap items-center justify-center gap-4 max-w-2xl mx-auto py-4">
@@ -17,7 +18,7 @@ export function CompactConfig({ state, dispatch }: Props) {
       <div className="flex items-center gap-2">
         <span className="text-xs font-medium text-text-secondary">Grade:</span>
         <div className="flex gap-1">
-          {MYP_GRADE_LEVELS.map((g) => {
+          {gradeLevels.map((g) => {
             const short = g.replace("Year ", "Y").replace(/ \(Grade \d+\)/, "");
             const isSelected = input.gradeLevel === g;
             return (

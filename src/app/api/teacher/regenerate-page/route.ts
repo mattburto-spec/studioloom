@@ -202,7 +202,7 @@ Remember to include ELL scaffolding (ell1, ell2, ell3) for every section.`;
     let timingValidation: unknown = undefined;
     try {
       const gradeLevel = unit.grade_level || "Year 3 (Grade 8)";
-      const profile = getGradeTimingProfile(gradeLevel);
+      const profile = getGradeTimingProfile(gradeLevel, framework);
       const timingCtx = buildTimingContext(profile, 60, false);
       const result = validateLessonTiming(
         page as Parameters<typeof validateLessonTiming>[0],
