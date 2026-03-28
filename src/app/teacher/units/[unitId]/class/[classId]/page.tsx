@@ -1600,6 +1600,7 @@ function StudentsTab({
   setStudents: React.Dispatch<React.SetStateAction<Array<{ id: string; display_name: string; username: string; graduation_year?: string | null }>>>;
 }) {
   const [addMode, setAddMode] = useState(false);
+  const [addTab, setAddTab] = useState<"existing" | "new">("existing");
   const [newDisplayName, setNewDisplayName] = useState("");
   const [newUsername, setNewUsername] = useState("");
   const [saving, setSaving] = useState(false);
@@ -1609,6 +1610,83 @@ function StudentsTab({
   const [editUsername, setEditUsername] = useState("");
   const [removeConfirmId, setRemoveConfirmId] = useState<string | null>(null);
   const [removing, setRemoving] = useState(false);
+  // Existing students state
+  const [existingStudents, setExistingStudents] = useState<Array<{ id: string; display_name: string; username: string; graduation_year?: string | null }>>([]);
+  const [loadingExisting, setLoadingExisting] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [enrollingIds, setEnrollingIds] = useState<Set<string>>(new Set());
+
+  // Load teacher's existing students when "Add Existing" tab is shown
+  useEffect(() => {
+    if (!addMode || addTab !== "existing") return;
+    let cancelled = false;
+    async function loadExisting() {
+      setLoadingExisting(true);
+      try {
+        const supabase = createClient();
+        // Get current user (teacher)
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user || cancelled) return;
+
+        // Get all students owned by this teacher
+        const { data: allStudents } = await supabase
+          .from("students")
+          .select("id, display_name, username, graduation_year")
+          .eq("author_teacher_id", user.id)
+          .order("display_name", { ascending: true });
+
+        if (cancelled || !allStudents) return;
+
+        // Filter out students already in this class
+        const enrolledIds = new Set(students.map((s) => s.id));
+        const available = allStudents.filter((s) => !enrolledIds.has(s.id));
+        setExistingStudents(available);
+      } catch (e) {
+        console.error("[StudentsTab] Failed to load existing students:", e);
+      } finally {
+        if (!cancelled) setLoadingExisting(false);
+      }
+    }
+    loadExisting();
+    return () => { cancelled = true; };
+  }, [addMode, addTab, classId, students]);
+
+  async function enrollExistingStudent(student: { id: string; display_name: string; username: string; graduation_year?: string | null }) {
+    setEnrollingIds((prev) => new Set(prev).add(student.id));
+    setError("");
+    try {
+      const supabase = createClient();
+      const { error: enrollErr } = await supabase.from("class_students").insert({
+        student_id: student.id,
+        class_id: classId,
+        is_active: true,
+      });
+
+      if (enrollErr) {
+        // Might be duplicate — try reactivating
+        if (enrollErr.code === "23505") {
+          await supabase
+            .from("class_students")
+            .update({ is_active: true })
+            .eq("student_id", student.id)
+            .eq("class_id", classId);
+        } else {
+          throw enrollErr;
+        }
+      }
+
+      setStudents((prev) => [...prev, student].sort((a, b) => (a.display_name || a.username).localeCompare(b.display_name || b.username)));
+      setExistingStudents((prev) => prev.filter((s) => s.id !== student.id));
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to enrol student");
+    } finally {
+      setEnrollingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(student.id);
+        return next;
+      });
+    }
+  }
 
   async function addStudent() {
     if (!newDisplayName.trim() && !newUsername.trim()) return;
@@ -1694,13 +1772,20 @@ function StudentsTab({
     }
   }
 
+  const filteredExisting = searchQuery.trim()
+    ? existingStudents.filter((s) =>
+        (s.display_name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (s.username || "").toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : existingStudents;
+
   return (
     <div className="max-w-2xl">
       {/* Header with add button */}
       <div className="flex items-center justify-between mb-4">
         <p className="text-sm text-text-secondary">{students.length} student{students.length !== 1 ? "s" : ""} enrolled</p>
         <button
-          onClick={() => { setAddMode(true); setError(""); }}
+          onClick={() => { setAddMode(true); setAddTab("existing"); setError(""); setSearchQuery(""); }}
           className="px-3 py-1.5 rounded-lg bg-purple-600 text-white text-sm font-medium hover:bg-purple-700 transition flex items-center gap-1.5"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -1710,40 +1795,119 @@ function StudentsTab({
         </button>
       </div>
 
-      {/* Add student form */}
+      {/* Add student panel */}
       {addMode && (
         <div className="mb-4 bg-purple-50 border border-purple-200 rounded-xl p-4">
-          <div className="grid grid-cols-2 gap-3 mb-3">
+          {/* Tab toggle */}
+          <div className="flex gap-1 mb-3 bg-purple-100 rounded-lg p-0.5">
+            <button
+              onClick={() => { setAddTab("existing"); setError(""); }}
+              className={`flex-1 px-3 py-1.5 rounded-md text-sm font-medium transition ${
+                addTab === "existing" ? "bg-white text-purple-700 shadow-sm" : "text-purple-600 hover:text-purple-800"
+              }`}
+            >
+              Add Existing
+            </button>
+            <button
+              onClick={() => { setAddTab("new"); setError(""); }}
+              className={`flex-1 px-3 py-1.5 rounded-md text-sm font-medium transition ${
+                addTab === "new" ? "bg-white text-purple-700 shadow-sm" : "text-purple-600 hover:text-purple-800"
+              }`}
+            >
+              Create New
+            </button>
+          </div>
+
+          {addTab === "existing" ? (
+            /* Enrol existing students */
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Display Name</label>
               <input
                 type="text"
-                value={newDisplayName}
-                onChange={(e) => setNewDisplayName(e.target.value)}
-                placeholder="e.g. Sarah Chen"
-                className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search your students..."
+                className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 mb-2"
                 autoFocus
               />
+              {loadingExisting ? (
+                <p className="text-xs text-gray-500 py-4 text-center">Loading students...</p>
+              ) : filteredExisting.length === 0 ? (
+                <div className="py-4 text-center">
+                  <p className="text-xs text-gray-500">
+                    {existingStudents.length === 0
+                      ? "No other students found. All your students are already in this class, or create a new one below."
+                      : "No students match your search."}
+                  </p>
+                  {existingStudents.length === 0 && (
+                    <button onClick={() => setAddTab("new")} className="text-xs text-purple-600 font-medium mt-1 hover:underline">
+                      Create a new student instead
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="max-h-48 overflow-y-auto rounded-lg border border-gray-200 bg-white divide-y divide-gray-100">
+                  {filteredExisting.map((s) => (
+                    <div key={s.id} className="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 transition">
+                      <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-400 to-indigo-400 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0">
+                        {(s.display_name || s.username || "?").charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{s.display_name || s.username}</p>
+                        {s.display_name && s.username && s.display_name !== s.username && (
+                          <p className="text-[10px] text-gray-400 font-mono">{s.username}</p>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => enrollExistingStudent(s)}
+                        disabled={enrollingIds.has(s.id)}
+                        className="px-2.5 py-1 rounded-lg bg-purple-600 text-white text-xs font-medium hover:bg-purple-700 transition disabled:opacity-50 flex-shrink-0"
+                      >
+                        {enrollingIds.has(s.id) ? "Adding..." : "Add"}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
+          ) : (
+            /* Create new student */
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">Username</label>
-              <input
-                type="text"
-                value={newUsername}
-                onChange={(e) => setNewUsername(e.target.value)}
-                placeholder="auto-generated if blank"
-                className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-              />
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Display Name</label>
+                  <input
+                    type="text"
+                    value={newDisplayName}
+                    onChange={(e) => setNewDisplayName(e.target.value)}
+                    placeholder="e.g. Sarah Chen"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 mb-1">Username</label>
+                  <input
+                    type="text"
+                    value={newUsername}
+                    onChange={(e) => setNewUsername(e.target.value)}
+                    placeholder="auto-generated if blank"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={addStudent} disabled={saving || (!newDisplayName.trim() && !newUsername.trim())}
+                  className="px-4 py-1.5 rounded-lg bg-purple-600 text-white text-sm font-medium hover:bg-purple-700 transition disabled:opacity-50">
+                  {saving ? "Creating..." : "Create & Add"}
+                </button>
+              </div>
             </div>
-          </div>
-          {error && <p className="text-xs text-red-600 mb-2">{error}</p>}
-          <div className="flex gap-2">
-            <button onClick={addStudent} disabled={saving || (!newDisplayName.trim() && !newUsername.trim())}
-              className="px-4 py-1.5 rounded-lg bg-purple-600 text-white text-sm font-medium hover:bg-purple-700 transition disabled:opacity-50">
-              {saving ? "Adding..." : "Add"}
-            </button>
-            <button onClick={() => { setAddMode(false); setError(""); }} className="px-4 py-1.5 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50 transition">
-              Cancel
+          )}
+
+          {error && <p className="text-xs text-red-600 mt-2">{error}</p>}
+          <div className="flex justify-end mt-3">
+            <button onClick={() => { setAddMode(false); setError(""); setSearchQuery(""); }} className="px-4 py-1.5 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50 transition">
+              Done
             </button>
           </div>
         </div>
