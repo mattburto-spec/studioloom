@@ -290,8 +290,19 @@ export default function GradingPage({
     setDirty(true);
   }
 
-  // Get unique criteria from unit pages — try all extraction strategies, fall back to framework
+  // Determine criteria to grade against.
+  // For non-MYP frameworks, ALWAYS use the framework's own criteria — unit content
+  // may contain MYP criterion keys (A/B/C/D) from legacy generation, which would
+  // display MYP names instead of the correct framework criteria.
   const unitCriteria: string[] = (() => {
+    const fwKeys = getFrameworkCriterionKeys(classFramework);
+
+    if (classFramework !== "IB_MYP" && fwKeys.length > 0) {
+      // Non-MYP: always use framework criteria registry
+      return fwKeys;
+    }
+
+    // MYP or unknown: extract from unit content with framework fallback
     const uniqueCriteria = new Set<string>();
     // Strategy 1: criterionTags in sections (v3/v4/timeline)
     unitPages.forEach((p) => {
@@ -307,10 +318,9 @@ export default function GradingPage({
     unitPages.forEach((p) => {
       if ((p as any).criterion) uniqueCriteria.add((p as any).criterion);
     });
-    // Fallback: use framework criteria
     const criteria = Array.from(uniqueCriteria);
     if (criteria.length === 0) {
-      return getFrameworkCriterionKeys(classFramework);
+      return fwKeys;
     }
     return criteria;
   })();

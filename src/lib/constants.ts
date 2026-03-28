@@ -445,22 +445,21 @@ export const CURRICULUM_FRAMEWORKS = {
   GCSE_DT: {
     id: "GCSE_DT" as const,
     label: "GCSE Design & Technology",
-    criteria: ["AO1", "AO2", "AO3", "AO4", "AO5"],
+    criteria: ["AO1", "AO2", "AO3", "AO4"],
     criteriaLabels: {
-      AO1: "Identify, investigate and outline",
-      AO2: "Design and make prototypes",
-      AO3: "Analyse and evaluate",
-      AO4: "Demonstrate and apply knowledge",
-      AO5: "Technical principles",
+      AO1: "Identify, Investigate & Outline",
+      AO2: "Design & Make Prototypes",
+      AO3: "Analyse & Evaluate",
+      AO4: "Knowledge & Understanding",
     } as Record<string, string>,
   },
   ACARA_DT: {
     id: "ACARA_DT" as const,
     label: "Australian D&T",
-    criteria: ["Knowledge", "Processes"],
+    criteria: ["KU", "PPS"],
     criteriaLabels: {
-      Knowledge: "Knowledge and Understanding",
-      Processes: "Processes and Production Skills",
+      KU: "Knowledge & Understanding",
+      PPS: "Processes & Production Skills",
     } as Record<string, string>,
   },
   A_LEVEL_DT: {
@@ -469,18 +468,18 @@ export const CURRICULUM_FRAMEWORKS = {
     criteria: ["C1", "C2", "C3"],
     criteriaLabels: {
       C1: "Technical Principles",
-      C2: "Designing and Making Principles",
-      C3: "Design and Make Project (NEA)",
+      C2: "Designing & Making Principles",
+      C3: "Design & Make Project (NEA)",
     } as Record<string, string>,
   },
   IGCSE_DT: {
     id: "IGCSE_DT" as const,
     label: "IGCSE Design & Technology",
-    criteria: ["Paper1", "Paper2", "Coursework"],
+    criteria: ["AO1", "AO2", "AO3"],
     criteriaLabels: {
-      Paper1: "Product Design (Theory)",
-      Paper2: "Graphic Products / Resistant Materials",
-      Coursework: "Design & Make Project",
+      AO1: "Knowledge & Understanding",
+      AO2: "Application",
+      AO3: "Analysis & Evaluation",
     } as Record<string, string>,
   },
   PLTW: {
@@ -497,22 +496,21 @@ export const CURRICULUM_FRAMEWORKS = {
   NESA_DT: {
     id: "NESA_DT" as const,
     label: "NSW Design & Technology",
-    criteria: ["DM", "DP", "MP", "ME"],
+    criteria: ["DP", "Pr", "Ev"],
     criteriaLabels: {
-      DM: "Designing & Managing",
-      DP: "Design Projects",
-      MP: "Managing Projects",
-      ME: "Material Experimentation",
+      DP: "Design Process",
+      Pr: "Producing",
+      Ev: "Evaluating",
     } as Record<string, string>,
   },
   VIC_DT: {
     id: "VIC_DT" as const,
     label: "Victorian Curriculum D&T",
-    criteria: ["TK", "DP", "PP"],
+    criteria: ["TS", "TC", "CDS"],
     criteriaLabels: {
-      TK: "Technologies & Knowledge",
-      DP: "Design & Production",
-      PP: "Processes & Production",
+      TS: "Technologies & Society",
+      TC: "Technological Contexts",
+      CDS: "Creating Design Solutions",
     } as Record<string, string>,
   },
 } as const;
@@ -534,12 +532,12 @@ export function getFrameworkCriteria(framework: CurriculumFrameworkId | string =
   // Build CriterionDefinition records from the framework registry
   const FRAMEWORK_COLORS: Record<string, string[]> = {
     IB_MYP: ["#6366F1", "#10B981", "#F59E0B", "#8B5CF6"],
-    GCSE_DT: ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6"],
+    GCSE_DT: ["#3B82F6", "#10B981", "#F59E0B", "#EF4444"],
     ACARA_DT: ["#6366F1", "#10B981"],
     A_LEVEL_DT: ["#3B82F6", "#F59E0B", "#10B981"],
-    IGCSE_DT: ["#6366F1", "#EF4444", "#10B981"],
+    IGCSE_DT: ["#6366F1", "#10B981", "#EF4444"],
     PLTW: ["#3B82F6", "#10B981", "#F59E0B", "#8B5CF6"],
-    NESA_DT: ["#0EA5E9", "#10B981", "#F59E0B", "#8B5CF6"],
+    NESA_DT: ["#0EA5E9", "#10B981", "#F59E0B"],
     VIC_DT: ["#6366F1", "#10B981", "#F59E0B"],
   };
 
@@ -781,6 +779,46 @@ export function getDesignProcessPhases(framework?: string | null): {
         generating: "text-emerald-600",
         producing: "text-orange-600",
         evaluating: "text-amber-600",
+      },
+    };
+  }
+
+  // NESA (NSW) uses same 4 phases as ACARA
+  if (framework === "NESA_DT") {
+    return {
+      phases: ["investigating", "designing", "producing", "evaluating"],
+      labels: {
+        investigating: "Investigating",
+        designing: "Designing",
+        producing: "Producing",
+        evaluating: "Evaluating",
+      },
+      colors: {
+        investigating: "text-indigo-600",
+        designing: "text-emerald-600",
+        producing: "text-orange-600",
+        evaluating: "text-amber-600",
+      },
+    };
+  }
+
+  // VIC (Victorian Curriculum) — 5 phases
+  if (framework === "VIC_DT") {
+    return {
+      phases: ["investigating", "generating", "producing", "evaluating", "managing"],
+      labels: {
+        investigating: "Investigating",
+        generating: "Generating",
+        producing: "Producing",
+        evaluating: "Evaluating",
+        managing: "Collaborating & Managing",
+      },
+      colors: {
+        investigating: "text-indigo-600",
+        generating: "text-emerald-600",
+        producing: "text-orange-600",
+        evaluating: "text-amber-600",
+        managing: "text-purple-600",
       },
     };
   }

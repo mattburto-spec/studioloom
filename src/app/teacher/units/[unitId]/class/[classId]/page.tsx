@@ -429,26 +429,37 @@ export default function ClassHubPage({
     setGradeLoading(true);
 
     try {
-      // Extract criteria from unit pages — try multiple strategies
-      const uniqueCriteria = new Set<string>();
-      // Strategy 1: criterionTags in sections (v3/v4/timeline pages)
-      unitPages.forEach((p) => {
-        (p.content?.sections || []).forEach((s: any) => {
-          (s.criterionTags || []).forEach((t: string) => uniqueCriteria.add(t));
+      // Determine criteria to grade against.
+      // For non-MYP frameworks, ALWAYS use the framework's own criteria — unit content
+      // may contain MYP criterion keys (A/B/C/D) from legacy generation, which would
+      // display MYP names instead of the correct framework criteria.
+      const fwKeys = getFrameworkCriterionKeys(classFramework);
+      let criteria: string[];
+
+      if (classFramework !== "IB_MYP" && fwKeys.length > 0) {
+        // Non-MYP: always use framework criteria registry
+        criteria = fwKeys;
+      } else {
+        // MYP or unknown: extract from unit content with framework fallback
+        const uniqueCriteria = new Set<string>();
+        // Strategy 1: criterionTags in sections (v3/v4/timeline pages)
+        unitPages.forEach((p) => {
+          (p.content?.sections || []).forEach((s: any) => {
+            (s.criterionTags || []).forEach((t: string) => uniqueCriteria.add(t));
+          });
         });
-      });
-      // Strategy 2: strand pages with criterion field (v1/v2 pages)
-      unitPages.filter((p) => p.type === "strand" && p.criterion).forEach((p) => {
-        if (p.criterion) uniqueCriteria.add(p.criterion);
-      });
-      // Strategy 3: phaseLabel-based criterion detection (timeline pages sometimes encode criterion in phase)
-      unitPages.forEach((p) => {
-        if (p.criterion) uniqueCriteria.add(p.criterion);
-      });
-      // Fallback: use framework criteria first, then unit type defaults
-      let criteria = Array.from(uniqueCriteria);
-      if (criteria.length === 0) {
-        criteria = getFrameworkCriterionKeys(classFramework);
+        // Strategy 2: strand pages with criterion field (v1/v2 pages)
+        unitPages.filter((p) => p.type === "strand" && p.criterion).forEach((p) => {
+          if (p.criterion) uniqueCriteria.add(p.criterion);
+        });
+        // Strategy 3: phaseLabel-based criterion detection
+        unitPages.forEach((p) => {
+          if (p.criterion) uniqueCriteria.add(p.criterion);
+        });
+        criteria = Array.from(uniqueCriteria);
+        if (criteria.length === 0) {
+          criteria = fwKeys;
+        }
       }
       setUnitCriteriaForGrade(criteria);
 
