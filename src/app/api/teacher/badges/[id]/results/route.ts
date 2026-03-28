@@ -91,12 +91,27 @@ export async function GET(
         return NextResponse.json({ error: "Class not found" }, { status: 404 });
       }
 
-      const { data: students } = await admin
-        .from("students")
-        .select("id")
-        .eq("class_id", classId);
+      // Get students via junction table first, legacy fallback
+      let classStudentRows: { id: string }[] | null = null;
+      try {
+        const { data: junctionRows } = await admin
+          .from("class_students")
+          .select("student_id")
+          .eq("class_id", classId);
+        if (junctionRows && junctionRows.length > 0) {
+          const ids = junctionRows.map((r: { student_id: string }) => r.student_id);
+          const { data } = await admin.from("students").select("id").in("id", ids);
+          classStudentRows = data;
+        }
+      } catch {
+        // Junction table may not exist
+      }
+      if (!classStudentRows || classStudentRows.length === 0) {
+        const { data } = await admin.from("students").select("id").eq("class_id", classId);
+        classStudentRows = data;
+      }
 
-      studentIdFilter = (students || []).map((s: { id: string }) => s.id);
+      studentIdFilter = (classStudentRows || []).map((s: { id: string }) => s.id);
 
       if (studentIdFilter.length === 0) {
         return NextResponse.json({

@@ -42,11 +42,36 @@ export const GET = withErrorHandler("teacher/open-studio/status:GET", async (req
 
   const db = createAdminClient();
 
-  // Get all students in the class with their Open Studio status
-  const { data: students } = await db
-    .from("students")
-    .select("id, username, display_name, avatar_url, ell_level")
-    .eq("class_id", classId);
+  // Get all students in the class — try junction table first, fallback to legacy class_id
+  let students: Array<{ id: string; username: string; display_name: string | null; avatar_url: string | null; ell_level: number }> | null = null;
+
+  // Strategy 1: class_students junction table (post-migration 041)
+  try {
+    const { data: junctionRows } = await db
+      .from("class_students")
+      .select("student_id")
+      .eq("class_id", classId);
+
+    if (junctionRows && junctionRows.length > 0) {
+      const studentIds = junctionRows.map((r) => r.student_id);
+      const { data } = await db
+        .from("students")
+        .select("id, username, display_name, avatar_url, ell_level")
+        .in("id", studentIds);
+      students = data;
+    }
+  } catch {
+    // Junction table may not exist yet
+  }
+
+  // Strategy 2: legacy students.class_id fallback
+  if (!students || students.length === 0) {
+    const { data } = await db
+      .from("students")
+      .select("id, username, display_name, avatar_url, ell_level")
+      .eq("class_id", classId);
+    students = data;
+  }
 
   const { data: statuses } = await db
     .from("open_studio_status")
@@ -103,15 +128,30 @@ export const POST = withErrorHandler("teacher/open-studio/status:POST", async (r
 
   const db = createAdminClient();
 
-  // Verify student belongs to this class
-  const { data: student } = await db
-    .from("students")
-    .select("id")
-    .eq("id", studentId)
-    .eq("class_id", classId)
-    .single();
+  // Verify student belongs to this class (junction table first, legacy fallback)
+  let studentVerified = false;
+  try {
+    const { data: junctionRow } = await db
+      .from("class_students")
+      .select("student_id")
+      .eq("student_id", studentId)
+      .eq("class_id", classId)
+      .maybeSingle();
+    if (junctionRow) studentVerified = true;
+  } catch {
+    // Junction table may not exist
+  }
+  if (!studentVerified) {
+    const { data: legacyStudent } = await db
+      .from("students")
+      .select("id")
+      .eq("id", studentId)
+      .eq("class_id", classId)
+      .maybeSingle();
+    if (legacyStudent) studentVerified = true;
+  }
 
-  if (!student) {
+  if (!studentVerified) {
     console.error("[open-studio] Student not in class:", studentId, "class:", classId);
     return NextResponse.json({ error: "Student not found in class" }, { status: 404 });
   }
