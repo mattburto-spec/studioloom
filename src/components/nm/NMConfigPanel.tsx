@@ -87,6 +87,18 @@ export function NMConfigPanel({
   };
 
   const handleSave = async () => {
+    // Validate: if enabled, at least one checkpoint must have elements assigned
+    if (enabled) {
+      const hasCheckpoints = Object.values(checkpoints).some(
+        (cp) => cp.elements && cp.elements.length > 0
+      );
+      if (!hasCheckpoints) {
+        setSaveStatus("error");
+        alert("Please assign elements to at least one lesson checkpoint before saving. Students won't see NM assessments without checkpoints.");
+        return;
+      }
+    }
+
     const config: NMUnitConfig = {
       enabled,
       competencies: enabled ? [selectedCompetency] : [],

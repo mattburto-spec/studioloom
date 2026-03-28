@@ -246,23 +246,6 @@ export default function UnitPageView({
           <p className="text-gray-500 text-lg font-medium">No lesson content yet</p>
           <p className="text-gray-400 text-sm mt-1">Your teacher will add content soon. You can still use the tools below.</p>
 
-          {/* TEMP DEBUG — remove after diagnosing content issue */}
-          <details className="mt-6 text-left max-w-xl mx-auto">
-            <summary className="text-xs text-gray-400 cursor-pointer hover:text-gray-600">Debug: content_data info</summary>
-            <pre className="mt-2 p-3 bg-gray-50 rounded-lg text-xs text-gray-500 overflow-auto max-h-64 whitespace-pre-wrap">
-{JSON.stringify({
-  contentIsNull: data?.unit?.content_data == null,
-  contentType: typeof data?.unit?.content_data,
-  contentVersion: data?.unit?.content_data && typeof data?.unit?.content_data === "object" ? (data.unit.content_data as Record<string, unknown>).version : undefined,
-  contentKeys: data?.unit?.content_data && typeof data?.unit?.content_data === "object" ? Object.keys(data.unit.content_data as Record<string, unknown>) : [],
-  hasPages: data?.unit?.content_data && typeof data?.unit?.content_data === "object" ? Array.isArray((data.unit.content_data as Record<string, unknown>).pages) : false,
-  pageCount: data?.unit?.content_data && typeof data?.unit?.content_data === "object" && Array.isArray((data.unit.content_data as Record<string, unknown>).pages) ? ((data.unit.content_data as Record<string, unknown>).pages as unknown[]).length : 0,
-  allPagesLength: allPages.length,
-  pageId,
-}, null, 2)}
-            </pre>
-          </details>
-
           <button
             onClick={() => router.push("/dashboard")}
             className="mt-6 px-5 py-2 text-sm font-medium text-purple-600 hover:text-purple-800 bg-purple-50 hover:bg-purple-100 rounded-lg transition"

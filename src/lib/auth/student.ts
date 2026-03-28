@@ -32,7 +32,7 @@ export async function getStudentId(
     .select("student_id")
     .eq("token", token)
     .gt("expires_at", new Date().toISOString())
-    .single();
+    .maybeSingle();
 
   return session?.student_id || null;
 }
