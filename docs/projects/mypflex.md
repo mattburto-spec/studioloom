@@ -1,7 +1,7 @@
 # Project: MYPflex — Framework-Flexible Assessment & Grading
 
 **Created:** 28 March 2026
-**Status:** Phase 1 COMPLETE (28 Mar 2026). Phase 2 COMPLETE (28 Mar 2026). Phase 3 MOSTLY COMPLETE (28 Mar 2026). P2 polish items remaining.
+**Status:** ✅ ALL PHASES COMPLETE (28 Mar 2026). Phase 1 (grading), Phase 2 (generation pipeline), Phase 3 (polish). Framework criteria audit done (28 Mar). PROJECT CLOSED.
 **Priority:** P0 — blocks non-MYP teacher adoption
 **Estimated effort:** 8-12 days across 3 phases (Phase 1 done in ~1 day)
 
@@ -141,14 +141,29 @@ Rationale (from unit-type-framework-architecture.md):
 
 **Test:** Generate a unit with framework=GCSE_DT → AI output references AO1-AO5, GCSE specification, no MYP terminology.
 
-### Phase 3: Polish + Edge Cases (P2) — ✅ MOSTLY COMPLETE (28 Mar 2026)
+### Phase 3: Polish + Edge Cases (P2) — ✅ COMPLETE (28 Mar 2026)
 
 1. ✅ **Timing profiles:** `TIMING_PROFILES` → `AGE_TIMING_PROFILES` indexed by student age (11-18). New `gradeStringToAge(gradeString, framework)` parses any grade format. `getGradeTimingProfile()` updated with optional `framework` param.
 2. ✅ **Grade level constants:** `FRAMEWORK_GRADE_LEVELS` registry with 8 frameworks. `getFrameworkGradeLevels()` and `getDefaultGradeLevel()` helpers. CompactConfig wizard shows correct grade pills per framework.
-3. ⬜ **Report Writer / Marking Comments:** Framework selector exists but only covers 4 of 8 frameworks. A-Level/IGCSE/PLTW need adding to `FrameworkId` type and `RATING_CATEGORIES`. (P2)
-4. ⬜ **TestSandbox:** Hardcoded MYP options need extending to all frameworks. (P2)
+3. ✅ **Report Writer:** `FrameworkId` expanded from 4 → 9 (added A_LEVEL_DT, IGCSE_DT, PLTW, NESA_DT, VIC_DT). Per-framework `RATING_CATEGORIES` with skill lists for all 9 frameworks. ACARA label fixed ("Processes & Production" → "Processes & Production Skills").
+4. ✅ **TestSandbox:** Corrected criteria arrays (GCSE 5→4, ACARA P&P→PPS, PLTW course names→rubric dimensions). Added NESA_DT + VIC_DT. Unit type presets decoupled from framework (no longer forces IB_MYP).
 5. ✅ **Free tools:** `/toolkit` and `/tools/safety` confirmed framework-agnostic.
 6. ✅ **Discovery Engine:** Framework-agnostic by design (no curriculum-specific content).
+
+### Framework Criteria Audit (28 Mar 2026) — ✅ COMPLETE
+
+All 8 non-general framework criteria definitions audited against official syllabi and corrected:
+- **GCSE_DT:** Removed non-existent AO5 (4 AOs, not 5)
+- **IGCSE_DT:** Changed Paper1/Paper2/Coursework → AO1/AO2/AO3 per Cambridge syllabus 0445
+- **NESA_DT:** Changed placeholder DM/DP/MP/ME → DP/Pr/Ev matching NSW outcome areas
+- **VIC_DT:** Changed TK/DP/PP → TS/TC/CDS matching Victorian Curriculum strands
+- **ACARA_DT:** Changed "P&P" → "PPS" for safe key usage
+- **A_LEVEL_DT:** Minor label polish (confirmed C1/C2/C3 correct)
+- **PLTW:** Confirmed Design/Build/Test/Present correct
+
+Grade tab bug fixed: non-MYP frameworks now always use framework registry criteria, bypassing content extraction that was falling back to MYP definitions.
+
+Added NESA_DT + VIC_DT vocabulary entries and design process phases to `framework-vocabulary.ts` and `constants.ts`.
 
 **Test:** Full e2e for 3 frameworks (MYP, GCSE, ACARA): create class → create unit → generate → grade → verify terminology throughout.
 
@@ -205,9 +220,13 @@ Rationale (from unit-type-framework-architecture.md):
 ## Success Criteria
 
 - [x] A teacher can create a class with framework=GCSE_DT ✅ Phase 1
-- [x] The Grade tab shows 0-100% scale with AO1-AO5 criteria ✅ Phase 1
+- [x] The Grade tab shows 0-100% scale with AO1-AO4 criteria ✅ Phase 1 (corrected from AO1-AO5 in audit)
 - [x] The full grading page works with GCSE scoring ✅ Phase 1
 - [x] AI-generated units reference GCSE specification, not MYP ✅ Phase 2
 - [x] MYP-specific wizard fields (global contexts, key concepts, ATL) are hidden for GCSE ✅ Phase 2
 - [x] Existing MYP users see zero changes (backward compatible) ✅ Phase 1
 - [x] Framework is visible on class cards / dashboard for clarity ✅ Phase 1
+- [x] All 8 framework criteria definitions match official syllabi ✅ Audit
+- [x] Report Writer supports all 9 frameworks with per-framework categories ✅ Phase 3
+- [x] TestSandbox criteria match corrected constants ✅ Phase 3
+- [x] Non-MYP Grade tabs never fall back to MYP criteria ✅ Audit

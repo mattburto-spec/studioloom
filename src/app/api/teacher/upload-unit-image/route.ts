@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerClient } from "@supabase/ssr";
+import sharp from "sharp";
 
 // Verify teacher auth from Supabase cookies
 async function getTeacherId(request: NextRequest): Promise<string | null> {
@@ -23,6 +24,18 @@ async function getTeacherId(request: NextRequest): Promise<string | null> {
   return user?.id || null;
 }
 
+// Resize and compress image for thumbnail use
+// Max 800px wide, JPEG at 80% quality — keeps files under ~100KB
+async function compressImage(buffer: ArrayBuffer): Promise<Buffer> {
+  return sharp(Buffer.from(buffer))
+    .resize(800, 600, {
+      fit: "inside", // maintain aspect ratio, fit within 800x600
+      withoutEnlargement: true, // don't upscale small images
+    })
+    .jpeg({ quality: 80, progressive: true })
+    .toBuffer();
+}
+
 // POST: Upload a unit image to Supabase Storage
 export async function POST(request: NextRequest) {
   const teacherId = await getTeacherId(request);
@@ -41,7 +54,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Validate file size (5MB max)
+  // Validate file size (5MB max for raw upload)
   if (file.size > 5 * 1024 * 1024) {
     return NextResponse.json(
       { error: "File too large (max 5MB)" },
@@ -59,17 +72,25 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient();
 
-  // Generate unique filename
-  const ext = file.name.split(".").pop() || "png";
-  const timestamp = Date.now();
-  const filePath = `${unitId}/${timestamp}.${ext}`;
-
-  // Upload to Supabase Storage
+  // Compress and resize before uploading
   const arrayBuffer = await file.arrayBuffer();
+  let imageBuffer: Buffer;
+  try {
+    imageBuffer = await compressImage(arrayBuffer);
+  } catch {
+    // If sharp fails (e.g. unsupported format), upload the original
+    imageBuffer = Buffer.from(arrayBuffer);
+  }
+
+  // Always save as .jpg since we convert to JPEG
+  const timestamp = Date.now();
+  const filePath = `${unitId}/${timestamp}.jpg`;
+
+  // Upload compressed image to Supabase Storage
   const { data, error } = await admin.storage
     .from("unit-images")
-    .upload(filePath, arrayBuffer, {
-      contentType: file.type,
+    .upload(filePath, imageBuffer, {
+      contentType: "image/jpeg",
       upsert: true,
     });
 

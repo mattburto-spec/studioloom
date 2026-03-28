@@ -11,14 +11,14 @@
 
 // ─── Station Backgrounds ────────────────────────────────────────
 export const STATION_BACKGROUNDS: Record<number, string> = {
-  0: '/discovery/backgrounds/s0-foyer.png',
-  1: '/discovery/backgrounds/s1-campfire.png',
-  2: '/discovery/backgrounds/s2-workshop.png',
-  3: '/discovery/backgrounds/s3-collection.png',
-  4: '/discovery/backgrounds/s4-window.png',
-  5: '/discovery/backgrounds/s5-toolkit.png',
-  6: '/discovery/backgrounds/s6-crossroads.png',
-  7: '/discovery/backgrounds/s7-launchpad.png',
+  0: '/discovery/backgrounds/s0-foyer.webp',
+  1: '/discovery/backgrounds/s1-campfire.webp',
+  2: '/discovery/backgrounds/s2-workshop.webp',
+  3: '/discovery/backgrounds/s3-collection.webp',
+  4: '/discovery/backgrounds/s4-window.webp',
+  5: '/discovery/backgrounds/s5-toolkit.webp',
+  6: '/discovery/backgrounds/s6-crossroads.webp',
+  7: '/discovery/backgrounds/s7-launchpad.webp',
 };
 
 // ─── Kit Expressions ────────────────────────────────────────────

@@ -215,9 +215,21 @@ export default function TeachingDashboard({
 
   useEffect(() => {
     fetchLiveStatus();
-    pollRef.current = setInterval(fetchLiveStatus, 8000); // Poll every 8s
+    pollRef.current = setInterval(() => {
+      // Pause polling when tab is hidden or browser is offline
+      if (document.visibilityState === "hidden" || !navigator.onLine) return;
+      fetchLiveStatus();
+    }, 30000); // Poll every 30s (was 8s — reduced from 450 to ~60 req/hr per teacher)
+
+    // Resume polling immediately when tab becomes visible again
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") fetchLiveStatus();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [fetchLiveStatus]);
 

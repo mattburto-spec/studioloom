@@ -96,10 +96,13 @@ export function MonitoredTextarea({
 
   const focusTimerRef = useRef<number | null>(null);
   const focusStartRef = useRef<number | null>(null);
-  const snapshotIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const wordCountIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const tickIntervalRef = useRef<NodeJS.Timeout | null>(null); // Single interval replaces 2 separate ones
   const lastSnapshotTextRef = useRef<string>("");
   const visibilityListenerRef = useRef<((e: Event) => void) | null>(null);
+
+  /** Max snapshots to keep (rolling window) — caps memory for long sessions */
+  const MAX_SNAPSHOTS = 20;
+  const MAX_WORD_COUNT_HISTORY = 60;
 
   /**
    * Count words in text (split on whitespace, filter empty)
@@ -205,35 +208,36 @@ export function MonitoredTextarea({
   }, []);
 
   /**
-   * Set up 30-second snapshot interval
+   * Single 30-second tick handles both snapshots and word count history.
+   * (Was 2 separate intervals: 30s for snapshots + 10s for word count.
+   * Merged into 1 interval to reduce timer overhead. Word count at 30s
+   * granularity is sufficient for integrity analysis.)
    */
-  const setupSnapshotInterval = useCallback(() => {
-    snapshotIntervalRef.current = setInterval(() => {
-      if (textareaRef.current && textareaRef.current.value !== lastSnapshotTextRef.current) {
-        const now = Date.now();
-        metricsRef.current.snapshots.push({
-          text: textareaRef.current.value,
-          timestamp: now,
-        });
-        lastSnapshotTextRef.current = textareaRef.current.value;
+  const setupMonitoringTick = useCallback(() => {
+    tickIntervalRef.current = setInterval(() => {
+      if (!textareaRef.current) return;
+      const now = Date.now();
+      const currentText = textareaRef.current.value;
+
+      // Snapshot (only if text changed, capped at MAX_SNAPSHOTS)
+      if (currentText !== lastSnapshotTextRef.current) {
+        const snapshots = metricsRef.current.snapshots;
+        snapshots.push({ text: currentText, timestamp: now });
+        // Rolling window: drop oldest when over cap
+        if (snapshots.length > MAX_SNAPSHOTS) {
+          metricsRef.current.snapshots = snapshots.slice(-MAX_SNAPSHOTS);
+        }
+        lastSnapshotTextRef.current = currentText;
+      }
+
+      // Word count history (capped at MAX_WORD_COUNT_HISTORY)
+      const wordCount = countWords(currentText);
+      const wcHistory = metricsRef.current.wordCountHistory;
+      wcHistory.push({ timestamp: now, wordCount });
+      if (wcHistory.length > MAX_WORD_COUNT_HISTORY) {
+        metricsRef.current.wordCountHistory = wcHistory.slice(-MAX_WORD_COUNT_HISTORY);
       }
     }, 30000);
-  }, []);
-
-  /**
-   * Set up 10-second word count history interval
-   */
-  const setupWordCountInterval = useCallback(() => {
-    wordCountIntervalRef.current = setInterval(() => {
-      if (textareaRef.current) {
-        const wordCount = countWords(textareaRef.current.value);
-        const now = Date.now();
-        metricsRef.current.wordCountHistory.push({
-          timestamp: now,
-          wordCount,
-        });
-      }
-    }, 10000);
   }, [countWords]);
 
   /**
@@ -245,8 +249,7 @@ export function MonitoredTextarea({
     lastSnapshotTextRef.current = value;
 
     setupVisibilityListener();
-    setupSnapshotInterval();
-    setupWordCountInterval();
+    setupMonitoringTick();
 
     return () => {
       // Cleanup: accumulate any remaining focus time
@@ -256,9 +259,8 @@ export function MonitoredTextarea({
         focusStartRef.current = null;
       }
 
-      // Clear intervals
-      if (snapshotIntervalRef.current) clearInterval(snapshotIntervalRef.current);
-      if (wordCountIntervalRef.current) clearInterval(wordCountIntervalRef.current);
+      // Clear single merged interval
+      if (tickIntervalRef.current) clearInterval(tickIntervalRef.current);
 
       // Remove visibility listener
       if (visibilityListenerRef.current) {
@@ -268,7 +270,7 @@ export function MonitoredTextarea({
         );
       }
     };
-  }, [setupVisibilityListener, setupSnapshotInterval, setupWordCountInterval, value]);
+  }, [setupVisibilityListener, setupMonitoringTick, value]);
 
   /**
    * Sync characterCount when value changes

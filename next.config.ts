@@ -5,6 +5,24 @@ const nextConfig: NextConfig = {
   // Ignore ESLint + TypeScript errors during build (pre-existing warnings, not blocking)
   eslint: { ignoreDuringBuilds: true },
   typescript: { ignoreBuildErrors: true },
+  // Tree-shake heavy libraries (barrel imports → only used exports)
+  experimental: {
+    optimizePackageImports: ["framer-motion", "exceljs", "docx", "pptxgenjs", "jspdf"],
+  },
+  // Next.js Image optimization for external sources (Supabase Storage)
+  images: {
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "*.supabase.co",
+        pathname: "/storage/v1/object/public/**",
+      },
+      {
+        protocol: "https",
+        hostname: "images.unsplash.com",
+      },
+    ],
+  },
   // Security headers — OWASP basics
   async headers() {
     return [

@@ -99,11 +99,19 @@ export function useOpenStudio(unitId: string | null): UseOpenStudioReturn {
     }
   }, [unitId]);
 
-  // Initial fetch + periodic refresh
+  // Initial fetch + periodic refresh (pauses when tab hidden)
   useEffect(() => {
     fetchStatus();
-    const interval = setInterval(fetchStatus, 30_000); // Refresh every 30s
-    return () => clearInterval(interval);
+    const interval = setInterval(() => {
+      if (document.visibilityState === "hidden") return;
+      fetchStatus();
+    }, 30_000);
+    const onVisible = () => { if (document.visibilityState === "visible") fetchStatus(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [fetchStatus]);
 
   // Trigger a check-in
