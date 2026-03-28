@@ -15,7 +15,7 @@ import { getPageColor, CRITERIA, GRADING_SCALES, type CriterionKey, type Grading
 import type { Unit, UnitPage, UnitContentData, Student, StudentProgress } from "@/types";
 import type { AssessmentRecordRow } from "@/types/assessment";
 import { resolveClassUnitContent } from "@/lib/units/resolve-content";
-import { OpenStudioUnlock, OpenStudioClassView } from "@/components/open-studio";
+import { OpenStudioClassView } from "@/components/open-studio";
 import { PaceFeedbackSummary } from "@/components/teacher/PaceFeedbackSummary";
 import { ClassProfileOverview } from "@/components/teacher/ClassProfileOverview";
 import { GalleryRoundCreator, GalleryMonitor, GalleryRoundCard } from "@/components/gallery";
@@ -248,7 +248,7 @@ export default function ClassHubPage({
   const gradeDataLoadedRef = useRef(false);
   const [progressLoaded, setProgressLoaded] = useState(false);
   const [gradingStatusMap, setGradingStatusMap] = useState<Record<string, GradingStatus>>({});
-  const [openStudioStatuses, setOpenStudioStatuses] = useState<Record<string, { unlocked_at: string | null }>>({});
+  // Open Studio unlock/revoke is managed entirely in the Open Studio tab
   const [badgeRequirements, setBadgeRequirements] = useState<Array<{ badge_id: string; badge_name: string; badge_slug: string; is_required: boolean }>>([]);
   const [badgeStatusMap, setBadgeStatusMap] = useState<Record<string, Array<{ badge_id: string; status: "earned" | "failed" | "not_attempted"; score: number | null }>>>({});
   const [selectedDetailStudent, setSelectedDetailStudent] = useState<{ id: string; name: string } | null>(null);
@@ -386,20 +386,7 @@ export default function ClassHubPage({
       }
     } catch { /* non-critical */ }
 
-    // Open Studio statuses
-    try {
-      const osRes = await fetch(`/api/teacher/open-studio/status?unitId=${unitId}&classId=${classId}`);
-      if (osRes.ok) {
-        const data = await osRes.json();
-        const statusMap: Record<string, { unlocked_at: string | null }> = {};
-        for (const row of data.students || []) {
-          if (row.openStudio?.status === "unlocked") {
-            statusMap[row.student.id] = { unlocked_at: row.openStudio.unlocked_at };
-          }
-        }
-        setOpenStudioStatuses(statusMap);
-      }
-    } catch { /* non-critical */ }
+    // Open Studio statuses managed in Open Studio tab (OpenStudioClassView)
 
     // Badge requirements + status
     try {
@@ -894,20 +881,6 @@ export default function ClassHubPage({
                                 )}
                               </div>
                               <div className="mt-1 flex items-center gap-1">
-                                <OpenStudioUnlock
-                                  studentId={student.id}
-                                  studentName={studentName}
-                                  classId={classId}
-                                  unitId={unitId}
-                                  unlocked={!!openStudioStatuses[student.id]}
-                                  unlockedAt={openStudioStatuses[student.id]?.unlocked_at}
-                                  onUnlocked={() => {
-                                    setOpenStudioStatuses((prev) => ({
-                                      ...prev,
-                                      [student.id]: { unlocked_at: new Date().toISOString() },
-                                    }));
-                                  }}
-                                />
                                 {nmConfig?.enabled && (
                                   <button
                                     onClick={() => setNmObserveStudent({ id: student.id, name: studentName })}
@@ -999,10 +972,7 @@ export default function ClassHubPage({
                 <PaceFeedbackSummary unitId={unitId} />
               </div>
 
-              {/* Open Studio Management */}
-              <div className="mt-6">
-                <OpenStudioClassView unitId={unitId} classId={classId} />
-              </div>
+              {/* Open Studio management moved to dedicated Open Studio tab */}
             </>
           )}
 
