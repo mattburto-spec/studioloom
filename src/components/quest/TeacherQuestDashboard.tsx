@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import type { QuestPhase, MentorId, HelpIntensity, HealthScore } from '@/lib/quest/types';
+import type { QuestJourney, QuestPhase, MentorId, HelpIntensity, HealthScore } from '@/lib/quest/types';
 import { PHASE_LABELS, PHASE_ORDER } from '@/lib/quest/types';
 import { getHealthColor } from '@/lib/quest/health';
 import { StudentQuestCard } from './StudentQuestCard';
@@ -526,10 +526,9 @@ export function TeacherQuestDashboard({
         <QuestDetailPanel
           isOpen={!!selectedJourneyId}
           onClose={() => setSelectedJourneyId(null)}
-          journey={selectedJourney}
-          unitId={unitId}
-          classId={classId}
-          onJourneyUpdate={() => fetchJourneys()}
+          journey={selectedJourney as unknown as QuestJourney & { students: { display_name: string } }}
+          milestones={[]}
+          evidence={[]}
         />
       )}
     </div>

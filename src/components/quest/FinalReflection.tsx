@@ -242,15 +242,15 @@ export function FinalReflection({ journey, milestones, evidence, onSubmit, onCan
                     padding: '16px',
                     background: '#0a0a0f',
                     borderRadius: '8px',
-                    borderLeft: `4px solid ${PHASE_COLORS.Discovery || '#8B5CF6'}`,
+                    borderLeft: `4px solid ${PHASE_COLORS.discovery || '#8B5CF6'}`,
                   }}
                 >
                   <h4 style={{ fontSize: '14px', fontWeight: '600', color: '#cbd5e0', marginBottom: '12px' }}>
                     Your Journey Summary
                   </h4>
                   <div style={{ fontSize: '13px', color: '#a0aec0', lineHeight: '1.6' }}>
-                    <p>🌟 Quest: {journey.project_title}</p>
-                    <p>📅 Started: {formatDate(journey.created_at)}</p>
+                    <p>🌟 Quest: {(journey as any).title || 'My Quest'}</p>
+                    <p>📅 Started: {(journey as any).started_at ? formatDate((journey as any).started_at) : 'Recently'}</p>
                     <p>🎯 Milestones completed: {milestones.filter((m) => m.completed_at).length} / {milestones.length}</p>
                     <p>📸 Evidence collected: {evidence.length}</p>
                   </div>
@@ -614,14 +614,14 @@ export function FinalReflection({ journey, milestones, evidence, onSubmit, onCan
                     borderRadius: '8px',
                     padding: '16px',
                     marginBottom: '20px',
-                    borderLeft: `4px solid ${mentor?.color || '#8B5CF6'}`,
+                    borderLeft: `4px solid #8B5CF6`,
                   }}
                 >
                   <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
-                    <span style={{ fontSize: '32px' }}>{mentor?.emoji || '🌟'}</span>
+                    <span style={{ fontSize: '32px' }}>🌟</span>
                     <div>
                       <p style={{ fontSize: '13px', color: '#cbd5e0', marginBottom: '8px', fontStyle: 'italic' }}>
-                        "{mentor?.farewell_message || 'You did incredible work. Keep going!'}"
+                        "You did incredible work. Keep going!"
                       </p>
                       <p style={{ fontSize: '12px', color: '#a0aec0' }}>— {mentor?.name || 'Your Mentor'}</p>
                     </div>
@@ -686,7 +686,6 @@ export function FinalReflection({ journey, milestones, evidence, onSubmit, onCan
                         whileTap={{ scale: 0.95 }}
                         style={{
                           fontSize: '32px',
-                          background: 'none',
                           border: 'none',
                           cursor: 'pointer',
                           padding: '8px',

@@ -129,7 +129,7 @@ export default function TeacherStudentView({
           supabase.from("student_progress").select("*").eq("student_id", studentId).in("unit_id", unitIds),
         ]);
 
-        const unitsWithProgress = (unitsRes.data || []).map((unit: Unit) => ({
+        const unitsWithProgress = (unitsRes.data || []).map((unit: any) => ({
           ...unit,
           progress: (progressRes.data || []).filter((p: StudentProgress) => p.unit_id === unit.id),
         }));

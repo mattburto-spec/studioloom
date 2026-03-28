@@ -15,11 +15,11 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { findBadgeBySlug } from "@/lib/safety/badge-definitions";
-import { withErrorHandler } from "@/lib/api/error-handler";
 
-export const GET = withErrorHandler(
-  "tools/safety/badges/[slug]:GET",
-  async (_req: NextRequest, context: { params: Promise<{ slug: string }> }) => {
+export async function GET(
+  _req: NextRequest,
+  context: { params: Promise<{ slug: string }> }
+) {
     const { slug } = await context.params;
 
     const badge = findBadgeBySlug(slug);
@@ -50,5 +50,4 @@ export const GET = withErrorHandler(
     };
 
     return NextResponse.json({ badge: badgeData });
-  }
-);
+}

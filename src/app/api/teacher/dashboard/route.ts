@@ -47,6 +47,7 @@ interface StudentRow {
 interface ClassUnitRow {
   class_id: string;
   unit_id: string;
+  content_data: UnitContentData | null; // per-class fork content (migration 040)
   nm_config: { enabled?: boolean } | null; // per-class NM config
   units: {
     id: string;
@@ -378,7 +379,7 @@ export const GET = withErrorHandler("teacher/dashboard:GET", async (request: Nex
         openStudioCount: osCount,
         nmEnabled: !!nmEnabled,
         badgeRequirementCount: badgeReqByUnit.get(cu.unit_id) || 0,
-        isForked: !!(cu as Record<string, unknown>).content_data,
+        isForked: !!cu.content_data,
         unitType: unitInfo.get(cu.unit_id)?.unitType || undefined,
         thumbnailUrl: unitInfo.get(cu.unit_id)?.thumbnailUrl || undefined,
       };

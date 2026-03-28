@@ -833,7 +833,7 @@ export default function BadgeDetailPage() {
 
           {/* TEACH TAB */}
           {activeTab === "teach" && badge && (
-            <TeachTab badge={badge} />
+            <TeachTab badge={badge as any} />
           )}
 
           {/* RESULTS TAB */}

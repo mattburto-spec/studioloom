@@ -72,6 +72,12 @@ function blockTypeLabel(type: string): string {
   }
 }
 
+function getBlockLabel(block: ContentBlock): string {
+  // Get title if available on the block, otherwise use type label
+  const blockWithTitle = block as any;
+  return blockWithTitle.title || blockTypeLabel(block.type);
+}
+
 function blockTypeColor(type: string): string {
   switch (type) {
     case "spot_the_hazard": return "#f59e0b";
@@ -283,13 +289,8 @@ export default function SafetyBadgeTestPage({
 
     const correct = question.correct_answer;
 
-    // Handle multiple choice, scenario, match
+    // Handle multiple choice, scenario, match, or true/false (all strings)
     if (typeof correct === "string") {
-      return currentAnswer === correct;
-    }
-
-    // Handle true/false
-    if (correct === "true" || correct === "false") {
       return currentAnswer === correct;
     }
 
@@ -325,9 +326,10 @@ export default function SafetyBadgeTestPage({
   // Continue after feedback
   const handleContinueAfterFeedback = async () => {
     const time_ms = Date.now() - questionStartTime;
+    // currentAnswer is guaranteed non-null here since handleAnswerSelection checks it
     const newAnswer: Answer = {
       question_id: questions[currentQuestion].id,
-      selected: currentAnswer,
+      selected: currentAnswer as string | string[] | number[],
       time_ms,
     };
     const updatedAnswers = [...answers, newAnswer];
@@ -432,7 +434,7 @@ export default function SafetyBadgeTestPage({
     blocks.forEach((block, i) => {
       sections.push({
         id: `block-${i}`,
-        label: block.title || blockTypeLabel(block.type),
+        label: getBlockLabel(block),
         type: block.type,
         blockIndex: i,
       });
@@ -1028,39 +1030,39 @@ export default function SafetyBadgeTestPage({
                 </p>
                 {question.options && (
                   <div className="space-y-2">
-                    {question.options.map((option, idx) => (
-                      <div
-                        key={idx}
-                        className={`flex items-center gap-2 p-3 rounded-lg border-2 ${
-                          Array.isArray(currentAnswer) &&
-                          currentAnswer.includes(idx)
-                            ? "border-purple-600 bg-purple-50"
-                            : "border-gray-200"
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={
-                            Array.isArray(currentAnswer) &&
-                            currentAnswer.includes(idx)
-                          }
-                          onChange={(e) => {
-                            const arr = Array.isArray(currentAnswer)
-                              ? [...currentAnswer]
-                              : [];
-                            if (e.target.checked) {
-                              if (!arr.includes(idx)) arr.push(idx);
-                            } else {
-                              const i = arr.indexOf(idx);
-                              if (i > -1) arr.splice(i, 1);
-                            }
-                            setCurrentAnswer(arr.length > 0 ? arr : null);
-                          }}
-                          className="w-4 h-4 rounded"
-                        />
-                        <span className="text-gray-900">{option}</span>
-                      </div>
-                    ))}
+                    {question.options.map((option, idx) => {
+                      const isSelected = Array.isArray(currentAnswer) &&
+                        (currentAnswer as (string | number)[]).includes(idx);
+                      return (
+                        <div
+                          key={idx}
+                          className={`flex items-center gap-2 p-3 rounded-lg border-2 ${
+                            isSelected
+                              ? "border-purple-600 bg-purple-50"
+                              : "border-gray-200"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(e) => {
+                              const arr: number[] = Array.isArray(currentAnswer)
+                                ? [...(currentAnswer as number[])]
+                                : [];
+                              if (e.target.checked) {
+                                if (!arr.includes(idx)) arr.push(idx);
+                              } else {
+                                const i = arr.indexOf(idx);
+                                if (i > -1) arr.splice(i, 1);
+                              }
+                              setCurrentAnswer(arr.length > 0 ? arr : null);
+                            }}
+                            className="w-4 h-4 rounded"
+                          />
+                          <span className="text-gray-900">{option}</span>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>

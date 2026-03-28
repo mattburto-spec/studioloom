@@ -3,7 +3,7 @@ import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { verifyTeacherHasUnit, getNmConfigForClassUnit } from "@/lib/auth/verify-teacher-unit";
 import { resolveClassUnitContent } from "@/lib/units/resolve-content";
-import { normalizeContentData } from "@/lib/unit-adapter";
+import { normalizeContentData, getPageList } from "@/lib/unit-adapter";
 
 /**
  * Teacher NM Results API
@@ -74,12 +74,10 @@ export async function GET(request: NextRequest) {
       contentData = resolveClassUnitContent(contentData, cuRow?.content_data);
     }
     if (contentData) {
-      const normalized = normalizeContentData(contentData);
-      if (normalized?.pages) {
-        for (const page of normalized.pages) {
-          if (page.id && page.title) {
-            pageNames[page.id] = page.title;
-          }
+      const pages = getPageList(contentData);
+      for (const page of pages) {
+        if (page.id && page.title) {
+          pageNames[page.id] = page.title;
         }
       }
     }

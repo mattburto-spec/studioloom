@@ -12,6 +12,7 @@ import {
   formatLessonShort,
   type SchoolTimetable,
   type ClassMeeting,
+  type LessonDate,
 } from "../cycle-engine";
 
 // ─────────────────────────────────────────────────────────────
@@ -500,7 +501,7 @@ describe("getLessonCalendar", () => {
 
 describe("formatLessonDate", () => {
   it("formats with period", () => {
-    const lesson: LessonDate = {
+    const lesson: any = {
       date: parseDate("2026-03-26"),
       dateISO: "2026-03-26",
       cycleDay: 6,

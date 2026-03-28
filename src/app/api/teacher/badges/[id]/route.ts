@@ -135,7 +135,7 @@ export async function PATCH(
       if (fetchError.code === "PGRST116") {
         return NextResponse.json({ error: "Badge not found" }, { status: 404 });
       }
-      console.error("[badges/[id]/PATCH] Fetch error:", error);
+      console.error("[badges/[id]/PATCH] Fetch error:", fetchError);
       return NextResponse.json({ error: "Failed to fetch badge" }, { status: 500 });
     }
 
@@ -202,7 +202,7 @@ export async function DELETE(
       if (fetchError.code === "PGRST116") {
         return NextResponse.json({ error: "Badge not found" }, { status: 404 });
       }
-      console.error("[badges/[id]/DELETE] Fetch error:", error);
+      console.error("[badges/[id]/DELETE] Fetch error:", fetchError);
       return NextResponse.json({ error: "Failed to fetch badge" }, { status: 500 });
     }
 

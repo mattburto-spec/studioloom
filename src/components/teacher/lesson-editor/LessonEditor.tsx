@@ -179,7 +179,8 @@ export default function LessonEditor({
   // Get pages array safely
   const pages = useMemo(() => {
     if (!content) return [];
-    if (Array.isArray(content.pages)) return content.pages as UnitPage[];
+    const pages = (content as any).pages;
+    if (Array.isArray(pages)) return pages as UnitPage[];
     return [];
   }, [content]);
 
@@ -318,8 +319,8 @@ export default function LessonEditor({
   // Lesson sidebar reorder — Framer Motion gives us the full new array
   const handleReorderPages = useCallback(
     (newOrder: UnitPage[]) => {
-      if (!content || !Array.isArray(content.pages)) return;
-      const oldPages = content.pages as UnitPage[];
+      if (!content || !Array.isArray((content as any).pages)) return;
+      const oldPages = (content as any).pages as UnitPage[];
 
       // Find which page moved and where
       for (let i = 0; i < newOrder.length; i++) {

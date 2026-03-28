@@ -58,8 +58,8 @@ export const POST = withErrorHandler("teacher/teach/on-the-fly:POST", async (req
   }
 
   // Verify teacher owns this class
-  const classCheck = await verifyTeacherOwnsClass(teacherId, classId);
-  if (classCheck.error) {
+  const owns = await verifyTeacherOwnsClass(teacherId, classId);
+  if (!owns) {
     return NextResponse.json({ error: "Not authorized for this class" }, { status: 403 });
   }
 

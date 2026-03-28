@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
     };
 
     // Get timing from config
-    const timingProfile = getGradeTimingProfile(testInput.gradeLevel, resolvedConfig.timingProfiles);
+    const timingProfile = getGradeTimingProfile(testInput.gradeLevel, "IB_MYP", resolvedConfig.timingProfiles);
     const timingBlock = buildTimingBlock(timingProfile, testInput.lessonLengthMinutes || 50);
 
     // Build the prompt

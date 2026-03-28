@@ -675,33 +675,35 @@ function buildLearningProfileContext(profile: StudentLearningProfile): string {
   }
 
   // Design confidence (self-efficacy, d=0.92 — highest effect size)
-  if (profile.design_confidence) {
-    const confidence = Number(profile.design_confidence);
-    if (confidence <= 2) {
+  const confidence = (profile as any).design_confidence;
+  if (confidence) {
+    const confidenceNum = Number(confidence);
+    if (confidenceNum <= 2) {
       parts.push(
-        `DESIGN CONFIDENCE: LOW (${confidence}/5). This student feels nervous about design. Start with what they CAN do. Celebrate small concrete wins ("You identified a real user need — that's the hardest part"). Break challenges into tiny steps. Never assume prior knowledge. Use encouraging but not patronising language. Offer explicit permission to struggle ("It's completely normal to feel stuck here").`
+        `DESIGN CONFIDENCE: LOW (${confidenceNum}/5). This student feels nervous about design. Start with what they CAN do. Celebrate small concrete wins ("You identified a real user need — that's the hardest part"). Break challenges into tiny steps. Never assume prior knowledge. Use encouraging but not patronising language. Offer explicit permission to struggle ("It's completely normal to feel stuck here").`
       );
-    } else if (confidence === 3) {
+    } else if (confidenceNum === 3) {
       parts.push(
         `DESIGN CONFIDENCE: MODERATE (3/5). This student is building confidence. Acknowledge what they already know while gently stretching them. Ask "What have you tried before?" to build on existing experience. Provide scaffolding but pull it back when they show capability.`
       );
     } else {
       parts.push(
-        `DESIGN CONFIDENCE: HIGH (${confidence}/5). This student feels confident about design. Challenge them — push for deeper analysis, more rigorous criteria, wilder ideas. Don't over-scaffold. Ask hard questions: "What would a professional designer critique about this?" / "What assumption are you making?"`
+        `DESIGN CONFIDENCE: HIGH (${confidenceNum}/5). This student feels confident about design. Challenge them — push for deeper analysis, more rigorous criteria, wilder ideas. Don't over-scaffold. Ask hard questions: "What would a professional designer critique about this?" / "What assumption are you making?"`
       );
     }
   }
 
   // Working style preference (collectivist/individualist signal, d=0.35)
-  if (profile.working_style === "solo") {
+  const workingStyle = (profile as any).working_style;
+  if (workingStyle === "solo") {
     parts.push(
       `WORKING STYLE: Prefers SOLO work. Respect their need for independent thinking. When suggesting collaboration, frame it as optional ("You might want to get a second opinion on..." not "Go discuss with your partner"). Don't push group work.`
     );
-  } else if (profile.working_style === "partner") {
+  } else if (workingStyle === "partner") {
     parts.push(
       `WORKING STYLE: Prefers PARTNER work. Suggest peer check-ins when appropriate ("This might be a good moment to get a partner's reaction"). Frame feedback in dialogue terms ("What would someone else notice about this?").`
     );
-  } else if (profile.working_style === "small_group") {
+  } else if (workingStyle === "small_group") {
     parts.push(
       `WORKING STYLE: Prefers GROUP work. Encourage collaborative approaches. Suggest team-based toolkit activities when relevant. Frame challenges as team problems ("How might your group tackle this differently?").`
     );
@@ -718,8 +720,8 @@ function buildLearningProfileContext(profile: StudentLearningProfile): string {
   }
 
   // Learning differences — UDL adaptation (optional, student chose to share)
-  if (profile.learning_differences?.length > 0) {
-    const diffs = profile.learning_differences;
+  const diffs = (profile as any).learning_differences;
+  if (diffs?.length > 0) {
     const adaptations: string[] = [];
 
     if (diffs.includes("adhd")) {

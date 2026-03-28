@@ -26,7 +26,7 @@ interface Badge {
 
 export default function SafetyBadgesPage() {
   const router = useRouter();
-  const { student, isLoading: studentLoading } = useStudent();
+  const { student } = useStudent();
   const [statusMap, setStatusMap] = useState<Record<string, { status: string; earned_at?: string; expires_at?: string; cooldown_until?: string }>>({});
   const [loading, setLoading] = useState(true);
 
@@ -134,7 +134,7 @@ export default function SafetyBadgesPage() {
     router.push(`/safety/${badge.id}`);
   };
 
-  if (studentLoading || loading) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-slate-500">Loading badges...</div>

@@ -243,7 +243,7 @@ export function ScamperTool({
       ideaEfforts,
       dealtCards,
     };
-    updateToolSession(state);
+    updateToolSession(state as any);
   }, [stage, challenge, currentStep, ideas, ideaEfforts, dealtCards, updateToolSession]);
 
   const fetchAI = useCallback(async (body: Record<string, unknown>): Promise<Record<string, unknown>> => {
@@ -327,8 +327,8 @@ export function ScamperTool({
       [currentStep]: [...(prev[currentStep] || []), effort],
     }));
 
-    const feedbackPool = MICRO_FEEDBACK[effort];
-    const message = feedbackPool.messages[Math.floor(Math.random() * feedbackPool.messages.length)];
+    const feedbackOptions = getRandomMicroFeedback(effort);
+    const message = feedbackOptions?.message || `Great effort on step ${currentStep + 1}!`;
     setMicroFeedback({ effort, message });
 
     if (microFeedbackTimerRef.current) clearTimeout(microFeedbackTimerRef.current);
@@ -821,7 +821,7 @@ export function ScamperTool({
               boxShadow: '0 8px 16px rgba(0,0,0,0.4)',
               zIndex: 50,
             }}>
-              {MICRO_FEEDBACK[microFeedback.effort].emoji} {microFeedback.message}
+              {microFeedback.message}
             </div>
           )}
         </div>

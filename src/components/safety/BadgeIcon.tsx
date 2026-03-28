@@ -1,5 +1,7 @@
 "use client";
 
+import type { JSX } from "react";
+
 /**
  * BadgeIcon — renders a badge icon from its icon_name.
  *

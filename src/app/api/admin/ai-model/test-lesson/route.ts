@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
       : null;
 
     // Get timing from config
-    const timingProfile = getGradeTimingProfile(testInput.gradeLevel, resolvedConfig.timingProfiles);
+    const timingProfile = getGradeTimingProfile(testInput.gradeLevel, framework, resolvedConfig.timingProfiles);
     const timingBlock = buildTimingBlock(timingProfile, lessonLengthMinutes);
 
     // Build the user prompt using the journey prompt builder with framework

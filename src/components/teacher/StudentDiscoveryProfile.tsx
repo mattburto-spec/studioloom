@@ -47,6 +47,8 @@ const STYLE_LABELS: Record<keyof WorkingStyleVector, { label: string; options: [
   expression: { label: "Expression", options: ["Visual", "Verbal"] },
   learning_intake: { label: "Learning", options: ["Study", "Experiment"] },
   learning_source: { label: "Source", options: ["Example", "Concept"] },
+  autonomy: { label: "Autonomy", options: ["Guided", "Independent"] },
+  stress_response: { label: "Stress", options: ["Calm", "Energized"] },
 };
 
 interface Props {

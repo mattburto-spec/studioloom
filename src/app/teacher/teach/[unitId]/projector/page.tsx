@@ -41,21 +41,13 @@ export default function ProjectorView({
       const supabase = createClient();
 
       // Fetch unit + optional class-local content
-      const queries: Promise<unknown>[] = [
-        supabase.from("units").select("*").eq("id", unitId).single(),
-      ];
-      if (classId) {
-        queries.push(
-          supabase.from("class_units").select("content_data").eq("unit_id", unitId).eq("class_id", classId).single()
-        );
-      }
-
-      const [unitResult, cuResult] = await Promise.all(queries);
-      const unitData = (unitResult as { data: Unit | null }).data;
+      const unitResult = await (supabase.from("units").select("*").eq("id", unitId).single() as unknown as Promise<any>);
+      const unitData = unitResult.data as Unit | null;
       setUnit(unitData);
 
-      if (classId && cuResult) {
-        const cuData = (cuResult as { data: { content_data: unknown } | null }).data;
+      if (classId) {
+        const cuResult = await (supabase.from("class_units").select("content_data").eq("unit_id", unitId).eq("class_id", classId).single() as unknown as Promise<any>);
+        const cuData = cuResult.data as { content_data: unknown } | null;
         if (cuData?.content_data) {
           setClassUnitContent(cuData.content_data as UnitContentData);
         }
@@ -64,9 +56,7 @@ export default function ProjectorView({
       if (unitData && !selectedPageId) {
         const resolvedContent = resolveClassUnitContent(
           unitData.content_data as UnitContentData,
-          classId && cuResult
-            ? ((cuResult as { data: { content_data: unknown } | null }).data?.content_data as UnitContentData | undefined)
-            : undefined
+          classUnitContent
         );
         const pages = getPageList(resolvedContent);
         if (pages.length > 0) setSelectedPageId(pages[0].id);
@@ -74,7 +64,7 @@ export default function ProjectorView({
       setLoading(false);
     }
     load();
-  }, [unitId, selectedPageId, classId]);
+  }, [unitId, selectedPageId, classId, classUnitContent]);
 
   // Listen for messages from the teaching dashboard (same-origin postMessage)
   useEffect(() => {

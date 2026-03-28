@@ -99,7 +99,7 @@ export default function ScenarioBlock({ block, onComplete }: ScenarioBlockProps)
       // Auto-advance to next branch after delay if there's a next branch
       if (choice.next_branch_id) {
         setTimeout(() => {
-          setCurrentBranchId(choice.next_branch_id);
+          setCurrentBranchId(choice.next_branch_id || null);
           setSelectedChoiceId(null);
           setShowResult(false);
         }, 2000);

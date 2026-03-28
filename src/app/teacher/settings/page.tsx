@@ -1739,9 +1739,19 @@ export default function TeacherSettingsPage() {
             {classes.length > 0 ? (
               <TimetableGrid
                 cycleLength={cycleLength}
-                meetings={classMeetings as ClassMeetingEntry[]}
+                meetings={classMeetings.map(m => ({
+                  class_id: m.class_id,
+                  cycle_day: m.cycle_day,
+                  period_number: m.period_number as number | undefined,
+                  room: m.room,
+                }))}
                 classes={classes}
-                onMeetingsChange={(newMeetings) => setClassMeetings(newMeetings)}
+                onMeetingsChange={(newMeetings) => setClassMeetings(newMeetings.map(m => ({
+                  class_id: m.class_id,
+                  cycle_day: m.cycle_day,
+                  period_number: typeof m.period_number === 'string' ? undefined : m.period_number,
+                  room: m.room,
+                })))}
               />
             ) : (
               <div className="p-6 rounded-lg bg-gray-50 border border-gray-200 text-center">

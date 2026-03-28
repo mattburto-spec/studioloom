@@ -434,8 +434,8 @@ export default function ModuleRenderer({
                 >
                   {blockTypeLabel(block.type)}
                 </span>
-                {block.title && (
-                  <h3 className="text-base font-semibold text-gray-900">{block.title}</h3>
+                {(block as any).title && (
+                  <h3 className="text-base font-semibold text-gray-900">{(block as any).title}</h3>
                 )}
               </div>
             </div>
@@ -479,8 +479,8 @@ function CompletedBlockHeader({ index, block }: { index: number; block: ContentB
         >
           {blockTypeLabel(block.type)}
         </span>
-        {block.title && (
-          <span className="ml-1.5 text-gray-600">{block.title}</span>
+        {(block as any).title && (
+          <span className="ml-1.5 text-gray-600">{(block as any).title}</span>
         )}
       </span>
     </div>

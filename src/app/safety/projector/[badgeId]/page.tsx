@@ -114,14 +114,14 @@ export default function SafetyProjectorPage({
       } else if (block.type === "scenario") {
         builtSlides.push({
           type: "concept",
-          title: block.title || "Scenario",
-          content: block.narrative,
+          title: (block as any).title || "Scenario",
+          content: (block as any).narrative || "Scenario content",
         });
       } else if (block.type === "before_after") {
         builtSlides.push({
           type: "concept",
-          title: block.title || "Before & After",
-          content: `WRONG: ${block.before_label || "Before"}\n\nRIGHT: ${block.after_label || "After"}`,
+          title: "Before & After",
+          content: `WRONG: Before\n\nRIGHT: After`,
         });
       } else if (block.type === "comprehension_check") {
         builtSlides.push({

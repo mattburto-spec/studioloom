@@ -148,26 +148,6 @@ export async function POST(request: NextRequest) {
     const badgeId = nanoid(12);
     const question_count = question_pool.length;
 
-    const badge: BadgeDefinition = {
-      id: badgeId,
-      name,
-      slug,
-      description,
-      category: category as "safety" | "skill" | "software",
-      tier,
-      color,
-      icon_name,
-      is_built_in: false,
-      created_by_teacher_id: user.id,
-      pass_threshold,
-      expiry_months,
-      retake_cooldown_minutes,
-      question_count,
-      topics,
-      learn_content,
-      question_pool,
-    };
-
     const { data, error } = await admin
       .from("badges")
       .insert([

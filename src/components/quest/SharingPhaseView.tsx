@@ -213,7 +213,7 @@ export function SharingPhaseView({
     async (type: string, content: string) => {
       setIsSubmittingEvidence(true);
       try {
-        await onEvidenceSubmit({ type, content, milestone_id: selectedMilestoneId });
+        await onEvidenceSubmit({ type, content, milestone_id: selectedMilestoneId ?? undefined });
       } catch (err) {
         console.error('Failed to submit evidence:', err);
         alert('Failed to submit evidence. Please try again.');

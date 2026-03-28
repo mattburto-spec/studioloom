@@ -296,7 +296,7 @@ export default function ActivityBlock({
                 </label>
                 <textarea
                   placeholder={`Scaffolding for tier ${idx + 1}...`}
-                  value={activity.scaffolding?.[tier as keyof typeof activity.scaffolding]?.sentenceStarters?.join("\n") || ""}
+                  value={(activity.scaffolding?.[tier as keyof typeof activity.scaffolding] as any)?.sentenceStarters?.join("\n") || ""}
                   onChange={(e) => {
                     const lines = e.target.value.split("\n").filter(Boolean);
                     const scaffolding = activity.scaffolding || {};

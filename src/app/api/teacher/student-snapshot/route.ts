@@ -12,7 +12,11 @@ import type { UnitContentData } from "@/types";
 // ---------------------------------------------------------------------------
 
 export async function GET(req: NextRequest) {
-  const { userId: teacherId } = await requireTeacherAuth();
+  const auth = await requireTeacherAuth(req);
+  if (auth.error) {
+    return auth.error;
+  }
+  const teacherId = (auth as any).teacherId;
   const url = req.nextUrl;
   const studentId = url.searchParams.get("studentId");
   const unitId = url.searchParams.get("unitId");
@@ -74,9 +78,9 @@ export async function GET(req: NextRequest) {
   ]);
 
   // Resolve pages
-  const masterContent = unitRes.data?.content_data as UnitContentData | null;
-  const forkContent = classUnitRes.data?.content_data as UnitContentData | null;
-  const resolvedContent = resolveClassUnitContent(masterContent ?? undefined, forkContent ?? undefined);
+  const masterContent = unitRes.data?.content_data as UnitContentData | undefined;
+  const forkContent = classUnitRes.data?.content_data as UnitContentData | undefined;
+  const resolvedContent = masterContent ? resolveClassUnitContent(masterContent, forkContent) : undefined;
   const pages = getPageList(resolvedContent).map(p => ({
     id: p.id,
     title: p.title || p.content?.title || p.id,

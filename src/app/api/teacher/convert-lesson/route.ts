@@ -197,7 +197,7 @@ async function handleGeneration(
   const { skeleton, rawText, extraction, mode, targetUnitId, lessonDurationMinutes, frameworkKey } = body as {
     skeleton: TimelineSkeleton;
     rawText: string;
-    extraction: { unitTopic: string; gradeLevel: string; subjectArea: string; lessons: Array<{ title: string; activities: Array<{ description: string; type: string }>; learningObjective: string; resources?: Array<{ url: string; title: string; type: string }> }> };
+    extraction: { unitTopic: string; gradeLevel: string; subjectArea: string; lessons: Array<{ title: string; activities: Array<{ description: string; type: string; estimatedMinutes?: number }>; learningObjective: string; estimatedMinutes?: number; resources?: Array<{ url: string; title: string; type: string }> }> };
     mode: "full_unit" | "single_lesson";
     targetUnitId?: string;
     lessonDurationMinutes?: number;
@@ -304,7 +304,7 @@ async function handleGeneration(
     const { data: newUnit, error: insertError } = await db
       .from("units")
       .insert({
-        title: skeleton.unitTitle || extraction?.unitTopic || "Imported Unit",
+        title: extraction?.unitTopic || "Imported Unit",
         description: skeleton.narrativeArc || null,
         content_data: contentData,
         grade_level: extraction?.gradeLevel || null,
@@ -496,12 +496,10 @@ OTHER RULES:
         title: parsed.title || lessonTitle,
         learningGoal: parsed.learningGoal || "",
         introduction: parsed.introduction || { text: "" },
-        sections,
-        extensions: parsed.extensions || [],
-        reflection,
         ...parsed,
         sections, // override parsed.sections with normalized version
         reflection, // override parsed.reflection with normalized version
+        extensions: parsed.extensions || [],
       } as PageContent;
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));

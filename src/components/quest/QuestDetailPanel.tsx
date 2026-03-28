@@ -165,16 +165,16 @@ function OverviewTab({ journey, onUpdateHelpIntensity }: { journey: QuestDetailP
                 width: '32px',
                 height: '32px',
                 borderRadius: '50%',
-                backgroundColor: mentor.color,
+                backgroundColor: '#6366f1',
                 opacity: 0.3,
-                border: `2px solid ${mentor.color}`,
+                border: `2px solid #6366f1`,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 fontSize: '16px',
               }}
             >
-              {mentor.emoji}
+              🌟
             </div>
             <div>
               <div style={{ fontSize: '13px', fontWeight: 500, color: '#e5e7eb' }}>{mentor.name}</div>
@@ -662,7 +662,7 @@ function EvidenceTab({
                       <textarea
                         placeholder="Rejection feedback (required)..."
                         value={rejectionFeedback[e.id] || ''}
-                        onChange={(e) => setRejectionFeedback({ ...rejectionFeedback, [e.id]: e.target.value })}
+                        onChange={(evt) => setRejectionFeedback({ ...rejectionFeedback, [e.id]: evt.currentTarget.value })}
                         style={{
                           padding: '6px',
                           borderRadius: '4px',

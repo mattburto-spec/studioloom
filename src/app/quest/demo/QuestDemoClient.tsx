@@ -696,15 +696,11 @@ function WalkthroughDiscovery({
             <div>
               <h3 className="text-lg font-bold text-slate-900 mb-4">Review Your Profile</h3>
               <ProfileBuilder
-                profile={{
-                  strengths: data.strengths.split('\n').filter((s) => s.trim()),
-                  interests: data.interests.split('\n').filter((s) => s.trim()),
-                  needs: data.needs.split('\n').filter((s) => s.trim()),
-                  archetype: 'Emerging Leader',
-                  project_idea: data.projectIdea,
-                  narrowing_notes: 'Walkthrough discovery',
-                  discovery_completed_at: new Date().toISOString(),
-                }}
+                strengths={data.strengths.split('\n').filter((s) => s.trim())}
+                interests={data.interests.split('\n').filter((s) => s.trim())}
+                needs={data.needs.split('\n').filter((s) => s.trim())}
+                archetype="Emerging Leader"
+                projectIdea={data.projectIdea}
               />
             </div>
           )}
@@ -713,7 +709,7 @@ function WalkthroughDiscovery({
         {/* Buttons */}
         <div className="flex gap-4">
           <button
-            onClick={() => setStep(Math.max(1, (step - 1) as any))}
+            onClick={() => setStep(Math.max(1, step - 1) as 1 | 2 | 3 | 4 | 5)}
             disabled={step === 1}
             className="px-6 py-2 border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg font-semibold disabled:opacity-50 transition-colors"
           >
@@ -722,7 +718,7 @@ function WalkthroughDiscovery({
 
           {step < 5 ? (
             <button
-              onClick={() => setStep((step + 1) as any)}
+              onClick={() => setStep((step + 1) as 1 | 2 | 3 | 4 | 5)}
               disabled={!canAdvance}
               className="flex-1 px-6 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white rounded-lg font-semibold transition-colors"
             >
@@ -940,6 +936,7 @@ function WalkthroughWorking({
                 key={ms.id}
                 milestone={ms}
                 onStatusChange={handleMilestoneStatusChange}
+                evidence={[]}
               />
             ))}
           </div>
@@ -1021,12 +1018,15 @@ export default function QuestDemoPage() {
   };
 
   const handleDiscoveryComplete = (profile: DiscoveryProfile) => {
-    setWalkthroughJourney((j) => ({
-      ...j,
-      phase: 'planning' as QuestPhase,
-      discovery_profile: profile,
-    }));
-    setWalkthroughMilestones(generateDefaultMilestones(j.id));
+    setWalkthroughJourney((prev) => {
+      const j = prev;
+      return {
+        ...j,
+        phase: 'planning' as QuestPhase,
+        discovery_profile: profile,
+      };
+    });
+    setWalkthroughMilestones(generateDefaultMilestones(walkthroughJourney.id));
   };
 
   const handlePlanningComplete = () => {
@@ -1127,7 +1127,7 @@ export default function QuestDemoPage() {
                     {mockMilestones
                       .filter((m) => m.phase === 'planning')
                       .map((ms) => (
-                        <MilestoneCard key={ms.id} milestone={ms} onStatusChange={() => {}} />
+                        <MilestoneCard key={ms.id} milestone={ms} onStatusChange={() => {}} evidence={[]} />
                       ))}
                   </div>
                 </div>
@@ -1149,7 +1149,7 @@ export default function QuestDemoPage() {
                     {mockMilestones
                       .filter((m) => m.phase === 'working')
                       .map((ms) => (
-                        <MilestoneCard key={ms.id} milestone={ms} onStatusChange={() => {}} />
+                        <MilestoneCard key={ms.id} milestone={ms} onStatusChange={() => {}} evidence={[]} />
                       ))}
                   </div>
                 </div>

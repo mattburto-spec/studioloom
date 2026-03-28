@@ -40,11 +40,11 @@ function ConfettiPiece({
   delay: number;
 }) {
   const colors = [
-    PHASE_COLORS.discover,
-    PHASE_COLORS.define,
-    PHASE_COLORS.ideate,
-    PHASE_COLORS.prototype,
-    PHASE_COLORS.test,
+    PHASE_COLORS.discovery,
+    PHASE_COLORS.planning,
+    PHASE_COLORS.working,
+    PHASE_COLORS.sharing,
+    PHASE_COLORS.completed,
   ];
   const color = colors[index % colors.length];
   const startX = Math.random() * 100;
@@ -85,7 +85,7 @@ function ConfettiPiece({
           style={{
             width: `${size}px`,
             height: `${size}px`,
-            backgroundColor: color,
+            backgroundColor: color.baseColor,
             borderRadius: '2px',
           }}
         />
@@ -94,7 +94,7 @@ function ConfettiPiece({
           style={{
             width: `${size}px`,
             height: `${size}px`,
-            backgroundColor: color,
+            backgroundColor: color.baseColor,
             borderRadius: '50%',
           }}
         />
@@ -106,11 +106,11 @@ function ConfettiPiece({
 // Color burst background animation
 function ColorBurstBackground() {
   const phaseSequence = [
-    PHASE_COLORS.discover,
-    PHASE_COLORS.define,
-    PHASE_COLORS.ideate,
-    PHASE_COLORS.prototype,
-    PHASE_COLORS.test,
+    PHASE_COLORS.discovery,
+    PHASE_COLORS.planning,
+    PHASE_COLORS.working,
+    PHASE_COLORS.sharing,
+    PHASE_COLORS.completed,
   ];
 
   return (

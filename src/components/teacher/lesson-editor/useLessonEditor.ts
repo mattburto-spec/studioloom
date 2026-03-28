@@ -236,14 +236,18 @@ export function useLessonEditor({
   const updatePage = useCallback(
     (pageIndex: number, partial: Partial<PageContent>) => {
       setContent((prev) => {
-        if (!prev || !prev.pages || pageIndex < 0 || pageIndex >= prev.pages.length) {
+        if (!prev || !(prev as any).pages || pageIndex < 0 || pageIndex >= (prev as any).pages.length) {
           return prev;
         }
 
         const newContent = structuredClone(prev);
-        newContent.pages[pageIndex].content = {
-          ...newContent.pages[pageIndex].content,
-          ...partial,
+        const pages = (newContent as any).pages;
+        pages[pageIndex] = {
+          ...pages[pageIndex],
+          content: {
+            ...pages[pageIndex].content,
+            ...partial,
+          },
         };
 
         // Push to undo stack
@@ -262,8 +266,9 @@ export function useLessonEditor({
 
       const newContent = structuredClone(prev);
       const newPageId = `page-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+      const pages = (newContent as any).pages;
 
-      newContent.pages.push({
+      pages.push({
         id: newPageId,
         type: "lesson",
         title: defaultTitle,
@@ -284,7 +289,7 @@ export function useLessonEditor({
       undoManagerRef.current.push(newContent);
 
       // Auto-select the new page
-      setSelectedPageIndex(newContent.pages.length - 1);
+      setSelectedPageIndex(pages.length - 1);
 
       return newContent;
     });
@@ -293,20 +298,21 @@ export function useLessonEditor({
   // Remove a page
   const removePage = useCallback((pageIndex: number) => {
     setContent((prev) => {
-      if (!prev || !prev.pages || pageIndex < 0 || pageIndex >= prev.pages.length) {
+      if (!prev || !(prev as any).pages || pageIndex < 0 || pageIndex >= (prev as any).pages.length) {
         return prev;
       }
 
       const newContent = structuredClone(prev);
-      newContent.pages.splice(pageIndex, 1);
+      const pages = (newContent as any).pages;
+      pages.splice(pageIndex, 1);
 
       undoManagerRef.current.push(newContent);
 
       // Adjust selection if needed
       setSelectedPageIndex((prevIndex) => {
         if (prevIndex === null) return null;
-        if (prevIndex >= newContent.pages.length) {
-          return Math.max(0, newContent.pages.length - 1);
+        if (prevIndex >= pages.length) {
+          return Math.max(0, pages.length - 1);
         }
         return prevIndex;
       });
@@ -318,16 +324,18 @@ export function useLessonEditor({
   // Reorder pages
   const reorderPages = useCallback((fromIndex: number, toIndex: number) => {
     setContent((prev) => {
-      if (!prev || !prev.pages) return prev;
+      if (!prev || !(prev as any).pages) return prev;
 
       const newContent = structuredClone(prev);
-      const [moved] = newContent.pages.splice(fromIndex, 1);
-      newContent.pages.splice(toIndex, 0, moved);
+      const pages = (newContent as any).pages;
+      const [moved] = pages.splice(fromIndex, 1);
+      pages.splice(toIndex, 0, moved);
 
       undoManagerRef.current.push(newContent);
 
       // Update selection if it was the moved page
       setSelectedPageIndex((prevIndex) => {
+        if (prevIndex === null) return null;
         if (prevIndex === fromIndex) return toIndex;
         if (fromIndex < prevIndex && toIndex >= prevIndex) return prevIndex - 1;
         if (fromIndex > prevIndex && toIndex <= prevIndex) return prevIndex + 1;

@@ -303,7 +303,7 @@ export function SMARTGoalEditor({
         <input
           type="date"
           value={milestone.target_date ? milestone.target_date.split('T')[0] : ''}
-          onChange={(e) => onUpdate({ target_date: e.target.value || null })}
+          onChange={(e) => onUpdate({ target_date: e.target.value || undefined })}
           readOnly={readOnly}
           style={{
             padding: '10px 12px',

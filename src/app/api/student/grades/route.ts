@@ -9,7 +9,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 export async function GET(request: NextRequest) {
   const auth = await requireStudentAuth(request);
   if ("error" in auth) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status });
+    return auth.error;
   }
 
   const unitId = request.nextUrl.searchParams.get("unitId");

@@ -118,10 +118,10 @@ interface KeyConceptBlockProps {
 
 export default function KeyConceptBlockComponent({ block, onComplete }: KeyConceptBlockProps) {
   const [sections, setSections] = useState<RevealSection[]>([
-    { id: "content", label: "Key Concept", icon: "content", revealed: true },
-    ...(block.tips ? [{ id: "tips", label: "Tips", icon: "tips", revealed: false }] : []),
-    ...(block.examples ? [{ id: "examples", label: "Examples", icon: "examples", revealed: false }] : []),
-    ...(block.warning ? [{ id: "warning", label: "Important", icon: "warning", revealed: false }] : []),
+    { id: "content", label: "Key Concept", icon: "content" as const, revealed: true },
+    ...(block.tips ? [{ id: "tips", label: "Tips", icon: "tips" as const, revealed: false }] : []),
+    ...(block.examples ? [{ id: "examples", label: "Examples", icon: "examples" as const, revealed: false }] : []),
+    ...(block.warning ? [{ id: "warning", label: "Important", icon: "warning" as const, revealed: false }] : []),
   ]);
 
   // Check if all sections revealed

@@ -58,7 +58,7 @@ export const GET = withErrorHandler("teacher/gallery:GET", async (request: NextR
   // Fetch all gallery rounds for this unit+class
   const { data: rounds, error } = await db
     .from("gallery_rounds")
-    .select("id, unit_id, class_id, teacher_id, title, description, review_format, min_reviews, anonymous, deadline, status, created_at, updated_at")
+    .select("id, unit_id, class_id, teacher_id, title, description, page_ids, review_format, min_reviews, anonymous, deadline, status, created_at, updated_at")
     .eq("unit_id", unitId)
     .eq("class_id", classId)
     .eq("teacher_id", user.id)

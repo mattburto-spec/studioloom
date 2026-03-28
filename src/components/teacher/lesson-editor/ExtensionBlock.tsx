@@ -137,7 +137,7 @@ export default function ExtensionBlock({
           value={extension.designPhase || phases[1] || "ideation"}
           onChange={(e) =>
             onUpdate({
-              designPhase: e.target.value,
+              designPhase: e.target.value as "investigation" | "ideation" | "prototyping" | "evaluation",
             })
           }
           className="w-full px-3 py-2 border border-amber-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white"
