@@ -44,7 +44,8 @@ interface Badge {
   category: string;
   tier: number;
   pass_threshold: number;
-  question_pool: unknown[];
+  question_count: number;
+  question_pool: unknown[] | string;
   learning_cards: unknown[];
 }
 
@@ -452,7 +453,7 @@ function BadgeRow({
   saving: boolean;
 }) {
   const passedStudents = results?.filter((r) => r.status === "active") || [];
-  const questionsCount = badge.question_pool?.length || 0;
+  const questionsCount = badge.question_count ?? (Array.isArray(badge.question_pool) ? badge.question_pool.length : 0);
 
   return (
     <div className={`bg-white rounded-xl border overflow-hidden ${isRequired ? "border-amber-200" : "border-gray-200"}`}>

@@ -29,7 +29,7 @@ const NAV_ITEMS = [
       <rect x="2" y="4" width="20" height="16" rx="2" /><path d="M12 4v16" /><path d="M2 12h20" />
     </svg>
   )},
-  { href: "/teacher/safety", label: "Safety", icon: (
+  { href: "/teacher/safety", label: "Badges", icon: (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
     </svg>

@@ -1,10 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import type { BadgeTier } from "@/types";
-import { BUILT_IN_BADGES } from "@/lib/safety/badge-definitions";
-import type { BadgeDefinition } from "@/lib/safety/types";
 
 // ---------------------------------------------------------------------------
 // Badge Icon — maps icon_name to inline SVG
@@ -38,6 +36,26 @@ function BadgeIcon({ name, color, size = 28 }: { name: string; color: string; si
 }
 
 // ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+interface Badge {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  category: string;
+  tier: number;
+  color: string;
+  icon_name: string;
+  is_built_in: boolean;
+  pass_threshold: number;
+  expiry_months: number | null;
+  question_count: number;
+  question_pool: unknown;
+}
+
+// ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
@@ -57,14 +75,45 @@ const CATEGORY_STYLES: Record<string, { bg: string; color: string; border: strin
 };
 
 // ---------------------------------------------------------------------------
+// Helper: get question count from a badge (handles double-encoded JSON)
+// ---------------------------------------------------------------------------
+function getQuestionCount(badge: Badge): number {
+  if (typeof badge.question_count === "number" && badge.question_count > 0) {
+    return badge.question_count;
+  }
+  if (Array.isArray(badge.question_pool)) {
+    return badge.question_pool.length;
+  }
+  return 0;
+}
+
+// ---------------------------------------------------------------------------
 // Main Page Component
 // ---------------------------------------------------------------------------
 
 export default function SafetyBadgesPage() {
-  const badges: BadgeDefinition[] = BUILT_IN_BADGES;
+  const [badges, setBadges] = useState<Badge[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filterCategory, setFilterCategory] = useState<string>("all");
   const [filterTier, setFilterTier] = useState<string>("all");
+
+  useEffect(() => {
+    async function loadBadges() {
+      try {
+        const res = await fetch("/api/teacher/badges");
+        if (res.ok) {
+          const data = await res.json();
+          setBadges(data.badges || []);
+        }
+      } catch {
+        // silent
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadBadges();
+  }, []);
 
   // Filtering
   const filtered = badges.filter((b) => {
@@ -90,12 +139,34 @@ export default function SafetyBadgesPage() {
   const safetyCount = badges.filter((b) => b.category === "safety").length;
   const skillCount = badges.filter((b) => b.category === "skill").length;
   const softwareCount = badges.filter((b) => b.category === "software").length;
+
+  if (loading) {
+    return (
+      <main className="max-w-6xl mx-auto px-4 py-8">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-3xl font-extrabold text-gray-900">Badges</h1>
+            <p className="text-gray-500 mt-1">Manage workshop certifications, safety tests, and skill badges</p>
+          </div>
+        </div>
+        <div className="space-y-3">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="bg-white rounded-2xl border border-gray-100 p-5 animate-pulse">
+              <div className="h-5 bg-gray-200 rounded w-48 mb-3" />
+              <div className="h-4 bg-gray-100 rounded w-full" />
+            </div>
+          ))}
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="max-w-6xl mx-auto px-4 py-8">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-3xl font-extrabold text-gray-900">Safety & Skills</h1>
+          <h1 className="text-3xl font-extrabold text-gray-900">Badges</h1>
           <p className="text-gray-500 mt-1">Manage workshop certifications, safety tests, and skill badges</p>
         </div>
         <div className="flex items-center gap-2">
@@ -195,141 +266,158 @@ export default function SafetyBadgesPage() {
       </div>
 
       {/* Badge list by tier */}
-      {(
-        <div className="space-y-8">
-          {([1, 2, 3, 4] as BadgeTier[]).map((tierNum) => {
-            const tierBadges = byTier[tierNum];
-            if (tierBadges.length === 0) return null;
-            const tier = TIER_INFO[tierNum];
+      <div className="space-y-8">
+        {([1, 2, 3, 4] as BadgeTier[]).map((tierNum) => {
+          const tierBadges = byTier[tierNum];
+          if (tierBadges.length === 0) return null;
+          const tier = TIER_INFO[tierNum];
 
-            return (
-              <section key={tierNum}>
-                {/* Tier header */}
-                <div className="flex items-center gap-3 mb-3">
-                  <div
-                    className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold text-white"
-                    style={{ background: tier.color }}
-                  >
-                    {tierNum}
-                  </div>
-                  <div>
-                    <h2 className="text-base font-bold text-gray-900">{tier.name}</h2>
-                    <p className="text-xs text-gray-400">{tier.description}</p>
-                  </div>
-                  <span className="text-xs text-gray-400 ml-auto">{tierBadges.length} badge{tierBadges.length !== 1 ? "s" : ""}</span>
+          return (
+            <section key={tierNum}>
+              {/* Tier header */}
+              <div className="flex items-center gap-3 mb-3">
+                <div
+                  className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold text-white"
+                  style={{ background: tier.color }}
+                >
+                  {tierNum}
                 </div>
+                <div>
+                  <h2 className="text-base font-bold text-gray-900">{tier.name}</h2>
+                  <p className="text-xs text-gray-400">{tier.description}</p>
+                </div>
+                <span className="text-xs text-gray-400 ml-auto">{tierBadges.length} badge{tierBadges.length !== 1 ? "s" : ""}</span>
+              </div>
 
-                {/* Compact badge rows */}
-                <div className="space-y-2">
-                  {tierBadges.map((badge) => {
-                    const bgColor = badge.color || "#6366f1";
-                    const catStyle = CATEGORY_STYLES[badge.category as keyof typeof CATEGORY_STYLES] || CATEGORY_STYLES.skill;
+              {/* Compact badge rows */}
+              <div className="space-y-2">
+                {tierBadges.map((badge) => {
+                  const bgColor = badge.color || "#6366f1";
+                  const catStyle = CATEGORY_STYLES[badge.category as keyof typeof CATEGORY_STYLES] || CATEGORY_STYLES.skill;
+                  const qCount = getQuestionCount(badge);
 
-                    return (
-                      <div
-                        key={badge.id}
-                        className="bg-white rounded-2xl border border-gray-100 hover:shadow-sm transition-shadow group"
-                      >
-                        <div className="flex items-center gap-4 px-4 py-3">
-                          {/* Icon */}
-                          <div
-                            className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
-                            style={{ background: `${bgColor}15` }}
-                          >
-                            <BadgeIcon name={badge.icon_name} color={bgColor} size={22} />
-                          </div>
+                  return (
+                    <div
+                      key={badge.id}
+                      className="bg-white rounded-2xl border border-gray-100 hover:shadow-sm transition-shadow group"
+                    >
+                      <div className="flex items-center gap-4 px-4 py-3">
+                        {/* Icon */}
+                        <div
+                          className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
+                          style={{ background: `${bgColor}15` }}
+                        >
+                          <BadgeIcon name={badge.icon_name} color={bgColor} size={22} />
+                        </div>
 
-                          {/* Name + description */}
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <Link
-                                href={`/teacher/safety/${badge.id}`}
-                                className="font-semibold text-gray-900 text-sm hover:text-purple-700 transition truncate"
-                              >
-                                {badge.name}
-                              </Link>
-                              <span
-                                className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 capitalize"
-                                style={{ background: catStyle.bg, color: catStyle.color, border: `1px solid ${catStyle.border}` }}
-                              >
-                                {badge.category}
-                              </span>
-                            </div>
-                            {badge.description && (
-                              <p className="text-xs text-gray-400 truncate mt-0.5">{badge.description}</p>
-                            )}
-                          </div>
-
-                          {/* Stats */}
-                          <div className="hidden md:flex items-center gap-4 flex-shrink-0">
-                            <div className="text-center">
-                              <p className="text-sm font-bold text-gray-900">{badge.question_count}</p>
-                              <p className="text-[10px] text-gray-400">Questions</p>
-                            </div>
-                            <div className="text-center">
-                              <p className="text-sm font-bold text-gray-900">{badge.pass_threshold}%</p>
-                              <p className="text-[10px] text-gray-400">Pass</p>
-                            </div>
-                            {badge.expiry_months && (
-                              <div className="text-center">
-                                <p className="text-sm font-bold text-gray-900">{badge.expiry_months}mo</p>
-                                <p className="text-[10px] text-gray-400">Expiry</p>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Actions */}
-                          <div className="flex items-center gap-1.5 flex-shrink-0">
-                            <Link
-                              href={`/teacher/safety/${badge.id}?tab=results&action=assign`}
-                              className="px-3 py-1.5 text-[11px] font-semibold rounded-lg transition"
-                              style={{ background: "#FEF3C7", color: "#92400E" }}
-                              title="Assign as unit prerequisite"
-                            >
-                              Assign
-                            </Link>
-                            <Link
-                              href={`/teacher/safety/${badge.id}?tab=results&action=award`}
-                              className="px-3 py-1.5 text-[11px] font-semibold rounded-lg transition"
-                              style={{ background: "#D1FAE5", color: "#065F46" }}
-                              title="Award directly to students"
-                            >
-                              Award
-                            </Link>
+                        {/* Name + description */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
                             <Link
                               href={`/teacher/safety/${badge.id}`}
-                              className="px-3 py-1.5 text-[11px] font-semibold rounded-lg transition"
-                              style={{ background: "#F3E8FF", color: "#7C3AED" }}
+                              className="font-semibold text-gray-900 text-sm hover:text-purple-700 transition truncate"
                             >
-                              View
+                              {badge.name}
                             </Link>
+                            <span
+                              className="text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 capitalize"
+                              style={{ background: catStyle.bg, color: catStyle.color, border: `1px solid ${catStyle.border}` }}
+                            >
+                              {badge.category}
+                            </span>
                           </div>
+                          {badge.description && (
+                            <p className="text-xs text-gray-400 truncate mt-0.5">{badge.description}</p>
+                          )}
+                        </div>
+
+                        {/* Stats */}
+                        <div className="hidden md:flex items-center gap-4 flex-shrink-0">
+                          <div className="text-center">
+                            <p className="text-sm font-bold text-gray-900">{qCount}</p>
+                            <p className="text-[10px] text-gray-400">Questions</p>
+                          </div>
+                          <div className="text-center">
+                            <p className="text-sm font-bold text-gray-900">{badge.pass_threshold}%</p>
+                            <p className="text-[10px] text-gray-400">Pass</p>
+                          </div>
+                          {badge.expiry_months && (
+                            <div className="text-center">
+                              <p className="text-sm font-bold text-gray-900">{badge.expiry_months}mo</p>
+                              <p className="text-[10px] text-gray-400">Expiry</p>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                          <Link
+                            href={`/teacher/safety/${badge.id}?tab=results&action=assign`}
+                            className="px-3 py-1.5 text-[11px] font-semibold rounded-lg transition"
+                            style={{ background: "#FEF3C7", color: "#92400E" }}
+                            title="Assign as unit prerequisite"
+                          >
+                            Assign
+                          </Link>
+                          <Link
+                            href={`/teacher/safety/${badge.id}?tab=results&action=award`}
+                            className="px-3 py-1.5 text-[11px] font-semibold rounded-lg transition"
+                            style={{ background: "#D1FAE5", color: "#065F46" }}
+                            title="Award directly to students"
+                          >
+                            Award
+                          </Link>
+                          <Link
+                            href={`/teacher/safety/${badge.id}`}
+                            className="px-3 py-1.5 text-[11px] font-semibold rounded-lg transition"
+                            style={{ background: "#F3E8FF", color: "#7C3AED" }}
+                          >
+                            View
+                          </Link>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              </section>
-            );
-          })}
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          );
+        })}
 
-          {/* No results after filter */}
-          {filtered.length === 0 && (
-            <div className="bg-white rounded-2xl p-8 text-center border border-gray-100">
-              <p className="text-gray-500 text-sm">No badges match your filters.</p>
-              <button
-                onClick={() => { setSearch(""); setFilterCategory("all"); setFilterTier("all"); }}
-                className="text-purple-600 text-sm font-medium mt-2 hover:underline"
-              >
-                Clear filters
-              </button>
+        {/* No results after filter */}
+        {filtered.length === 0 && (
+          <div className="bg-white rounded-2xl p-8 text-center border border-gray-100">
+            <p className="text-gray-500 text-sm">No badges match your filters.</p>
+            <button
+              onClick={() => { setSearch(""); setFilterCategory("all"); setFilterTier("all"); }}
+              className="text-purple-600 text-sm font-medium mt-2 hover:underline"
+            >
+              Clear filters
+            </button>
+          </div>
+        )}
+
+        {/* Empty state */}
+        {badges.length === 0 && !loading && (
+          <div className="bg-white rounded-2xl p-8 text-center border border-gray-100">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl flex items-center justify-center" style={{ background: "#F3E8FF" }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
             </div>
-          )}
-        </div>
-      )}
+            <h3 className="text-lg font-bold text-gray-900 mb-1">No badges yet</h3>
+            <p className="text-gray-500 text-sm mb-4">Create your first badge to start certifying students.</p>
+            <Link
+              href="/teacher/safety/create"
+              className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white rounded-xl"
+              style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)" }}
+            >
+              Create Your First Badge
+            </Link>
+          </div>
+        )}
+      </div>
 
       {/* Tip */}
-      {(
+      {badges.length > 0 && (
         <div className="mt-8 bg-purple-50 border border-purple-100 rounded-2xl px-5 py-3 flex items-start gap-3">
           <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "#E9D5FF" }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
