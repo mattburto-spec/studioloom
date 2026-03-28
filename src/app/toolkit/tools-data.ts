@@ -141,6 +141,7 @@ export const tools: Tool[] = [
   },
   {
     name: 'SWOT Analysis',
+    slug: 'swot-analysis',
     desc: 'Strengths, Weaknesses, Opportunities, Threats. Classic strategic assessment for any idea, product, or business model.',
     phases: ['define', 'test'],
     type: 'analysis',
@@ -170,6 +171,7 @@ export const tools: Tool[] = [
   },
   {
     name: 'Stakeholder Map',
+    slug: 'stakeholder-map',
     desc: 'Plot stakeholders on power/interest axes. Identify allies, advocates, and obstacles before launch.',
     phases: ['discover', 'define'],
     type: 'analysis',

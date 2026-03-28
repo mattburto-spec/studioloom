@@ -654,7 +654,7 @@ export default function ToolkitPage() {
                     gap: '6px',
                     alignItems: 'center',
                   }}>
-                    {tool.slug && (
+                    {tool.slug ? (
                       <div
                         style={{
                           fontSize: '10px',
@@ -672,6 +672,22 @@ export default function ToolkitPage() {
                         }}
                       >
                         <span style={{ fontSize: '8px' }}>▶</span> Interactive
+                      </div>
+                    ) : (
+                      <div
+                        style={{
+                          fontSize: '10px',
+                          fontWeight: 700,
+                          padding: '3px 10px',
+                          borderRadius: '20px',
+                          backdropFilter: 'blur(8px)',
+                          WebkitBackdropFilter: 'blur(8px)',
+                          letterSpacing: '0.3px',
+                          background: 'rgba(255,255,255,0.06)',
+                          color: 'rgba(255,255,255,0.4)',
+                        }}
+                      >
+                        Template
                       </div>
                     )}
                     <div
