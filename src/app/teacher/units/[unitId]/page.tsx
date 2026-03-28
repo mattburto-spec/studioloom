@@ -446,7 +446,12 @@ export default function UnitDetailPage({
           </button>
         )}
         <Link
-          href={`/teacher/units/${unitId}/edit`}
+          href={(() => {
+            const assigned = allClasses.filter((c) => c.assigned);
+            return assigned.length === 1
+              ? `/teacher/units/${unitId}/class/${assigned[0].id}/edit`
+              : `/teacher/units/${unitId}/edit`;
+          })()}
           className="px-4 py-2 rounded-xl border border-border text-text-primary font-medium text-sm hover:bg-surface-alt transition-colors flex items-center gap-2"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -610,7 +615,15 @@ export default function UnitDetailPage({
       {showLessons && pages.length === 0 && lessons.length === 0 && (
         <div className="py-12 text-center">
           <p className="text-text-secondary text-sm">No content yet.</p>
-          <Link href={`/teacher/units/${unitId}/edit`} className="text-accent-blue text-xs mt-2 inline-block">
+          <Link
+            href={(() => {
+              const assigned = allClasses.filter((c) => c.assigned);
+              return assigned.length === 1
+                ? `/teacher/units/${unitId}/class/${assigned[0].id}/edit`
+                : `/teacher/units/${unitId}/edit`;
+            })()}
+            className="text-accent-blue text-xs mt-2 inline-block"
+          >
             Edit unit to add content
           </Link>
         </div>

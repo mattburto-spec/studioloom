@@ -36,6 +36,17 @@ export default function EditUnitPage({
   useEffect(() => {
     async function load() {
       const supabase = createClient();
+
+      // Check if this unit has assigned classes — if exactly 1, redirect to Phase 0.5 editor
+      const { data: classUnits } = await supabase
+        .from("class_units")
+        .select("class_id")
+        .eq("unit_id", unitId);
+      if (classUnits && classUnits.length === 1) {
+        router.replace(`/teacher/units/${unitId}/class/${classUnits[0].class_id}/edit`);
+        return;
+      }
+
       const { data: unit } = await supabase
         .from("units")
         .select("title, content_data")

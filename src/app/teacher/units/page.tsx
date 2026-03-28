@@ -150,7 +150,7 @@ export default function TeacherUnitsPage() {
   const [publishing, setPublishing] = useState<string | null>(null);
 
   // Class assignments for enrichment
-  const [classMap, setClassMap] = useState<Map<string, { name: string; isForked: boolean }[]>>(new Map());
+  const [classMap, setClassMap] = useState<Map<string, { classId: string; name: string; isForked: boolean }[]>>(new Map());
 
   // Community state
   const [communityUnits, setCommunityUnits] = useState<RepoUnit[]>([]);
@@ -197,11 +197,12 @@ export default function TeacherUnitsPage() {
     setUnits(unitData || []);
 
     // Build class assignment map
-    const map = new Map<string, { name: string; isForked: boolean }[]>();
+    const map = new Map<string, { classId: string; name: string; isForked: boolean }[]>();
     if (classUnitData) {
       for (const cu of classUnitData as unknown as ClassAssignment[]) {
         const list = map.get(cu.unit_id) || [];
         list.push({
+          classId: cu.class_id,
           name: (cu.classes as { name: string } | null)?.name || "Unknown",
           isForked: !!cu.content_data,
         });
@@ -792,7 +793,10 @@ export default function TeacherUnitsPage() {
                         View
                       </Link>
                       <Link
-                        href={`/teacher/units/${unit.id}/edit`}
+                        href={classes.length === 1
+                          ? `/teacher/units/${unit.id}/class/${classes[0].classId}/edit`
+                          : `/teacher/units/${unit.id}`
+                        }
                         className="px-3 py-1.5 text-[11px] font-semibold text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition"
                       >
                         Edit
