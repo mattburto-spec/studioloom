@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use, useCallback } from "react";
+import { useState, useEffect, use, useCallback, useRef } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { NMConfigPanel, NMResultsPanel, ObservationSnap } from "@/components/nm";
@@ -243,6 +243,7 @@ export default function ClassHubPage({
   const [gradeSaved, setGradeSaved] = useState(false);
   const [gradeDirty, setGradeDirty] = useState(false);
   const [unitCriteriaForGrade, setUnitCriteriaForGrade] = useState<string[]>([]);
+  const gradeDataLoadedRef = useRef(false);
   const [progressLoaded, setProgressLoaded] = useState(false);
   const [gradingStatusMap, setGradingStatusMap] = useState<Record<string, GradingStatus>>({});
   const [openStudioStatuses, setOpenStudioStatuses] = useState<Record<string, { unlocked_at: string | null }>>({});
@@ -470,10 +471,16 @@ export default function ClassHubPage({
   }, [unit, unitId, classId, unitPages, students, selectedStudentForGrading]);
 
   useEffect(() => {
-    if (activeTab === "grade" && !loading && unit && !gradeLoading && unitPages.length > 0) {
+    if (activeTab === "grade" && !loading && unit && unitPages.length > 0 && !gradeDataLoadedRef.current) {
+      gradeDataLoadedRef.current = true;
       loadGradeData();
     }
-  }, [activeTab, loading, unit, gradeLoading, unitPages, loadGradeData]);
+    // Reset loaded ref when tab changes away so re-entering refreshes
+    if (activeTab !== "grade") {
+      gradeDataLoadedRef.current = false;
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, loading, unit, unitPages]);
 
   // Load assessment form when selected student changes
   useEffect(() => {
