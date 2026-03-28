@@ -448,7 +448,7 @@ export default function UnitDetailPage({
         <Link
           href={(() => {
             const assigned = allClasses.filter((c) => c.assigned);
-            return assigned.length === 1
+            return assigned.length > 0
               ? `/teacher/units/${unitId}/class/${assigned[0].id}/edit`
               : `/teacher/units/${unitId}/edit`;
           })()}
@@ -618,7 +618,7 @@ export default function UnitDetailPage({
           <Link
             href={(() => {
               const assigned = allClasses.filter((c) => c.assigned);
-              return assigned.length === 1
+              return assigned.length > 0
                 ? `/teacher/units/${unitId}/class/${assigned[0].id}/edit`
                 : `/teacher/units/${unitId}/edit`;
             })()}

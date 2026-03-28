@@ -793,7 +793,7 @@ export default function TeacherUnitsPage() {
                         View
                       </Link>
                       <Link
-                        href={classes.length === 1
+                        href={classes.length > 0
                           ? `/teacher/units/${unit.id}/class/${classes[0].classId}/edit`
                           : `/teacher/units/${unit.id}`
                         }

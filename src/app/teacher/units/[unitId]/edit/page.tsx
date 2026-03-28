@@ -37,12 +37,12 @@ export default function EditUnitPage({
     async function load() {
       const supabase = createClient();
 
-      // Check if this unit has assigned classes — if exactly 1, redirect to Phase 0.5 editor
+      // Redirect to Phase 0.5 lesson editor if unit has any assigned class
       const { data: classUnits } = await supabase
         .from("class_units")
         .select("class_id")
         .eq("unit_id", unitId);
-      if (classUnits && classUnits.length === 1) {
+      if (classUnits && classUnits.length > 0) {
         router.replace(`/teacher/units/${unitId}/class/${classUnits[0].class_id}/edit`);
         return;
       }
