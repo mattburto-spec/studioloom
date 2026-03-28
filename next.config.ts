@@ -36,10 +36,17 @@ const nextConfig: NextConfig = {
           { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
         ],
       },
-      // Auth API routes MUST NOT have Cache-Control: public — Vercel CDN strips
-      // Set-Cookie headers from "public" responses, breaking session cookies.
+      // Auth + Student API routes MUST NOT have Cache-Control: public — Vercel CDN
+      // strips Set-Cookie headers from "public" responses, breaking session cookies.
+      // Student routes read auth cookies so they must also be private.
       {
         source: "/api/auth/:path*",
+        headers: [
+          { key: "Cache-Control", value: "private, no-cache, no-store, must-revalidate" },
+        ],
+      },
+      {
+        source: "/api/student/:path*",
         headers: [
           { key: "Cache-Control", value: "private, no-cache, no-store, must-revalidate" },
         ],

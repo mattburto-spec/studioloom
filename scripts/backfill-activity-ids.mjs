@@ -220,7 +220,7 @@ async function main() {
 
   const { data: classUnits, error: cuError } = await supabase
     .from("class_units")
-    .select("id, unit_id, class_id, content_data")
+    .select("unit_id, class_id, content_data")
     .not("content_data", "is", null);
 
   if (cuError) {
@@ -238,7 +238,8 @@ async function main() {
         const { error } = await supabase
           .from("class_units")
           .update({ content_data: content })
-          .eq("id", cu.id);
+          .eq("unit_id", cu.unit_id)
+          .eq("class_id", cu.class_id);
 
         if (error) {
           console.error(`  ✗ Failed to update class_unit ${cu.id}:`, error);

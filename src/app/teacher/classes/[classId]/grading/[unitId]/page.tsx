@@ -31,12 +31,8 @@ import { analyzeIntegrity } from "@/lib/integrity/analyze-integrity";
 // Constants
 // ---------------------------------------------------------------------------
 
-const CRITERION_TAGS: Record<string, AssessmentTag[]> = {
-  A: ["strong_research", "weak_justification"],
-  B: ["creative_ideas", "limited_range"],
-  C: ["strong_technique", "poor_planning"],
-  D: ["honest_evaluation", "superficial_evaluation"],
-};
+// NOTE: MYP-specific criterion tags are in getFrameworkTags() below.
+// Other frameworks use UNIVERSAL_TAGS only until framework-specific tags are defined.
 
 const UNIVERSAL_TAGS: AssessmentTag[] = [
   "exceeds_expectations",
