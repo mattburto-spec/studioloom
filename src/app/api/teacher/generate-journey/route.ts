@@ -99,6 +99,7 @@ export const POST = withErrorHandler("teacher/generate-journey:POST", async (req
 
   // Resolve system prompt based on unit type (falls back to Design)
   const unitType = journeyInput.unitType || "design";
+  const framework = journeyInput.curriculumFramework || "IB_MYP";
   const systemPrompt = unitType !== "design"
     ? buildUnitTypeSystemPrompt(unitType)
     : JOURNEY_SYSTEM_PROMPT;
@@ -122,14 +123,15 @@ export const POST = withErrorHandler("teacher/generate-journey:POST", async (req
     // Fetch teaching context for framework vocab + school context
     const teachingContext = await getTeachingContext(user.id);
 
-    // Build prompts with RAG context + teaching context + feedback
+    // Build prompts with RAG context + teaching context + feedback + framework
     const { prompt: userPrompt, chunkIds } = await buildRAGJourneyPrompt(
       lessonIds,
       journeyInput,
       user.id,
       selectedOutline,
       previousLessonSummary,
-      teachingContext
+      teachingContext,
+      framework
     );
 
     // --- Streaming path ---

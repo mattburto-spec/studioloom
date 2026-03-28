@@ -1,5 +1,5 @@
 import type { UnitWizardInput, LessonJourneyInput, JourneyOutlineOption, TimelineOutlineOption, TimelinePhase, TimelineLessonSkeleton, TimelineSkeleton, DesignLessonType } from "@/types";
-import { CRITERIA, type CriterionKey, MYP_GLOBAL_CONTEXTS, MYP_KEY_CONCEPTS, MYP_RELATED_CONCEPTS_DESIGN, EMPHASIS_PAGE_COUNT, buildPageDefinitions, getCriterion } from "@/lib/constants";
+import { CRITERIA, type CriterionKey, MYP_GLOBAL_CONTEXTS, MYP_KEY_CONCEPTS, MYP_RELATED_CONCEPTS_DESIGN, EMPHASIS_PAGE_COUNT, buildPageDefinitions, getCriterion, getFrameworkCriterionKeys } from "@/lib/constants";
 import { getActivityLibrarySummary } from "@/lib/activity-library";
 import { getActivityCardSummaryEnriched } from "@/lib/activity-cards";
 import {
@@ -14,7 +14,7 @@ import {
 } from "@/lib/knowledge/retrieve-lesson-profiles";
 import { retrieveAggregatedFeedback } from "@/lib/knowledge/feedback";
 import { buildTeachingContextBlock } from "@/lib/knowledge/analysis-prompts";
-import { buildFrameworkPromptBlock } from "@/lib/ai/framework-vocabulary";
+import { buildFrameworkPromptBlock, getFrameworkVocabulary } from "@/lib/ai/framework-vocabulary";
 import type { PartialTeachingContext } from "@/types/lesson-intelligence";
 import { getFrameworkFromContext } from "@/lib/ai/teacher-context";
 import type { TeacherStyleProfile } from "@/types/teacher-style";
@@ -367,22 +367,38 @@ You are generating content for design & technology education. Follow these princ
 // =========================================================================
 
 /**
- * System prompt that teaches the AI about MYP Design, the page structure,
- * and the exact JSON schema to output.
+ * Build a framework-aware system prompt that teaches the AI about the curriculum,
+ * the page structure, and the exact JSON schema to output.
+ *
+ * Automatically injects framework-specific terminology (criteria labels, design cycle phases, etc.)
+ * when framework != "IB_MYP".
  */
-export const UNIT_SYSTEM_PROMPT = `You are an expert MYP (Middle Years Programme) Design teacher and curriculum designer. You create engaging, differentiated unit content for the IB MYP Design cycle.
+export function buildUnitSystemPrompt(framework?: string): string {
+  const vocab = framework ? getFrameworkVocabulary(framework) : getFrameworkVocabulary("IB_MYP");
+  const frameworkName = vocab.name;
+  const criteriaLabels = vocab.criteriaLabels.join(", ");
+  const criteriaExample = vocab.criteriaLabels.slice(0, 2).join(", ");
 
-## MYP Design Cycle Structure
-Units have a variable number of pages organized by MYP criteria (A, B, C, D).
-The number of pages per criterion depends on the emphasis level:
+  return `You are an expert ${frameworkName} teacher and curriculum designer. You create engaging, differentiated unit content for the ${vocab.designCycleName}.
+
+## ${frameworkName} Cycle Structure
+Units have a variable number of pages organized by ${vocab.criteriaTermPlural} (${criteriaLabels}).
+The number of pages per ${vocab.criteriaTermSingular} depends on the emphasis level:
 - Light: 2 pages (concise coverage)
 - Standard: 3 pages (balanced depth)
 - Emphasis: 4 pages (thorough deep-dive)
 
-Not every unit includes all 4 criteria — generate ONLY the pages specified in the user prompt.
+Not every unit includes all ${vocab.criteriaLabels.length} ${vocab.criteriaTermPlural} — generate ONLY the pages specified in the user prompt.
 
 ## Your Task
-Generate content for the requested criterion pages. Output ONLY valid JSON matching the exact schema below.
+Generate content for the requested ${vocab.criteriaTermSingular} pages. Output ONLY valid JSON matching the exact schema below.`;
+}
+
+/**
+ * System prompt that teaches the AI about MYP Design, the page structure,
+ * and the exact JSON schema to output. (DEPRECATED — use buildUnitSystemPrompt instead)
+ */
+export const UNIT_SYSTEM_PROMPT = buildUnitSystemPrompt("IB_MYP");
 
 ## JSON Schema (for each page)
 {
@@ -451,15 +467,21 @@ Generate content for the requested criterion pages. Output ONLY valid JSON match
 /**
  * Build the user prompt for generating a specific criterion's pages.
  *
+ * @param criterion        The criterion key (e.g., "A", "AO1", "I")
+ * @param input            The wizard input containing unit context
  * @param activitySummary  Pre-fetched activity card summary from DB.
  *                         If omitted, falls back to the hardcoded library.
+ * @param framework        The curriculum framework (e.g., "IB_MYP", "GCSE_DT").
+ *                         Used to determine correct criteria naming and language.
  */
 export function buildCriterionPrompt(
   criterion: CriterionKey,
   input: UnitWizardInput,
-  activitySummary?: string
+  activitySummary?: string,
+  framework?: string
 ): string {
   const unitType = input.unitType || "design";
+  const vocab = framework ? getFrameworkVocabulary(framework) : getFrameworkVocabulary("IB_MYP");
   const criterionInfo = getCriterion(criterion, unitType) || { name: criterion, key: criterion };
   const focusLevel = input.criteriaFocus[criterion] || "standard";
   const pageCount = EMPHASIS_PAGE_COUNT[focusLevel];
@@ -488,7 +510,11 @@ export function buildCriterionPrompt(
   // Use DB-backed summary if available, fall back to hardcoded library
   const activitySuggestions = activitySummary || getActivityLibrarySummary(criterion);
 
-  return `Generate ${pageCount} pages for Criterion ${criterion}: ${criterionInfo.name}
+  // Framework block (empty for IB_MYP, non-empty for others)
+  const frameworkBlock = buildFrameworkPromptBlock(framework);
+
+  return `Generate ${pageCount} pages for ${vocab.criteriaTermSingular.charAt(0).toUpperCase() + vocab.criteriaTermSingular.slice(1)} ${criterion}: ${criterionInfo.name}
+${frameworkBlock ? `\n${frameworkBlock}\n` : ""}
 
 ## Suggested Activity Cards for Criterion ${criterion}
 Consider incorporating these activity cards where appropriate. Each card has a specific use case and optional modifiers. Pick the most relevant card for each page and weave it naturally into the section prompts:
@@ -520,12 +546,19 @@ Generate the JSON for exactly these ${pageCount} pages (${pageDefs.map(p => p.id
  *
  * Also fetches activity card summaries from the DB (with hardcoded fallback)
  * so the generation AI has full awareness of available activity cards.
+ *
+ * @param criterion        The criterion key (e.g., "A", "AO1", "I")
+ * @param input            The wizard input containing unit context
+ * @param teacherId        Optional teacher ID for RAG retrieval filtering
+ * @param selectedOutline  Optional outline to include in the prompt
+ * @param framework        The curriculum framework (e.g., "IB_MYP", "GCSE_DT")
  */
 export async function buildRAGCriterionPrompt(
   criterion: CriterionKey,
   input: UnitWizardInput,
   teacherId?: string,
-  selectedOutline?: { approach: string; pages: Record<string, { title: string; summary: string }> } | null
+  selectedOutline?: { approach: string; pages: Record<string, { title: string; summary: string }> } | null,
+  framework?: string
 ): Promise<{ prompt: string; chunkIds: string[] }> {
   // Fetch enriched activity card summary from DB (includes modifier info)
   let activitySummary: string | undefined;
@@ -535,7 +568,7 @@ export async function buildRAGCriterionPrompt(
     // DB unavailable — buildCriterionPrompt will fall back to hardcoded
   }
 
-  const basePrompt = buildCriterionPrompt(criterion, input, activitySummary);
+  const basePrompt = buildCriterionPrompt(criterion, input, activitySummary, framework);
 
   // Retrieve RAG context + lesson profiles in parallel (both are optional enhancements)
   const criterionDef = getCriterion(criterion, input.unitType || "design");
@@ -681,11 +714,17 @@ export function buildTypeSpecificContext(input: UnitWizardInput | LessonJourneyI
 
 /**
  * Build the user prompt for multi-option outline generation.
+ *
+ * @param input              The wizard input containing unit context
+ * @param ragContext         Optional RAG-retrieved context
+ * @param curriculumContext  Optional curriculum context
+ * @param framework          The curriculum framework (e.g., "IB_MYP", "GCSE_DT")
  */
 export function buildOutlinePrompt(
   input: UnitWizardInput,
   ragContext?: string,
-  curriculumContext?: string
+  curriculumContext?: string,
+  framework?: string
 ): string {
   const skillsSection = input.specificSkills?.length > 0
     ? `\nSpecific Making Skills: ${input.specificSkills.join(", ")}`
@@ -702,6 +741,8 @@ export function buildOutlinePrompt(
   const ragSection = ragContext
     ? `\n${ragContext}\n\nUse the reference examples above as inspiration for creating diverse, high-quality approaches.\n`
     : "";
+
+  const frameworkBlock = buildFrameworkPromptBlock(framework);
 
   // Build page specification from selected criteria and emphasis
   const pageDefs = buildPageDefinitions(input.selectedCriteria, input.criteriaFocus, input.unitType || "design");
@@ -721,7 +762,7 @@ export function buildOutlinePrompt(
   const unitTypeLabel = input.unitType && input.unitType !== "design"
     ? { service: "Service Learning", personal_project: "Personal Project", inquiry: "Inquiry" }[input.unitType] || "Design"
     : "MYP Design";
-  return `Generate 3 distinct unit outline options for the following ${unitTypeLabel} unit:
+  return `${frameworkBlock ? `${frameworkBlock}\n\n` : ""}Generate 3 distinct unit outline options for the following ${unitTypeLabel} unit:
 ${ragSection}
 ## Unit Context
 - Title: ${input.title}
@@ -1054,7 +1095,7 @@ Based on Hattie's Visible Learning research and Victorian HITS:
  *
  * @param lessonIds   Which lessons to generate (e.g. ["L01","L02","L03","L04","L05","L06"])
  * @param input       Journey input with end goal, weeks, lesson config
- * @param options     Optional context: outline, activity cards, RAG
+ * @param options     Optional context: outline, activity cards, RAG, framework
  */
 export function buildJourneyPrompt(
   lessonIds: string[],
@@ -1069,6 +1110,7 @@ export function buildJourneyPrompt(
     previousLessonSummary?: string;
     teachingContextBlock?: string;
     teacherStyleProfile?: TeacherStyleProfile | null;
+    framework?: string;
   }
 ): string {
   const totalLessons = options?.totalLessons || input.durationWeeks * input.lessonsPerWeek;
@@ -1111,8 +1153,10 @@ Continue the learning journey from where the previous lessons left off.
   const ragSection = options?.ragContext ? options.ragContext + "\n\n---\n\n" : "";
   const lessonProfileSection = options?.lessonContext ? options.lessonContext + "\n\n---\n\n" : "";
   const contextBlock = options?.teachingContextBlock ? options.teachingContextBlock + "\n\n---\n\n" : "";
+  const frameworkBlock = buildFrameworkPromptBlock(options?.framework);
+  const frameworkSection = frameworkBlock ? `${frameworkBlock}\n\n---\n\n` : "";
 
-  return `${contextBlock}${lessonProfileSection}${ragSection}${continuitySection}${outlineSection}
+  return `${frameworkSection}${contextBlock}${lessonProfileSection}${ragSection}${continuitySection}${outlineSection}
 ## Available Activity Cards
 Consider incorporating these activity cards where appropriate. Pick the most relevant for each lesson and weave them naturally into section prompts:
 ${activitySuggestions}
@@ -1155,6 +1199,14 @@ Remember:
 /**
  * Build a RAG-enriched journey prompt.
  * Retrieves lesson profiles and knowledge chunks WITHOUT criterion filtering.
+ *
+ * @param lessonIds              Which lessons to generate (e.g., ["L01","L02","L03"])
+ * @param input                  Journey input with end goal, weeks, lesson config
+ * @param teacherId              Optional teacher ID for RAG retrieval filtering
+ * @param selectedOutline        Optional outline to include in the prompt
+ * @param previousLessonSummary  Optional context from earlier batch
+ * @param teachingContext        Optional teaching context with framework vocab
+ * @param framework              The curriculum framework (e.g., "IB_MYP", "GCSE_DT")
  */
 export async function buildRAGJourneyPrompt(
   lessonIds: string[],
@@ -1162,7 +1214,8 @@ export async function buildRAGJourneyPrompt(
   teacherId?: string,
   selectedOutline?: JourneyOutlineOption | null,
   previousLessonSummary?: string,
-  teachingContext?: PartialTeachingContext | null
+  teachingContext?: PartialTeachingContext | null,
+  framework?: string
 ): Promise<{ prompt: string; chunkIds: string[] }> {
   // Fetch enriched activity card summary from DB (all categories, no criterion filter)
   let activitySummary: string | undefined;
@@ -1250,6 +1303,7 @@ export async function buildRAGJourneyPrompt(
     previousLessonSummary,
     teachingContextBlock: (frameworkBlock + teachingContextBlock) || undefined,
     teacherStyleProfile: teacherStyle || undefined,
+    framework,
   });
 
   return { prompt, chunkIds };

@@ -3,12 +3,12 @@ import { createServerClient } from "@supabase/ssr";
 import { withErrorHandler } from "@/lib/api/error-handler";
 import { resolveCredentials } from "@/lib/ai/resolve-credentials";
 import { createAIProvider } from "@/lib/ai";
-import { UNIT_SYSTEM_PROMPT, buildRAGCriterionPrompt, getGradeTimingProfile, buildTimingContext, calculateUsableTime, maxInstructionMinutes } from "@/lib/ai/prompts";
+import { UNIT_SYSTEM_PROMPT, buildUnitSystemPrompt, buildRAGCriterionPrompt, getGradeTimingProfile, buildTimingContext, calculateUsableTime, maxInstructionMinutes } from "@/lib/ai/prompts";
 import { buildUnitTypeSystemPrompt } from "@/lib/ai/unit-types";
 import { validateGeneratedPages } from "@/lib/ai/validation";
 import { validateLessonTiming } from "@/lib/ai/timing-validation";
 import type { UnitWizardInput } from "@/types";
-import { getCriterionKeys } from "@/lib/constants";
+import { getCriterionKeys, getFrameworkCriterionKeys } from "@/lib/constants";
 import type { CriterionKey } from "@/lib/constants";
 import { onUnitCreated } from "@/lib/teacher-style/profile-service";
 
@@ -54,11 +54,12 @@ export const POST = withErrorHandler("teacher/generate-unit:POST", async (reques
     stream?: boolean;
   };
 
-  // Resolve system prompt based on unit type (falls back to Design)
+  // Resolve system prompt based on unit type and framework
   const unitType = wizardInput.unitType || "design";
+  const framework = wizardInput.framework || "IB_MYP";
   const systemPrompt = unitType !== "design"
     ? buildUnitTypeSystemPrompt(unitType)
-    : UNIT_SYSTEM_PROMPT;
+    : buildUnitSystemPrompt(framework);
 
   // Validate inputs
   if (!wizardInput || !criterion) {
@@ -94,12 +95,13 @@ export const POST = withErrorHandler("teacher/generate-unit:POST", async (reques
       modelName: creds.modelName,
     });
 
-    // Build prompts with RAG context and selected outline
+    // Build prompts with RAG context, selected outline, and framework
     const { prompt: userPrompt, chunkIds } = await buildRAGCriterionPrompt(
       criterion,
       wizardInput,
       user.id,
-      selectedOutline
+      selectedOutline,
+      framework
     );
 
     // --- Streaming path ---

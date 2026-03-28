@@ -117,10 +117,11 @@ export async function POST(request: NextRequest) {
     const timingProfile = getGradeTimingProfile(testInput.gradeLevel, resolvedConfig.timingProfiles);
     const timingBlock = buildTimingBlock(timingProfile, lessonLengthMinutes);
 
-    // Build the user prompt using the journey prompt builder
+    // Build the user prompt using the journey prompt builder with framework
     const userPrompt = buildJourneyPrompt([lessonId], input, {
       selectedOutline,
       totalLessons: 1,
+      framework,
     });
 
     // Use platform API key directly for admin test

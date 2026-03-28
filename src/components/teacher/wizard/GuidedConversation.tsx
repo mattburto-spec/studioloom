@@ -32,9 +32,11 @@ interface Props {
   suggestionStatus: SuggestionStatus;
 }
 
-// Generate the conversation turns template — type-aware, returns different turns based on unitType
-function buildTurns(unitType: UnitType | string = "design", suggestions?: Suggestions, journeyMode?: boolean): TurnType[] {
+// Generate the conversation turns template — type-aware, returns different turns based on unitType and framework
+function buildTurns(unitType: UnitType | string = "design", suggestions?: Suggestions, journeyMode?: boolean, framework: string = "IB_MYP"): TurnType[] {
   const turns: TurnType[] = [];
+  // Only include MYP-specific turns if framework is IB_MYP
+  const isMypFramework = framework === "IB_MYP";
 
   // Helper function to build ATL options (shared across all types)
   const atlOptions: Array<{ label: string; value: string; description?: string }> = [];
@@ -120,31 +122,40 @@ function buildTurns(unitType: UnitType | string = "design", suggestions?: Sugges
       });
     }
 
-    return [
-      {
-        id: "globalContext",
-        question: "Which MYP global context fits best? I'll use this to frame the unit around real-world connections.",
-        field: "globalContext",
-        options: gcOptions,
-        answer: null,
-        status: "active",
-      },
-      {
-        id: "keyConcept",
-        question: "What's the big idea driving this unit? Pick the key concept that best captures your focus.",
-        field: "keyConcept",
-        options: kcOptions,
-        answer: null,
-        status: "active",
-      },
-      {
-        id: "relatedConcepts",
-        question: "Which related concepts will students explore? These add depth to the key concept. Pick 2–3.",
-        field: "relatedConcepts",
-        options: rcOptions,
-        answer: null,
-        status: "active",
-      },
+    const designTurns: TurnType[] = [];
+
+    // MYP-specific turns (only for IB_MYP framework)
+    if (isMypFramework) {
+      designTurns.push(
+        {
+          id: "globalContext",
+          question: "Which MYP global context fits best? I'll use this to frame the unit around real-world connections.",
+          field: "globalContext",
+          options: gcOptions,
+          answer: null,
+          status: "active",
+        },
+        {
+          id: "keyConcept",
+          question: "What's the big idea driving this unit? Pick the key concept that best captures your focus.",
+          field: "keyConcept",
+          options: kcOptions,
+          answer: null,
+          status: "active",
+        },
+        {
+          id: "relatedConcepts",
+          question: "Which related concepts will students explore? These add depth to the key concept. Pick 2–3.",
+          field: "relatedConcepts",
+          options: rcOptions,
+          answer: null,
+          status: "active",
+        }
+      );
+    }
+
+    // Common turns for all design frameworks
+    designTurns.push(
       {
         id: "specificSkills",
         question: "Which making skills will students use? Pick all that apply.",
@@ -170,16 +181,22 @@ function buildTurns(unitType: UnitType | string = "design", suggestions?: Sugges
         options: criteriaOptions,
         answer: null,
         status: "active",
-      },
-      {
+      }
+    );
+
+    // MYP-specific statement of inquiry (only for IB_MYP framework)
+    if (isMypFramework) {
+      designTurns.push({
         id: "statementOfInquiry",
         question: "Here's a statement of inquiry based on your choices. You can accept it, edit it, or write your own.",
         field: "statementOfInquiry",
         options: soiOptions,
         answer: null,
         status: "active",
-      },
-    ];
+      });
+    }
+
+    return designTurns;
   }
 
   // === TYPE: SERVICE ===
@@ -427,7 +444,7 @@ function buildTurns(unitType: UnitType | string = "design", suggestions?: Sugges
   }
 
   // Fallback to Design if type is unknown
-  return buildTurns("design", suggestions, journeyMode);
+  return buildTurns("design", suggestions, journeyMode, framework);
 }
 
 // Build dynamic multi-select turn IDs based on unit type
@@ -461,7 +478,8 @@ export function GuidedConversation({ state, dispatch, suggestions, suggestionSta
   useEffect(() => {
     if (state.conversationTurns.length === 0) {
       const unitType = state.input.unitType || "design";
-      const turns = buildTurns(unitType, suggestions, state.journeyMode);
+      const framework = state.input.framework || "IB_MYP";
+      const turns = buildTurns(unitType, suggestions, state.journeyMode, framework);
       dispatch({ type: "SET_TURNS", turns });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

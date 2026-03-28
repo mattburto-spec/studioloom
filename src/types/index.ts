@@ -459,6 +459,8 @@ export interface UnitWizardInput {
   specialRequirements: string;
   /** Unit pedagogical type — determines phases, AI persona, teaching principles. Default: "design" */
   unitType?: UnitType;
+  /** Structured framework ID from CURRICULUM_FRAMEWORKS registry (e.g. "IB_MYP", "GCSE_DT", "ACARA_DT"). Determines criteria, vocabulary, grading scale. */
+  framework?: string;
   /** Free-text curriculum context for AI generation (e.g. "IB MYP Design Year 4", "PYP Exhibition") */
   curriculumContext?: string;
   // Service-specific

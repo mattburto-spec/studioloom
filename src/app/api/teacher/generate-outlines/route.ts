@@ -103,9 +103,10 @@ export async function POST(request: NextRequest) {
       incrementProfileReferences(profilesResult.value.map((p) => p.id)).catch(() => {});
     }
 
-    // Build prompt — combine lesson profiles + chunk context
+    // Build prompt — combine lesson profiles + chunk context, pass framework
     const combinedContext = [lessonContext, ragContext].filter(Boolean).join("\n\n---\n\n") || undefined;
-    const userPrompt = buildOutlinePrompt(wizardInput, combinedContext, wizardInput.curriculumContext);
+    const framework = wizardInput.framework || "IB_MYP";
+    const userPrompt = buildOutlinePrompt(wizardInput, combinedContext, wizardInput.curriculumContext, framework);
 
     // Create provider
     const provider = createAIProvider(creds.provider, {

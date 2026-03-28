@@ -2,13 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { decrypt } from "@/lib/encryption";
 import { createAIProvider } from "@/lib/ai";
-import { UNIT_SYSTEM_PROMPT, getGradeTimingProfile, buildTimingContext } from "@/lib/ai/prompts";
+import { UNIT_SYSTEM_PROMPT, buildUnitSystemPrompt, getGradeTimingProfile, buildTimingContext } from "@/lib/ai/prompts";
 import { buildUnitTypeSystemPrompt, type UnitType } from "@/lib/ai/unit-types";
 import { validateGeneratedPages } from "@/lib/ai/validation";
 import { validateLessonTiming } from "@/lib/ai/timing-validation";
 import { CRITERIA, DEFAULT_MYP_PAGES, type CriterionKey } from "@/lib/constants";
 import { getPageList } from "@/lib/unit-adapter";
 import { getActivityLibrarySummary } from "@/lib/activity-library";
+import { buildFrameworkPromptBlock } from "@/lib/ai/framework-vocabulary";
 import {
   retrieveLessonProfiles,
   formatLessonProfiles,
@@ -63,7 +64,7 @@ export async function POST(request: NextRequest) {
   const { data: unit, error: unitError } = await supabase
     .from("units")
     .select(
-      "title, topic, grade_level, duration_weeks, global_context, key_concept, content_data, unit_type, curriculum_context"
+      "title, topic, grade_level, duration_weeks, global_context, key_concept, content_data, unit_type, curriculum_context, framework"
     )
     .eq("id", unitId)
     .single();
@@ -75,11 +76,12 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Resolve system prompt based on unit type
+  // Resolve system prompt based on unit type and framework
   const unitType = (unit.unit_type || "design") as UnitType;
+  const framework = (unit as any).framework || "IB_MYP";
   const systemPrompt = unitType !== "design"
     ? buildUnitTypeSystemPrompt(unitType)
-    : UNIT_SYSTEM_PROMPT;
+    : buildUnitSystemPrompt(framework);
 
   // Find the page definition from unit data or default MYP pages
   const unitPages = getPageList(unit.content_data);
@@ -141,7 +143,8 @@ export async function POST(request: NextRequest) {
       // Lesson profiles are enhancement, not requirement
     }
 
-    const userPrompt = `${lessonContext}Regenerate ONLY page ${pageId}: "${pageDef.title}" for Criterion ${criterion} (${criterionInfo.name}).
+    const frameworkBlock = buildFrameworkPromptBlock(framework);
+    const userPrompt = `${frameworkBlock ? `${frameworkBlock}\n\n---\n\n` : ""}${lessonContext}Regenerate ONLY page ${pageId}: "${pageDef.title}" for Criterion ${criterion} (${criterionInfo.name}).
 
 ## Unit Context
 - Title: ${unit.title}

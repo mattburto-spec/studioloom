@@ -147,6 +147,8 @@ export function ConversationWizard({
             keywords: selectedKeywords.map((k) => k.label),
             keywordPriorities: selectedKeywords,
             journeyMode,
+            framework: journeyMode ? state.journeyInput.curriculumFramework : state.input.framework,
+            unitType: state.input.unitType || "design",
           }),
         });
 

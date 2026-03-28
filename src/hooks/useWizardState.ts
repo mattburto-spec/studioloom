@@ -223,9 +223,12 @@ function reducer(state: WizardState, action: Action): WizardState {
         ...state,
         input: { ...state.input, ...action.values },
       };
-      // Sync unitType to journeyInput when bulk-setting
+      // Sync unitType and framework to journeyInput when bulk-setting
       if (action.values.unitType) {
         newState2.journeyInput = { ...newState2.journeyInput, unitType: action.values.unitType };
+      }
+      if (action.values.framework) {
+        newState2.journeyInput = { ...newState2.journeyInput, curriculumFramework: action.values.framework };
       }
       return newState2;
     }
@@ -275,7 +278,8 @@ function reducer(state: WizardState, action: Action): WizardState {
           ...newState.input,
           selectedCriteria: newCriteriaKeys as CriterionKey[],
           criteriaFocus: Object.fromEntries(newCriteriaKeys.map(k => [k, "standard"])) as Record<CriterionKey, "light" | "standard" | "emphasis">,
-          // Reset all type-specific fields to empty defaults
+          // Reset all type-specific fields to empty defaults — but PRESERVE framework
+          framework: newState.input.framework,
           communityContext: "",
           sdgConnection: "",
           serviceOutcomes: [],
@@ -287,11 +291,12 @@ function reducer(state: WizardState, action: Action): WizardState {
           transdisciplinaryTheme: "",
           linesOfInquiry: [],
         };
-        // Sync journey input
+        // Sync journey input — preserve framework there too
         newState.journeyInput = {
           ...newState.journeyInput,
           unitType: newType,
           assessmentCriteria: newCriteriaKeys,
+          curriculumFramework: newState.input.framework,
           // Reset all type-specific fields in journey mode too
           communityContext: "",
           sdgConnection: "",
@@ -844,6 +849,7 @@ const initialState: WizardState = {
     resourceUrls: [],
     specialRequirements: "",
     unitType: "design" as UnitType,
+    framework: "IB_MYP",
     // Service-specific
     communityContext: "",
     sdgConnection: "",
@@ -893,6 +899,7 @@ const initialState: WizardState = {
     resourceUrls: [],
     specialRequirements: "",
     assessmentCriteria: ["A", "B", "C", "D"],
+    curriculumFramework: "IB_MYP",
     unitType: "design" as UnitType,
     // Service-specific
     communityContext: "",

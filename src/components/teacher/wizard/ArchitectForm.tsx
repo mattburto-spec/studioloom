@@ -248,7 +248,8 @@ export function ArchitectForm({ state, dispatch, onGenerate }: Props) {
           </div>
         </div>
 
-        {/* Section 2: MYP Framework Fields */}
+        {/* Section 2: MYP Framework Fields (only show for IB_MYP framework) */}
+        {state.input.framework === "IB_MYP" && (
         <div className="bg-white rounded-2xl border border-border p-6 space-y-4">
           <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wide">MYP Framework</h3>
 
@@ -351,6 +352,7 @@ export function ArchitectForm({ state, dispatch, onGenerate }: Props) {
             </div>
           </div>
         </div>
+        )}
 
         {/* Section 3: Type-Specific Fields */}
         {unitType === "service" && (
