@@ -280,6 +280,73 @@ export default function ActivityBlock({
         </div>
       </div>
 
+      {/* Toolkit tool picker — shown when response type is toolkit-tool */}
+      {activity.responseType === "toolkit-tool" && (
+        <div className="mb-4 p-4 bg-purple-50 border border-purple-200 rounded-xl space-y-3">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="w-6 h-6 bg-purple-600 text-white rounded-md flex items-center justify-center text-xs font-bold">#</span>
+            <label className="text-sm font-semibold text-purple-900">Toolkit Tool</label>
+          </div>
+          <select
+            value={activity.toolId || ""}
+            onChange={(e) => onUpdate({ toolId: e.target.value || undefined })}
+            className="w-full px-3 py-2 border border-purple-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white"
+          >
+            <option value="">Select a tool...</option>
+            <optgroup label="Ideation">
+              <option value="scamper">SCAMPER</option>
+              <option value="mind-map">Mind Map</option>
+              <option value="brainstorm-web">Brainstorm Web</option>
+              <option value="lotus-diagram">Lotus Diagram</option>
+              <option value="morphological-chart">Morphological Chart</option>
+              <option value="reverse-brainstorm">Reverse Brainstorm</option>
+              <option value="biomimicry-cards">Biomimicry Cards</option>
+              <option value="quick-sketch">Quick Sketch</option>
+            </optgroup>
+            <optgroup label="Analysis">
+              <option value="five-whys">Five Whys</option>
+              <option value="fishbone-diagram">Fishbone Diagram</option>
+              <option value="affinity-diagram">Affinity Diagram</option>
+              <option value="systems-map">Systems Map</option>
+              <option value="stakeholder-map">Stakeholder Map</option>
+              <option value="empathy-map">Empathy Map</option>
+            </optgroup>
+            <optgroup label="Evaluation">
+              <option value="pmi-chart">PMI Chart</option>
+              <option value="six-thinking-hats">Six Thinking Hats</option>
+              <option value="decision-matrix">Decision Matrix</option>
+              <option value="swot-analysis">SWOT Analysis</option>
+              <option value="pairwise-comparison">Pairwise Comparison</option>
+              <option value="impact-effort-matrix">Impact / Effort Matrix</option>
+              <option value="dot-voting">Dot Voting</option>
+            </optgroup>
+            <optgroup label="Research & Planning">
+              <option value="user-persona">User Persona</option>
+              <option value="journey-map">Journey Map</option>
+              <option value="how-might-we">How Might We</option>
+              <option value="pov-statement">Point of View Statement</option>
+              <option value="feedback-capture-grid">Feedback Capture Grid</option>
+              <option value="design-specification">Design Specification</option>
+            </optgroup>
+          </select>
+          <div>
+            <label className="text-xs text-purple-700 block mb-1">Challenge / Topic (optional)</label>
+            <input
+              type="text"
+              value={activity.toolChallenge || ""}
+              onChange={(e) => onUpdate({ toolChallenge: e.target.value || undefined })}
+              placeholder="e.g. How might we reduce food waste in the school canteen?"
+              className="w-full px-3 py-2 border border-purple-200 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent placeholder-purple-300"
+            />
+          </div>
+          {activity.toolId && (
+            <p className="text-xs text-purple-600">
+              Students will see this tool inline in the lesson. Their responses are saved and can be referenced later in the unit.
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Expandable sections */}
       <div className="space-y-2 border-t border-gray-200 pt-4">
         {/* Scaffolding */}

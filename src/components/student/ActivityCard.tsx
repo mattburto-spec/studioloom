@@ -230,6 +230,8 @@ export function ActivityCard({
               unitId={unitId}
               pageId={pageId}
               allowedTypes={allowedTypes}
+              toolId={section.toolId}
+              toolChallenge={section.toolChallenge}
               enableIntegrityMonitoring={enableIntegrityMonitoring}
               onIntegrityUpdate={
                 onIntegrityUpdate

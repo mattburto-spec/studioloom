@@ -60,6 +60,13 @@ const TEMPLATES: ActivityTemplate[] = [
     defaultPrompt: "Read the following information carefully.",
     defaultDuration: 5,
   },
+  {
+    label: "Toolkit Tool",
+    icon: "#",
+    responseType: "toolkit-tool" as ResponseType,
+    defaultPrompt: "Use the tool below to work through this activity.",
+    defaultDuration: 15,
+  },
 ];
 
 export function ActivityBlockAdd({ onAdd }: ActivityBlockAddProps) {
