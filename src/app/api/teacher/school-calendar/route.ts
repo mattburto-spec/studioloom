@@ -30,7 +30,9 @@ async function GET(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ terms: data || [] });
+    return NextResponse.json({ terms: data || [] }, {
+      headers: { "Cache-Control": "private, max-age=120, stale-while-revalidate=300" },
+    });
   } catch (err) {
     console.error("[school-calendar GET]", err);
     return NextResponse.json(

@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
         studentClassIds = [student.class_id];
       } else {
         return NextResponse.json([], {
-          headers: { "Cache-Control": "private" },
+          headers: { "Cache-Control": "private, max-age=30, stale-while-revalidate=60" },
         });
       }
     }
@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
 
     if (!rounds || rounds.length === 0) {
       return NextResponse.json([], {
-        headers: { "Cache-Control": "private" },
+        headers: { "Cache-Control": "private, max-age=30, stale-while-revalidate=60" },
       });
     }
 
@@ -138,7 +138,7 @@ export async function GET(request: NextRequest) {
     }));
 
     return NextResponse.json(response, {
-      headers: { "Cache-Control": "private" },
+      headers: { "Cache-Control": "private, max-age=30, stale-while-revalidate=60" },
     });
   } catch (error) {
     console.error("[gallery-rounds] Unexpected error:", error);

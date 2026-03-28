@@ -51,6 +51,8 @@ async function GET(request: NextRequest) {
     return NextResponse.json({
       timetable,
       meetings: meetings || [],
+    }, {
+      headers: { "Cache-Control": "private, max-age=120, stale-while-revalidate=300" },
     });
   } catch (err) {
     console.error("[timetable GET]", err);

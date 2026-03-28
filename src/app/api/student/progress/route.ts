@@ -54,7 +54,7 @@ export const POST = withErrorHandler("student/progress:POST", async (request: Ne
   if (auth.error) return auth.error;
   const studentId = auth.studentId;
 
-  const { unitId, pageId, status, responses, timeSpent } =
+  const { unitId, pageId, status, responses, timeSpent, integrityMetadata } =
     await request.json();
 
   if (!unitId || !pageId) {
@@ -66,24 +66,35 @@ export const POST = withErrorHandler("student/progress:POST", async (request: Ne
 
   const supabase = createAdminClient();
 
+  // Build upsert payload
+  const upsertPayload: Record<string, unknown> = {
+    student_id: studentId,
+    unit_id: unitId,
+    page_id: pageId,
+    ...(status && { status }),
+    ...(responses && { responses }),
+    ...(timeSpent !== undefined && { time_spent: timeSpent }),
+    ...(integrityMetadata && { integrity_metadata: integrityMetadata }),
+  };
+
   // Try page_id-based upsert (post-migration 011)
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("student_progress")
-    .upsert(
-      {
-        student_id: studentId,
-        unit_id: unitId,
-        page_id: pageId,
-        ...(status && { status }),
-        ...(responses && { responses }),
-        ...(timeSpent !== undefined && { time_spent: timeSpent }),
-      },
-      {
-        onConflict: "student_id,unit_id,page_id",
-      }
-    )
+    .upsert(upsertPayload, { onConflict: "student_id,unit_id,page_id" })
     .select()
     .single();
+
+  // Lesson Learned #17: retry without integrity_metadata if migration 054 not applied
+  if (error && integrityMetadata && (error.message?.includes("integrity_metadata") || error.code === "PGRST204")) {
+    delete upsertPayload.integrity_metadata;
+    const retry = await supabase
+      .from("student_progress")
+      .upsert(upsertPayload, { onConflict: "student_id,unit_id,page_id" })
+      .select()
+      .single();
+    data = retry.data;
+    error = retry.error;
+  }
 
   if (error && (error.message?.includes("does not exist") || error.message?.includes("Could not find"))) {
     // Fallback: migration 011 not yet applied, use page_number

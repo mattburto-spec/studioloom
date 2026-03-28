@@ -24,7 +24,9 @@ export const GET = withErrorHandler("teacher/profile:GET", async (request: NextR
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ profile: data || null });
+  return NextResponse.json({ profile: data || null }, {
+    headers: { "Cache-Control": "private, max-age=60, stale-while-revalidate=120" },
+  });
 });
 
 /**

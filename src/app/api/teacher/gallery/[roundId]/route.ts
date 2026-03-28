@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
   // Fetch the gallery round
   const { data: round, error: roundError } = await db
     .from("gallery_rounds")
-    .select("*")
+    .select("id, unit_id, class_id, teacher_id, title, description, review_format, min_reviews, anonymous, deadline, status, created_at, updated_at")
     .eq("id", roundId)
     .eq("teacher_id", user.id)
     .maybeSingle();
@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
   // Fetch all submissions for this round
   const { data: submissions, error: submissionsError } = await db
     .from("gallery_submissions")
-    .select("*")
+    .select("id, round_id, student_id, context_note, created_at")
     .eq("round_id", roundId)
     .order("created_at", { ascending: false });
 
@@ -68,33 +68,43 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Failed to fetch submissions" }, { status: 500 });
   }
 
-  // For each submission, fetch the student name and review count
-  const submissionsWithDetails = await Promise.all(
-    (submissions || []).map(async (submission: any) => {
-      const { data: student } = await db
-        .from("students")
-        .select("display_name")
-        .eq("id", submission.student_id)
-        .maybeSingle();
+  // Batch fetch student names + review counts (was N+1: 2 queries per submission)
+  const submissionList = submissions || [];
+  const studentIds = [...new Set(submissionList.map((s: any) => s.student_id))];
+  const submissionIds = submissionList.map((s: any) => s.id);
 
-      const studentName = student?.display_name || submission.student_id;
+  // 2 batch queries instead of 2N individual queries
+  const [studentResult, reviewResult] = await Promise.all([
+    studentIds.length > 0
+      ? db.from("students").select("id, display_name").in("id", studentIds)
+      : Promise.resolve({ data: [] }),
+    submissionIds.length > 0
+      ? db.from("gallery_reviews").select("submission_id").in("submission_id", submissionIds)
+      : Promise.resolve({ data: [] }),
+  ]);
 
-      const { count: reviewCount } = await db
-        .from("gallery_reviews")
-        .select("*", { count: "exact", head: true })
-        .eq("submission_id", submission.id);
-
-      return {
-        id: submission.id,
-        student_id: submission.student_id,
-        student_name: studentName,
-        context_note: submission.context_note,
-        created_at: submission.created_at,
-        review_count: reviewCount || 0,
-        is_complete: (reviewCount || 0) >= round.min_reviews,
-      };
-    })
+  // Build lookup maps
+  const studentMap = new Map(
+    (studentResult.data || []).map((s: any) => [s.id, s.display_name])
   );
+  // Count reviews per submission from the flat list
+  const reviewCountMap = new Map<string, number>();
+  for (const r of (reviewResult.data || []) as any[]) {
+    reviewCountMap.set(r.submission_id, (reviewCountMap.get(r.submission_id) || 0) + 1);
+  }
+
+  const submissionsWithDetails = submissionList.map((submission: any) => {
+    const reviewCount = reviewCountMap.get(submission.id) || 0;
+    return {
+      id: submission.id,
+      student_id: submission.student_id,
+      student_name: studentMap.get(submission.student_id) || submission.student_id,
+      context_note: submission.context_note,
+      created_at: submission.created_at,
+      review_count: reviewCount,
+      is_complete: reviewCount >= round.min_reviews,
+    };
+  });
 
   return NextResponse.json({
     round: {

@@ -97,10 +97,10 @@ export async function GET(request: NextRequest) {
     .select("id, title, description, thumbnail_url, content_data")
     .in("id", unitIds);
 
-  // Get progress for this student
+  // Get progress for this student (dashboard only needs completion status, not full responses JSONB)
   const { data: progress } = await supabase
     .from("student_progress")
-    .select("*")
+    .select("student_id, unit_id, page_id, page_number, status, completed, time_spent, updated_at")
     .eq("student_id", studentId)
     .in("unit_id", unitIds);
 

@@ -16,7 +16,8 @@ export function usePageResponses(
   unitId: string,
   pageId: string,
   currentPage: UnitPage | undefined,
-  data: UnitPageData | null
+  data: UnitPageData | null,
+  integrityMetadataRef?: React.RefObject<Record<string, unknown> | null>
 ): UsePageResponsesReturn {
   const [responses, setResponses] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -99,15 +100,20 @@ export function usePageResponses(
       const currentResponses = responsesRef.current;
       setSaving(true);
       try {
+        // Include integrity metadata if available (MonitoredTextarea data)
+        const payload: Record<string, unknown> = {
+          unitId,
+          pageId: currentPage.id,
+          status: newStatus || "in_progress",
+          responses: currentResponses,
+        };
+        if (integrityMetadataRef?.current && Object.keys(integrityMetadataRef.current).length > 0) {
+          payload.integrityMetadata = integrityMetadataRef.current;
+        }
         const res = await fetch("/api/student/progress", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            unitId,
-            pageId: currentPage.id,
-            status: newStatus || "in_progress",
-            responses: currentResponses,
-          }),
+          body: JSON.stringify(payload),
         });
         if (res.ok && !silent) {
           setShowSaveToast(true);

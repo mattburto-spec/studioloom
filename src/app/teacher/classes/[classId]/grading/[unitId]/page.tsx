@@ -19,6 +19,9 @@ import type {
   AssessmentRecordRow,
 } from "@/types/assessment";
 import { getYearLevelNumber } from "@/lib/utils/year-level";
+import IntegrityReport from "@/components/teacher/IntegrityReport";
+import type { IntegrityMetadata } from "@/components/student/MonitoredTextarea";
+import { analyzeIntegrity } from "@/lib/integrity/analyze-integrity";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -107,6 +110,7 @@ export default function GradingPage({
     string
   > | null>(null);
   const [evidenceLoading, setEvidenceLoading] = useState(false);
+  const [evidenceIntegrity, setEvidenceIntegrity] = useState<Record<string, IntegrityMetadata> | null>(null);
 
   // Progress data for evidence
   const [progressMap, setProgressMap] = useState<
@@ -375,12 +379,18 @@ export default function GradingPage({
     setEvidencePageId(pageId);
     setEvidenceLoading(true);
     setEvidenceData(null);
+    setEvidenceIntegrity(null);
 
     const progress = progressMap[selectedStudentId]?.[pageId];
     if (progress?.responses) {
       setEvidenceData(progress.responses as Record<string, string>);
     } else {
       setEvidenceData({});
+    }
+    // Load integrity metadata if available (migration 054)
+    const integrityRaw = (progress as unknown as Record<string, unknown>)?.integrity_metadata;
+    if (integrityRaw && typeof integrityRaw === "object") {
+      setEvidenceIntegrity(integrityRaw as Record<string, IntegrityMetadata>);
     }
     setEvidenceLoading(false);
   }
@@ -691,6 +701,8 @@ export default function GradingPage({
                         let label = key;
                         if (key.startsWith("section_"))
                           label = `Response ${parseInt(key.replace("section_", "")) + 1}`;
+                        else if (key.startsWith("activity_"))
+                          label = `Response (${key.replace("activity_", "").slice(0, 6)})`;
                         else if (key.startsWith("reflection_"))
                           label = `Reflection ${parseInt(key.replace("reflection_", "")) + 1}`;
                         else if (key === "freeform") label = "Notes";
@@ -709,9 +721,46 @@ export default function GradingPage({
                                   : value || "—"}
                               </p>
                             </div>
+
+                            {/* Show per-response integrity report if metadata exists for this key */}
+                            {evidenceIntegrity?.[key] && (
+                              <div className="mt-2 border-t border-gray-100 pt-2">
+                                <IntegrityReport
+                                  metadata={evidenceIntegrity[key]}
+                                  responseText={typeof value === "string" ? value : undefined}
+                                />
+                              </div>
+                            )}
                           </div>
                         );
                       })}
+
+                      {/* Aggregate integrity summary if any integrity data exists */}
+                      {evidenceIntegrity && Object.keys(evidenceIntegrity).length > 0 && (
+                        <div className="mt-4 pt-4 border-t-2 border-gray-200">
+                          <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">
+                            Writing Integrity Summary
+                          </p>
+                          {Object.entries(evidenceIntegrity).map(([key, meta]) => {
+                            const analysis = analyzeIntegrity(meta);
+                            return (
+                              <div key={`integrity-badge-${key}`} className="flex items-center gap-2 mb-1.5">
+                                <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-xs font-bold ${
+                                  analysis.score >= 70 ? "bg-green-100 text-green-700" :
+                                  analysis.score >= 40 ? "bg-amber-100 text-amber-700" :
+                                  "bg-red-100 text-red-700"
+                                }`}>
+                                  {analysis.score}
+                                </span>
+                                <span className="text-xs text-gray-600">{key.replace("activity_", "").replace("section_", "Response ")}</span>
+                                {analysis.flags.length > 0 && (
+                                  <span className="text-xs text-red-500">{analysis.flags.length} flag{analysis.flags.length > 1 ? "s" : ""}</span>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

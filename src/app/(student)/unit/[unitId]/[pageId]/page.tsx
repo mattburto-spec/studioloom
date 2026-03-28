@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, useRef, use } from "react";
 import { useRouter } from "next/navigation";
 import { CRITERIA, PAGE_TYPE_LABELS, type CriterionKey } from "@/lib/constants";
 import { isV3 } from "@/lib/unit-adapter";
@@ -40,8 +40,9 @@ export default function UnitPageView({
 
   const { data, loading, allPages, currentPage, enabledPages, nextPage, currentSettings, pageColor } =
     usePageData(unitId, pageId);
+  const integrityMetadataRef = useRef<Record<string, unknown> | null>(null);
   const { responses, setResponses, saving, showSaveToast, saveProgress } =
-    usePageResponses(unitId, pageId, currentPage, data);
+    usePageResponses(unitId, pageId, currentPage, data, integrityMetadataRef);
 
   const { student } = useStudent();
   const openStudio = useOpenStudio(unitId);
@@ -393,10 +394,19 @@ export default function UnitPageView({
                   pageColor={pageColor}
                   enableIntegrityMonitoring={true}
                   onIntegrityUpdate={(sectionIndex, metadata) => {
-                    setIntegrityMetadata((prev) => ({
-                      ...prev,
-                      [sectionIndex]: metadata,
-                    }));
+                    setIntegrityMetadata((prev) => {
+                      const next = { ...prev, [sectionIndex]: metadata };
+                      // Sync ref for save flow — key by response key (activity ID or section index)
+                      const refData: Record<string, unknown> = {};
+                      const sections = pageContent?.sections || [];
+                      for (const [idx, meta] of Object.entries(next)) {
+                        const sec = sections[Number(idx)];
+                        const key = sec?.activityId ? `activity_${sec.activityId}` : `section_${idx}`;
+                        refData[key] = meta;
+                      }
+                      integrityMetadataRef.current = refData;
+                      return next;
+                    });
                   }}
                 />
               </ScrollReveal>
