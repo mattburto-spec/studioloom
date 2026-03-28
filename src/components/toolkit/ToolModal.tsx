@@ -189,6 +189,8 @@ function getDynamicToolComponent(toolId: string) {
     "impact-effort-matrix": dynamicTool(() => import("./ImpactEffortMatrixTool"), "ImpactEffortMatrixTool"),
     "pov-statement":        dynamicTool(() => import("./PointOfViewTool"), "PointOfViewTool"),
     "design-specification": dynamicTool(() => import("./DesignSpecificationTool"), "DesignSpecificationTool"),
+    "dot-voting":           dynamicTool(() => import("./DotVotingTool"), "DotVotingTool"),
+    "quick-sketch":         dynamicTool(() => import("./QuickSketchTool"), "QuickSketchTool"),
   };
 
   return toolMap[toolId] || null;

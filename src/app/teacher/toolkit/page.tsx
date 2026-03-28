@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
+import { motion, AnimatePresence } from "framer-motion";
 import { tools, type Phase, type ToolType } from "@/app/toolkit/tools-data";
 import { ToolModal } from "@/components/toolkit/ToolModal";
 
@@ -22,6 +23,19 @@ const TYPES: { key: ToolType; label: string }[] = [
   { key: "communication", label: "Communication" },
   { key: "reflection", label: "Reflection" },
 ];
+
+const containerVariants = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.035, delayChildren: 0.05 } },
+};
+
+const cardVariants = {
+  hidden: { opacity: 0, y: 16, scale: 0.97 },
+  visible: {
+    opacity: 1, y: 0, scale: 1,
+    transition: { type: "spring", stiffness: 320, damping: 28 },
+  },
+};
 
 export default function TeacherToolkitPage() {
   const [search, setSearch] = useState("");
@@ -48,17 +62,26 @@ export default function TeacherToolkitPage() {
   const interactiveTools = filtered.filter((t) => t.slug);
   const templateTools = filtered.filter((t) => !t.slug);
 
+  const hasFilter = !!selectedPhase || !!selectedType || search.length > 0;
+
   return (
     <main className="max-w-7xl mx-auto px-6 py-8">
-      {selectedToolId && (
-        <ToolModal
-          toolId={selectedToolId}
-          onClose={() => setSelectedToolId(null)}
-        />
-      )}
+      <AnimatePresence>
+        {selectedToolId && (
+          <ToolModal
+            toolId={selectedToolId}
+            onClose={() => setSelectedToolId(null)}
+          />
+        )}
+      </AnimatePresence>
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+        className="flex items-center justify-between mb-6"
+      >
         <div>
           <h1 className="text-2xl font-bold text-text-primary tracking-tight">
             Design Thinking Toolkit
@@ -79,10 +102,15 @@ export default function TeacherToolkitPage() {
             <line x1="10" y1="14" x2="21" y2="3" />
           </svg>
         </Link>
-      </div>
+      </motion.div>
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-3 mb-6">
+      <motion.div
+        initial={{ opacity: 0, y: -6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35, delay: 0.1 }}
+        className="flex flex-wrap items-center gap-3 mb-6"
+      >
         {/* Search */}
         <div className="relative">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary/40" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -100,8 +128,10 @@ export default function TeacherToolkitPage() {
         {/* Phase pills */}
         <div className="flex gap-1.5">
           {PHASES.map((p) => (
-            <button
+            <motion.button
               key={p.key}
+              whileHover={{ scale: 1.06 }}
+              whileTap={{ scale: 0.94 }}
               onClick={() => setSelectedPhase(selectedPhase === p.key ? null : p.key)}
               className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
               style={{
@@ -111,7 +141,7 @@ export default function TeacherToolkitPage() {
               }}
             >
               {p.label}
-            </button>
+            </motion.button>
           ))}
         </div>
 
@@ -127,111 +157,164 @@ export default function TeacherToolkitPage() {
           ))}
         </select>
 
+        {/* Clear filters */}
+        <AnimatePresence>
+          {hasFilter && (
+            <motion.button
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              onClick={() => { setSelectedPhase(null); setSelectedType(null); setSearch(""); }}
+              className="text-xs text-red-400 hover:text-red-500 font-medium px-2 py-1 rounded-lg border border-red-200 hover:border-red-300 transition"
+            >
+              Clear
+            </motion.button>
+          )}
+        </AnimatePresence>
+
         {/* Count */}
-        <span className="text-xs text-text-secondary ml-auto">
+        <motion.span
+          key={filtered.length}
+          initial={{ opacity: 0, x: -4 }}
+          animate={{ opacity: 1, x: 0 }}
+          className="text-xs text-text-secondary ml-auto"
+        >
           {filtered.length} of {tools.length} tools
-        </span>
-      </div>
+        </motion.span>
+      </motion.div>
 
       {/* Interactive tools */}
-      {interactiveTools.length > 0 && (
-        <div className="mb-8">
-          <h2 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
-            Interactive Tools
-            <span className="text-xs font-normal text-text-secondary">AI-powered, student-facing</span>
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {interactiveTools.map((tool) => (
-              <button
-                key={tool.slug}
-                onClick={() => setSelectedToolId(tool.slug || "")}
-                className="bg-white rounded-2xl border border-border shadow-sm p-4 text-left hover:shadow-md hover:border-brand-purple/20 transition-all group"
-              >
-                <div className="flex items-start gap-3">
-                  <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                    style={{ background: `${tool.color}15` }}
-                  >
+      <AnimatePresence mode="wait">
+        {interactiveTools.length > 0 && (
+          <motion.div
+            key="interactive"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="mb-8"
+          >
+            <h2 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
+              Interactive Tools
+              <span className="text-xs font-normal text-text-secondary">AI-powered, student-facing</span>
+            </h2>
+            <motion.div
+              variants={containerVariants}
+              initial="hidden"
+              animate="visible"
+              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3"
+            >
+              {interactiveTools.map((tool) => (
+                <motion.button
+                  key={tool.slug}
+                  variants={cardVariants}
+                  layout
+                  whileHover={{
+                    y: -3,
+                    boxShadow: "0 8px 30px rgba(0,0,0,0.08), 0 0 20px rgba(123,47,242,0.04)",
+                  }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setSelectedToolId(tool.slug || "")}
+                  className="bg-white rounded-2xl border border-border shadow-sm p-4 text-left hover:border-brand-purple/20 transition-all group"
+                >
+                  <div className="flex items-start gap-3">
                     <div
-                      className="w-4 h-4 rounded-sm"
-                      style={{ background: tool.color }}
-                    />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-text-primary group-hover:text-brand-purple transition">
-                      {tool.name}
-                    </p>
-                    <p className="text-xs text-text-secondary mt-0.5 line-clamp-2">{tool.desc}</p>
-                    <div className="flex items-center gap-2 mt-2">
-                      {tool.phases.map((ph) => {
-                        const phaseData = PHASES.find((p) => p.key === ph);
-                        return (
-                          <span
-                            key={ph}
-                            className="text-[10px] font-medium px-1.5 py-0.5 rounded"
-                            style={{ color: phaseData?.color, background: `${phaseData?.color}15` }}
-                          >
-                            {phaseData?.label}
-                          </span>
-                        );
-                      })}
-                      <span className="text-[10px] text-text-secondary/50">{tool.time}</span>
+                      className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                      style={{ background: `${tool.color}15` }}
+                    >
+                      <div
+                        className="w-4 h-4 rounded-sm"
+                        style={{ background: tool.color }}
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-text-primary group-hover:text-brand-purple transition">
+                        {tool.name}
+                      </p>
+                      <p className="text-xs text-text-secondary mt-0.5 line-clamp-2">{tool.desc}</p>
+                      <div className="flex items-center gap-2 mt-2">
+                        {tool.phases.map((ph) => {
+                          const phaseData = PHASES.find((p) => p.key === ph);
+                          return (
+                            <span
+                              key={ph}
+                              className="text-[10px] font-medium px-1.5 py-0.5 rounded"
+                              style={{ color: phaseData?.color, background: `${phaseData?.color}15` }}
+                            >
+                              {phaseData?.label}
+                            </span>
+                          );
+                        })}
+                        <span className="text-[10px] text-text-secondary/50">{tool.time}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+                </motion.button>
+              ))}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Template tools */}
-      {templateTools.length > 0 && (
-        <div>
-          <h2 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
-            Template Tools
-            <span className="text-xs font-normal text-text-secondary">Printable worksheets & guides</span>
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {templateTools.map((tool) => (
-              <div
-                key={tool.name}
-                className="bg-white rounded-2xl border border-border shadow-sm p-4"
-              >
-                <div className="flex items-start gap-3">
-                  <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 opacity-60"
-                    style={{ background: `${tool.color}10` }}
-                  >
+      <AnimatePresence mode="wait">
+        {templateTools.length > 0 && (
+          <motion.div
+            key="template"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+          >
+            <h2 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
+              Template Tools
+              <span className="text-xs font-normal text-text-secondary">Printable worksheets & guides</span>
+            </h2>
+            <motion.div
+              variants={containerVariants}
+              initial="hidden"
+              animate="visible"
+              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3"
+            >
+              {templateTools.map((tool) => (
+                <motion.div
+                  key={tool.name}
+                  variants={cardVariants}
+                  layout
+                  whileHover={{ y: -2 }}
+                  className="bg-white rounded-2xl border border-border shadow-sm p-4"
+                >
+                  <div className="flex items-start gap-3">
                     <div
-                      className="w-4 h-4 rounded-sm"
-                      style={{ background: tool.color }}
-                    />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-text-primary">{tool.name}</p>
-                    <p className="text-xs text-text-secondary mt-0.5 line-clamp-2">{tool.desc}</p>
-                    <div className="flex items-center gap-2 mt-2">
-                      {tool.phases.map((ph) => {
-                        const phaseData = PHASES.find((p) => p.key === ph);
-                        return (
-                          <span
-                            key={ph}
-                            className="text-[10px] font-medium px-1.5 py-0.5 rounded"
-                            style={{ color: phaseData?.color, background: `${phaseData?.color}10` }}
-                          >
-                            {phaseData?.label}
-                          </span>
-                        );
-                      })}
+                      className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 opacity-60"
+                      style={{ background: `${tool.color}10` }}
+                    >
+                      <div
+                        className="w-4 h-4 rounded-sm"
+                        style={{ background: tool.color }}
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-text-primary">{tool.name}</p>
+                      <p className="text-xs text-text-secondary mt-0.5 line-clamp-2">{tool.desc}</p>
+                      <div className="flex items-center gap-2 mt-2">
+                        {tool.phases.map((ph) => {
+                          const phaseData = PHASES.find((p) => p.key === ph);
+                          return (
+                            <span
+                              key={ph}
+                              className="text-[10px] font-medium px-1.5 py-0.5 rounded"
+                              style={{ color: phaseData?.color, background: `${phaseData?.color}10` }}
+                            >
+                              {phaseData?.label}
+                            </span>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+                </motion.div>
+              ))}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </main>
   );
 }
