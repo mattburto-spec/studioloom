@@ -657,3 +657,123 @@ export const KNOWLEDGE_ITEM_TYPES = {
 } as const;
 
 export type KnowledgeItemTypeKey = keyof typeof KNOWLEDGE_ITEM_TYPES;
+
+// ---------------------------------------------------------------------------
+// Design Process Phases — Framework-Aware
+// ---------------------------------------------------------------------------
+
+/**
+ * Get design process phases for a framework.
+ * Returns { phases: string[], labels: Record<string, string>, colors: Record<string, string> }
+ * Falls back to generic design process phases if framework unknown.
+ *
+ * All phases are generic slugs that work across frameworks (investigation, ideation, prototyping, evaluation).
+ * For non-MYP frameworks, we derive slugs from their vocabulary.
+ */
+export function getDesignProcessPhases(framework?: string | null): {
+  phases: string[];
+  labels: Record<string, string>;
+  colors: Record<string, string>;
+} {
+  // Generic phases — work across all frameworks
+  const GENERIC_PHASES = ["investigation", "ideation", "prototyping", "evaluation"];
+  const GENERIC_LABELS: Record<string, string> = {
+    investigation: "Investigation",
+    ideation: "Ideation",
+    prototyping: "Prototyping",
+    evaluation: "Evaluation",
+  };
+  const GENERIC_COLORS: Record<string, string> = {
+    investigation: "text-indigo-600",
+    ideation: "text-emerald-600",
+    prototyping: "text-orange-600",
+    evaluation: "text-amber-600",
+  };
+
+  // GCSE, IGCSE use similar 4-phase model
+  if (framework && ["GCSE_DT", "IGCSE_DT"].includes(framework)) {
+    return {
+      phases: ["investigate", "design", "make", "evaluate"],
+      labels: {
+        investigate: "Investigate",
+        design: "Design",
+        make: "Make",
+        evaluate: "Evaluate",
+      },
+      colors: {
+        investigate: "text-indigo-600",
+        design: "text-emerald-600",
+        make: "text-orange-600",
+        evaluate: "text-amber-600",
+      },
+    };
+  }
+
+  // A-Level has 5 phases
+  if (framework === "A_LEVEL_DT") {
+    return {
+      phases: ["investigate", "develop", "communicate", "make", "evaluate"],
+      labels: {
+        investigate: "Identify & Investigate",
+        develop: "Design Development",
+        communicate: "Design Communication",
+        make: "Make",
+        evaluate: "Test & Evaluate",
+      },
+      colors: {
+        investigate: "text-indigo-600",
+        develop: "text-blue-600",
+        communicate: "text-emerald-600",
+        make: "text-orange-600",
+        evaluate: "text-amber-600",
+      },
+    };
+  }
+
+  // ACARA (Australian) uses 4 phases
+  if (framework === "ACARA_DT") {
+    return {
+      phases: ["investigating", "generating", "producing", "evaluating"],
+      labels: {
+        investigating: "Investigating",
+        generating: "Generating",
+        producing: "Producing",
+        evaluating: "Evaluating",
+      },
+      colors: {
+        investigating: "text-indigo-600",
+        generating: "text-emerald-600",
+        producing: "text-orange-600",
+        evaluating: "text-amber-600",
+      },
+    };
+  }
+
+  // PLTW (Project Lead The Way) — 5 phases
+  if (framework === "PLTW") {
+    return {
+      phases: ["define", "generate", "develop", "construct", "evaluate"],
+      labels: {
+        define: "Define Problem",
+        generate: "Generate Concepts",
+        develop: "Develop Solution",
+        construct: "Construct & Test",
+        evaluate: "Evaluate & Present",
+      },
+      colors: {
+        define: "text-indigo-600",
+        generate: "text-blue-600",
+        develop: "text-emerald-600",
+        construct: "text-orange-600",
+        evaluate: "text-amber-600",
+      },
+    };
+  }
+
+  // Default: generic phases for IB_MYP or unknown frameworks
+  return {
+    phases: GENERIC_PHASES,
+    labels: GENERIC_LABELS,
+    colors: GENERIC_COLORS,
+  };
+}

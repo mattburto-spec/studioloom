@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import Anthropic from "@anthropic-ai/sdk";
 import { resolveCredentials } from "@/lib/ai/resolve-credentials";
-import { SUGGEST_SYSTEM_PROMPT, buildSuggestPrompt } from "@/lib/ai/prompts";
+import { buildSuggestSystemPrompt, buildSuggestPrompt } from "@/lib/ai/prompts";
 import type { SuggestContext } from "@/lib/ai/prompts";
 import {
   MYP_GLOBAL_CONTEXTS,
@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { tier, context, unitType } = body as { tier: 1 | 2 | 3; context: SuggestContext; unitType?: string };
+  const { tier, context, unitType, framework } = body as { tier: 1 | 2 | 3; context: SuggestContext; unitType?: string; framework?: string };
 
   if (!tier || !context?.topic) {
     return NextResponse.json({ error: "tier and context.topic are required" }, { status: 400 });
@@ -140,7 +140,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const userPrompt = buildSuggestPrompt(tier, context);
-    let systemPrompt = SUGGEST_SYSTEM_PROMPT + "\n\nReturn ONLY valid JSON. No markdown fences, no explanations.";
+    let systemPrompt = buildSuggestSystemPrompt(framework) + "\n\nReturn ONLY valid JSON. No markdown fences, no explanations.";
 
     // Add unit type context to suggestions
     if (unitType) {

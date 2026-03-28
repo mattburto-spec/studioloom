@@ -3,12 +3,13 @@
 import { useState } from "react";
 import { motion, useDragControls } from "framer-motion";
 import InlineEdit from "./InlineEdit";
-import { CRITERIA, type CriterionKey } from "@/lib/constants";
+import { CRITERIA, type CriterionKey, getDesignProcessPhases } from "@/lib/constants";
 import type { ActivitySection, ResponseType } from "@/types";
 
 interface ActivityBlockProps {
   activity: ActivitySection;
   index: number;
+  framework?: string | null;
   onUpdate: (partial: Partial<ActivitySection>) => void;
   onDelete: () => void;
   onDuplicate?: () => void;
@@ -41,13 +42,6 @@ const RESPONSE_TYPE_LABELS: Record<ResponseType, string> = {
   canvas: "Canvas Drawing",
 };
 
-const DESIGN_PHASES = [
-  "investigation",
-  "ideation",
-  "prototyping",
-  "evaluation",
-] as const;
-
 /**
  * ActivityBlock — Single activity card in the editor
  *
@@ -66,11 +60,13 @@ const DESIGN_PHASES = [
 export default function ActivityBlock({
   activity,
   index,
+  framework,
   onUpdate,
   onDelete,
   onDuplicate,
 }: ActivityBlockProps) {
   const dragControls = useDragControls();
+  const { phases } = getDesignProcessPhases(framework);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     scaffolding: false,
     example: false,

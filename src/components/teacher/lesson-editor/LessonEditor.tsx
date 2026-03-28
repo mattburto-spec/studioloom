@@ -54,6 +54,7 @@ export default function LessonEditor({
     unitTitle,
     thumbnailUrl,
     setThumbnailUrl,
+    framework,
     selectedPageIndex,
     setSelectedPageIndex,
     updatePage,
@@ -649,6 +650,7 @@ export default function LessonEditor({
               onSelect={setSelectedPageIndex}
               onReorder={handleReorderPages}
               onAdd={() => addPage()}
+              framework={framework}
               editMode={editMode}
               onEditModeChange={setEditMode}
               isFork={isFork}
@@ -954,6 +956,7 @@ export default function LessonEditor({
                               <ActivityBlock
                                 activity={section}
                                 index={index}
+                                framework={framework}
                                 onUpdate={(partial) =>
                                   handleUpdateActivity(index, partial)
                                 }
@@ -1097,6 +1100,7 @@ export default function LessonEditor({
                         <ExtensionBlock
                           extension={ext}
                           index={index}
+                          framework={framework}
                           onUpdate={(partial) =>
                             handleUpdateExtension(index, partial)
                           }

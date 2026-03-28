@@ -3,28 +3,16 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import InlineEdit from "./InlineEdit";
+import { getDesignProcessPhases } from "@/lib/constants";
 import type { LessonExtension } from "@/types";
 
 interface ExtensionBlockProps {
   extension: LessonExtension;
   index: number;
+  framework?: string | null;
   onUpdate: (partial: Partial<LessonExtension>) => void;
   onDelete: () => void;
 }
-
-const DESIGN_PHASES = [
-  "investigation",
-  "ideation",
-  "prototyping",
-  "evaluation",
-] as const;
-
-const DESIGN_PHASE_LABELS: Record<string, string> = {
-  investigation: "Investigation",
-  ideation: "Ideation",
-  prototyping: "Prototyping",
-  evaluation: "Evaluation",
-};
 
 /**
  * ExtensionBlock — Extension activity card (compact)
@@ -39,10 +27,12 @@ const DESIGN_PHASE_LABELS: Record<string, string> = {
 export default function ExtensionBlock({
   extension,
   index,
+  framework,
   onUpdate,
   onDelete,
 }: ExtensionBlockProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const { phases, labels } = getDesignProcessPhases(framework);
 
   return (
     <motion.div
@@ -144,17 +134,17 @@ export default function ExtensionBlock({
       <div>
         <label className="text-xs text-gray-500 block mb-2">Design Phase</label>
         <select
-          value={extension.designPhase || "ideation"}
+          value={extension.designPhase || phases[1] || "ideation"}
           onChange={(e) =>
             onUpdate({
-              designPhase: e.target.value as typeof DESIGN_PHASES[number],
+              designPhase: e.target.value,
             })
           }
           className="w-full px-3 py-2 border border-amber-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-transparent bg-white"
         >
-          {DESIGN_PHASES.map((phase) => (
+          {phases.map((phase) => (
             <option key={phase} value={phase}>
-              {DESIGN_PHASE_LABELS[phase]}
+              {labels[phase]}
             </option>
           ))}
         </select>

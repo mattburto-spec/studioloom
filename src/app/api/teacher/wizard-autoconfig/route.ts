@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import Anthropic from "@anthropic-ai/sdk";
 import { resolveCredentials } from "@/lib/ai/resolve-credentials";
-import { AUTOCONFIG_SYSTEM_PROMPT, buildAutoConfigPrompt } from "@/lib/ai/prompts";
+import { buildAutoconfigSystemPrompt, buildAutoConfigPrompt } from "@/lib/ai/prompts";
 import {
   MYP_GLOBAL_CONTEXTS,
   MYP_KEY_CONCEPTS,
@@ -124,12 +124,13 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { goalText, gradeLevel, durationWeeks, keywords, unitType } = body as {
+  const { goalText, gradeLevel, durationWeeks, keywords, unitType, framework } = body as {
     goalText: string;
     gradeLevel: string;
     durationWeeks: number;
     keywords: string[];
     unitType?: string;
+    framework?: string;
   };
 
   if (!goalText?.trim()) {
@@ -144,7 +145,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const userPrompt = buildAutoConfigPrompt(goalText, gradeLevel || "Year 3 (Grade 8)", durationWeeks || 6, keywords || []);
-    let systemPrompt = AUTOCONFIG_SYSTEM_PROMPT + "\n\nReturn ONLY valid JSON. No markdown fences, no explanations.";
+    let systemPrompt = buildAutoconfigSystemPrompt(framework) + "\n\nReturn ONLY valid JSON. No markdown fences, no explanations.";
 
     // Add unit type context to emphasis suggestions
     if (unitType && unitType !== "design") {

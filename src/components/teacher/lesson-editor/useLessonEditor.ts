@@ -36,6 +36,7 @@ interface UseLessonEditorReturn {
   unitTitle: string | null;
   thumbnailUrl: string | null;
   setThumbnailUrl: (url: string) => void;
+  framework: string; // Framework for design phases and context
 
   // Selection & UI state
   selectedPageIndex: number | null;
@@ -104,6 +105,7 @@ export function useLessonEditor({
   // Unit metadata
   const [unitTitle, setUnitTitle] = useState<string | null>(null);
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
+  const [framework, setFramework] = useState<string>("IB_MYP");
 
   // Selection state
   const [selectedPageIndex, setSelectedPageIndex] = useState<number | null>(null);
@@ -134,6 +136,7 @@ export function useLessonEditor({
         setIsFork(data.isForked || false);
         setThumbnailUrl(data.thumbnailUrl || null);
         setUnitTitle(data.unitTitle || null);
+        setFramework(data.framework || "IB_MYP");
 
         // Default edit mode based on fork status
         setEditMode("class");
@@ -366,6 +369,7 @@ export function useLessonEditor({
     unitTitle,
     thumbnailUrl,
     setThumbnailUrl,
+    framework,
     selectedPageIndex,
     setSelectedPageIndex,
     updatePage,

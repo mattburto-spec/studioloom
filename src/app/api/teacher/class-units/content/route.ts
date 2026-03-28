@@ -54,6 +54,17 @@ async function GET(request: NextRequest) {
       unit = unitData;
     }
 
+    // Fetch class framework (separate resilient query)
+    let classFramework: string | null = null;
+    const { data: classData } = await supabase
+      .from("classes")
+      .select("framework")
+      .eq("id", classId)
+      .maybeSingle();
+    if (classData?.framework) {
+      classFramework = classData.framework as string;
+    }
+
     // Check for class-local fork — maybeSingle to handle missing row gracefully
     const { data: classUnit } = await supabase
       .from("class_units")
@@ -75,6 +86,7 @@ async function GET(request: NextRequest) {
       masterVersion: (unit as Record<string, unknown>).current_version ?? 1,
       thumbnailUrl: (unit as Record<string, unknown>).thumbnail_url || null,
       unitTitle: (unit as Record<string, unknown>).title || null,
+      framework: classFramework || "IB_MYP",
     });
   } catch (err) {
     console.error("[class-units/content GET]", err);

@@ -2,6 +2,7 @@
 
 import { Reorder, AnimatePresence, motion } from "framer-motion";
 import { useState } from "react";
+import { getDesignProcessPhases } from "@/lib/constants";
 import type { UnitPage } from "@/types";
 
 type EditMode = "all" | "class";
@@ -20,6 +21,9 @@ interface LessonSidebarProps {
   onSelect: (index: number) => void;
   onReorder: (newOrder: UnitPage[]) => void;
   onAdd: () => void;
+
+  // Framework for design phases
+  framework?: string | null;
 
   // Edit mode
   editMode: EditMode;
@@ -43,16 +47,6 @@ interface LessonSidebarProps {
   thumbnailUrl?: string | null;
 }
 
-const PHASE_COLORS: Record<string, string> = {
-  investigation: "text-indigo-600",
-  creation: "text-emerald-600",
-  evaluation: "text-amber-600",
-  research: "text-indigo-600",
-  ideation: "text-emerald-600",
-  prototyping: "text-orange-600",
-  testing: "text-amber-600",
-};
-
 function formatDate(dateStr: string): string {
   const date = new Date(dateStr);
   const now = new Date();
@@ -72,6 +66,7 @@ export function LessonSidebar({
   onSelect,
   onReorder,
   onAdd,
+  framework,
   editMode,
   onEditModeChange,
   isFork,
@@ -85,6 +80,7 @@ export function LessonSidebar({
   thumbnailUrl,
 }: LessonSidebarProps) {
   const [showPromoteConfirm, setShowPromoteConfirm] = useState(false);
+  const { colors: PHASE_COLORS } = getDesignProcessPhases(framework);
 
   // Group pages by phaseLabel for visual grouping
   let lastPhase = "";

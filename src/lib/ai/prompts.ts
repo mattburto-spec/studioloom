@@ -391,14 +391,7 @@ The number of pages per ${vocab.criteriaTermSingular} depends on the emphasis le
 Not every unit includes all ${vocab.criteriaLabels.length} ${vocab.criteriaTermPlural} — generate ONLY the pages specified in the user prompt.
 
 ## Your Task
-Generate content for the requested ${vocab.criteriaTermSingular} pages. Output ONLY valid JSON matching the exact schema below.`;
-}
-
-/**
- * System prompt that teaches the AI about MYP Design, the page structure,
- * and the exact JSON schema to output. (DEPRECATED — use buildUnitSystemPrompt instead)
- */
-export const UNIT_SYSTEM_PROMPT = buildUnitSystemPrompt("IB_MYP");
+Generate content for the requested ${vocab.criteriaTermSingular} pages. Output ONLY valid JSON matching the exact schema below.
 
 ## JSON Schema (for each page)
 {
@@ -455,14 +448,21 @@ export const UNIT_SYSTEM_PROMPT = buildUnitSystemPrompt("IB_MYP");
 5. Make prompts age-appropriate for the specified grade level
 6. Connect content to the specified global context and key concept
 7. Include practical, hands-on activities where relevant
-8. For "emphasis" criteria, include more detailed sections with deeper inquiry
-9. For "light" criteria, keep sections focused and concise
+8. For "emphasis" ${vocab.criteriaTermPlural}, include more detailed sections with deeper inquiry
+9. For "light" ${vocab.criteriaTermPlural}, keep sections focused and concise
 10. Vocab activity type can be: "matching", "fill-blank", or "drag-sort"
 11. Reflection type can be: "confidence-slider", "checklist", or "short-response"
 12. Output ONLY the JSON object — no markdown, no explanations
 13. When appropriate, incorporate established design thinking frameworks (SCAMPER, Six Thinking Hats, PMI, Empathy Map, Decision Matrix, etc.) into section prompts — adapt them to the specific topic rather than using generic templates
-14. For B2-B3 pages (choosing between designs), prefer "decision-matrix" or "pairwise" responseType. For C1-C2 pages (planning creation), consider "trade-off-sliders". For evaluation pages, consider "pmi"
+14. For pages focused on choosing between designs, prefer "decision-matrix" or "pairwise" responseType. For planning/creation pages, consider "trade-off-sliders". For evaluation pages, consider "pmi"
 15. Set "portfolioCapture": true on 1-2 sections per page that represent substantive design work — research findings, design sketches/uploads, design justifications, creation evidence, evaluations. Omit or set false for vocab warm-ups, scaffolding prompts, and low-value practice questions`;
+}
+
+/**
+ * System prompt that teaches the AI about MYP Design, the page structure,
+ * and the exact JSON schema to output. (DEPRECATED — use buildUnitSystemPrompt instead)
+ */
+export const UNIT_SYSTEM_PROMPT = buildUnitSystemPrompt("IB_MYP");
 
 /**
  * Build the user prompt for generating a specific criterion's pages.
@@ -786,7 +786,10 @@ Generate 3 genuinely different approaches. Each MUST cover exactly these ${total
  * System prompt for the wizard suggestion endpoint.
  * Embeds valid MYP option lists so AI can only suggest valid values.
  */
-export const SUGGEST_SYSTEM_PROMPT = `You are an MYP Design curriculum advisor. Given a topic and partial unit context, suggest the most relevant MYP framework elements AND practical teaching ideas.
+export function buildSuggestSystemPrompt(framework?: string): string {
+  const frameworkBlock = buildFrameworkPromptBlock(framework);
+
+  return `You are a curriculum advisor for design and technology education. Given a topic and partial unit context, suggest the most relevant framework elements AND practical teaching ideas.${frameworkBlock}
 
 VALID GLOBAL CONTEXTS (use exact labels):
 ${MYP_GLOBAL_CONTEXTS.map((gc) => `- "${gc.label}"`).join("\n")}
@@ -805,9 +808,10 @@ Rules:
 5. Groupwork should describe specific collaborative structures (e.g., "Pair sketching", "Expert jigsaw", "Design critique circles")
 6. Resources should be types of external content to include (e.g., "YouTube tutorial", "Industry case study", "Interactive demo")
 7. Rank by relevance to the topic and grade level
-8. For Statement of Inquiry, follow the IB formula: Key Concept + Related Concept(s) + Global Context woven into a single exploratory sentence
+8. For Statement of Inquiry, follow the formula: Key Concept + Related Concept(s) + Global Context woven into a single exploratory sentence
 9. Keep JSON output minimal — no explanations outside JSON
 10. Output ONLY valid JSON matching the requested schema`;
+}
 
 export interface SuggestContext {
   topic: string;
@@ -868,7 +872,14 @@ ${schema}`;
 
 import { DESIGN_SKILLS, MYP_ATL_SKILL_CATEGORIES } from "@/lib/constants";
 
-export const AUTOCONFIG_SYSTEM_PROMPT = `You are an expert MYP Design curriculum advisor. Given a teacher's end-goal description and optional keyword tags, determine ALL the MYP framework elements needed to build a unit.
+export function buildAutoconfigSystemPrompt(framework?: string): string {
+  const frameworkBlock = buildFrameworkPromptBlock(framework);
+  const criteriaKeys = framework ? getFrameworkCriterionKeys(framework) : ["A", "B", "C", "D"];
+  const criteriaExample = criteriaKeys.length === 4
+    ? `["${criteriaKeys[0]}","${criteriaKeys[1]}","${criteriaKeys[2]}","${criteriaKeys[3]}"]`
+    : `[${criteriaKeys.map(k => `"${k}"`).join(",")}]`;
+
+  return `You are an expert curriculum advisor for design and technology education. Given a teacher's end-goal description and optional keyword tags, determine ALL the framework elements needed to build a unit.${frameworkBlock}
 
 VALID GLOBAL CONTEXTS (pick exactly 1, use exact label):
 ${MYP_GLOBAL_CONTEXTS.map((gc) => `- "${gc.label}"`).join("\n")}
@@ -889,10 +900,11 @@ Rules:
 1. ONLY use exact values from the lists above
 2. Generate a concise unit title (5-8 words)
 3. The topic should expand on the teacher's goal text into a clear description
-4. Statement of Inquiry must follow IB formula: weave Key Concept + Related Concepts + Global Context into one exploratory sentence
-5. criteriaFocus: consider the project type. Heavy research → emphasize A. Heavy making → emphasize C. Heavy evaluation → emphasize D. Default to "standard" for balanced projects.
-6. selectedCriteria: include all 4 by default ["A","B","C","D"]. For short units (4 weeks or less), consider dropping a criterion. For focused projects, consider using only 2-3 criteria.
+4. Statement of Inquiry must weave Key Concept + Related Concepts + Global Context into one exploratory sentence
+5. criteriaFocus: consider the project type. Heavy research → emphasize ${criteriaKeys[0]}. Heavy making → emphasize ${criteriaKeys[2]}. Heavy evaluation → emphasize ${criteriaKeys[3]}. Default to "standard" for balanced projects.
+6. selectedCriteria: include all criteria by default ${criteriaExample}. For short units (4 weeks or less), consider dropping a criterion. For focused projects, consider using only 2-3 criteria.
 7. Output ONLY valid JSON — no markdown, no explanations`;
+}
 
 export function buildAutoConfigPrompt(
   goalText: string,
