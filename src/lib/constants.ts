@@ -458,6 +458,27 @@ export const CURRICULUM_FRAMEWORKS = {
       Present: "Present & Defend",
     } as Record<string, string>,
   },
+  NESA_DT: {
+    id: "NESA_DT" as const,
+    label: "NSW Design & Technology",
+    criteria: ["DM", "DP", "MP", "ME"],
+    criteriaLabels: {
+      DM: "Designing & Managing",
+      DP: "Design Projects",
+      MP: "Managing Projects",
+      ME: "Material Experimentation",
+    } as Record<string, string>,
+  },
+  VIC_DT: {
+    id: "VIC_DT" as const,
+    label: "Victorian Curriculum D&T",
+    criteria: ["TK", "DP", "PP"],
+    criteriaLabels: {
+      TK: "Technologies & Knowledge",
+      DP: "Design & Production",
+      PP: "Processes & Production",
+    } as Record<string, string>,
+  },
 } as const;
 
 export type CurriculumFrameworkId = keyof typeof CURRICULUM_FRAMEWORKS;
@@ -482,6 +503,8 @@ export function getFrameworkCriteria(framework: CurriculumFrameworkId | string =
     A_LEVEL_DT: ["#3B82F6", "#F59E0B", "#10B981"],
     IGCSE_DT: ["#6366F1", "#EF4444", "#10B981"],
     PLTW: ["#3B82F6", "#10B981", "#F59E0B", "#8B5CF6"],
+    NESA_DT: ["#0EA5E9", "#10B981", "#F59E0B", "#8B5CF6"],
+    VIC_DT: ["#6366F1", "#10B981", "#F59E0B"],
   };
 
   const colors = FRAMEWORK_COLORS[framework] || ["#6366F1", "#10B981", "#F59E0B", "#8B5CF6", "#EF4444"];
@@ -595,6 +618,24 @@ export const GRADING_SCALES: Record<string, GradingScale> = {
     max: 4,
     step: 1,
     formatDisplay: (v) => `${v}`,
+  },
+  NESA_DT: {
+    type: "letter",
+    min: 1,
+    max: 5,
+    step: 1,
+    labels: ["A", "B", "C", "D", "E"],
+    displayAsLabel: true,
+    formatDisplay: (v) => (["A", "B", "C", "D", "E"][v - 1] ?? `${v}`),
+  },
+  VIC_DT: {
+    type: "letter",
+    min: 1,
+    max: 5,
+    step: 1,
+    labels: ["A", "B", "C", "D", "E"],
+    displayAsLabel: true,
+    formatDisplay: (v) => (["A", "B", "C", "D", "E"][v - 1] ?? `${v}`),
   },
 };
 

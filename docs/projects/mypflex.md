@@ -94,7 +94,7 @@ Rationale (from unit-type-framework-architecture.md):
 
 **Goal:** A GCSE teacher can grade students using the correct scale and criteria.
 
-1. ✅ **Migration 055:** `framework TEXT DEFAULT 'IB_MYP'` on `classes` table + index. NOT YET APPLIED (code resilient via `|| "IB_MYP"` fallback).
+1. ✅ **Migration 055:** `framework TEXT DEFAULT 'IB_MYP'` on `classes` table + index. **APPLIED 28 Mar 2026.**
 2. ✅ **Framework selector on class creation page** — rewired from old unit-type values (`myp_design`) to proper framework IDs (`IB_MYP`, `GCSE_DT`, `IGCSE_DT`, `A_LEVEL_DT`, `ACARA_DT`, `PLTW`). Badge display on class cards updated.
 3. ✅ **5 new helpers in `constants.ts`:** `getFrameworkCriteria()`, `getGradingScale()`, `getFrameworkCriterion()`, `getFrameworkCriterionKeys()`. `GradingScale.type` extended with `"percentage"`.
 4. ✅ **3 new grading scales:** A_LEVEL_DT (0-100%), IGCSE_DT (0-100%), PLTW (1-4). GCSE/A-Level/IGCSE now typed as `"percentage"` not `"numeric"`.

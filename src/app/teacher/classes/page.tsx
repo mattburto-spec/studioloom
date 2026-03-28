@@ -211,6 +211,8 @@ export default function ClassesPage() {
                 { id: "IGCSE_DT", label: "IGCSE D&T", desc: "AO1-AO4, percentage", color: "#3B82F6" },
                 { id: "A_LEVEL_DT", label: "A-Level D&T", desc: "AO1-AO4, percentage", color: "#F59E0B" },
                 { id: "ACARA_DT", label: "ACARA D&T", desc: "K&U + Processes", color: "#EC4899" },
+                { id: "NESA_DT", label: "NSW D&T", desc: "A-E grades, NESA syllabus", color: "#0EA5E9" },
+                { id: "VIC_DT", label: "VIC D&T", desc: "A-E grades, VCAA curriculum", color: "#14B8A6" },
                 { id: "PLTW", label: "PLTW", desc: "1-4 proficiency scale", color: "#8B5CF6" },
               ].map((fw) => (
                 <button
@@ -332,20 +334,24 @@ export default function ClassesPage() {
                                   background: ({
                                     IB_MYP: "#EEF2FF", GCSE_DT: "#ECFDF5", IGCSE_DT: "#EFF6FF",
                                     A_LEVEL_DT: "#FFFBEB", ACARA_DT: "#FDF2F8", PLTW: "#F5F3FF",
+                                    NESA_DT: "#F0F9FF", VIC_DT: "#F0FDFA",
                                   } as Record<string, string>)[cls.framework] || "#F3F4F6",
                                   color: ({
                                     IB_MYP: "#3730A3", GCSE_DT: "#065F46", IGCSE_DT: "#1E40AF",
                                     A_LEVEL_DT: "#92400E", ACARA_DT: "#9D174D", PLTW: "#5B21B6",
+                                    NESA_DT: "#0369A1", VIC_DT: "#0F766E",
                                   } as Record<string, string>)[cls.framework] || "#374151",
                                   borderColor: ({
                                     IB_MYP: "#C7D2FE", GCSE_DT: "#A7F3D0", IGCSE_DT: "#BFDBFE",
                                     A_LEVEL_DT: "#FEF3C7", ACARA_DT: "#FBCFE8", PLTW: "#EDE9FE",
+                                    NESA_DT: "#BAE6FD", VIC_DT: "#99F6E4",
                                   } as Record<string, string>)[cls.framework] || "#E5E7EB",
                                 }}
                               >
                                 {({
                                   IB_MYP: "MYP", GCSE_DT: "GCSE", IGCSE_DT: "IGCSE",
                                   A_LEVEL_DT: "A-Level", ACARA_DT: "ACARA", PLTW: "PLTW",
+                                  NESA_DT: "NSW", VIC_DT: "VIC",
                                 } as Record<string, string>)[cls.framework] || cls.framework}
                               </span>
                             )}
