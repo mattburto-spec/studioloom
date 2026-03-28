@@ -155,36 +155,40 @@ function ToolLoadingFallback() {
  * Get the dynamic component for a tool ID
  * Uses Next.js dynamic imports with ssr: false to avoid hydration issues
  */
+function dynamicTool(importFn: () => Promise<any>, exportName: string) {
+  return dynamic(
+    () => importFn().then((m) => ({ default: m[exportName] })),
+    { loading: () => <ToolLoadingFallback />, ssr: false }
+  );
+}
+
 function getDynamicToolComponent(toolId: string) {
   const toolMap: Record<string, any> = {
-    scamper: dynamic(() => import("./ScamperTool").then((m) => ({ default: m.ScamperTool })), {
-      loading: () => <ToolLoadingFallback />,
-      ssr: false,
-    }),
-    "six-thinking-hats": dynamic(
-      () => import("./SixHatsTool").then((m) => ({ default: m.SixHatsTool })),
-      { loading: () => <ToolLoadingFallback />, ssr: false }
-    ),
-    "pmi-chart": dynamic(() => import("./PmiChartTool").then((m) => ({ default: m.PmiChartTool })), {
-      loading: () => <ToolLoadingFallback />,
-      ssr: false,
-    }),
-    "five-whys": dynamic(() => import("./FiveWhysTool").then((m) => ({ default: m.FiveWhysTool })), {
-      loading: () => <ToolLoadingFallback />,
-      ssr: false,
-    }),
-    "empathy-map": dynamic(
-      () => import("./EmpathyMapTool").then((m) => ({ default: m.EmpathyMapTool })),
-      { loading: () => <ToolLoadingFallback />, ssr: false }
-    ),
-    "decision-matrix": dynamic(
-      () => import("./DecisionMatrixTool").then((m) => ({ default: m.DecisionMatrixTool })),
-      { loading: () => <ToolLoadingFallback />, ssr: false }
-    ),
-    "how-might-we": dynamic(
-      () => import("./HowMightWeTool").then((m) => ({ default: m.HowMightWeTool })),
-      { loading: () => <ToolLoadingFallback />, ssr: false }
-    ),
+    "scamper":              dynamicTool(() => import("./ScamperTool"), "ScamperTool"),
+    "six-thinking-hats":    dynamicTool(() => import("./SixHatsTool"), "SixHatsTool"),
+    "pmi-chart":            dynamicTool(() => import("./PmiChartTool"), "PmiChartTool"),
+    "five-whys":            dynamicTool(() => import("./FiveWhysTool"), "FiveWhysTool"),
+    "empathy-map":          dynamicTool(() => import("./EmpathyMapTool"), "EmpathyMapTool"),
+    "decision-matrix":      dynamicTool(() => import("./DecisionMatrixTool"), "DecisionMatrixTool"),
+    "how-might-we":         dynamicTool(() => import("./HowMightWeTool"), "HowMightWeTool"),
+    "reverse-brainstorm":   dynamicTool(() => import("./ReverseBrainstormTool"), "ReverseBrainstormTool"),
+    "swot-analysis":        dynamicTool(() => import("./SwotAnalysisTool"), "SwotAnalysisTool"),
+    "stakeholder-map":      dynamicTool(() => import("./StakeholderMapTool"), "StakeholderMapTool"),
+    "lotus-diagram":        dynamicTool(() => import("./LotusDiagramTool"), "LotusDiagramTool"),
+    "affinity-diagram":     dynamicTool(() => import("./AffinityDiagramTool"), "AffinityDiagramTool"),
+    "morphological-chart":  dynamicTool(() => import("./MorphologicalChartTool"), "MorphologicalChartTool"),
+    "mind-map":             dynamicTool(() => import("./MindMapTool"), "MindMapTool"),
+    "brainstorm-web":       dynamicTool(() => import("./BrainstormWebTool"), "BrainstormWebTool"),
+    "feedback-capture-grid": dynamicTool(() => import("./FeedbackCaptureGridTool"), "FeedbackCaptureGridTool"),
+    "journey-map":          dynamicTool(() => import("./JourneyMapTool"), "JourneyMapTool"),
+    "systems-map":          dynamicTool(() => import("./SystemsMapTool"), "SystemsMapTool"),
+    "user-persona":         dynamicTool(() => import("./UserPersonaTool"), "UserPersonaTool"),
+    "fishbone-diagram":     dynamicTool(() => import("./FishboneTool"), "FishboneTool"),
+    "biomimicry-cards":     dynamicTool(() => import("./BiomimicryTool"), "BiomimicryTool"),
+    "pairwise-comparison":  dynamicTool(() => import("./PairwiseComparisonTool"), "PairwiseComparisonTool"),
+    "impact-effort-matrix": dynamicTool(() => import("./ImpactEffortMatrixTool"), "ImpactEffortMatrixTool"),
+    "pov-statement":        dynamicTool(() => import("./PointOfViewTool"), "PointOfViewTool"),
+    "design-specification": dynamicTool(() => import("./DesignSpecificationTool"), "DesignSpecificationTool"),
   };
 
   return toolMap[toolId] || null;
