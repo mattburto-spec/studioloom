@@ -34,6 +34,7 @@ interface ClassRow {
   id: string;
   name: string;
   code: string;
+  framework?: string;
 }
 
 interface StudentRow {
@@ -77,7 +78,7 @@ export const GET = withErrorHandler("teacher/dashboard:GET", async (request: Nex
   // 1. Fetch all non-archived classes for this teacher
   const { data: classes } = await supabase
     .from("classes")
-    .select("id, name, code")
+    .select("id, name, code, framework")
     .eq("teacher_id", teacherId)
     .neq("is_archived", true)
     .order("created_at", { ascending: false });
@@ -387,6 +388,7 @@ export const GET = withErrorHandler("teacher/dashboard:GET", async (request: Nex
       id: cls.id,
       name: cls.name,
       code: cls.code,
+      framework: cls.framework || "IB_MYP",
       studentCount: classStudents.length,
       units,
     };

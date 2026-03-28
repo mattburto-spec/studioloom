@@ -9,6 +9,7 @@ export interface DashboardClass {
   id: string;
   name: string;
   code: string;
+  framework?: string;
   studentCount: number;
   units: DashboardUnit[];
 }

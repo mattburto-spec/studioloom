@@ -24,7 +24,7 @@ export default function ClassesPage() {
   const [showArchived, setShowArchived] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState("");
-  const [newFramework, setNewFramework] = useState("myp_design");
+  const [newFramework, setNewFramework] = useState("IB_MYP");
   const [creating, setCreating] = useState(false);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [archiving, setArchiving] = useState<string | null>(null);
@@ -203,13 +203,15 @@ export default function ClassesPage() {
 
           {/* Framework selector */}
           <div className="mb-5">
-            <label className="text-xs font-semibold text-text-secondary mb-2.5 block">Learning Framework</label>
+            <label className="text-xs font-semibold text-text-secondary mb-2.5 block">Curriculum Framework</label>
             <div className="grid grid-cols-2 gap-2.5">
               {[
-                { id: "myp_design", label: "MYP Design", desc: "Design cycle", color: "#6366F1" },
-                { id: "service_learning", label: "Service Learning", desc: "Community service", color: "#EC4899" },
-                { id: "pyp_exhibition", label: "PYP Exhibition", desc: "Inquiry journey", color: "#F59E0B" },
-                { id: "personal_project", label: "Personal Project", desc: "Year 10 PP", color: "#8B5CF6" },
+                { id: "IB_MYP", label: "IB MYP", desc: "Criteria A-D, 1-8 scale", color: "#6366F1" },
+                { id: "GCSE_DT", label: "GCSE D&T", desc: "AO1-AO5, percentage", color: "#10B981" },
+                { id: "IGCSE_DT", label: "IGCSE D&T", desc: "AO1-AO4, percentage", color: "#3B82F6" },
+                { id: "A_LEVEL_DT", label: "A-Level D&T", desc: "AO1-AO4, percentage", color: "#F59E0B" },
+                { id: "ACARA_DT", label: "ACARA D&T", desc: "K&U + Processes", color: "#EC4899" },
+                { id: "PLTW", label: "PLTW", desc: "1-4 proficiency scale", color: "#8B5CF6" },
               ].map((fw) => (
                 <button
                   key={fw.id}
@@ -250,7 +252,7 @@ export default function ClassesPage() {
               onClick={() => {
                 setShowCreate(false);
                 setNewName("");
-                setNewFramework("myp_design");
+                setNewFramework("IB_MYP");
               }}
               className="px-3 py-2.5 text-sm text-text-tertiary hover:text-text-primary transition"
             >
@@ -327,39 +329,24 @@ export default function ClassesPage() {
                               <span
                                 className="text-[10px] font-semibold px-2 py-0.5 rounded-full border"
                                 style={{
-                                  background:
-                                    cls.framework === "myp_design"
-                                      ? "#EEF2FF"
-                                      : cls.framework === "service_learning"
-                                      ? "#FDF2F8"
-                                      : cls.framework === "pyp_exhibition"
-                                      ? "#FFFBEB"
-                                      : "#F5F3FF",
-                                  color:
-                                    cls.framework === "myp_design"
-                                      ? "#3730A3"
-                                      : cls.framework === "service_learning"
-                                      ? "#9D174D"
-                                      : cls.framework === "pyp_exhibition"
-                                      ? "#92400E"
-                                      : "#5B21B6",
-                                  borderColor:
-                                    cls.framework === "myp_design"
-                                      ? "#C7D2FE"
-                                      : cls.framework === "service_learning"
-                                      ? "#FBCFE8"
-                                      : cls.framework === "pyp_exhibition"
-                                      ? "#FEF3C7"
-                                      : "#EDE9FE",
+                                  background: ({
+                                    IB_MYP: "#EEF2FF", GCSE_DT: "#ECFDF5", IGCSE_DT: "#EFF6FF",
+                                    A_LEVEL_DT: "#FFFBEB", ACARA_DT: "#FDF2F8", PLTW: "#F5F3FF",
+                                  } as Record<string, string>)[cls.framework] || "#F3F4F6",
+                                  color: ({
+                                    IB_MYP: "#3730A3", GCSE_DT: "#065F46", IGCSE_DT: "#1E40AF",
+                                    A_LEVEL_DT: "#92400E", ACARA_DT: "#9D174D", PLTW: "#5B21B6",
+                                  } as Record<string, string>)[cls.framework] || "#374151",
+                                  borderColor: ({
+                                    IB_MYP: "#C7D2FE", GCSE_DT: "#A7F3D0", IGCSE_DT: "#BFDBFE",
+                                    A_LEVEL_DT: "#FEF3C7", ACARA_DT: "#FBCFE8", PLTW: "#EDE9FE",
+                                  } as Record<string, string>)[cls.framework] || "#E5E7EB",
                                 }}
                               >
-                                {cls.framework === "myp_design"
-                                  ? "Design"
-                                  : cls.framework === "service_learning"
-                                  ? "Service"
-                                  : cls.framework === "pyp_exhibition"
-                                  ? "PYP"
-                                  : "Project"}
+                                {({
+                                  IB_MYP: "MYP", GCSE_DT: "GCSE", IGCSE_DT: "IGCSE",
+                                  A_LEVEL_DT: "A-Level", ACARA_DT: "ACARA", PLTW: "PLTW",
+                                } as Record<string, string>)[cls.framework] || cls.framework}
                               </span>
                             )}
                           </div>

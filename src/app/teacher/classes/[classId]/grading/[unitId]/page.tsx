@@ -8,6 +8,10 @@ import {
   GRADING_SCALES,
   type CriterionKey,
   type GradingScale,
+  getFrameworkCriteria,
+  getFrameworkCriterion,
+  getFrameworkCriterionKeys,
+  getGradingScale,
 } from "@/lib/constants";
 import { getPageList, isV3 } from "@/lib/unit-adapter";
 import type { Student, Unit, UnitPage, StudentProgress } from "@/types";
@@ -56,8 +60,19 @@ const TAG_LABELS: Record<AssessmentTag, string> = {
   regression: "Regression",
 };
 
-// Default to IB MYP scale — future: detect from unit/class framework setting
-const DEFAULT_SCALE = GRADING_SCALES.IB_MYP;
+// Framework-specific tags — MYP has criterion-specific tags, others use universal only
+function getFrameworkTags(framework: string): Record<string, AssessmentTag[]> {
+  if (framework === "IB_MYP") {
+    return {
+      A: ["strong_research", "weak_justification"],
+      B: ["creative_ideas", "limited_range"],
+      C: ["strong_technique", "poor_planning"],
+      D: ["honest_evaluation", "superficial_evaluation"],
+    };
+  }
+  // Other frameworks: no criterion-specific tags yet, only universal
+  return {};
+}
 
 // ---------------------------------------------------------------------------
 // Main Page
@@ -74,6 +89,7 @@ export default function GradingPage({
   const [className, setClassName] = useState("");
   const [unitPages, setUnitPages] = useState<UnitPage[]>([]);
   const [loading, setLoading] = useState(true);
+  const [classFramework, setClassFramework] = useState<string>("IB_MYP");
 
   // Assessment state
   const [assessments, setAssessments] = useState<
@@ -117,7 +133,7 @@ export default function GradingPage({
     Record<string, Record<string, StudentProgress>>
   >({});
 
-  const scale = DEFAULT_SCALE;
+  const scale = getGradingScale(classFramework);
 
   // ── Data Loading ──
 
@@ -125,7 +141,7 @@ export default function GradingPage({
     const supabase = createClient();
 
     const [classRes, unitRes, classUnitRes] = await Promise.all([
-      supabase.from("classes").select("name").eq("id", classId).single(),
+      supabase.from("classes").select("name, framework").eq("id", classId).single(),
       supabase.from("units").select("*").eq("id", unitId).single(),
       supabase
         .from("class_units")
@@ -162,6 +178,7 @@ export default function GradingPage({
     }
 
     setClassName(classRes.data?.name || "");
+    setClassFramework(classRes.data?.framework || "IB_MYP");
     setStudents(studentList);
     setUnit(unitRes.data);
 
@@ -273,24 +290,30 @@ export default function GradingPage({
     setDirty(true);
   }
 
-  // Get unique criteria from unit pages
-  // v3 (journey mode): extract from ActivitySection.criterionTags across all pages
-  // v2 (criterion mode): extract from page.criterion
-  const unitCriteria: CriterionKey[] = unit && isV3(unit.content_data)
-    ? ([
-        ...new Set(
-          unitPages.flatMap((p) =>
-            (p.content?.sections || []).flatMap((s) => s.criterionTags || [])
-          )
-        ),
-      ] as CriterionKey[])
-    : [
-        ...new Set(
-          unitPages
-            .filter((p) => p.type === "strand" && p.criterion)
-            .map((p) => p.criterion!)
-        ),
-      ];
+  // Get unique criteria from unit pages — try all extraction strategies, fall back to framework
+  const unitCriteria: string[] = (() => {
+    const uniqueCriteria = new Set<string>();
+    // Strategy 1: criterionTags in sections (v3/v4/timeline)
+    unitPages.forEach((p) => {
+      (p.content?.sections || []).forEach((s: any) => {
+        (s.criterionTags || []).forEach((t: string) => uniqueCriteria.add(t));
+      });
+    });
+    // Strategy 2: strand pages with criterion field (v1/v2)
+    unitPages.filter((p) => p.type === "strand" && p.criterion).forEach((p) => {
+      if (p.criterion) uniqueCriteria.add(p.criterion);
+    });
+    // Strategy 3: any page with direct criterion field
+    unitPages.forEach((p) => {
+      if ((p as any).criterion) uniqueCriteria.add((p as any).criterion);
+    });
+    // Fallback: use framework criteria
+    const criteria = Array.from(uniqueCriteria);
+    if (criteria.length === 0) {
+      return getFrameworkCriterionKeys(classFramework);
+    }
+    return criteria;
+  })();
 
   function getStudentStatus(studentId: string): "ungraded" | "draft" | "published" {
     const a = assessments.get(studentId);
@@ -539,6 +562,7 @@ export default function GradingPage({
                     onChange={(updates) => updateCriterionScore(key, updates)}
                     onViewEvidence={loadEvidence}
                     setDirty={setDirty}
+                    framework={classFramework}
                   />
                 ))}
 
@@ -923,18 +947,21 @@ function CriterionSection({
   onChange,
   onViewEvidence,
   setDirty,
+  framework,
 }: {
-  criterionKey: CriterionKey;
+  criterionKey: string;
   score: CriterionScore;
   scale: GradingScale;
   unitPages: UnitPage[];
   onChange: (updates: Partial<CriterionScore>) => void;
   onViewEvidence: (pageId: string) => void;
   setDirty: (v: boolean) => void;
+  framework: string;
 }) {
   const [showStrands, setShowStrands] = useState(false);
-  const criterion = CRITERIA[criterionKey];
-  const criterionTags = CRITERION_TAGS[criterionKey] || [];
+  const criterion = getFrameworkCriterion(criterionKey, framework) || { key: criterionKey, name: criterionKey, color: "#6366F1", bgClass: "bg-gray-100", textClass: "text-gray-700" };
+  const fwTags = getFrameworkTags(framework);
+  const criterionTags = fwTags[criterionKey] || [];
   const allTags = [...criterionTags, ...UNIVERSAL_TAGS];
 
   return (

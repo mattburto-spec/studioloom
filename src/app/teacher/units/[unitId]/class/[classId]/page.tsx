@@ -10,6 +10,7 @@ import type { ScheduleOverrides } from "@/components/teacher/LessonSchedule";
 import type { NMUnitConfig } from "@/lib/nm/constants";
 import { DEFAULT_NM_CONFIG, AGENCY_ELEMENTS } from "@/lib/nm/constants";
 import { getPageList, isV3 } from "@/lib/unit-adapter";
+import { getCriterionKeys, getCriterion, getFrameworkCriteria, getFrameworkCriterion, getFrameworkCriterionKeys, getGradingScale } from "@/lib/constants";
 import { getPageColor, CRITERIA, GRADING_SCALES, type CriterionKey, type GradingScale } from "@/lib/constants";
 import type { Unit, UnitPage, UnitContentData, Student, StudentProgress } from "@/types";
 import type { AssessmentRecordRow } from "@/types/assessment";
@@ -207,6 +208,7 @@ export default function ClassHubPage({
   const [unit, setUnit] = useState<Unit | null>(null);
   const [className, setClassName] = useState("");
   const [classCode, setClassCode] = useState("");
+  const [classFramework, setClassFramework] = useState<string>("IB_MYP");
   const [students, setStudents] = useState<Array<{ id: string; display_name: string; username: string; graduation_year?: string | null }>>([]);
   const [pages, setPages] = useState<Array<{ id: string; title: string }>>([]);
   const [unitPages, setUnitPages] = useState<UnitPage[]>([]);
@@ -277,7 +279,7 @@ export default function ClassHubPage({
 
       const [unitRes, classRes, studentsRes, classUnitRes, termsRes] = await Promise.all([
         supabase.from("units").select("*").eq("id", unitId).single(),
-        supabase.from("classes").select("name, code").eq("id", classId).single(),
+        supabase.from("classes").select("name, code, framework").eq("id", classId).single(),
         supabase.from("class_students").select("student_id, students(id, display_name, username, graduation_year)").eq("class_id", classId).eq("is_active", true),
         supabase.from("class_units").select("term_id, schedule_overrides, content_data, forked_at, forked_from_version, nm_config").eq("class_id", classId).eq("unit_id", unitId).single(),
         fetch("/api/teacher/school-calendar").then((r) => (r.ok ? r.json() : Promise.resolve({ terms: [] }))),
@@ -286,6 +288,7 @@ export default function ClassHubPage({
       setUnit(unitRes.data);
       setClassName(classRes.data?.name || "");
       setClassCode(classRes.data?.code || "");
+      setClassFramework(classRes.data?.framework || "IB_MYP");
 
       const enrolledStudents = (studentsRes.data || [])
         .filter((row: any) => row.students)
@@ -426,22 +429,26 @@ export default function ClassHubPage({
     setGradeLoading(true);
 
     try {
-      // Extract criteria from unit pages
-      const criteria: string[] = [];
-      if (unit && isV3(unit.content_data)) {
-        const uniqueCriteria = new Set<string>();
-        unitPages.forEach((p) => {
-          (p.content?.sections || []).forEach((s) => {
-            (s.criterionTags || []).forEach((t) => uniqueCriteria.add(t));
-          });
+      // Extract criteria from unit pages — try multiple strategies
+      const uniqueCriteria = new Set<string>();
+      // Strategy 1: criterionTags in sections (v3/v4/timeline pages)
+      unitPages.forEach((p) => {
+        (p.content?.sections || []).forEach((s: any) => {
+          (s.criterionTags || []).forEach((t: string) => uniqueCriteria.add(t));
         });
-        criteria.push(...Array.from(uniqueCriteria));
-      } else {
-        const uniqueCriteria = new Set<string>();
-        unitPages.filter((p) => p.type === "strand" && p.criterion).forEach((p) => {
-          if (p.criterion) uniqueCriteria.add(p.criterion);
-        });
-        criteria.push(...Array.from(uniqueCriteria));
+      });
+      // Strategy 2: strand pages with criterion field (v1/v2 pages)
+      unitPages.filter((p) => p.type === "strand" && p.criterion).forEach((p) => {
+        if (p.criterion) uniqueCriteria.add(p.criterion);
+      });
+      // Strategy 3: phaseLabel-based criterion detection (timeline pages sometimes encode criterion in phase)
+      unitPages.forEach((p) => {
+        if (p.criterion) uniqueCriteria.add(p.criterion);
+      });
+      // Fallback: use framework criteria first, then unit type defaults
+      let criteria = Array.from(uniqueCriteria);
+      if (criteria.length === 0) {
+        criteria = getFrameworkCriterionKeys(classFramework);
       }
       setUnitCriteriaForGrade(criteria);
 
@@ -1102,7 +1109,7 @@ export default function ClassHubPage({
                 <div className="bg-white rounded-xl border border-border p-5 lg:col-span-3 space-y-4">
                   {selectedStudentForGrading && (() => {
                     const student = students.find((s) => s.id === selectedStudentForGrading);
-                    const scale = GRADING_SCALES.IB_MYP;
+                    const scale = getGradingScale(classFramework);
                     return (
                       <>
                         {/* Student header */}
@@ -1118,7 +1125,7 @@ export default function ClassHubPage({
                         {/* Criteria sections */}
                         <div className="space-y-4">
                           {unitCriteriaForGrade.map((criterionKey) => {
-                            const criterion = CRITERIA[criterionKey as CriterionKey];
+                            const criterion = getFrameworkCriterion(criterionKey, classFramework, (unit as any)?.unit_type || "design");
                             if (!criterion) return null;
                             const score = getCriterionScore(criterionKey);
 
@@ -1143,32 +1150,65 @@ export default function ClassHubPage({
                                 </div>
 
                                 {/* Level picker */}
-                                <div className="flex gap-1">
-                                  {[1, 2, 3, 4, 5, 6, 7, 8].map((v) => {
-                                    const isSelected = v === score.level;
-                                    return (
+                                {(scale.max - scale.min) > 20 ? (
+                                  /* Percentage/large-range: number input */
+                                  <div className="flex items-center gap-2">
+                                    <input
+                                      type="number"
+                                      min={scale.min}
+                                      max={scale.max}
+                                      step={scale.step}
+                                      value={score.level || ""}
+                                      onChange={(e) => {
+                                        const val = e.target.value === "" ? 0 : Number(e.target.value);
+                                        if (val > scale.max) return;
+                                        updateCriterionScore(criterionKey, { level: val });
+                                      }}
+                                      placeholder={scale.formatDisplay(scale.min)}
+                                      className="w-20 px-2 py-1 border rounded font-semibold text-xs text-center focus:outline-none focus:ring-2 focus:ring-indigo-400/50"
+                                      style={{ borderColor: criterion.color + "60" }}
+                                    />
+                                    <span className="text-xs text-gray-500">
+                                      {score.level > 0 ? scale.formatDisplay(score.level) : `${scale.min}–${scale.max}`}
+                                    </span>
+                                    {score.level > 0 && (
                                       <button
-                                        key={v}
-                                        onClick={() => updateCriterionScore(criterionKey, { level: v })}
-                                        className="w-7 h-7 rounded-lg font-semibold text-xs transition text-white"
-                                        style={{
-                                          backgroundColor: isSelected ? criterion.color : "#e5e7eb",
-                                          color: isSelected ? "white" : "#9ca3af",
-                                        }}
+                                        onClick={() => updateCriterionScore(criterionKey, { level: 0 })}
+                                        className="w-7 h-7 rounded-lg bg-gray-200 text-gray-400 hover:bg-gray-300 transition text-xs font-semibold"
                                       >
-                                        {v}
+                                        ✕
                                       </button>
-                                    );
-                                  })}
-                                  {score.level > 0 && (
-                                    <button
-                                      onClick={() => updateCriterionScore(criterionKey, { level: 0 })}
-                                      className="w-7 h-7 rounded-lg bg-gray-200 text-gray-400 hover:bg-gray-300 transition text-xs font-semibold"
-                                    >
-                                      ✕
-                                    </button>
-                                  )}
-                                </div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  /* Discrete scales: button picker */
+                                  <div className="flex gap-1 flex-wrap">
+                                    {Array.from({ length: Math.round((scale.max - scale.min) / scale.step) + 1 }, (_, i) => scale.min + i * scale.step).map((v) => {
+                                      const isSelected = v === score.level;
+                                      return (
+                                        <button
+                                          key={v}
+                                          onClick={() => updateCriterionScore(criterionKey, { level: v })}
+                                          className="w-7 h-7 rounded-lg font-semibold text-xs transition min-w-[1.75rem]"
+                                          style={{
+                                            backgroundColor: isSelected ? criterion.color : "#e5e7eb",
+                                            color: isSelected ? "white" : "#9ca3af",
+                                          }}
+                                        >
+                                          {scale.formatDisplay(v)}
+                                        </button>
+                                      );
+                                    })}
+                                    {score.level > 0 && (
+                                      <button
+                                        onClick={() => updateCriterionScore(criterionKey, { level: 0 })}
+                                        className="w-7 h-7 rounded-lg bg-gray-200 text-gray-400 hover:bg-gray-300 transition text-xs font-semibold"
+                                      >
+                                        ✕
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
 
                                 {/* Criterion comment */}
                                 <textarea
@@ -1186,34 +1226,67 @@ export default function ClassHubPage({
                         {/* Overall assessment */}
                         <div className="p-3 bg-indigo-50 rounded-lg space-y-2 border border-indigo-200">
                           <label className="block text-xs font-semibold text-indigo-900">
-                            Overall Grade
+                            Overall Grade {scale.type === "percentage" ? `(${scale.min}-${scale.max}%)` : ""}
                           </label>
-                          <div className="flex gap-1">
-                            {[1, 2, 3, 4, 5, 6, 7, 8].map((v) => {
-                              const isSelected = v === overallGrade;
-                              return (
+                          {(scale.max - scale.min) > 20 ? (
+                            /* Percentage/large-range scales: number input */
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                min={scale.min}
+                                max={scale.max}
+                                step={scale.step}
+                                value={overallGrade ?? ""}
+                                onChange={(e) => {
+                                  const val = e.target.value === "" ? undefined : Number(e.target.value);
+                                  if (val !== undefined && (val < scale.min || val > scale.max)) return;
+                                  setOverallGrade(val);
+                                  setGradeDirty(true);
+                                }}
+                                placeholder={scale.formatDisplay(scale.min)}
+                                className="w-24 px-3 py-1.5 border border-indigo-300 rounded font-semibold text-sm text-center focus:outline-none focus:ring-2 focus:ring-indigo-400/50"
+                              />
+                              <span className="text-xs text-gray-500">
+                                {overallGrade !== undefined ? scale.formatDisplay(overallGrade) : `${scale.min}–${scale.max}`}
+                              </span>
+                              {overallGrade !== undefined && (
                                 <button
-                                  key={v}
-                                  onClick={() => setOverallGrade(v)}
-                                  className="flex-1 py-1.5 rounded font-semibold text-xs transition"
-                                  style={{
-                                    backgroundColor: isSelected ? "#6366f1" : "#e0e7ff",
-                                    color: isSelected ? "white" : "#6b7280",
-                                  }}
+                                  onClick={() => { setOverallGrade(undefined); setGradeDirty(true); }}
+                                  className="px-2 py-1.5 rounded bg-gray-200 text-gray-400 hover:bg-gray-300 transition text-xs font-semibold"
                                 >
-                                  {v}
+                                  ✕
                                 </button>
-                              );
-                            })}
-                            {overallGrade !== undefined && (
-                              <button
-                                onClick={() => setOverallGrade(undefined)}
-                                className="px-2 py-1.5 rounded bg-gray-200 text-gray-400 hover:bg-gray-300 transition text-xs font-semibold"
-                              >
-                                ✕
-                              </button>
-                            )}
-                          </div>
+                              )}
+                            </div>
+                          ) : (
+                            /* Discrete scales (MYP 1-8, PLTW 1-4): button picker */
+                            <div className="flex gap-1 flex-wrap">
+                              {Array.from({ length: Math.round((scale.max - scale.min) / scale.step) + 1 }, (_, i) => scale.min + i * scale.step).map((v) => {
+                                const isSelected = v === overallGrade;
+                                return (
+                                  <button
+                                    key={v}
+                                    onClick={() => { setOverallGrade(v); setGradeDirty(true); }}
+                                    className="flex-1 py-1.5 rounded font-semibold text-xs transition min-w-[2rem]"
+                                    style={{
+                                      backgroundColor: isSelected ? "#6366f1" : "#e0e7ff",
+                                      color: isSelected ? "white" : "#6b7280",
+                                    }}
+                                  >
+                                    {scale.formatDisplay(v)}
+                                  </button>
+                                );
+                              })}
+                              {overallGrade !== undefined && (
+                                <button
+                                  onClick={() => { setOverallGrade(undefined); setGradeDirty(true); }}
+                                  className="px-2 py-1.5 rounded bg-gray-200 text-gray-400 hover:bg-gray-300 transition text-xs font-semibold"
+                                >
+                                  ✕
+                                </button>
+                              )}
+                            </div>
+                          )}
                         </div>
 
                         {/* Teacher comments */}

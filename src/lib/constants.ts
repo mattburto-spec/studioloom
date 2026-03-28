@@ -427,17 +427,116 @@ export const CURRICULUM_FRAMEWORKS = {
       Processes: "Processes and Production Skills",
     } as Record<string, string>,
   },
+  A_LEVEL_DT: {
+    id: "A_LEVEL_DT" as const,
+    label: "A-Level Design & Technology",
+    criteria: ["C1", "C2", "C3"],
+    criteriaLabels: {
+      C1: "Technical Principles",
+      C2: "Designing and Making Principles",
+      C3: "Design and Make Project (NEA)",
+    } as Record<string, string>,
+  },
+  IGCSE_DT: {
+    id: "IGCSE_DT" as const,
+    label: "IGCSE Design & Technology",
+    criteria: ["Paper1", "Paper2", "Coursework"],
+    criteriaLabels: {
+      Paper1: "Product Design (Theory)",
+      Paper2: "Graphic Products / Resistant Materials",
+      Coursework: "Design & Make Project",
+    } as Record<string, string>,
+  },
+  PLTW: {
+    id: "PLTW" as const,
+    label: "Project Lead The Way",
+    criteria: ["Design", "Build", "Test", "Present"],
+    criteriaLabels: {
+      Design: "Design Process",
+      Build: "Build & Prototype",
+      Test: "Test & Evaluate",
+      Present: "Present & Defend",
+    } as Record<string, string>,
+  },
 } as const;
 
 export type CurriculumFrameworkId = keyof typeof CURRICULUM_FRAMEWORKS;
+
+// ---------------------------------------------------------------------------
+// Framework-Aware Helpers — MYPflex project
+// ---------------------------------------------------------------------------
+
+/**
+ * Get the criteria definitions for a specific framework, with colors and display info.
+ * Returns CriterionDefinition[] for use in grading, Grade tabs, etc.
+ */
+export function getFrameworkCriteria(framework: CurriculumFrameworkId | string = "IB_MYP"): Record<string, CriterionDefinition> {
+  const fw = CURRICULUM_FRAMEWORKS[framework as CurriculumFrameworkId];
+  if (!fw) return CRITERIA; // fallback to MYP
+
+  // Build CriterionDefinition records from the framework registry
+  const FRAMEWORK_COLORS: Record<string, string[]> = {
+    IB_MYP: ["#6366F1", "#10B981", "#F59E0B", "#8B5CF6"],
+    GCSE_DT: ["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6"],
+    ACARA_DT: ["#6366F1", "#10B981"],
+    A_LEVEL_DT: ["#3B82F6", "#F59E0B", "#10B981"],
+    IGCSE_DT: ["#6366F1", "#EF4444", "#10B981"],
+    PLTW: ["#3B82F6", "#10B981", "#F59E0B", "#8B5CF6"],
+  };
+
+  const colors = FRAMEWORK_COLORS[framework] || ["#6366F1", "#10B981", "#F59E0B", "#8B5CF6", "#EF4444"];
+  const result: Record<string, CriterionDefinition> = {};
+
+  fw.criteria.forEach((key: string, i: number) => {
+    result[key] = {
+      key,
+      name: fw.criteriaLabels[key] || key,
+      color: colors[i % colors.length],
+      bgClass: "bg-gray-100",
+      textClass: "text-gray-700",
+    };
+  });
+
+  return result;
+}
+
+/**
+ * Get the grading scale for a specific framework.
+ * Falls back to IB_MYP if framework is unknown.
+ */
+export function getGradingScale(framework: CurriculumFrameworkId | string = "IB_MYP"): GradingScale {
+  return GRADING_SCALES[framework as CurriculumFrameworkId] || GRADING_SCALES.IB_MYP;
+}
+
+/**
+ * Get a single criterion definition by key for a specific framework.
+ * Falls back to unit-type criteria, then MYP defaults.
+ */
+export function getFrameworkCriterion(
+  key: string,
+  framework: CurriculumFrameworkId | string = "IB_MYP",
+  unitType: string = "design"
+): CriterionDefinition | undefined {
+  const fwCriteria = getFrameworkCriteria(framework);
+  return fwCriteria[key] || getCriterion(key, unitType);
+}
+
+/**
+ * Get ordered criterion keys for a framework (e.g. ["AO1","AO2","AO3","AO4","AO5"] for GCSE).
+ */
+export function getFrameworkCriterionKeys(framework: CurriculumFrameworkId | string = "IB_MYP"): string[] {
+  const fw = CURRICULUM_FRAMEWORKS[framework as CurriculumFrameworkId];
+  if (!fw) return getCriterionKeys("design");
+  return [...fw.criteria];
+}
 
 // ---------------------------------------------------------------------------
 // Grading Scales — framework-agnostic scoring configuration
 // ---------------------------------------------------------------------------
 
 export interface GradingScale {
-  /** Whether the scale uses numbers or letter labels */
-  type: "numeric" | "letter";
+  /** Whether the scale uses numbers, letter labels, or percentages */
+  type: "numeric" | "letter" | "percentage";
   /** Minimum score value */
   min: number;
   /** Maximum score value */
@@ -452,7 +551,7 @@ export interface GradingScale {
   formatDisplay: (value: number) => string;
 }
 
-export const GRADING_SCALES: Record<CurriculumFrameworkId, GradingScale> = {
+export const GRADING_SCALES: Record<string, GradingScale> = {
   IB_MYP: {
     type: "numeric",
     min: 1,
@@ -461,7 +560,7 @@ export const GRADING_SCALES: Record<CurriculumFrameworkId, GradingScale> = {
     formatDisplay: (v) => `${v}`,
   },
   GCSE_DT: {
-    type: "numeric",
+    type: "percentage",
     min: 0,
     max: 100,
     step: 1,
@@ -475,6 +574,27 @@ export const GRADING_SCALES: Record<CurriculumFrameworkId, GradingScale> = {
     labels: ["A", "B", "C", "D", "E"],
     displayAsLabel: true,
     formatDisplay: (v) => (["A", "B", "C", "D", "E"][v - 1] ?? `${v}`),
+  },
+  A_LEVEL_DT: {
+    type: "percentage",
+    min: 0,
+    max: 100,
+    step: 1,
+    formatDisplay: (v) => `${v}%`,
+  },
+  IGCSE_DT: {
+    type: "percentage",
+    min: 0,
+    max: 100,
+    step: 1,
+    formatDisplay: (v) => `${v}%`,
+  },
+  PLTW: {
+    type: "numeric",
+    min: 1,
+    max: 4,
+    step: 1,
+    formatDisplay: (v) => `${v}`,
   },
 };
 
