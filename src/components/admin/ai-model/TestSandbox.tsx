@@ -17,31 +17,23 @@ const UNIT_TYPE_OPTIONS: { value: UnitType; label: string; icon: string; color: 
   { value: "inquiry", label: "Inquiry", icon: "🔎", color: "#10B981" },
 ];
 
-/** Quick-fill presets for testing each unit type */
-const UNIT_TYPE_PRESETS: Record<UnitType, { topic: string; endGoal: string; framework: string; criteria: string[] }> = {
+/** Quick-fill presets for testing each unit type. Framework/criteria update dynamically — these are just defaults. */
+const UNIT_TYPE_PRESETS: Record<UnitType, { topic: string; endGoal: string }> = {
   design: {
     topic: "Sustainable Packaging Design",
     endGoal: "Design and prototype a sustainable food container that reduces plastic waste",
-    framework: "IB_MYP",
-    criteria: ["A", "B", "C", "D"],
   },
   service: {
     topic: "School Garden Community Project",
     endGoal: "Investigate food waste in the school community and take sustainable action through a school garden initiative",
-    framework: "IB_MYP",
-    criteria: ["A", "B", "C", "D"],
   },
   personal_project: {
     topic: "Photography Portfolio",
     endGoal: "Create a curated photography portfolio exploring a personal theme, documenting the creative process and ATL skill development",
-    framework: "IB_MYP",
-    criteria: ["A", "B", "C", "D"],
   },
   inquiry: {
     topic: "Water: A Shared Resource",
     endGoal: "Investigate how access to clean water varies globally and create an awareness campaign for the school community",
-    framework: "IB_MYP",
-    criteria: ["A", "B", "C", "D"],
   },
 };
 
@@ -49,11 +41,13 @@ export const FRAMEWORKS = [
   { value: "IB_MYP", label: "IB MYP Design", criteria: ["A", "B", "C", "D"] },
   { value: "IB_MYP_SERVICE", label: "IB MYP Community Project", criteria: ["A", "B", "C", "D"] },
   { value: "IB_CAS", label: "IB DP CAS", criteria: ["LO1", "LO2", "LO3", "LO4", "LO5", "LO6", "LO7"] },
-  { value: "GCSE_DT", label: "GCSE Design & Technology", criteria: ["AO1", "AO2", "AO3", "AO4", "AO5"] },
-  { value: "ACARA_DT", label: "Australian Curriculum DT", criteria: ["KU", "P&P"] },
-  { value: "PLTW", label: "Project Lead The Way (US)", criteria: ["IED", "POE", "CEA", "DE"] },
+  { value: "GCSE_DT", label: "GCSE Design & Technology", criteria: ["AO1", "AO2", "AO3", "AO4"] },
   { value: "A_LEVEL_DT", label: "A-Level Design & Technology", criteria: ["C1", "C2", "C3"] },
   { value: "IGCSE_DT", label: "Cambridge IGCSE DT", criteria: ["AO1", "AO2", "AO3"] },
+  { value: "ACARA_DT", label: "Australian Curriculum DT", criteria: ["KU", "PPS"] },
+  { value: "NESA_DT", label: "NSW Design & Technology (NESA)", criteria: ["DP", "Pr", "Ev"] },
+  { value: "VIC_DT", label: "Victorian Curriculum DT", criteria: ["TS", "TC", "CDS"] },
+  { value: "PLTW", label: "Project Lead The Way (US)", criteria: ["Design", "Build", "Test", "Present"] },
 ];
 
 export const LESSON_TYPES = [
@@ -97,7 +91,7 @@ export function TestSandbox() {
   const [framework, setFramework] = useState("IB_MYP");
   const [selectedCriteria, setSelectedCriteria] = useState<string[]>(["A", "B", "C", "D"]);
 
-  /** Apply a unit type preset — fills in topic, endGoal, framework, criteria */
+  /** Apply a unit type preset — fills in topic and endGoal. Framework/criteria stay as currently selected. */
   const applyPreset = (type: UnitType) => {
     setUnitType(type);
     const preset = UNIT_TYPE_PRESETS[type];
@@ -106,8 +100,6 @@ export function TestSandbox() {
       topic: preset.topic,
       endGoal: preset.endGoal,
     });
-    setFramework(preset.framework);
-    setSelectedCriteria([...preset.criteria]);
   };
   const [loading, setLoading] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

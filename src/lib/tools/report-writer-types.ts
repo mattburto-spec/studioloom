@@ -13,13 +13,18 @@ export const REPORTING_PERIODS = [
 ] as const;
 export type ReportingPeriod = (typeof REPORTING_PERIODS)[number];
 
-export type FrameworkId = "general" | "IB_MYP" | "GCSE_DT" | "ACARA_DT";
+export type FrameworkId = "general" | "IB_MYP" | "GCSE_DT" | "ACARA_DT" | "A_LEVEL_DT" | "IGCSE_DT" | "PLTW" | "NESA_DT" | "VIC_DT";
 
 export const FRAMEWORKS: { id: FrameworkId; label: string }[] = [
   { id: "general", label: "General Design & Technology" },
   { id: "IB_MYP", label: "IB MYP Design" },
   { id: "GCSE_DT", label: "GCSE Design & Technology" },
-  { id: "ACARA_DT", label: "Australian D&T" },
+  { id: "A_LEVEL_DT", label: "A-Level Design & Technology" },
+  { id: "IGCSE_DT", label: "Cambridge IGCSE D&T" },
+  { id: "ACARA_DT", label: "Australian D&T (ACARA)" },
+  { id: "NESA_DT", label: "NSW Design & Technology (NESA)" },
+  { id: "VIC_DT", label: "Victorian Curriculum D&T" },
+  { id: "PLTW", label: "Project Lead The Way (US)" },
 ];
 
 export const RATING_CATEGORIES: Record<FrameworkId, Record<string, string[]>> = {
@@ -114,11 +119,117 @@ export const RATING_CATEGORIES: Record<FrameworkId, Record<string, string[]>> = 
       "Sustainability awareness",
       "Safety & management",
     ],
-    "Processes & Production": [
+    "Processes & Production Skills": [
       "Investigating & defining",
       "Designing solutions",
       "Producing & implementing",
       "Evaluating",
+      "Collaborating & managing",
+    ],
+  },
+  A_LEVEL_DT: {
+    "Technical Principles": [
+      "Materials & their applications",
+      "Performance characteristics",
+      "Manufacturing processes & techniques",
+      "Digital design & manufacture",
+    ],
+    "Designing & Making Principles": [
+      "Design communication",
+      "Design theory & practice",
+      "Health & safety",
+      "Responsible design",
+    ],
+    "Design & Make Project (NEA)": [
+      "Identifying & investigating",
+      "Designing & developing",
+      "Making & manufacturing",
+      "Testing & evaluating",
+    ],
+  },
+  IGCSE_DT: {
+    "Knowledge & Understanding": [
+      "Materials & components",
+      "Tools & equipment",
+      "Manufacturing processes",
+      "Health & safety",
+    ],
+    Application: [
+      "Applying design skills",
+      "Selecting materials & processes",
+      "Using tools & equipment",
+      "Problem solving",
+    ],
+    "Analysis & Evaluation": [
+      "Product analysis",
+      "Testing & evaluation",
+      "Design improvement",
+      "Specification reference",
+    ],
+  },
+  PLTW: {
+    "Design Process": [
+      "Problem definition",
+      "Concept generation",
+      "Solution development",
+      "Engineering notebook",
+    ],
+    "Build & Prototype": [
+      "Construction skills",
+      "Fabrication accuracy",
+      "Iteration & refinement",
+      "Materials & tools",
+    ],
+    "Test & Evaluate": [
+      "Testing methods",
+      "Data analysis",
+      "Results interpretation",
+      "Design iteration",
+    ],
+    "Present & Defend": [
+      "Oral presentation",
+      "Technical documentation",
+      "Visual communication",
+      "Defence of decisions",
+    ],
+  },
+  NESA_DT: {
+    "Design Process": [
+      "Investigating needs & opportunities",
+      "Generating & developing ideas",
+      "Communicating design ideas",
+      "Justifying design decisions",
+    ],
+    Producing: [
+      "Selecting tools & materials",
+      "Managing production",
+      "Technical skills & accuracy",
+      "Safety practices",
+    ],
+    Evaluating: [
+      "Testing against criteria",
+      "Analysing design solutions",
+      "Reflecting on processes",
+      "Suggesting improvements",
+    ],
+  },
+  VIC_DT: {
+    "Technologies & Society": [
+      "Impacts of technology",
+      "Ethical considerations",
+      "Sustainability awareness",
+      "Past & future technologies",
+    ],
+    "Technological Contexts": [
+      "Materials & characteristics",
+      "Systems thinking",
+      "Food & fibre",
+      "Engineering principles",
+    ],
+    "Creating Design Solutions": [
+      "Investigating & generating",
+      "Producing solutions",
+      "Evaluating outcomes",
       "Collaborating & managing",
     ],
   },
