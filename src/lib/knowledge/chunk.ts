@@ -567,9 +567,9 @@ function mapGroupingLabel(
   const l = label.toLowerCase().trim();
   if (l.includes("individual") || l.includes("solo")) return "individual";
   if (l.includes("pair")) return "pair";
-  if (l.includes("small") || l.includes("group") && !l.includes("whole")) return "small_group";
-  if (l.includes("whole") || l.includes("class")) return "whole_class";
   if (l.includes("flex") || l.includes("mixed")) return "flexible";
+  if (l.includes("small") || (l.includes("group") && !l.includes("whole"))) return "small_group";
+  if (l.includes("whole") || l.includes("class")) return "whole_class";
   return undefined;
 }
 
