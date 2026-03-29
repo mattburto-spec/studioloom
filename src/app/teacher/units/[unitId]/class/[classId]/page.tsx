@@ -1791,6 +1791,8 @@ function StudentsTab({
             /* Enrol existing students */
             <div>
               <input
+                id="student-search"
+                name="student-search"
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -1843,8 +1845,10 @@ function StudentsTab({
             <div>
               <div className="grid grid-cols-2 gap-3 mb-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Display Name</label>
+                  <label htmlFor="new-student-name" className="block text-xs font-medium text-gray-700 mb-1">Display Name</label>
                   <input
+                    id="new-student-name"
+                    name="new-student-name"
                     type="text"
                     value={newDisplayName}
                     onChange={(e) => setNewDisplayName(e.target.value)}
@@ -1854,8 +1858,10 @@ function StudentsTab({
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 mb-1">Username</label>
+                  <label htmlFor="new-student-username" className="block text-xs font-medium text-gray-700 mb-1">Username</label>
                   <input
+                    id="new-student-username"
+                    name="new-student-username"
                     type="text"
                     value={newUsername}
                     onChange={(e) => setNewUsername(e.target.value)}
@@ -1900,9 +1906,9 @@ function StudentsTab({
               {editingId === s.id ? (
                 /* Edit mode */
                 <div className="flex-1 flex items-center gap-2">
-                  <input value={editName} onChange={(e) => setEditName(e.target.value)}
+                  <input id="edit-student-name" name="edit-student-name" type="text" value={editName} onChange={(e) => setEditName(e.target.value)}
                     className="flex-1 px-2 py-1 rounded border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
-                  <input value={editUsername} onChange={(e) => setEditUsername(e.target.value)}
+                  <input id="edit-student-username" name="edit-student-username" type="text" value={editUsername} onChange={(e) => setEditUsername(e.target.value)}
                     className="w-32 px-2 py-1 rounded border border-gray-300 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-purple-500" />
                   <button onClick={() => saveEdit(s.id)} disabled={saving}
                     className="px-2 py-1 rounded bg-purple-600 text-white text-xs font-medium hover:bg-purple-700 transition disabled:opacity-50">Save</button>
