@@ -291,20 +291,25 @@ export default function KnowledgeLibraryPage() {
     setUploadQueue((prev) => [...prev, ...newEntries]);
     setActiveTab("uploads");
 
-    // Generate PDF thumbnails + page images before uploading
+    // Generate PDF thumbnails + page images before uploading (non-fatal)
     await Promise.all(
       newEntries.map(async (entry) => {
         if (entry.file.name.toLowerCase().endsWith(".pdf")) {
-          // Thumbnail (fast, page 1 only)
-          const thumb = await generatePDFThumbnail(entry.file);
-          if (thumb) {
-            entry.thumbnailBlob = thumb;
-            updateQueueEntry(entry.id, { thumbnailBlob: thumb });
-          }
-          // All page images for storage
-          const pages = await extractPDFPageImages(entry.file);
-          if (pages.length > 0) {
-            entry.pageImages = pages.map((p) => p.blob);
+          try {
+            // Thumbnail (fast, page 1 only)
+            const thumb = await generatePDFThumbnail(entry.file);
+            if (thumb) {
+              entry.thumbnailBlob = thumb;
+              updateQueueEntry(entry.id, { thumbnailBlob: thumb });
+            }
+            // All page images for storage
+            const pages = await extractPDFPageImages(entry.file);
+            if (pages.length > 0) {
+              entry.pageImages = pages.map((p) => p.blob);
+            }
+          } catch (err) {
+            // DOMMatrix/Canvas errors in some environments — skip thumbnails, upload still works
+            console.warn("[upload] PDF thumbnail generation failed (non-fatal):", err);
           }
         }
       })

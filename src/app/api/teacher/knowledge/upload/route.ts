@@ -14,7 +14,12 @@ import type { LessonProfile, PartialTeachingContext, SchoolContext, TeacherPrefe
 import type { TextbookSectionContent, LessonResourceContent } from "@/types/knowledge-library";
 import { UPLOAD_STAGE_CONFIG, type UploadSSEEvent, type UploadStage } from "@/types/upload-progress";
 
-const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
+// Vercel Hobby plan: 4.5MB body limit, 60s max duration
+// Vercel Pro plan: 4.5MB default (configurable), 300s max duration
+// For large files, client should upload directly to Supabase Storage first (future)
+export const maxDuration = 300; // 5 minutes — 3-pass AI analysis is slow
+
+const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB (app-level limit; Vercel enforces lower)
 const ALLOWED_TYPES = [
   "application/pdf",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
