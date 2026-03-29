@@ -334,6 +334,41 @@ Key findings from research:
 - Total build estimate for all 43 expansion tools: ~57-71 days
 - Cross-cutting patterns: constraint-as-feature, progressive reveal, AI as provocateur, shareable outputs
 
+## Monetisation Strategy (29 March 2026)
+
+**Decision: Design Thinking category = free forever. Other 6 categories = paid (StudioLoom subscription).**
+
+### Why Design stays free
+- Lead-gen engine. Teacher finds SCAMPER → uses in class → tells 3 colleagues. This is how edtech spreads — teacher word-of-mouth on free tools they actually use.
+- 48 tools is substantial enough to be genuinely useful, not a "teaser."
+- Framework-agnostic positioning means any design teacher worldwide can use it — IB MYP, GCSE, ACARA, PLTW, d.school, IDEO, Double Diamond.
+- The toolkit is StudioLoom's "Canva moment" — give away the thing that gets people in the door.
+- No login required for public use. Zero friction.
+
+### Why other 6 categories are paid
+- Collaborate tools need class rosters (team charters, round robin, consensus builder).
+- Discovery tools need student profiles (archetype finder, strength mapper feed into AI mentoring).
+- Growth tools need longitudinal data (growth tracker, learning log span semesters).
+- These features only make sense inside a platform with student accounts = StudioLoom subscription.
+- Natural upgrade path: "I love the free toolkit, now I want team tools for my class" → subscribe.
+
+### Pricing model
+- Free tier: All 48 Design Thinking tools, unlimited use, no login.
+- School subscription: All 91 tools + student accounts + session persistence + AI coaching + teacher dashboard + portfolio integration.
+- The paid categories aren't individually purchasable — they come with the platform.
+
+### Validation before building
+- **Do NOT build the 43 expansion tools until real teachers are using the free 27.**
+- Get 5 teachers using the free toolkit first. Watch what they actually use.
+- Build expansion categories that real usage data says matter.
+- If a teacher says "I wish this had a team charter builder" — build it in a day and they feel heard.
+- The research docs (`design-thinking-tools-research.md` + `toolkit-expansion-research.md`) are ready for when demand is validated.
+
+### The honest assessment
+91 tools with AI coaching that adapts per-step, effort-gating, session persistence, and shareable outputs — nothing like this exists in education. Closest competitors (Miro templates, Canva whiteboards, SessionLab) are static templates or collaboration tools without pedagogical intelligence. The per-step AI rules are genuinely unique. A student using Five Whys gets better feedback than most teachers can give in real-time because the AI detects sideways vs deeper thinking. That's not a template — that's a thinking partner.
+
+**But:** 27 interactive tools at C/C+ quality and 0 users. The bottleneck is teacher adoption, not more tools. Polish the existing 27 to A-tier quality (SCAMPER v2 reference pattern), get real usage, THEN expand.
+
 ## Success Metrics
 
 - **Tool completion rate** — % of students who finish intro → working → summary
