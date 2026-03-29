@@ -43,13 +43,22 @@ function aiSearch(query: string): string[] {
   return Array.from(matched);
 }
 
+/* ── Phase pill config ────────────────────────────────────────── */
+const PHASE_EMOJI: Record<Phase, string> = {
+  discover: '\uD83D\uDD0D',
+  define: '\uD83D\uDCCB',
+  ideate: '\uD83D\uDCA1',
+  prototype: '\uD83D\uDD27',
+  test: '\u2714\uFE0F',
+};
+
 /* ── Toolkit category tabs ─────────────────────────────────── */
 const TOOLKIT_TABS = [
   { id: 'design-thinking', label: 'Design Thinking', active: true },
-  { id: 'systems-thinking', label: 'Systems Thinking', active: false },
-  { id: 'entrepreneurship', label: 'Entrepreneurship', active: false },
-  { id: 'scientific-method', label: 'Scientific Method', active: false },
-  { id: 'creative-arts', label: 'Creative Arts', active: false },
+  { id: 'visual-thinking', label: 'Visual Thinking', active: false },
+  { id: 'collaboration', label: 'Collaboration', active: false },
+  { id: 'project-mgmt', label: 'Project Mgmt', active: false },
+  { id: 'reflection', label: 'Reflection', active: false },
 ];
 
 /* ── Main page component ────────────────────────────────────── */
@@ -72,17 +81,22 @@ export default function ToolkitPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // Phase counts
+  const phaseCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: tools.length };
+    for (const t of tools) counts[t.phase] = (counts[t.phase] || 0) + 1;
+    return counts;
+  }, []);
+
   const { filteredTools, aiActive } = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     let result = tools;
     let matched = false;
 
-    // Phase filter
     if (selectedPhase !== 'all') {
       result = result.filter(t => t.phase === selectedPhase);
     }
 
-    // Search — text match + AI keyword rules
     if (q) {
       const aiMatches = aiSearch(q);
       matched = aiMatches.length > 0;
@@ -99,7 +113,6 @@ export default function ToolkitPage() {
 
   const handlePhaseClick = (phase: Phase | 'all') => {
     setSelectedPhase(prev => prev === phase ? 'all' : phase);
-    // Auto-scroll to grid with offset for sticky nav + controls
     setTimeout(() => {
       if (gridRef.current) {
         const y = gridRef.current.getBoundingClientRect().top + window.scrollY - 120;
@@ -107,8 +120,6 @@ export default function ToolkitPage() {
       }
     }, 100);
   };
-
-  const interactiveCount = tools.filter(t => t.interactive).length;
 
   return (
     <div
@@ -131,25 +142,26 @@ export default function ToolkitPage() {
         }
       `}</style>
 
-      {/* ═══ HERO ═══ */}
+      {/* ═══ HERO with gradient background ═══ */}
       <motion.div
         initial="hidden"
         animate="visible"
         style={{
           position: 'relative',
-          padding: 'clamp(40px, 4vw, 56px) 24px 32px',
+          padding: 'clamp(40px, 4vw, 56px) 24px 0',
           textAlign: 'center',
           overflow: 'hidden',
+          background: 'linear-gradient(135deg, #0a0a12 0%, #1a1030 40%, #0d1a2a 70%, #0a0a12 100%)',
         }}
       >
-        {/* Aurora background */}
+        {/* Aurora glow orbs */}
         <div
           style={{
             position: 'absolute', inset: 0,
             background: `
-              radial-gradient(ellipse 80% 60% at 20% 40%, rgba(99,102,241,0.1) 0%, transparent 70%),
-              radial-gradient(ellipse 60% 50% at 80% 30%, rgba(168,85,247,0.07) 0%, transparent 70%),
-              radial-gradient(ellipse 70% 40% at 50% 80%, rgba(236,72,153,0.05) 0%, transparent 70%)
+              radial-gradient(ellipse at 30% 20%, rgba(139,92,246,0.15) 0%, transparent 60%),
+              radial-gradient(ellipse at 70% 80%, rgba(59,130,246,0.1) 0%, transparent 60%),
+              radial-gradient(ellipse at 50% 50%, rgba(236,72,153,0.06) 0%, transparent 50%)
             `,
             animation: 'aurora 25s ease-in-out infinite alternate',
           }}
@@ -169,7 +181,7 @@ export default function ToolkitPage() {
             StudioLoom{' '}
             <span
               style={{
-                background: 'linear-gradient(135deg, #818cf8 0%, #e879f9 50%, #fb923c 100%)',
+                background: 'linear-gradient(135deg, #a78bfa 0%, #60a5fa 50%, #34d399 100%)',
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
                 backgroundSize: '200% 200%',
@@ -183,40 +195,49 @@ export default function ToolkitPage() {
           <motion.p
             variants={fadeUp}
             style={{
-              fontSize: '15px', color: '#6b7394', lineHeight: 1.6,
+              fontSize: '15px', color: '#9393b0', lineHeight: 1.6,
               maxWidth: '480px', margin: '0 auto',
             }}
           >
-            {tools.length} design thinking tools. Filter by phase, search by intent.
+            Tools to think better, design smarter, and solve real problems
           </motion.p>
         </div>
-      </motion.div>
 
-      {/* ═══ TOOLKIT CATEGORY TABS with neon gradient line ═══ */}
-      <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 24px' }}>
-        <div style={{ position: 'relative' }}>
+        {/* ── Category tabs (inside hero) ── */}
+        <div style={{ position: 'relative', marginTop: '28px' }}>
           {/* Neon gradient line */}
           <div style={{
-            position: 'absolute', bottom: 0, left: 0, right: 0, height: '2px',
-            background: 'linear-gradient(90deg, #818cf8 0%, #a78bfa 30%, #c084fc 60%, #60a5fa 100%)',
-            boxShadow: '0 0 12px rgba(129,140,248,0.3), 0 0 4px rgba(129,140,248,0.2)',
+            position: 'absolute', bottom: 0, left: '50%', transform: 'translateX(-50%)',
+            width: 'min(700px, 90%)', height: '2px',
+            background: 'linear-gradient(90deg, transparent, rgba(139,92,246,0.6) 20%, rgba(96,165,250,0.5) 50%, rgba(139,92,246,0.6) 80%, transparent)',
+            boxShadow: '0 0 8px rgba(139,92,246,0.3), 0 0 20px rgba(139,92,246,0.15)',
           }} />
-          <div style={{ display: 'flex', gap: '0', overflow: 'auto' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', gap: '4px' }}>
             {TOOLKIT_TABS.map((tab) => (
               <div
                 key={tab.id}
                 style={{
-                  padding: '12px 24px',
+                  padding: '8px 20px',
+                  borderRadius: '10px 10px 0 0',
                   fontSize: '13px',
                   fontWeight: 700,
                   whiteSpace: 'nowrap',
-                  color: tab.active ? '#e8eaf0' : '#3d4260',
                   cursor: tab.active ? 'default' : 'not-allowed',
                   position: 'relative',
                   zIndex: tab.active ? 1 : 0,
-                  borderBottom: tab.active ? '2px solid #0a0a14' : 'none',
-                  marginBottom: tab.active ? '-1px' : '0',
-                  opacity: tab.active ? 1 : 0.4,
+                  marginBottom: '-1px',
+                  ...(tab.active ? {
+                    background: 'rgba(139,92,246,0.2)',
+                    border: '1px solid rgba(139,92,246,0.3)',
+                    borderBottom: '2px solid #0a0a14',
+                    color: '#a78bfa',
+                  } : {
+                    background: 'transparent',
+                    border: '1px solid transparent',
+                    borderBottom: 'none',
+                    color: '#4a4a6a',
+                    opacity: 0.5,
+                  }),
                 }}
               >
                 {tab.label}
@@ -224,7 +245,7 @@ export default function ToolkitPage() {
                   <span style={{
                     fontSize: '9px', fontWeight: 600, marginLeft: '6px',
                     padding: '1px 6px', borderRadius: '4px',
-                    background: 'rgba(255,255,255,0.04)', color: '#3d4260',
+                    background: 'rgba(255,255,255,0.04)', color: '#4a4a6a',
                     verticalAlign: 'middle',
                   }}>
                     Soon
@@ -234,122 +255,164 @@ export default function ToolkitPage() {
             ))}
           </div>
         </div>
-      </div>
 
-      {/* ═══ CONTROLS (sticky) ═══ */}
-      <div
-        style={{
-          position: 'sticky', top: '49px', zIndex: 100,
-          background: 'rgba(10,10,20,0.85)',
-          backdropFilter: 'blur(20px) saturate(1.5)',
-          WebkitBackdropFilter: 'blur(20px) saturate(1.5)',
-          borderBottom: '1px solid rgba(255,255,255,0.06)',
-        }}
-      >
-        <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '14px 24px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-            {/* Phase pills */}
-            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', flex: 1 }}>
-              {(['all', 'discover', 'define', 'ideate', 'prototype', 'test'] as const).map((phase) => {
-                const isActive = selectedPhase === phase;
-                const color = phase === 'all' ? '#818cf8' : PHASE_COLORS[phase];
-                const label = phase === 'all' ? 'All' : PHASE_LABELS[phase];
-                return (
-                  <motion.button
-                    key={phase}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={() => handlePhaseClick(phase)}
-                    style={{
-                      padding: '8px 20px',
-                      borderRadius: '20px',
-                      fontSize: '13px',
-                      fontWeight: 700,
-                      border: `1.5px solid ${isActive ? color : `${color}25`}`,
-                      background: isActive ? `${color}22` : `${color}0a`,
-                      color: isActive ? color : '#8a90b0',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s',
-                      whiteSpace: 'nowrap',
-                      boxShadow: isActive ? `0 0 16px ${color}20` : 'none',
-                    }}
-                  >
-                    {label}
-                  </motion.button>
-                );
-              })}
-            </div>
+        {/* ── Large centered search bar (inside hero) ── */}
+        <motion.div
+          variants={fadeUp}
+          style={{
+            maxWidth: '640px', margin: '24px auto 0', position: 'relative',
+            paddingBottom: '28px',
+          }}
+        >
+          <svg
+            style={{
+              position: 'absolute', left: '16px', top: '14px',
+              color: '#8b5cf6', width: '20px', height: '20px', pointerEvents: 'none',
+            }}
+            viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
+          >
+            <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input
+            ref={searchInputRef}
+            type="text"
+            placeholder={`Try 'brainstorm ideas' or 'evaluate options'...`}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{
+              width: '100%', padding: '14px 20px 14px 48px',
+              background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
+              borderRadius: '16px', color: '#e8eaf0', fontSize: '16px',
+              fontFamily: 'inherit', outline: 'none', transition: 'all 0.2s', boxSizing: 'border-box',
+            }}
+            onFocus={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(139,92,246,0.5)';
+              e.currentTarget.style.boxShadow = '0 0 0 3px rgba(139,92,246,0.15)';
+            }}
+            onBlur={(e) => {
+              e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)';
+              e.currentTarget.style.boxShadow = 'none';
+            }}
+          />
+        </motion.div>
+      </motion.div>
 
-            {/* Search */}
-            <div style={{ position: 'relative', width: '340px', flexShrink: 0 }}>
-              <svg
+      {/* ═══ PHASE PILLS (centered, with icons + counts) ═══ */}
+      <div style={{
+        position: 'sticky', top: '49px', zIndex: 100,
+        background: 'rgba(10,10,20,0.85)',
+        backdropFilter: 'blur(20px) saturate(1.5)',
+        WebkitBackdropFilter: 'blur(20px) saturate(1.5)',
+        borderBottom: '1px solid rgba(255,255,255,0.06)',
+      }}>
+        <div style={{
+          maxWidth: '1200px', margin: '0 auto',
+          padding: '14px 24px',
+          display: 'flex', justifyContent: 'center', gap: '8px', flexWrap: 'wrap',
+        }}>
+          {(['all', 'discover', 'define', 'ideate', 'prototype', 'test'] as const).map((phase) => {
+            const isActive = selectedPhase === phase;
+            const color = phase === 'all' ? '#e8eaf0' : PHASE_COLORS[phase];
+            const label = phase === 'all' ? 'All' : PHASE_LABELS[phase];
+            const count = phaseCounts[phase] || 0;
+            const emoji = phase === 'all' ? null : PHASE_EMOJI[phase];
+
+            return (
+              <motion.button
+                key={phase}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => handlePhaseClick(phase)}
                 style={{
-                  position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)',
-                  color: '#3d4260', pointerEvents: 'none', width: '16px', height: '16px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '10px 20px',
+                  borderRadius: '24px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.25s',
+                  whiteSpace: 'nowrap',
+                  border: `1.5px solid ${
+                    isActive
+                      ? (phase === 'all' ? 'rgba(255,255,255,0.3)' : `${color}99`)
+                      : (phase === 'all' ? 'rgba(255,255,255,0.12)' : `${color}40`)
+                  }`,
+                  background: isActive
+                    ? (phase === 'all' ? 'rgba(255,255,255,0.12)' : `${color}25`)
+                    : (phase === 'all' ? 'rgba(255,255,255,0.06)' : `${color}12`),
+                  color: isActive ? (phase === 'all' ? '#e8eaf0' : color) : (phase === 'all' ? 'rgba(255,255,255,0.5)' : `${color}cc`),
+                  boxShadow: isActive ? `0 0 16px ${phase === 'all' ? 'rgba(255,255,255,0.08)' : `${color}25`}` : 'none',
                 }}
-                viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"
               >
-                <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-              </svg>
-              <input
-                ref={searchInputRef}
-                type="text"
-                placeholder='Try "I need to prioritise ideas" or "compare options"'
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                style={{
-                  width: '100%', padding: '8px 12px 8px 36px',
-                  background: '#0d0d1a', border: '1.5px solid rgba(255,255,255,0.06)',
-                  borderRadius: '8px', color: '#e8eaf0', fontSize: '13px',
-                  fontFamily: 'inherit', outline: 'none', transition: 'all 0.2s', boxSizing: 'border-box',
-                }}
-                onFocus={(e) => {
-                  e.currentTarget.style.borderColor = 'rgba(129,140,248,0.4)';
-                  e.currentTarget.style.boxShadow = '0 0 0 3px rgba(129,140,248,0.06)';
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)';
-                  e.currentTarget.style.boxShadow = 'none';
-                }}
-              />
-              <div style={{
-                position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)',
-                fontFamily: 'monospace', fontSize: '10px', color: '#3d4260',
-                background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)',
-                borderRadius: '3px', padding: '1px 6px', pointerEvents: 'none',
-              }}>
-                /
-              </div>
-            </div>
-          </div>
+                {emoji && <span style={{ fontSize: '15px' }}>{emoji}</span>}
+                {label}
+                <span style={{ fontSize: '12px', opacity: 0.6, fontWeight: 500 }}>{count}</span>
+                {isActive && (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                )}
+              </motion.button>
+            );
+          })}
         </div>
       </div>
 
       {/* ═══ TOOL GRID ═══ */}
       <div ref={gridRef} style={{ maxWidth: '1200px', margin: '0 auto', padding: '20px 24px 40px' }}>
-        {/* Results count */}
-        <motion.div
-          key={filteredTools.length}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          style={{ fontSize: '12px', color: '#3d4260', fontWeight: 500, marginBottom: '14px' }}
-        >
-          {filteredTools.length} of {tools.length} tools
-          {selectedPhase !== 'all' && (
-            <span style={{ color: PHASE_COLORS[selectedPhase], marginLeft: '6px' }}>
-              in {PHASE_LABELS[selectedPhase]}
-            </span>
-          )}
-          {aiActive && (
-            <span style={{
-              marginLeft: '8px', fontSize: '10px', fontWeight: 600,
-              color: '#a78bfa', background: 'rgba(167,139,250,0.1)',
-              padding: '2px 8px', borderRadius: '4px',
+        {/* Toolbar row: count + view toggle */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
+          gap: '12px', marginBottom: '16px',
+        }}>
+          <motion.span
+            key={filteredTools.length}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            style={{ fontSize: '12px', color: '#6b6b8a', fontWeight: 500, marginRight: 'auto' }}
+          >
+            {filteredTools.length} of {tools.length} tools
+            {selectedPhase !== 'all' && (
+              <span style={{ color: PHASE_COLORS[selectedPhase], marginLeft: '6px' }}>
+                in {PHASE_LABELS[selectedPhase]}
+              </span>
+            )}
+            {aiActive && (
+              <span style={{
+                marginLeft: '8px', fontSize: '10px', fontWeight: 600,
+                color: '#a78bfa', background: 'rgba(167,139,250,0.1)',
+                padding: '2px 8px', borderRadius: '4px',
+              }}>
+                AI matched
+              </span>
+            )}
+          </motion.span>
+
+          {/* Grid / List toggle */}
+          <div style={{
+            display: 'flex',
+            background: 'rgba(255,255,255,0.06)',
+            borderRadius: '10px',
+            padding: '3px',
+          }}>
+            <button style={{
+              padding: '6px 12px', borderRadius: '8px', border: 'none',
+              background: 'rgba(139,92,246,0.25)', color: '#e8eaf0',
+              fontSize: '12px', fontWeight: 600, cursor: 'pointer',
             }}>
-              AI matched
-            </span>
-          )}
-        </motion.div>
+              Grid
+            </button>
+            <button style={{
+              padding: '6px 12px', borderRadius: '8px', border: 'none',
+              background: 'none', color: '#6b6b8a',
+              fontSize: '12px', fontWeight: 600, cursor: 'pointer',
+            }}>
+              List
+            </button>
+          </div>
+        </div>
 
         <AnimatePresence mode="wait">
           {filteredTools.length === 0 ? (
@@ -434,7 +497,6 @@ export default function ToolkitPage() {
 
                     {/* Card body */}
                     <div style={{ padding: '14px 16px 16px' }}>
-                      {/* Title — single line */}
                       <div style={{
                         fontSize: '14px', fontWeight: 700, color: '#fff',
                         marginBottom: '4px', letterSpacing: '-0.2px',
@@ -443,7 +505,6 @@ export default function ToolkitPage() {
                         {tool.name}
                       </div>
 
-                      {/* Description — 2 lines */}
                       <div style={{
                         fontSize: '12px', color: '#6b7394', lineHeight: 1.5,
                         marginBottom: '12px',
@@ -458,7 +519,6 @@ export default function ToolkitPage() {
                         display: 'flex', alignItems: 'center', gap: '6px',
                         paddingTop: '10px', borderTop: '1px solid rgba(255,255,255,0.04)',
                       }}>
-                        {/* Phase pill */}
                         <span style={{
                           fontSize: '10px', fontWeight: 600, padding: '2px 8px', borderRadius: '4px',
                           background: `${phaseColor}18`, color: phaseColor, textTransform: 'capitalize',
@@ -466,7 +526,6 @@ export default function ToolkitPage() {
                           {tool.phase}
                         </span>
 
-                        {/* Difficulty */}
                         <span style={{
                           fontSize: '10px', fontWeight: 600, padding: '2px 8px', borderRadius: '4px',
                           background: diff.bg, color: diff.text, textTransform: 'capitalize',
@@ -474,7 +533,6 @@ export default function ToolkitPage() {
                           {tool.difficulty}
                         </span>
 
-                        {/* Time */}
                         <span style={{
                           fontSize: '10px', color: '#3d4260', marginLeft: 'auto',
                         }}>
