@@ -1,7 +1,8 @@
 # Project: Toolkit — The Interactive Thinking Tools Platform
 
 *Created: 29 March 2026*
-*Status: Planning*
+*Last updated: 29 March 2026*
+*Status: Active — UX Polish Phase*
 
 ## Vision
 
@@ -22,7 +23,7 @@ Each tool should feel like a **standalone micro-app** — beautiful enough to sc
 
 ## Current State (Audit — 29 March 2026)
 
-### Interactive Tools (23 working + 2 slugs missing)
+### Interactive Tools (27 built)
 
 | # | Tool | Lines | AI | Animations | UX Rating | Notes |
 |---|------|-------|----|-----------|-----------| ------|
@@ -47,24 +48,76 @@ Each tool should feel like a **standalone micro-app** — beautiful enough to sc
 | 19 | Feedback Capture Grid | 475 | Haiku 4.5 | None | C | |
 | 20 | POV Statement | 459 | Haiku 4.5 | None | C | |
 | 21 | Design Specification | 456 | Haiku 4.5 | None | C | |
-| 22 | SWOT Analysis | 804 | Haiku 4.5 | None | C+ | **Has page but missing slug in tools-data.ts** |
-| 23 | Stakeholder Map | 839 | Haiku 4.5 | None | C+ | **Has page but missing slug in tools-data.ts** |
-| 24 | Decision Matrix | 58 | Haiku 4.5 | None | D | **UI stub only** |
-| 25 | How Might We | 58 | Haiku 4.5 | None | D | **UI stub only** |
+| 22 | SWOT Analysis | 804 | Haiku 4.5 | None | C+ | |
+| 23 | Stakeholder Map | 839 | Haiku 4.5 | None | C+ | |
+| 24 | Decision Matrix | 1,100 | Haiku 4.5 | None | C+ | Comparison Engine shape. |
+| 25 | How Might We | 1,019 | Haiku 4.5 | None | C+ | Guided Composition shape. |
+| 26 | Dot Voting | 550 | None | Framer Motion | B | Democratic prioritisation with limited dots. No AI needed. |
+| 27 | Quick Sketch | 750 | None | None | B- | HTML5 Canvas with pen/eraser/undo, SVG timer. |
 
-**Total interactive code: ~14,800 lines frontend + ~5,600 lines API = ~20,400 lines**
+**Total interactive code: ~17,000 lines frontend + ~6,000 lines API = ~23,000 lines**
 
-### Catalog-Only Tools (20 — no interactive version)
+### Catalog-Only Tools (21 — no interactive version)
 
-These appear in the `/toolkit` browser but have no interactive page. Clicking them does nothing.
+These appear in the `/toolkit` browser with tool descriptions but have no interactive page yet.
 
-Crazy 8s, Round Robin, Trade-off Sliders, Dot Voting, Mood Board, Storyboard, Annotation Template, Wireframe Template, Gantt Planner, Resource Planner, Design Journal, Before & After, Peer Review Protocol, Testing Protocol, Gallery Walk, Observation Sheet, User Persona Card (Template), Journey Map (Template), Impact/Effort Matrix (Template), Stakeholder Map (Template)
+Crazy 8s, Round Robin, Trade-off Sliders, Mood Board, Storyboard, Annotation Template, Wireframe Template, Gantt Planner, Resource Planner, Design Journal, Before & After, Peer Review Protocol, Testing Protocol, Gallery Walk, Observation Sheet, User Persona Card (Template), Journey Map (Template), Impact/Effort Matrix (Template), Stakeholder Map (Template), Presentation Planner, Design Brief
 
-### Immediate Fixes Needed
+### Browsing & Discovery Pages (29 Mar 2026)
 
-1. **Add slug to SWOT Analysis and Stakeholder Map in tools-data.ts** — they have full interactive pages but aren't linked from the catalog.
-2. **Complete Decision Matrix and How Might We UI** — both have full API backends (~200+ lines each) but only 58-line stub frontends.
-3. **Catalog-only tools need a clear "Template Only" badge** or a meaningful click action (e.g., open a printable PDF, or show a "Coming Soon" message instead of doing nothing).
+Both browsing pages have been through a significant UX overhaul:
+
+**Public page (`/toolkit`)** — aesthetic overhaul to match approved prototype v5:
+- Strong aurora gradient background (purple/blue/teal)
+- Large centered search bar with AI-powered intent matching (12 keyword rule sets)
+- Phase pills with emoji icons, tool counts, and active checkmarks
+- Category tabs (Design Thinking active + 4 "Soon" tabs) inside hero with neon gradient line
+- Grid/List toggle stub (visual only)
+- Structural SVG thumbnails per tool showing output shape
+- INTERACTIVE badge on 27 tools with dedicated pages
+
+**Teacher page (`/teacher/toolkit`)** — polished to match public page patterns:
+- Larger title, removed subtitle clutter
+- Standalone search bar (large, purple icon, shadow)
+- Phase pills with emoji, counts, bold colors, checkmarks, "All" pill
+- Fixed auto-scroll (targets sticky pill bar via requestAnimationFrame)
+- Group dropdown removed (phase pills + AI search cover filtering)
+- Category tabs with neon gradient underline
+
+### Lesson Editor Integration (29 Mar 2026)
+
+All 27 interactive tools are embeddable as inline activities in the Phase 0.5 lesson editor:
+- `ToolkitResponseInput.tsx` maps all 27 tools via `dynamicTool` helper
+- `ActivityBlock.tsx` shows purple tool picker panel (grouped by category) when `toolkit-tool` response type selected
+- `ActivityBlockAdd.tsx` has "Toolkit Tool" template
+- Data saves to student_progress as JSON, available for cross-unit reference
+
+### Persistence (26 Mar 2026)
+
+All 27 tools wired with `useToolSession` hook for auto-save, session resume, and state tracking. Public mode gracefully skips DB writes.
+
+### Remaining Work
+
+**Phase 1: Polish existing 27 tools (priority order)**
+1. SCAMPER v2 — rebuild as reference implementation with Framer Motion springs, AI thinking indicator, typewriter effect, mobile-first layout, glassmorphism cards
+2. Six Thinking Hats — upgrade animations + mobile, already B tier
+3. Five Whys — depth detection deserves beautiful UI
+4. Empathy Map — quadrant layout is visually interesting
+5. PMI Chart — simple but should feel premium
+6. Mind Map — most complex visual, may need canvas/SVG approach
+7. Remaining 20 tools — apply SCAMPER v2 patterns
+
+**Phase 2: Build catalog-only tools as interactive**
+- Convert 21 catalog entries to interactive tools using established patterns (Step Sequence, Canvas, Comparison Engine, Guided Composition)
+- Priority: Crazy 8s, Storyboard, Design Journal, Mood Board
+
+**Phase 3: New tool categories**
+- Psychometric & Self-Discovery (adapted from Discovery Engine)
+- Collaboration & Teamwork (Dot Voting done, Round Robin, Team Charter, Consensus Builder)
+- Drawing & Visual (Quick Sketch done, Annotation, Wireframe, Mood Board)
+- Planning & Project (Sprint Board, Timeline, Resource Planner)
+- Communication (Pitch Builder, Storyboard, Presentation Planner)
+- Reflection & Metacognition (Learning Log, Growth Tracker, Mistake Journal)
 
 ## UX Assessment
 
