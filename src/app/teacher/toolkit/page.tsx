@@ -6,7 +6,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   tools,
   type Phase,
-  type ToolGroup,
   PHASE_COLORS,
   PHASE_LABELS,
   SEARCH_RULES,
@@ -51,14 +50,6 @@ const PHASES: { key: Phase; label: string; color: string }[] = [
   { key: "test", label: "Test", color: PHASE_COLORS.test },
 ];
 
-/* ── Group pills ────────────────────────────────────────────── */
-const GROUPS: { key: ToolGroup; label: string }[] = [
-  { key: "ideation", label: "Ideation" },
-  { key: "analysis", label: "Analysis" },
-  { key: "evaluation", label: "Evaluation" },
-  { key: "research", label: "Research" },
-  { key: "planning", label: "Planning" },
-];
 
 /* ── AI search helper (same as public page) ─────────────────── */
 function aiSearch(query: string): string[] | null {
@@ -81,7 +72,6 @@ const diffColor = (d: string) =>
 export default function TeacherToolkitPage() {
   const [search, setSearch] = useState("");
   const [selectedPhase, setSelectedPhase] = useState<Phase | null>(null);
-  const [selectedGroup, setSelectedGroup] = useState<ToolGroup | null>(null);
   const [selectedToolSlug, setSelectedToolSlug] = useState<string | null>(null);
   const gridRef = useRef<HTMLDivElement>(null);
 
@@ -90,7 +80,6 @@ export default function TeacherToolkitPage() {
     const aiHits = search ? aiSearch(search) : null;
     const result = tools.filter((t) => {
       if (selectedPhase && t.phase !== selectedPhase) return false;
-      if (selectedGroup && t.group !== selectedGroup) return false;
       if (aiHits) return aiHits.includes(t.id);
       if (search) {
         const q = search.toLowerCase();
@@ -99,18 +88,22 @@ export default function TeacherToolkitPage() {
       return true;
     });
     return { filtered: result, aiActive: aiHits !== null && aiHits.length > 0 };
-  }, [search, selectedPhase, selectedGroup]);
+  }, [search, selectedPhase]);
 
   const interactiveTools = filtered.filter((t) => t.interactive);
   const catalogTools = filtered.filter((t) => !t.interactive);
-  const hasFilter = !!selectedPhase || !!selectedGroup || search.length > 0;
+  const hasFilter = !!selectedPhase || search.length > 0;
 
   /* ── Handlers ─────────────────────────────────────────────── */
+  const filterBarRef = useRef<HTMLDivElement>(null);
+
   const handlePhaseClick = (phase: Phase) => {
     setSelectedPhase(selectedPhase === phase ? null : phase);
     setTimeout(() => {
       if (gridRef.current) {
-        const y = gridRef.current.getBoundingClientRect().top + window.scrollY - 80;
+        // Measure the sticky filter bar height dynamically so offset is always correct
+        const barH = filterBarRef.current?.getBoundingClientRect().height ?? 60;
+        const y = gridRef.current.getBoundingClientRect().top + window.scrollY - barH - 16;
         window.scrollTo({ top: y, behavior: "smooth" });
       }
     }, 100);
@@ -139,7 +132,7 @@ export default function TeacherToolkitPage() {
       >
         <div>
           <h1 className="text-2xl font-bold text-text-primary tracking-tight">
-            Design Thinking Toolkit
+            Toolkit
           </h1>
           <p className="text-text-secondary text-sm mt-1">
             {tools.length} tools across {PHASES.length} phases — assign to units or use in class
@@ -188,6 +181,7 @@ export default function TeacherToolkitPage() {
         initial={{ opacity: 0, y: -6 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, delay: 0.1 }}
+        ref={filterBarRef}
         className="flex flex-wrap items-center gap-3 mb-6 sticky top-0 z-40 bg-white/90 backdrop-blur-lg -mx-6 px-6 py-3 border-b border-transparent"
         style={{ top: 0 }}
       >
@@ -236,20 +230,6 @@ export default function TeacherToolkitPage() {
           ))}
         </div>
 
-        {/* Group filter */}
-        <select
-          value={selectedGroup || ""}
-          onChange={(e) => setSelectedGroup((e.target.value as ToolGroup) || null)}
-          className="px-3 py-2 border border-border rounded-xl text-xs text-text-secondary bg-white focus:outline-none focus:ring-2 focus:ring-brand-purple/20"
-        >
-          <option value="">All groups</option>
-          {GROUPS.map((g) => (
-            <option key={g.key} value={g.key}>
-              {g.label}
-            </option>
-          ))}
-        </select>
-
         {/* Clear */}
         <AnimatePresence>
           {hasFilter && (
@@ -259,7 +239,6 @@ export default function TeacherToolkitPage() {
               exit={{ opacity: 0, scale: 0.8 }}
               onClick={() => {
                 setSelectedPhase(null);
-                setSelectedGroup(null);
                 setSearch("");
               }}
               className="text-xs text-red-400 hover:text-red-500 font-medium px-2 py-1 rounded-lg border border-red-200 hover:border-red-300 transition"
@@ -453,7 +432,6 @@ export default function TeacherToolkitPage() {
             <button
               onClick={() => {
                 setSelectedPhase(null);
-                setSelectedGroup(null);
                 setSearch("");
               }}
               className="text-brand-purple text-xs mt-2 hover:underline"
