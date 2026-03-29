@@ -25,6 +25,12 @@ export interface ChunkMetadata {
   is_public?: boolean;
   /** Upload category: lesson_plan, textbook, resource. Used for future copyright-safe chunking. */
   source_category?: string;
+  /** Bloom's taxonomy level of the primary cognitive demand (from Dimensions v2) */
+  bloom_level?: "remember" | "understand" | "apply" | "analyze" | "evaluate" | "create";
+  /** Student grouping strategy (from Dimensions v2) */
+  grouping?: "individual" | "pair" | "small_group" | "whole_class" | "flexible";
+  /** UDL checkpoint IDs this chunk addresses (from Dimensions v2, e.g. "1.1", "5.2") */
+  udl_checkpoints?: string[];
 }
 
 export interface Chunk {
@@ -338,6 +344,12 @@ function chunkLessonPhase(
 
   const preamble = preambleParts.join(" | ");
 
+  // Extract Dimensions metadata from phase analysis
+  const bloomLevel = mapCognitiveLevelToBloom(phase.student_cognitive_level);
+  // Grouping is extracted from Pass 2's grouping_analysis — not yet on individual phases.
+  // Will be populated when profile merger maps class-level grouping to phases.
+  const grouping: ChunkMetadata["grouping"] | undefined = undefined;
+
   // Build content: source text or description
   const contentParts: string[] = [`${phase.title}\n`];
 
@@ -389,6 +401,8 @@ function chunkLessonPhase(
             ...metadata,
             grade_level: metadata.grade_level || profile.grade_level,
             subject_area: metadata.subject_area || profile.subject_area,
+            ...(bloomLevel ? { bloom_level: bloomLevel } : {}),
+            ...(grouping ? { grouping } : {}),
           },
         });
         current = getOverlap(current) + para + "\n\n";
@@ -406,6 +420,8 @@ function chunkLessonPhase(
           ...metadata,
           grade_level: metadata.grade_level || profile.grade_level,
           subject_area: metadata.subject_area || profile.subject_area,
+          ...(bloomLevel ? { bloom_level: bloomLevel } : {}),
+          ...(grouping ? { grouping } : {}),
         },
       });
     }
@@ -424,6 +440,8 @@ function chunkLessonPhase(
         ...metadata,
         grade_level: metadata.grade_level || profile.grade_level,
         subject_area: metadata.subject_area || profile.subject_area,
+        ...(bloomLevel ? { bloom_level: bloomLevel } : {}),
+        ...(grouping ? { grouping } : {}),
       },
     },
   ];
@@ -518,4 +536,33 @@ function mapPhaseToContentType(
   if (combined.includes("reflect") || combined.includes("review")) return "reflection";
   if (combined.includes("activity") || combined.includes("practice") || combined.includes("hands")) return "activity";
   return "instruction";
+}
+
+/** Map Pass 2 student_cognitive_level strings to Bloom's taxonomy enum values */
+function mapCognitiveLevelToBloom(
+  level?: string
+): ChunkMetadata["bloom_level"] | undefined {
+  if (!level) return undefined;
+  const l = level.toLowerCase().trim();
+  if (l === "remember" || l === "recall") return "remember";
+  if (l === "understand" || l === "comprehend") return "understand";
+  if (l === "apply" || l === "application") return "apply";
+  if (l.startsWith("analy") || l === "analyse") return "analyze";
+  if (l.startsWith("evaluat")) return "evaluate";
+  if (l === "create" || l === "synthesis" || l === "synthesize") return "create";
+  return undefined;
+}
+
+/** Map grouping labels from analysis to standard Dimensions grouping values */
+function mapGroupingLabel(
+  label?: string
+): ChunkMetadata["grouping"] | undefined {
+  if (!label) return undefined;
+  const l = label.toLowerCase().trim();
+  if (l.includes("individual") || l.includes("solo")) return "individual";
+  if (l.includes("pair")) return "pair";
+  if (l.includes("small") || l.includes("group") && !l.includes("whole")) return "small_group";
+  if (l.includes("whole") || l.includes("class")) return "whole_class";
+  if (l.includes("flex") || l.includes("mixed")) return "flexible";
+  return undefined;
 }

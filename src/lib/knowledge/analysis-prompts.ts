@@ -23,7 +23,7 @@ import type {
 } from "@/types/lesson-intelligence";
 
 /** Current prompt version — increment when prompts change significantly */
-export const ANALYSIS_PROMPT_VERSION = "2.0.0";
+export const ANALYSIS_PROMPT_VERSION = "2.1.0";
 
 /* ================================================================
    TEACHING CONTEXT BLOCK
@@ -177,7 +177,9 @@ ${extractedText}
       "estimated_minutes": "number — how long this section takes",
       "materials_mentioned": ["string — physical materials mentioned"],
       "tools_mentioned": ["string — tools, software, machines mentioned"],
-      "activity_type": "string — e.g. 'discussion', 'hands-on making', 'research', 'drawing', 'peer feedback', 'quiz', 'demonstration'"
+      "activity_type": "string — e.g. 'discussion', 'hands-on making', 'research', 'drawing', 'peer feedback', 'quiz', 'demonstration'",
+      "bloom_level": "remember | understand | apply | analyze | evaluate | create — the primary cognitive demand of this activity",
+      "grouping": "individual | pair | small_group | whole_class | flexible — how students work during this activity"
     }
   ],
 
@@ -297,6 +299,34 @@ ${JSON.stringify(pass1, null, 2)}
     }
   ],
 
+  "udl_coverage": {
+    "engagement": ["string — UDL checkpoint IDs addressed under Engagement (1.1-3.3). e.g. '1.1 recruiting interest' if the lesson offers choice or relevance. Only include checkpoints genuinely addressed, not aspirational."],
+    "representation": ["string — UDL checkpoint IDs addressed under Representation (4.1-6.3). e.g. '5.2 illustrate through multiple media' if content is presented in multiple formats."],
+    "action_expression": ["string — UDL checkpoint IDs addressed under Action & Expression (7.1-9.3). e.g. '7.1 optimize individual choice' if students choose how to demonstrate learning."],
+    "principle_gaps": "string — which UDL principle (Engagement/Representation/Action & Expression) is LEAST addressed? What's missing?"
+  },
+
+  "bloom_distribution": {
+    "remember": "number — count of activities primarily at Remember level",
+    "understand": "number — count at Understand level",
+    "apply": "number — count at Apply level",
+    "analyze": "number — count at Analyze level",
+    "evaluate": "number — count at Evaluate level",
+    "create": "number — count at Create level",
+    "dominant_level": "string — which Bloom's level dominates? Is this appropriate for the grade level and lesson goals?"
+  },
+
+  "grouping_analysis": {
+    "progression": "string — describe grouping changes across the lesson (e.g. 'whole-class → pairs → individual → small-group critique')",
+    "time_distribution": {
+      "individual_pct": "number — approximate percentage of lesson time spent working individually",
+      "pair_pct": "number — percentage in pairs",
+      "small_group_pct": "number — percentage in small groups (3-5)",
+      "whole_class_pct": "number — percentage as whole class"
+    },
+    "rationale": "string — is the grouping progression intentional and pedagogically justified, or arbitrary?"
+  },
+
   "complexity_level": "introductory | developing | proficient | advanced — relative to the stated grade level, not absolute"
 }
 
@@ -407,7 +437,19 @@ ${JSON.stringify(pass2, null, 2)}
       "adjusted_minutes": "number — realistic timing including setup, transition, and cleanup",
       "reason": "string — why the adjustment. e.g. 'Original estimate didn't account for 5 min to distribute materials and demonstrate safe use of rotary tool'"
     }
-  ]
+  ],
+
+  "grouping_reality": {
+    "practical_constraints": "string — what grouping constraints does this workshop impose? e.g. 'Only 3 laser cutters means max 6 students at a time (pairs). Rest must have meaningful parallel work, not busywork.'",
+    "recommended_group_sizes": "string — optimal group sizes for each phase based on equipment, space, and activity type",
+    "pairing_notes": "string | null — any specific pairing strategies? e.g. 'Mixed-ability pairs for peer teaching during CAD introduction. Skill-based groups for making (experienced students at complex stations).'"
+  },
+
+  "udl_practical_notes": {
+    "representation_barriers": "string — what representation barriers exist in this lesson? e.g. 'All instructions are verbal + whiteboard — no visual step-by-step cards. Students who process visually or have language barriers will struggle during the making phase.'",
+    "expression_options": "string — how many ways can students demonstrate understanding? If only one way (e.g. written reflection), flag this as a barrier.",
+    "engagement_hooks": "string — what intrinsic motivation hooks exist? Choice, relevance, novelty, challenge calibration?"
+  }
 }
 
 ## Important Guidelines

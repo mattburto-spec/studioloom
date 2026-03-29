@@ -552,3 +552,86 @@ export function applyTimingPreset(
   const cap = maxInstructionMinutes(profile);
   return preset.getPhases(usable, cap);
 }
+
+// =========================================================================
+// UDL Coverage Validation (Dimensions v2)
+// =========================================================================
+
+/**
+ * UDL principle grouping — maps checkpoint ID prefixes to CAST principles.
+ * Engagement: 1.x-3.x, Representation: 4.x-6.x, Action & Expression: 7.x-9.x
+ */
+type UDLPrinciple = "engagement" | "representation" | "action_expression";
+
+function getUDLPrinciple(checkpointId: string): UDLPrinciple | null {
+  const num = parseFloat(checkpointId);
+  if (isNaN(num)) return null;
+  if (num >= 1 && num < 4) return "engagement";
+  if (num >= 4 && num < 7) return "representation";
+  if (num >= 7 && num <= 9.3) return "action_expression";
+  return null;
+}
+
+export interface UDLCoverageResult {
+  engagement: string[];
+  representation: string[];
+  action_expression: string[];
+  missingPrinciples: UDLPrinciple[];
+  coverageScore: number; // 0-3 (how many principles are covered)
+  issues: TimingIssue[];
+}
+
+/**
+ * Check UDL coverage across a unit's activities.
+ * Warns if an entire UDL principle (Engagement/Representation/Action & Expression)
+ * has zero checkpoints tagged across all lessons.
+ *
+ * Accepts an array of activity sections that may have `udl_checkpoints` string arrays.
+ * These come from the Dimensions v2 schema on generated content.
+ */
+export function validateUDLCoverage(
+  sections: Array<{ udl_checkpoints?: string[]; [key: string]: unknown }>
+): UDLCoverageResult {
+  const coverage: Record<UDLPrinciple, Set<string>> = {
+    engagement: new Set(),
+    representation: new Set(),
+    action_expression: new Set(),
+  };
+
+  for (const section of sections) {
+    if (!section.udl_checkpoints?.length) continue;
+    for (const cp of section.udl_checkpoints) {
+      const principle = getUDLPrinciple(cp);
+      if (principle) coverage[principle].add(cp);
+    }
+  }
+
+  const issues: TimingIssue[] = [];
+  const missingPrinciples: UDLPrinciple[] = [];
+
+  const principleLabels: Record<UDLPrinciple, string> = {
+    engagement: "Engagement (Why of learning — recruiting interest, sustaining effort, self-regulation)",
+    representation: "Representation (What of learning — perception, language & symbols, comprehension)",
+    action_expression: "Action & Expression (How of learning — physical action, expression & communication, executive functions)",
+  };
+
+  for (const [principle, checkpoints] of Object.entries(coverage) as [UDLPrinciple, Set<string>][]) {
+    if (checkpoints.size === 0) {
+      missingPrinciples.push(principle);
+      issues.push({
+        code: `UDL_MISSING_${principle.toUpperCase()}`,
+        severity: "info",
+        message: `No activities address UDL principle: ${principleLabels[principle]}. Consider adding activities that address this dimension of inclusive design.`,
+      });
+    }
+  }
+
+  return {
+    engagement: [...coverage.engagement],
+    representation: [...coverage.representation],
+    action_expression: [...coverage.action_expression],
+    missingPrinciples,
+    coverageScore: 3 - missingPrinciples.length,
+    issues,
+  };
+}

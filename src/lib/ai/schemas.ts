@@ -9,6 +9,70 @@ import type { Tool } from "@anthropic-ai/sdk/resources/messages";
 import type { UnitType } from "./unit-types";
 
 // =========================================================================
+// Shared Dimensions Schema Properties (Phase 2 — Data Architecture v2)
+// Added to activity sections so AI populates bloom, grouping, ai_rules, etc.
+// =========================================================================
+
+/** Dimensions fields for activity sections — shared between page mode and journey mode schemas. */
+const dimensionsActivityProperties = {
+  bloom_level: {
+    type: "string" as const,
+    enum: ["remember", "understand", "apply", "analyze", "evaluate", "create"],
+    description: "Bloom's taxonomy level of this activity's primary cognitive demand",
+  },
+  timeWeight: {
+    type: "string" as const,
+    enum: ["quick", "moderate", "extended", "flexible"],
+    description: "Relative time weight: quick (~5 min), moderate (~10-15 min), extended (~20+ min), flexible (fills remaining phase time)",
+  },
+  grouping: {
+    type: "string" as const,
+    enum: ["individual", "pair", "small_group", "whole_class", "flexible"],
+    description: "Student grouping strategy for this activity",
+  },
+  ai_rules: {
+    type: "object" as const,
+    description: "AI behavior rules if a student uses the Design Assistant during this activity",
+    properties: {
+      phase: {
+        type: "string" as const,
+        enum: ["divergent", "convergent", "neutral"],
+        description: "divergent = encourage wild ideas (ideation), convergent = push for analysis/evaluation, neutral = balanced",
+      },
+      tone: { type: "string" as const, description: "Short tone descriptor, e.g. 'encouraging and playful' or 'analytical and precise'" },
+      rules: {
+        type: "array" as const,
+        items: { type: "string" as const },
+        description: "1-3 specific rules for the AI mentor during this activity, e.g. 'Never evaluate ideas during brainstorming'",
+      },
+    },
+  },
+  udl_checkpoints: {
+    type: "array" as const,
+    items: { type: "string" as const },
+    description: "UDL checkpoint IDs this activity addresses (e.g. '1.1' = recruiting interest, '5.2' = tools and assistive technologies, '7.1' = individual choice). Use CAST UDL 3×3 grid: Engagement (1-3), Representation (4-6), Action & Expression (7-9).",
+  },
+  success_look_fors: {
+    type: "array" as const,
+    items: { type: "string" as const },
+    description: "1-3 observable indicators of success that a teacher can look for during this activity",
+  },
+} as const;
+
+/** Dimensions fields for page-level content — UDL coverage and teacher notes. */
+const dimensionsPageProperties = {
+  grouping_strategy: {
+    type: "string" as const,
+    description: "Overall grouping progression for this lesson, e.g. 'whole class (intro) → pairs (ideation) → individual (making) → pairs (critique)'",
+  },
+  success_criteria: {
+    type: "array" as const,
+    items: { type: "string" as const },
+    description: "2-4 student-friendly success criteria for this lesson (written as 'I can...' statements)",
+  },
+} as const;
+
+// =========================================================================
 // Unit Type-Aware Phase Enums
 // =========================================================================
 
@@ -132,6 +196,8 @@ function buildPageContentSchema(unitType: UnitType = "design") {
               type: "boolean" as const,
               description: "Set true for substantive design work (analysis, ideation, creation evidence, evaluation). Omit or false for scaffolding, warm-ups, and practice tasks.",
             },
+            // --- Dimensions v2 fields ---
+            ...dimensionsActivityProperties,
             scaffolding: {
               type: "object" as const,
               properties: {
@@ -167,6 +233,8 @@ function buildPageContentSchema(unitType: UnitType = "design") {
           items: { type: "array" as const, items: { type: "string" as const } },
         },
       },
+      // --- Dimensions v2 page-level fields ---
+      ...dimensionsPageProperties,
       workshopPhases: {
         type: "object" as const,
         description: "Workshop Model timing: 4-phase structure for every lesson. Opening (5-10 min), Mini-Lesson (max 1+age min), Work Time (≥45% of usable time), Debrief (5-10 min).",
@@ -308,6 +376,8 @@ function buildJourneyActivitySectionSchema() {
         type: "boolean" as const,
         description: "Set true for substantive design work. Omit or false for scaffolding, warm-ups, and practice tasks.",
       },
+      // --- Dimensions v2 fields ---
+      ...dimensionsActivityProperties,
       scaffolding: {
         type: "object" as const,
         properties: {
@@ -506,6 +576,8 @@ const timelineActivitySchema = {
       description: "Assessment criteria this activity addresses (e.g. [\"A\"], [\"B\",\"C\"])",
     },
     phaseLabel: { type: "string" as const, description: "Phase grouping label (e.g. 'Research', 'Prototyping', 'Evaluation')" },
+    // --- Dimensions v2 fields ---
+    ...dimensionsActivityProperties,
     scaffolding: {
       type: "object" as const,
       properties: {

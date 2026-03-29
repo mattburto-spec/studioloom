@@ -305,6 +305,18 @@ Format: Include an "extensions" array on each lesson with 2-3 items: { "title": 
 // See docs/ai-intelligence-architecture.md §4 for teacher style profiles.
 // =========================================================================
 
+/** Shared Dimensions metadata instruction — appended to ALL unit type teaching contexts. */
+const DIMENSIONS_METADATA_INSTRUCTION = `
+
+DIMENSIONS METADATA: For every activity section, output these fields alongside the activity content:
+- bloom_level: the primary cognitive demand (remember/understand/apply/analyze/evaluate/create).
+- timeWeight: relative time need (quick/moderate/extended/flexible). Warm-ups = quick. Main tasks = extended. Reflections = quick or moderate.
+- grouping: how students work (individual/pair/small_group/whole_class/flexible). Vary grouping across the lesson.
+- ai_rules: set phase to "divergent" during ideation/brainstorming, "convergent" during evaluation/analysis, "neutral" for other activities.
+- udl_checkpoints: tag with UDL checkpoint IDs from the CAST 3×3 grid. Cover all 3 principles per lesson: Engagement (1-3), Representation (4-6), Action & Expression (7-9). Key checkpoints: 1.1 (recruiting interest), 3.1 (self-regulation), 5.1 (language/symbols), 5.2 (tools), 7.1 (physical action), 7.2 (expression/communication), 8.3 (self-assessment).
+- success_look_fors: 1-3 observable indicators a teacher can spot during the activity.
+Also output page-level fields: grouping_strategy (overall grouping progression) and success_criteria (2-4 "I can..." statements).`;
+
 /**
  * Build type-aware teaching context block for injection into generation prompts.
  * Includes pedagogical principles specific to the unit type, the Workshop Model requirement,
@@ -335,7 +347,7 @@ You are generating content for service learning education. Follow these principl
 
 9. STUDENT AGENCY: Students choose their service focus within structured parameters. Teacher guides constraints and ethical gates, not assigns tasks.
 
-10. CELEBRATION & CRITIQUE: Share outcomes publicly with community. Celebrate effort, learning, and impact. Also conduct peer and community critique — what could have been done better?${styleBlock}`;
+10. CELEBRATION & CRITIQUE: Share outcomes publicly with community. Celebrate effort, learning, and impact. Also conduct peer and community critique — what could have been done better?${DIMENSIONS_METADATA_INSTRUCTION}${styleBlock}`;
   }
 
   if (unitType === "personal_project") {
@@ -356,7 +368,7 @@ You are generating content for MYP Personal Project supervision. Follow these pr
 
 7. PRESENTATION QUALITY: The final presentation IS part of the assessment. Not an afterthought. It shows communication and synthesis skills. Support students in creating polished deliverables (slide decks, videos, posters, websites).
 
-8. SUPERVISOR MEETINGS: Regular structured meetings (fortnightly minimum). Use an agenda template. Documented discussions with agreed-upon action items. Students see notes — this builds transparency and accountability.${styleBlock}`;
+8. SUPERVISOR MEETINGS: Regular structured meetings (fortnightly minimum). Use an agenda template. Documented discussions with agreed-upon action items. Students see notes — this builds transparency and accountability.${DIMENSIONS_METADATA_INSTRUCTION}${styleBlock}`;
   }
 
   if (unitType === "inquiry") {
@@ -377,7 +389,7 @@ You are generating content for transdisciplinary inquiry units. Follow these pri
 
 7. COLLABORATIVE CONSTRUCTION: Knowledge is built together through discussion, debate, and investigation. Peer critique shapes thinking. Communities of inquiry (not isolated individuals) do the thinking work.
 
-8. WORKSHOP MODEL (HIGHEST PRIORITY): Even inquiry units follow 4 phases — Opening (activate wonder) → Mini-Lesson (teach inquiry methods/skills) → Work Time (investigate, discuss, create) → Debrief (synthesise, share, plan next inquiry).${styleBlock}`;
+8. WORKSHOP MODEL (HIGHEST PRIORITY): Even inquiry units follow 4 phases — Opening (activate wonder) → Mini-Lesson (teach inquiry methods/skills) → Work Time (investigate, discuss, create) → Debrief (synthesise, share, plan next inquiry).${DIMENSIONS_METADATA_INSTRUCTION}${styleBlock}`;
   }
 
   // Default to design
@@ -419,7 +431,16 @@ You are generating content for design & technology education. Follow these princ
 
 11. 66% ACTIVE LEARNING RULE (RESEARCH-BACKED): At least 66% of all lesson activities must be ACTIVE — students creating, designing, building, discussing, analyzing, evaluating, presenting, collaborating, or using design tools. Achievement gaps across cultural, linguistic, and socioeconomic backgrounds ONLY close when active learning exceeds 66% of class time (effect size d=0.52). Passive content (reading, watching demos, teacher lectures) must stay below 34%. This rule is validated post-generation — the system will flag units that fall below the threshold.
 
-12. INCLUSIVE ASSESSMENT LANGUAGE: Frame all assessment activities as learning opportunities, never ability tests. Use "This helps us see what you're learning" NOT "This assesses your design ability." Stereotype threat (effect size d=-0.33) is triggered by ability-framing, especially for underrepresented groups. Always use growth framing in rubric descriptions, task instructions, and reflection prompts.${styleBlock}`;
+12. INCLUSIVE ASSESSMENT LANGUAGE: Frame all assessment activities as learning opportunities, never ability tests. Use "This helps us see what you're learning" NOT "This assesses your design ability." Stereotype threat (effect size d=-0.33) is triggered by ability-framing, especially for underrepresented groups. Always use growth framing in rubric descriptions, task instructions, and reflection prompts.
+
+13. DIMENSIONS METADATA: For every activity section, output these fields alongside the activity content:
+- bloom_level: the primary cognitive demand (remember/understand/apply/analyze/evaluate/create). A hands-on prototyping task = "create". A research comparison = "analyze". A vocabulary warm-up = "remember".
+- timeWeight: relative time need (quick/moderate/extended/flexible). Warm-ups = quick. Main making tasks = extended. Reflections = quick or moderate.
+- grouping: how students work (individual/pair/small_group/whole_class/flexible). Vary grouping across the lesson — don't make every activity individual.
+- ai_rules: set phase to "divergent" during ideation activities (AI encourages wild ideas, never evaluates), "convergent" during evaluation activities (AI pushes for analysis, trade-offs), "neutral" for other activities.
+- udl_checkpoints: tag with UDL checkpoint IDs from the CAST 3×3 grid. Aim for coverage across all 3 principles (Engagement 1-3, Representation 4-6, Action & Expression 7-9) within each lesson. Key checkpoints: 1.1 (recruiting interest), 3.1 (self-regulation), 5.1 (language/symbols), 5.2 (tools), 7.1 (physical action), 7.2 (expression/communication), 8.3 (self-assessment).
+- success_look_fors: 1-3 observable indicators a teacher can spot during the activity (e.g. "Students are sketching at least 3 different ideas" not "Students understand ideation").
+Also output page-level fields: grouping_strategy (overall grouping progression) and success_criteria (2-4 "I can..." statements).${styleBlock}`;
 }
 
 // =========================================================================
