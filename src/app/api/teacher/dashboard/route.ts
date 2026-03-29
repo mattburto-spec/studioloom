@@ -156,22 +156,39 @@ export const GET = withErrorHandler("teacher/dashboard:GET", async (request: Nex
     );
   }
 
-  // Unit metadata (unit_type + thumbnail_url — resilient to missing columns)
+  // Unit metadata — separate try/catches so one missing column doesn't block the other
+  // (Lesson Learned #19: PostgREST silently fails when selecting non-existent columns)
   if (uniqueUnitIds.length > 0) {
+    // unit_type (migration 051)
     parallelPromises.push(
       (async () => {
         try {
           const { data } = await supabase
             .from("units")
-            .select("id, unit_type, thumbnail_url")
+            .select("id, unit_type")
             .in("id", uniqueUnitIds);
           if (data) {
-            for (const row of data as { id: string; unit_type?: string; thumbnail_url?: string }[]) {
+            for (const row of data as { id: string; unit_type?: string }[]) {
               if (row.unit_type) unitTypeMap.set(row.id, row.unit_type);
+            }
+          }
+        } catch { /* column may not exist */ }
+      })()
+    );
+    // thumbnail_url (migration 052)
+    parallelPromises.push(
+      (async () => {
+        try {
+          const { data } = await supabase
+            .from("units")
+            .select("id, thumbnail_url")
+            .in("id", uniqueUnitIds);
+          if (data) {
+            for (const row of data as { id: string; thumbnail_url?: string }[]) {
               if (row.thumbnail_url) thumbnailMap.set(row.id, row.thumbnail_url);
             }
           }
-        } catch { /* columns may not exist — silently ignore */ }
+        } catch { /* column may not exist */ }
       })()
     );
   }
