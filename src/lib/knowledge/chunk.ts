@@ -680,3 +680,11 @@ function collectAllUdlCheckpoints(profile: LessonProfile): string[] {
   });
   return [...new Set(ids)];
 }
+
+// ─── @internal exports for testing ───
+export {
+  derivePhaseGrouping as _derivePhaseGrouping,
+  derivePhaseUdlCheckpoints as _derivePhaseUdlCheckpoints,
+  collectAllUdlCheckpoints as _collectAllUdlCheckpoints,
+  mapGroupingLabel as _mapGroupingLabel,
+};
