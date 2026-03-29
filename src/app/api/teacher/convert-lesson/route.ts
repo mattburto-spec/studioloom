@@ -650,9 +650,20 @@ async function indexIntoKnowledgeBase(
       subject_area: chunk.metadata.subject_area || null,
       topic: chunk.metadata.topic || null,
       embedding: embeddings[i]?.length > 0 ? JSON.stringify(embeddings[i]) : null,
+      // Dimensions v2 metadata (migration 058)
+      ...(chunk.metadata.bloom_level ? { bloom_level: chunk.metadata.bloom_level } : {}),
+      ...(chunk.metadata.grouping ? { grouping: chunk.metadata.grouping } : {}),
+      ...(chunk.metadata.udl_checkpoints?.length ? { udl_checkpoints: chunk.metadata.udl_checkpoints } : {}),
     }));
 
-    const { error: chunkError } = await db.from("knowledge_chunks").insert(rows);
+    let chunkError;
+    ({ error: chunkError } = await db.from("knowledge_chunks").insert(rows));
+    // Retry without Dimensions v2 columns if migration 058 not applied yet
+    if (chunkError && (chunkError.message.includes("bloom_level") || chunkError.message.includes("grouping") || chunkError.message.includes("udl_checkpoints"))) {
+      console.warn("[convert-lesson] Retrying chunk insert without Dimensions v2 columns");
+      const fallbackRows = rows.map(({ bloom_level, grouping, udl_checkpoints, ...rest }: Record<string, unknown>) => rest);
+      ({ error: chunkError } = await db.from("knowledge_chunks").insert(fallbackRows));
+    }
     if (chunkError) {
       console.warn("[convert-lesson] Chunk insert failed:", chunkError.message);
     } else {

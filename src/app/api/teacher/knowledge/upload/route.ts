@@ -491,11 +491,25 @@ export const POST = withErrorHandler("teacher/knowledge/upload:POST", async (req
           topic: chunk.metadata.topic || null,
           is_public: false,
           embedding: embeddings[i]?.length ? `[${embeddings[i].join(",")}]` : null,
+          // Dimensions v2 metadata (migration 058 — graceful if columns don't exist yet)
+          ...(chunk.metadata.bloom_level ? { bloom_level: chunk.metadata.bloom_level } : {}),
+          ...(chunk.metadata.grouping ? { grouping: chunk.metadata.grouping } : {}),
+          ...(chunk.metadata.udl_checkpoints?.length ? { udl_checkpoints: chunk.metadata.udl_checkpoints } : {}),
         }));
 
-        const { error: insertError } = await supabaseAdmin
+        let insertError;
+        ({ error: insertError } = await supabaseAdmin
           .from("knowledge_chunks")
-          .insert(rows);
+          .insert(rows));
+
+        // Retry without Dimensions v2 columns if migration 058 not applied yet
+        if (insertError && (insertError.message.includes("bloom_level") || insertError.message.includes("grouping") || insertError.message.includes("udl_checkpoints"))) {
+          console.warn("[upload] Retrying chunk insert without Dimensions v2 columns");
+          const fallbackRows = rows.map(({ bloom_level, grouping, udl_checkpoints, ...rest }: Record<string, unknown>) => rest);
+          ({ error: insertError } = await supabaseAdmin
+            .from("knowledge_chunks")
+            .insert(fallbackRows));
+        }
 
         if (insertError) {
           throw new Error(`Chunk insert failed: ${insertError.message}`);
