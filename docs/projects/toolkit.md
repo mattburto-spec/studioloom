@@ -1,23 +1,20 @@
 # Project: Toolkit — The Interactive Thinking Tools Platform
 
 *Created: 29 March 2026*
-*Last updated: 29 March 2026*
-*Status: Active — UX Polish Phase*
+*Last updated: 29 March 2026 (categories unified)*
+*Status: Active — UX Polish Phase + Category Taxonomy Finalized*
 
 ## Vision
 
-The toolkit is not just "design thinking tools." It's an **interactive thinking tools platform** — a growing library of beautiful, AI-powered tools that help students (and eventually anyone) think better. Design thinking tools are one category. The full scope includes:
+The toolkit is not just "design thinking tools." It's an **interactive thinking tools platform** — a growing library of beautiful, AI-powered tools that help students (and eventually anyone) think better. Design thinking tools are one category. The full scope spans 7 unified categories:
 
-- **Visual Thinking** — Mind Map, Systems Map, Journey Map, Fishbone, Lotus Diagram
-- **Design Thinking** — SCAMPER, Empathy Map, How Might We, POV Statement, Design Spec
-- **Evaluation & Decision** — PMI, SWOT, Decision Matrix, Pairwise Comparison, Impact/Effort
-- **Research & Analysis** — Five Whys, Affinity Diagram, Stakeholder Map, User Persona
-- **Collaboration & Teamwork** — Dot Voting, Round Robin, Gallery Walk protocols, Peer Review
-- **Psychometric & Self-Discovery** — adapted from Discovery Engine (archetype finder, strength mapper, interest sorter, values card sort, fear reframing)
-- **Drawing & Sketching** — quick sketch canvas, annotation tools, wireframe builder, mood board creator
-- **Planning & Project** — Gantt, timeline builder, resource planner, sprint board
-- **Reflection & Metacognition** — design journal, before & after, learning log, growth tracker
-- **Communication** — storyboard, presentation planner, pitch builder, elevator pitch timer
+1. **Design Thinking** (ACTIVE) — 48 tools: SCAMPER, Empathy Map, Five Whys, Decision Matrix, PMI, SWOT, etc.
+2. **Visual & Spatial** — annotation, wireframing, mood boards, storyboards, comparison sketching
+3. **Collaboration** — round robin, team charters, consensus building, facilitation tools
+4. **Planning & Strategy** — sprint boards, timelines, pitch builders, business model canvas
+5. **Systems & Science** — causal loops, futures cones, A/B testing, assumption busting
+6. **Self-Discovery** — archetype finder, strength mapper, values card sort, fear reframer (from Discovery Engine)
+7. **Reflection & Growth** — learning logs, growth trackers, mistake journals, process documentation
 
 Each tool should feel like a **standalone micro-app** — beautiful enough to screenshot and share, useful enough to come back to.
 
@@ -111,13 +108,9 @@ All 27 tools wired with `useToolSession` hook for auto-save, session resume, and
 - Convert 21 catalog entries to interactive tools using established patterns (Step Sequence, Canvas, Comparison Engine, Guided Composition)
 - Priority: Crazy 8s, Storyboard, Design Journal, Mood Board
 
-**Phase 3: New tool categories**
-- Psychometric & Self-Discovery (adapted from Discovery Engine)
-- Collaboration & Teamwork (Dot Voting done, Round Robin, Team Charter, Consensus Builder)
-- Drawing & Visual (Quick Sketch done, Annotation, Wireframe, Mood Board)
-- Planning & Project (Sprint Board, Timeline, Resource Planner)
-- Communication (Pitch Builder, Storyboard, Presentation Planner)
-- Reflection & Metacognition (Learning Log, Growth Tracker, Mistake Journal)
+**Phase 3: New tool categories (see Unified Category Taxonomy below)**
+- Build tools for the 6 new categories: Visual & Spatial, Collaboration, Planning & Strategy, Systems & Science, Self-Discovery, Reflection & Growth
+- Priority order: Self-Discovery (leverages Discovery Engine code), Collaboration (Dot Voting done), Visual & Spatial (Quick Sketch done)
 
 ## UX Assessment
 
@@ -140,48 +133,111 @@ All 27 tools wired with `useToolSession` hook for auto-save, session resume, and
 
 The target is Brilliant.org-level quality: clean, purposeful, premium-but-not-corporate. Every interaction choreographed with Framer Motion springs. AI responses feel human-paced (thinking indicator → typing effect). Dark theme as default with considered color per tool category. Mobile-first layout.
 
-## Expansion Categories
+## Unified Category Taxonomy (29 March 2026)
 
-### Category 1: Psychometric & Self-Discovery (from Discovery Engine)
-Tools adapted from the Discovery Engine's 8 stations:
-- **Archetype Finder** — binary pair selections → weighted scoring → archetype reveal (Maker/Researcher/Leader/Communicator/Creative/Systems Thinker)
-- **Strength Mapper** — scenario-based strength discovery (campfire pattern from S1)
-- **Interest Sorter** — irritation/passion card sort → interest clustering
-- **Values Card Sort** — 20 value cards, rank/sort/reflect
-- **Fear Reframer** — identify fears → AI reframing (from S6 Crossroads)
-- **Working Style Profiler** — solo/pair/group preferences with nuanced context
+7 categories unified across public page, teacher page, and Coming Soon section. Defined in `tools-data.ts` as `TOOLKIT_TABS` (single source of truth).
 
-### Category 2: Collaboration & Teamwork
-- **Dot Voting** — real-time collaborative voting on ideas/options
-- **Round Robin** — timed rotating brainstorm with AI facilitation
-- **Gallery Walk** — structured peer critique protocol (already built in Class Gallery, extract as standalone tool)
-- **Team Charter Builder** — roles, norms, communication preferences
-- **Consensus Builder** — structured disagreement resolution
+### 1. Design Thinking (ACTIVE — 48 tools)
 
-### Category 3: Drawing & Visual
-- **Quick Sketch Canvas** — timed sketching with prompts (30s/60s/2min modes)
+All current tools live here. Universal design process tools that work across any framework (IB MYP, GCSE, ACARA, PLTW, d.school, IDEO, Double Diamond).
+
+**Interactive (27):**
+SCAMPER, Six Thinking Hats, PMI Chart, Morphological Chart, Lotus Diagram, Affinity Diagram, Empathy Map, Impact/Effort Matrix, Five Whys, Mind Map, Biomimicry Cards, Pairwise Comparison, Journey Map, Fishbone Diagram, Reverse Brainstorm, Brainstorm Web, Systems Map, User Persona, Feedback Capture Grid, POV Statement, Design Specification, SWOT Analysis, Stakeholder Map, Decision Matrix, How Might We, Dot Voting, Quick Sketch
+
+**Catalog-only (21):**
+Crazy 8s, Round Robin, Trade-off Sliders, Mood Board, Storyboard, Annotation Template, Wireframe Template, Gantt Planner, Resource Planner, Design Journal, Before & After, Peer Review Protocol, Testing Protocol, Gallery Walk, Observation Sheet, User Persona Card (Template), Journey Map (Template), Impact/Effort Matrix (Template), Stakeholder Map (Template), Presentation Planner, Design Brief
+
+### 2. Visual & Spatial (~8 tools — Coming Soon)
+
+Tools for spatial thinking, sketching, visual composition, and annotation.
+
 - **Annotation Tool** — upload image → annotate with callouts, arrows, notes
 - **Wireframe Builder** — drag-and-drop UI component layout
 - **Mood Board Creator** — image + text + color palette composition
 - **Comparison Sketch** — side-by-side before/after or option A/B sketching
-
-### Category 4: Planning & Project
-- **Sprint Board** — kanban with design cycle columns
-- **Timeline Builder** — visual project timeline with milestones
-- **Resource Planner** — materials, tools, time budget
-- **Task Decomposition** — break big tasks into subtasks with estimates
-
-### Category 5: Communication & Presentation
-- **Pitch Builder** — structured elevator pitch with timer + AI coaching
 - **Storyboard Creator** — panel-by-panel narrative with sketch areas
-- **Presentation Planner** — slide outline with talking points
-- **Design Brief Writer** — AI-assisted brief generation from constraints
+- **Cultural Landscape Map** — visual map of cultural context and influences
+- **Stakeholder Power Grid** — 2×2 power/interest matrix with visual plotting
+- **Paper Prototyping Cards** — drag-and-drop paper prototype building
 
-### Category 6: Reflection & Metacognition
-- **Learning Log** — structured daily/weekly reflection
-- **Growth Tracker** — self-assessment over time with visualized progress
-- **Mistake Journal** — document failures + what was learned
+*Note: Quick Sketch (built, in Design Thinking) could be cross-listed here.*
+
+### 3. Collaboration (~7 tools — Coming Soon)
+
+Tools for teamwork, facilitation, and group decision-making.
+
+- **Round Robin** — timed rotating brainstorm with AI facilitation
+- **Gallery Walk** — structured peer critique protocol (extract from Class Gallery)
+- **Team Charter Builder** — roles, norms, communication preferences
+- **Consensus Builder** — structured disagreement resolution
+- **Warm-up Activity Library** — icebreaker/energiser activities for workshops
+- **Conflict Navigation Guide** — structured conflict resolution framework
+- **Energy Level Pulser** — quick group energy check-in with response
+
+*Note: Dot Voting (built, in Design Thinking) could be cross-listed here.*
+
+### 4. Planning & Strategy (~10 tools — Coming Soon)
+
+Tools for project planning, communication, and strategic thinking.
+
+- **Sprint Board** — kanban with design cycle columns (Backlog → A → B → C → D)
+- **Timeline Builder** — visual project timeline with milestones and dependencies
+- **Resource Planner** — materials, tools, time budget calculator
+- **Task Decomposition** — break big tasks into subtasks with time estimates
+- **Pitch Builder** — structured elevator pitch with timer + AI coaching
+- **Presentation Planner** — slide outline with talking points and timing
+- **Design Brief Writer** — AI-assisted brief generation from constraints
+- **Business Model Canvas** — 9-block canvas for value proposition and delivery
+- **Rollout Timeline** — implementation/launch planning with phases
+- **Measurement Framework** — define success metrics and evaluation criteria
+
+### 5. Systems & Science (~6 tools — Coming Soon)
+
+Tools for systems thinking, scientific method, and experimental design.
+
+- **Causal Loop Diagram** — map cause-effect feedback loops in complex systems
+- **Futures Cone Builder** — probable/plausible/possible/preferable futures mapping
+- **Ripple Effect Mapper** — trace 2nd and 3rd order consequences of decisions
+- **A/B Testing Matrix** — structure experiments with hypothesis, variables, controls
+- **Assumption Buster Game** — identify and challenge hidden assumptions systematically
+- **Sustainability Canvas** — environmental/social/economic impact assessment
+
+### 6. Self-Discovery (~7 tools — Coming Soon)
+
+Psychometric and self-awareness tools adapted from the Discovery Engine.
+
+- **Archetype Finder** — binary pair selections → weighted scoring → archetype reveal (Maker/Researcher/Leader/Communicator/Creative/Systems Thinker)
+- **Strength Mapper** — scenario-based strength discovery (campfire pattern from Discovery S1)
+- **Interest Sorter** — irritation/passion card sort → interest clustering
+- **Values Card Sort** — 20 value cards, rank/sort/reflect on what matters
+- **Fear Reframer** — identify fears → AI reframing (adapted from Discovery S6 Crossroads)
+- **Working Style Profiler** — solo/pair/group preferences with nuanced context scenarios
+- **Design DNA Profiler** — discover your design personality and thinking strengths
+
+*Build priority: HIGH — leverages existing Discovery Engine code and scoring algorithms.*
+
+### 7. Reflection & Growth (~5 tools — Coming Soon)
+
+Metacognitive tools for learning from experience and tracking development.
+
+- **Learning Log** — structured daily/weekly reflection with prompts
+- **Growth Tracker** — self-assessment over time with visualized progress curves
+- **Mistake Journal** — document failures + what was learned + how to apply next time
 - **Process Documentation** — step-by-step capture of what you did and why
+- **Design DNA Profiler** — also fits here (cross-listed with Self-Discovery)
+
+### Category Build Priority
+
+| Priority | Category | Reason | Est. Tools |
+|----------|----------|--------|-----------|
+| 1 | Self-Discovery | Leverages Discovery Engine code, unique differentiator | 7 |
+| 2 | Collaboration | Dot Voting done, Round Robin/Gallery Walk have existing patterns | 7 |
+| 3 | Visual & Spatial | Quick Sketch done, annotation/wireframe are high-value | 8 |
+| 4 | Planning & Strategy | Sprint Board reuses DesignPlanBoard component | 10 |
+| 5 | Reflection & Growth | Simpler tools, less AI needed | 5 |
+| 6 | Systems & Science | Most complex, needs research on interaction patterns | 6 |
+
+**Grand total across all 7 categories: ~91 tools**
 
 ## SCAMPER v2 — The Reference Implementation
 

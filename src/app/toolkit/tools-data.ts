@@ -134,19 +134,36 @@ export const tools: ToolkitTool[] = [
   { id: 'portfolio-review', name: 'Portfolio Review', phase: 'test', difficulty: 'advanced', time: '30-60m', group: 'evaluation', desc: 'Reflect on your portfolio with structured self-evaluation.', interactive: false },
 ];
 
-// Coming Soon expansion categories
+// ── Unified toolkit category tabs (shared across public + teacher pages) ──
+export interface ToolkitTab {
+  id: string;
+  label: string;
+  active: boolean;
+}
+
+export const TOOLKIT_TABS: ToolkitTab[] = [
+  { id: 'design-thinking', label: 'Design Thinking', active: true },
+  { id: 'visual-spatial', label: 'Visual & Spatial', active: false },
+  { id: 'collaboration', label: 'Collaboration', active: false },
+  { id: 'planning-strategy', label: 'Planning & Strategy', active: false },
+  { id: 'systems-science', label: 'Systems & Science', active: false },
+  { id: 'self-discovery', label: 'Self-Discovery', active: false },
+  { id: 'reflection-growth', label: 'Reflection & Growth', active: false },
+];
+
+// Coming Soon expansion categories (aligned with TOOLKIT_TABS)
 export interface ComingSoonCategory {
   name: string;
   tools: string[];
 }
 
 export const COMING_SOON: ComingSoonCategory[] = [
-  { name: 'Empathy & Context', tools: ['Stakeholder Power Grid', 'Cultural Landscape Map', 'Sustainability Canvas'] },
-  { name: 'Rapid Experimentation', tools: ['Paper Prototyping Cards', 'A/B Testing Matrix', 'Assumption Buster Game'] },
-  { name: 'Systems Thinking', tools: ['Causal Loop Diagram', 'Futures Cone Builder', 'Ripple Effect Mapper'] },
-  { name: 'Scaling & Impact', tools: ['Business Model Canvas', 'Rollout Timeline', 'Measurement Framework'] },
-  { name: 'Facilitation', tools: ['Warm-up Activity Library', 'Conflict Navigation Guide', 'Energy Level Pulser'] },
-  { name: 'Reflection', tools: ['Design DNA Profiler', 'Failure Post-Mortem', 'Growth Reflection Journal'] },
+  { name: 'Visual & Spatial', tools: ['Annotation Tool', 'Wireframe Builder', 'Mood Board Creator', 'Comparison Sketch', 'Storyboard Creator'] },
+  { name: 'Collaboration', tools: ['Round Robin', 'Team Charter Builder', 'Consensus Builder', 'Warm-up Library', 'Energy Level Pulser'] },
+  { name: 'Planning & Strategy', tools: ['Sprint Board', 'Timeline Builder', 'Pitch Builder', 'Business Model Canvas', 'Design Brief Writer'] },
+  { name: 'Systems & Science', tools: ['Causal Loop Diagram', 'Futures Cone Builder', 'Ripple Effect Mapper', 'A/B Testing Matrix', 'Sustainability Canvas'] },
+  { name: 'Self-Discovery', tools: ['Archetype Finder', 'Strength Mapper', 'Values Card Sort', 'Fear Reframer', 'Working Style Profiler'] },
+  { name: 'Reflection & Growth', tools: ['Learning Log', 'Growth Tracker', 'Mistake Journal', 'Process Documentation', 'Design DNA Profiler'] },
 ];
 
 // Helper: get slug for a tool (interactive tools only)

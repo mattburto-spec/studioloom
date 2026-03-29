@@ -12,18 +12,12 @@ import {
   INTERACTIVE_SLUGS,
   getToolUrl,
   COMING_SOON,
+  TOOLKIT_TABS,
 } from "@/app/toolkit/tools-data";
 import { ToolkitThumbnail } from "@/app/toolkit/toolkit-thumbnails";
 import { ToolModal } from "@/components/toolkit/ToolModal";
 
-/* ── Category tabs (shared with public page) ─────────────────── */
-const TOOLKIT_TABS = [
-  { id: "design-thinking", label: "Design Thinking", active: true },
-  { id: "systems-thinking", label: "Systems Thinking", active: false },
-  { id: "entrepreneurship", label: "Entrepreneurship", active: false },
-  { id: "scientific-method", label: "Scientific Method", active: false },
-  { id: "creative-arts", label: "Creative Arts", active: false },
-];
+/* ── Category tabs (imported from tools-data.ts) ─────────────── */
 
 /* ── Animation variants ─────────────────────────────────────── */
 const containerVariants = {

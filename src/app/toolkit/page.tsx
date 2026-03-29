@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { tools, Phase, PHASE_COLORS, PHASE_LABELS, SEARCH_RULES, COMING_SOON, getToolUrl } from './tools-data';
+import { tools, Phase, PHASE_COLORS, PHASE_LABELS, SEARCH_RULES, COMING_SOON, TOOLKIT_TABS, getToolUrl } from './tools-data';
 import { ToolkitThumbnail } from './toolkit-thumbnails';
 
 /* ── Animation variants ─────────────────────────────────────── */
@@ -52,14 +52,7 @@ const PHASE_EMOJI: Record<Phase, string> = {
   test: '\u2714\uFE0F',
 };
 
-/* ── Toolkit category tabs ─────────────────────────────────── */
-const TOOLKIT_TABS = [
-  { id: 'design-thinking', label: 'Design Thinking', active: true },
-  { id: 'visual-thinking', label: 'Visual Thinking', active: false },
-  { id: 'collaboration', label: 'Collaboration', active: false },
-  { id: 'project-mgmt', label: 'Project Mgmt', active: false },
-  { id: 'reflection', label: 'Reflection', active: false },
-];
+/* ── Toolkit category tabs (imported from tools-data.ts) ───── */
 
 /* ── Main page component ────────────────────────────────────── */
 export default function ToolkitPage() {
