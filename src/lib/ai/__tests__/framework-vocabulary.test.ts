@@ -17,7 +17,7 @@ describe("getFrameworkVocabulary", () => {
     expect(vocab.name).toBe("IB MYP Design");
   });
 
-  it.each(["IB_MYP", "GCSE_DT", "ACARA_DT", "PLTW", "A_LEVEL_DT", "IGCSE_DT"])(
+  it.each(["IB_MYP", "GCSE_DT", "ACARA_DT", "PLTW", "A_LEVEL_DT", "IGCSE_DT", "NESA_DT", "VIC_DT"])(
     "returns valid vocabulary for %s",
     (framework) => {
       const vocab = getFrameworkVocabulary(framework);
@@ -46,7 +46,7 @@ describe("buildFrameworkPromptBlock", () => {
   });
 
   it("generates prompt block for each non-MYP framework", () => {
-    for (const fw of ["GCSE_DT", "ACARA_DT", "PLTW", "A_LEVEL_DT", "IGCSE_DT"]) {
+    for (const fw of ["GCSE_DT", "ACARA_DT", "PLTW", "A_LEVEL_DT", "IGCSE_DT", "NESA_DT", "VIC_DT"]) {
       const block = buildFrameworkPromptBlock(fw);
       expect(block).toContain("NOT IB MYP");
       expect(block.length).toBeGreaterThan(100);
@@ -55,14 +55,16 @@ describe("buildFrameworkPromptBlock", () => {
 });
 
 describe("getSupportedFrameworks", () => {
-  it("returns all 6 frameworks", () => {
+  it("returns all 8 frameworks", () => {
     const frameworks = getSupportedFrameworks();
-    expect(frameworks).toHaveLength(6);
+    expect(frameworks).toHaveLength(8);
     expect(frameworks).toContain("IB_MYP");
     expect(frameworks).toContain("GCSE_DT");
     expect(frameworks).toContain("ACARA_DT");
     expect(frameworks).toContain("PLTW");
     expect(frameworks).toContain("A_LEVEL_DT");
     expect(frameworks).toContain("IGCSE_DT");
+    expect(frameworks).toContain("NESA_DT");
+    expect(frameworks).toContain("VIC_DT");
   });
 });

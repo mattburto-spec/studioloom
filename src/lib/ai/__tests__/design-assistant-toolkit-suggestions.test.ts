@@ -298,7 +298,7 @@ describe('Design Assistant Toolkit Suggestions (Phase D)', () => {
     });
 
     it('should work with all framework options', () => {
-      const frameworks = ['IB_MYP', 'GCSE_DT', 'ACARA', 'A_LEVEL'];
+      const frameworks = ['IB_MYP', 'GCSE_DT', 'ACARA_DT', 'A_LEVEL_DT'];
       frameworks.forEach((fw) => {
         const prompt = buildDesignAssistantSystemPrompt({
           bloomLevel: 3,

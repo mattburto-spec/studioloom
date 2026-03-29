@@ -66,7 +66,8 @@ describe("buildDesignAssistantSystemPrompt", () => {
       effortScore: 5,
       framework: "ACARA_DT",
     });
-    expect(prompt).toContain("outcomes");
+    expect(prompt).toContain("strands");
+    expect(prompt).toContain("Investigating → Generating → Producing → Evaluating");
     expect(prompt).toMatchSnapshot();
   });
 
