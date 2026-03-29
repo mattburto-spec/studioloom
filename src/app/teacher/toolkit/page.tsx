@@ -114,14 +114,17 @@ export default function TeacherToolkitPage() {
 
   const handlePhaseClick = (phase: Phase) => {
     setSelectedPhase(selectedPhase === phase ? null : phase);
-    setTimeout(() => {
-      if (gridRef.current) {
-        // Measure the sticky filter bar height dynamically so offset is always correct
-        const barH = filterBarRef.current?.getBoundingClientRect().height ?? 60;
-        const y = gridRef.current.getBoundingClientRect().top + window.scrollY - barH - 16;
-        window.scrollTo({ top: y, behavior: "smooth" });
-      }
-    }, 100);
+    // Wait for React to re-render + DOM to settle before measuring
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        if (filterBarRef.current) {
+          // Scroll so the sticky pill bar sits at the very top of the viewport
+          const barRect = filterBarRef.current.getBoundingClientRect();
+          const scrollTarget = window.scrollY + barRect.top;
+          window.scrollTo({ top: scrollTarget, behavior: "smooth" });
+        }
+      }, 50);
+    });
   };
 
   const handleToolClick = (toolId: string) => {
@@ -145,14 +148,9 @@ export default function TeacherToolkitPage() {
         transition={{ duration: 0.4 }}
         className="flex items-center justify-between mb-2"
       >
-        <div>
-          <h1 className="text-3xl font-extrabold text-text-primary tracking-tight">
-            Toolkit
-          </h1>
-          <p className="text-text-secondary text-base mt-1">
-            {tools.length} tools across {PHASES.length} phases — assign to units or use in class
-          </p>
-        </div>
+        <h1 className="text-3xl font-extrabold text-text-primary tracking-tight">
+          Toolkit
+        </h1>
         <Link
           href="/toolkit"
           target="_blank"
@@ -258,10 +256,11 @@ export default function TeacherToolkitPage() {
                 onClick={() => handlePhaseClick(p.key)}
                 className="px-5 py-2.5 rounded-full text-sm font-semibold transition-all flex items-center gap-2"
                 style={{
-                  background: isActive ? p.color + "20" : "transparent",
-                  color: isActive ? p.color : p.color + "aa",
-                  border: `1.5px solid ${isActive ? p.color + "80" : p.color + "30"}`,
-                  boxShadow: isActive ? `0 0 12px ${p.color}20` : "none",
+                  background: isActive ? p.color + "22" : p.color + "0a",
+                  color: p.color,
+                  fontWeight: 700,
+                  border: `1.5px solid ${isActive ? p.color + "90" : p.color + "40"}`,
+                  boxShadow: isActive ? `0 0 14px ${p.color}25` : "none",
                 }}
               >
                 <span>{PHASE_EMOJI[p.key]}</span>
