@@ -62,7 +62,7 @@ export default function TeacherDashboard() {
           .from("teachers")
           .select("style_profile")
           .eq("id", teacher.id)
-          .single();
+          .maybeSingle();
         if (data?.style_profile) {
           setStyleProfile(data.style_profile as TeacherStyleProfile);
         }
@@ -263,7 +263,7 @@ function detectUnitType(unitType?: string, className?: string, unitTitle?: strin
   // 2. Detect from class name or unit title keywords
   const text = `${className || ""} ${unitTitle || ""}`.toLowerCase();
   if (/\bservice\b/.test(text)) return "service";
-  if (/\bpersonal\s*project\b|\b\bpp\b/.test(text)) return "pp";
+  if (/\bpersonal\s*project\b|\bpp\b/.test(text)) return "pp";
   if (/\binquiry\b|\bpyp\b|\btrans\s*disc/.test(text)) return "inquiry";
   return "design";
 }

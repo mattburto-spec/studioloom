@@ -113,12 +113,13 @@ export default function UnitDetailPage({
 
   useEffect(() => {
     async function load() {
+      try {
       const supabase = createClient();
       const { data } = await supabase
         .from("units")
         .select("*")
         .eq("id", unitId)
-        .single();
+        .maybeSingle();
       setUnit(data);
       // Load thumbnail_url (may not exist if migration 052 not applied)
       setThumbnailUrl(data?.thumbnail_url ?? null);
@@ -201,7 +202,11 @@ export default function UnitDetailPage({
         setForks(versionsRes.forks || []);
       }
 
-      setLoading(false);
+      } catch (err) {
+        console.error("[unit detail load]", err);
+      } finally {
+        setLoading(false);
+      }
     }
     load();
   }, [unitId]);

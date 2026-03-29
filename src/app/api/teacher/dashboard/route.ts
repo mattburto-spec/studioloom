@@ -116,7 +116,7 @@ export const GET = withErrorHandler("teacher/dashboard:GET", async (request: Nex
       .from("teacher_profiles")
       .select("school_context")
       .eq("teacher_id", teacherId)
-      .single(),
+      .maybeSingle(),
   ]);
 
   const classUnits = (classUnitsRes.data || []) as unknown as ClassUnitRow[];

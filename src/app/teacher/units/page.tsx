@@ -189,28 +189,33 @@ export default function TeacherUnitsPage() {
   }, []);
 
   async function loadUnits() {
-    const supabase = createClient();
-    const [{ data: unitData }, { data: classUnitData }] = await Promise.all([
-      supabase.from("units").select("*").order("created_at", { ascending: false }),
-      supabase.from("class_units").select("unit_id, class_id, content_data, classes(name)"),
-    ]);
-    setUnits(unitData || []);
+    try {
+      const supabase = createClient();
+      const [{ data: unitData }, { data: classUnitData }] = await Promise.all([
+        supabase.from("units").select("*").order("created_at", { ascending: false }),
+        supabase.from("class_units").select("unit_id, class_id, content_data, classes(name)"),
+      ]);
+      setUnits(unitData || []);
 
-    // Build class assignment map
-    const map = new Map<string, { classId: string; name: string; isForked: boolean }[]>();
-    if (classUnitData) {
-      for (const cu of classUnitData as unknown as ClassAssignment[]) {
-        const list = map.get(cu.unit_id) || [];
-        list.push({
-          classId: cu.class_id,
-          name: (cu.classes as { name: string } | null)?.name || "Unknown",
-          isForked: !!cu.content_data,
-        });
-        map.set(cu.unit_id, list);
+      // Build class assignment map
+      const map = new Map<string, { classId: string; name: string; isForked: boolean }[]>();
+      if (classUnitData) {
+        for (const cu of classUnitData as unknown as ClassAssignment[]) {
+          const list = map.get(cu.unit_id) || [];
+          list.push({
+            classId: cu.class_id,
+            name: (cu.classes as { name: string } | null)?.name || "Unknown",
+            isForked: !!cu.content_data,
+          });
+          map.set(cu.unit_id, list);
+        }
       }
+      setClassMap(map);
+    } catch (err) {
+      console.error("[loadUnits] Failed:", err);
+    } finally {
+      setLoading(false);
     }
-    setClassMap(map);
-    setLoading(false);
   }
 
   const loadCommunityUnits = useCallback(async () => {
