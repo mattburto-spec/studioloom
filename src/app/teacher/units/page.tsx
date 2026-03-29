@@ -39,7 +39,7 @@ interface RepoUnit {
 interface ClassAssignment {
   unit_id: string;
   class_id: string;
-  forked_at: string | null;
+  content_data: unknown;
   classes: { name: string } | null;
 }
 
@@ -191,8 +191,8 @@ export default function TeacherUnitsPage() {
   async function loadUnits() {
     const supabase = createClient();
     const [{ data: unitData }, { data: classUnitData }] = await Promise.all([
-      supabase.from("units").select("id, title, description, topic, tags, grade_level, duration_weeks, author_name, school_name, fork_count, created_at, is_published, unit_type, content_data").order("created_at", { ascending: false }),
-      supabase.from("class_units").select("unit_id, class_id, forked_at, classes(name)").eq("is_active", true),
+      supabase.from("units").select("*").order("created_at", { ascending: false }),
+      supabase.from("class_units").select("unit_id, class_id, content_data, classes(name)"),
     ]);
     setUnits(unitData || []);
 
@@ -204,7 +204,7 @@ export default function TeacherUnitsPage() {
         list.push({
           classId: cu.class_id,
           name: (cu.classes as { name: string } | null)?.name || "Unknown",
-          isForked: !!cu.forked_at,
+          isForked: !!cu.content_data,
         });
         map.set(cu.unit_id, list);
       }
