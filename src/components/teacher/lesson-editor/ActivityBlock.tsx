@@ -5,6 +5,7 @@ import { motion, useDragControls } from "framer-motion";
 import InlineEdit from "./InlineEdit";
 import { CRITERIA, type CriterionKey, getDesignProcessPhases } from "@/lib/constants";
 import type { ActivitySection, ResponseType } from "@/types";
+import { tools as allToolkitTools, INTERACTIVE_SLUGS } from "@/app/toolkit/tools-data";
 
 interface ActivityBlockProps {
   activity: ActivitySection;
@@ -293,41 +294,22 @@ export default function ActivityBlock({
             className="w-full px-3 py-2 border border-purple-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white"
           >
             <option value="">Select a tool...</option>
-            <optgroup label="Ideation">
-              <option value="scamper">SCAMPER</option>
-              <option value="mind-map">Mind Map</option>
-              <option value="brainstorm-web">Brainstorm Web</option>
-              <option value="lotus-diagram">Lotus Diagram</option>
-              <option value="morphological-chart">Morphological Chart</option>
-              <option value="reverse-brainstorm">Reverse Brainstorm</option>
-              <option value="biomimicry-cards">Biomimicry Cards</option>
-              <option value="quick-sketch">Quick Sketch</option>
-            </optgroup>
-            <optgroup label="Analysis">
-              <option value="five-whys">Five Whys</option>
-              <option value="fishbone-diagram">Fishbone Diagram</option>
-              <option value="affinity-diagram">Affinity Diagram</option>
-              <option value="systems-map">Systems Map</option>
-              <option value="stakeholder-map">Stakeholder Map</option>
-              <option value="empathy-map">Empathy Map</option>
-            </optgroup>
-            <optgroup label="Evaluation">
-              <option value="pmi-chart">PMI Chart</option>
-              <option value="six-thinking-hats">Six Thinking Hats</option>
-              <option value="decision-matrix">Decision Matrix</option>
-              <option value="swot-analysis">SWOT Analysis</option>
-              <option value="pairwise-comparison">Pairwise Comparison</option>
-              <option value="impact-effort-matrix">Impact / Effort Matrix</option>
-              <option value="dot-voting">Dot Voting</option>
-            </optgroup>
-            <optgroup label="Research & Planning">
-              <option value="user-persona">User Persona</option>
-              <option value="journey-map">Journey Map</option>
-              <option value="how-might-we">How Might We</option>
-              <option value="pov-statement">Point of View Statement</option>
-              <option value="feedback-capture-grid">Feedback Capture Grid</option>
-              <option value="design-specification">Design Specification</option>
-            </optgroup>
+            {(["ideation", "analysis", "evaluation", "research", "planning"] as const).map((group) => {
+              const groupTools = allToolkitTools.filter(
+                (t) => t.interactive && t.group === group
+              );
+              if (groupTools.length === 0) return null;
+              return (
+                <optgroup key={group} label={group.charAt(0).toUpperCase() + group.slice(1)}>
+                  {groupTools.map((t) => {
+                    const slug = INTERACTIVE_SLUGS[t.id];
+                    return slug ? (
+                      <option key={t.id} value={slug}>{t.name}</option>
+                    ) : null;
+                  })}
+                </optgroup>
+              );
+            })}
           </select>
           <div>
             <label className="text-xs text-purple-700 block mb-1">Challenge / Topic (optional)</label>

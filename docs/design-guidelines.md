@@ -85,6 +85,18 @@ Show current page + next step, not full 16-page wall. Hide future phases for new
 Ages 11-16 use phones/tablets. Student experience must work at 375px. Quick Capture = phone camera → portfolio. Touch-optimised input.
 **Source:** roadmap.md | **Status:** Documented
 
+### B11. Phase Pills Over Collections for Filtering
+Toolkit browsing uses design process phases (Discover/Define/Ideate/Prototype/Test) as the primary filter — not curated collections. Phases are universal, immediately understood by any design teacher, and map to every curriculum framework. Toggle behaviour (click to filter, click again to clear). Auto-scroll to grid on filter change.
+**Source:** CLAUDE.md | **Status:** In prototype
+
+### B12. Structural SVG Thumbnails Show Output Shape
+Tool cards display inline SVG diagrams of the tool's actual output structure (mind map = radial nodes, SWOT = 4 quadrants, fishbone = spine + bones). Phase-colored. Communicates what the tool produces at a glance — better than emoji (generic), photos (don't show structure), or illustrations (expensive).
+**Source:** CLAUDE.md | **Status:** In prototype
+
+### B13. INTERACTIVE Badge for Built Tools
+Tools with dedicated interactive pages get a visible "INTERACTIVE" badge. Distinguishes the 27 fully-built AI-powered tools from catalog-only entries. Sets clear user expectation before clicking.
+**Source:** CLAUDE.md | **Status:** In prototype
+
 ## Teacher Experience
 
 ### C1. Flexible Page Architecture

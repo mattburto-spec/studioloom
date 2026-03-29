@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { tools, type Phase } from "@/app/toolkit/tools-data";
+import { tools, type Phase, PHASE_COLORS, INTERACTIVE_SLUGS } from "@/app/toolkit/tools-data";
 import { ToolModal } from "@/components/toolkit/ToolModal";
 
 const PHASES: Phase[] = ["discover", "define", "ideate", "prototype", "test"];
@@ -21,29 +21,20 @@ export default function StudentToolsPage() {
   const [searchQuery, setSearchQuery] = useState("");
 
   // Filter to interactive tools only
-  const interactiveTools = tools.filter((t) => t.slug);
+  const interactiveTools = tools.filter((t) => t.interactive);
 
   // Apply filters
   const filteredTools = interactiveTools.filter((tool) => {
-    if (selectedPhase && !tool.phases.includes(selectedPhase)) return false;
+    if (selectedPhase && tool.phase !== selectedPhase) return false;
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       return (
         tool.name.toLowerCase().includes(q) ||
-        tool.desc.toLowerCase().includes(q) ||
-        tool.synonyms.toLowerCase().includes(q)
+        tool.desc.toLowerCase().includes(q)
       );
     }
     return true;
   });
-
-  const phaseColors: Record<Phase, string> = {
-    discover: "#6366f1",
-    define: "#ec4899",
-    ideate: "#a855f7",
-    prototype: "#f59e0b",
-    test: "#10b981",
-  };
 
   return (
     <main className="min-h-screen" style={{ backgroundColor: "#0f0f1a" }}>
@@ -115,7 +106,7 @@ export default function StudentToolsPage() {
                     : "bg-white/10 text-white hover:bg-white/20"
                 }`}
                 style={{
-                  backgroundColor: selectedPhase === phase ? phaseColors[phase] : undefined,
+                  backgroundColor: selectedPhase === phase ? PHASE_COLORS[phase] : undefined,
                 }}
               >
                 {phase}
@@ -140,16 +131,19 @@ export default function StudentToolsPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredTools.map((tool) => (
+              {filteredTools.map((tool) => {
+                const toolSlug = INTERACTIVE_SLUGS[tool.id];
+                const toolColor = PHASE_COLORS[tool.phase];
+                return (
                 <button
-                  key={tool.slug}
-                  onClick={() => setSelectedToolId(tool.slug || "")}
+                  key={tool.id}
+                  onClick={() => setSelectedToolId(toolSlug || "")}
                   className="text-left group relative overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-white/5 to-white/0 p-6 hover:border-white/20 hover:bg-gradient-to-br hover:from-white/10 hover:to-white/5 transition-all"
                 >
                   {/* Background glow */}
                   <div
                     className="absolute inset-0 opacity-0 group-hover:opacity-20 transition-opacity"
-                    style={{ backgroundColor: tool.color }}
+                    style={{ backgroundColor: toolColor }}
                   />
 
                   {/* Content */}
@@ -161,7 +155,7 @@ export default function StudentToolsPage() {
                       </h3>
                       <div
                         className="w-3 h-3 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: tool.color }}
+                        style={{ backgroundColor: toolColor }}
                       />
                     </div>
 
@@ -176,8 +170,8 @@ export default function StudentToolsPage() {
                       <span
                         className="text-xs px-2 py-1 rounded-full font-medium capitalize"
                         style={{
-                          backgroundColor: `${tool.color}20`,
-                          color: tool.color,
+                          backgroundColor: `${toolColor}20`,
+                          color: toolColor,
                         }}
                       >
                         {tool.difficulty}
@@ -189,17 +183,14 @@ export default function StudentToolsPage() {
                       </span>
                     </div>
 
-                    {/* Phases */}
+                    {/* Phase */}
                     <div className="flex gap-1 flex-wrap">
-                      {tool.phases.map((phase) => (
-                        <span
-                          key={phase}
-                          className="text-xs px-2 py-0.5 rounded capitalize text-white/70"
-                          style={{ backgroundColor: `${phaseColors[phase]}30` }}
-                        >
-                          {phase}
-                        </span>
-                      ))}
+                      <span
+                        className="text-xs px-2 py-0.5 rounded capitalize text-white/70"
+                        style={{ backgroundColor: `${toolColor}30` }}
+                      >
+                        {tool.phase}
+                      </span>
                     </div>
 
                     {/* CTA */}
@@ -218,7 +209,8 @@ export default function StudentToolsPage() {
                     </div>
                   </div>
                 </button>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { usePathname } from "next/navigation";
 import { useStudent } from "@/app/(student)/student-context";
-import { tools, type Phase } from "@/app/toolkit/tools-data";
+import { tools, type Phase, PHASE_COLORS, INTERACTIVE_SLUGS } from "@/app/toolkit/tools-data";
 import { ToolModal } from "./ToolModal";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -49,7 +49,7 @@ export function QuickToolFAB({ hidden = false, hideButton = false }: QuickToolFA
   const phaseTools = useMemo(
     () =>
       selectedPhase
-        ? tools.filter((t) => t.slug && t.phases.includes(selectedPhase))
+        ? tools.filter((t) => t.interactive && t.phase === selectedPhase)
         : [],
     [selectedPhase]
   );
@@ -136,7 +136,7 @@ export function QuickToolFAB({ hidden = false, hideButton = false }: QuickToolFA
             {PHASES.map((phase, i) => {
               const isSelected = selectedPhase === phase.key;
               const toolCount = tools.filter(
-                (t) => t.slug && t.phases.includes(phase.key)
+                (t) => t.interactive && t.phase === phase.key
               ).length;
 
               return (
@@ -244,9 +244,12 @@ export function QuickToolFAB({ hidden = false, hideButton = false }: QuickToolFA
                           overflow: "hidden",
                         }}
                       >
-                        {phaseTools.map((tool, ti) => (
+                        {phaseTools.map((tool, ti) => {
+                          const toolSlug = INTERACTIVE_SLUGS[tool.id];
+                          const toolColor = PHASE_COLORS[tool.phase];
+                          return (
                           <motion.button
-                            key={tool.slug}
+                            key={tool.id}
                             initial={{ opacity: 0, x: 24, scale: 0.7 }}
                             animate={{ opacity: 1, x: 0, scale: 1 }}
                             exit={{ opacity: 0, x: 16, scale: 0.85 }}
@@ -254,12 +257,12 @@ export function QuickToolFAB({ hidden = false, hideButton = false }: QuickToolFA
                             whileHover={{
                               scale: 1.05,
                               y: -2,
-                              boxShadow: `0 6px 20px ${tool.color}30, 0 0 0 2px ${tool.color}40`,
+                              boxShadow: `0 6px 20px ${toolColor}30, 0 0 0 2px ${toolColor}40`,
                             }}
                             whileTap={{ scale: 0.95 }}
                             onClick={(e) => {
                               e.stopPropagation();
-                              setSelectedToolId(tool.slug || "");
+                              setSelectedToolId(toolSlug || "");
                             }}
                             style={{
                               display: "flex",
@@ -271,7 +274,7 @@ export function QuickToolFAB({ hidden = false, hideButton = false }: QuickToolFA
                               border: "none",
                               cursor: "pointer",
                               background: "#fff",
-                              boxShadow: `0 2px 8px rgba(0,0,0,0.08), 0 0 0 1px ${tool.color}25`,
+                              boxShadow: `0 2px 8px rgba(0,0,0,0.08), 0 0 0 1px ${toolColor}25`,
                               whiteSpace: "nowrap" as const,
                             }}
                             title={tool.name}
@@ -282,7 +285,7 @@ export function QuickToolFAB({ hidden = false, hideButton = false }: QuickToolFA
                                 width: 8,
                                 height: 8,
                                 borderRadius: 2,
-                                background: tool.color,
+                                background: toolColor,
                                 flexShrink: 0,
                               }}
                             />
@@ -296,7 +299,8 @@ export function QuickToolFAB({ hidden = false, hideButton = false }: QuickToolFA
                               {tool.name}
                             </span>
                           </motion.button>
-                        ))}
+                          );
+                        })}
                       </motion.div>
                     )}
 

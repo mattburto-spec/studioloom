@@ -1,81 +1,120 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { tools, type Phase, type ToolType } from "@/app/toolkit/tools-data";
+import {
+  tools,
+  type Phase,
+  type ToolGroup,
+  PHASE_COLORS,
+  PHASE_LABELS,
+  SEARCH_RULES,
+  INTERACTIVE_SLUGS,
+  getToolUrl,
+} from "@/app/toolkit/tools-data";
+import { ToolkitThumbnail } from "@/app/toolkit/toolkit-thumbnails";
 import { ToolModal } from "@/components/toolkit/ToolModal";
 
+/* ── Animation variants ─────────────────────────────────────── */
+const containerVariants = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.03, delayChildren: 0.05 } },
+};
+
+const cardVariants = {
+  hidden: { opacity: 0, y: 14, scale: 0.97 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    transition: { type: "spring" as const, stiffness: 320, damping: 28 },
+  },
+};
+
+/* ── Phase pills ────────────────────────────────────────────── */
 const PHASES: { key: Phase; label: string; color: string }[] = [
-  { key: "discover", label: "Discover", color: "#6366f1" },
-  { key: "define", label: "Define", color: "#ec4899" },
-  { key: "ideate", label: "Ideate", color: "#a855f7" },
-  { key: "prototype", label: "Prototype", color: "#f59e0b" },
-  { key: "test", label: "Test", color: "#10b981" },
+  { key: "discover", label: "Discover", color: PHASE_COLORS.discover },
+  { key: "define", label: "Define", color: PHASE_COLORS.define },
+  { key: "ideate", label: "Ideate", color: PHASE_COLORS.ideate },
+  { key: "prototype", label: "Prototype", color: PHASE_COLORS.prototype },
+  { key: "test", label: "Test", color: PHASE_COLORS.test },
 ];
 
-const TYPES: { key: ToolType; label: string }[] = [
+/* ── Group pills ────────────────────────────────────────────── */
+const GROUPS: { key: ToolGroup; label: string }[] = [
   { key: "ideation", label: "Ideation" },
   { key: "analysis", label: "Analysis" },
   { key: "evaluation", label: "Evaluation" },
   { key: "research", label: "Research" },
   { key: "planning", label: "Planning" },
-  { key: "communication", label: "Communication" },
-  { key: "reflection", label: "Reflection" },
 ];
 
-const containerVariants = {
-  hidden: {},
-  visible: { transition: { staggerChildren: 0.035, delayChildren: 0.05 } },
-};
+/* ── AI search helper (same as public page) ─────────────────── */
+function aiSearch(query: string): string[] | null {
+  const q = query.toLowerCase().trim();
+  if (q.length < 2) return null;
+  for (const rule of SEARCH_RULES) {
+    if (rule.keywords.some((kw) => q.includes(kw))) return rule.tools;
+  }
+  return null;
+}
 
-const cardVariants = {
-  hidden: { opacity: 0, y: 16, scale: 0.97 },
-  visible: {
-    opacity: 1, y: 0, scale: 1,
-    transition: { type: "spring", stiffness: 320, damping: 28 },
-  },
-};
+/* ── Difficulty badge color ──────────────────────────────────── */
+const diffColor = (d: string) =>
+  d === "beginner"
+    ? "text-emerald-600 bg-emerald-50 border-emerald-200"
+    : d === "intermediate"
+    ? "text-amber-600 bg-amber-50 border-amber-200"
+    : "text-red-500 bg-red-50 border-red-200";
 
 export default function TeacherToolkitPage() {
   const [search, setSearch] = useState("");
   const [selectedPhase, setSelectedPhase] = useState<Phase | null>(null);
-  const [selectedType, setSelectedType] = useState<ToolType | null>(null);
-  const [selectedToolId, setSelectedToolId] = useState<string | null>(null);
+  const [selectedGroup, setSelectedGroup] = useState<ToolGroup | null>(null);
+  const [selectedToolSlug, setSelectedToolSlug] = useState<string | null>(null);
+  const gridRef = useRef<HTMLDivElement>(null);
 
+  /* ── Filtered tool list ───────────────────────────────────── */
   const filtered = useMemo(() => {
+    const aiHits = search ? aiSearch(search) : null;
     return tools.filter((t) => {
-      if (selectedPhase && !t.phases.includes(selectedPhase)) return false;
-      if (selectedType && t.type !== selectedType) return false;
+      if (selectedPhase && t.phase !== selectedPhase) return false;
+      if (selectedGroup && t.group !== selectedGroup) return false;
+      if (aiHits) return aiHits.includes(t.id);
       if (search) {
         const q = search.toLowerCase();
-        return (
-          t.name.toLowerCase().includes(q) ||
-          t.desc.toLowerCase().includes(q) ||
-          t.synonyms.toLowerCase().includes(q)
-        );
+        return t.name.toLowerCase().includes(q) || t.desc.toLowerCase().includes(q);
       }
       return true;
     });
-  }, [search, selectedPhase, selectedType]);
+  }, [search, selectedPhase, selectedGroup]);
 
-  const interactiveTools = filtered.filter((t) => t.slug);
-  const templateTools = filtered.filter((t) => !t.slug);
+  const interactiveTools = filtered.filter((t) => t.interactive);
+  const catalogTools = filtered.filter((t) => !t.interactive);
+  const hasFilter = !!selectedPhase || !!selectedGroup || search.length > 0;
 
-  const hasFilter = !!selectedPhase || !!selectedType || search.length > 0;
+  /* ── Handlers ─────────────────────────────────────────────── */
+  const handlePhaseClick = (phase: Phase) => {
+    setSelectedPhase(selectedPhase === phase ? null : phase);
+    gridRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const handleToolClick = (toolId: string) => {
+    const slug = INTERACTIVE_SLUGS[toolId];
+    if (slug) setSelectedToolSlug(slug);
+  };
 
   return (
     <main className="max-w-7xl mx-auto px-6 py-8">
+      {/* Tool modal */}
       <AnimatePresence>
-        {selectedToolId && (
-          <ToolModal
-            toolId={selectedToolId}
-            onClose={() => setSelectedToolId(null)}
-          />
+        {selectedToolSlug && (
+          <ToolModal toolId={selectedToolSlug} onClose={() => setSelectedToolSlug(null)} />
         )}
       </AnimatePresence>
 
-      {/* Header */}
+      {/* ── Header ──────────────────────────────────────────── */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -87,7 +126,7 @@ export default function TeacherToolkitPage() {
             Design Thinking Toolkit
           </h1>
           <p className="text-text-secondary text-sm mt-1">
-            {tools.length} tools across {PHASES.length} design phases — assign to units or use in class
+            {tools.length} tools across {PHASES.length} phases — assign to units or use in class
           </p>
         </div>
         <Link
@@ -104,7 +143,7 @@ export default function TeacherToolkitPage() {
         </Link>
       </motion.div>
 
-      {/* Filters */}
+      {/* ── Filters ─────────────────────────────────────────── */}
       <motion.div
         initial={{ opacity: 0, y: -6 }}
         animate={{ opacity: 1, y: 0 }}
@@ -113,8 +152,19 @@ export default function TeacherToolkitPage() {
       >
         {/* Search */}
         <div className="relative">
-          <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary/40" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+          <svg
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary/40"
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
           <input
             type="text"
@@ -132,7 +182,7 @@ export default function TeacherToolkitPage() {
               key={p.key}
               whileHover={{ scale: 1.06 }}
               whileTap={{ scale: 0.94 }}
-              onClick={() => setSelectedPhase(selectedPhase === p.key ? null : p.key)}
+              onClick={() => handlePhaseClick(p.key)}
               className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
               style={{
                 background: selectedPhase === p.key ? p.color : "transparent",
@@ -145,26 +195,32 @@ export default function TeacherToolkitPage() {
           ))}
         </div>
 
-        {/* Type filter */}
+        {/* Group filter */}
         <select
-          value={selectedType || ""}
-          onChange={(e) => setSelectedType((e.target.value as ToolType) || null)}
+          value={selectedGroup || ""}
+          onChange={(e) => setSelectedGroup((e.target.value as ToolGroup) || null)}
           className="px-3 py-2 border border-border rounded-xl text-xs text-text-secondary bg-white focus:outline-none focus:ring-2 focus:ring-brand-purple/20"
         >
-          <option value="">All types</option>
-          {TYPES.map((t) => (
-            <option key={t.key} value={t.key}>{t.label}</option>
+          <option value="">All groups</option>
+          {GROUPS.map((g) => (
+            <option key={g.key} value={g.key}>
+              {g.label}
+            </option>
           ))}
         </select>
 
-        {/* Clear filters */}
+        {/* Clear */}
         <AnimatePresence>
           {hasFilter && (
             <motion.button
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.8 }}
-              onClick={() => { setSelectedPhase(null); setSelectedType(null); setSearch(""); }}
+              onClick={() => {
+                setSelectedPhase(null);
+                setSelectedGroup(null);
+                setSearch("");
+              }}
               className="text-xs text-red-400 hover:text-red-500 font-medium px-2 py-1 rounded-lg border border-red-200 hover:border-red-300 transition"
             >
               Clear
@@ -183,138 +239,184 @@ export default function TeacherToolkitPage() {
         </motion.span>
       </motion.div>
 
-      {/* Interactive tools */}
-      <AnimatePresence mode="wait">
-        {interactiveTools.length > 0 && (
-          <motion.div
-            key="interactive"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="mb-8"
-          >
-            <h2 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
-              Interactive Tools
-              <span className="text-xs font-normal text-text-secondary">AI-powered, student-facing</span>
-            </h2>
+      {/* ── Tool Grid ───────────────────────────────────────── */}
+      <div ref={gridRef}>
+        {/* Interactive Tools */}
+        <AnimatePresence mode="wait">
+          {interactiveTools.length > 0 && (
             <motion.div
-              variants={containerVariants}
-              initial="hidden"
-              animate="visible"
-              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3"
+              key="interactive"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="mb-8"
             >
-              {interactiveTools.map((tool) => (
-                <motion.button
-                  key={tool.slug}
-                  variants={cardVariants}
-                  layout
-                  whileHover={{
-                    y: -3,
-                    boxShadow: "0 8px 30px rgba(0,0,0,0.08), 0 0 20px rgba(123,47,242,0.04)",
-                  }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={() => setSelectedToolId(tool.slug || "")}
-                  className="bg-white rounded-2xl border border-border shadow-sm p-4 text-left hover:border-brand-purple/20 transition-all group"
-                >
-                  <div className="flex items-start gap-3">
+              <h2 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
+                <span className="w-5 h-5 bg-purple-600 text-white rounded flex items-center justify-center text-[10px] font-bold">
+                  #
+                </span>
+                Interactive Tools
+                <span className="text-xs font-normal text-text-secondary">
+                  AI-powered, student-facing
+                </span>
+              </h2>
+              <motion.div
+                variants={containerVariants}
+                initial="hidden"
+                animate="visible"
+                className="grid gap-3"
+                style={{ gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))" }}
+              >
+                {interactiveTools.map((tool) => (
+                  <motion.button
+                    key={tool.id}
+                    variants={cardVariants}
+                    layout
+                    whileHover={{
+                      y: -3,
+                      boxShadow:
+                        "0 8px 30px rgba(0,0,0,0.08), 0 0 20px rgba(123,47,242,0.04)",
+                    }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => handleToolClick(tool.id)}
+                    className="bg-white rounded-2xl border border-border shadow-sm text-left hover:border-brand-purple/20 transition-all group overflow-hidden"
+                  >
+                    {/* SVG thumbnail */}
                     <div
-                      className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                      style={{ background: `${tool.color}15` }}
+                      className="h-28 flex items-center justify-center"
+                      style={{ background: PHASE_COLORS[tool.phase] + "0a" }}
                     >
-                      <div
-                        className="w-4 h-4 rounded-sm"
-                        style={{ background: tool.color }}
-                      />
+                      <ToolkitThumbnail toolId={tool.id} phase={tool.phase} />
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-text-primary group-hover:text-brand-purple transition">
+
+                    {/* Info */}
+                    <div className="px-4 pb-3 pt-2">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span
+                          className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded"
+                          style={{
+                            color: PHASE_COLORS[tool.phase],
+                            background: PHASE_COLORS[tool.phase] + "18",
+                          }}
+                        >
+                          {PHASE_LABELS[tool.phase]}
+                        </span>
+                        <span
+                          className={`text-[10px] font-medium px-1.5 py-0.5 rounded border ${diffColor(
+                            tool.difficulty
+                          )}`}
+                        >
+                          {tool.difficulty}
+                        </span>
+                        <span className="text-[10px] text-purple-600 font-bold ml-auto">
+                          INTERACTIVE
+                        </span>
+                      </div>
+                      <p className="text-sm font-semibold text-text-primary truncate group-hover:text-brand-purple transition">
                         {tool.name}
                       </p>
-                      <p className="text-xs text-text-secondary mt-0.5 line-clamp-2">{tool.desc}</p>
-                      <div className="flex items-center gap-2 mt-2">
-                        {tool.phases.map((ph) => {
-                          const phaseData = PHASES.find((p) => p.key === ph);
-                          return (
-                            <span
-                              key={ph}
-                              className="text-[10px] font-medium px-1.5 py-0.5 rounded"
-                              style={{ color: phaseData?.color, background: `${phaseData?.color}15` }}
-                            >
-                              {phaseData?.label}
-                            </span>
-                          );
-                        })}
-                        <span className="text-[10px] text-text-secondary/50">{tool.time}</span>
+                      <p className="text-xs text-text-secondary mt-0.5 line-clamp-2 leading-relaxed">
+                        {tool.desc}
+                      </p>
+                      <div className="flex items-center gap-3 mt-2 text-[10px] text-text-secondary/60">
+                        <span>{tool.time}</span>
+                        <span>{tool.group}</span>
                       </div>
                     </div>
-                  </div>
-                </motion.button>
-              ))}
+                  </motion.button>
+                ))}
+              </motion.div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>
 
-      {/* Template tools */}
-      <AnimatePresence mode="wait">
-        {templateTools.length > 0 && (
-          <motion.div
-            key="template"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-          >
-            <h2 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
-              Template Tools
-              <span className="text-xs font-normal text-text-secondary">Printable worksheets & guides</span>
-            </h2>
+        {/* Catalog Tools */}
+        <AnimatePresence mode="wait">
+          {catalogTools.length > 0 && (
             <motion.div
-              variants={containerVariants}
-              initial="hidden"
-              animate="visible"
-              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3"
+              key="catalog"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
             >
-              {templateTools.map((tool) => (
-                <motion.div
-                  key={tool.name}
-                  variants={cardVariants}
-                  layout
-                  whileHover={{ y: -2 }}
-                  className="bg-white rounded-2xl border border-border shadow-sm p-4"
-                >
-                  <div className="flex items-start gap-3">
+              <h2 className="text-sm font-semibold text-text-primary mb-3 flex items-center gap-2">
+                Catalog Tools
+                <span className="text-xs font-normal text-text-secondary">
+                  Printable worksheets &amp; guides — coming soon as interactive
+                </span>
+              </h2>
+              <motion.div
+                variants={containerVariants}
+                initial="hidden"
+                animate="visible"
+                className="grid gap-3"
+                style={{ gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))" }}
+              >
+                {catalogTools.map((tool) => (
+                  <motion.div
+                    key={tool.id}
+                    variants={cardVariants}
+                    layout
+                    whileHover={{ y: -2 }}
+                    className="bg-white rounded-2xl border border-border shadow-sm overflow-hidden opacity-80"
+                  >
+                    {/* SVG thumbnail */}
                     <div
-                      className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 opacity-60"
-                      style={{ background: `${tool.color}10` }}
+                      className="h-24 flex items-center justify-center opacity-50"
+                      style={{ background: PHASE_COLORS[tool.phase] + "06" }}
                     >
-                      <div
-                        className="w-4 h-4 rounded-sm"
-                        style={{ background: tool.color }}
-                      />
+                      <ToolkitThumbnail toolId={tool.id} phase={tool.phase} />
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-text-primary">{tool.name}</p>
-                      <p className="text-xs text-text-secondary mt-0.5 line-clamp-2">{tool.desc}</p>
-                      <div className="flex items-center gap-2 mt-2">
-                        {tool.phases.map((ph) => {
-                          const phaseData = PHASES.find((p) => p.key === ph);
-                          return (
-                            <span
-                              key={ph}
-                              className="text-[10px] font-medium px-1.5 py-0.5 rounded"
-                              style={{ color: phaseData?.color, background: `${phaseData?.color}10` }}
-                            >
-                              {phaseData?.label}
-                            </span>
-                          );
-                        })}
+
+                    {/* Info */}
+                    <div className="px-4 pb-3 pt-2">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span
+                          className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded"
+                          style={{
+                            color: PHASE_COLORS[tool.phase],
+                            background: PHASE_COLORS[tool.phase] + "12",
+                          }}
+                        >
+                          {PHASE_LABELS[tool.phase]}
+                        </span>
+                        <span
+                          className={`text-[10px] font-medium px-1.5 py-0.5 rounded border ${diffColor(
+                            tool.difficulty
+                          )}`}
+                        >
+                          {tool.difficulty}
+                        </span>
                       </div>
+                      <p className="text-sm font-medium text-text-primary truncate">
+                        {tool.name}
+                      </p>
+                      <p className="text-xs text-text-secondary mt-0.5 line-clamp-2 leading-relaxed">
+                        {tool.desc}
+                      </p>
                     </div>
-                  </div>
-                </motion.div>
-              ))}
+                  </motion.div>
+                ))}
+              </motion.div>
             </motion.div>
-          </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Empty state */}
+        {filtered.length === 0 && (
+          <div className="text-center py-20 text-text-secondary">
+            <p className="text-sm">No tools match your filters.</p>
+            <button
+              onClick={() => {
+                setSelectedPhase(null);
+                setSelectedGroup(null);
+                setSearch("");
+              }}
+              className="text-brand-purple text-xs mt-2 hover:underline"
+            >
+              Clear all filters
+            </button>
+          </div>
         )}
-      </AnimatePresence>
+      </div>
     </main>
   );
 }
