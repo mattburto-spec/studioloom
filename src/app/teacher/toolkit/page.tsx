@@ -42,6 +42,14 @@ const cardVariants = {
 };
 
 /* ── Phase pills ────────────────────────────────────────────── */
+const PHASE_EMOJI: Record<string, string> = {
+  discover: "\u{1F50D}",
+  define: "\u{1F4CB}",
+  ideate: "\u{1F4A1}",
+  prototype: "\u{1F527}",
+  test: "\u2714\uFE0F",
+};
+
 const PHASES: { key: Phase; label: string; color: string }[] = [
   { key: "discover", label: "Discover", color: PHASE_COLORS.discover },
   { key: "define", label: "Define", color: PHASE_COLORS.define },
@@ -94,6 +102,13 @@ export default function TeacherToolkitPage() {
   const catalogTools = filtered.filter((t) => !t.interactive);
   const hasFilter = !!selectedPhase || search.length > 0;
 
+  /* ── Phase counts ──────────────────────────────────────────── */
+  const phaseCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: tools.length };
+    for (const t of tools) counts[t.phase] = (counts[t.phase] || 0) + 1;
+    return counts;
+  }, []);
+
   /* ── Handlers ─────────────────────────────────────────────── */
   const filterBarRef = useRef<HTMLDivElement>(null);
 
@@ -128,23 +143,23 @@ export default function TeacherToolkitPage() {
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className="flex items-center justify-between mb-6"
+        className="flex items-center justify-between mb-2"
       >
         <div>
-          <h1 className="text-2xl font-bold text-text-primary tracking-tight">
+          <h1 className="text-3xl font-extrabold text-text-primary tracking-tight">
             Toolkit
           </h1>
-          <p className="text-text-secondary text-sm mt-1">
+          <p className="text-text-secondary text-base mt-1">
             {tools.length} tools across {PHASES.length} phases — assign to units or use in class
           </p>
         </div>
         <Link
           href="/toolkit"
           target="_blank"
-          className="text-xs text-brand-purple hover:underline font-medium flex items-center gap-1"
+          className="text-sm text-brand-purple hover:underline font-medium flex items-center gap-1.5"
         >
           Open public toolkit
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6" />
             <polyline points="15 3 21 3 21 9" />
             <line x1="10" y1="14" x2="21" y2="3" />
@@ -153,13 +168,13 @@ export default function TeacherToolkitPage() {
       </motion.div>
 
       {/* ── Category tabs ─────────────────────────────────────── */}
-      <div className="relative mb-5">
+      <div className="relative mb-6">
         <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-purple-400 via-purple-500 to-blue-400 opacity-60" />
         <div className="flex gap-0 overflow-auto">
           {TOOLKIT_TABS.map((tab) => (
             <div
               key={tab.id}
-              className={`px-5 py-2.5 text-xs font-bold whitespace-nowrap relative ${
+              className={`px-5 py-3 text-sm font-bold whitespace-nowrap relative ${
                 tab.active
                   ? "text-text-primary border-b-2 border-white -mb-px z-10"
                   : "text-text-secondary/30 cursor-not-allowed"
@@ -167,7 +182,7 @@ export default function TeacherToolkitPage() {
             >
               {tab.label}
               {!tab.active && (
-                <span className="text-[9px] font-semibold ml-1.5 px-1.5 py-0.5 rounded bg-gray-100 text-text-secondary/30 align-middle">
+                <span className="text-[10px] font-semibold ml-2 px-2 py-0.5 rounded bg-gray-100 text-text-secondary/30 align-middle">
                   Soon
                 </span>
               )}
@@ -176,58 +191,90 @@ export default function TeacherToolkitPage() {
         </div>
       </div>
 
-      {/* ── Filters ─────────────────────────────────────────── */}
+      {/* ── Search bar ─────────────────────────────────────── */}
+      <div className="relative mb-5 max-w-2xl">
+        <svg
+          className="absolute left-4 top-1/2 -translate-y-1/2 text-purple-400"
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <circle cx="11" cy="11" r="8" />
+          <line x1="21" y1="21" x2="16.65" y2="16.65" />
+        </svg>
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder='Try "brainstorm ideas" or "evaluate options"...'
+          className="w-full pl-12 pr-4 py-3.5 border border-gray-200 rounded-2xl text-base focus:outline-none focus:ring-2 focus:ring-brand-purple/30 focus:border-brand-purple shadow-sm bg-gray-50/60 placeholder:text-gray-400"
+        />
+        {aiActive && (
+          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-semibold text-purple-500 bg-purple-50 px-2.5 py-1 rounded-lg">
+            AI matched
+          </span>
+        )}
+      </div>
+
+      {/* ── Phase pills (sticky) ──────────────────────────────── */}
       <motion.div
         initial={{ opacity: 0, y: -6 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, delay: 0.1 }}
         ref={filterBarRef}
-        className="flex flex-wrap items-center gap-3 mb-6 sticky top-0 z-40 bg-white/90 backdrop-blur-lg -mx-6 px-6 py-3 border-b border-transparent"
+        className="flex flex-wrap items-center gap-3 mb-6 sticky top-0 z-40 bg-white/95 backdrop-blur-lg -mx-6 px-6 py-3.5 border-b border-gray-100"
         style={{ top: 0 }}
       >
-        {/* Search */}
-        <div className="relative">
-          <svg
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary/40"
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <circle cx="11" cy="11" r="8" />
-            <line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </svg>
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder='Try "I need to prioritise ideas" or "compare options"'
-            className="pl-8 pr-3 py-2 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/20 focus:border-brand-purple w-80"
-          />
-        </div>
-
         {/* Phase pills */}
-        <div className="flex gap-1.5">
-          {PHASES.map((p) => (
-            <motion.button
-              key={p.key}
-              whileHover={{ scale: 1.06 }}
-              whileTap={{ scale: 0.94 }}
-              onClick={() => handlePhaseClick(p.key)}
-              className="px-4 py-2 rounded-lg text-xs font-semibold transition-all"
-              style={{
-                background: selectedPhase === p.key ? p.color : p.color + "10",
-                color: selectedPhase === p.key ? "#fff" : p.color,
-                border: `1.5px solid ${selectedPhase === p.key ? p.color : p.color + "30"}`,
-              }}
-            >
-              {p.label}
-            </motion.button>
-          ))}
+        <div className="flex gap-2 flex-wrap">
+          {/* "All" pill */}
+          <motion.button
+            whileHover={{ scale: 1.04 }}
+            whileTap={{ scale: 0.96 }}
+            onClick={() => setSelectedPhase(null)}
+            className="px-5 py-2.5 rounded-full text-sm font-semibold transition-all flex items-center gap-2"
+            style={{
+              background: !selectedPhase ? "rgba(0,0,0,0.06)" : "transparent",
+              color: !selectedPhase ? "#1a1a2e" : "#9ca3af",
+              border: `1.5px solid ${!selectedPhase ? "rgba(0,0,0,0.12)" : "rgba(0,0,0,0.06)"}`,
+            }}
+          >
+            All
+            <span className="text-xs opacity-60">{phaseCounts.all}</span>
+          </motion.button>
+
+          {PHASES.map((p) => {
+            const isActive = selectedPhase === p.key;
+            return (
+              <motion.button
+                key={p.key}
+                whileHover={{ scale: 1.04 }}
+                whileTap={{ scale: 0.96 }}
+                onClick={() => handlePhaseClick(p.key)}
+                className="px-5 py-2.5 rounded-full text-sm font-semibold transition-all flex items-center gap-2"
+                style={{
+                  background: isActive ? p.color + "20" : "transparent",
+                  color: isActive ? p.color : p.color + "aa",
+                  border: `1.5px solid ${isActive ? p.color + "80" : p.color + "30"}`,
+                  boxShadow: isActive ? `0 0 12px ${p.color}20` : "none",
+                }}
+              >
+                <span>{PHASE_EMOJI[p.key]}</span>
+                {p.label}
+                <span className="text-xs opacity-60">{phaseCounts[p.key] || 0}</span>
+                {isActive && (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                )}
+              </motion.button>
+            );
+          })}
         </div>
 
         {/* Clear */}
@@ -241,9 +288,9 @@ export default function TeacherToolkitPage() {
                 setSelectedPhase(null);
                 setSearch("");
               }}
-              className="text-xs text-red-400 hover:text-red-500 font-medium px-2 py-1 rounded-lg border border-red-200 hover:border-red-300 transition"
+              className="text-xs text-red-400 hover:text-red-500 font-medium px-3 py-1.5 rounded-full border border-red-200 hover:border-red-300 transition"
             >
-              Clear
+              Clear filters
             </motion.button>
           )}
         </AnimatePresence>
@@ -253,14 +300,9 @@ export default function TeacherToolkitPage() {
           key={filtered.length}
           initial={{ opacity: 0, x: -4 }}
           animate={{ opacity: 1, x: 0 }}
-          className="text-xs text-text-secondary ml-auto flex items-center gap-2"
+          className="text-sm text-text-secondary ml-auto"
         >
           {filtered.length} of {tools.length} tools
-          {aiActive && (
-            <span className="text-[10px] font-semibold text-purple-500 bg-purple-50 px-2 py-0.5 rounded">
-              AI matched
-            </span>
-          )}
         </motion.span>
       </motion.div>
 
