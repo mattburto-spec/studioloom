@@ -8,13 +8,13 @@
 
 The toolkit is not just "design thinking tools." It's an **interactive thinking tools platform** — a growing library of beautiful, AI-powered tools that help students (and eventually anyone) think better. Design thinking tools are one category. The full scope spans 7 unified categories:
 
-1. **Design Thinking** (ACTIVE) — 48 tools: SCAMPER, Empathy Map, Five Whys, Decision Matrix, PMI, SWOT, etc.
-2. **Visual & Spatial** — annotation, wireframing, mood boards, storyboards, comparison sketching
-3. **Collaboration** — round robin, team charters, consensus building, facilitation tools
-4. **Planning & Strategy** — sprint boards, timelines, pitch builders, business model canvas
-5. **Systems & Science** — causal loops, futures cones, A/B testing, assumption busting
-6. **Self-Discovery** — archetype finder, strength mapper, values card sort, fear reframer (from Discovery Engine)
-7. **Reflection & Growth** — learning logs, growth trackers, mistake journals, process documentation
+1. **Design** (ACTIVE) — 48 tools: SCAMPER, Empathy Map, Five Whys, Decision Matrix, PMI, SWOT, etc.
+2. **Visual** — annotation, wireframing, mood boards, storyboards, comparison sketching
+3. **Collaborate** — round robin, team charters, consensus building, facilitation tools
+4. **Strategy** — sprint boards, timelines, pitch builders, business model canvas
+5. **Systems** — causal loops, futures cones, A/B testing, assumption busting
+6. **Discovery** — archetype finder, strength mapper, values card sort, fear reframer (from Discovery Engine)
+7. **Growth** — learning logs, growth trackers, mistake journals, process documentation
 
 Each tool should feel like a **standalone micro-app** — beautiful enough to screenshot and share, useful enough to come back to.
 
@@ -109,8 +109,8 @@ All 27 tools wired with `useToolSession` hook for auto-save, session resume, and
 - Priority: Crazy 8s, Storyboard, Design Journal, Mood Board
 
 **Phase 3: New tool categories (see Unified Category Taxonomy below)**
-- Build tools for the 6 new categories: Visual & Spatial, Collaboration, Planning & Strategy, Systems & Science, Self-Discovery, Reflection & Growth
-- Priority order: Self-Discovery (leverages Discovery Engine code), Collaboration (Dot Voting done), Visual & Spatial (Quick Sketch done)
+- Build tools for the 6 new categories: Visual, Collaborate, Strategy, Systems, Discovery, Growth
+- Priority order: Discovery (leverages Discovery Engine code), Collaborate (Dot Voting done), Visual (Quick Sketch done)
 
 ## UX Assessment
 
@@ -147,7 +147,7 @@ SCAMPER, Six Thinking Hats, PMI Chart, Morphological Chart, Lotus Diagram, Affin
 **Catalog-only (21):**
 Crazy 8s, Round Robin, Trade-off Sliders, Mood Board, Storyboard, Annotation Template, Wireframe Template, Gantt Planner, Resource Planner, Design Journal, Before & After, Peer Review Protocol, Testing Protocol, Gallery Walk, Observation Sheet, User Persona Card (Template), Journey Map (Template), Impact/Effort Matrix (Template), Stakeholder Map (Template), Presentation Planner, Design Brief
 
-### 2. Visual & Spatial (~8 tools — Coming Soon)
+### 2. Visual (~8 tools — Coming Soon)
 
 Tools for spatial thinking, sketching, visual composition, and annotation.
 
@@ -160,9 +160,9 @@ Tools for spatial thinking, sketching, visual composition, and annotation.
 - **Stakeholder Power Grid** — 2×2 power/interest matrix with visual plotting
 - **Paper Prototyping Cards** — drag-and-drop paper prototype building
 
-*Note: Quick Sketch (built, in Design Thinking) could be cross-listed here.*
+*Note: Quick Sketch (built, in Design) could be cross-listed here.*
 
-### 3. Collaboration (~7 tools — Coming Soon)
+### 3. Collaborate (~7 tools — Coming Soon)
 
 Tools for teamwork, facilitation, and group decision-making.
 
@@ -174,9 +174,9 @@ Tools for teamwork, facilitation, and group decision-making.
 - **Conflict Navigation Guide** — structured conflict resolution framework
 - **Energy Level Pulser** — quick group energy check-in with response
 
-*Note: Dot Voting (built, in Design Thinking) could be cross-listed here.*
+*Note: Dot Voting (built, in Design) could be cross-listed here.*
 
-### 4. Planning & Strategy (~10 tools — Coming Soon)
+### 4. Strategy (~10 tools — Coming Soon)
 
 Tools for project planning, communication, and strategic thinking.
 
@@ -191,7 +191,7 @@ Tools for project planning, communication, and strategic thinking.
 - **Rollout Timeline** — implementation/launch planning with phases
 - **Measurement Framework** — define success metrics and evaluation criteria
 
-### 5. Systems & Science (~6 tools — Coming Soon)
+### 5. Systems (~6 tools — Coming Soon)
 
 Tools for systems thinking, scientific method, and experimental design.
 
@@ -202,7 +202,7 @@ Tools for systems thinking, scientific method, and experimental design.
 - **Assumption Buster Game** — identify and challenge hidden assumptions systematically
 - **Sustainability Canvas** — environmental/social/economic impact assessment
 
-### 6. Self-Discovery (~7 tools — Coming Soon)
+### 6. Discovery (~7 tools — Coming Soon)
 
 Psychometric and self-awareness tools adapted from the Discovery Engine.
 
@@ -216,7 +216,7 @@ Psychometric and self-awareness tools adapted from the Discovery Engine.
 
 *Build priority: HIGH — leverages existing Discovery Engine code and scoring algorithms.*
 
-### 7. Reflection & Growth (~5 tools — Coming Soon)
+### 7. Growth (~5 tools — Coming Soon)
 
 Metacognitive tools for learning from experience and tracking development.
 
@@ -224,18 +224,18 @@ Metacognitive tools for learning from experience and tracking development.
 - **Growth Tracker** — self-assessment over time with visualized progress curves
 - **Mistake Journal** — document failures + what was learned + how to apply next time
 - **Process Documentation** — step-by-step capture of what you did and why
-- **Design DNA Profiler** — also fits here (cross-listed with Self-Discovery)
+- **Design DNA Profiler** — also fits here (cross-listed with Discovery)
 
 ### Category Build Priority
 
 | Priority | Category | Reason | Est. Tools |
 |----------|----------|--------|-----------|
-| 1 | Self-Discovery | Leverages Discovery Engine code, unique differentiator | 7 |
-| 2 | Collaboration | Dot Voting done, Round Robin/Gallery Walk have existing patterns | 7 |
-| 3 | Visual & Spatial | Quick Sketch done, annotation/wireframe are high-value | 8 |
-| 4 | Planning & Strategy | Sprint Board reuses DesignPlanBoard component | 10 |
-| 5 | Reflection & Growth | Simpler tools, less AI needed | 5 |
-| 6 | Systems & Science | Most complex, needs research on interaction patterns | 6 |
+| 1 | Discovery | Leverages Discovery Engine code, unique differentiator | 7 |
+| 2 | Collaborate | Dot Voting done, Round Robin/Gallery Walk have existing patterns | 7 |
+| 3 | Visual | Quick Sketch done, annotation/wireframe are high-value | 8 |
+| 4 | Strategy | Sprint Board reuses DesignPlanBoard component | 10 |
+| 5 | Growth | Simpler tools, less AI needed | 5 |
+| 6 | Systems | Most complex, needs research on interaction patterns | 6 |
 
 **Grand total across all 7 categories: ~91 tools**
 
@@ -318,6 +318,21 @@ Domain purchased. Better name than StudioLoom. Rebrand involves:
 - New landing page design
 - "Powered by Loominary" on toolkit tools
 - Not urgent — do after student testing validates the product
+
+## Research Reference
+
+Comprehensive per-tool research covering best-in-class examples, UX patterns, AI potential, and wow factors:
+
+- **Design Thinking (27 interactive + 21 catalog):** `docs/research/design-thinking-tools-research.md`
+- **Visual, Collaborate, Strategy, Systems, Discovery, Growth (43 expansion tools):** `docs/research/toolkit-expansion-research.md`
+
+Key findings from research:
+- 24 of 43 expansion tools benefit significantly from AI (rated HEAVY)
+- StudioLoom's per-step AI rules architecture extends naturally to all expansion categories
+- Discovery category has highest code reuse from existing Discovery Engine (~8-10 days)
+- Systems category is most technically complex (node-graph UIs, simulation logic, ~12-15 days)
+- Total build estimate for all 43 expansion tools: ~57-71 days
+- Cross-cutting patterns: constraint-as-feature, progressive reveal, AI as provocateur, shareable outputs
 
 ## Success Metrics
 

@@ -1,7 +1,7 @@
 # Project: MYPflex — Framework-Flexible Assessment & Grading
 
 **Created:** 28 March 2026
-**Status:** ✅ ALL PHASES COMPLETE (28 Mar 2026). Phase 1 (grading), Phase 2 (generation pipeline), Phase 3 (polish). Framework criteria audit done (28 Mar). PROJECT CLOSED.
+**Status:** Phases 1-3 COMPLETE (28 Mar 2026). Phase 4 (future-proofing) added 29 Mar — open.
 **Priority:** P0 — blocks non-MYP teacher adoption
 **Estimated effort:** 8-12 days across 3 phases (Phase 1 done in ~1 day)
 
@@ -230,3 +230,42 @@ Added NESA_DT + VIC_DT vocabulary entries and design process phases to `framewor
 - [x] Report Writer supports all 9 frameworks with per-framework categories ✅ Phase 3
 - [x] TestSandbox criteria match corrected constants ✅ Phase 3
 - [x] Non-MYP Grade tabs never fall back to MYP criteria ✅ Audit
+- [ ] System handles criteria count changes gracefully (Phase 4)
+
+---
+
+## Phase 4: Future-Proofing for MYP Changes (OPEN)
+
+> **Added:** 29 Mar 2026
+> **Context:** The IB MYP is likely to change its criteria structure — e.g., MYP Design may move from 4 criteria (A/B/C/D) to 3. StudioLoom needs to handle this without breaking existing units or requiring a migration.
+
+### The Problem
+
+The current system has criteria hardcoded in several places:
+- `getCriteriaForType()` returns fixed arrays per unit type (Design: A/B/C/D, Service: I/P/A/R/D, PP: A/B/C)
+- `CriterionKey` is now `string` (good — not locked to 4 values), but many UI layouts assume 4 columns
+- Grading page, dashboard cards, wizard summary rail, and AI prompts all reference criteria counts
+- Existing units with 4-criterion content_data would need to coexist with new 3-criterion units
+
+### What Needs to Happen
+
+1. **Criteria definitions should be data, not code** — move from hardcoded `DESIGN_CRITERIA` arrays in constants.ts to a `framework_criteria` config that can be versioned. When MYP changes, add a new version without removing the old one.
+
+2. **Units should store their criteria version** — `content_data` should record which criteria set it was generated with. A unit generated under "MYP Design 2025 (A/B/C/D)" continues to use that set even after the framework updates to 3 criteria. New units get the new set.
+
+3. **Grading page must be criteria-count-agnostic** — currently renders columns per criterion. Should dynamically render N columns based on the unit's criteria, not a hardcoded set. This is partially done (uses `getFrameworkCriteria()`) but needs testing with non-4-criterion sets.
+
+4. **AI generation prompts must reference the unit's criteria, not the framework default** — if a teacher generates a unit under old MYP (4 criteria) and later the framework updates to 3, regenerating a single lesson should still use the unit's 4-criterion context (from content_data), not the new framework default.
+
+5. **Migration path for existing units** — when MYP changes, existing units are NOT auto-migrated. Teacher can optionally "upgrade" a unit to the new criteria structure (this would require re-mapping content and potentially re-grading).
+
+### Estimated Effort
+
+- Phase 4a: Criteria versioning architecture (~2-3 hours)
+- Phase 4b: UI audit for criteria-count assumptions (~1-2 hours)
+- Phase 4c: Migration path design (~1 hour)
+- Total: ~4-6 hours, but NOT urgent until IB announces changes
+
+### When to Build
+
+Wait for official IB announcement about criteria changes. The architecture decisions above should be made now (this doc), but implementation can wait. The key insight is: **don't hardcode criteria counts anywhere new**. Every new feature should use `getCriteriaForType()` and iterate dynamically.
