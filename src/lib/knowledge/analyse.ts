@@ -388,6 +388,11 @@ export function mergeIntoProfile(
     gaps: pass2.gaps,
     complexity_level: pass2.complexity_level,
 
+    // Dimensions v2: UDL, Bloom, Grouping (from Pass 2)
+    udl_coverage: pass2.udl_coverage ?? undefined,
+    bloom_distribution: pass2.bloom_distribution ?? undefined,
+    grouping_analysis: pass2.grouping_analysis ?? undefined,
+
     // Sequencing intelligence (from Pass 3)
     prerequisites: pass3.prerequisites,
     skills_developed: pass3.skills_developed,

@@ -45,6 +45,11 @@ export interface LessonProfileRetrievalParams {
   onlyVerified?: boolean;
   /** Max profiles to return */
   maxProfiles?: number;
+  // ─── Dimensions v2 optional filters (client-side post-filtering) ───
+  /** Filter by dominant Bloom's level in the profile */
+  dominantBloom?: string;
+  /** Filter to profiles that address a UDL principle */
+  udlPrinciple?: "engagement" | "representation" | "action_expression";
 }
 
 /**
@@ -93,7 +98,26 @@ export async function retrieveLessonProfiles(
     return [];
   }
 
-  return (data || []) as RetrievedLessonProfile[];
+  let results = (data || []) as RetrievedLessonProfile[];
+
+  // ─── Dimensions v2: client-side post-filtering on profile_data ───
+  if (params.dominantBloom) {
+    results = results.filter((p) => {
+      const bd = p.profile_data.bloom_distribution;
+      if (!bd?.dominant_level) return true; // don't exclude un-tagged profiles
+      return bd.dominant_level.toLowerCase().includes(params.dominantBloom!.toLowerCase());
+    });
+  }
+  if (params.udlPrinciple) {
+    results = results.filter((p) => {
+      const udl = p.profile_data.udl_coverage;
+      if (!udl) return true; // don't exclude un-tagged profiles
+      const arr = udl[params.udlPrinciple!];
+      return arr && arr.length > 0;
+    });
+  }
+
+  return results;
 }
 
 /**
@@ -175,6 +199,24 @@ export function formatLessonProfiles(
       parts.push(
         `**Energy & Sequencing**: ${profile.energy_and_sequencing}`
       );
+    }
+
+    // Dimensions v2: UDL coverage + Bloom distribution
+    if (profile.udl_coverage) {
+      const { engagement, representation, action_expression, principle_gaps } = profile.udl_coverage;
+      const udlParts: string[] = [];
+      if (engagement?.length) udlParts.push(`Engagement: ${engagement.join(", ")}`);
+      if (representation?.length) udlParts.push(`Representation: ${representation.join(", ")}`);
+      if (action_expression?.length) udlParts.push(`Action & Expression: ${action_expression.join(", ")}`);
+      if (udlParts.length) {
+        parts.push(`**UDL Coverage**: ${udlParts.join(" | ")}${principle_gaps ? ` — Gap: ${principle_gaps}` : ""}`);
+      }
+    }
+    if (profile.bloom_distribution?.dominant_level) {
+      parts.push(`**Dominant Bloom Level**: ${profile.bloom_distribution.dominant_level}`);
+    }
+    if (profile.grouping_analysis?.progression) {
+      parts.push(`**Grouping Progression**: ${profile.grouping_analysis.progression}`);
     }
 
     return parts.join("\n");

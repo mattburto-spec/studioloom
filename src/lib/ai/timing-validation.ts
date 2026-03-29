@@ -268,6 +268,35 @@ export function validateLessonTiming(
     phases.workTime.checkpoints = [`At ${Math.round(phases.workTime.durationMinutes / 2)} min: "Where are you up to? What's your next step?"`];
   }
 
+  // ---- 9. UDL coverage gap check (Dimensions v2) ----
+  // Check if the lesson addresses all 3 UDL principles across its activities
+  const udlPrinciples = { engagement: false, representation: false, action_expression: false };
+  const sections = repaired.sections || [];
+  for (const section of sections) {
+    const udl = (section as Record<string, unknown>).udl_checkpoints;
+    if (Array.isArray(udl)) {
+      for (const cp of udl) {
+        const num = typeof cp === "string" ? parseFloat(cp) : NaN;
+        if (!isNaN(num)) {
+          if (num >= 1 && num <= 3.9) udlPrinciples.engagement = true;
+          if (num >= 4 && num <= 6.9) udlPrinciples.representation = true;
+          if (num >= 7 && num <= 9.9) udlPrinciples.action_expression = true;
+        }
+      }
+    }
+  }
+  const missingUdl = Object.entries(udlPrinciples)
+    .filter(([, v]) => !v)
+    .map(([k]) => k.replace(/_/g, " "));
+  if (missingUdl.length > 0 && sections.some((s) => Array.isArray((s as Record<string, unknown>).udl_checkpoints))) {
+    // Only report if at least one section HAS UDL tags (otherwise lesson predates Dimensions v2)
+    issues.push({
+      code: "UDL_COVERAGE_GAP",
+      severity: "info",
+      message: `UDL gap: no activities address ${missingUdl.join(", ")}. Consider adding activities for ${missingUdl.map((p) => p === "engagement" ? "recruiting interest/self-regulation" : p === "representation" ? "multiple media/language support" : "flexible expression/executive function").join(", ")}.`,
+    });
+  }
+
   // Compute final stats
   const finalWorkPercent = phases.workTime.durationMinutes / usable;
   const sectionTotal = (repaired.sections || []).reduce((sum, s) => sum + (s.durationMinutes || 0), 0);

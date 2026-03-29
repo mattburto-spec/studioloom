@@ -283,6 +283,9 @@ export function chunkDocumentWithProfile(
     overviewParts.push(`Criteria: ${criteria}`);
   }
 
+  // Collect all UDL checkpoints from profile-level analysis for overview chunk
+  const allUdlCheckpoints = collectAllUdlCheckpoints(profile);
+
   chunks.push({
     content: overviewParts.join("\n"),
     content_type: "overview",
@@ -291,6 +294,7 @@ export function chunkDocumentWithProfile(
       ...metadata,
       grade_level: metadata.grade_level || profile.grade_level,
       subject_area: metadata.subject_area || profile.subject_area,
+      ...(allUdlCheckpoints.length ? { udl_checkpoints: allUdlCheckpoints } : {}),
     },
   });
 
@@ -346,9 +350,10 @@ function chunkLessonPhase(
 
   // Extract Dimensions metadata from phase analysis
   const bloomLevel = mapCognitiveLevelToBloom(phase.student_cognitive_level);
-  // Grouping is extracted from Pass 2's grouping_analysis — not yet on individual phases.
-  // Will be populated when profile merger maps class-level grouping to phases.
-  const grouping: ChunkMetadata["grouping"] | undefined = undefined;
+  // Derive per-phase grouping from phase type heuristic + profile-level grouping analysis
+  const grouping = derivePhaseGrouping(phase, profile);
+  // Derive UDL checkpoints: overview chunk gets all; phase chunks get phase-relevant subset
+  const udlCheckpoints = derivePhaseUdlCheckpoints(phase, profile);
 
   // Build content: source text or description
   const contentParts: string[] = [`${phase.title}\n`];
@@ -403,6 +408,7 @@ function chunkLessonPhase(
             subject_area: metadata.subject_area || profile.subject_area,
             ...(bloomLevel ? { bloom_level: bloomLevel } : {}),
             ...(grouping ? { grouping } : {}),
+            ...(udlCheckpoints?.length ? { udl_checkpoints: udlCheckpoints } : {}),
           },
         });
         current = getOverlap(current) + para + "\n\n";
@@ -565,4 +571,112 @@ function mapGroupingLabel(
   if (l.includes("whole") || l.includes("class")) return "whole_class";
   if (l.includes("flex") || l.includes("mixed")) return "flexible";
   return undefined;
+}
+
+/**
+ * Derive per-phase grouping from the phase type + profile-level grouping analysis.
+ * Uses phase type heuristics as primary signal, with profile.grouping_analysis as fallback.
+ */
+function derivePhaseGrouping(
+  phase: LessonFlowPhase,
+  profile: LessonProfile
+): ChunkMetadata["grouping"] | undefined {
+  // Phase type → likely grouping heuristic
+  const phaseGroupingMap: Record<string, ChunkMetadata["grouping"]> = {
+    warm_up: "whole_class",
+    vocabulary: "whole_class",
+    introduction: "whole_class",
+    demonstration: "whole_class",
+    guided_practice: "pair",
+    independent_work: "individual",
+    making: "individual",
+    collaboration: "small_group",
+    critique: "small_group",
+    gallery_walk: "whole_class",
+    presentation: "whole_class",
+    testing: "individual",
+    iteration: "individual",
+    reflection: "individual",
+    assessment: "individual",
+    station_rotation: "small_group",
+  };
+
+  const fromPhaseType = phaseGroupingMap[phase.phase];
+  if (fromPhaseType) return fromPhaseType;
+
+  // Fallback: try to extract from profile.grouping_analysis.progression string
+  if (profile.grouping_analysis?.progression) {
+    // The progression string might mention the phase name with a grouping
+    // e.g. "whole-class (intro) → pairs (ideation) → individual (making)"
+    const prog = profile.grouping_analysis.progression.toLowerCase();
+    const phaseTitle = phase.title.toLowerCase();
+    // Simple: check if the progression mentions this phase's title near a grouping keyword
+    const segments = prog.split("→").map((s) => s.trim());
+    for (const seg of segments) {
+      if (seg.includes(phaseTitle) || seg.includes(phase.phase.replace(/_/g, " "))) {
+        return mapGroupingLabel(seg);
+      }
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * Derive UDL checkpoint IDs relevant to a specific phase.
+ * Phase-to-UDL mapping: engagement checkpoints go to warm_up/introduction phases,
+ * representation to instruction phases, action_expression to work/making phases.
+ */
+function derivePhaseUdlCheckpoints(
+  phase: LessonFlowPhase,
+  profile: LessonProfile
+): string[] | undefined {
+  if (!profile.udl_coverage) return undefined;
+
+  const { engagement, representation, action_expression } = profile.udl_coverage;
+  const checkpoints: string[] = [];
+
+  // Map phase types to relevant UDL principles
+  const engagementPhases = new Set([
+    "warm_up", "introduction", "vocabulary", "reflection", "collaboration",
+  ]);
+  const representationPhases = new Set([
+    "demonstration", "introduction", "guided_practice", "vocabulary",
+  ]);
+  const actionExpressionPhases = new Set([
+    "independent_work", "making", "testing", "iteration", "presentation",
+    "critique", "gallery_walk", "assessment", "station_rotation",
+  ]);
+
+  if (engagementPhases.has(phase.phase) && engagement?.length) {
+    checkpoints.push(...engagement);
+  }
+  if (representationPhases.has(phase.phase) && representation?.length) {
+    checkpoints.push(...representation);
+  }
+  if (actionExpressionPhases.has(phase.phase) && action_expression?.length) {
+    checkpoints.push(...action_expression);
+  }
+
+  return checkpoints.length > 0 ? [...new Set(checkpoints)] : undefined;
+}
+
+/**
+ * Collect all UDL checkpoint IDs from the profile-level analysis.
+ * Used for the overview chunk which should have full UDL coverage.
+ */
+function collectAllUdlCheckpoints(profile: LessonProfile): string[] {
+  if (!profile.udl_coverage) return [];
+  const { engagement, representation, action_expression } = profile.udl_coverage;
+  const all: string[] = [
+    ...(engagement || []),
+    ...(representation || []),
+    ...(action_expression || []),
+  ];
+  // Deduplicate and extract just the checkpoint ID portion (e.g. "1.1" from "1.1 recruiting interest")
+  const ids = all.map((s) => {
+    const match = s.match(/^(\d+\.\d+)/);
+    return match ? match[1] : s;
+  });
+  return [...new Set(ids)];
 }

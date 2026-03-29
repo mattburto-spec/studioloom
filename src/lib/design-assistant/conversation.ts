@@ -627,6 +627,20 @@ interface StudentLearningProfile {
   languages_at_home?: string[];
   countries_lived_in?: string[];
   feedback_preference?: "private" | "public";
+  // Dimensions v2 UDL-aligned fields
+  accommodations?: {
+    engagement?: string[];
+    representation?: string[];
+    action_expression?: string[];
+    specific_needs?: string[];
+  };
+  udl_strengths?: string[];
+  udl_barriers?: string[];
+  communication_preferences?: {
+    preferred_feedback?: "written" | "verbal" | "visual";
+    response_preference?: "typing" | "speaking" | "drawing";
+    needs_processing_time?: boolean;
+  };
 }
 
 /**
@@ -742,6 +756,56 @@ function buildLearningProfileContext(profile: StudentLearningProfile): string {
 
     if (adaptations.length > 0) {
       parts.push(`LEARNING ACCOMMODATIONS (student self-disclosed — private, never mention directly):\n${adaptations.join("\n")}`);
+    }
+  }
+
+  // UDL-aligned accommodations (Dimensions v2 — framed as barriers, not disability labels)
+  if (profile.accommodations) {
+    const acc = profile.accommodations;
+    const udlParts: string[] = [];
+
+    if (acc.engagement?.length) {
+      udlParts.push(`Engagement barriers: ${acc.engagement.join("; ")}. Adapt: offer choice, vary challenge level, build in self-regulation checkpoints.`);
+    }
+    if (acc.representation?.length) {
+      udlParts.push(`Representation barriers: ${acc.representation.join("; ")}. Adapt: simplify language, provide visual alternatives, use multiple formats.`);
+    }
+    if (acc.action_expression?.length) {
+      udlParts.push(`Action & Expression barriers: ${acc.action_expression.join("; ")}. Adapt: accept voice/drawing responses, offer alternative tools, reduce fine motor demands.`);
+    }
+    if (acc.specific_needs?.length) {
+      udlParts.push(`Specific needs: ${acc.specific_needs.join("; ")}.`);
+    }
+
+    if (udlParts.length > 0) {
+      parts.push(`UDL SUPPORT NEEDS (private — adapt your responses, never name the barriers directly):\n${udlParts.join("\n")}`);
+    }
+  }
+
+  // UDL strengths — leverage these in mentoring
+  if (profile.udl_strengths?.length) {
+    parts.push(`UDL STRENGTHS: ${profile.udl_strengths.join(", ")}. Build on these when scaffolding — this student learns best through these channels.`);
+  }
+
+  // Communication preferences (Dimensions v2)
+  if (profile.communication_preferences) {
+    const cp = profile.communication_preferences;
+    const cpParts: string[] = [];
+    if (cp.preferred_feedback === "verbal") {
+      cpParts.push("Prefers verbal/spoken feedback — keep written feedback concise, suggest talking through ideas.");
+    } else if (cp.preferred_feedback === "visual") {
+      cpParts.push("Prefers visual feedback — use diagrams, sketches, or visual references when giving guidance.");
+    }
+    if (cp.response_preference === "speaking") {
+      cpParts.push("Prefers speaking over typing — suggest voice notes or verbal explanations of design decisions.");
+    } else if (cp.response_preference === "drawing") {
+      cpParts.push("Prefers drawing/sketching — encourage visual expression, suggest sketch-based responses.");
+    }
+    if (cp.needs_processing_time) {
+      cpParts.push("Needs extra processing time — don't rush. Give one suggestion at a time. Wait for their response before adding more.");
+    }
+    if (cpParts.length > 0) {
+      parts.push(`COMMUNICATION STYLE:\n${cpParts.join("\n")}`);
     }
   }
 

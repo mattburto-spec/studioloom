@@ -257,6 +257,11 @@ export interface LessonProfile {
   energy_and_sequencing: EnergyAndSequencing;
   narrative_role?: string; // if part of a unit, where does this sit in the story arc?
 
+  // ─── Dimensions v2: Inclusivity & Cognitive Metadata ───
+  udl_coverage?: Pass2Pedagogy["udl_coverage"];
+  bloom_distribution?: Pass2Pedagogy["bloom_distribution"];
+  grouping_analysis?: Pass2Pedagogy["grouping_analysis"];
+
   // ─── Provenance (never discard) ───
   analysis_version: string; // prompt version, so we can re-analyse later
   analysis_model: string; // which AI model was used
@@ -315,6 +320,32 @@ export interface Pass2Pedagogy {
   strengths: AnalysedStrength[];
   gaps: AnalysedGap[];
   complexity_level: ComplexityLevel;
+
+  // ─── Dimensions v2: UDL, Bloom, Grouping (from analysis prompts) ───
+  udl_coverage?: {
+    engagement: string[];       // UDL checkpoint IDs (1.1-3.3)
+    representation: string[];   // UDL checkpoint IDs (4.1-6.3)
+    action_expression: string[]; // UDL checkpoint IDs (7.1-9.3)
+    principle_gaps?: string;    // which UDL principle is least addressed
+  };
+  bloom_distribution?: {
+    remember: number;
+    understand: number;
+    apply: number;
+    analyze: number;
+    evaluate: number;
+    create: number;
+    dominant_level?: string;
+  };
+  grouping_analysis?: {
+    progression?: string;       // e.g. "whole-class → pairs → individual → critique"
+    time_distribution?: {
+      individual_pct: number;
+      pair_pct: number;
+      small_group_pct: number;
+      whole_class_pct: number;
+    };
+  };
 }
 
 /** Pass 3 output: design teaching & workshop intelligence */

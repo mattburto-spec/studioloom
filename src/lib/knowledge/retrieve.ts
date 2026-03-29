@@ -22,6 +22,10 @@ export interface RetrievedChunk {
     content_type: string | null;
     fork_count: number;
     teacher_rating: number | null;
+    // Dimensions v2 metadata (populated for analysis-informed chunks)
+    bloom_level?: "remember" | "understand" | "apply" | "analyze" | "evaluate" | "create";
+    grouping?: "individual" | "pair" | "small_group" | "whole_class" | "flexible";
+    udl_checkpoints?: string[];
   };
   similarity: number;
   quality_score: number;
@@ -43,6 +47,13 @@ export interface RetrievalParams {
   maxChunks?: number;
   /** Weight for semantic similarity vs quality (0-1) */
   similarityWeight?: number;
+  // ─── Dimensions v2 optional filters (client-side post-filtering) ───
+  /** Filter by minimum Bloom's level (e.g. "analyze" returns analyze + evaluate + create) */
+  minBloomLevel?: "remember" | "understand" | "apply" | "analyze" | "evaluate" | "create";
+  /** Filter by grouping strategy */
+  grouping?: "individual" | "pair" | "small_group" | "whole_class" | "flexible";
+  /** Filter by UDL principle (engagement=1.x, representation=4.x, action_expression=7.x) */
+  udlPrinciple?: "engagement" | "representation" | "action_expression";
 }
 
 /**
@@ -90,7 +101,44 @@ export async function retrieveContext(
     return [];
   }
 
-  return (data || []) as RetrievedChunk[];
+  let results = (data || []) as RetrievedChunk[];
+
+  // ─── Dimensions v2: client-side post-filtering on metadata fields ───
+  if (params.minBloomLevel) {
+    const bloomOrder = ["remember", "understand", "apply", "analyze", "evaluate", "create"];
+    const minIdx = bloomOrder.indexOf(params.minBloomLevel);
+    if (minIdx >= 0) {
+      results = results.filter((c) => {
+        if (!c.metadata.bloom_level) return true; // don't exclude un-tagged chunks
+        return bloomOrder.indexOf(c.metadata.bloom_level) >= minIdx;
+      });
+    }
+  }
+  if (params.grouping) {
+    results = results.filter((c) => {
+      if (!c.metadata.grouping) return true; // don't exclude un-tagged chunks
+      return c.metadata.grouping === params.grouping;
+    });
+  }
+  if (params.udlPrinciple) {
+    const prefixMap = { engagement: "1.", representation: "4.", action_expression: "7." };
+    // UDL engagement = 1.x-3.x, representation = 4.x-6.x, action_expression = 7.x-9.x
+    const rangeMap: Record<string, [number, number]> = {
+      engagement: [1, 3],
+      representation: [4, 6],
+      action_expression: [7, 9],
+    };
+    const [lo, hi] = rangeMap[params.udlPrinciple] || [0, 0];
+    results = results.filter((c) => {
+      if (!c.metadata.udl_checkpoints?.length) return true; // don't exclude un-tagged chunks
+      return c.metadata.udl_checkpoints.some((cp) => {
+        const num = parseFloat(cp);
+        return !isNaN(num) && num >= lo && num <= hi + 0.9;
+      });
+    });
+  }
+
+  return results;
 }
 
 /**
