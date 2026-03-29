@@ -1,0 +1,1970 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StudioLoom QA Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: #f5f3ff; color: #1a1a1a; line-height: 1.5; }
+        .container { max-width: 1100px; margin: 0 auto; padding: 20px; }
+
+        /* Header */
+        .header { background: linear-gradient(135deg, #7c3aed, #a855f7); color: white; padding: 28px 32px; border-radius: 16px; margin-bottom: 20px; }
+        .header h1 { font-size: 26px; font-weight: 800; margin-bottom: 4px; }
+        .header-sub { font-size: 13px; opacity: 0.85; margin-bottom: 16px; }
+        .stats-row { display: flex; gap: 12px; flex-wrap: wrap; }
+        .stat-pill { background: rgba(255,255,255,0.2); backdrop-filter: blur(8px); border-radius: 10px; padding: 10px 16px; min-width: 110px; }
+        .stat-pill .num { font-size: 24px; font-weight: 800; }
+        .stat-pill .lbl { font-size: 11px; opacity: 0.8; text-transform: uppercase; letter-spacing: 0.5px; }
+        .stat-pill.pass { border-left: 4px solid #4ade80; }
+        .stat-pill.partial { border-left: 4px solid #fbbf24; }
+        .stat-pill.fail { border-left: 4px solid #f87171; }
+        .stat-pill.blocked { border-left: 4px solid #9ca3af; }
+        .stat-pill.total { border-left: 4px solid white; }
+
+        /* Priority legend */
+        .legend { background: white; border-radius: 12px; padding: 16px 20px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); display: flex; gap: 24px; align-items: center; flex-wrap: wrap; }
+        .legend-title { font-weight: 700; font-size: 13px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; }
+        .legend-item { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+        .p-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+        .p-dot.p0 { background: #ef4444; }
+        .p-dot.p1 { background: #f59e0b; }
+        .p-dot.p2 { background: #6b7280; }
+
+        /* Controls bar */
+        .controls { background: white; border-radius: 12px; padding: 14px 20px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+        .controls select, .controls input { padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 13px; font-family: inherit; background: white; }
+        .controls select:focus, .controls input:focus { outline: none; border-color: #a855f7; box-shadow: 0 0 0 3px rgba(168,85,247,0.1); }
+        .controls input { flex: 1; min-width: 180px; }
+        .btn { padding: 8px 14px; border: none; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all 0.15s; }
+        .btn-purple { background: #a855f7; color: white; }
+        .btn-purple:hover { background: #9333ea; }
+        .btn-gray { background: #f3f4f6; color: #374151; }
+        .btn-gray:hover { background: #e5e7eb; }
+        .btn-red { background: #fef2f2; color: #dc2626; }
+        .btn-red:hover { background: #fee2e2; }
+        .spacer { flex: 1; }
+
+        /* Section */
+        .section { background: white; border-radius: 12px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); overflow: hidden; }
+        .section-head { padding: 14px 20px; cursor: pointer; display: flex; align-items: center; gap: 12px; user-select: none; border-bottom: 1px solid transparent; transition: background 0.15s; }
+        .section-head:hover { background: #faf5ff; }
+        .section-head.open { border-bottom-color: #f3e8ff; }
+        .section-arrow { font-size: 12px; color: #9ca3af; transition: transform 0.2s; width: 16px; text-align: center; }
+        .section-head.open .section-arrow { transform: rotate(90deg); }
+        .section-name { font-weight: 700; font-size: 15px; flex: 1; }
+        .section-badge { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .section-badge.p0 { background: #fef2f2; color: #dc2626; }
+        .section-badge.p1 { background: #fffbeb; color: #d97706; }
+        .section-badge.p2 { background: #f3f4f6; color: #6b7280; }
+        .section-progress { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #9ca3af; font-weight: 600; }
+        .pbar { width: 80px; height: 6px; background: #f3f4f6; border-radius: 3px; overflow: hidden; }
+        .pbar-fill { height: 100%; background: #a855f7; border-radius: 3px; transition: width 0.3s; }
+        .section-body { display: none; }
+        .section-body.open { display: block; }
+
+        /* Test row */
+        .test { padding: 16px 20px; border-bottom: 1px solid #f9fafb; }
+        .test:last-child { border-bottom: none; }
+        .test-top { display: flex; align-items: flex-start; gap: 12px; }
+        .test-status-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; margin-top: 4px; border: 2px solid #e5e7eb; background: white; }
+        .test-status-dot.pass { border-color: #22c55e; background: #22c55e; }
+        .test-status-dot.partial { border-color: #f59e0b; background: #f59e0b; }
+        .test-status-dot.fail { border-color: #ef4444; background: #ef4444; }
+        .test-status-dot.blocked { border-color: #9ca3af; background: #9ca3af; }
+        .test-title { font-weight: 600; font-size: 14px; flex: 1; }
+        .test-route { font-size: 11px; color: #a855f7; font-family: 'SF Mono', 'Fira Code', monospace; margin-top: 2px; word-break: break-all; }
+
+        /* Expandable steps */
+        .test-steps { margin: 10px 0 10px 24px; padding: 10px 14px; background: #faf5ff; border-radius: 8px; border-left: 3px solid #d8b4fe; }
+        .test-steps ol { margin-left: 16px; font-size: 13px; color: #4b5563; }
+        .test-steps li { margin-bottom: 4px; }
+        .test-steps .expect { font-size: 12px; color: #7c3aed; font-weight: 600; margin-top: 6px; }
+
+        /* Status buttons */
+        .test-actions { display: flex; gap: 6px; margin: 10px 0 0 24px; align-items: center; flex-wrap: wrap; }
+        .status-btn { padding: 5px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; border: 2px solid transparent; background: #f3f4f6; color: #6b7280; transition: all 0.15s; font-family: inherit; }
+        .status-btn:hover { transform: translateY(-1px); }
+        .status-btn.active-pass { background: #dcfce7; color: #15803d; border-color: #22c55e; }
+        .status-btn.active-partial { background: #fef3c7; color: #92400e; border-color: #f59e0b; }
+        .status-btn.active-fail { background: #fef2f2; color: #991b1b; border-color: #ef4444; }
+        .status-btn.active-blocked { background: #f3f4f6; color: #374151; border-color: #9ca3af; }
+        .status-btn.active-untested { background: white; color: #9ca3af; border-color: #e5e7eb; }
+        .test-timestamp { font-size: 11px; color: #9ca3af; margin-left: auto; }
+
+        /* Comment */
+        .test-comment { margin: 8px 0 0 24px; }
+        .test-comment textarea { width: 100%; padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 8px; font-size: 12px; font-family: inherit; resize: vertical; min-height: 32px; max-height: 120px; color: #374151; transition: border-color 0.15s; }
+        .test-comment textarea:focus { outline: none; border-color: #a855f7; box-shadow: 0 0 0 3px rgba(168,85,247,0.08); }
+        .test-comment textarea::placeholder { color: #d1d5db; }
+        .test-comment textarea:not(:placeholder-shown) { background: #fffbeb; border-color: #fde68a; min-height: 48px; }
+
+        /* Toast */
+        .toast { position: fixed; bottom: 24px; right: 24px; padding: 12px 20px; border-radius: 10px; font-size: 13px; font-weight: 600; color: white; z-index: 1000; animation: slideUp 0.3s ease; }
+        .toast.success { background: #22c55e; }
+        .toast.error { background: #ef4444; }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+        /* No results */
+        .no-results { text-align: center; padding: 60px 20px; color: #9ca3af; font-size: 15px; display: none; }
+
+        /* Hidden file input */
+        #fileInput { display: none; }
+
+        /* Tab bar */
+        .tab-bar { display: flex; gap: 0; margin-bottom: 20px; background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); overflow: hidden; }
+        .tab-btn { flex: 1; padding: 14px 20px; font-size: 14px; font-weight: 700; font-family: inherit; border: none; background: white; color: #9ca3af; cursor: pointer; transition: all 0.15s; border-bottom: 3px solid transparent; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        .tab-btn:hover { background: #faf5ff; color: #7c3aed; }
+        .tab-btn.active { color: #7c3aed; border-bottom-color: #a855f7; background: #faf5ff; }
+        .tab-btn .tab-count { font-size: 11px; background: #f3e8ff; color: #7c3aed; padding: 2px 8px; border-radius: 10px; font-weight: 700; }
+        .tab-btn.active .tab-count { background: #a855f7; color: white; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* Projects tab */
+        .project-card { background: white; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); margin-bottom: 12px; overflow: hidden; transition: all 0.15s; }
+        .project-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .project-top { padding: 18px 20px; display: flex; align-items: center; gap: 16px; }
+        .project-status-dot { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; }
+        .project-status-dot.complete { background: #22c55e; }
+        .project-status-dot.active { background: #a855f7; }
+        .project-status-dot.planned { background: #e5e7eb; }
+        .project-status-dot.research { background: #3b82f6; }
+        .project-status-dot.paused { background: #f59e0b; }
+        .project-info { flex: 1; min-width: 0; }
+        .project-name { font-weight: 700; font-size: 15px; margin-bottom: 2px; }
+        .project-desc { font-size: 12px; color: #6b7280; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .project-status-label { font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; }
+        .project-status-label.complete { background: #dcfce7; color: #15803d; }
+        .project-status-label.active { background: #f3e8ff; color: #7c3aed; }
+        .project-status-label.planned { background: #f3f4f6; color: #6b7280; }
+        .project-status-label.research { background: #dbeafe; color: #1d4ed8; }
+        .project-status-label.paused { background: #fef3c7; color: #92400e; }
+        .project-progress { display: flex; align-items: center; gap: 10px; min-width: 160px; }
+        .project-pbar { flex: 1; height: 8px; background: #f3f4f6; border-radius: 4px; overflow: hidden; }
+        .project-pbar-fill { height: 100%; border-radius: 4px; transition: width 0.3s; }
+        .project-pbar-fill.complete { background: #22c55e; }
+        .project-pbar-fill.active { background: #a855f7; }
+        .project-pbar-fill.planned { background: #d1d5db; }
+        .project-pbar-fill.research { background: #3b82f6; }
+        .project-pbar-fill.paused { background: #f59e0b; }
+        .project-pct { font-size: 13px; font-weight: 700; color: #374151; min-width: 36px; text-align: right; }
+        .project-phases { padding: 0 20px 16px 50px; }
+        .phase-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; font-size: 13px; border-bottom: 1px solid #f9fafb; }
+        .phase-row:last-child { border-bottom: none; }
+        .phase-check { width: 18px; height: 18px; border-radius: 4px; border: 2px solid #e5e7eb; display: flex; align-items: center; justify-content: center; font-size: 11px; flex-shrink: 0; cursor: pointer; transition: all 0.15s; }
+        .phase-check:hover { border-color: #a855f7; }
+        .phase-check.done { background: #22c55e; border-color: #22c55e; color: white; }
+        .phase-check.current { background: #f3e8ff; border-color: #a855f7; color: #7c3aed; }
+        .phase-name { flex: 1; color: #374151; }
+        .phase-name.done { color: #9ca3af; text-decoration: line-through; }
+        .phase-est { font-size: 11px; color: #9ca3af; font-weight: 600; }
+        .project-expand { cursor: pointer; padding: 4px; color: #9ca3af; font-size: 12px; transition: transform 0.2s; }
+        .project-expand.open { transform: rotate(90deg); }
+        .project-summary-bar { background: #faf5ff; border-top: 1px solid #f3e8ff; padding: 14px 20px; display: flex; gap: 20px; flex-wrap: wrap; }
+        .summary-item { display: flex; align-items: center; gap: 6px; font-size: 13px; color: #6b7280; }
+        .summary-item strong { color: #374151; font-weight: 700; }
+        .summary-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+        /* Modal */
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 100; align-items: center; justify-content: center; }
+        .modal-overlay.active { display: flex; }
+        .modal { background: white; border-radius: 16px; padding: 28px; max-width: 400px; width: 90%; }
+        .modal h3 { font-size: 18px; margin-bottom: 12px; }
+        .modal p { font-size: 14px; color: #6b7280; margin-bottom: 20px; }
+        .modal-btns { display: flex; gap: 10px; justify-content: flex-end; }
+    </style>
+</head>
+<body>
+<div class="container">
+
+    <!-- Header -->
+    <div class="header">
+        <h1>StudioLoom Dashboard</h1>
+        <div class="header-sub">Project tracking + QA testing — everything in one place.</div>
+        <div class="stats-row">
+            <div class="stat-pill total"><div class="num" id="totalTests">0</div><div class="lbl">Total Tests</div></div>
+            <div class="stat-pill pass"><div class="num" id="passCount">0</div><div class="lbl">Passing</div></div>
+            <div class="stat-pill partial"><div class="num" id="partialCount">0</div><div class="lbl">Needs Work</div></div>
+            <div class="stat-pill fail"><div class="num" id="failCount">0</div><div class="lbl">Failing</div></div>
+            <div class="stat-pill blocked"><div class="num" id="blockedCount">0</div><div class="lbl">Blocked</div></div>
+        </div>
+    </div>
+
+    <!-- Tab bar -->
+    <div class="tab-bar">
+        <button class="tab-btn active" onclick="switchTab('projects')" id="tabProjects">📋 Projects <span class="tab-count" id="projectCount">9</span></button>
+        <button class="tab-btn" onclick="switchTab('tests')" id="tabTests">🧪 QA Tests <span class="tab-count" id="testTabCount">65</span></button>
+    </div>
+
+    <!-- ═══════ PROJECTS TAB ═══════ -->
+    <div class="tab-content active" id="projectsTab">
+
+        <!-- Project summary bar -->
+        <div class="project-summary-bar" style="border-radius:12px; margin-bottom:16px;">
+            <div class="summary-item"><div class="summary-dot" style="background:#22c55e"></div> <strong id="projComplete">0</strong> Complete</div>
+            <div class="summary-item"><div class="summary-dot" style="background:#a855f7"></div> <strong id="projActive">0</strong> Active</div>
+            <div class="summary-item"><div class="summary-dot" style="background:#3b82f6"></div> <strong id="projResearch">0</strong> Research</div>
+            <div class="summary-item"><div class="summary-dot" style="background:#e5e7eb"></div> <strong id="projPlanned">0</strong> Planned</div>
+            <div class="summary-item"><div class="summary-dot" style="background:#f59e0b"></div> <strong id="projPaused">0</strong> Paused</div>
+        </div>
+
+        <div id="projectContainer"></div>
+    </div>
+
+    <!-- ═══════ QA TESTS TAB ═══════ -->
+    <div class="tab-content" id="testsTab">
+
+        <!-- Legend -->
+        <div class="legend">
+            <span class="legend-title">Priority:</span>
+            <div class="legend-item"><div class="p-dot p0"></div><strong>P0</strong> = Critical path — product is broken if this fails. Test first.</div>
+            <div class="legend-item"><div class="p-dot p1"></div><strong>P1</strong> = Feature works — individual feature is broken if this fails.</div>
+            <div class="legend-item"><div class="p-dot p2"></div><strong>P2</strong> = Edge case — secondary flows, performance, cross-browser.</div>
+        </div>
+
+        <!-- Controls -->
+        <div class="controls">
+            <select id="priorityFilter" onchange="applyFilters()">
+                <option value="">All Priorities</option>
+                <option value="p0">P0 — Critical</option>
+                <option value="p1">P1 — Features</option>
+                <option value="p2">P2 — Edge Cases</option>
+            </select>
+            <select id="statusFilter" onchange="applyFilters()">
+                <option value="">All Statuses</option>
+                <option value="untested">Not Tested</option>
+                <option value="pass">Pass</option>
+                <option value="partial">Needs Work</option>
+                <option value="fail">Fail</option>
+                <option value="blocked">Blocked</option>
+            </select>
+            <input id="searchInput" type="text" placeholder="Search tests..." oninput="applyFilters()">
+            <div class="spacer"></div>
+            <button class="btn btn-purple" onclick="exportDashboard()">Export JSON</button>
+            <button class="btn btn-gray" onclick="importDashboard()">Import</button>
+            <button class="btn btn-red" onclick="resetAll()">Reset All</button>
+            <input type="file" id="fileInput" accept=".json">
+        </div>
+
+        <!-- Test container -->
+        <div id="testContainer"></div>
+        <div class="no-results" id="noResults">No tests match your filters.</div>
+
+    </div>
+
+</div>
+
+<!-- Import modal -->
+<div class="modal-overlay" id="importModal">
+    <div class="modal">
+        <h3>Import Test Data</h3>
+        <p>This will overwrite all current test results. Are you sure?</p>
+        <div class="modal-btns">
+            <button class="btn btn-gray" onclick="closeModal()">Cancel</button>
+            <button class="btn btn-purple" onclick="confirmImport()">Import</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════════════════
+// TEST DATA — Each test has: name, steps (numbered), expected result,
+// route (URL to navigate to), and category for grouping.
+// ════════════════════════════════════════════════════════════════════
+
+const TEST_DATA = {
+p0: [
+// ── Teacher Auth & Dashboard ──
+{
+    name: "Teacher login via Supabase Auth",
+    category: "Teacher Auth & Dashboard",
+    route: "/teacher/dashboard",
+    steps: [
+        "Go to the teacher login page",
+        "Enter teacher email + password",
+        "Submit the form"
+    ],
+    expect: "Redirected to /teacher/dashboard. No errors in console. Teacher name appears in header."
+},
+{
+    name: "Dashboard loads with unit cards",
+    category: "Teacher Auth & Dashboard",
+    route: "/teacher/dashboard",
+    steps: [
+        "Log in as teacher",
+        "Wait for dashboard to fully load",
+        "Check each unit card for: Unsplash photo thumbnail, unit type badge (DESIGN/SERVICE/PP/INQUIRY), class name above title in colored text, student count"
+    ],
+    expect: "All unit cards render with photos, type badges, and class names. No grey empty cards. No console errors."
+},
+{
+    name: "Dashboard filters archived classes",
+    category: "Teacher Auth & Dashboard",
+    route: "/teacher/dashboard",
+    steps: [
+        "In Supabase, set is_archived=true on one class",
+        "Reload the teacher dashboard",
+        "Check that the archived class's units don't appear"
+    ],
+    expect: "Archived class units are hidden. Only active classes show."
+},
+{
+    name: "Teach button launches Teaching Mode",
+    category: "Teacher Auth & Dashboard",
+    route: "/teacher/dashboard",
+    steps: [
+        "On the dashboard, click the purple 'Teach' button on any unit card",
+        "Check the URL includes the correct classId parameter"
+    ],
+    expect: "Navigated to /teacher/teach/[unitId]?classId=[classId]. Teaching Mode loads with the correct class pre-selected."
+},
+
+// ── Student Auth & Session ──
+{
+    name: "Student login with class code + username",
+    category: "Student Auth & Session",
+    route: "/login (student)",
+    steps: [
+        "Go to the student login page",
+        "Enter a valid class code",
+        "Enter a student username",
+        "Submit"
+    ],
+    expect: "Student is logged in, redirected to student dashboard. Session cookie set (check DevTools → Application → Cookies)."
+},
+{
+    name: "Session cookie persists on Vercel",
+    category: "Student Auth & Session",
+    route: "/login (student) on studioloom-teal.vercel.app",
+    steps: [
+        "Log in as student on the PRODUCTION Vercel URL (not localhost)",
+        "Check DevTools → Application → Cookies for the session cookie",
+        "Reload the page",
+        "Navigate to a different student page and back"
+    ],
+    expect: "Student stays logged in across reloads. Cookie has Cache-Control: private (check Network tab → response headers on /api/auth routes)."
+},
+{
+    name: "Multi-class enrollment shows all units",
+    category: "Student Auth & Session",
+    route: "/dashboard (student)",
+    steps: [
+        "Ensure a student is in the class_students junction table for 2+ classes",
+        "Log in as that student",
+        "Check that units from ALL enrolled classes appear on the dashboard"
+    ],
+    expect: "Units from every enrolled class visible. Each card shows its class name. Framework colors correct (DESIGN=teal, SERVICE=pink, PP=purple)."
+},
+{
+    name: "Student dashboard renders correctly",
+    category: "Student Auth & Session",
+    route: "/dashboard (student)",
+    steps: [
+        "Log in as student",
+        "Check: gradient header, 'Continue Where You Left Off' card, unit cards with colored strips, safety badges section, schedule pill"
+    ],
+    expect: "Dashboard loads fully. No blank sections. No console errors. Unit cards have correct framework-colored gradient strips."
+},
+
+// ── Unit Builder Wizard ──
+{
+    name: "Express lane generates a unit",
+    category: "Unit Builder Wizard",
+    route: "/teacher/units/create",
+    steps: [
+        "Go to Create Unit page",
+        "Select Express mode (lightning bolt)",
+        "Type a topic like 'Design a sustainable water bottle'",
+        "Wait for auto-generation (~45 seconds)"
+    ],
+    expect: "Unit generates with all criteria, lesson pages, activities, and workshop phases. Review screen shows the generated content. Save button works."
+},
+{
+    name: "Guided lane conversation works",
+    category: "Unit Builder Wizard",
+    route: "/teacher/units/create",
+    steps: [
+        "Select Guided mode (speech bubble)",
+        "Follow the 5-7 step conversation prompts",
+        "Answer each question (grade level, duration, focus areas, etc.)",
+        "Confirm and generate"
+    ],
+    expect: "Each step progresses smoothly. Summary rail on the side updates. Generation completes with type-aware content."
+},
+{
+    name: "Architect lane single form",
+    category: "Unit Builder Wizard",
+    route: "/teacher/units/create",
+    steps: [
+        "Select Architect mode (wrench)",
+        "Fill in the scrollable form (Unit Identity, MYP Framework, Duration, etc.)",
+        "Submit for generation"
+    ],
+    expect: "All form sections render. Type-specific fields show/hide based on unit type. Generation produces content matching the selections."
+},
+{
+    name: "Lane switching preserves data",
+    category: "Unit Builder Wizard",
+    route: "/teacher/units/create",
+    steps: [
+        "Start in Express mode, type a topic",
+        "Switch to Guided mode using the lane pills",
+        "Check that the topic text carried over",
+        "Switch to Architect mode",
+        "Check the topic is still there"
+    ],
+    expect: "Topic text persists across all 3 lane switches. No data loss."
+},
+{
+    name: "Unit saves with unit_type",
+    category: "Unit Builder Wizard",
+    route: "/teacher/units/create",
+    steps: [
+        "Generate a unit (any lane)",
+        "Click 'Save Unit'",
+        "Check the unit in Supabase → units table"
+    ],
+    expect: "Unit row has unit_type column populated (design/service/pp/inquiry). If migration 051 not applied, save still succeeds (graceful fallback)."
+},
+{
+    name: "Unit type selector shows 4 types",
+    category: "Unit Builder Wizard",
+    route: "/teacher/units/create",
+    steps: [
+        "Go to Create Unit",
+        "Enter a topic",
+        "Look for the 4 unit type cards below the topic input"
+    ],
+    expect: "4 cards visible: Design (teal), Service (pink), Personal Project (purple), Inquiry (amber). Each has SVG icon. Clicking changes selection."
+},
+
+// ── Content & Forking ──
+{
+    name: "Master content loads for all classes",
+    category: "Content & Forking",
+    route: "/teacher/units/[unitId]/class/[classId]",
+    steps: [
+        "Assign a unit to 2 different classes (no forks yet)",
+        "Open Class Hub for each class",
+        "Navigate to the lesson editor or student lesson view"
+    ],
+    expect: "Both classes show identical content from units.content_data. No errors."
+},
+{
+    name: "Fork-on-write triggers on first edit",
+    category: "Content & Forking",
+    route: "/teacher/units/[unitId]/class/[classId]/edit",
+    steps: [
+        "Open the class-local editor for a class that hasn't been forked",
+        "Make any edit (change a title, add an activity)",
+        "Check Supabase → class_units table for that row"
+    ],
+    expect: "class_units.content_data is now populated (was NULL before). forked_at has a timestamp. Fork badge in editor shows amber 'Class fork'."
+},
+{
+    name: "Forked content shows on student lesson pages",
+    category: "Content & Forking",
+    route: "/unit/[unitId]/[pageId] (student)",
+    steps: [
+        "Fork a unit for Class A (edit something identifiable)",
+        "Log in as a student in Class A",
+        "Open a lesson page",
+        "Compare with what the master template shows"
+    ],
+    expect: "Student sees the FORKED content (Class A's version), not the master template."
+},
+{
+    name: "Reset to Master clears fork",
+    category: "Content & Forking",
+    route: "/teacher/units/[unitId]/class/[classId]/edit",
+    steps: [
+        "Open editor for a forked class",
+        "Click 'Reset to Master'",
+        "Confirm in the dialog",
+        "Check Supabase → class_units.content_data"
+    ],
+    expect: "content_data is NULL again. forked_at is NULL. Editor shows blue 'Using master template' badge. Content matches master."
+},
+{
+    name: "Save as Version creates snapshot",
+    category: "Content & Forking",
+    route: "/teacher/units/[unitId]/class/[classId]/edit",
+    steps: [
+        "Open editor for a forked class",
+        "Click 'Save as Version'",
+        "Enter a label (e.g. 'Term 1 final')",
+        "Click Save",
+        "Check the unit detail page → Versions section"
+    ],
+    expect: "Green toast confirms version saved. Version appears in the Versions section on the unit detail page with label, source class, and date."
+},
+
+// ── Student Lesson Experience ──
+{
+    name: "Lesson pages render with activities",
+    category: "Student Lesson Experience",
+    route: "/unit/[unitId]/[pageId] (student)",
+    steps: [
+        "Log in as student",
+        "Open any unit → click on a lesson page",
+        "Check that activities render with their prompts, scaffolding, and response inputs"
+    ],
+    expect: "Activities display correctly. Text inputs, file uploads, and other response types are functional. Workshop Model header shows if phases exist."
+},
+{
+    name: "Text responses save (useMemo fix)",
+    category: "Student Lesson Experience",
+    route: "/unit/[unitId]/[pageId] (student)",
+    steps: [
+        "Open a lesson page with text input activities",
+        "Type several sentences into a text area",
+        "Wait 2 seconds (auto-save)",
+        "Reload the page"
+    ],
+    expect: "Text is preserved after reload. No characters lost while typing. No flickering or input reset. (This was the critical useMemo bug.)"
+},
+{
+    name: "Complete & Continue advances pages",
+    category: "Student Lesson Experience",
+    route: "/unit/[unitId]/[pageId] (student)",
+    steps: [
+        "Fill out some responses on a lesson page",
+        "Click 'Complete & Continue'",
+        "Check that the next page loads"
+    ],
+    expect: "Navigated to next page. Progress indicator updates. Previous page marked as complete."
+},
+{
+    name: "Empty content_data shows helpful message",
+    category: "Student Lesson Experience",
+    route: "/unit/[unitId]/[pageId] (student)",
+    steps: [
+        "Find or create a unit with empty content_data",
+        "Navigate to a lesson page as a student"
+    ],
+    expect: "Helpful message with unit title shown instead of blank screen. Floating action buttons (AI assistant, portfolio, etc.) still render."
+},
+
+// ── Grading ──
+{
+    name: "Grade tab in Class Hub loads (no infinite loop)",
+    category: "Grading",
+    route: "/teacher/units/[unitId]/class/[classId]?tab=grade",
+    steps: [
+        "Open Class Hub for any unit+class",
+        "Click the Grade tab",
+        "Wait for content to render"
+    ],
+    expect: "Student sidebar + grading form render and STAY visible. No flickering. No infinite loading. (This was the bug just fixed — gradeLoading useEffect loop.)"
+},
+{
+    name: "Criterion scores save",
+    category: "Grading",
+    route: "/teacher/units/[unitId]/class/[classId]?tab=grade",
+    steps: [
+        "Open Grade tab",
+        "Select a student from the sidebar",
+        "Click score buttons (1-8) for each criterion",
+        "Add a comment to a criterion",
+        "Click 'Save as Draft'"
+    ],
+    expect: "Green 'Saved' confirmation. Reload page → same scores and comments persist. Student shows 'Draft' status in sidebar."
+},
+{
+    name: "Full grading page loads",
+    category: "Grading",
+    route: "/teacher/classes/[classId]/grading/[unitId]",
+    steps: [
+        "Navigate directly to the full grading page URL",
+        "Check that student sidebar, criterion sections, evidence panel all render"
+    ],
+    expect: "Full grading interface loads with all features. No grey boxes. Evidence panel shows student responses when a student is selected."
+},
+{
+    name: "Non-MYP class Grade tab shows framework criteria (not MYP A/B/C/D)",
+    category: "Grading",
+    route: "/teacher/units/[unitId]/class/[classId] → Grade tab (non-MYP class)",
+    steps: [
+        "Create or open a class with a non-MYP framework (e.g., GCSE, NESA, ACARA, A-Level)",
+        "Assign a unit to that class",
+        "Open Class Hub → Grade tab",
+        "Check criterion column headers and grading scale"
+    ],
+    expect: "Criteria show framework-specific labels (e.g., AO1-AO4 for GCSE, DP/Pr/Ev for NESA), NOT MYP Criterion A/B/C/D. Grading scale matches framework (percentage input for GCSE/A-Level/IGCSE, buttons for others)."
+},
+],
+
+p1: [
+// ── Lesson Editor ──
+{
+    name: "Editor loads with split-pane layout",
+    category: "Lesson Editor (Phase 0.5)",
+    route: "/teacher/units/[unitId]/class/[classId]/edit",
+    steps: [
+        "Open the lesson editor for any class-unit",
+        "Check: left sidebar with lesson list, right area with phases and activities"
+    ],
+    expect: "Split-pane renders. Lessons listed in sidebar. Clicking a lesson loads its content on the right."
+},
+{
+    name: "Drag-and-drop lesson reorder",
+    category: "Lesson Editor (Phase 0.5)",
+    route: "/teacher/units/[unitId]/class/[classId]/edit",
+    steps: [
+        "In the sidebar, grab a lesson by its drag handle",
+        "Drag it to a different position",
+        "Release"
+    ],
+    expect: "Lesson moves to new position. Auto-save triggers. Reload → order persists."
+},
+{
+    name: "Activity reorder within phases",
+    category: "Lesson Editor (Phase 0.5)",
+    route: "/teacher/units/[unitId]/class/[classId]/edit",
+    steps: [
+        "In a lesson, find a phase with 2+ activities",
+        "Drag an activity to reorder within the same phase"
+    ],
+    expect: "Activity moves. Auto-save triggers. No console errors."
+},
+{
+    name: "Inline editing works",
+    category: "Lesson Editor (Phase 0.5)",
+    route: "/teacher/units/[unitId]/class/[classId]/edit",
+    steps: [
+        "Click on a lesson title in the editor",
+        "Type a new title",
+        "Click away (blur)"
+    ],
+    expect: "Title updates. Auto-save fires after 800ms. Sidebar reflects the new title."
+},
+{
+    name: "Undo / Redo (Cmd+Z)",
+    category: "Lesson Editor (Phase 0.5)",
+    route: "/teacher/units/[unitId]/class/[classId]/edit",
+    steps: [
+        "Make a change (edit title, add activity, reorder)",
+        "Press Cmd+Z (or Ctrl+Z)",
+        "Check the change reverted",
+        "Press Cmd+Shift+Z",
+        "Check the change re-applied"
+    ],
+    expect: "Undo reverts last change. Redo re-applies it. Up to 30 undo levels."
+},
+{
+    name: "AI text field assist (# button)",
+    category: "Lesson Editor (Phase 0.5)",
+    route: "/teacher/units/[unitId]/class/[classId]/edit",
+    steps: [
+        "Find a text field with the purple # button (hook, focus, protocol, or prompt fields)",
+        "Click the # button",
+        "Wait for AI suggestions to load"
+    ],
+    expect: "3 numbered suggestions appear in a dropdown. Clicking one fills the field. Suggestions are contextually relevant."
+},
+
+// ── Teaching Mode ──
+{
+    name: "Teaching dashboard loads",
+    category: "Teaching Mode",
+    route: "/teacher/teach/[unitId]",
+    steps: [
+        "Click 'Teach' on a unit from the dashboard",
+        "Check: 3-column layout (lesson navigator | timer+grid | notes+extensions)"
+    ],
+    expect: "All 3 columns render. Class selector shows classes assigned to this unit. Lesson navigator shows pages."
+},
+{
+    name: "Live student grid polls",
+    category: "Teaching Mode",
+    route: "/teacher/teach/[unitId]",
+    steps: [
+        "Open Teaching Mode",
+        "Have a student log in and open a lesson",
+        "Wait 8-10 seconds"
+    ],
+    expect: "Student card appears in the grid with status (active/idle). Card shows response count and time spent. Updates every 8s."
+},
+{
+    name: "Phase timer works",
+    category: "Teaching Mode",
+    route: "/teacher/teach/[unitId]",
+    steps: [
+        "Select a lesson with workshop phases",
+        "Click play on the phase timer",
+        "Test pause, reset, skip controls"
+    ],
+    expect: "Timer counts down. Progress bar advances. 60-second warning pulse. Skip moves to next phase."
+},
+{
+    name: "Projector view + sync",
+    category: "Teaching Mode",
+    route: "/teacher/teach/[unitId]/projector",
+    steps: [
+        "Click the projector icon in Teaching Mode",
+        "New window opens with dark theme",
+        "Change the current phase/lesson in the Teaching Mode dashboard"
+    ],
+    expect: "Projector displays phase-appropriate content. Syncs with dashboard via postMessage when phase/lesson changes."
+},
+
+// ── Design Assistant ──
+{
+    name: "AI chat opens and responds",
+    category: "Design Assistant",
+    route: "/unit/[unitId]/[pageId] (student)",
+    steps: [
+        "As a student, open a lesson page",
+        "Click the AI assistant floating button",
+        "Type a question about the design task",
+        "Submit"
+    ],
+    expect: "Chat widget opens. AI responds with a Socratic question (not a direct answer). Response < 300 tokens."
+},
+{
+    name: "Effort-gating on AI responses",
+    category: "Design Assistant",
+    route: "/unit/[unitId]/[pageId] (student)",
+    steps: [
+        "Type a lazy message like 'idk help me'",
+        "Check the response tone",
+        "Then type a detailed message with specifics",
+        "Check the response tone again"
+    ],
+    expect: "Low effort → AI pushes for specifics (no praise). High effort → AI acknowledges + challenges deeper."
+},
+
+// ── Safety Badges ──
+{
+    name: "Teacher creates badge with questions",
+    category: "Safety Badges",
+    route: "/teacher/safety/create",
+    steps: [
+        "Go to Safety section",
+        "Click Create Badge",
+        "Add a name, learning cards, and question pool (try all 5 types: MC, T/F, scenario, sequence, matching)",
+        "Save"
+    ],
+    expect: "Badge appears in the listing. All 5 question types saved correctly."
+},
+{
+    name: "Badge assigned as unit prerequisite",
+    category: "Safety Badges",
+    route: "/teacher/safety/[badgeId]",
+    steps: [
+        "Open badge detail page",
+        "Click 'Require for Unit'",
+        "Select a unit",
+        "Save"
+    ],
+    expect: "Badge appears as required for that unit. Dashboard shows amber shield chip with badge count."
+},
+{
+    name: "Student takes test and earns badge",
+    category: "Safety Badges",
+    route: "/safety/[badgeId] (student)",
+    steps: [
+        "Log in as student with a pending required badge",
+        "Click the amber 'Take Test' banner on dashboard",
+        "Complete all 3 screens: learn cards → quiz → results"
+    ],
+    expect: "Quiz auto-scores. If passed: badge earned, green confirmation. If failed: cooldown enforced before retry."
+},
+{
+    name: "Badge gate blocks unit access",
+    category: "Safety Badges",
+    route: "/unit/[unitId]/narrative (student)",
+    steps: [
+        "Require a badge for a unit",
+        "Log in as student who hasn't earned it",
+        "Try to access the unit's narrative page and lesson pages"
+    ],
+    expect: "Amber 'Safety Tests Required' screen shown. Links to take the test. Cannot bypass to lesson content."
+},
+
+// ── Melbourne Metrics (NM) ──
+{
+    name: "NM config wizard works",
+    category: "Melbourne Metrics (NM)",
+    route: "/teacher/units/[unitId]/class/[classId]?tab=settings",
+    steps: [
+        "Open Class Hub → Settings tab (or NM section)",
+        "Enable NM toggle",
+        "Select competency (Agency in Learning)",
+        "Pick elements to track",
+        "Assign elements to checkpoint pages"
+    ],
+    expect: "3-step wizard completes. Config saved. Pop art header renders (hot pink, halftone dots)."
+},
+{
+    name: "Student CompetencyPulse appears",
+    category: "Melbourne Metrics (NM)",
+    route: "/unit/[unitId]/[pageId] (student)",
+    steps: [
+        "Configure NM with checkpoints on specific pages",
+        "Log in as student",
+        "Navigate to a page that has an NM checkpoint"
+    ],
+    expect: "CompetencyPulse card appears above 'Complete & Continue'. Pop art style (hot pink header, halftone dots, 3-point rating pills)."
+},
+{
+    name: "NM Results panel shows data",
+    category: "Melbourne Metrics (NM)",
+    route: "/teacher/units/[unitId]/class/[classId]?tab=metrics",
+    steps: [
+        "Have at least one student complete an NM checkpoint",
+        "Open Class Hub → New Metrics tab",
+        "Check the Checkpoints view"
+    ],
+    expect: "Table shows per-checkpoint data. Student Self columns light cyan, Teacher Obs columns light purple. Lesson names in left column."
+},
+
+// ── Open Studio ──
+{
+    name: "Teacher unlocks Open Studio for student",
+    category: "Open Studio",
+    route: "/teacher/units/[unitId]/class/[classId]?tab=studio",
+    steps: [
+        "Open Class Hub → Open Studio tab",
+        "Find a student in the list",
+        "Click unlock/grant"
+    ],
+    expect: "Student status changes to 'unlocked'. Unlock timestamp recorded."
+},
+{
+    name: "Student sees Open Studio banner",
+    category: "Open Studio",
+    route: "/unit/[unitId]/narrative (student)",
+    steps: [
+        "Log in as the unlocked student",
+        "Open the unit page"
+    ],
+    expect: "Purple Open Studio banner appears between hero and content. 'Start Session' button visible."
+},
+{
+    name: "Check-in timer fires",
+    category: "Open Studio",
+    route: "/open-studio/[unitId] (student)",
+    steps: [
+        "Start an Open Studio session",
+        "Wait for the configured check-in interval (5-30 min)",
+        "Respond to the check-in prompt"
+    ],
+    expect: "Check-in prompt appears on schedule. Rotation: regular → documentation nudge (3rd) → alignment check (5th)."
+},
+
+// ── Discovery Engine ──
+{
+    name: "Discovery journey loads for Mode 2 units",
+    category: "Discovery Engine",
+    route: "/discovery/[unitId] (student)",
+    steps: [
+        "Create a Service or PP type unit",
+        "Enroll a student",
+        "On the student dashboard, look for 'Start Discovery Journey' link",
+        "Click it"
+    ],
+    expect: "Discovery loads at Station 0 (Identity Card). Kit mentor visible. Progress bar shows 8 stations."
+},
+{
+    name: "All 8 stations advance correctly",
+    category: "Discovery Engine",
+    route: "/discovery/[unitId] (student)",
+    steps: [
+        "Work through all 8 stations: S0 Identity → S1 Campfire → S2 Workshop → S3 Collection → S4 Window → S5 Toolkit → S6 Crossroads → S7 Launchpad",
+        "Complete required inputs at each station"
+    ],
+    expect: "Each station renders. Transitions animate. Kit expressions change per context. Session auto-saves."
+},
+{
+    name: "S7 grand reveal shows archetype",
+    category: "Discovery Engine",
+    route: "/discovery/[unitId] (student)",
+    steps: [
+        "Complete all 7 preceding stations",
+        "Reach Station 7 Launchpad",
+        "Check that archetype result displays"
+    ],
+    expect: "One of 6 archetypes revealed (Maker/Researcher/Leader/Communicator/Creative/Systems Thinker). Project statement bar visible."
+},
+
+// ── Class Gallery ──
+{
+    name: "Teacher creates gallery round",
+    category: "Class Gallery & Peer Review",
+    route: "/teacher/units/[unitId]/class/[classId]?tab=gallery",
+    steps: [
+        "Open Class Hub → Gallery tab",
+        "Click 'Create Round'",
+        "Set title, review format (comment/PMI/two-stars-wish), min reviews, anonymous toggle, deadline"
+    ],
+    expect: "Round created. Appears in the gallery tab list with status 'open'."
+},
+{
+    name: "Student submits and reviews peers",
+    category: "Class Gallery & Peer Review",
+    route: "/gallery/[roundId] (student)",
+    steps: [
+        "Log in as student",
+        "Open gallery round from dashboard",
+        "Submit a work snapshot (Submit tab)",
+        "Switch to Browse & Review tab",
+        "Review the required number of peers"
+    ],
+    expect: "Submission saved. Peers' work shown one at a time (own excluded). Review form uses the correct format. Progress counter updates."
+},
+{
+    name: "Effort-gated feedback unlocks",
+    category: "Class Gallery & Peer Review",
+    route: "/gallery/[roundId] (student)",
+    steps: [
+        "Before completing min reviews, click the Feedback tab",
+        "Check it's locked (blurred preview)",
+        "Complete the required reviews",
+        "Check Feedback tab again"
+    ],
+    expect: "Locked state shows blurred preview + 'Complete X more reviews to see feedback'. After threshold met, feedback unlocks with all peer reviews visible."
+},
+
+// ── Timetable & Scheduling ──
+{
+    name: "Cycle config saves",
+    category: "Timetable & Scheduling",
+    route: "/teacher/settings",
+    steps: [
+        "Go to Teacher Settings → School tab",
+        "Set cycle length (e.g. 6-day cycle)",
+        "Set anchor date and anchor cycle day",
+        "Save"
+    ],
+    expect: "Config persists on reload. TimetableGrid shows the correct number of day columns."
+},
+{
+    name: "TimetableGrid click-to-add meetings",
+    category: "Timetable & Scheduling",
+    route: "/teacher/settings",
+    steps: [
+        "In the TimetableGrid, click an empty cell",
+        "Select a class from the dropdown",
+        "Add a room (optional)",
+        "Click a filled cell to remove it"
+    ],
+    expect: "Meeting added to grid (color-coded by class). Removing clears the cell. Changes persist on reload."
+},
+{
+    name: "Student next-class pill displays",
+    category: "Timetable & Scheduling",
+    route: "/dashboard (student)",
+    steps: [
+        "Set up timetable with class meetings for the student's class",
+        "Log in as student",
+        "Check the 'Continue Where You Left Off' card"
+    ],
+    expect: "Blue pill shows 'Next: Day X, PY — DayName' with room info."
+},
+{
+    name: "LessonSchedule maps to dates",
+    category: "Timetable & Scheduling",
+    route: "/teacher/units/[unitId]/class/[classId]",
+    steps: [
+        "Set up timetable + term dates for a class",
+        "Open Class Hub → scroll to LessonSchedule",
+        "Check that each lesson is mapped to a real calendar date"
+    ],
+    expect: "Lessons show session numbers, dates, and cycle day badges. 'Continues next class' toggle adds extra sessions."
+},
+
+// ── Student Onboarding ──
+{
+    name: "First login triggers Studio Setup",
+    category: "Student Onboarding",
+    route: "/login (student)",
+    steps: [
+        "Create a new student (mentor_id = null in Supabase)",
+        "Log in as that student"
+    ],
+    expect: "4-screen onboarding flow appears: Screen 1 (choose mentor) → 2 (pick theme) → 3 (profile questions) → 4 (welcome reveal)."
+},
+{
+    name: "Mentor + theme choices persist",
+    category: "Student Onboarding",
+    route: "/dashboard (student)",
+    steps: [
+        "Complete Studio Setup, choosing a mentor (Kit/Sage/Spark) and theme (Clean/Bold/Warm/Dark)",
+        "Check Supabase → students table for mentor_id and theme_id",
+        "Navigate around the student dashboard"
+    ],
+    expect: "mentor_id and theme_id saved. CSS custom properties applied (--st-bg, --st-accent, etc.). Theme visible on all student pages."
+},
+{
+    name: "Settings cog for switching",
+    category: "Student Onboarding",
+    route: "/dashboard (student)",
+    steps: [
+        "Click the gear icon in the student header",
+        "Change mentor and/or theme",
+        "Close settings"
+    ],
+    expect: "Changes apply immediately (no page reload). New theme colors visible. 'Redo full Studio Setup' button works."
+},
+
+// ── School Calendar ──
+{
+    name: "Calendar quick templates work",
+    category: "School Calendar",
+    route: "/teacher/settings",
+    steps: [
+        "Go to Teacher Settings → School tab → Calendar section",
+        "Click '4 Terms' template button",
+        "Check that 4 term rows appear with default date ranges",
+        "Save"
+    ],
+    expect: "Terms save. Reload → terms persist. Template buttons STILL visible after save (not hidden)."
+},
+
+// ── MYPflex: Framework-Flexible Grading ──
+{
+    name: "Create class with GCSE framework",
+    category: "MYPflex — Framework Grading",
+    route: "/teacher/classes (create new)",
+    steps: [
+        "Go to create a new class",
+        "Select 'GCSE Design & Technology' from the framework dropdown",
+        "Fill in class name, code, grade level",
+        "Save the class"
+    ],
+    expect: "Class created. In Supabase → classes table, framework = 'GCSE_DT'. Dashboard shows the class."
+},
+{
+    name: "Create class with A-Level framework",
+    category: "MYPflex — Framework Grading",
+    route: "/teacher/classes (create new)",
+    steps: [
+        "Create a new class",
+        "Select 'A-Level Design & Technology' from the framework dropdown",
+        "Save"
+    ],
+    expect: "Class created with framework = 'A_LEVEL_DT'. Class appears on dashboard."
+},
+{
+    name: "Create class with ACARA framework",
+    category: "MYPflex — Framework Grading",
+    route: "/teacher/classes (create new)",
+    steps: [
+        "Create a new class",
+        "Select 'Australian D&T (ACARA)' from the framework dropdown",
+        "Save"
+    ],
+    expect: "Class created with framework = 'ACARA_DT'. Class appears on dashboard."
+},
+{
+    name: "Create class with PLTW framework",
+    category: "MYPflex — Framework Grading",
+    route: "/teacher/classes (create new)",
+    steps: [
+        "Create a new class",
+        "Select 'Project Lead The Way (US)' from the framework dropdown",
+        "Save"
+    ],
+    expect: "Class created with framework = 'PLTW'. Class appears on dashboard."
+},
+{
+    name: "GCSE Grade tab shows correct criteria (AO1-AO4) with percentage scale",
+    category: "MYPflex — Framework Grading",
+    route: "/teacher/units/[unitId]/class/[classId] → Grade tab",
+    steps: [
+        "Assign a unit to a GCSE class",
+        "Open the Class Hub for that class-unit",
+        "Click the Grade tab",
+        "Check the criteria column headers"
+    ],
+    expect: "Criteria columns show AO1 (Investigate & Analyse), AO2 (Design & Develop), AO3 (Make & Manufacture), AO4 (Evaluate & Test). NOT MYP A/B/C/D. Inputs are number fields (0-100%), not 1-8 buttons."
+},
+{
+    name: "A-Level Grade tab shows correct criteria (C1-C3) with percentage scale",
+    category: "MYPflex — Framework Grading",
+    route: "/teacher/units/[unitId]/class/[classId] → Grade tab",
+    steps: [
+        "Assign a unit to an A-Level class",
+        "Open Class Hub → Grade tab",
+        "Check criteria headers and input type"
+    ],
+    expect: "Criteria: C1 (Technical Principles), C2 (Designing & Making Principles), C3 (Design & Make Project). Number inputs 0-100%."
+},
+{
+    name: "IGCSE Grade tab shows AO1-AO3 with percentage scale",
+    category: "MYPflex — Framework Grading",
+    route: "/teacher/units/[unitId]/class/[classId] → Grade tab",
+    steps: [
+        "Assign a unit to an IGCSE class",
+        "Open Class Hub → Grade tab"
+    ],
+    expect: "Criteria: AO1 (Knowledge & Understanding), AO2 (Application), AO3 (Analysis & Evaluation). Number inputs 0-100%."
+},
+{
+    name: "ACARA Grade tab shows KU + PPS with 1-5 scale",
+    category: "MYPflex — Framework Grading",
+    route: "/teacher/units/[unitId]/class/[classId] → Grade tab",
+    steps: [
+        "Assign a unit to an ACARA class",
+        "Open Class Hub → Grade tab"
+    ],
+    expect: "Criteria: KU (Knowledge & Understanding), PPS (Processes & Production Skills). Button-based scoring 1-5 (A-E scale)."
+},
+{
+    name: "PLTW Grade tab shows 4 criteria with 1-4 scale",
+    category: "MYPflex — Framework Grading",
+    route: "/teacher/units/[unitId]/class/[classId] → Grade tab",
+    steps: [
+        "Assign a unit to a PLTW class",
+        "Open Class Hub → Grade tab"
+    ],
+    expect: "Criteria: Design (Design Process), Build (Build & Prototype), Test (Test & Evaluate), Present (Present & Defend). Button-based scoring 1-4."
+},
+{
+    name: "NESA Grade tab shows DP/Pr/Ev with 1-6 scale",
+    category: "MYPflex — Framework Grading",
+    route: "/teacher/units/[unitId]/class/[classId] → Grade tab",
+    steps: [
+        "Assign a unit to a NESA class",
+        "Open Class Hub → Grade tab"
+    ],
+    expect: "Criteria: DP (Design Process), Pr (Producing), Ev (Evaluating). Button-based scoring 1-6. NOT MYP A/B/C/D."
+},
+{
+    name: "VIC Grade tab shows TS/TC/CDS with 1-5 scale",
+    category: "MYPflex — Framework Grading",
+    route: "/teacher/units/[unitId]/class/[classId] → Grade tab",
+    steps: [
+        "Assign a unit to a VIC class",
+        "Open Class Hub → Grade tab"
+    ],
+    expect: "Criteria: TS (Technologies & Society), TC (Technological Contexts), CDS (Creating Design Solutions). Button-based scoring 1-5 (A-E)."
+},
+{
+    name: "MYP class Grade tab still shows A/B/C/D with 1-8 scale (regression)",
+    category: "MYPflex — Framework Grading",
+    route: "/teacher/units/[unitId]/class/[classId] → Grade tab",
+    steps: [
+        "Open a class that uses IB MYP framework",
+        "Open Class Hub → Grade tab",
+        "Check criteria and scale"
+    ],
+    expect: "Criteria: A (Inquiring & Analysing), B (Developing Ideas), C (Creating the Solution), D (Evaluating). Button-based scoring 1-8. No regression."
+},
+{
+    name: "Full Grading page matches Class Hub Grade tab",
+    category: "MYPflex — Framework Grading",
+    route: "/teacher/classes/[classId]/grading/[unitId]",
+    steps: [
+        "Open the full grading page for a non-MYP class (e.g., GCSE)",
+        "Check that criteria headers + scale match the Class Hub Grade tab",
+        "Enter some scores, save"
+    ],
+    expect: "Same criteria (AO1-AO4 for GCSE) and same scale (0-100% number input) as the embedded Grade tab. Scores persist on save."
+},
+{
+    name: "Report Writer shows all 9 frameworks",
+    category: "MYPflex — Report Writer",
+    route: "/tools/report-writer",
+    steps: [
+        "Open the Report Writer free tool",
+        "Click the framework/curriculum dropdown",
+        "Check all options"
+    ],
+    expect: "9 frameworks listed: General D&T, IB MYP Design, GCSE D&T, A-Level D&T, Cambridge IGCSE D&T, Australian D&T (ACARA), NSW D&T (NESA), Victorian Curriculum D&T, Project Lead The Way (US)."
+},
+{
+    name: "Report Writer categories change per framework",
+    category: "MYPflex — Report Writer",
+    route: "/tools/report-writer",
+    steps: [
+        "Select 'GCSE Design & Technology' as framework",
+        "Check the rating category columns that appear",
+        "Switch to 'Project Lead The Way (US)'",
+        "Check categories again"
+    ],
+    expect: "GCSE shows: Investigate & Analyse, Design & Develop, Make & Manufacture, Evaluate & Test, Technical Knowledge. PLTW shows: Design Process, Build & Prototype, Test & Evaluate, Present & Defend. Categories change when framework changes."
+},
+{
+    name: "Report Writer generates reports for non-MYP frameworks",
+    category: "MYPflex — Report Writer",
+    route: "/tools/report-writer",
+    steps: [
+        "Select A-Level framework",
+        "Add a student with name, pronouns, ratings for A-Level categories",
+        "Set tone, word count, reporting period",
+        "Generate reports"
+    ],
+    expect: "Reports generated successfully. Report text references A-Level specific skills (Technical Principles, Designing & Making, NEA project). No MYP terminology (Criterion A/B/C/D) unless MYP framework selected."
+},
+{
+    name: "TestSandbox shows correct criteria per framework",
+    category: "MYPflex — Admin TestSandbox",
+    route: "/admin/test-sandbox",
+    steps: [
+        "Open the admin test sandbox",
+        "Select GCSE_DT from the framework dropdown",
+        "Check the criteria toggles that appear",
+        "Switch to PLTW, check again",
+        "Switch to IB_MYP, check again"
+    ],
+    expect: "GCSE: AO1, AO2, AO3, AO4. PLTW: Design, Build, Test, Present. MYP: A, B, C, D. Criteria update when framework changes."
+},
+{
+    name: "TestSandbox unit type presets don't force framework",
+    category: "MYPflex — Admin TestSandbox",
+    route: "/admin/test-sandbox",
+    steps: [
+        "Select a framework (e.g., GCSE_DT)",
+        "Click a unit type preset (e.g., Service Learning)",
+        "Check if framework changed"
+    ],
+    expect: "Framework stays at GCSE_DT. Preset only fills topic and end goal, NOT framework or criteria. These are independent dimensions."
+},
+{
+    name: "Open Studio controls only on Open Studio tab",
+    category: "MYPflex — Open Studio UX",
+    route: "/teacher/units/[unitId]/class/[classId]",
+    steps: [
+        "Open Class Hub for any class-unit",
+        "Go to the Progress tab",
+        "Check: no unlock/revoke buttons on individual student rows, no OpenStudioClassView at bottom",
+        "Go to the Open Studio tab",
+        "Check: OpenStudioClassView present with full grant/revoke/config controls"
+    ],
+    expect: "Progress tab is clean — just progress data. All Open Studio lock/unlock is on the dedicated Open Studio tab."
+},
+],
+
+p2: [
+// ── Toolkit Persistence ──
+{
+    name: "Tool session auto-saves",
+    category: "Toolkit Persistence",
+    route: "/toolkit/scamper (logged in as student)",
+    steps: [
+        "Open SCAMPER tool while logged in as a student in a unit context",
+        "Enter a challenge, add some ideas",
+        "Watch for the save status indicator (top-right)",
+        "Close the tab, reopen the tool"
+    ],
+    expect: "Save status shows '✓ Saved'. Session resumes with previous state on return. Lazy creation: session only created after first interaction."
+},
+{
+    name: "Public mode skips persistence",
+    category: "Toolkit Persistence",
+    route: "/toolkit/scamper (not logged in)",
+    steps: [
+        "Open /toolkit/scamper without being logged in",
+        "Use the tool normally",
+        "Check browser console for errors"
+    ],
+    expect: "Tool works fully. No DB errors in console. No save indicator shown. Graceful no-op when no studentId."
+},
+
+// ── MonitoredTextarea ──
+{
+    name: "Integrity metadata captures and saves",
+    category: "MonitoredTextarea & Integrity",
+    route: "/unit/[unitId]/[pageId] (student)",
+    steps: [
+        "Open a lesson page with text input activities",
+        "Type normally for 30+ seconds",
+        "Paste some text from clipboard",
+        "Switch to another tab and back",
+        "Wait for auto-save",
+        "Check Supabase → student_progress → integrity_metadata column"
+    ],
+    expect: "integrity_metadata JSONB populated with: pasteEvents, keystrokeCount, focusLossCount, snapshots (30s intervals), wordCountHistory."
+},
+{
+    name: "IntegrityReport shows on grading page",
+    category: "MonitoredTextarea & Integrity",
+    route: "/teacher/classes/[classId]/grading/[unitId]",
+    steps: [
+        "Open the full grading page",
+        "Select a student who has integrity_metadata",
+        "Open the evidence panel (if available)",
+        "Look for IntegrityReport component"
+    ],
+    expect: "Score badge (0-100), activity metrics, severity flags. Writing playback slider scrubs through snapshots."
+},
+
+// ── Pace Feedback ──
+{
+    name: "Student pace pulse works",
+    category: "Pace Feedback",
+    route: "/unit/[unitId]/[pageId] (student)",
+    steps: [
+        "Complete a lesson page as a student",
+        "Look for the pace feedback prompt (🐢👌🏃)",
+        "Tap one of the 3 options"
+    ],
+    expect: "One-tap submission. No multi-question form. Feedback saved to lesson_feedback table."
+},
+{
+    name: "Teacher sees pace aggregation",
+    category: "Pace Feedback",
+    route: "/teacher/classes/[classId]/progress/[unitId]",
+    steps: [
+        "Have multiple students submit pace feedback",
+        "Open class progress page as teacher"
+    ],
+    expect: "PaceFeedbackSummary shows stacked bar per page (red=too_fast, green=just_right, amber=too_slow)."
+},
+
+// ── Student Learning Profile ──
+{
+    name: "Profile banner and survey work",
+    category: "Student Learning Profile",
+    route: "/dashboard (student)",
+    steps: [
+        "Log in as student with no learning_profile set",
+        "Check for glowing purple banner on dashboard",
+        "Click it to open the survey",
+        "Fill in: language, confidence, learning differences, working style",
+        "Submit"
+    ],
+    expect: "Banner visible with animate-ping dot. Survey saves. Banner disappears after completion. Check Supabase → students.learning_profile JSONB."
+},
+
+// ── Knowledge Base ──
+{
+    name: "Document upload triggers analysis",
+    category: "Knowledge Base",
+    route: "/teacher/knowledge",
+    steps: [
+        "Go to Knowledge Base section",
+        "Upload a PDF or DOCX file",
+        "Wait for 3-pass analysis to complete"
+    ],
+    expect: "Progress indicators for each pass. Chunks created with embeddings. Document appears in knowledge base listing."
+},
+
+// ── Performance ──
+{
+    name: "Dashboard loads < 3 seconds",
+    category: "Performance",
+    route: "/teacher/dashboard",
+    steps: [
+        "Open DevTools → Network tab",
+        "Hard refresh the teacher dashboard (Cmd+Shift+R)",
+        "Check total load time in Network tab"
+    ],
+    expect: "Page interactive in < 3 seconds. No waterfall of sequential API calls. Check for unnecessary .select('*') in Network responses."
+},
+{
+    name: "Unit generation < 60 seconds",
+    category: "Performance",
+    route: "/teacher/units/create",
+    steps: [
+        "Generate a unit via Express mode",
+        "Time it from submit to review screen"
+    ],
+    expect: "< 60 seconds total with parallel criterion generation. Check Network tab for concurrent API calls (not sequential)."
+},
+
+// ── Cross-Browser ──
+{
+    name: "Chrome: core features work",
+    category: "Cross-Browser",
+    route: "All pages",
+    steps: [
+        "Run through P0 critical path tests in Chrome",
+        "Check: login, dashboard, wizard, lessons, grading"
+    ],
+    expect: "All core features functional. No layout issues."
+},
+{
+    name: "Safari: cookie handling works",
+    category: "Cross-Browser",
+    route: "All pages",
+    steps: [
+        "Open StudioLoom in Safari",
+        "Test student login + session persistence",
+        "Test teacher login"
+    ],
+    expect: "Session cookies persist. No SameSite issues. Auth works across reloads."
+},
+{
+    name: "Mobile Safari: student pages responsive",
+    category: "Cross-Browser",
+    route: "/dashboard + /unit/[unitId]/[pageId] (student)",
+    steps: [
+        "Open student dashboard on iPhone/iPad Safari",
+        "Navigate to a lesson page",
+        "Check: text inputs usable, buttons tappable, no horizontal overflow"
+    ],
+    expect: "Responsive layout. Touch targets adequate. No content clipped off-screen."
+},
+]
+};
+
+// ════════════════════════════════════════════════════════════════
+// ENGINE
+// ════════════════════════════════════════════════════════════════
+
+let tests = [];
+let filteredTests = [];
+let importBuffer = null;
+
+function init() {
+    Object.keys(TEST_DATA).forEach(priority => {
+        TEST_DATA[priority].forEach((test, i) => {
+            tests.push({
+                id: `${priority}_${test.category.replace(/\W+/g, '_')}_${i}`,
+                priority,
+                ...test,
+                status: 'untested',
+                comment: '',
+                timestamp: ''
+            });
+        });
+    });
+    loadFromLocalStorage();
+    filteredTests = [...tests];
+    applyFilters();
+    updateStats();
+}
+
+function renderAll() {
+    const container = document.getElementById('testContainer');
+    container.innerHTML = '';
+
+    // Group by priority then category
+    const grouped = {};
+    filteredTests.forEach(test => {
+        const key = `${test.priority}|${test.category}`;
+        if (!grouped[key]) grouped[key] = [];
+        grouped[key].push(test);
+    });
+
+    if (Object.keys(grouped).length === 0) {
+        document.getElementById('noResults').style.display = 'block';
+        return;
+    }
+    document.getElementById('noResults').style.display = 'none';
+
+    // Sort: p0 first, then p1, then p2, then alphabetically by category
+    const sortedKeys = Object.keys(grouped).sort((a, b) => {
+        const [pa] = a.split('|');
+        const [pb] = b.split('|');
+        if (pa !== pb) return pa.localeCompare(pb);
+        return a.localeCompare(b);
+    });
+
+    sortedKeys.forEach(key => {
+        const [priority, category] = key.split('|');
+        const sectionTests = grouped[key];
+        const doneCount = sectionTests.filter(t => t.status === 'pass').length;
+        const testedCount = sectionTests.filter(t => t.status !== 'untested').length;
+        const progress = Math.round((doneCount / sectionTests.length) * 100);
+
+        const section = document.createElement('div');
+        section.className = 'section';
+        section.innerHTML = `
+            <div class="section-head" onclick="toggleSection(this)">
+                <span class="section-arrow">▶</span>
+                <span class="section-name">${category}</span>
+                <span class="section-badge ${priority}">${priority.toUpperCase()}</span>
+                <div class="section-progress">
+                    <div class="pbar"><div class="pbar-fill" style="width:${progress}%"></div></div>
+                    <span>${doneCount}/${sectionTests.length}</span>
+                </div>
+            </div>
+            <div class="section-body"></div>
+        `;
+
+        const body = section.querySelector('.section-body');
+        sectionTests.forEach(test => {
+            const row = document.createElement('div');
+            row.className = 'test';
+            row.innerHTML = `
+                <div class="test-top">
+                    <div class="test-status-dot ${test.status}"></div>
+                    <div style="flex:1">
+                        <div class="test-title">${test.name}</div>
+                        ${test.route ? `<div class="test-route">${test.route}</div>` : ''}
+                    </div>
+                </div>
+                <div class="test-steps">
+                    <ol>${test.steps.map(s => `<li>${s}</li>`).join('')}</ol>
+                    <div class="expect">✓ Expected: ${test.expect}</div>
+                </div>
+                <div class="test-actions">
+                    <button class="status-btn ${test.status === 'pass' ? 'active-pass' : ''}" onclick="setStatus('${test.id}','pass')">✓ Pass</button>
+                    <button class="status-btn ${test.status === 'partial' ? 'active-partial' : ''}" onclick="setStatus('${test.id}','partial')">◐ Needs Work</button>
+                    <button class="status-btn ${test.status === 'fail' ? 'active-fail' : ''}" onclick="setStatus('${test.id}','fail')">✕ Fail</button>
+                    <button class="status-btn ${test.status === 'blocked' ? 'active-blocked' : ''}" onclick="setStatus('${test.id}','blocked')">— Blocked</button>
+                    <button class="status-btn ${test.status === 'untested' ? 'active-untested' : ''}" onclick="setStatus('${test.id}','untested')">○ Reset</button>
+                    <span class="test-timestamp">${test.timestamp || ''}</span>
+                </div>
+                <div class="test-comment">
+                    <textarea placeholder="Notes — what happened, what's broken, what to fix..." oninput="setComment('${test.id}', this.value)">${test.comment}</textarea>
+                </div>
+            `;
+            body.appendChild(row);
+        });
+
+        container.appendChild(section);
+    });
+}
+
+function toggleSection(el) {
+    el.classList.toggle('open');
+    el.nextElementSibling.classList.toggle('open');
+}
+
+function setStatus(id, status) {
+    const test = tests.find(t => t.id === id);
+    if (test) {
+        test.status = status;
+        test.timestamp = status === 'untested' ? '' : new Date().toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+        save();
+        renderAll();
+        updateStats();
+    }
+}
+
+function setComment(id, comment) {
+    const test = tests.find(t => t.id === id);
+    if (test) { test.comment = comment; save(); }
+}
+
+function applyFilters() {
+    const p = document.getElementById('priorityFilter').value;
+    const s = document.getElementById('statusFilter').value;
+    const q = document.getElementById('searchInput').value.toLowerCase();
+    filteredTests = tests.filter(t => {
+        if (p && t.priority !== p) return false;
+        if (s && t.status !== s) return false;
+        if (q && !t.name.toLowerCase().includes(q) && !t.category.toLowerCase().includes(q)) return false;
+        return true;
+    });
+    renderAll();
+}
+
+function updateStats() {
+    const total = tests.length;
+    document.getElementById('totalTests').textContent = total;
+    document.getElementById('passCount').textContent = tests.filter(t => t.status === 'pass').length;
+    document.getElementById('partialCount').textContent = tests.filter(t => t.status === 'partial').length;
+    document.getElementById('failCount').textContent = tests.filter(t => t.status === 'fail').length;
+    document.getElementById('blockedCount').textContent = tests.filter(t => t.status === 'blocked').length;
+}
+
+function save() { localStorage.setItem('studioloom_qa_v2', JSON.stringify(tests)); }
+
+function loadFromLocalStorage() {
+    const saved = localStorage.getItem('studioloom_qa_v2');
+    if (!saved) return;
+    try {
+        const loaded = JSON.parse(saved);
+        loaded.forEach(s => {
+            const t = tests.find(x => x.id === s.id);
+            if (t) { t.status = s.status; t.comment = s.comment; t.timestamp = s.timestamp; }
+        });
+    } catch(e) {}
+}
+
+function exportDashboard() {
+    const blob = new Blob([JSON.stringify(tests, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `studioloom-qa-${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Exported');
+}
+
+function importDashboard() { document.getElementById('fileInput').click(); }
+
+document.getElementById('fileInput').addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+        try {
+            importBuffer = JSON.parse(ev.target.result);
+            document.getElementById('importModal').classList.add('active');
+        } catch { showToast('Invalid JSON', 'error'); }
+    };
+    reader.readAsText(file);
+});
+
+function confirmImport() {
+    if (importBuffer) {
+        importBuffer.forEach(s => {
+            const t = tests.find(x => x.id === s.id);
+            if (t) { t.status = s.status; t.comment = s.comment; t.timestamp = s.timestamp; }
+        });
+        save();
+        closeModal();
+        renderAll();
+        updateStats();
+        showToast('Imported');
+    }
+}
+
+function closeModal() {
+    document.getElementById('importModal').classList.remove('active');
+    importBuffer = null;
+    document.getElementById('fileInput').value = '';
+}
+
+function resetAll() {
+    if (confirm('Reset ALL test results? This cannot be undone.')) {
+        tests.forEach(t => { t.status = 'untested'; t.comment = ''; t.timestamp = ''; });
+        save();
+        renderAll();
+        updateStats();
+        showToast('Reset complete');
+    }
+}
+
+function showToast(msg, type = 'success') {
+    const t = document.createElement('div');
+    t.className = `toast ${type}`;
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 2500);
+}
+
+// ════════════════════════════════════════════════════════════════════
+// PROJECTS TAB
+// ════════════════════════════════════════════════════════════════════
+
+const PROJECTS = [
+    {
+        id: 'mypflex',
+        name: 'MYPflex',
+        desc: 'Framework-flexible assessment & grading + future-proofing for MYP criteria changes',
+        file: 'docs/projects/mypflex.md',
+        status: 'complete',
+        phases: [
+            { name: 'Phase 1: Grading system', est: '1 day', done: true },
+            { name: 'Phase 2: Generation pipeline', est: '3 days', done: true },
+            { name: 'Phase 3: Polish & audit', est: '2 days', done: true },
+            { name: 'Phase 4: Future-proofing (criteria as data, version tracking)', est: '4-6 hrs', done: false },
+        ]
+    },
+    {
+        id: 'monitored-textarea',
+        name: 'MonitoredTextarea Pipeline',
+        desc: 'End-to-end academic integrity monitoring — paste detection, typing patterns, teacher report',
+        file: 'docs/projects/monitored-textarea.md',
+        status: 'paused',
+        phases: [
+            { name: 'MonitoredTextarea component', est: 'done', done: true },
+            { name: 'Integrity analysis engine', est: 'done', done: true },
+            { name: 'IntegrityReport UI (Vercel fix)', est: 'done', done: true },
+            { name: 'Save pipeline wiring', est: 'done', done: true },
+            { name: 'Apply migration 054', est: '5 min', done: false },
+            { name: 'E2E testing', est: '1-2 hrs', done: false },
+        ]
+    },
+    {
+        id: 'new-metrics',
+        name: 'New Metrics (Melbourne Metrics)',
+        desc: 'University of Melbourne competency assessment — Agency in Learning first',
+        file: 'docs/projects/new-metrics.md',
+        status: 'research',
+        phases: [
+            { name: 'Research: all 7 competency kits extracted', est: 'done', done: true },
+            { name: 'Existing code audit + philosophy deep dive', est: 'done', done: true },
+            { name: 'Agency evidence enhancement map', est: 'done', done: true },
+            { name: 'Research: external resources (PDFs, FutureLearn, ARC)', est: '2-3 hrs', done: false },
+            { name: 'Phase 1: Expand constants.ts (all 27 elements)', est: '1-2 days', done: false },
+            { name: 'Phase 2: Better observations (element pre-selection)', est: '2-3 days', done: false },
+            { name: 'Phase 3: Contextual student reflections', est: '2-3 days', done: false },
+            { name: 'Phase 4: Reports (Rocket Report, Fan Profile)', est: '3-5 days', done: false },
+        ]
+    },
+    {
+        id: 'qualitycode',
+        name: 'QualityCode',
+        desc: 'Codebase health cleanup — split god components, strict TypeScript, tests, Sentry',
+        file: 'docs/projects/qualitycode.md',
+        status: 'planned',
+        phases: [
+            { name: 'Phase 1: Split god components (settings, class hub)', est: '3-4 hrs', done: false },
+            { name: 'Phase 2: TypeScript strictness + ESLint', est: '2-3 hrs', done: false },
+            { name: 'Phase 3: Test coverage (API routes + components)', est: '4-5 hrs', done: false },
+            { name: 'Phase 4: Console→Sentry + dead code removal', est: '2-3 hrs', done: false },
+            { name: 'Phase 5: Code splitting + bundle analysis', est: '1-2 hrs', done: false },
+        ]
+    },
+    {
+        id: 'badges',
+        name: 'Badges',
+        desc: 'Improve safety test quality + add skills badges (credentials, not gates)',
+        file: 'docs/projects/badges.md',
+        status: 'planned',
+        phases: [
+            { name: 'Phase 1: Test quality (image Qs, difficulty levels, richer cards)', est: '3-4 hrs', done: false },
+            { name: 'Phase 2: Skills badges (type, levels, mixed assessment)', est: '4-5 hrs', done: false },
+            { name: 'Phase 3: Badge templates & sharing', est: '2-3 hrs', done: false },
+        ]
+    },
+    {
+        id: 'uniteditor',
+        name: 'Unit Editor',
+        desc: 'Fix DnD issues + visual design improvements + missing features (preview, duplication)',
+        file: 'docs/projects/uniteditor.md',
+        status: 'planned',
+        phases: [
+            { name: 'Phase 1: Fix drag & drop (replace with dnd-kit)', est: '3-4 hrs', done: false },
+            { name: 'Phase 2: Visual design (phase identity, type picker, inline edit)', est: '2-3 hrs', done: false },
+            { name: 'Phase 3: Missing features (preview, duplication, debrief library)', est: '3-4 hrs', done: false },
+        ]
+    },
+    {
+        id: 'toolkit',
+        name: 'Toolkit Redesign',
+        desc: 'Phase pills, structural SVG thumbnails, AI search — approved design, ready to build',
+        file: 'docs/projects/toolkit.md',
+        status: 'planned',
+        phases: [
+            { name: 'Restructure tools-data.ts', est: '1-2 hrs', done: false },
+            { name: 'Build toolkit-thumbnails.ts (26 SVGs)', est: '2-3 hrs', done: false },
+            { name: 'Shared React components', est: '2-3 hrs', done: false },
+            { name: 'Wire into /toolkit + /teacher/toolkit', est: '1-2 hrs', done: false },
+            { name: 'Update lesson editor tool picker', est: '1 hr', done: false },
+            { name: 'TemplateToolResponse for non-interactive tools', est: '2-3 hrs', done: false },
+        ]
+    },
+    {
+        id: 'unit-gen',
+        name: 'Unit Generation Project',
+        desc: 'Multi-unit-type wizard — Express/Guided/Architect lanes, 4-dimension model',
+        file: 'docs/specs/unit-type-framework-architecture.md',
+        status: 'complete',
+        phases: [
+            { name: 'Phase 0: 4-dimension model + CriterionKey→string', est: 'done', done: true },
+            { name: 'Phase 1: Type-specific wizard turns', est: 'done', done: true },
+            { name: 'Phase 2: AI pipeline type-awareness', est: 'done', done: true },
+            { name: 'Phase 3: 3-lane selector + Architect form', est: 'done', done: true },
+            { name: 'Phase 3 polish: lane switching, memory, auto-detect', est: 'done', done: true },
+            { name: 'Generation parallelization (~4x speedup)', est: 'done', done: true },
+        ]
+    },
+    {
+        id: 'dimensions',
+        name: 'Project Dimensions',
+        desc: 'Data architecture v2 — timeWeight, ai_rules, UDL, Bloom, grouping on every activity + research alignment',
+        file: 'docs/projects/dimensions.md',
+        status: 'planned',
+        phases: [
+            { name: 'Phase 0: Schema extension (migration + TypeScript)', est: '0.5 days', done: false },
+            { name: 'Phase 2: AI Generation + RAG Pipeline Updates', est: '2.5 days', done: false },
+            { name: 'Phase 3: Student Lesson Page adaptation', est: '0.5 days', done: false },
+            { name: 'Phase 4: Editor + Toolkit inheritance', est: '0.5 days', done: false },
+            { name: 'Phase 5: Reports + Velocity Loop + Research Metrics', est: '4-6 days', done: false },
+        ]
+    },
+    {
+        id: 'inclusive',
+        name: 'Inclusive',
+        desc: 'Auto-adapt lessons for learning difficulties (ADHD, dyslexia, anxiety, autism) — zero teacher work',
+        file: 'docs/projects/inclusive.md',
+        status: 'planned',
+        phases: [
+            { name: 'Phase 4: Accessibility settings panel (font, spacing, timers, overlay)', est: '2-3 hrs', done: false },
+            { name: 'Phase 1: Cognitive load scorer (auto-analyse every lesson)', est: '3-4 hrs', done: false },
+            { name: 'Phase 2: Auto-adaptive content layer (per-student AI adaptation)', est: '5-6 hrs', done: false },
+            { name: 'Phase 3: UDL lesson editor blocks (Same Task Your Way, Worked Example)', est: '4-5 hrs', done: false },
+            { name: 'Phase 5: Teacher intelligence — class needs dashboard', est: '3-4 hrs', done: false },
+        ]
+    },
+];
+
+let projectData = [];
+
+function initProjects() {
+    const saved = localStorage.getItem('studioloom_projects_v1');
+    if (saved) {
+        try {
+            const loaded = JSON.parse(saved);
+            projectData = PROJECTS.map(p => {
+                const s = loaded.find(x => x.id === p.id);
+                return {
+                    ...p,
+                    phases: p.phases.map((ph, i) => ({
+                        ...ph,
+                        done: s && s.phases[i] !== undefined ? s.phases[i].done : ph.done
+                    })),
+                    status: s ? s.status : p.status,
+                    notes: s ? (s.notes || '') : ''
+                };
+            });
+        } catch(e) {
+            projectData = PROJECTS.map(p => ({ ...p, notes: '' }));
+        }
+    } else {
+        projectData = PROJECTS.map(p => ({ ...p, notes: '' }));
+    }
+    renderProjects();
+    updateProjectStats();
+}
+
+function renderProjects() {
+    const container = document.getElementById('projectContainer');
+    container.innerHTML = '';
+
+    // Sort: active first, then research, then planned, then paused, then complete
+    const order = { active: 0, research: 1, planned: 2, paused: 3, complete: 4 };
+    const sorted = [...projectData].sort((a, b) => (order[a.status] ?? 5) - (order[b.status] ?? 5));
+
+    sorted.forEach(proj => {
+        const doneCount = proj.phases.filter(p => p.done).length;
+        const totalPhases = proj.phases.length;
+        const pct = totalPhases > 0 ? Math.round((doneCount / totalPhases) * 100) : 0;
+
+        const card = document.createElement('div');
+        card.className = 'project-card';
+        card.innerHTML = `
+            <div class="project-top" onclick="toggleProject('${proj.id}')" style="cursor:pointer">
+                <span class="project-expand" id="arrow-${proj.id}">▶</span>
+                <div class="project-status-dot ${proj.status}"></div>
+                <div class="project-info">
+                    <div class="project-name">${proj.name}</div>
+                    <div class="project-desc">${proj.desc}</div>
+                </div>
+                <div class="project-progress">
+                    <div class="project-pbar"><div class="project-pbar-fill ${proj.status}" style="width:${pct}%"></div></div>
+                    <div class="project-pct">${pct}%</div>
+                </div>
+                <span class="project-status-label ${proj.status}">${formatStatus(proj.status)}</span>
+            </div>
+            <div class="project-phases" id="phases-${proj.id}" style="display:none">
+                ${proj.phases.map((ph, i) => `
+                    <div class="phase-row">
+                        <div class="phase-check ${ph.done ? 'done' : (i > 0 && proj.phases[i-1].done && !ph.done ? 'current' : '')}" onclick="event.stopPropagation(); togglePhase('${proj.id}', ${i})">
+                            ${ph.done ? '✓' : (i > 0 && proj.phases[i-1].done && !ph.done ? '→' : '')}
+                        </div>
+                        <div class="phase-name ${ph.done ? 'done' : ''}">${ph.name}</div>
+                        <div class="phase-est">${ph.est}</div>
+                    </div>
+                `).join('')}
+                <div style="padding:10px 0 4px 0; display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                    <span style="font-size:12px; font-weight:600; color:#9ca3af;">Status:</span>
+                    ${['active','research','planned','paused','complete'].map(s => `
+                        <button class="status-btn ${proj.status === s ? 'active-' + (s === 'complete' ? 'pass' : s === 'active' ? 'partial' : s === 'paused' ? 'blocked' : 'untested') : ''}" onclick="event.stopPropagation(); setProjectStatus('${proj.id}', '${s}')" style="font-size:11px; padding:3px 10px;">${formatStatus(s)}</button>
+                    `).join('')}
+                </div>
+                <div style="font-size:11px; color:#9ca3af; margin-top:6px;">📄 ${proj.file}</div>
+            </div>
+        `;
+        container.appendChild(card);
+    });
+}
+
+function formatStatus(s) {
+    return { complete: 'Complete', active: 'Active', planned: 'Planned', research: 'Research', paused: 'Paused' }[s] || s;
+}
+
+function toggleProject(id) {
+    const phases = document.getElementById('phases-' + id);
+    const arrow = document.getElementById('arrow-' + id);
+    if (phases.style.display === 'none') {
+        phases.style.display = 'block';
+        arrow.classList.add('open');
+    } else {
+        phases.style.display = 'none';
+        arrow.classList.remove('open');
+    }
+}
+
+function togglePhase(projectId, phaseIndex) {
+    const proj = projectData.find(p => p.id === projectId);
+    if (!proj) return;
+    proj.phases[phaseIndex].done = !proj.phases[phaseIndex].done;
+
+    // Auto-update status based on phases
+    const doneCount = proj.phases.filter(p => p.done).length;
+    if (doneCount === proj.phases.length && proj.status !== 'complete') {
+        proj.status = 'complete';
+    } else if (doneCount > 0 && proj.status === 'planned') {
+        proj.status = 'active';
+    }
+
+    saveProjects();
+    renderProjects();
+    updateProjectStats();
+    // Re-open the card we were editing
+    document.getElementById('phases-' + projectId).style.display = 'block';
+    document.getElementById('arrow-' + projectId).classList.add('open');
+}
+
+function setProjectStatus(id, status) {
+    const proj = projectData.find(p => p.id === id);
+    if (!proj) return;
+    proj.status = status;
+    saveProjects();
+    renderProjects();
+    updateProjectStats();
+    // Re-open
+    document.getElementById('phases-' + id).style.display = 'block';
+    document.getElementById('arrow-' + id).classList.add('open');
+}
+
+function saveProjects() {
+    localStorage.setItem('studioloom_projects_v1', JSON.stringify(
+        projectData.map(p => ({ id: p.id, status: p.status, phases: p.phases.map(ph => ({ done: ph.done })), notes: p.notes || '' }))
+    ));
+}
+
+function updateProjectStats() {
+    const counts = { complete: 0, active: 0, research: 0, planned: 0, paused: 0 };
+    projectData.forEach(p => { counts[p.status] = (counts[p.status] || 0) + 1; });
+    document.getElementById('projComplete').textContent = counts.complete;
+    document.getElementById('projActive').textContent = counts.active;
+    document.getElementById('projResearch').textContent = counts.research;
+    document.getElementById('projPlanned').textContent = counts.planned;
+    document.getElementById('projPaused').textContent = counts.paused;
+    document.getElementById('projectCount').textContent = projectData.length;
+}
+
+// ════════════════════════════════════════════════════════════════════
+// TAB SWITCHING
+// ════════════════════════════════════════════════════════════════════
+
+function switchTab(tab) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+    if (tab === 'projects') {
+        document.getElementById('tabProjects').classList.add('active');
+        document.getElementById('projectsTab').classList.add('active');
+    } else {
+        document.getElementById('tabTests').classList.add('active');
+        document.getElementById('testsTab').classList.add('active');
+    }
+
+    localStorage.setItem('studioloom_active_tab', tab);
+}
+
+// ════════════════════════════════════════════════════════════════════
+// MODIFIED INIT
+// ════════════════════════════════════════════════════════════════════
+
+const originalInit = init;
+init = function() {
+    originalInit();
+    initProjects();
+    document.getElementById('testTabCount').textContent = tests.length;
+
+    // Restore last active tab
+    const lastTab = localStorage.getItem('studioloom_active_tab') || 'projects';
+    switchTab(lastTab);
+};
+
+window.addEventListener('load', init);
+</script>
+</body>
+</html>

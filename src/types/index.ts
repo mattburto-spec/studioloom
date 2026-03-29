@@ -65,6 +65,17 @@ export interface StudentLearningIntake {
   learning_differences: string[]; // e.g., ["adhd", "dyslexia"] — empty array if none/skipped
   // Metadata
   collected_at: string;
+
+  // --- Dimensions v2 fields (29 Mar 2026) ---
+
+  /** UDL-aligned accommodations — framed as barriers, not disability labels */
+  accommodations?: StudentAccommodations;
+  /** UDL areas where this student excels — useful for peer grouping */
+  udl_strengths?: string[];
+  /** UDL areas where this student needs support */
+  udl_barriers?: string[];
+  /** How the student prefers to receive feedback and express learning */
+  communication_preferences?: CommunicationPreferences;
 }
 
 // --- Class-Student Enrollment (many-to-many, migration 041) ---
@@ -230,6 +241,92 @@ export interface ActivityLink {
 
 export type ContentStyle = "info" | "warning" | "tip" | "context" | "activity" | "speaking" | "practical";
 
+// --- Dimensions v2 types (Project Dimensions, 29 Mar 2026) ---
+
+/** Bloom's taxonomy level — drives AI scaffolding depth and active/passive classification */
+export type BloomLevel = "remember" | "understand" | "apply" | "analyze" | "evaluate" | "create";
+
+/** Activity time weight — replaces rigid durationMinutes as primary time signal.
+ *  Phase time distributed proportionally: quick=1x, moderate=2x, extended=4x, flexible=fills remaining */
+export type TimeWeight = "quick" | "moderate" | "extended" | "flexible";
+
+/** Grouping strategy for an activity or lesson */
+export type GroupingStrategy = "individual" | "pair" | "small_group" | "whole_class" | "mixed";
+
+/** Per-activity AI behavior rules — currently hardcoded per-tool in API routes.
+ *  Making this data means ANY activity can have custom AI rules. */
+export interface ActivityAIRules {
+  /** Thinking phase: divergent (ideation — encourage wild ideas), convergent (evaluation — encourage analysis), neutral */
+  phase: "divergent" | "convergent" | "neutral";
+  /** AI tone description, e.g. "warm and encouraging" or "analytical and probing" */
+  tone?: string;
+  /** Specific rules the AI must follow for this activity */
+  rules?: string[];
+  /** Words the AI must never use in responses for this activity */
+  forbidden_words?: string[];
+  /** Assessment framing — "learning" avoids stereotype threat (default), "diagnostic" for formal assessment */
+  framing?: "learning" | "diagnostic";
+}
+
+/** Per-activity inclusivity metadata — what physical/cognitive demands does this activity make? */
+export interface ActivityInclusivity {
+  /** Alternative response types available if the primary one isn't accessible */
+  alternative_response_types?: ResponseType[];
+  requires_fine_motor?: boolean;
+  requires_reading?: boolean;
+  requires_writing?: boolean;
+  visual_support_available?: boolean;
+  audio_support_available?: boolean;
+}
+
+/** Per-lesson (page-level) inclusivity metadata — physical/sensory demands of the lesson */
+export interface LessonInclusivity {
+  physical_demands?: "low" | "medium" | "high";
+  noise_level?: "quiet" | "moderate" | "loud";
+  movement_required?: boolean;
+  fine_motor_required?: boolean;
+  alternative_provided?: boolean;
+  sensory_warnings?: string[];
+}
+
+/** Per-activity differentiation — three levels beyond ELL scaffolding */
+export interface ActivityDifferentiation {
+  /** For advanced students — deeper/broader challenge */
+  extension?: string;
+  /** For struggling students — additional support/scaffolding */
+  support?: string;
+  /** For engaged students — creative/complex variant */
+  challenge?: string;
+}
+
+/** Student response effort signals — computed client-side, stored for analytics */
+export interface EffortSignals {
+  meaningful_word_count?: number;
+  reasoning_markers?: number;
+  specificity_score?: number;
+  revision_count?: number;
+}
+
+/** UDL-aligned student accommodations — framed as barriers, not disability labels.
+ *  "Needs extra support on Language & Symbols (2.1)" not "has dyslexia" */
+export interface StudentAccommodations {
+  /** UDL Engagement barriers (WHY — motivation, sustaining effort, self-regulation) */
+  engagement?: string[];
+  /** UDL Representation barriers (WHAT — perception, language, comprehension) */
+  representation?: string[];
+  /** UDL Action & Expression barriers (HOW — physical action, expression, executive function) */
+  action_expression?: string[];
+  /** Specific needs not captured by UDL categories */
+  specific_needs?: string[];
+}
+
+/** Student communication preferences */
+export interface CommunicationPreferences {
+  preferred_feedback?: "written" | "verbal" | "visual";
+  response_preference?: "typing" | "speaking" | "drawing";
+  needs_processing_time?: boolean;
+}
+
 export interface ActivitySection {
   prompt: string;
   scaffolding?: EllScaffolding;
@@ -238,7 +335,7 @@ export interface ActivitySection {
   portfolioCapture?: boolean;
   /** Assessment criteria this activity addresses — e.g. ["A","B"] or ["AO1","AO3"]. Framework-agnostic. */
   criterionTags?: string[];
-  /** Estimated duration in minutes for this activity section. */
+  /** Estimated duration in minutes — optional soft suggestion. Use timeWeight as primary signal. */
   durationMinutes?: number;
   /** Stable activity ID from v4 timeline — used for response keys that survive rebalancing. */
   activityId?: string;
@@ -250,6 +347,27 @@ export interface ActivitySection {
   toolId?: string;
   /** For toolkit-tool responseType: pre-filled challenge/topic (optional). */
   toolChallenge?: string;
+
+  // --- Dimensions v2 fields (29 Mar 2026) ---
+
+  /** Bloom's taxonomy level — drives AI scaffolding depth and active/passive classification */
+  bloom_level?: BloomLevel;
+  /** Time weight — primary time signal. Phase budget distributed proportionally by weight. */
+  timeWeight?: TimeWeight;
+  /** Who does this activity — individual, pair, small group, or whole class */
+  grouping?: GroupingStrategy;
+  /** Per-activity AI behavior rules — phase, tone, custom rules, forbidden words */
+  ai_rules?: ActivityAIRules;
+  /** UDL checkpoint IDs this activity addresses — e.g. ["5.1", "8.2", "2.1"]. Auto-tagged by AI. */
+  udl_checkpoints?: string[];
+  /** Inclusivity metadata — physical/cognitive demands and alternatives */
+  inclusivity?: ActivityInclusivity;
+  /** Observable behaviors the teacher watches for — e.g. "Student sketches at least 3 options" */
+  success_look_fors?: string[];
+  /** Three-level differentiation beyond ELL scaffolding */
+  differentiation?: ActivityDifferentiation;
+  /** Searchable tags for activity block library — e.g. "interview", "research", "hands-on" */
+  tags?: string[];
 }
 
 export interface Reflection {
@@ -288,6 +406,23 @@ export interface PageContent {
   workshopPhases?: WorkshopPhases;
   /** Early finisher extensions, indexed by design phase */
   extensions?: LessonExtension[];
+
+  // --- Dimensions v2 fields (29 Mar 2026) ---
+
+  /** Per-lesson inclusivity metadata — physical/sensory demands */
+  inclusivity?: LessonInclusivity;
+  /** Private teacher notes — teaching tips, common misconceptions, timing adjustments */
+  teacher_notes?: string;
+  /** What "good" looks like — student-facing success criteria */
+  success_criteria?: string[];
+  /** Default grouping strategy for this lesson */
+  grouping_strategy?: GroupingStrategy;
+  /** UDL coverage summary — computed client-side from activities' udl_checkpoints */
+  udl_coverage?: {
+    engagement: boolean;
+    representation: boolean;
+    action_expression: boolean;
+  };
 }
 
 // --- Flexible Page Types (v2) ---
@@ -807,4 +942,17 @@ export interface GalleryRoundWithStats extends GalleryRound {
     review_count: number;
     is_complete: boolean;
   }>;
+}
+
+// --- Dimensions v2: Activity Response Tracking (29 Mar 2026) ---
+
+/** Per-activity response metadata — stored alongside content in student_progress.responses JSONB.
+ *  These fields are added to the response object for each activity_<activityId> key. */
+export interface ActivityResponseMeta {
+  /** Seconds spent on this specific activity (IntersectionObserver-based) */
+  time_spent_seconds?: number;
+  /** Which attempt this is (1 = first try, 2+ = revision) */
+  attempt_number?: number;
+  /** Client-computed effort signals for analytics */
+  effort_signals?: EffortSignals;
 }

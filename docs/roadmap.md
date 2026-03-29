@@ -66,6 +66,7 @@ Based on the [full site audit](full-site-audit-2026-03-24.md): ~25% of code is b
 - ✅ Landing Page Rebuild (27 Mar) — complete rewrite showcasing all features.
 - ⬜ Lesson Plan Converter — spec at `docs/specs/lesson-plan-converter.md`.
 - ⬜ Year Planner & Curriculum Connection — spec at `docs/specs/year-planner-spec.md`.
+- ⬜ **Project Dimensions** (~5 days) — Data architecture future-proofing. UDL inclusivity, timeWeight model, ai_rules on activities, bloom_level, RAG pipeline enrichment, velocity learning loop. Spec: `docs/specs/data-architecture-v2.md`. Plan: `docs/projects/dimensions.md`. Phase 5 (reports + research metrics) deferred.
 
 ### Wiring Sprint (from site audit — ~2-3 days)
 - ⬜ Wire MonitoredTextarea into submissions (see Tier 1)
@@ -1843,16 +1844,17 @@ International schools in mainland China can't reach `api.anthropic.com` or `api.
 6. API deduplication (~2,890 wasted lines)
 
 ### After Foundation Verified
-7. Lesson Plan Converter (spec ready)
-8. Year Planner & Curriculum Connection (spec ready)
-9. Intelligence Profile System (Student, Teacher, Class Climate — see Phase 3.5)
-10. Teaching Mode Quick-Access Toolbar (spec ready, ~11-13 days)
+7. **Project Dimensions** (spec ready — `docs/specs/data-architecture-v2.md`, ~5 days Phases 1-4)
+8. Lesson Plan Converter (spec ready — must output Dimensions v2 schema)
+9. Year Planner & Curriculum Connection (spec ready — uses timeWeight velocity data for time confidence)
+10. Intelligence Profile System (Student, Teacher, Class Climate — see Phase 3.5)
+11. Teaching Mode Quick-Access Toolbar (spec ready, ~11-13 days)
 
 ### Trust Builders (Required for School Sales)
-11. Data Privacy/Compliance UI
-12. Report Generation for parent conferences
-13. Parent Portal (read-only)
-14. Product Analytics (Plausible/PostHog)
+12. Data Privacy/Compliance UI
+13. Report Generation for parent conferences
+14. Parent Portal (read-only)
+15. Product Analytics (Plausible/PostHog)
 
 ---
 
