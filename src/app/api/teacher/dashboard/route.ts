@@ -95,9 +95,10 @@ export const GET = withErrorHandler("teacher/dashboard:GET", async (request: Nex
 
   const classIds = classes.map((c: ClassRow) => c.id);
 
-  // 2-5: Parallel queries (including teacher profile for NM global toggle)
-  const [classUnitsRes, studentsRes, progressRes, teacherProfileRes] = await Promise.all([
-    // Active class_units with unit title + content_data
+  // 2-4: Parallel queries (including teacher profile for NM global toggle)
+  // NOTE: Progress query moved below — needs student IDs which aren't available yet
+  const [classUnitsRes, studentsRes, teacherProfileRes] = await Promise.all([
+    // Active class_units with unit title (content_data fetched only for page counting)
     supabase
       .from("class_units")
       .select("class_id, unit_id, nm_config, content_data, units!inner(id, title, content_data, nm_config)")
@@ -109,17 +110,6 @@ export const GET = withErrorHandler("teacher/dashboard:GET", async (request: Nex
       .select("student_id, class_id, students(id, username, display_name)")
       .in("class_id", classIds)
       .eq("is_active", true),
-    // All progress for students in these classes (no responses JSONB — just metadata)
-    supabase
-      .from("student_progress")
-      .select("student_id, unit_id, page_id, status, updated_at")
-      .in(
-        "student_id",
-        // We need student IDs, but we don't have them yet in this parallel query.
-        // Instead, we'll filter progress after fetching students.
-        // Use a broad query — RLS already scopes to teacher's students.
-        []
-      ),
     // Teacher profile — check global NM toggle (stored in teacher_profiles)
     supabase
       .from("teacher_profiles")
@@ -167,36 +157,24 @@ export const GET = withErrorHandler("teacher/dashboard:GET", async (request: Nex
     studentsByClass.set(s.class_id, arr);
   }
 
-  // Fetch unit_type + thumbnail_url separately (resilient — columns may not exist)
+  // Fetch unit_type + thumbnail_url in a single query (resilient — columns may not exist)
   const unitTypeMap = new Map<string, string>();
   const thumbnailMap = new Map<string, string>();
   const uniqueUnitIds = [...new Set(classUnits.map((cu) => cu.unit_id))];
   if (uniqueUnitIds.length > 0) {
     try {
-      const { data: unitTypeData } = await supabase
+      const { data: unitMetaData } = await supabase
         .from("units")
-        .select("id, unit_type")
+        .select("id, unit_type, thumbnail_url")
         .in("id", uniqueUnitIds);
-      if (unitTypeData) {
-        for (const row of unitTypeData as { id: string; unit_type?: string }[]) {
+      if (unitMetaData) {
+        for (const row of unitMetaData as { id: string; unit_type?: string; thumbnail_url?: string }[]) {
           if (row.unit_type) unitTypeMap.set(row.id, row.unit_type);
-        }
-      }
-    } catch {
-      // unit_type column may not exist — silently ignore
-    }
-    try {
-      const { data: thumbData } = await supabase
-        .from("units")
-        .select("id, thumbnail_url")
-        .in("id", uniqueUnitIds);
-      if (thumbData) {
-        for (const row of thumbData as { id: string; thumbnail_url?: string }[]) {
           if (row.thumbnail_url) thumbnailMap.set(row.id, row.thumbnail_url);
         }
       }
     } catch {
-      // thumbnail_url column may not exist (migration 052) — silently ignore
+      // unit_type or thumbnail_url columns may not exist — silently ignore
     }
   }
 
@@ -401,5 +379,7 @@ export const GET = withErrorHandler("teacher/dashboard:GET", async (request: Nex
     recentActivity,
   };
 
-  return NextResponse.json(data);
+  return NextResponse.json(data, {
+    headers: { "Cache-Control": "private, max-age=30" },
+  });
 });

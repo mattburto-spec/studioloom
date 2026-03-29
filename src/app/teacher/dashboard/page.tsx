@@ -47,7 +47,8 @@ export default function TeacherDashboard() {
 
   useEffect(() => {
     loadDashboard(false);
-    const interval = setInterval(() => loadDashboard(true), 30_000);
+    // Poll every 5 minutes — dashboard data is not real-time critical
+    const interval = setInterval(() => loadDashboard(true), 300_000);
     return () => clearInterval(interval);
   }, [loadDashboard]);
 
