@@ -114,16 +114,13 @@ export default function TeacherToolkitPage() {
 
   const handlePhaseClick = (phase: Phase) => {
     setSelectedPhase(selectedPhase === phase ? null : phase);
-    // Wait for React to re-render + DOM to settle before measuring
+    // Use offsetTop — gives the element's natural position in the document,
+    // unaffected by sticky positioning. getBoundingClientRect().top returns 0
+    // when the bar is already stuck, making the scroll a no-op.
     requestAnimationFrame(() => {
-      setTimeout(() => {
-        if (filterBarRef.current) {
-          // Scroll so the sticky pill bar sits at the very top of the viewport
-          const barRect = filterBarRef.current.getBoundingClientRect();
-          const scrollTarget = window.scrollY + barRect.top;
-          window.scrollTo({ top: scrollTarget, behavior: "smooth" });
-        }
-      }, 50);
+      if (filterBarRef.current) {
+        window.scrollTo({ top: filterBarRef.current.offsetTop, behavior: "smooth" });
+      }
     });
   };
 
