@@ -12,9 +12,19 @@ import {
   SEARCH_RULES,
   INTERACTIVE_SLUGS,
   getToolUrl,
+  COMING_SOON,
 } from "@/app/toolkit/tools-data";
 import { ToolkitThumbnail } from "@/app/toolkit/toolkit-thumbnails";
 import { ToolModal } from "@/components/toolkit/ToolModal";
+
+/* ── Category tabs (shared with public page) ─────────────────── */
+const TOOLKIT_TABS = [
+  { id: "design-thinking", label: "Design Thinking", active: true },
+  { id: "systems-thinking", label: "Systems Thinking", active: false },
+  { id: "entrepreneurship", label: "Entrepreneurship", active: false },
+  { id: "scientific-method", label: "Scientific Method", active: false },
+  { id: "creative-arts", label: "Creative Arts", active: false },
+];
 
 /* ── Animation variants ─────────────────────────────────────── */
 const containerVariants = {
@@ -76,9 +86,9 @@ export default function TeacherToolkitPage() {
   const gridRef = useRef<HTMLDivElement>(null);
 
   /* ── Filtered tool list ───────────────────────────────────── */
-  const filtered = useMemo(() => {
+  const { filtered, aiActive } = useMemo(() => {
     const aiHits = search ? aiSearch(search) : null;
-    return tools.filter((t) => {
+    const result = tools.filter((t) => {
       if (selectedPhase && t.phase !== selectedPhase) return false;
       if (selectedGroup && t.group !== selectedGroup) return false;
       if (aiHits) return aiHits.includes(t.id);
@@ -88,6 +98,7 @@ export default function TeacherToolkitPage() {
       }
       return true;
     });
+    return { filtered: result, aiActive: aiHits !== null && aiHits.length > 0 };
   }, [search, selectedPhase, selectedGroup]);
 
   const interactiveTools = filtered.filter((t) => t.interactive);
@@ -97,7 +108,12 @@ export default function TeacherToolkitPage() {
   /* ── Handlers ─────────────────────────────────────────────── */
   const handlePhaseClick = (phase: Phase) => {
     setSelectedPhase(selectedPhase === phase ? null : phase);
-    gridRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setTimeout(() => {
+      if (gridRef.current) {
+        const y = gridRef.current.getBoundingClientRect().top + window.scrollY - 80;
+        window.scrollTo({ top: y, behavior: "smooth" });
+      }
+    }, 100);
   };
 
   const handleToolClick = (toolId: string) => {
@@ -143,12 +159,37 @@ export default function TeacherToolkitPage() {
         </Link>
       </motion.div>
 
+      {/* ── Category tabs ─────────────────────────────────────── */}
+      <div className="relative mb-5">
+        <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-purple-400 via-purple-500 to-blue-400 opacity-60" />
+        <div className="flex gap-0 overflow-auto">
+          {TOOLKIT_TABS.map((tab) => (
+            <div
+              key={tab.id}
+              className={`px-5 py-2.5 text-xs font-bold whitespace-nowrap relative ${
+                tab.active
+                  ? "text-text-primary border-b-2 border-white -mb-px z-10"
+                  : "text-text-secondary/30 cursor-not-allowed"
+              }`}
+            >
+              {tab.label}
+              {!tab.active && (
+                <span className="text-[9px] font-semibold ml-1.5 px-1.5 py-0.5 rounded bg-gray-100 text-text-secondary/30 align-middle">
+                  Soon
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* ── Filters ─────────────────────────────────────────── */}
       <motion.div
         initial={{ opacity: 0, y: -6 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, delay: 0.1 }}
-        className="flex flex-wrap items-center gap-3 mb-6"
+        className="flex flex-wrap items-center gap-3 mb-6 sticky top-0 z-40 bg-white/90 backdrop-blur-lg -mx-6 px-6 py-3 border-b border-transparent"
+        style={{ top: 0 }}
       >
         {/* Search */}
         <div className="relative">
@@ -170,8 +211,8 @@ export default function TeacherToolkitPage() {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search tools..."
-            className="pl-8 pr-3 py-2 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/20 focus:border-brand-purple w-56"
+            placeholder='Try "I need to prioritise ideas" or "compare options"'
+            className="pl-8 pr-3 py-2 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/20 focus:border-brand-purple w-80"
           />
         </div>
 
@@ -233,9 +274,14 @@ export default function TeacherToolkitPage() {
           key={filtered.length}
           initial={{ opacity: 0, x: -4 }}
           animate={{ opacity: 1, x: 0 }}
-          className="text-xs text-text-secondary ml-auto"
+          className="text-xs text-text-secondary ml-auto flex items-center gap-2"
         >
           {filtered.length} of {tools.length} tools
+          {aiActive && (
+            <span className="text-[10px] font-semibold text-purple-500 bg-purple-50 px-2 py-0.5 rounded">
+              AI matched
+            </span>
+          )}
         </motion.span>
       </motion.div>
 

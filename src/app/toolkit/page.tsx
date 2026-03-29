@@ -72,9 +72,10 @@ export default function ToolkitPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const filteredTools = useMemo(() => {
+  const { filteredTools, aiActive } = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     let result = tools;
+    let matched = false;
 
     // Phase filter
     if (selectedPhase !== 'all') {
@@ -84,6 +85,7 @@ export default function ToolkitPage() {
     // Search — text match + AI keyword rules
     if (q) {
       const aiMatches = aiSearch(q);
+      matched = aiMatches.length > 0;
       result = result.filter(t =>
         t.name.toLowerCase().includes(q) ||
         t.desc.toLowerCase().includes(q) ||
@@ -92,7 +94,7 @@ export default function ToolkitPage() {
       );
     }
 
-    return result;
+    return { filteredTools: result, aiActive: matched };
   }, [searchQuery, selectedPhase]);
 
   const handlePhaseClick = (phase: Phase | 'all') => {
@@ -279,7 +281,7 @@ export default function ToolkitPage() {
             </div>
 
             {/* Search */}
-            <div style={{ position: 'relative', width: '280px', flexShrink: 0 }}>
+            <div style={{ position: 'relative', width: '340px', flexShrink: 0 }}>
               <svg
                 style={{
                   position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)',
@@ -292,7 +294,7 @@ export default function ToolkitPage() {
               <input
                 ref={searchInputRef}
                 type="text"
-                placeholder="Search tools..."
+                placeholder='Try "I need to prioritise ideas" or "compare options"'
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 style={{
@@ -336,6 +338,15 @@ export default function ToolkitPage() {
           {selectedPhase !== 'all' && (
             <span style={{ color: PHASE_COLORS[selectedPhase], marginLeft: '6px' }}>
               in {PHASE_LABELS[selectedPhase]}
+            </span>
+          )}
+          {aiActive && (
+            <span style={{
+              marginLeft: '8px', fontSize: '10px', fontWeight: 600,
+              color: '#a78bfa', background: 'rgba(167,139,250,0.1)',
+              padding: '2px 8px', borderRadius: '4px',
+            }}>
+              AI matched
             </span>
           )}
         </motion.div>
