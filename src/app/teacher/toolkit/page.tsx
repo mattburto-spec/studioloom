@@ -183,11 +183,11 @@ export default function TeacherToolkitPage() {
               whileHover={{ scale: 1.06 }}
               whileTap={{ scale: 0.94 }}
               onClick={() => handlePhaseClick(p.key)}
-              className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+              className="px-4 py-2 rounded-lg text-xs font-semibold transition-all"
               style={{
-                background: selectedPhase === p.key ? p.color : "transparent",
+                background: selectedPhase === p.key ? p.color : p.color + "10",
                 color: selectedPhase === p.key ? "#fff" : p.color,
-                border: `1.5px solid ${selectedPhase === p.key ? p.color : p.color + "40"}`,
+                border: `1.5px solid ${selectedPhase === p.key ? p.color : p.color + "30"}`,
               }}
             >
               {p.label}

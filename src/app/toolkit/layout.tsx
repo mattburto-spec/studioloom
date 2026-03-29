@@ -57,10 +57,11 @@ export default function ToolkitLayout({
           <div className="flex items-center gap-3">
             <Link
               href="/toolkit"
-              className="text-xs font-semibold px-3 py-1.5 rounded-lg transition"
+              className="text-sm font-semibold px-4 py-2 rounded-lg transition hover:opacity-90"
               style={{
-                color: "rgba(255,255,255,0.5)",
-                border: "1px solid rgba(255,255,255,0.1)",
+                color: "#e8eaf0",
+                background: "rgba(255,255,255,0.08)",
+                border: "1px solid rgba(255,255,255,0.12)",
               }}
             >
               ← All Tools

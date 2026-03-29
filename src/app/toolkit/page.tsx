@@ -97,9 +97,12 @@ export default function ToolkitPage() {
 
   const handlePhaseClick = (phase: Phase | 'all') => {
     setSelectedPhase(prev => prev === phase ? 'all' : phase);
-    // Auto-scroll to grid
+    // Auto-scroll to grid with offset for sticky nav + controls
     setTimeout(() => {
-      gridRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (gridRef.current) {
+        const y = gridRef.current.getBoundingClientRect().top + window.scrollY - 120;
+        window.scrollTo({ top: y, behavior: 'smooth' });
+      }
     }, 100);
   };
 
@@ -179,31 +182,11 @@ export default function ToolkitPage() {
             variants={fadeUp}
             style={{
               fontSize: '15px', color: '#6b7394', lineHeight: 1.6,
-              maxWidth: '480px', margin: '0 auto 20px',
+              maxWidth: '480px', margin: '0 auto',
             }}
           >
-            {interactiveCount} interactive AI-powered tools + {tools.length - interactiveCount} visual references.
-            Filter by phase — launch any tool in one click.
+            {tools.length} design thinking tools. Filter by phase, search by intent.
           </motion.p>
-
-          {/* Framework badges */}
-          <motion.div
-            variants={fadeUp}
-            style={{ display: 'flex', justifyContent: 'center', gap: '6px', flexWrap: 'wrap' }}
-          >
-            {['IB MYP', 'GCSE DT', 'A-Level', 'ACARA', 'PLTW', 'd.school', 'IDEO'].map((fw) => (
-              <span
-                key={fw}
-                style={{
-                  fontSize: '10px', fontWeight: 600, padding: '3px 10px',
-                  borderRadius: '20px', background: 'rgba(255,255,255,0.04)',
-                  border: '1px solid rgba(255,255,255,0.06)', color: '#4a4f6a',
-                }}
-              >
-                {fw}
-              </span>
-            ))}
-          </motion.div>
         </div>
       </motion.div>
 
@@ -254,7 +237,7 @@ export default function ToolkitPage() {
       {/* ═══ CONTROLS (sticky) ═══ */}
       <div
         style={{
-          position: 'sticky', top: 0, zIndex: 100,
+          position: 'sticky', top: '49px', zIndex: 100,
           background: 'rgba(10,10,20,0.85)',
           backdropFilter: 'blur(20px) saturate(1.5)',
           WebkitBackdropFilter: 'blur(20px) saturate(1.5)',
@@ -276,13 +259,13 @@ export default function ToolkitPage() {
                     whileTap={{ scale: 0.95 }}
                     onClick={() => handlePhaseClick(phase)}
                     style={{
-                      padding: '6px 16px',
+                      padding: '8px 20px',
                       borderRadius: '20px',
-                      fontSize: '12px',
+                      fontSize: '13px',
                       fontWeight: 700,
-                      border: `1.5px solid ${isActive ? color : 'rgba(255,255,255,0.08)'}`,
-                      background: isActive ? `${color}22` : 'transparent',
-                      color: isActive ? color : '#6b7394',
+                      border: `1.5px solid ${isActive ? color : `${color}25`}`,
+                      background: isActive ? `${color}22` : `${color}0a`,
+                      color: isActive ? color : '#8a90b0',
                       cursor: 'pointer',
                       transition: 'all 0.2s',
                       whiteSpace: 'nowrap',
