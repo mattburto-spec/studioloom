@@ -135,7 +135,7 @@ export default function StudentLayout({
     <StudentContext.Provider value={{ student, classInfo }}>
       <div className="min-h-screen" style={{ ...themeStyles, background: themeStyles["--st-bg"] }}>
         <header
-          className="sticky top-0 z-30 border-b"
+          className="sticky top-0 z-50 border-b"
           style={{
             background: themeStyles["--st-header-bg"],
             backdropFilter: "blur(12px)",
