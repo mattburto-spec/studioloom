@@ -47,7 +47,7 @@ interface StudentRow {
 interface ClassUnitRow {
   class_id: string;
   unit_id: string;
-  content_data: UnitContentData | null; // per-class fork content (migration 040)
+  forked_at: string | null; // non-null = has per-class fork (migration 040)
   nm_config: { enabled?: boolean } | null; // per-class NM config
   units: {
     id: string;
@@ -98,10 +98,11 @@ export const GET = withErrorHandler("teacher/dashboard:GET", async (request: Nex
   // 2-4: Parallel queries (including teacher profile for NM global toggle)
   // NOTE: Progress query moved below — needs student IDs which aren't available yet
   const [classUnitsRes, studentsRes, teacherProfileRes] = await Promise.all([
-    // Active class_units with unit title (content_data fetched only for page counting)
+    // Active class_units with unit title (content_data on units only — for page counting)
+    // forked_at used for fork detection instead of fetching full content_data JSONB
     supabase
       .from("class_units")
-      .select("class_id, unit_id, nm_config, content_data, units!inner(id, title, content_data, nm_config)")
+      .select("class_id, unit_id, nm_config, forked_at, units!inner(id, title, content_data, nm_config)")
       .in("class_id", classIds)
       .eq("is_active", true),
     // All students in teacher's classes (via class_students junction — migration 041)
@@ -132,20 +133,50 @@ export const GET = withErrorHandler("teacher/dashboard:GET", async (request: Nex
 
   // Now fetch progress with actual student IDs (couldn't do in parallel above)
   const studentIds = students.map((s) => s.id);
+  const uniqueUnitIds = [...new Set(classUnits.map((cu) => cu.unit_id))];
+
+  // Parallel: progress query + unit metadata (both depend on classUnits being resolved)
+  const unitTypeMap = new Map<string, string>();
+  const thumbnailMap = new Map<string, string>();
   let progress: ProgressRow[] = [];
-  if (studentIds.length > 0) {
-    const activeUnitIds = [
-      ...new Set(classUnits.map((cu) => cu.unit_id)),
-    ];
-    if (activeUnitIds.length > 0) {
-      const { data: progressData } = await supabase
-        .from("student_progress")
-        .select("student_id, unit_id, page_id, status, updated_at")
-        .in("student_id", studentIds)
-        .in("unit_id", activeUnitIds);
-      progress = (progressData || []) as ProgressRow[];
-    }
+
+  const parallelPromises: Promise<void>[] = [];
+
+  // Progress query (needs student IDs + unit IDs)
+  if (studentIds.length > 0 && uniqueUnitIds.length > 0) {
+    parallelPromises.push(
+      (async () => {
+        const { data } = await supabase
+          .from("student_progress")
+          .select("student_id, unit_id, page_id, status, updated_at")
+          .in("student_id", studentIds)
+          .in("unit_id", uniqueUnitIds);
+        progress = (data || []) as ProgressRow[];
+      })()
+    );
   }
+
+  // Unit metadata (unit_type + thumbnail_url — resilient to missing columns)
+  if (uniqueUnitIds.length > 0) {
+    parallelPromises.push(
+      (async () => {
+        try {
+          const { data } = await supabase
+            .from("units")
+            .select("id, unit_type, thumbnail_url")
+            .in("id", uniqueUnitIds);
+          if (data) {
+            for (const row of data as { id: string; unit_type?: string; thumbnail_url?: string }[]) {
+              if (row.unit_type) unitTypeMap.set(row.id, row.unit_type);
+              if (row.thumbnail_url) thumbnailMap.set(row.id, row.thumbnail_url);
+            }
+          }
+        } catch { /* columns may not exist — silently ignore */ }
+      })()
+    );
+  }
+
+  await Promise.allSettled(parallelPromises);
 
   // Build lookup maps
   const studentById = new Map(students.map((s) => [s.id, s]));
@@ -155,27 +186,6 @@ export const GET = withErrorHandler("teacher/dashboard:GET", async (request: Nex
     const arr = studentsByClass.get(s.class_id) || [];
     arr.push(s);
     studentsByClass.set(s.class_id, arr);
-  }
-
-  // Fetch unit_type + thumbnail_url in a single query (resilient — columns may not exist)
-  const unitTypeMap = new Map<string, string>();
-  const thumbnailMap = new Map<string, string>();
-  const uniqueUnitIds = [...new Set(classUnits.map((cu) => cu.unit_id))];
-  if (uniqueUnitIds.length > 0) {
-    try {
-      const { data: unitMetaData } = await supabase
-        .from("units")
-        .select("id, unit_type, thumbnail_url")
-        .in("id", uniqueUnitIds);
-      if (unitMetaData) {
-        for (const row of unitMetaData as { id: string; unit_type?: string; thumbnail_url?: string }[]) {
-          if (row.unit_type) unitTypeMap.set(row.id, row.unit_type);
-          if (row.thumbnail_url) thumbnailMap.set(row.id, row.thumbnail_url);
-        }
-      }
-    } catch {
-      // unit_type or thumbnail_url columns may not exist — silently ignore
-    }
   }
 
   // Build unit lookup (unitId -> { title, totalPages })
@@ -357,7 +367,7 @@ export const GET = withErrorHandler("teacher/dashboard:GET", async (request: Nex
         openStudioCount: osCount,
         nmEnabled: !!nmEnabled,
         badgeRequirementCount: badgeReqByUnit.get(cu.unit_id) || 0,
-        isForked: !!cu.content_data,
+        isForked: !!cu.forked_at,
         unitType: unitInfo.get(cu.unit_id)?.unitType || undefined,
         thumbnailUrl: unitInfo.get(cu.unit_id)?.thumbnailUrl || undefined,
       };

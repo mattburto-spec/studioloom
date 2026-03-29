@@ -123,13 +123,24 @@ export default function UnitDetailPage({
       // Load thumbnail_url (may not exist if migration 052 not applied)
       setThumbnailUrl(data?.thumbnail_url ?? null);
 
-      // Fetch ALL teacher's classes + which ones have this unit assigned + terms
-      const [classesRes, classUnitsRes, studentsRes, termsRes] = await Promise.all([
+      // Fetch ALL teacher's classes + which ones have this unit assigned + terms + versions
+      const [classesRes, classUnitsRes, termsRes, versionsRes] = await Promise.all([
         supabase.from("classes").select("id, name, code, is_archived").order("name"),
-        supabase.from("class_units").select("class_id, nm_config, term_id, content_data, forked_at").eq("unit_id", unitId),
-        supabase.from("class_students").select("class_id").eq("is_active", true),
+        supabase.from("class_units").select("class_id, nm_config, term_id, forked_at").eq("unit_id", unitId),
         fetch("/api/teacher/school-calendar").then((r) => (r.ok ? r.json() : Promise.resolve({ terms: [] }))),
+        fetch(`/api/teacher/units/versions?unitId=${unitId}`).then((r) => (r.ok ? r.json() : Promise.resolve(null))).catch(() => null),
       ]);
+
+      // Fetch student counts only for assigned classes (scoped query, not unbounded)
+      const assignedClassIds = (classUnitsRes.data || []).map((cu: { class_id: string }) => cu.class_id);
+      let studentsRes: { data: { class_id: string }[] | null } = { data: [] };
+      if (assignedClassIds.length > 0) {
+        studentsRes = await supabase
+          .from("class_students")
+          .select("class_id")
+          .in("class_id", assignedClassIds)
+          .eq("is_active", true);
+      }
 
       // Store terms for the picker
       const loadedTerms = termsRes?.terms || [];
@@ -146,8 +157,8 @@ export default function UnitDetailPage({
         assignedMap.set(cu.class_id, {
           nm_config: cu.nm_config as { enabled?: boolean } | undefined,
           term_id: cu.term_id || null,
-          isForked: !!(cu as Record<string, unknown>).content_data,
-          forkedAt: (cu as Record<string, unknown>).forked_at as string | null,
+          isForked: !!cu.forked_at,
+          forkedAt: cu.forked_at as string | null,
         });
       }
 
@@ -183,17 +194,11 @@ export default function UnitDetailPage({
 
       setAllClasses(classes);
 
-      // Fetch version history
-      try {
-        const versionsRes = await fetch(`/api/teacher/units/versions?unitId=${unitId}`);
-        if (versionsRes.ok) {
-          const vData = await versionsRes.json();
-          setVersions(vData.versions || []);
-          setCurrentVersion(vData.currentVersion ?? 1);
-          setForks(vData.forks || []);
-        }
-      } catch {
-        // Non-critical — versions section just won't show data
+      // Use version data from parallel fetch above
+      if (versionsRes) {
+        setVersions(versionsRes.versions || []);
+        setCurrentVersion(versionsRes.currentVersion ?? 1);
+        setForks(versionsRes.forks || []);
       }
 
       setLoading(false);
