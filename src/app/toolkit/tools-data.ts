@@ -142,13 +142,13 @@ export interface ToolkitTab {
 }
 
 export const TOOLKIT_TABS: ToolkitTab[] = [
-  { id: 'design-thinking', label: 'Design Thinking', active: true },
-  { id: 'visual-spatial', label: 'Visual & Spatial', active: false },
-  { id: 'collaboration', label: 'Collaboration', active: false },
-  { id: 'planning-strategy', label: 'Planning & Strategy', active: false },
-  { id: 'systems-science', label: 'Systems & Science', active: false },
-  { id: 'self-discovery', label: 'Self-Discovery', active: false },
-  { id: 'reflection-growth', label: 'Reflection & Growth', active: false },
+  { id: 'design-thinking', label: 'Design', active: true },
+  { id: 'visual-spatial', label: 'Visual', active: false },
+  { id: 'collaboration', label: 'Collaborate', active: false },
+  { id: 'planning-strategy', label: 'Strategy', active: false },
+  { id: 'systems-science', label: 'Systems', active: false },
+  { id: 'self-discovery', label: 'Discovery', active: false },
+  { id: 'reflection-growth', label: 'Growth', active: false },
 ];
 
 // Coming Soon expansion categories (aligned with TOOLKIT_TABS)
