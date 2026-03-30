@@ -148,7 +148,7 @@ export interface LessonFlowPhase {
 
 /** Criterion analysis with pedagogical reasoning */
 export interface CriterionAnalysis {
-  criterion: "A" | "B" | "C" | "D";
+  criterion: string;
   emphasis: CriterionEmphasis;
   skill_development: string; // WHAT skill is genuinely developed
   how_developed: string; // HOW the lesson develops it (not just "students do X")

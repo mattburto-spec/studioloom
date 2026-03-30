@@ -74,6 +74,7 @@ export function chunkDocument(
     chunks.push(...sectionChunks);
   }
 
+  // Note: criterion field removed from chunks — design phase detected per activity/section
   return chunks;
 }
 
@@ -114,14 +115,9 @@ export function chunkUnitPage(
     parts.push(`Reflection: ${pageContent.reflection.items.join("; ")}`);
   }
 
-  const criterion = pageId.charAt(0);
-
   return {
     content: parts.join("\n"),
     page_id: pageId,
-    criterion: ["A", "B", "C", "D"].includes(criterion)
-      ? criterion
-      : undefined,
     content_type: "activity",
     metadata,
   };
@@ -143,7 +139,6 @@ function chunkSection(
       {
         content: fullText,
         content_type: detectContentType(fullText),
-        criterion: detectCriterion(fullText),
         metadata,
       },
     ];
@@ -163,7 +158,6 @@ function chunkSection(
       chunks.push({
         content: currentChunk.trim(),
         content_type: detectContentType(currentChunk),
-        criterion: detectCriterion(currentChunk),
         metadata,
       });
 
@@ -180,7 +174,6 @@ function chunkSection(
     chunks.push({
       content: currentChunk.trim(),
       content_type: detectContentType(currentChunk),
-      criterion: detectCriterion(currentChunk),
       metadata,
     });
   }
@@ -206,17 +199,17 @@ function getOverlap(text: string): string {
   return tail;
 }
 
-/** Detect MYP criterion from content text */
-function detectCriterion(text: string): string | undefined {
+/** Detect design process phase from content text */
+function detectDesignPhase(text: string): string | undefined {
   const lower = text.toLowerCase();
-  if (/criterion\s*a|inquir|analys|research\s*plan|design\s*brief/i.test(lower))
-    return "A";
-  if (/criterion\s*b|develop.*ideas?|sketch|brainstorm|ideation/i.test(lower))
-    return "B";
-  if (/criterion\s*c|creat.*solution|prototype|build|construct/i.test(lower))
-    return "C";
-  if (/criterion\s*d|evaluat|reflect|test.*result|improve/i.test(lower))
-    return "D";
+  if (/inquir|analys|research\s*plan|design\s*brief|investigat/i.test(lower))
+    return "investigate";
+  if (/develop.*ideas?|sketch|brainstorm|ideation|concept/i.test(lower))
+    return "develop";
+  if (/creat.*solution|prototype|build|construct|fabricat|mak/i.test(lower))
+    return "create";
+  if (/evaluat|reflect|test.*result|improve|feedback|critique/i.test(lower))
+    return "evaluate";
   return undefined;
 }
 
@@ -381,11 +374,6 @@ function chunkLessonPhase(
 
   const fullContent = contentParts.join("\n").trim();
 
-  // Determine criterion from phase type
-  const criterion = phase.phase
-    ? mapPhaseToCriterion(phase.phase)
-    : detectCriterion(fullContent);
-
   // Map phase type to content type
   const contentType = mapPhaseToContentType(phase.phase, phase.activity_type);
 
@@ -400,7 +388,6 @@ function chunkLessonPhase(
         splitChunks.push({
           content: current.trim(),
           context_preamble: preamble,
-          criterion,
           content_type: contentType,
           metadata: {
             ...metadata,
@@ -420,7 +407,6 @@ function chunkLessonPhase(
       splitChunks.push({
         content: current.trim(),
         context_preamble: preamble,
-        criterion,
         content_type: contentType,
         metadata: {
           ...metadata,
@@ -440,7 +426,6 @@ function chunkLessonPhase(
     {
       content: fullContent,
       context_preamble: preamble,
-      criterion,
       content_type: contentType,
       metadata: {
         ...metadata,
@@ -519,15 +504,15 @@ function similarity(a: string, b: string): number {
   return intersection / (wordsA.size + wordsB.size - intersection);
 }
 
-/** Map lesson phase type to MYP criterion */
-function mapPhaseToCriterion(
+/** Map lesson phase type to design process phase */
+function mapPhaseToDesignPhase(
   phase: string
 ): string | undefined {
   const p = phase.toLowerCase();
-  if (p.includes("inquiry") || p.includes("research") || p.includes("analyse")) return "A";
-  if (p.includes("develop") || p.includes("ideation") || p.includes("brainstorm")) return "B";
-  if (p.includes("creat") || p.includes("mak") || p.includes("build") || p.includes("construct")) return "C";
-  if (p.includes("evaluat") || p.includes("reflect") || p.includes("test")) return "D";
+  if (p.includes("inquiry") || p.includes("research") || p.includes("analyse")) return "investigate";
+  if (p.includes("develop") || p.includes("ideation") || p.includes("brainstorm")) return "develop";
+  if (p.includes("creat") || p.includes("mak") || p.includes("build") || p.includes("construct")) return "create";
+  if (p.includes("evaluat") || p.includes("reflect") || p.includes("test")) return "evaluate";
   return undefined;
 }
 

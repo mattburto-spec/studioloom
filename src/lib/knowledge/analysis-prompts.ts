@@ -185,7 +185,7 @@ ${extractedText}
 
   "materials_list": ["string — all materials mentioned across the document"],
   "tools_list": ["string — all tools/software/machines mentioned"],
-  "criteria_mentioned": ["string — any MYP criteria (A/B/C/D) or assessment objectives referenced"],
+  "criteria_mentioned": ["string — any assessment criteria, objectives, or standards referenced in the document (e.g. 'Criterion A', 'AO1', 'IPARD-I', 'Standard 5.1'). Use the document's own labelling system."],
   "vocabulary_terms": ["string — any key vocabulary or technical terms defined or highlighted"]
 }
 
@@ -306,7 +306,7 @@ IMPORTANT: Output ALL fields in this exact order. The udl_coverage, bloom_distri
 
   "criteria_analysis": [
     {
-      "criterion": "A | B | C | D",
+      "criterion": "string — the criterion or assessment objective identifier as used in the document (e.g. 'A', 'B', 'AO1', 'IPARD-I', etc). Use whatever labelling system the document itself uses. If no explicit criteria are referenced, infer from the activity type.",
       "emphasis": "primary | secondary | touched",
       "skill_development": "string — WHAT specific skill is being developed? Not 'Criterion B skills' but 'generating multiple design ideas using structured ideation techniques'",
       "how_developed": "string — HOW does the lesson develop this skill? Describe the pedagogical mechanism. Not 'students do a brainstorm' but 'students use three successive ideation techniques (mind-map → SCAMPER → rapid sketching) with increasing freedom, building fluency before focusing on feasibility'",

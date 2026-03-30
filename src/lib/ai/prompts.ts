@@ -935,7 +935,7 @@ export function buildSuggestPrompt(tier: 1 | 2 | 3, context: SuggestContext): st
       ? `{ "relatedConcepts": ["top pick", "2nd pick", "3rd pick"] }`
       : `{ "keyConcept": ["top pick", "2nd pick"], "relatedConcepts": ["top pick", "2nd pick", "3rd pick"] }`;
   } else {
-    schema = `{ "statementOfInquiry": "One exploratory sentence connecting key concept, related concepts, and global context", "criteriaEmphasis": [{ "criterion": "A"|"B"|"C"|"D", "direction": "emphasis"|"light", "reason": "short reason" }] }`;
+    schema = `{ "statementOfInquiry": "One exploratory sentence connecting key concept, related concepts, and global context", "assessmentEmphasis": [{ "criterion": "string — use the assessment framework in use (e.g. 'A', 'B', 'AO1', 'IPARD-I')", "direction": "emphasis"|"light", "reason": "short reason" }] }`;
   }
 
   return `Topic: "${context.topic}"

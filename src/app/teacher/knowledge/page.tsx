@@ -510,6 +510,42 @@ export default function KnowledgeLibraryPage() {
     loadItems();
   }
 
+  // Re-analyse state for knowledge item cards
+  const [reanalysingIds, setReanalysingIds] = useState<Set<string>>(new Set());
+
+  async function handleReanalyseItem(item: KnowledgeItem) {
+    if (!item.source_upload_id) return;
+    const uploadId = item.source_upload_id;
+
+    setReanalysingIds((prev) => new Set(prev).add(item.id));
+
+    try {
+      const res = await fetch("/api/teacher/knowledge/reanalyse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uploadId }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: "Re-analysis failed" }));
+        alert(`Re-analysis failed: ${err.error || res.statusText}`);
+        return;
+      }
+
+      // Refresh items to pick up new profile data
+      loadItems();
+    } catch (err) {
+      alert("Re-analysis failed. Check console for details.");
+      console.error("[reanalyse] Error:", err);
+    } finally {
+      setReanalysingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(item.id);
+        return next;
+      });
+    }
+  }
+
   function handleFormSave() {
     setShowForm(false);
     setEditingItem(null);
@@ -781,11 +817,14 @@ export default function KnowledgeLibraryPage() {
                 item={item}
                 onEdit={handleEdit}
                 onArchive={handleArchive}
+                onReanalyse={handleReanalyseItem}
+                isReanalysing={reanalysingIds.has(item.id)}
                 complexityLevel={profile?.complexityLevel as "introductory" | "developing" | "proficient" | "advanced" | undefined}
                 pedagogicalApproach={profile?.pedagogicalApproach}
                 bloomDistribution={profile?.bloomDistribution}
                 analysisDate={profile?.analysisDate}
                 lessonDurationMinutes={profile?.lessonDurationMinutes}
+                curricula={profile?.criteriaCovered?.length ? [{ id: "profile", item_id: item.id, framework: "detected", criteria: profile.criteriaCovered, strand: null, topic: null, year_group: null, textbook_ref: null }] : undefined}
               />
             );
           })}

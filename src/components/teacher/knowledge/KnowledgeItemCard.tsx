@@ -17,6 +17,10 @@ interface KnowledgeItemCardProps {
   item: KnowledgeItem;
   onEdit: (item: KnowledgeItem) => void;
   onArchive: (item: KnowledgeItem) => void;
+  /** Optional re-analyse callback (only for items with source_upload_id) */
+  onReanalyse?: (item: KnowledgeItem) => void;
+  /** Whether this item is currently being re-analysed */
+  isReanalysing?: boolean;
   /** Optional curriculum data (criteria coverage) */
   curricula?: KnowledgeItemCurriculum[];
   /** Optional complexity level */
@@ -35,6 +39,8 @@ export default function KnowledgeItemCard({
   item,
   onEdit,
   onArchive,
+  onReanalyse,
+  isReanalysing,
   curricula,
   complexityLevel,
   bloomDistribution,
@@ -268,6 +274,19 @@ export default function KnowledgeItemCard({
                 <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
               </svg>
             </button>
+            {onReanalyse && item.source_upload_id && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onReanalyse(item); }}
+                className={`w-6 h-6 rounded-full hover:bg-purple-50 flex items-center justify-center transition ${isReanalysing ? "text-brand-purple animate-spin" : "text-text-secondary/40 hover:text-brand-purple"}`}
+                title={isReanalysing ? "Re-analysing..." : "Re-analyse with latest AI"}
+                disabled={isReanalysing}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="23 4 23 10 17 10" />
+                  <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" />
+                </svg>
+              </button>
+            )}
             <button
               onClick={(e) => { e.stopPropagation(); onArchive(item); }}
               className="w-6 h-6 rounded-full hover:bg-yellow-50 flex items-center justify-center text-text-secondary/40 hover:text-yellow-600 transition"
