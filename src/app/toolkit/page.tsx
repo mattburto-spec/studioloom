@@ -185,15 +185,6 @@ export default function ToolkitPage() {
             </span>
           </motion.h1>
 
-          <motion.p
-            variants={fadeUp}
-            style={{
-              fontSize: '15px', color: '#9393b0', lineHeight: 1.6,
-              maxWidth: '480px', margin: '0 auto',
-            }}
-          >
-            Tools to think better, design smarter, and solve real problems
-          </motion.p>
         </div>
 
         {/* ── Category tabs (inside hero) ── */}
@@ -288,6 +279,18 @@ export default function ToolkitPage() {
             }}
           />
         </motion.div>
+
+        {/* Curved wave to smooth hero → dark transition */}
+        <svg
+          viewBox="0 0 1440 60"
+          preserveAspectRatio="none"
+          style={{ display: 'block', width: '100%', height: '40px', position: 'relative', marginTop: '-2px' }}
+        >
+          <path
+            d="M0,0 C360,50 1080,50 1440,0 L1440,60 L0,60 Z"
+            fill="#0a0a14"
+          />
+        </svg>
       </motion.div>
 
       {/* ═══ PHASE PILLS (centered, with icons + counts) ═══ */}

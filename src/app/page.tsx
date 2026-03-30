@@ -76,10 +76,6 @@ export default function Home() {
         {/* Hero content */}
         <section className="relative z-10 max-w-6xl mx-auto px-6 pt-12 md:pt-20 pb-28 md:pb-36">
           <div className="max-w-3xl mx-auto text-center">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/15 text-xs text-white/80 mb-6 backdrop-blur-sm">
-              <span className="w-1.5 h-1.5 rounded-full bg-accent-green animate-pulse" />
-              Built by a Design Teacher
-            </div>
             <h1 className="text-4xl md:text-5xl lg:text-[3.5rem] font-bold tracking-tight leading-[1.1] mb-6">
               You Teach Design.{" "}
               <br className="hidden md:block" />

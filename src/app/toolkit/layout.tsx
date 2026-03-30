@@ -54,39 +54,21 @@ export default function ToolkitLayout({
               Studio<span style={{ color: "#fff" }}>Loom</span>
             </span>
           </Link>
-          <div className="flex items-center gap-3">
-            <Link
-              href="/toolkit"
-              className="text-sm font-semibold px-4 py-2 rounded-lg transition hover:opacity-90"
-              style={{
-                color: "#e8eaf0",
-                background: "rgba(255,255,255,0.08)",
-                border: "1px solid rgba(255,255,255,0.12)",
-              }}
-            >
-              ← All Tools
-            </Link>
+          <div className="flex items-center gap-2">
             <Link
               href="/login"
-              className="text-xs font-semibold px-4 py-2 rounded-lg transition hover:opacity-90"
-              style={{
-                background: "rgba(236,72,153,0.15)",
-                border: "1px solid rgba(236,72,153,0.4)",
-                color: "#f472b6",
-              }}
+              className="text-xs font-medium px-3 py-1.5 rounded-md transition hover:opacity-80"
+              style={{ color: "#f472b6" }}
             >
-              Student Sign In
+              Student
             </Link>
+            <span style={{ color: "rgba(255,255,255,0.15)", fontSize: "11px" }}>|</span>
             <Link
               href="/teacher/login"
-              className="text-xs font-semibold px-4 py-2 rounded-lg transition hover:opacity-90"
-              style={{
-                background: "rgba(123,47,242,0.15)",
-                border: "1px solid rgba(123,47,242,0.3)",
-                color: "#c084fc",
-              }}
+              className="text-xs font-medium px-3 py-1.5 rounded-md transition hover:opacity-80"
+              style={{ color: "#c084fc" }}
             >
-              Teacher Sign In
+              Teacher
             </Link>
           </div>
         </div>
