@@ -57,7 +57,7 @@ describe("buildDesignAssistantSystemPrompt", () => {
     });
     // The prompt includes framework-specific section via buildFrameworkTeachingIntelligence
     expect(prompt).toContain("Framework:");
-    expect(prompt).toContain("Design Technology");
+    expect(prompt).toContain("MYP Design");
     expect(prompt).toMatchSnapshot();
   });
 

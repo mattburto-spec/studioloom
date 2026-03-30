@@ -24,9 +24,9 @@ describe('Design Assistant Toolkit Suggestions (Phase D)', () => {
 
       expect(prompt).toContain('## Toolkit Tool Suggestions');
       expect(prompt).toContain('RULES FOR SUGGESTING TOOLS');
-      expect(prompt).toContain('Ideation phase');
-      expect(prompt).toContain('Analysis phase');
-      expect(prompt).toContain('Evaluation phase');
+      expect(prompt).toContain('Developing Ideas');
+      expect(prompt).toContain('Inquiring & Analysing');
+      expect(prompt).toContain('Evaluating');
     });
 
     it('should bias tools to DISCOVER phase when criterion A tag provided', () => {
@@ -111,7 +111,7 @@ describe('Design Assistant Toolkit Suggestions (Phase D)', () => {
       expect(prompt).toContain('Socratic mentor');
       expect(prompt).toContain('Richard Paul');
       expect(prompt).toContain('ONE focused question at a time');
-      expect(prompt).toContain('Material properties');
+      expect(prompt).toContain('design project');
       expect(prompt).toContain('Analyse (Level 4/6)');
       expect(prompt).toContain('Design Brief: Phone Stand');
     });
