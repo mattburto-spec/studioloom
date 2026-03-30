@@ -105,20 +105,19 @@ export default function Home() {
           </div>
         </section>
 
-        {/* Curved wave transition into dark toolkit section */}
-        <div className="relative">
-          <svg viewBox="0 0 1440 120" preserveAspectRatio="none" className="relative w-full h-20 md:h-28 lg:h-36 block" style={{ marginBottom: "-2px" }}>
-            <path d="M0,30 C280,100 580,0 900,50 C1100,80 1300,65 1440,45 L1440,120 L0,120 Z" fill="#0c0a1a" />
-            <path d="M0,50 C320,110 640,10 960,60 C1120,85 1320,70 1440,55 L1440,120 L0,120 Z" fill="#0c0a1a" opacity="0.6" />
-          </svg>
-        </div>
       </div>
 
+      {/* Curved wave overlaps BOTH sections — sits on top of the toolkit */}
+      <div className="relative z-10" style={{ marginBottom: "-5rem" }}>
+        <svg viewBox="0 0 1440 120" preserveAspectRatio="none" className="w-full h-24 md:h-32 lg:h-40 block">
+          <path d="M0,30 C280,100 580,0 900,50 C1100,80 1300,65 1440,45 L1440,120 L0,120 Z" fill="#0c0a1a" />
+        </svg>
+      </div>
 
       {/* ══════════════════════════════════════════════════════════════ */}
       {/* 1. FREE TOOLKIT — Dark-themed showcase                        */}
       {/* ══════════════════════════════════════════════════════════════ */}
-      <section style={{ background: "linear-gradient(135deg, #0c0a1a 0%, #1a0e3a 40%, #0d1b2a 100%)" }}>
+      <section className="relative" style={{ background: "linear-gradient(135deg, #0c0a1a 0%, #1a0e3a 40%, #0d1b2a 100%)" }}>
         <div className="max-w-6xl mx-auto px-6 py-20">
           <div className="text-center mb-12">
             <span className="text-xs font-semibold uppercase tracking-wider text-green-400 mb-3 block">Free for Every Teacher</span>
