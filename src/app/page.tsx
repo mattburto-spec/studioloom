@@ -107,21 +107,18 @@ export default function Home() {
 
       </div>
 
+      {/* Wave transition: dark hero → white toolkit */}
+      <WaveDivider fillClass="fill-white" showAccent={false} className="-mt-1 gradient-hero" />
+
       {/* ══════════════════════════════════════════════════════════════ */}
-      {/* 1. FREE TOOLKIT — Dark-themed showcase                        */}
+      {/* 1. FREE TOOLKIT — Light-themed showcase                        */}
       {/* ══════════════════════════════════════════════════════════════ */}
-      <section className="relative" style={{ background: "linear-gradient(135deg, #0c0a1a 0%, #1a0e3a 40%, #0d1b2a 100%)" }}>
-        {/* Wave sits inside this section, pulled upward to overlap the hero */}
-        <div className="relative" style={{ marginTop: "-4rem" }}>
-          <svg viewBox="0 0 1440 120" preserveAspectRatio="none" className="w-full h-20 md:h-28 lg:h-36 block">
-            <path d="M0,30 C280,100 580,0 900,50 C1100,80 1300,65 1440,45 L1440,120 L0,120 Z" fill="#0c0a1a" />
-          </svg>
-        </div>
-        <div className="max-w-6xl mx-auto px-6 pb-20">
+      <section className="relative bg-white">
+        <div className="max-w-6xl mx-auto px-6 pt-8 pb-20">
           <div className="text-center mb-12">
-            <span className="text-xs font-semibold uppercase tracking-wider text-green-400 mb-3 block">Free for Every Teacher</span>
-            <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">Design Thinking Toolkit</h2>
-            <p className="text-white/50 max-w-xl mx-auto">
+            <span className="text-xs font-semibold uppercase tracking-wider text-purple-600 mb-3 block">Free for Every Teacher</span>
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">Design Thinking Toolkit</h2>
+            <p className="text-gray-500 max-w-xl mx-auto">
               42 visual thinking tools. 27 are AI-powered and interactive. Filter by design phase, deploy as
               presentation, worksheet, group activity, or solo task. No login required.
             </p>
@@ -130,11 +127,11 @@ export default function Home() {
           {/* Tool name pills */}
           <div className="flex flex-wrap items-center justify-center gap-2 mb-10 max-w-3xl mx-auto">
             {["SCAMPER", "Six Thinking Hats", "PMI Chart", "Five Whys", "Empathy Map", "Decision Matrix", "SWOT Analysis", "Stakeholder Map", "Lotus Diagram", "How Might We", "Reverse Brainstorm", "Dot Voting", "Quick Sketch", "Affinity Diagram", "Morphological Chart"].map((name) => (
-              <span key={name} className="text-[11px] font-medium px-3 py-1.5 rounded-full border border-purple-500/30 bg-purple-500/10 text-purple-300">
+              <span key={name} className="text-[11px] font-medium px-3 py-1.5 rounded-full border border-purple-300 bg-purple-50 text-purple-700">
                 {name}
               </span>
             ))}
-            <span className="text-[11px] font-medium px-3 py-1.5 rounded-full border border-white/10 bg-white/5 text-white/40">
+            <span className="text-[11px] font-medium px-3 py-1.5 rounded-full border border-gray-200 bg-gray-50 text-gray-400">
               +27 more
             </span>
           </div>
@@ -142,25 +139,25 @@ export default function Home() {
           {/* Stats row */}
           <div className="flex items-center justify-center gap-10 mb-10">
             <div className="text-center">
-              <div className="text-2xl font-bold text-white">42</div>
-              <div className="text-[11px] text-white/40 uppercase tracking-wider">Tools</div>
+              <div className="text-2xl font-bold text-gray-900">42</div>
+              <div className="text-[11px] text-gray-400 uppercase tracking-wider">Tools</div>
             </div>
-            <div className="w-px h-8 bg-white/10" />
+            <div className="w-px h-8 bg-gray-200" />
             <div className="text-center">
-              <div className="text-2xl font-bold text-purple-400">27</div>
-              <div className="text-[11px] text-white/40 uppercase tracking-wider">Interactive</div>
+              <div className="text-2xl font-bold text-purple-600">27</div>
+              <div className="text-[11px] text-gray-400 uppercase tracking-wider">Interactive</div>
             </div>
-            <div className="w-px h-8 bg-white/10" />
+            <div className="w-px h-8 bg-gray-200" />
             <div className="text-center">
-              <div className="text-2xl font-bold text-green-400">8+</div>
-              <div className="text-[11px] text-white/40 uppercase tracking-wider">Frameworks</div>
+              <div className="text-2xl font-bold text-green-600">8+</div>
+              <div className="text-[11px] text-gray-400 uppercase tracking-wider">Frameworks</div>
             </div>
           </div>
 
           {/* Framework badges */}
           <div className="flex flex-wrap items-center justify-center gap-2 mb-10">
             {["IB MYP", "GCSE DT", "A-Level DT", "ACARA", "PLTW", "Stanford d.school", "IDEO", "Double Diamond"].map((fw) => (
-              <span key={fw} className="text-[10px] font-semibold px-2.5 py-1 rounded-full border border-white/10 bg-white/5 text-white/30">
+              <span key={fw} className="text-[10px] font-semibold px-2.5 py-1 rounded-full border border-gray-200 bg-gray-50 text-gray-500">
                 {fw}
               </span>
             ))}
