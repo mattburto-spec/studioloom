@@ -1,11 +1,13 @@
 "use client";
 
-import { CRITERIA, type CriterionKey } from "@/lib/constants";
+import { CRITERIA, getCriterionDisplay, getCriterionKeys, type CriterionKey } from "@/lib/constants";
 import type { GenerationStatus } from "@/hooks/useWizardState";
 
 interface Props {
   journeyMode?: boolean;
   selectedCriteria?: CriterionKey[];
+  unitType?: string;
+  framework?: string;
   criterionStatus: Partial<Record<CriterionKey, GenerationStatus>>;
   generationBatches?: Array<{ lessonIds: string[]; status: GenerationStatus }>;
   error?: string;
@@ -15,6 +17,8 @@ interface Props {
 export function GenerationProgress({
   journeyMode,
   selectedCriteria,
+  unitType,
+  framework,
   criterionStatus,
   generationBatches,
   error,
@@ -30,7 +34,7 @@ export function GenerationProgress({
   }
 
   // Criterion mode (existing)
-  const criteria = selectedCriteria || (["A", "B", "C", "D"] as CriterionKey[]);
+  const criteria = selectedCriteria || (getCriterionKeys(unitType || "design") as CriterionKey[]);
   const allDone = criteria.every((k) => criterionStatus[k] === "done");
   const currentCriterion = criteria.find((k) => criterionStatus[k] === "generating");
   const hasCompletedPages = criteria.some((k) => criterionStatus[k] === "done");
@@ -56,14 +60,14 @@ export function GenerationProgress({
 
       {currentCriterion && (
         <p className="text-xs text-text-secondary mb-4">
-          Working on Criterion {currentCriterion}: {CRITERIA[currentCriterion].name}
+          Working on Criterion {currentCriterion}: {getCriterionDisplay(currentCriterion, unitType, framework).name}
         </p>
       )}
 
       {/* Criterion progress bars */}
       <div className="flex gap-2 mb-3">
         {criteria.map((key) => {
-          const c = CRITERIA[key];
+          const c = getCriterionDisplay(key, unitType, framework);
           const status = criterionStatus[key];
           return (
             <div key={key} className="flex-1">

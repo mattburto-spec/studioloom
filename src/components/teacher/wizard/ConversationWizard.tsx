@@ -406,6 +406,8 @@ export function ConversationWizard({
           <GenerationProgress
             journeyMode={false}
             selectedCriteria={state.input.selectedCriteria}
+            unitType={state.input.unitType}
+            framework={state.input.framework}
             criterionStatus={state.criterionStatus}
             generationBatches={state.generationBatches}
             error={state.error}

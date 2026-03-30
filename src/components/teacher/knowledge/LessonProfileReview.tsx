@@ -9,7 +9,7 @@ import type {
   CognitiveLevel,
   SkillStage,
 } from "@/types/lesson-intelligence";
-import { CRITERIA } from "@/lib/constants";
+import { getCriterionDisplay } from "@/lib/constants";
 
 /* ================================================================
    CONSTANTS & HELPERS
@@ -257,7 +257,7 @@ export default function LessonProfileReview({
           >
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {profile.criteria_analysis.map((ca) => {
-                const criterionInfo = CRITERIA[ca.criterion as keyof typeof CRITERIA];
+                const criterionInfo = getCriterionDisplay(ca.criterion);
                 const emphasisBg =
                   ca.emphasis === "primary"
                     ? "border-l-4"
@@ -268,17 +268,17 @@ export default function LessonProfileReview({
                   <div
                     key={ca.criterion}
                     className={`rounded-lg border border-border p-4 ${emphasisBg}`}
-                    style={{ borderLeftColor: criterionInfo?.color || "#6B7280" }}
+                    style={{ borderLeftColor: criterionInfo.color }}
                   >
                     <div className="flex items-center gap-2 mb-2">
                       <span
                         className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white"
-                        style={{ backgroundColor: criterionInfo?.color || "#6B7280" }}
+                        style={{ backgroundColor: criterionInfo.color }}
                       >
                         {ca.criterion}
                       </span>
                       <span className="text-sm font-semibold text-text-primary">
-                        {criterionInfo?.name || `Criterion ${ca.criterion}`}
+                        {criterionInfo.name}
                       </span>
                       <span className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-gray-100 text-text-secondary ml-auto">
                         {ca.emphasis}

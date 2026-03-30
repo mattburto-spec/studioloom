@@ -133,14 +133,35 @@ export default function UnitDetailPage({
       ]);
 
       // Fetch student counts only for assigned classes (scoped query, not unbounded)
+      // Uses junction-first + legacy-fallback pattern (Lesson Learned #22)
       const assignedClassIds = (classUnitsRes.data || []).map((cu: { class_id: string }) => cu.class_id);
       let studentsRes: { data: { class_id: string }[] | null } = { data: [] };
       if (assignedClassIds.length > 0) {
-        studentsRes = await supabase
-          .from("class_students")
-          .select("class_id")
-          .in("class_id", assignedClassIds)
-          .eq("is_active", true);
+        try {
+          studentsRes = await supabase
+            .from("class_students")
+            .select("class_id")
+            .in("class_id", assignedClassIds)
+            .eq("is_active", true);
+        } catch (e) {
+          console.error("[unit detail] class_students query failed:", e);
+        }
+
+        // Legacy fallback: if junction returned null/empty, try students.class_id
+        if (!studentsRes.data || studentsRes.data.length === 0) {
+          try {
+            const legacyRes = await supabase
+              .from("students")
+              .select("id, class_id")
+              .in("class_id", assignedClassIds)
+              .not("class_id", "is", null);
+            if (legacyRes.data && legacyRes.data.length > 0) {
+              studentsRes = { data: legacyRes.data.map((s: { class_id: string }) => ({ class_id: s.class_id })) };
+            }
+          } catch (e) {
+            console.error("[unit detail] legacy students query failed:", e);
+          }
+        }
       }
 
       // Store terms for the picker
@@ -455,21 +476,39 @@ export default function UnitDetailPage({
             Preview as Student
           </button>
         )}
-        <Link
-          href={(() => {
-            const assigned = allClasses.filter((c) => c.assigned);
-            return assigned.length > 0
-              ? `/teacher/units/${unitId}/class/${assigned[0].id}/edit`
-              : `/teacher/units/${unitId}/edit`;
-          })()}
-          className="px-4 py-2 rounded-xl border border-border text-text-primary font-medium text-sm hover:bg-surface-alt transition-colors flex items-center gap-2"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
-            <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
-          </svg>
-          Edit Unit
-        </Link>
+        {(() => {
+          const assigned = allClasses.filter((c) => c.assigned);
+          if (assigned.length > 0) {
+            return (
+              <Link
+                href={`/teacher/units/${unitId}/class/${assigned[0].id}/edit`}
+                className="px-4 py-2 rounded-xl border border-border text-text-primary font-medium text-sm hover:bg-surface-alt transition-colors flex items-center gap-2"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                  <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                </svg>
+                Edit Unit
+              </Link>
+            );
+          }
+          return (
+            <button
+              onClick={() => {
+                const el = document.getElementById("assigned-classes-section");
+                if (el) el.scrollIntoView({ behavior: "smooth" });
+              }}
+              className="px-4 py-2 rounded-xl border border-amber-300 bg-amber-50 text-amber-800 font-medium text-sm hover:bg-amber-100 transition-colors flex items-center gap-2"
+              title="Assign this unit to a class to use the lesson editor"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+              </svg>
+              Edit — assign a class first ↓
+            </button>
+          );
+        })()}
         <button
           disabled
           className="px-4 py-2 rounded-xl border border-border text-text-secondary/40 font-medium text-sm cursor-not-allowed"
@@ -726,7 +765,7 @@ export default function UnitDetailPage({
       {/* ----------------------------------------------------------------- */}
       {/* Classes — toggle assignment                                          */}
       {/* ----------------------------------------------------------------- */}
-      <div className="mt-8 mb-6">
+      <div id="assigned-classes-section" className="mt-8 mb-6">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-base font-semibold text-text-primary flex items-center gap-2">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

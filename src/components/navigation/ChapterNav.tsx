@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { CRITERIA, type CriterionKey, getPageColor } from "@/lib/constants";
+import { getCriterionDisplay, type CriterionKey, getPageColor } from "@/lib/constants";
 import type { UnitPage, StudentProgress } from "@/types";
 
 interface PageGroup {
@@ -69,12 +69,12 @@ export function ChapterNav({
           existing.pages.push(page);
           currentGroup = existing;
         } else {
-          const meta = CRITERIA[criterion as CriterionKey];
+          const meta = getCriterionDisplay(criterion as string);
           const group: PageGroup = {
             key: criterion,
-            label: meta?.name || criterion,
+            label: meta.name,
             shortLabel: criterion,
-            color: meta?.color || getPageColor(page),
+            color: meta.color || getPageColor(page),
             pages: [page],
             completedCount: 0,
           };

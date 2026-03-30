@@ -1,6 +1,6 @@
 "use client";
 
-import { CRITERIA, buildPageDefinitions, PAGE_TYPE_COLORS, type CriterionKey } from "@/lib/constants";
+import { getCriterionDisplay, buildPageDefinitions, PAGE_TYPE_COLORS, type CriterionKey } from "@/lib/constants";
 import type { WizardState, WizardDispatch } from "@/hooks/useWizardState";
 import { PageReviewCard } from "./PageReviewCard";
 
@@ -30,7 +30,7 @@ export function PageCarousel({ state, dispatch, onActivityDrop, onRegeneratePage
       {/* Criterion groups */}
       <div className="space-y-6">
         {(state.input.selectedCriteria || ["A", "B", "C", "D"] as CriterionKey[]).map((key) => {
-          const c = CRITERIA[key];
+          const c = getCriterionDisplay(key, state.input.unitType, state.input.framework);
           const pageDefs = buildPageDefinitions([key], state.input.criteriaFocus || {});
           const criterionPages = pageDefs.map((d) => ({ id: d.id, criterion: d.criterion, title: d.title }));
           const hasPages = criterionPages.some((p) => generatedPages[p.id]);
@@ -150,7 +150,7 @@ function JourneyCarousel({ state, dispatch, onActivityDrop, onRegeneratePage }: 
                   {content.title || `Lesson ${index + 1}`}
                 </span>
                 {criterionTags.map(tag => {
-                  const meta = CRITERIA[tag as CriterionKey];
+                  const meta = getCriterionDisplay(tag, state.input.unitType, state.input.framework);
                   return (
                     <span
                       key={tag}

@@ -14,7 +14,7 @@ import {
   PP_GOAL_TYPES,
   PP_PRESENTATION_FORMATS,
   INQUIRY_THEMES,
-  CRITERIA,
+  getCriterionDisplay,
   getCriteriaForType,
   getCriterionKeys,
   type CriterionKey,
@@ -767,6 +767,8 @@ export function GuidedConversation({ state, dispatch, suggestions, suggestionSta
             selectedValues={getMultiSelectTurns(state.input.unitType || "design").has(currentTurn.id) ? multiSelectValues : undefined}
             criteriaFocus={state.input.criteriaFocus}
             selectedCriteria={state.input.selectedCriteria}
+            unitType={state.input.unitType}
+            framework={state.input.framework}
             suggestionStatus={
               (currentTurn.id === "relatedConcepts" || currentTurn.id === "statementOfInquiry") && suggestionStatus === "loading"
                 ? "loading"

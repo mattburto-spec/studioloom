@@ -182,9 +182,23 @@ export const POST = withErrorHandler("teacher/generate-unit:POST", async (reques
     }
 
     // Timing validation — Workshop Model auto-repair on pages with workshopPhases
+    // Read teacher's actual period length from profile instead of hardcoding 60
+    let periodMinutes = 60; // fallback
+    try {
+      const { data: teacherProfile } = await supabase
+        .from("teacher_profiles")
+        .select("typical_period_minutes")
+        .eq("teacher_id", user.id)
+        .maybeSingle();
+      if (teacherProfile?.typical_period_minutes) {
+        periodMinutes = teacherProfile.typical_period_minutes;
+      }
+    } catch (e) {
+      // Non-critical — use default
+    }
     const gradeLevel = wizardInput.gradeLevel || "Year 3 (Grade 8)";
     const profile = getGradeTimingProfile(gradeLevel, framework);
-    const timingCtx = buildTimingContext(profile, 60, false); // default 60-min theory
+    const timingCtx = buildTimingContext(profile, periodMinutes, false);
     const timingResults: Record<string, unknown> = {};
 
     for (const [pid, page] of Object.entries(validation.pages)) {

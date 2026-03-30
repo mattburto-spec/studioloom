@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { CRITERIA, type CriterionKey } from "@/lib/constants";
+import { getCriterionDisplay, type CriterionKey } from "@/lib/constants";
 import { ProgressCircle } from "./ProgressCircle";
 import type { UnitNavData } from "@/contexts/UnitNavContext";
 import type { UnitPage, StudentProgress } from "@/types";
@@ -81,11 +81,11 @@ function buildGroups(pages: UnitPage[]): SidebarGroup[] {
       if (existing) {
         existing.pages.push(page);
       } else {
-        const meta = CRITERIA[page.criterion as CriterionKey];
+        const meta = getCriterionDisplay(page.criterion as string);
         groups.push({
           key: `crit-${page.criterion}`,
-          label: meta ? `Criterion ${page.criterion}: ${meta.name}` : `Criterion ${page.criterion}`,
-          color: meta?.color || "#6B7280",
+          label: `Criterion ${page.criterion}: ${meta.name}`,
+          color: meta.color,
           pages: [page],
         });
       }

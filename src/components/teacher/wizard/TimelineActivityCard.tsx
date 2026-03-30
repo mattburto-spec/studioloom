@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
-import { CRITERIA, type CriterionKey } from "@/lib/constants";
+import { getCriterionDisplay, type CriterionKey } from "@/lib/constants";
 import type { TimelineActivity } from "@/types";
 import type { WizardDispatch } from "@/hooks/useWizardState";
 
@@ -199,7 +199,7 @@ export function TimelineActivityCard({
               {/* Criterion tags */}
               <div className="flex items-center gap-0.5 flex-shrink-0">
                 {activity.criterionTags?.map((tag) => {
-                  const criterion = CRITERIA[tag as CriterionKey];
+                  const criterion = getCriterionDisplay(tag);
                   return (
                     <span
                       key={tag}
@@ -319,7 +319,7 @@ export function TimelineActivityCard({
             </>
           )}
           {activity.criterionTags?.map((tag) => {
-            const criterion = CRITERIA[tag as CriterionKey];
+            const criterion = getCriterionDisplay(tag);
             return (
               <span
                 key={tag}

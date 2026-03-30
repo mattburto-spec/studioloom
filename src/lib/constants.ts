@@ -579,6 +579,32 @@ export function getFrameworkCriterion(
 }
 
 /**
+ * Universal criterion display lookup — tries unit-type criteria, then framework criteria, then MYP defaults.
+ * Safe to call with any criterion key from any framework. Returns a sensible fallback if nothing matches.
+ * Use this in ALL display components that render criterion badges/colors.
+ */
+export function getCriterionDisplay(
+  key: string,
+  unitType?: string,
+  framework?: string
+): { key: string; name: string; color: string } {
+  // Try framework-specific first (most precise)
+  if (framework) {
+    const fwCriteria = getFrameworkCriteria(framework);
+    if (fwCriteria[key]) return { key, name: fwCriteria[key].name, color: fwCriteria[key].color };
+  }
+  // Try unit-type-specific
+  if (unitType) {
+    const typeCriteria = getCriteriaForType(unitType);
+    if (typeCriteria[key]) return { key, name: typeCriteria[key].name, color: typeCriteria[key].color };
+  }
+  // Try MYP default
+  if (CRITERIA[key]) return { key, name: CRITERIA[key].name, color: CRITERIA[key].color };
+  // Final fallback — unknown criterion key, give it a neutral color
+  return { key, name: key, color: "#6B7280" };
+}
+
+/**
  * Get ordered criterion keys for a framework (e.g. ["AO1","AO2","AO3","AO4","AO5"] for GCSE).
  */
 export function getFrameworkCriterionKeys(framework: CurriculumFrameworkId | string = "IB_MYP"): string[] {

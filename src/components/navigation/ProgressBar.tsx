@@ -1,6 +1,6 @@
 "use client";
 
-import { CRITERIA, type CriterionKey } from "@/lib/constants";
+import { getCriterionDisplay, type CriterionKey } from "@/lib/constants";
 import type { StudentProgress, UnitPage } from "@/types";
 
 interface ProgressBarProps {
@@ -14,7 +14,7 @@ export function ProgressBar({ progress, pages }: ProgressBarProps) {
   const otherPages: UnitPage[] = [];
 
   for (const page of pages) {
-    if (page.type === "strand" && page.criterion && page.criterion in CRITERIA) {
+    if (page.type === "strand" && page.criterion) {
       const key = page.criterion as CriterionKey;
       if (!criterionGroups.has(key)) criterionGroups.set(key, []);
       criterionGroups.get(key)!.push(page);
@@ -59,13 +59,13 @@ export function ProgressBar({ progress, pages }: ProgressBarProps) {
           <div
             key={key}
             className="flex-1 h-2.5 rounded-full bg-gray-100 overflow-hidden"
-            title={`${CRITERIA[key].name}: ${completed}/${groupPages.length}`}
+            title={`${getCriterionDisplay(key).name}: ${completed}/${groupPages.length}`}
           >
             <div
               className="h-full rounded-full transition-all duration-500"
               style={{
                 width: `${fillPercent}%`,
-                backgroundColor: CRITERIA[key].color,
+                backgroundColor: getCriterionDisplay(key).color,
               }}
             />
           </div>

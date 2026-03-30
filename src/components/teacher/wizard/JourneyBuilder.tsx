@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { CRITERIA, PAGE_TYPE_COLORS, type CriterionKey } from "@/lib/constants";
+import { getCriterionDisplay, PAGE_TYPE_COLORS, type CriterionKey } from "@/lib/constants";
 import type { WizardState, WizardDispatch } from "@/hooks/useWizardState";
 import { JourneyLessonCard } from "./JourneyLessonCard";
 import { ThinkingMessage } from "./ThinkingMessage";
@@ -50,7 +50,7 @@ export function JourneyBuilder({ state, dispatch, onActivityDrop, onRegeneratePa
     if (!content?.sections) return lessonColor;
     const tags = content.sections.flatMap(s => s.criterionTags || []);
     const primary = [...new Set(tags)][0] as CriterionKey | undefined;
-    return primary ? CRITERIA[primary]?.color || lessonColor : lessonColor;
+    return primary ? getCriterionDisplay(primary, state.input.unitType, state.input.framework)?.color || lessonColor : lessonColor;
   }
 
   return (

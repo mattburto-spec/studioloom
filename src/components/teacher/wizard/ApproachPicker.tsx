@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CRITERIA } from "@/lib/constants";
+import { getCriterionDisplay, getFrameworkCriteria } from "@/lib/constants";
 import type { WizardState, WizardDispatch } from "@/hooks/useWizardState";
 
 interface Props {
@@ -110,7 +110,14 @@ export function ApproachPicker({ state, dispatch, onGenerateOutlines, onGenerate
         <div className="space-y-3">
           {Array.from({ length: Math.max(3, outlineOptions.length) }).map((_, idx) => {
             const option = outlineOptions[idx];
-            const colors = [CRITERIA.A.color, CRITERIA.C.color, CRITERIA.B.color, "#7C3AED", "#0891B2"];
+            const unitType = state.input.unitType || "design";
+            const framework = state.input.framework || "IB_MYP";
+            const fwCriteria = getFrameworkCriteria(framework);
+            const fwKeys = Object.keys(fwCriteria);
+            const defaultColors = ["#6366F1", "#10B981", "#F59E0B", "#7C3AED", "#0891B2"];
+            const colors = defaultColors.map((fallback, i) =>
+              fwKeys[i] ? fwCriteria[fwKeys[i]].color : fallback
+            );
             const color = colors[idx % colors.length];
 
             // Skeleton placeholder for slots not yet filled
@@ -205,7 +212,7 @@ export function ApproachPicker({ state, dispatch, onGenerateOutlines, onGenerate
                               <span className="text-text-tertiary text-[9px] flex-shrink-0">~{phase.estimatedLessons} lessons</span>
                               <div className="flex gap-0.5 flex-shrink-0">
                                 {phase.criterionTags.map((tag) => {
-                                  const criterion = CRITERIA[tag as keyof typeof CRITERIA];
+                                  const criterion = getCriterionDisplay(tag, unitType, framework);
                                   return criterion ? (
                                     <span
                                       key={tag}
@@ -244,7 +251,7 @@ export function ApproachPicker({ state, dispatch, onGenerateOutlines, onGenerate
                               <span className="text-text-tertiary text-[9px] flex-shrink-0">{lesson.primaryFocus}</span>
                               <div className="flex gap-0.5 flex-shrink-0">
                                 {lesson.criterionTags.map((tag) => {
-                                  const criterion = CRITERIA[tag as keyof typeof CRITERIA];
+                                  const criterion = getCriterionDisplay(tag, unitType, framework);
                                   return criterion ? (
                                     <span
                                       key={tag}

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { ConversationTurn as TurnType } from "@/hooks/useWizardState";
-import { CRITERIA, type CriterionKey } from "@/lib/constants";
+import { getCriterionDisplay, getCriterionKeys, type CriterionKey } from "@/lib/constants";
 
 interface Props {
   turn: TurnType;
@@ -12,6 +12,8 @@ interface Props {
   selectedValues?: string[];
   criteriaFocus?: Partial<Record<CriterionKey, "light" | "standard" | "emphasis">>;
   selectedCriteria?: CriterionKey[];
+  unitType?: string;
+  framework?: string;
   suggestionStatus?: "loading" | undefined;
 }
 
@@ -30,6 +32,8 @@ export function ConversationTurn({
   selectedValues = [],
   criteriaFocus,
   selectedCriteria: selectedCriteriaProp,
+  unitType,
+  framework,
   suggestionStatus,
 }: Props) {
   const [soiText, setSoiText] = useState("");
@@ -75,8 +79,8 @@ export function ConversationTurn({
 
         {/* Criterion selection + emphasis */}
         <div className="pl-11 space-y-3">
-          {(["A", "B", "C", "D"] as CriterionKey[]).map((key) => {
-            const c = CRITERIA[key];
+          {(getCriterionKeys(unitType || "design") as CriterionKey[]).map((key) => {
+            const c = getCriterionDisplay(key, unitType, framework);
             const isSelected = localSelected.includes(key);
             return (
               <div key={key} className={`flex items-center gap-3 transition-opacity ${isSelected ? "" : "opacity-40"}`}>
