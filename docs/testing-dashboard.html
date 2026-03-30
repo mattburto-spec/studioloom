@@ -1658,7 +1658,7 @@ const PROJECTS = [
         name: 'MonitoredTextarea Pipeline',
         desc: 'End-to-end academic integrity monitoring — paste detection, typing patterns, teacher report',
         file: 'docs/projects/monitored-textarea.md',
-        status: 'active',
+        status: 'complete',
         phases: [
             { name: 'MonitoredTextarea component', est: 'done', done: true },
             { name: 'Integrity analysis engine', est: 'done', done: true },
@@ -1673,6 +1673,21 @@ const PROJECTS = [
             { name: 'Grading page crash fix (_tracking_ keys)', est: 'done', done: true },
             { name: 'Grade tab Student Work (parked)', est: 'parked', done: false },
             { name: 'Fresh student session verification', est: '30 min', done: false },
+        ]
+    },
+    {
+        id: 'smart-insights',
+        name: 'Smart Insights Panel',
+        desc: 'Priority-sorted teacher dashboard sidebar — mixes integrity flags, stale work, stuck students, completions',
+        file: '',
+        status: 'complete',
+        phases: [
+            { name: 'Work to Mark panel (replaced by Insights)', est: 'done', done: true },
+            { name: 'DashboardInsight types + InsightType union', est: 'done', done: true },
+            { name: 'Server-side priority scoring (6 alert types)', est: 'done', done: true },
+            { name: 'Integrity metadata detection with migration-gap resilience', est: 'done', done: true },
+            { name: 'InsightRow UI component + type-specific icons', est: 'done', done: true },
+            { name: 'Browser test on production', est: '15 min', done: false },
         ]
     },
     {
