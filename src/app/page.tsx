@@ -168,10 +168,6 @@ export default function Home() {
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg>
               Free Toolkit
             </Link>
-            <Link href="/tools" className="hidden sm:inline-flex items-center gap-1.5 px-4 py-2 text-sm text-white/70 hover:text-white transition">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" /></svg>
-              Free Tools
-            </Link>
             <Link href="/login" className="hidden sm:inline-block px-4 py-2 text-sm text-white/70 hover:text-white transition">
               Student Login
             </Link>
@@ -186,7 +182,7 @@ export default function Home() {
           <div className="max-w-3xl mx-auto text-center">
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/15 text-xs text-white/80 mb-6 backdrop-blur-sm">
               <span className="w-1.5 h-1.5 rounded-full bg-accent-green animate-pulse" />
-              Built by an MYP Design Teacher
+              Built by a Design Teacher
             </div>
             <h1 className="text-4xl md:text-5xl lg:text-[3.5rem] font-bold tracking-tight leading-[1.1] mb-6">
               You Teach Design.{" "}
@@ -516,7 +512,7 @@ export default function Home() {
             {[
               "Knowledge base with PDF/DOCX/PPTX upload + AI analysis",
               "Workshop Model enforced in every AI-generated lesson",
-              "Grading with MYP criterion scores (1-8)",
+              "Grading with framework-specific criterion scores",
               "Competency assessments (Melbourne Metrics)",
               "School calendar with terms and academic years",
               "Student learning profiles for personalisation",
@@ -652,15 +648,6 @@ export default function Home() {
             <Link href="/toolkit" className="inline-flex items-center gap-2 px-8 py-3.5 bg-purple-600 hover:bg-purple-500 text-white rounded-full font-semibold transition text-base shadow-lg shadow-purple-600/25">
               Open the Free Toolkit <IconArrowRight />
             </Link>
-            <div className="mt-4 flex items-center justify-center gap-5">
-              <Link href="/tools/report-writer" className="text-xs text-white/30 hover:text-white/60 transition">
-                Report Writer
-              </Link>
-              <span className="text-white/10">|</span>
-              <Link href="/tools/safety" className="text-xs text-white/30 hover:text-white/60 transition">
-                Safety Quiz Builder
-              </Link>
-            </div>
           </div>
         </div>
       </section>
@@ -787,10 +774,9 @@ export default function Home() {
               </div>
               <span className="text-sm font-semibold text-white/80">StudioLoom</span>
             </div>
-            <p className="text-xs text-white/30">Design Process Platform — Built by a teacher, for teachers. Works with IB MYP, GCSE, ACARA &amp; more.</p>
+            <p className="text-xs text-white/30">Design Process Platform — Built by a teacher, for teachers. Works with IB MYP, GCSE, ACARA, PLTW &amp; more.</p>
             <div className="flex items-center gap-4">
               <Link href="/toolkit" className="text-xs text-white/40 hover:text-white/70 transition">Design Toolkit</Link>
-              <Link href="/tools" className="text-xs text-white/40 hover:text-white/70 transition">Free Tools</Link>
               <Link href="/login" className="text-xs text-white/40 hover:text-white/70 transition">Students</Link>
               <Link href="/teacher/login" className="text-xs text-white/40 hover:text-white/70 transition">Teachers</Link>
             </div>
