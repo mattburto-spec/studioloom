@@ -1,14 +1,22 @@
 /**
  * Student visual themes for "Set Up Your Studio" onboarding.
  *
- * 4 themes that skin the entire student experience via CSS custom properties.
- * Applied via data-student-theme="clean" attribute on the student layout root.
+ * Themes skin the entire student experience via CSS custom properties.
+ * Applied via inline styles on the student layout root.
  *
  * Theme tokens override the default (clean) values.
  * Components use var(--st-*) properties for themed elements.
  */
 
-export type ThemeId = "clean" | "bold" | "warm" | "dark";
+export type ThemeId =
+  | "clean"
+  | "bold"
+  | "warm"
+  | "dark"
+  | "neon"
+  | "vapor"
+  | "cyber"
+  | "ocean";
 
 export interface ThemeDefinition {
   id: ThemeId;
@@ -171,14 +179,132 @@ export const THEMES: Record<ThemeId, ThemeDefinition> = {
       "--st-input-border": "rgba(167,139,250,0.20)",
     },
   },
+
+  // ── NEW RADICAL / TEENAGE THEMES ──────────────────────────────────────
+
+  neon: {
+    id: "neon",
+    name: "Neon",
+    description: "Electric green on black. Hacker vibes, terminal energy.",
+    preview: {
+      bg: "#0A0A0A",
+      card: "#111111",
+      accent: "#39FF14",
+      text: "#E0FFE0",
+      textSecondary: "#6BCB77",
+    },
+    tokens: {
+      "--st-bg": "#0A0A0A",
+      "--st-surface": "#111111",
+      "--st-surface-elevated": "#1A1A1A",
+      "--st-text": "#E0FFE0",
+      "--st-text-secondary": "#6BCB77",
+      "--st-border": "rgba(57,255,20,0.12)",
+      "--st-header-bg": "rgba(10,10,10,0.95)",
+      "--st-header-text": "#E0FFE0",
+      "--st-accent": "#39FF14",
+      "--st-accent-text": "#0A0A0A",
+      "--st-accent-subtle": "rgba(57,255,20,0.10)",
+      "--st-shadow": "0 0 12px rgba(57,255,20,0.15)",
+      "--st-input-bg": "#111111",
+      "--st-input-border": "rgba(57,255,20,0.20)",
+    },
+  },
+
+  vapor: {
+    id: "vapor",
+    name: "Vapor",
+    description: "Pink-to-blue gradients. Retro sunset, vaporwave aesthetic.",
+    preview: {
+      bg: "#1A0A2E",
+      card: "#241442",
+      accent: "#FF6EC7",
+      text: "#F0E6FF",
+      textSecondary: "#C4A8FF",
+    },
+    tokens: {
+      "--st-bg": "#1A0A2E",
+      "--st-surface": "#241442",
+      "--st-surface-elevated": "#2E1A52",
+      "--st-text": "#F0E6FF",
+      "--st-text-secondary": "#C4A8FF",
+      "--st-border": "rgba(255,110,199,0.15)",
+      "--st-header-bg": "rgba(26,10,46,0.95)",
+      "--st-header-text": "#F0E6FF",
+      "--st-accent": "#FF6EC7",
+      "--st-accent-text": "#1A0A2E",
+      "--st-accent-subtle": "rgba(255,110,199,0.12)",
+      "--st-shadow": "0 0 16px rgba(255,110,199,0.15)",
+      "--st-input-bg": "#241442",
+      "--st-input-border": "rgba(255,110,199,0.25)",
+    },
+  },
+
+  cyber: {
+    id: "cyber",
+    name: "Cyber",
+    description: "Yellow on dark steel. Cyberpunk 2077, danger zone energy.",
+    preview: {
+      bg: "#0D0D0D",
+      card: "#1A1A1D",
+      accent: "#FFD600",
+      text: "#F5F5F0",
+      textSecondary: "#A0A09A",
+    },
+    tokens: {
+      "--st-bg": "#0D0D0D",
+      "--st-surface": "#1A1A1D",
+      "--st-surface-elevated": "#242428",
+      "--st-text": "#F5F5F0",
+      "--st-text-secondary": "#A0A09A",
+      "--st-border": "rgba(255,214,0,0.12)",
+      "--st-header-bg": "rgba(13,13,13,0.95)",
+      "--st-header-text": "#F5F5F0",
+      "--st-accent": "#FFD600",
+      "--st-accent-text": "#0D0D0D",
+      "--st-accent-subtle": "rgba(255,214,0,0.08)",
+      "--st-shadow": "0 0 10px rgba(255,214,0,0.10)",
+      "--st-input-bg": "#1A1A1D",
+      "--st-input-border": "rgba(255,214,0,0.20)",
+    },
+  },
+
+  ocean: {
+    id: "ocean",
+    name: "Ocean",
+    description: "Deep sea blues and aqua. Cool, calm, and immersive.",
+    preview: {
+      bg: "#0B1929",
+      card: "#0F2137",
+      accent: "#00E5FF",
+      text: "#E0F4FF",
+      textSecondary: "#7EB8D8",
+    },
+    tokens: {
+      "--st-bg": "#0B1929",
+      "--st-surface": "#0F2137",
+      "--st-surface-elevated": "#132D4A",
+      "--st-text": "#E0F4FF",
+      "--st-text-secondary": "#7EB8D8",
+      "--st-border": "rgba(0,229,255,0.12)",
+      "--st-header-bg": "rgba(11,25,41,0.95)",
+      "--st-header-text": "#E0F4FF",
+      "--st-accent": "#00E5FF",
+      "--st-accent-text": "#0B1929",
+      "--st-accent-subtle": "rgba(0,229,255,0.10)",
+      "--st-shadow": "0 2px 12px rgba(0,229,255,0.10)",
+      "--st-input-bg": "#0F2137",
+      "--st-input-border": "rgba(0,229,255,0.20)",
+    },
+  },
 };
 
 export const THEME_IDS = Object.keys(THEMES) as ThemeId[];
 
 /** Get theme definition with clean as fallback */
 export function getTheme(themeId: ThemeId | null): ThemeDefinition {
-  if (!themeId || !THEMES[themeId]) return THEMES.clean;
-  return THEMES[themeId];
+  if (!themeId || !THEMES[themeId as ThemeId]) return THEMES.clean;
+  return THEMES[themeId as ThemeId];
 }
 
 /** Generate CSS custom property string from theme tokens */
