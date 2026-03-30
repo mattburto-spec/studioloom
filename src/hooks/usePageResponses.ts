@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import type { UnitPage, ActivitySection, StudentProgress } from "@/types";
 import type { UnitPageData } from "./usePageData";
+import type { ActivityTrackingData } from "./useActivityTracking";
 
 interface UsePageResponsesReturn {
   responses: Record<string, string>;
@@ -17,7 +18,8 @@ export function usePageResponses(
   pageId: string,
   currentPage: UnitPage | undefined,
   data: UnitPageData | null,
-  integrityMetadataRef?: React.RefObject<Record<string, unknown> | null>
+  integrityMetadataRef?: React.RefObject<Record<string, unknown> | null>,
+  getTrackingPayload?: () => Record<string, ActivityTrackingData>
 ): UsePageResponsesReturn {
   const [responses, setResponses] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -100,12 +102,25 @@ export function usePageResponses(
       const currentResponses = responsesRef.current;
       setSaving(true);
       try {
+        // Merge activity tracking data into responses (stored alongside response values in JSONB)
+        let responsesWithTracking: Record<string, unknown> = currentResponses;
+        if (getTrackingPayload) {
+          try {
+            const tracking = getTrackingPayload();
+            if (Object.keys(tracking).length > 0) {
+              responsesWithTracking = { ...currentResponses, ...tracking };
+            }
+          } catch {
+            // Non-critical — don't block save if tracking fails
+          }
+        }
+
         // Include integrity metadata if available (MonitoredTextarea data)
         const payload: Record<string, unknown> = {
           unitId,
           pageId: currentPage.id,
           status: newStatus || "in_progress",
-          responses: currentResponses,
+          responses: responsesWithTracking,
         };
         if (integrityMetadataRef?.current && Object.keys(integrityMetadataRef.current).length > 0) {
           payload.integrityMetadata = integrityMetadataRef.current;

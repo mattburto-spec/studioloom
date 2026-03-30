@@ -27,6 +27,7 @@ import { OpenStudioBanner } from "@/components/open-studio";
 import { useOpenStudio } from "@/hooks/useOpenStudio";
 import { CompetencyPulse } from "@/components/nm";
 import { ErrorBoundary } from "@/components/student/ErrorBoundary";
+import { useActivityTracking } from "@/hooks/useActivityTracking";
 import type { PageContent } from "@/types";
 import type { IntegrityMetadata } from "@/components/student/MonitoredTextarea";
 
@@ -50,8 +51,18 @@ function UnitPageViewInner({
   const { data, loading, allPages, currentPage, enabledPages, nextPage, currentSettings, pageColor } =
     usePageData(unitId, pageId);
   const integrityMetadataRef = useRef<Record<string, unknown> | null>(null);
+
+  // Per-activity engagement tracking (Dimensions Phase 3)
+  const {
+    registerActivity,
+    getObserverRef,
+    recordInteraction,
+    recordResponseChange,
+    getTrackingPayload,
+  } = useActivityTracking(pageId, {});
+
   const { responses, setResponses, saving, showSaveToast, saveProgress } =
-    usePageResponses(unitId, pageId, currentPage, data, integrityMetadataRef);
+    usePageResponses(unitId, pageId, currentPage, data, integrityMetadataRef, getTrackingPayload);
 
   const { student } = useStudent();
   const openStudio = useOpenStudio(unitId);
@@ -364,20 +375,26 @@ function UnitPageViewInner({
         {pageContent?.sections ? (
           pageContent.sections.map((section, i) => {
             const responseKey = section.activityId ? `activity_${section.activityId}` : `section_${i}`;
+            // Register activity for engagement tracking (Dimensions Phase 3)
+            registerActivity(responseKey);
             return (
               <ScrollReveal key={section.activityId || i} delay={i * 80}>
                 <SectionDivider number={++sectionNum} color={pageColor} />
+                {/* Tracking observer wrapper — tracks time visible in viewport */}
+                <div ref={getObserverRef(responseKey)}>
                 <ActivityCard
                   section={section}
                   index={i}
                   ellLevel={data.ellLevel}
                   responseValue={responses[responseKey] || ""}
-                  onResponseChange={(val) =>
+                  onResponseChange={(val) => {
+                    recordInteraction(responseKey);
+                    recordResponseChange(responseKey, typeof val === "string" ? val : JSON.stringify(val));
                     setResponses((prev) => ({
                       ...prev,
                       [responseKey]: val,
-                    }))
-                  }
+                    }));
+                  }}
                   isLast={true}
                   arrowOffset={0}
                   allowedTypes={[...new Set(pageContent.sections.map(s => s.responseType).filter(Boolean))] as ("text" | "upload" | "voice" | "link")[]}
@@ -401,6 +418,7 @@ function UnitPageViewInner({
                     });
                   }}
                 />
+                </div>
               </ScrollReveal>
             );
           })

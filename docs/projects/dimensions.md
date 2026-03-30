@@ -1,7 +1,7 @@
 # Project Dimensions — Data Architecture Future-Proofing
 **Created: 29 March 2026**
 **Last updated: 30 March 2026**
-**Status: Phases 0-2b COMPLETE — schemas, prompts, RAG pipeline, cognitive load + per-section difficulty all live**
+**Status: Phases 0-3 COMPLETE — schemas, prompts, RAG pipeline, cognitive load + per-section difficulty + client-side activity tracking all live**
 **Spec: `docs/specs/data-architecture-v2.md`**
 
 ---
@@ -101,11 +101,20 @@ Student profile: `accommodations` (UDL-aligned), `udl_strengths`, `udl_barriers`
 
 **Note for Lesson Plan Converter (not yet built):** When built, the converter must output v2 schema with all Dimensions fields (bloom_level, ai_rules, udl_checkpoints, timeWeight, grouping). Spec this requirement in the converter's future spec doc. No work now.
 
-### Phase 3: Client-Side Tracking (~1 day)
+### Phase 3: Client-Side Tracking (COMPLETE — 30 March 2026)
 
-- Add per-activity `time_spent_seconds` tracking in `usePageResponses.ts` (start timer when activity comes into view, stop on next activity or page submit)
-- Add `attempt_number` tracking (increment on revision, stored per response)
-- Update `usePageData.ts` to include effort signals computation
+**`src/hooks/useActivityTracking.ts`** — NEW (~290 lines). Dedicated hook for per-activity engagement metrics:
+- IntersectionObserver-based visibility tracking (30% threshold = "in view")
+- `time_spent_seconds`: accumulated visible time, capped at 3600s (handles tab-left-open)
+- `attempt_number`: incremented on each non-empty response change (revision detection)
+- `effort_signals`: word_count, editing_sessions (gaps >10s = new session), has_revisions, focus_ratio (interaction time / visible time)
+- `first_interaction_at` / `last_interaction_at` timestamps
+- Periodic flush every 15s + flush-on-save via `getTrackingPayload()`
+- Data stored as `_tracking_<activityKey>` entries in `student_progress.responses` JSONB (alongside response values)
+
+**`src/hooks/usePageResponses.ts`** — Modified to accept optional `getTrackingPayload` callback. On save (both manual and auto-save), merges tracking data into responses payload. Non-critical try/catch — tracking failure never blocks save.
+
+**`src/app/(student)/unit/[unitId]/[pageId]/page.tsx`** — Wired: `useActivityTracking` initialized per page, each activity section wrapped with observer ref div, `recordInteraction` + `recordResponseChange` called on response changes.
 
 ### Phase 4: Lesson Editor Integration (~1 day)
 
@@ -134,7 +143,8 @@ Student profile: `accommodations` (UDL-aligned), `udl_strengths`, `udl_barriers`
 | `src/types/index.ts` | Code | TypeScript interface updates (PageContent, ActivitySection, ActivityResponse) |
 | `src/lib/ai/prompts.ts` | Code | AI generation prompt updates for UDL + bloom + ai_rules |
 | `src/lib/ai/schemas.ts` | Code | Tool schema updates for new activity fields |
-| `src/hooks/usePageResponses.ts` | Code | Per-activity time tracking |
+| `src/hooks/useActivityTracking.ts` | Code | Per-activity engagement tracking hook (IntersectionObserver, effort signals) |
+| `src/hooks/usePageResponses.ts` | Code | Modified — accepts tracking payload callback, merges into save |
 | `src/lib/knowledge/analyse.ts` | Code | RAG analysis pipeline — Pass 2b `extractDimensionsFields()` fallback (v2.2.0) |
 | `src/lib/knowledge/analysis-prompts.ts` | Code | Analysis prompt updates (v2.2.0) + `buildDimensionsPrompt()` for Pass 2b |
 | `src/lib/knowledge/chunks.ts` | Code | Chunk metadata enrichment |
@@ -183,10 +193,12 @@ Student profile: `accommodations` (UDL-aligned), `udl_strengths`, `udl_barriers`
 - [x] **Knowledge items API:** Extended to return `profileMap` from `lesson_profiles` (separate query, Lesson Learned #19 pattern)
 
 ### Phase 3: Client Tracking
-- [ ] Add per-activity time tracking in usePageResponses.ts
-- [ ] Add attempt_number tracking on revision
-- [ ] Add effort_signals computation client-side
-- [ ] Verify data saves correctly to student_progress responses JSONB
+- [x] Add per-activity time tracking via useActivityTracking.ts (IntersectionObserver, 30% threshold, 3600s cap)
+- [x] Add attempt_number tracking on revision (increment on non-empty value change)
+- [x] Add effort_signals computation client-side (word_count, editing_sessions, has_revisions, focus_ratio)
+- [x] Wire into student lesson page (observer refs, interaction recording, response change tracking)
+- [x] Merge tracking data into save payload via getTrackingPayload() callback
+- [ ] Verify data saves correctly to student_progress responses JSONB (needs live student test)
 
 ### Phase 4: Lesson Editor + Teacher UI
 - [ ] Bloom's level selector on ActivityBlock (6-level pills)
@@ -225,10 +237,10 @@ Student profile: `accommodations` (UDL-aligned), `udl_strengths`, `udl_barriers`
 | Phase 0: Schema foundation | 0.5 | None | **COMPLETE** (30 Mar) |
 | Phase 1: Data layer (TypeScript) | 0.5 | Phase 0 | **COMPLETE** (30 Mar) |
 | Phase 2: AI generation + RAG pipeline | 2.5 | Phase 1 | **COMPLETE** (30 Mar) — schemas, prompts, RAG pipeline, cognitive load, per-section difficulty |
-| Phase 3: Client tracking | 1 | Phase 1 | Pending |
+| Phase 3: Client tracking | 0.5 | Phase 1 | **COMPLETE** (30 Mar) |
 | Phase 4: Lesson editor UI | 1 | Phase 1 | Pending |
 | Phase 5: Reports + research metrics | 4-6 | Phases 1-4 + real student data | Deferred |
-| **Remaining (Phases 3-4)** | **~2 days** | |
+| **Remaining (Phase 4)** | **~1 day** | |
 
 ---
 
