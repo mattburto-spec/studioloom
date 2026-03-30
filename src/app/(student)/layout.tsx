@@ -258,9 +258,10 @@ export default function StudentLayout({
               {/* Current theme */}
               <div className="mb-6">
                 <label className="text-xs font-semibold uppercase tracking-wider opacity-60">Visual Theme</label>
-                <div className="flex gap-2 mt-2">
+                <div className="grid grid-cols-4 gap-2 mt-2">
                   {(Object.values(THEMES) as { id: ThemeId; name: string; preview: { accent: string; bg: string } }[]).map((t) => {
                     const isActive = (student as any).theme_id === t.id;
+                    const isDarkTheme = ["dark", "neon", "vapor", "cyber", "ocean"].includes(t.id);
                     return (
                       <button
                         key={t.id}
@@ -272,7 +273,7 @@ export default function StudentLayout({
                           });
                           setStudent((prev) => prev ? { ...prev, theme_id: t.id } as any : prev);
                         }}
-                        className="flex-1 p-3 rounded-xl text-center transition-all"
+                        className="p-3 rounded-xl text-center transition-all"
                         style={{
                           border: isActive ? `2px solid ${t.preview.accent}` : "2px solid transparent",
                           background: t.preview.bg,
@@ -282,7 +283,7 @@ export default function StudentLayout({
                           className="w-6 h-6 rounded-full mx-auto mb-1"
                           style={{ background: t.preview.accent }}
                         />
-                        <div className="text-xs font-semibold" style={{ color: t.id === "dark" ? "#fff" : "#333" }}>
+                        <div className="text-xs font-semibold" style={{ color: isDarkTheme ? "#fff" : "#333" }}>
                           {t.name}
                         </div>
                       </button>
