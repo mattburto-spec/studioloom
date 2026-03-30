@@ -15,13 +15,7 @@ export default function RootLayout({
     <html lang="en">
       <head>
         {/* Plausible Analytics — privacy-friendly, no cookies, COPPA/GDPR safe */}
-        {process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN && (
-          <script
-            defer
-            data-domain={process.env.NEXT_PUBLIC_PLAUSIBLE_DOMAIN}
-            src="https://plausible.io/js/script.js"
-          />
-        )}
+        <script defer src="https://plausible.io/js/pa-zQXWAmLhvFxtvFofMXkEb.js" />
       </head>
       <body className="antialiased">
         {children}
