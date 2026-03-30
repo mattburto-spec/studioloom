@@ -9,6 +9,7 @@ import { getThemeStyles, type ThemeId } from "@/lib/student/themes";
 import { ToolModal } from "@/components/toolkit/ToolModal";
 import { UnitThumbnail } from "@/components/shared/UnitThumbnail";
 import { BadgeIcon } from "@/components/safety/BadgeIcon";
+import { TrophyShelf } from "@/components/student/TrophyShelf";
 import type { Unit, StudentProgress, UnitPage } from "@/types";
 
 interface ToolSession {
@@ -235,6 +236,13 @@ export default function StudentDashboard() {
           </div>
         )}
 
+        {/* Trophy Shelf — badges above everything */}
+        {!loading && earnedBadges.length > 0 && (
+          <div className="mb-5">
+            <TrophyShelf badges={earnedBadges} themeStyles={themeStyles} />
+          </div>
+        )}
+
         {loading ? (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
             <div className="lg:col-span-2 rounded-2xl animate-pulse h-80" style={{ background: themeStyles["--st-surface"] }} />
@@ -355,25 +363,6 @@ export default function StudentDashboard() {
                   </div>
                 )}
               </div>
-
-              {/* Earned Badges */}
-              {earnedBadges.length > 0 && (
-                <div className="rounded-2xl" style={{ background: themeStyles["--st-surface"], borderColor: themeStyles["--st-border"], border: `1px solid ${themeStyles["--st-border"]}` }}>
-                  <div className="px-4 py-3" style={{ borderBottom: `1px solid ${themeStyles["--st-border"]}`, background: `var(--st-accent)08` }}>
-                    <h2 className="text-sm font-bold" style={{ color: themeStyles["--st-text"] }}>Earned Badges</h2>
-                  </div>
-                  <div className="p-3 flex flex-col gap-2">
-                    {earnedBadges.map((b) => (
-                      <Link key={b.badge_id} href={`/safety/${b.badge_id}`} className="flex items-center gap-2 p-2 rounded-lg hover:opacity-75 transition" style={{ background: themeStyles["--st-accent-subtle"] }}>
-                        <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${b.badge_color}30`, color: b.badge_color }}>
-                          <BadgeIcon iconName={b.badge_icon} size={16} color={b.badge_color} />
-                        </div>
-                        <span className="text-xs font-semibold flex-1" style={{ color: themeStyles["--st-text"] }}>{b.badge_name}</span>
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              )}
 
               {/* My Tools */}
               {recentToolSessions.length > 0 && (
