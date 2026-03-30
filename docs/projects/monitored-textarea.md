@@ -1,7 +1,7 @@
 # Project: MonitoredTextarea Pipeline
 
 *Created: 28 March 2026*
-*Status: PIPELINE COMPLETE — migration 054 APPLIED, save timing fixed, RLS fixed (migration 059), Class Hub integrity indicators live. Needs: fresh student session verification.*
+*Status: PIPELINE COMPLETE + UI WIRED — migration 054 APPLIED, save timing fixed, RLS fixed (migration 059), Class Hub integrity indicators live, IntegrityReport wired into Progress tab detail modal + standalone grading page evidence panel + Class Hub Grade tab Student Work section. Grading page crash fixed (_tracking_ object keys). Needs: fresh student session verification, Grade tab click-through (parked pending grading redesign).*
 
 ## Goal
 
@@ -83,16 +83,34 @@ Wire the existing academic integrity monitoring system end-to-end so teachers ca
 9. `src/app/teacher/units/[unitId]/class/[classId]/page.tsx` — Class Hub integrity indicators ✅
 10. `src/app/teacher/classes/[classId]/progress/[unitId]/page.tsx` — junction-first query + log cleanup ✅
 
+### Step 8: Wire IntegrityReport into Class Hub detail modal ✅ DONE (30 Mar 2026)
+- Class Hub Progress tab: clicking a progress cell opens detail modal with per-response IntegrityReport + aggregate summary badges
+- `detailIntegrity` state added, populated from `integrity_metadata` in `loadStudentDetail()`
+- `_tracking_` keys filtered from response display
+- Aggregate "Writing Integrity Summary" section at bottom of modal
+
+### Step 9: Add Student Work Quick-View to grading pages ✅ DONE (30 Mar 2026)
+- **Standalone grading page** (`/teacher/classes/[classId]/grading/[unitId]`): clickable lesson buttons between student header and criterion sections. Green=responses, gray=empty, blue dot=integrity. Click opens evidence slide-out with IntegrityReport.
+- **Class Hub Grade tab**: Student Work section with lesson buttons + blue dots. Click-through NOT wired (parked pending grading redesign).
+- **Crash fix**: `_tracking_` keys and non-string response values (toolkit JSON, tracking objects) were crashing the evidence panel with "Objects are not valid as a React child." Fixed with filter + safe stringify.
+
+### Files Changed (additional)
+
+11. `src/app/teacher/units/[unitId]/class/[classId]/page.tsx` — IntegrityReport in detail modal + Grade tab Student Work section ✅
+12. `src/app/teacher/classes/[classId]/grading/[unitId]/page.tsx` — Student Work Quick-View + _tracking_ filter + non-string crash fix ✅
+
 ## Test Checklist
 
 - [x] **Apply migration 054** in Supabase SQL editor — APPLIED 30 Mar
 - [x] **Apply migration 059** (RLS junction fix) — APPLIED 30 Mar
 - [x] Teacher progress grid shows colored dots (not all dashes) — VERIFIED 30 Mar
 - [ ] Student writes text on lesson page → MonitoredTextarea captures metadata → **new** integrity data appears in Supabase (needs fresh session with debounced notify deployed)
-- [ ] Teacher opens Class Hub progress tab → blue dots appear on cells with integrity data
-- [ ] Teacher opens grading page → selects student → opens evidence panel
-- [ ] Evidence panel shows responses + IntegrityReport with score, flags, playback
-- [ ] IntegrityReport playback slider scrubs through text snapshots
-- [ ] Paste log shows if student pasted content
-- [ ] Score badge colors match thresholds (green/amber/red)
+- [x] Teacher opens Class Hub progress tab → blue dots appear on cells with integrity data — VERIFIED 30 Mar
+- [x] Teacher clicks progress cell → detail modal shows IntegrityReport (score 15, flags, playback, paste log) — VERIFIED 30 Mar
+- [x] Teacher opens standalone grading page → Student Work buttons with blue dots visible — VERIFIED 30 Mar
+- [x] Evidence panel shows responses + IntegrityReport with score, flags, playback — VERIFIED 30 Mar
+- [x] Paste log shows if student pasted content — VERIFIED 30 Mar (Paste Log (1) visible)
+- [x] Score badge colors match thresholds (green/amber/red) — VERIFIED 30 Mar (15% = red "Flagged for Review")
+- [x] Grading page doesn't crash on _tracking_ keys or non-string values — FIXED 30 Mar
+- [ ] Class Hub Grade tab lesson buttons clickable (PARKED — pending grading redesign)
 - [x] Build succeeds (no lucide-react imports) ✅ Verified via `tsc --noEmit`

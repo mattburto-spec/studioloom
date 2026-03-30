@@ -3,6 +3,8 @@ export interface DashboardData {
   classes: DashboardClass[];
   stuckStudents: StuckStudent[];
   recentActivity: ActivityEvent[];
+  /** Students with completed pages that may need teacher review/grading */
+  unmarkedWork?: UnmarkedWorkItem[];
 }
 
 export interface DashboardClass {
@@ -62,4 +64,22 @@ export interface ActivityEvent {
   status: string;
   /** ISO timestamp */
   updatedAt: string;
+}
+
+/** A student × unit pair with completed work that may need teacher review */
+export interface UnmarkedWorkItem {
+  studentId: string;
+  studentName: string;
+  classId: string;
+  className: string;
+  unitId: string;
+  unitTitle: string;
+  /** Number of completed pages for this student in this unit */
+  completedPages: number;
+  /** Total pages in the unit */
+  totalPages: number;
+  /** ISO timestamp of most recent completion */
+  lastCompletedAt: string;
+  /** Whether any completed page has integrity data that needs review */
+  hasIntegrityFlags?: boolean;
 }

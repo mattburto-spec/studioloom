@@ -237,12 +237,6 @@ export default function TeacherDashboard() {
   );
 }
 
-function formatStuckTime(hours: number): string {
-  if (hours < 24) return `${hours}h`;
-  const days = Math.floor(hours / 24);
-  return `${days}d`;
-}
-
 // ---------------------------------------------------------------------------
 // Two-Column Dashboard — Sidebar (1/3) + Class Cards (2/3)
 // ---------------------------------------------------------------------------
@@ -459,53 +453,39 @@ function TwoColumnDashboard({
           )}
         </SidebarSection>
 
-        {/* ── Stuck Students ── */}
-        {data.stuckStudents.length > 0 && (
+        {/* ── Work to Mark ── */}
+        {(data.unmarkedWork ?? []).length > 0 && (
           <SidebarSection
-            title="Needs Attention"
-            subtitle={`${data.stuckStudents.length} student${data.stuckStudents.length !== 1 ? "s" : ""}`}
-            icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>}
-            accentColor="#F59E0B"
+            title="Work to Mark"
+            subtitle={`${(data.unmarkedWork ?? []).length} student${(data.unmarkedWork ?? []).length !== 1 ? "s" : ""}`}
+            icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" /></svg>}
+            accentColor="#7C3AED"
           >
             <div className="divide-y divide-gray-100">
-              {data.stuckStudents.slice(0, 5).map((s) => (
+              {(data.unmarkedWork ?? []).slice(0, 6).map((w) => (
                 <Link
-                  key={`stuck-${s.studentId}-${s.unitId}`}
-                  href={`/teacher/units/${s.unitId}/class/${s.classId}?tab=progress`}
-                  className="flex items-center gap-2.5 px-3 py-2 hover:bg-amber-50/50 transition text-xs"
+                  key={`mark-${w.studentId}-${w.unitId}`}
+                  href={`/teacher/units/${w.unitId}/class/${w.classId}?tab=grade`}
+                  className="flex items-center gap-2.5 px-3 py-2 hover:bg-purple-50/50 transition text-xs"
                 >
-                  <div className="w-6 h-6 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-[10px] font-bold shrink-0">
-                    {(s.studentName[0] || "?").toUpperCase()}
+                  <div className="w-6 h-6 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-[10px] font-bold shrink-0">
+                    {(w.studentName[0] || "?").toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-text-primary truncate">{s.studentName}</p>
-                    <p className="text-[10px] text-text-secondary truncate">{s.className}</p>
+                    <p className="font-medium text-text-primary truncate">{w.studentName}</p>
+                    <p className="text-[10px] text-text-secondary truncate">{w.className} · {w.unitTitle}</p>
                   </div>
-                  <span className="text-amber-600 font-semibold whitespace-nowrap">{formatStuckTime(s.hoursSinceUpdate)}</span>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {w.hasIntegrityFlags && (
+                      <span className="w-2 h-2 rounded-full bg-blue-500" title="Has integrity data" />
+                    )}
+                    <span className="text-purple-600 font-semibold whitespace-nowrap">{w.completedPages}/{w.totalPages}</span>
+                  </div>
                 </Link>
               ))}
-              {data.stuckStudents.length > 5 && (
-                <p className="text-[10px] text-text-secondary text-center py-2">+{data.stuckStudents.length - 5} more</p>
+              {(data.unmarkedWork ?? []).length > 6 && (
+                <p className="text-[10px] text-text-secondary text-center py-2">+{(data.unmarkedWork ?? []).length - 6} more</p>
               )}
-            </div>
-          </SidebarSection>
-        )}
-
-        {/* ── Recent Activity ── */}
-        {data.recentActivity.length > 0 && (
-          <SidebarSection
-            title="Activity"
-            icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12" /></svg>}
-            accentColor="#10B981"
-          >
-            <div className="divide-y divide-gray-100">
-              {data.recentActivity.slice(0, 5).map((e, i) => (
-                <div key={`act-${e.studentId}-${e.pageId}-${i}`} className="flex items-center gap-2 px-3 py-2 text-xs">
-                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: e.status === "complete" ? "#10B981" : "#F59E0B" }} />
-                  <span className="font-medium text-text-primary truncate">{e.studentName}</span>
-                  <span className="text-text-secondary ml-auto whitespace-nowrap">{timeAgo(e.updatedAt)}</span>
-                </div>
-              ))}
             </div>
           </SidebarSection>
         )}

@@ -8,6 +8,7 @@ import type {
   DashboardUnit,
   StuckStudent,
   ActivityEvent,
+  UnmarkedWorkItem,
 } from "@/types/dashboard";
 import type { UnitContentData } from "@/types";
 
@@ -63,6 +64,7 @@ interface ProgressRow {
   page_id: string;
   status: string;
   updated_at: string;
+  integrity_metadata?: Record<string, unknown> | null;
 }
 
 /**
@@ -143,9 +145,22 @@ export const GET = withErrorHandler("teacher/dashboard:GET", async (request: Nex
   const parallelPromises: Promise<void>[] = [];
 
   // Progress query (needs student IDs + unit IDs)
+  // Try with integrity_metadata first (migration 054), fall back without
   if (studentIds.length > 0 && uniqueUnitIds.length > 0) {
     parallelPromises.push(
       (async () => {
+        try {
+          const { data, error: err } = await supabase
+            .from("student_progress")
+            .select("student_id, unit_id, page_id, status, updated_at, integrity_metadata")
+            .in("student_id", studentIds)
+            .in("unit_id", uniqueUnitIds);
+          if (!err && data) {
+            progress = data as ProgressRow[];
+            return;
+          }
+        } catch { /* integrity_metadata column may not exist */ }
+        // Fallback without integrity_metadata
         const { data } = await supabase
           .from("student_progress")
           .select("student_id, unit_id, page_id, status, updated_at")
@@ -400,10 +415,53 @@ export const GET = withErrorHandler("teacher/dashboard:GET", async (request: Nex
     };
   });
 
+  // --- Unmarked work: students with completed pages to review ---
+  const unmarkedWorkMap = new Map<string, UnmarkedWorkItem>(); // key: studentId-unitId
+  for (const p of progress) {
+    if (p.status !== "complete") continue;
+    const student = studentById.get(p.student_id);
+    if (!student) continue;
+    const cls = classById.get(student.class_id);
+    if (!cls) continue;
+    const unit = unitInfo.get(p.unit_id);
+    if (!unit) continue;
+
+    const key = `${p.student_id}-${p.unit_id}`;
+    const existing = unmarkedWorkMap.get(key);
+    const hasIntegrity = !!(p.integrity_metadata && typeof p.integrity_metadata === "object" && Object.keys(p.integrity_metadata).length > 0);
+
+    if (existing) {
+      existing.completedPages++;
+      if (new Date(p.updated_at) > new Date(existing.lastCompletedAt)) {
+        existing.lastCompletedAt = p.updated_at;
+      }
+      if (hasIntegrity) existing.hasIntegrityFlags = true;
+    } else {
+      unmarkedWorkMap.set(key, {
+        studentId: p.student_id,
+        studentName: student.display_name || student.username,
+        classId: student.class_id,
+        className: cls.name,
+        unitId: p.unit_id,
+        unitTitle: unit.title,
+        completedPages: 1,
+        totalPages: unit.totalPages,
+        lastCompletedAt: p.updated_at,
+        hasIntegrityFlags: hasIntegrity,
+      });
+    }
+  }
+
+  // Sort by most recently completed, limit 20
+  const unmarkedWork = [...unmarkedWorkMap.values()]
+    .sort((a, b) => new Date(b.lastCompletedAt).getTime() - new Date(a.lastCompletedAt).getTime())
+    .slice(0, 20);
+
   const data: DashboardData = {
     classes: dashboardClasses,
     stuckStudents,
     recentActivity,
+    unmarkedWork,
   };
 
   return NextResponse.json(data, {
