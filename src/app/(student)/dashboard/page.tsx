@@ -209,7 +209,7 @@ export default function StudentDashboard() {
       ["from-teal-500 to-emerald-400", "DESIGN"],
       ["from-violet-500 to-purple-400", "PROJECT"],
       ["from-pink-400 to-rose-300", "CREATIVE"],
-      ["from-sky-500 to-blue-400", "STUDIO"],
+      ["from-sky-500 to-blue-400", "LEARNING"],
       ["from-amber-400 to-yellow-300", "WORKSHOP"],
     ];
     let hash = 0;

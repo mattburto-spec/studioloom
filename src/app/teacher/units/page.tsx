@@ -191,26 +191,44 @@ export default function TeacherUnitsPage() {
   async function loadUnits() {
     try {
       const supabase = createClient();
-      const [{ data: unitData }, { data: classUnitData }] = await Promise.all([
-        supabase.from("units").select("*").order("created_at", { ascending: false }),
-        supabase.from("class_units").select("unit_id, class_id, content_data, classes(name)"),
-      ]);
+
+      // Load units first — this is the critical query
+      const { data: unitData, error: unitError } = await supabase
+        .from("units")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (unitError) {
+        console.error("[loadUnits] Units query error:", unitError);
+      }
       setUnits(unitData || []);
 
-      // Build class assignment map
-      const map = new Map<string, { classId: string; name: string; isForked: boolean }[]>();
-      if (classUnitData) {
-        for (const cu of classUnitData as unknown as ClassAssignment[]) {
-          const list = map.get(cu.unit_id) || [];
-          list.push({
-            classId: cu.class_id,
-            name: (cu.classes as { name: string } | null)?.name || "Unknown",
-            isForked: !!cu.content_data,
-          });
-          map.set(cu.unit_id, list);
+      // Load class assignments separately (non-critical — page works without it)
+      try {
+        const { data: classUnitData, error: cuError } = await supabase
+          .from("class_units")
+          .select("unit_id, class_id, forked_at, classes(name)");
+
+        if (cuError) {
+          console.error("[loadUnits] class_units query error:", cuError);
         }
+
+        const map = new Map<string, { classId: string; name: string; isForked: boolean }[]>();
+        if (classUnitData) {
+          for (const cu of classUnitData as unknown as ClassAssignment[]) {
+            const list = map.get(cu.unit_id) || [];
+            list.push({
+              classId: cu.class_id,
+              name: (cu.classes as { name: string } | null)?.name || "Unknown",
+              isForked: !!(cu as unknown as { forked_at: string | null }).forked_at,
+            });
+            map.set(cu.unit_id, list);
+          }
+        }
+        setClassMap(map);
+      } catch (cuErr) {
+        console.error("[loadUnits] class_units failed:", cuErr);
       }
-      setClassMap(map);
     } catch (err) {
       console.error("[loadUnits] Failed:", err);
     } finally {
