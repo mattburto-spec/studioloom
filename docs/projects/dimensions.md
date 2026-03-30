@@ -1,7 +1,7 @@
 # Project Dimensions — Data Architecture Future-Proofing
 **Created: 29 March 2026**
 **Last updated: 30 March 2026**
-**Status: Phases 0-3 COMPLETE — schemas, prompts, RAG pipeline, cognitive load + per-section difficulty + client-side activity tracking all live**
+**Status: Phases 0-3 COMPLETE — schemas, prompts, RAG pipeline, cognitive load + per-section difficulty + client-side activity tracking all live. Phase 3 browser-tested 30 Mar — tracking data saves correctly. attempt_number debounce fix committed 30 Mar.**
 **Spec: `docs/specs/data-architecture-v2.md`**
 
 ---
@@ -103,10 +103,10 @@ Student profile: `accommodations` (UDL-aligned), `udl_strengths`, `udl_barriers`
 
 ### Phase 3: Client-Side Tracking (COMPLETE — 30 March 2026)
 
-**`src/hooks/useActivityTracking.ts`** — NEW (~290 lines). Dedicated hook for per-activity engagement metrics:
+**`src/hooks/useActivityTracking.ts`** — NEW (~350 lines). Dedicated hook for per-activity engagement metrics:
 - IntersectionObserver-based visibility tracking (30% threshold = "in view")
 - `time_spent_seconds`: accumulated visible time, capped at 3600s (handles tab-left-open)
-- `attempt_number`: incremented on each non-empty response change (revision detection)
+- `attempt_number`: 2-second debounce commit pattern — queues pending value, only increments when committed value differs after a typing pause. First complete response = attempt 1, revision after pause = attempt 2. (Fixed 30 Mar: was incrementing on every keystroke, recorded 121 for a single text field.)
 - `effort_signals`: word_count, editing_sessions (gaps >10s = new session), has_revisions, focus_ratio (interaction time / visible time)
 - `first_interaction_at` / `last_interaction_at` timestamps
 - Periodic flush every 15s + flush-on-save via `getTrackingPayload()`
@@ -198,7 +198,8 @@ Student profile: `accommodations` (UDL-aligned), `udl_strengths`, `udl_barriers`
 - [x] Add effort_signals computation client-side (word_count, editing_sessions, has_revisions, focus_ratio)
 - [x] Wire into student lesson page (observer refs, interaction recording, response change tracking)
 - [x] Merge tracking data into save payload via getTrackingPayload() callback
-- [ ] Verify data saves correctly to student_progress responses JSONB (needs live student test)
+- [x] Verify data saves correctly to student_progress responses JSONB — CONFIRMED 30 Mar via Supabase inspection (`_tracking_activity_L04-a4` with time_spent_seconds, effort_signals, focus_ratio)
+- [x] Fix attempt_number overcounting bug (was 121 for single field — added 2-second debounce commit pattern, committed `ff8c3ad`)
 
 ### Phase 4: Lesson Editor + Teacher UI
 - [ ] Bloom's level selector on ActivityBlock (6-level pills)

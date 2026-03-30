@@ -56,33 +56,49 @@ export default function ProgressTrackingPage({
   async function loadData() {
     const supabase = createClient();
 
-    const [classRes, studentsRes, unitRes, progressRes] = await Promise.all([
+    // Fetch class name + unit in parallel
+    const [classRes, unitRes] = await Promise.all([
       supabase.from("classes").select("name").eq("id", classId).single(),
-      supabase
-        .from("students")
-        .select("*")
-        .eq("class_id", classId)
-        .order("display_name"),
       supabase.from("units").select("*").eq("id", unitId).single(),
-      supabase
-        .from("student_progress")
-        .select("*")
-        .eq("unit_id", unitId)
-        .in(
-          "student_id",
-          // We need to get student IDs first, but let's do a sub-select approach
-          // Actually, RLS handles this — just query all progress for this unit
-          // and it will only return progress for students in teacher's classes
-          []
-        ),
     ]);
 
     setClassName(classRes.data?.name || "");
-    setStudents(studentsRes.data || []);
     setUnit(unitRes.data);
 
-    // Now load progress with the actual student IDs
-    const studentIds = (studentsRes.data || []).map((s: Student) => s.id);
+    // Junction-first + legacy-fallback student query (Lesson Learned #22)
+    let studentIds: string[] = [];
+    try {
+      const { data: junctionRows } = await supabase
+        .from("class_students")
+        .select("student_id")
+        .eq("class_id", classId);
+      if (junctionRows && junctionRows.length > 0) {
+        studentIds = junctionRows.map((r: { student_id: string }) => r.student_id);
+      }
+    } catch {
+      // Junction table may not exist yet
+    }
+
+    if (studentIds.length === 0) {
+      // Legacy fallback: direct class_id on students table
+      const { data: legacyStudents } = await supabase
+        .from("students")
+        .select("id")
+        .eq("class_id", classId);
+      studentIds = (legacyStudents || []).map((s: { id: string }) => s.id);
+    }
+
+    // Fetch full student records
+    let studentsData: Student[] = [];
+    if (studentIds.length > 0) {
+      const { data } = await supabase
+        .from("students")
+        .select("*")
+        .in("id", studentIds)
+        .order("display_name");
+      studentsData = data || [];
+    }
+    setStudents(studentsData);
     if (studentIds.length > 0) {
       const { data: progress } = await supabase
         .from("student_progress")

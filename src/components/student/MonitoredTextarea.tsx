@@ -99,6 +99,7 @@ export function MonitoredTextarea({
   const tickIntervalRef = useRef<NodeJS.Timeout | null>(null); // Single interval replaces 2 separate ones
   const lastSnapshotTextRef = useRef<string>("");
   const visibilityListenerRef = useRef<((e: Event) => void) | null>(null);
+  const keystrokeNotifyRef = useRef<NodeJS.Timeout | null>(null); // Debounced keystroke notify
 
   /** Max snapshots to keep (rolling window) — caps memory for long sessions */
   const MAX_SNAPSHOTS = 20;
@@ -147,7 +148,9 @@ export function MonitoredTextarea({
   );
 
   /**
-   * Handle keydown: track deletions and count all keystrokes
+   * Handle keydown: track deletions and count all keystrokes.
+   * Also debounce-notify the parent after 1.5s of inactivity so that
+   * integrityMetadataRef is populated before the 2s auto-save fires.
    */
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -158,8 +161,15 @@ export function MonitoredTextarea({
       if (e.key === "Backspace" || e.key === "Delete") {
         metricsRef.current.deletionCount++;
       }
+
+      // Debounced notify: fire 1.5s after last keystroke so the parent ref
+      // is populated before the 2s auto-save in usePageResponses
+      if (keystrokeNotifyRef.current) clearTimeout(keystrokeNotifyRef.current);
+      keystrokeNotifyRef.current = setTimeout(() => {
+        updateMetrics(true);
+      }, 1500);
     },
-    []
+    [updateMetrics]
   );
 
   /**
@@ -237,8 +247,12 @@ export function MonitoredTextarea({
       if (wcHistory.length > MAX_WORD_COUNT_HISTORY) {
         metricsRef.current.wordCountHistory = wcHistory.slice(-MAX_WORD_COUNT_HISTORY);
       }
+
+      // Notify parent so auto-save can pick up integrity data
+      // (without this, integrityMetadataRef stays null until blur/paste)
+      updateMetrics(true);
     }, 30000);
-  }, [countWords]);
+  }, [countWords, updateMetrics]);
 
   /**
    * Initialize monitoring on mount
@@ -261,6 +275,9 @@ export function MonitoredTextarea({
 
       // Clear single merged interval
       if (tickIntervalRef.current) clearInterval(tickIntervalRef.current);
+
+      // Clear debounced keystroke notify
+      if (keystrokeNotifyRef.current) clearTimeout(keystrokeNotifyRef.current);
 
       // Remove visibility listener
       if (visibilityListenerRef.current) {
