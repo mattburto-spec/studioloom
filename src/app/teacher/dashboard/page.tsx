@@ -752,7 +752,7 @@ function SidebarSection({
 }) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-      <div className="px-3 py-2.5 border-b border-gray-100 flex items-center gap-2.5">
+      <div className="px-3 py-2.5 border-b border-gray-100 flex items-center gap-2.5" style={{ background: "#f8f9fb" }}>
         <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: accentColor + "15", color: accentColor }}>
           {icon}
         </div>
