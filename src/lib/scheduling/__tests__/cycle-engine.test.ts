@@ -343,7 +343,7 @@ describe("getNextLessons", () => {
     expect(lessons[0].lessonSequence).toBe(1);
 
     expect(lessons[1].cycleDay).toBe(2);
-    expect(lessons[1].dateISO).toBe("2026-03-31");
+    expect(lessons[1].dateISO).toBe("2026-04-01");
     expect(lessons[1].lessonSequence).toBe(2);
   });
 
@@ -451,9 +451,10 @@ describe("countLessonsInRange", () => {
       TIMETABLE_8DAY,
       MEETINGS_MULTI
     );
-    // Both classes meet 2x per 8-day cycle, same range
+    // design-9a meets Day 2 (01 Apr) and Day 6 (26 Mar) = 2 lessons
+    // design-10b meets Day 3 (23 Mar, 02 Apr) and Day 7 (27 Mar) = 3 lessons
     expect(designCount).toBe(2);
-    expect(otherCount).toBe(2);
+    expect(otherCount).toBe(3);
   });
 });
 

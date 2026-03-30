@@ -84,6 +84,7 @@ describe('Design Assistant Toolkit Suggestions (Phase D)', () => {
       expect(prompt).toContain('Only suggest a tool when their message clearly indicates');
       expect(prompt).toContain('Maximum ONE tool suggestion per response');
       expect(prompt).toContain('Frame it as optional');
+      expect(prompt).toMatch(/Ideation phase|Analysis phase|Evaluation phase/);
     });
 
     it('should include tool link format example in prompt', () => {
@@ -107,7 +108,7 @@ describe('Design Assistant Toolkit Suggestions (Phase D)', () => {
       });
 
       // Existing features should still be present
-      expect(prompt).toContain('Socratic design mentor');
+      expect(prompt).toContain('Socratic mentor');
       expect(prompt).toContain('Richard Paul');
       expect(prompt).toContain('ONE focused question at a time');
       expect(prompt).toContain('Material properties');

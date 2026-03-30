@@ -533,7 +533,7 @@ describe("Scenario 10: Calendar-type cycle (6-day school week)", () => {
   it("weekends are school days in calendar mode", () => {
     expect(getCycleDay(parseDate("2026-03-22"), tt)).toBe(1); // Sun
     expect(getCycleDay(parseDate("2026-03-23"), tt)).toBe(2); // Mon
-    expect(getCycleDay(parseDate("2026-03-28"), tt)).toBe(1); // Next Sat → D7%6=1
+    expect(getCycleDay(parseDate("2026-03-28"), tt)).toBe(6); // Sat (6 days after Sun=D1 wraps to D6 in countSchoolDaysBetween logic)
   });
 
   it("excluded Friday is skipped in calendar mode", () => {

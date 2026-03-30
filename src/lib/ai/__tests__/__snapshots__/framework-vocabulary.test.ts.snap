@@ -1,0 +1,23 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`buildFrameworkPromptBlock > generates prompt block for GCSE_DT 1`] = `
+"
+## Curriculum Framework: AQA/OCR GCSE Design & Technology
+IMPORTANT: This teacher uses AQA/OCR GCSE Design & Technology, NOT IB MYP. Adjust all terminology:
+- Use "assessment objectives" instead of "criteria" (e.g., "AO1" not "A")
+- Call the design process the "Iterative Design Process", with phases: Investigate → Design → Make → Evaluate
+- Assessment uses: Marks/percentages (NEA 50%, Exam 50%)
+- Preferred action verbs: investigate, analyse, evaluate, design, make, test, refine, justify
+
+### Assessment objectives
+  - AO1: Identify, investigate and outline design possibilities (10%, NEA only)
+  - AO2: Design and make prototypes that are fit for purpose (30%, NEA only)
+  - AO3: Analyse and evaluate design decisions and outcomes (20%, split exam/NEA)
+  - AO4: Demonstrate and apply knowledge and understanding of technical principles (40%, exam only)
+
+### Notes
+Non-Examined Assessment (NEA) is the coursework portfolio. Core technical principles tested in written exam. Focus on new and emerging technologies, sustainability, materials properties.
+
+Do NOT use MYP-specific terms like "Statement of Inquiry", "Global Context", "ATL Skills", "criterion A-D", or "achievement levels 1-8" unless this IS an MYP unit.
+"
+`;

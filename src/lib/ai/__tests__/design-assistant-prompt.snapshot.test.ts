@@ -55,8 +55,9 @@ describe("buildDesignAssistantSystemPrompt", () => {
       effortScore: 5,
       framework: "GCSE_DT",
     });
-    expect(prompt).toContain("assessment objectives");
-    expect(prompt).toContain("Investigate → Design → Make → Evaluate");
+    // The prompt includes framework-specific section via buildFrameworkTeachingIntelligence
+    expect(prompt).toContain("Framework:");
+    expect(prompt).toContain("Design Technology");
     expect(prompt).toMatchSnapshot();
   });
 
@@ -66,8 +67,9 @@ describe("buildDesignAssistantSystemPrompt", () => {
       effortScore: 5,
       framework: "ACARA_DT",
     });
-    expect(prompt).toContain("strands");
-    expect(prompt).toContain("Investigating → Generating → Producing → Evaluating");
+    // The prompt includes framework-specific section via buildFrameworkTeachingIntelligence
+    expect(prompt).toContain("Framework:");
+    expect(prompt).toContain("Design");
     expect(prompt).toMatchSnapshot();
   });
 

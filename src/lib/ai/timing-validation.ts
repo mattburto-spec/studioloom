@@ -516,7 +516,7 @@ export const TIMING_PRESETS: TimingPreset[] = [
     description: "Maximise making time — best for prototyping & building sessions",
     getPhases: (usable, cap) => {
       const opening = 5;
-      const miniLesson = Math.min(Math.round(cap * 0.7), 10);
+      const miniLesson = Math.min(Math.floor(cap * 0.65), 9);
       const debrief = 5;
       return {
         opening: { durationMinutes: opening },
