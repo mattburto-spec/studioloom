@@ -106,12 +106,14 @@ export default function ProgressTrackingPage({
         .eq("unit_id", unitId)
         .in("student_id", studentIds);
 
-      // Build progress map: studentId -> pageNumber -> cell
+      // Build progress map: studentId -> pageId -> cell
       const map: StudentProgressMap = {};
+      console.log("[Progress] Raw progress rows:", progress?.length, "for studentIds:", studentIds);
       (progress || []).forEach((p: StudentProgress) => {
         if (!map[p.student_id]) map[p.student_id] = {};
         const raw = p as unknown as Record<string, unknown>;
         const integrityMeta = raw.integrity_metadata;
+        console.log("[Progress] Row:", { student_id: p.student_id, page_id: p.page_id, status: p.status, hasResponses: !!p.responses, hasIntegrity: !!integrityMeta });
         map[p.student_id][p.page_id] = {
           status: p.status as "not_started" | "in_progress" | "complete",
           hasResponses:
@@ -272,6 +274,14 @@ export default function ProgressTrackingPage({
   }
 
   const unitPages: UnitPage[] = unit ? getPageList(unit.content_data) : [];
+  // DEBUG: log page IDs from unit vs progress map keys
+  if (typeof window !== "undefined" && students.length > 0) {
+    const pageIds = unitPages.map(p => p.id);
+    const progressKeys = Object.keys(progressMap[students[0]?.id] || {});
+    console.log("[Progress] Unit page IDs:", pageIds);
+    console.log("[Progress] Progress map keys for first student:", progressKeys);
+    console.log("[Progress] Match?", progressKeys.filter(k => pageIds.includes(k)));
+  }
 
   return (
     <main className="max-w-7xl mx-auto px-4 py-8">
