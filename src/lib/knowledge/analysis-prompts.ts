@@ -812,3 +812,67 @@ ${contextLines.length > 0 ? contextLines.join("\n") : "No unit context available
   "alternative_if_not_working": "string — quick pivot if students aren't engaging with this"
 }`;
 }
+
+/* ================================================================
+   PASS 2b: DIMENSIONS EXTRACTION (FALLBACK)
+   Model: Claude Haiku (fast, lightweight)
+   Runs when Pass 2 omitted UDL/Bloom/Grouping due to truncation.
+   Returns ONLY the 3 Dimensions fields, non-blocking on failure.
+   ================================================================ */
+
+/**
+ * Build focused prompt for Dimensions field extraction.
+ * Short schema, zero fluff — just extract the 3 fields.
+ */
+export function buildDimensionsPrompt(
+  extractedText: string,
+  pass1: Pass1Structure
+): string {
+  return `Analyse the lesson plan and extract three specific dimensions.
+
+## Lesson Summary (from Pass 1)
+- Title: ${pass1.title}
+- Grade level: ${pass1.grade_level}
+- Subject: ${pass1.subject_area}
+- Duration: ${pass1.estimated_duration_minutes} minutes
+- Lesson type: ${pass1.lesson_type}
+- Sections: ${pass1.sections.map((s) => s.title).join(", ")}
+
+## Full Lesson Plan
+${extractedText}
+
+## Required Output (JSON ONLY)
+{
+  "udl_coverage": {
+    "engagement": ["checkpoint IDs showing how students are motivated/engaged — use CAST UDL framework 1.1-3.3"],
+    "representation": ["checkpoint IDs showing how information is presented — CAST 4.1-6.3"],
+    "action_expression": ["checkpoint IDs showing how students can demonstrate learning — CAST 7.1-9.3"],
+    "principle_gaps": "Which UDL principle is LEAST addressed in this lesson?"
+  },
+  "bloom_distribution": {
+    "remember": "number 0-100 — % of activities at Remember level",
+    "understand": "number",
+    "apply": "number",
+    "analyze": "number",
+    "evaluate": "number",
+    "create": "number",
+    "dominant_level": "Which Bloom level dominates this lesson?"
+  },
+  "grouping_analysis": {
+    "progression": "How does grouping evolve? e.g., 'whole-class → pairs → individual → critique'",
+    "time_distribution": {
+      "individual_pct": "% time spent on individual work",
+      "pair_pct": "% time on pair/partner work",
+      "small_group_pct": "% time on small groups (3-5)",
+      "whole_class_pct": "% time on whole-class activities"
+    }
+  }
+}
+
+## Scoring Rules
+- **UDL checkpoints:** Only include checkpoints you can actually EVIDENCE from the lesson text. If a principle is not addressed, use empty array.
+- **Bloom distribution:** Estimate percentages from activity types. Sum must equal 100 or close to it.
+- **Grouping:** Be specific — "whole-class introduction, then pairs for problem-solving" not vague generalizations.
+
+CRITICAL: If you cannot confidently extract a field, return empty object {} for that field. Do NOT fabricate checkpoints or make up Bloom levels. It is better to have incomplete data than incorrect data.`;
+}

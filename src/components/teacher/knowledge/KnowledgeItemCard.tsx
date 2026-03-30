@@ -1,20 +1,119 @@
 "use client";
 
 import { KNOWLEDGE_ITEM_TYPES, type KnowledgeItemTypeKey } from "@/lib/constants";
-import type { KnowledgeItem } from "@/types/knowledge-library";
+import type { KnowledgeItem, KnowledgeItemCurriculum } from "@/types/knowledge-library";
+import type { ComplexityLevel } from "@/types/lesson-intelligence";
+
+interface BloomDistribution {
+  remember?: number;
+  understand?: number;
+  apply?: number;
+  analyse?: number;
+  evaluate?: number;
+  create?: number;
+}
 
 interface KnowledgeItemCardProps {
   item: KnowledgeItem;
   onEdit: (item: KnowledgeItem) => void;
   onArchive: (item: KnowledgeItem) => void;
+  /** Optional curriculum data (criteria coverage) */
+  curricula?: KnowledgeItemCurriculum[];
+  /** Optional complexity level */
+  complexityLevel?: ComplexityLevel;
+  /** Optional Bloom's level distribution (sum should be 1.0 or 100) */
+  bloomDistribution?: BloomDistribution;
+  /** Optional pedagogical approach (e.g., "inquiry-based", "project-based") */
+  pedagogicalApproach?: string;
+  /** Optional analysis date (ISO string) */
+  analysisDate?: string;
+  /** Optional lesson duration in minutes */
+  lessonDurationMinutes?: number;
 }
 
 export default function KnowledgeItemCard({
   item,
   onEdit,
   onArchive,
+  curricula,
+  complexityLevel,
+  bloomDistribution,
+  pedagogicalApproach,
+  analysisDate,
+  lessonDurationMinutes,
 }: KnowledgeItemCardProps) {
   const typeMeta = KNOWLEDGE_ITEM_TYPES[item.item_type as KnowledgeItemTypeKey] || KNOWLEDGE_ITEM_TYPES.other;
+
+  // Extract unique criteria from curricula
+  const criteriaFromCurricula = new Set<string>();
+  if (curricula && curricula.length > 0) {
+    curricula.forEach((curr) => {
+      if (curr.criteria && Array.isArray(curr.criteria)) {
+        curr.criteria.forEach((c) => criteriaFromCurricula.add(c));
+      }
+    });
+  }
+
+  // Normalize Bloom's distribution (may be 0-100 or 0-1)
+  const normalizedBloom = bloomDistribution ? normalizeBloom(bloomDistribution) : null;
+
+  // Get complexity badge color
+  const complexityColors: Record<ComplexityLevel, string> = {
+    introductory: "bg-green-50 text-green-700",
+    developing: "bg-blue-50 text-blue-700",
+    proficient: "bg-purple-50 text-purple-700",
+    advanced: "bg-red-50 text-red-700",
+  };
+
+  // Get complexity label
+  const complexityLabels: Record<ComplexityLevel, string> = {
+    introductory: "Intro",
+    developing: "Dev",
+    proficient: "Prof",
+    advanced: "Adv",
+  };
+
+  // Bloom's distribution colors (Remember→Create)
+  const bloomColors = [
+    "bg-gray-400",      // Remember
+    "bg-blue-500",      // Understand
+    "bg-green-500",     // Apply
+    "bg-yellow-500",    // Analyse
+    "bg-orange-500",    // Evaluate
+    "bg-red-500",       // Create
+  ];
+
+  const bloomLabels = ["Remember", "Understand", "Apply", "Analyse", "Evaluate", "Create"];
+
+  // Criterion colors (A=indigo, B=emerald, C=amber, D=violet)
+  const criterionColors: Record<string, string> = {
+    A: "bg-indigo-500",
+    B: "bg-emerald-500",
+    C: "bg-amber-500",
+    D: "bg-violet-500",
+  };
+
+  // Extract criterion letter (A, B, C, or D) from full criterion code
+  function getCriterionLetter(criterion: string): string {
+    const match = criterion.match(/^([A-D])/);
+    return match ? match[1] : "";
+  }
+
+  // Format date helper
+  function formatAnalysisDate(iso: string): string {
+    const d = new Date(iso);
+    const now = new Date();
+    const diffMs = now.getTime() - d.getTime();
+    const diffDays = Math.floor(diffMs / 86400000);
+    if (diffDays === 0) return "Today";
+    if (diffDays === 1) return "Yesterday";
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return d.toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "short",
+      year: d.getFullYear() !== now.getFullYear() ? "numeric" : undefined
+    });
+  }
 
   return (
     <div
@@ -40,17 +139,30 @@ export default function KnowledgeItemCard({
 
       {/* Content */}
       <div className="p-4">
-        {/* Type badge */}
-        <div className="flex items-center gap-2 mb-2">
+        {/* Type badge + Complexity + Public */}
+        <div className="flex items-center gap-2 mb-2 flex-wrap">
           <span
             className="text-[10px] font-medium px-2 py-0.5 rounded-full"
             style={{ backgroundColor: `${typeMeta.color}15`, color: typeMeta.color }}
           >
             {typeMeta.label}
           </span>
+
+          {complexityLevel && (
+            <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${complexityColors[complexityLevel]}`}>
+              {complexityLabels[complexityLevel]}
+            </span>
+          )}
+
           {item.is_public && (
             <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-green-50 text-green-600">
               Public
+            </span>
+          )}
+
+          {analysisDate && (
+            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-purple-50 text-purple-600 ml-auto">
+              ✓ Analysed
             </span>
           )}
         </div>
@@ -61,14 +173,58 @@ export default function KnowledgeItemCard({
         </h3>
 
         {/* Description */}
-        <p className="text-xs text-text-secondary line-clamp-2 mb-3">
+        <p className="text-xs text-text-secondary line-clamp-2 mb-2">
           {item.description || "No description"}
         </p>
 
+        {/* Bloom's distribution mini-bar */}
+        {normalizedBloom && (
+          <div className="mb-2">
+            <div className="flex gap-0.5 h-1 rounded-full overflow-hidden bg-gray-100">
+              {Object.entries(normalizedBloom).map(([level, percent], idx) => {
+                if (!percent || percent === 0) return null;
+                return (
+                  <div
+                    key={level}
+                    className={bloomColors[idx]}
+                    style={{ flex: percent }}
+                    title={`${bloomLabels[idx]}: ${Math.round(percent * 100)}%`}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Pedagogical approach pill */}
+        {pedagogicalApproach && (
+          <div className="mb-2">
+            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700">
+              {pedagogicalApproach}
+            </span>
+          </div>
+        )}
+
+        {/* Criteria coverage dots */}
+        {criteriaFromCurricula.size > 0 && (
+          <div className="mb-2 flex gap-1">
+            {Array.from(criteriaFromCurricula).sort().map((criterion) => {
+              const letter = getCriterionLetter(criterion);
+              return (
+                <div
+                  key={criterion}
+                  className={`w-3 h-3 rounded-full ${criterionColors[letter] || "bg-gray-400"}`}
+                  title={criterion}
+                />
+              );
+            })}
+          </div>
+        )}
+
         {/* Tags */}
         {item.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1 mb-3">
-            {item.tags.slice(0, 4).map((tag) => (
+          <div className="flex flex-wrap gap-1 mb-2">
+            {item.tags.slice(0, 3).map((tag) => (
               <span
                 key={tag}
                 className="text-[10px] px-1.5 py-0.5 bg-gray-100 rounded text-text-secondary"
@@ -76,38 +232,48 @@ export default function KnowledgeItemCard({
                 {tag}
               </span>
             ))}
-            {item.tags.length > 4 && (
+            {item.tags.length > 3 && (
               <span className="text-[10px] text-text-secondary/50">
-                +{item.tags.length - 4}
+                +{item.tags.length - 3}
               </span>
             )}
           </div>
         )}
 
-        {/* Date + Counters + actions */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3 text-[10px] text-text-secondary/60">
-            <span>{formatDate(item.created_at)}</span>
+        {/* Metrics row: analysis date + duration + counters + actions */}
+        <div className="flex items-center justify-between text-[10px]">
+          <div className="flex items-center gap-2 text-text-secondary/60">
+            {analysisDate ? (
+              <span>{formatAnalysisDate(analysisDate)}</span>
+            ) : (
+              <span>{formatDate(item.created_at)}</span>
+            )}
+            {lessonDurationMinutes && <span>•</span>}
+            {lessonDurationMinutes && (
+              <span>{lessonDurationMinutes}min</span>
+            )}
+            {item.counters.times_linked > 0 && <span>•</span>}
             {item.counters.times_linked > 0 && <span>{item.counters.times_linked} linked</span>}
+            {item.counters.times_viewed > 0 && <span>•</span>}
             {item.counters.times_viewed > 0 && <span>{item.counters.times_viewed} views</span>}
           </div>
           <div className="flex items-center gap-1 opacity-40 group-hover:opacity-100 transition">
             <button
               onClick={(e) => { e.stopPropagation(); onEdit(item); }}
-              className="w-7 h-7 rounded-full hover:bg-blue-50 flex items-center justify-center text-text-secondary/40 hover:text-accent-blue transition"
+              className="w-6 h-6 rounded-full hover:bg-blue-50 flex items-center justify-center text-text-secondary/40 hover:text-accent-blue transition"
               title="Edit"
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
                 <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
               </svg>
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); onArchive(item); }}
-              className="w-7 h-7 rounded-full hover:bg-yellow-50 flex items-center justify-center text-text-secondary/40 hover:text-yellow-600 transition"
+              className="w-6 h-6 rounded-full hover:bg-yellow-50 flex items-center justify-center text-text-secondary/40 hover:text-yellow-600 transition"
               title={item.is_archived ? "Unarchive" : "Archive"}
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="21 8 21 21 3 21 3 8" />
                 <rect x="1" y="3" width="22" height="5" />
                 <line x1="10" y1="12" x2="14" y2="12" />
@@ -118,6 +284,24 @@ export default function KnowledgeItemCard({
       </div>
     </div>
   );
+}
+
+function normalizeBloom(distribution: BloomDistribution): Record<string, number> {
+  const entries = Object.entries(distribution).filter(([, v]) => v !== undefined && v > 0);
+  if (entries.length === 0) return {};
+
+  // Check if values are already normalized (0-1) or need normalization (0-100)
+  const total = entries.reduce((sum, [, v]) => sum + (v || 0), 0);
+  const isNormalized = total <= 1.5; // Small buffer for floating point
+
+  const normalized: Record<string, number> = {};
+  entries.forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalized[key] = isNormalized ? value : value / 100;
+    }
+  });
+
+  return normalized;
 }
 
 function formatDate(iso: string): string {

@@ -45,6 +45,7 @@ import {
   buildPass2EPrompt,
   buildPass2TPrompt,
   buildPass3Prompt,
+  buildDimensionsPrompt,
   buildTeachingContextBlock,
 } from "./analysis-prompts";
 
@@ -196,6 +197,35 @@ export async function analysePass3(
     model: "sonnet",
     maxTokens: 5000,
   });
+}
+
+/**
+ * Pass 2b: Dimensions fields extraction (fallback).
+ * Lightweight Haiku call to extract ONLY udl_coverage, bloom_distribution, grouping_analysis
+ * when Pass 2 omitted them due to token limits or truncation.
+ * Non-blocking: if it fails, returns empty object.
+ */
+async function extractDimensionsFields(
+  extractedText: string,
+  pass1: Pass1Structure,
+  pass2: Pass2Pedagogy
+): Promise<Partial<Pick<Pass2Pedagogy, 'udl_coverage' | 'bloom_distribution' | 'grouping_analysis'>>> {
+  try {
+    const result = await callAI<
+      Pick<Pass2Pedagogy, 'udl_coverage' | 'bloom_distribution' | 'grouping_analysis'>
+    >({
+      system: `You are a curriculum analyst specialising in UDL (Universal Design for Learning), Bloom's taxonomy, and student grouping patterns. Analyse the lesson plan and extract three specific dimensions: (1) UDL coverage by principle, (2) Bloom's taxonomy level distribution, and (3) grouping patterns throughout the lesson. Be precise and evidence-based.`,
+      prompt: buildDimensionsPrompt(extractedText, pass1),
+      model: "haiku",
+      maxTokens: 2048,
+    });
+
+    return result;
+  } catch (error) {
+    // Non-critical — if extraction fails, return empty
+    console.log("[analyse] Pass 2b Dimensions extraction failed (non-critical):", error instanceof Error ? error.message : String(error));
+    return {};
+  }
 }
 
 /**
@@ -600,6 +630,29 @@ export async function analyseDocument(
       "Analysing pedagogical approach..."
     );
     pass2 = await analysePass2(text, pass1, teachingContext);
+
+    // Pass 2b: Check if Dimensions fields are missing and extract if needed
+    const hasMissingDimensions =
+      !pass2.udl_coverage ||
+      !pass2.bloom_distribution ||
+      !pass2.grouping_analysis;
+
+    if (hasMissingDimensions) {
+      onProgress?.("pass2_pedagogy", "Extracting UDL & Bloom data...");
+      const dimensionsResult = await extractDimensionsFields(
+        text,
+        pass1,
+        pass2
+      );
+      // Merge Pass 2b results back into pass2
+      Object.assign(pass2, dimensionsResult);
+      console.log("[analyse] Pass 2b Dimensions filled:", {
+        had_missing: hasMissingDimensions,
+        now_has_udl: !!pass2.udl_coverage,
+        now_has_bloom: !!pass2.bloom_distribution,
+        now_has_grouping: !!pass2.grouping_analysis,
+      });
+    }
 
     onProgress?.(
       "pass3_design_teaching",

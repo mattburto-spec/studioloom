@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireTeacherAuth } from "@/lib/auth/verify-teacher-unit";
+import { createAdminClient } from "@/lib/supabase/admin";
 import {
   getKnowledgeItems,
   searchKnowledgeItems,
@@ -10,6 +11,19 @@ import type {
   CreateKnowledgeItemRequest,
   KnowledgeItemType,
 } from "@/types/knowledge-library";
+
+/**
+ * Lightweight profile summary for knowledge item cards.
+ * Extracted from lesson_profiles.profile_data JSONB.
+ */
+interface ProfileSummary {
+  pedagogicalApproach?: string;
+  complexityLevel?: string;
+  criteriaCovered?: string[];
+  lessonDurationMinutes?: number;
+  analysisDate?: string;
+  bloomDistribution?: Record<string, number>;
+}
 
 /**
  * GET /api/teacher/knowledge/items
@@ -41,7 +55,44 @@ export async function GET(request: NextRequest) {
     ? await searchKnowledgeItems(search, teacherId, filters)
     : await getKnowledgeItems(teacherId, filters);
 
-  return NextResponse.json({ items });
+  // Fetch lightweight profile summaries for items that came from uploads
+  // (Lesson Learned #19: separate try/catch query, never nested PostgREST)
+  let profileMap: Record<string, ProfileSummary> = {};
+  try {
+    const uploadIds = items
+      .map((item) => item.source_upload_id)
+      .filter((id): id is string => !!id);
+
+    if (uploadIds.length > 0) {
+      const supabase = createAdminClient();
+      const { data: profiles } = await supabase
+        .from("lesson_profiles")
+        .select("upload_id, pedagogical_approach, complexity_level, criteria_covered, estimated_duration_minutes, created_at, profile_data")
+        .in("upload_id", uploadIds);
+
+      if (profiles) {
+        for (const p of profiles) {
+          // Extract bloom_distribution from profile_data JSONB if available
+          const pd = p.profile_data as Record<string, unknown> | null;
+          const bloom = pd?.bloom_distribution as Record<string, number> | undefined;
+
+          profileMap[p.upload_id] = {
+            pedagogicalApproach: p.pedagogical_approach || undefined,
+            complexityLevel: p.complexity_level || undefined,
+            criteriaCovered: p.criteria_covered || undefined,
+            lessonDurationMinutes: p.estimated_duration_minutes || undefined,
+            analysisDate: p.created_at || undefined,
+            bloomDistribution: bloom || undefined,
+          };
+        }
+      }
+    }
+  } catch (err) {
+    // Non-critical — cards still render without profile data
+    console.log("[knowledge-items] Profile summary fetch failed (non-critical):", err);
+  }
+
+  return NextResponse.json({ items, profileMap });
 }
 
 /**

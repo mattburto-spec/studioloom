@@ -90,6 +90,7 @@ const TABS: { key: TabKey; label: string }[] = [
 export default function KnowledgeLibraryPage() {
   // Library state
   const [items, setItems] = useState<KnowledgeItem[]>([]);
+  const [profileMap, setProfileMap] = useState<Record<string, { pedagogicalApproach?: string; complexityLevel?: string; criteriaCovered?: string[]; lessonDurationMinutes?: number; analysisDate?: string; bloomDistribution?: Record<string, number> }>>({});
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabKey>("all");
   const [search, setSearch] = useState("");
@@ -131,6 +132,7 @@ export default function KnowledgeLibraryPage() {
       if (res.ok) {
         const data = await res.json();
         setItems(data.items || []);
+        setProfileMap(data.profileMap || {});
       }
     } finally {
       setLoading(false);
@@ -771,14 +773,22 @@ export default function KnowledgeLibraryPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {items.map((item) => (
-            <KnowledgeItemCard
-              key={item.id}
-              item={item}
-              onEdit={handleEdit}
-              onArchive={handleArchive}
-            />
-          ))}
+          {items.map((item) => {
+            const profile = item.source_upload_id ? profileMap[item.source_upload_id] : undefined;
+            return (
+              <KnowledgeItemCard
+                key={item.id}
+                item={item}
+                onEdit={handleEdit}
+                onArchive={handleArchive}
+                complexityLevel={profile?.complexityLevel as "introductory" | "developing" | "proficient" | "advanced" | undefined}
+                pedagogicalApproach={profile?.pedagogicalApproach}
+                bloomDistribution={profile?.bloomDistribution}
+                analysisDate={profile?.analysisDate}
+                lessonDurationMinutes={profile?.lessonDurationMinutes}
+              />
+            );
+          })}
         </div>
       )}
       {/* Quick Modify Modal */}
