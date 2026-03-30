@@ -5,14 +5,11 @@ import Link from "next/link";
 import { useStudent } from "../student-context";
 import { CRITERIA, type CriterionKey } from "@/lib/constants";
 import { getPageList } from "@/lib/unit-adapter";
-// timeAgo and getDomain moved to ComingUpCard
-// QuickCaptureFAB removed from dashboard (27 Mar 2026) — still available inside unit pages
+import { getThemeStyles, type ThemeId } from "@/lib/student/themes";
 import { ToolModal } from "@/components/toolkit/ToolModal";
 import { UnitThumbnail } from "@/components/shared/UnitThumbnail";
-import { JourneyMap } from "@/components/student/JourneyMap";
 import { BadgeIcon } from "@/components/safety/BadgeIcon";
-import { ComingUpCard } from "@/components/student/ComingUpCard";
-import type { Unit, StudentProgress, PortfolioEntry, UnitPage } from "@/types";
+import type { Unit, StudentProgress, UnitPage } from "@/types";
 
 interface ToolSession {
   id: string;
@@ -24,6 +21,15 @@ interface ToolSession {
   version: number;
 }
 
+interface Insight {
+  type: "safety_test" | "overdue_work" | "gallery_review" | "gallery_submit" | "gallery_feedback" | "nm_checkpoint" | "continue_work" | "due_soon" | "unit_complete";
+  title: string;
+  subtitle?: string;
+  time?: string;
+  actionUrl?: string;
+  priority: number;
+}
+
 interface UnitWithProgress extends Unit {
   progress: StudentProgress[];
   page_due_dates?: Record<string, string>;
@@ -31,59 +37,29 @@ interface UnitWithProgress extends Unit {
   class_name?: string | null;
   class_subject?: string | null;
   class_grade_level?: string | null;
+  thumbnail_url?: string | null;
 }
 
 export default function StudentDashboard() {
-  const { student, classInfo } = useStudent();
+  const { student } = useStudent();
   const [units, setUnits] = useState<UnitWithProgress[]>([]);
   const [loading, setLoading] = useState(true);
-  const [recentEntries, setRecentEntries] = useState<PortfolioEntry[]>([]);
   const [recentToolSessions, setRecentToolSessions] = useState<ToolSession[]>([]);
   const [selectedToolId, setSelectedToolId] = useState<string | null>(null);
   const [openStudioUnits, setOpenStudioUnits] = useState<Set<string>>(new Set());
-  const [pendingBadges, setPendingBadges] = useState<Array<{
-    badge_id: string;
-    badge_name: string;
-    badge_slug: string;
-    badge_description: string;
-    badge_icon: string;
-    badge_color: string;
-    pass_threshold: number;
-    question_count: number;
-    unit_title: string;
-    student_status: "not_started" | "cooldown" | "expired";
-    cooldown_until?: string;
-  }>>([]);
   const [earnedBadges, setEarnedBadges] = useState<Array<{
     badge_id: string;
     badge_name: string;
-    badge_slug: string;
     badge_icon: string;
     badge_color: string;
-    earned_at: string;
-    expires_at: string | null;
   }>>([]);
-  const [nextClass, setNextClass] = useState<{
-    dateISO: string;
-    dayOfWeek: string;
-    cycleDay: number;
-    periodNumber?: number;
-    room?: string;
-    formatted: string;
-    short: string;
-  } | null>(null);
-  // Note: showIntakeSurvey removed — onboarding now handled in layout.tsx via StudioSetup
-  const [galleryRounds, setGalleryRounds] = useState<any[]>([]);
+  const [nextClass, setNextClass] = useState<{ short: string; room?: string } | null>(null);
+  const [insights, setInsights] = useState<Insight[]>([]);
 
-  const loadPortfolio = useCallback(async () => {
-    try {
-      const res = await fetch("/api/student/portfolio?limit=10");
-      if (res.ok) {
-        const data = await res.json();
-        setRecentEntries(data.entries || []);
-      }
-    } catch { /* silent */ }
-  }, []);
+  const themeStyles = useMemo(() => {
+    const themeId = (student as any)?.theme_id as ThemeId | null;
+    return getThemeStyles(themeId);
+  }, [student]);
 
   const loadToolSessions = useCallback(async () => {
     try {
@@ -116,18 +92,24 @@ export default function StudentDashboard() {
       const res = await fetch("/api/student/safety/pending");
       if (res.ok) {
         const data = await res.json();
-        setPendingBadges(data.pending || []);
         setEarnedBadges(data.earned || []);
       }
     } catch { /* silent */ }
   }, []);
 
-  const loadGalleryRounds = useCallback(async () => {
+  const loadInsights = useCallback(async () => {
     try {
-      const res = await fetch("/api/student/gallery/rounds");
+      const res = await fetch("/api/student/insights");
       if (res.ok) {
         const data = await res.json();
-        setGalleryRounds(Array.isArray(data) ? data : data.rounds || []);
+        setInsights((data.insights || []).map((i: any) => ({
+          type: i.type,
+          title: i.title,
+          subtitle: i.subtitle,
+          actionUrl: i.href,
+          priority: i.priority,
+          time: i.timestamp ? new Date(i.timestamp).toLocaleDateString() : undefined,
+        })));
       }
     } catch { /* silent */ }
   }, []);
@@ -137,7 +119,7 @@ export default function StudentDashboard() {
       const res = await fetch(`/api/student/next-class?unitId=${unitId}`);
       if (res.ok) {
         const data = await res.json();
-        if (data.nextClass) setNextClass(data.nextClass);
+        if (data.nextClass) setNextClass({ short: data.nextClass.short, room: data.nextClass.room });
       }
     } catch { /* silent */ }
   }, []);
@@ -152,7 +134,6 @@ export default function StudentDashboard() {
           const unitList = data.units || [];
           setUnits(unitList);
           loadOpenStudioStatus(unitList);
-          // Load next class for the first in-progress unit
           const inProg = unitList.find((u: UnitWithProgress) => {
             const pages = getPageList(u.content_data);
             if (pages.length === 0) return false;
@@ -168,16 +149,26 @@ export default function StudentDashboard() {
       }
     }
     loadAll();
-    loadPortfolio();
     loadToolSessions();
     loadPendingBadges();
-    // Intake survey is triggered by the glowing banner on the dashboard — no auto-pop
-    loadGalleryRounds();
-  }, [student, loadPortfolio, loadToolSessions, loadOpenStudioStatus, loadPendingBadges, loadGalleryRounds, loadNextClass]);
+    loadInsights();
+  }, [student, loadOpenStudioStatus, loadToolSessions, loadPendingBadges, loadInsights, loadNextClass]);
 
-  // Gallery scroll removed — gallery items now in unified ComingUpCard
-
-  // === Helpers ===
+  const insightIcon = (type: Insight["type"]) => {
+    const iconProps = { width: 16, height: 16, viewBox: "0 0 24 24", fill: "currentColor", strokeWidth: 0 };
+    const svgs: Record<string, JSX.Element> = {
+      safety_test: <svg {...iconProps} stroke="#D97706" fill="none" strokeWidth="2"><path d="M12 2L2 7v7c0 5 10 8 10 8s10-3 10-8V7l-10-5z" /></svg>,
+      overdue_work: <svg {...iconProps} stroke="#EF4444" fill="none" strokeWidth="2"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>,
+      gallery_review: <svg {...iconProps} stroke="#EC4899" fill="none" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>,
+      gallery_submit: <svg {...iconProps} stroke="#EC4899" fill="none" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>,
+      gallery_feedback: <svg {...iconProps} stroke="#10B981" fill="none" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>,
+      nm_checkpoint: <svg {...iconProps} stroke="#FF2D78" fill="none" strokeWidth="2"><polygon points="12 2 15.09 10.26 24 10.35 17.18 16.54 19.34 24.04 12 18.77 4.66 24.04 6.82 16.54 0 10.35 8.91 10.26 12 2" /></svg>,
+      due_soon: <svg {...iconProps} stroke="#D97706" fill="none" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>,
+      unit_complete: <svg {...iconProps} stroke="#10B981" fill="none" strokeWidth="2"><polyline points="20 6 9 17 4 12" /></svg>,
+      continue_work: <svg {...iconProps} stroke="#8B5CF6" fill="none" strokeWidth="2"><polygon points="5 3 19 12 5 21 5 3" /></svg>,
+    };
+    return svgs[type] || svgs.continue_work;
+  };
 
   function getCompletionPercent(unit: Unit, progress: StudentProgress[]): number {
     const unitPages = getPageList(unit.content_data);
@@ -186,110 +177,13 @@ export default function StudentDashboard() {
     return Math.round((complete / unitPages.length) * 100);
   }
 
-  function getCriterionProgress(unitPages: UnitPage[], progress: StudentProgress[], criterion: string) {
-    const criterionPages = unitPages.filter((p) => p.type === "strand" && p.criterion === criterion);
-    if (criterionPages.length === 0) return null;
-    const completed = criterionPages.filter((p) =>
-      progress.some((pr) => pr.page_id === p.id && pr.status === "complete")
-    ).length;
-    return { completed, total: criterionPages.length };
-  }
-
-  function getUnitTitle(unitId: string): string {
-    return units.find((u) => u.id === unitId)?.title || "Unknown Unit";
-  }
-
-  // === Due dates computation ===
-
-  const dueItems = useMemo(() => {
-    const now = new Date();
-    const items: Array<{
-      unitId: string;
-      unitTitle: string;
-      pageId: string;
-      pageTitle: string;
-      dueDate: string;
-      isOverdue: boolean;
-      isComplete: boolean;
-    }> = [];
-
-    for (const unit of units) {
-      const dueDates = unit.page_due_dates || {};
-      if (Object.keys(dueDates).length === 0) continue;
-      const unitPages = getPageList(unit.content_data);
-      for (const [pageId, dateStr] of Object.entries(dueDates)) {
-        if (!dateStr) continue;
-        const dueDate = new Date(dateStr);
-        const diffDays = Math.ceil((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-        if (diffDays <= 14) {
-          const page = unitPages.find((p) => p.id === pageId);
-          const isComplete = unit.progress.some(
-            (p) => p.page_id === pageId && p.status === "complete"
-          );
-          items.push({
-            unitId: unit.id,
-            unitTitle: unit.title,
-            pageId,
-            pageTitle: page?.title || `Page ${pageId}`,
-            dueDate: dateStr,
-            isOverdue: diffDays < 0 && !isComplete,
-            isComplete,
-          });
-        }
-      }
-    }
-    return items;
-  }, [units]);
-
-  // Find the most recent in-progress unit
-  const inProgressUnit = units.find((u) => {
-    const percent = getCompletionPercent(u, u.progress);
-    return percent > 0 && percent < 100;
-  });
-
-  // === Journey Map zones for the in-progress (or first) unit ===
-  const journeyUnit = inProgressUnit || units[0];
-  const journeyZones = useMemo(() => {
-    if (!journeyUnit) return [];
-    const unitPages = getPageList(journeyUnit.content_data);
-    const criterionKeys: CriterionKey[] = ["A", "B", "C", "D"];
-    let currentCriterion: CriterionKey | null = null;
-    for (const key of criterionKeys) {
-      const cp = getCriterionProgress(unitPages, journeyUnit.progress, key);
-      if (cp && cp.completed < cp.total) {
-        currentCriterion = key;
-        break;
-      }
-    }
-    return criterionKeys.map((key) => {
-      const cp = getCriterionProgress(unitPages, journeyUnit.progress, key);
-      return {
-        criterion: key,
-        name: CRITERIA[key].name,
-        color: CRITERIA[key].color,
-        pagesComplete: cp?.completed || 0,
-        pagesTotal: cp?.total || 0,
-        isCurrent: key === currentCriterion,
-      };
-    });
-  }, [journeyUnit]);
-
-  // Badge icon helper — uses shared BadgeIcon component
-  function badgeIconEl(icon: string, color: string) {
-    return <BadgeIcon iconName={icon} size={20} color={color} />;
-  }
-
-  // Subject/class → gradient + label mapping
-  // Each entry: [keywords to match, gradient classes, display label]
   const SUBJECT_MAP: [string[], string, string][] = [
-    // MYP subject groups
     [["product design", "design tech", "design & tech"], "from-teal-500 to-emerald-400", "DESIGN"],
     [["digital design", "digital"], "from-cyan-500 to-blue-400", "DIGITAL DESIGN"],
     [["service as action", "service", "community"], "from-pink-400 to-rose-300", "SERVICE"],
     [["personal project", " pp ", "pp"], "from-violet-500 to-purple-400", "PP"],
     [["pypx", "exhibition"], "from-amber-400 to-yellow-300", "PYPX"],
     [["design"], "from-teal-500 to-emerald-400", "DESIGN"],
-    // General subjects
     [["technology", "tech"], "from-sky-500 to-blue-400", "TECHNOLOGY"],
     [["art", "visual"], "from-fuchsia-500 to-pink-400", "ART"],
     [["science", "biology", "chemistry", "physics"], "from-green-500 to-emerald-400", "SCIENCE"],
@@ -298,12 +192,9 @@ export default function StudentDashboard() {
   ];
 
   function detectSubject(unit: UnitWithProgress): { gradient: string; label: string } {
-    // Check class_subject, class_name, then unit title — first match wins
-    const candidates = [
-      unit.class_subject,
-      unit.class_name,
-      unit.title,
-    ].filter(Boolean).map(s => ` ${s!.toLowerCase()} `); // pad with spaces for word boundary matching
+    const candidates = [unit.class_subject, unit.class_name, unit.title]
+      .filter(Boolean)
+      .map(s => ` ${s!.toLowerCase()} `);
 
     for (const candidate of candidates) {
       for (const [keywords, gradient, label] of SUBJECT_MAP) {
@@ -313,7 +204,6 @@ export default function StudentDashboard() {
       }
     }
 
-    // Deterministic fallback — varied labels so nothing says "UNIT"
     const fallbacks: [string, string][] = [
       ["from-teal-500 to-emerald-400", "DESIGN"],
       ["from-violet-500 to-purple-400", "PROJECT"],
@@ -328,118 +218,69 @@ export default function StudentDashboard() {
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50">
-      {/* Tool Modal */}
-      {selectedToolId && (
-        <ToolModal
-          toolId={selectedToolId}
-          onClose={() => setSelectedToolId(null)}
-        />
-      )}
+    <main style={{ background: themeStyles["--st-bg"], minHeight: "100vh" }}>
+      {selectedToolId && <ToolModal toolId={selectedToolId} onClose={() => setSelectedToolId(null)} />}
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-
-        {/* Note: Learning Profile intake is now handled by StudioSetup onboarding in layout.tsx.
-            The old glowing banner + StudentIntakeSurvey modal have been removed.
-            Students who completed onboarding already have their learning_profile saved. */}
-
-        {/* ============ Compact Header ============ */}
-        <div className="flex items-center justify-between mb-5">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">
-              {student?.display_name || student?.username}
-            </h1>
-            {nextClass && (
-              <p className="text-sm text-gray-500">
-                <span className="inline-flex items-center gap-1 text-blue-600 font-medium">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                    <line x1="16" y1="2" x2="16" y2="6" />
-                    <line x1="8" y1="2" x2="8" y2="6" />
-                    <line x1="3" y1="10" x2="21" y2="10" />
-                  </svg>
-                  Next: {nextClass.short}
-                  {nextClass.room && <span className="text-gray-400 font-normal"> &middot; {nextClass.room}</span>}
-                </span>
-              </p>
-            )}
-          </div>
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+        {/* Header */}
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold mb-1" style={{ color: themeStyles["--st-text"] }}>
+            {student?.display_name || student?.username}
+          </h1>
+          {nextClass && (
+            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg" style={{ background: `var(--st-accent)20`, color: "var(--st-accent)" }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
+              </svg>
+              <span className="text-sm font-medium">Next: {nextClass.short}</span>
+              {nextClass.room && <span style={{ color: themeStyles["--st-text-secondary"], fontSize: "12px" }}>{nextClass.room}</span>}
+            </div>
+          )}
         </div>
 
         {loading ? (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            <div className="bg-white rounded-2xl animate-pulse h-64 shadow-sm border border-gray-200/60" />
-            <div className="bg-white rounded-2xl animate-pulse h-48 shadow-sm border border-gray-200/60" />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            <div className="lg:col-span-2 rounded-2xl animate-pulse h-80" style={{ background: themeStyles["--st-surface"] }} />
+            <div className="rounded-2xl animate-pulse h-80" style={{ background: themeStyles["--st-surface"] }} />
           </div>
         ) : (
-          <>
-            {/* ============ Two-Column Layout ============ */}
-            <div className="space-y-5">
-              {/* ── Unit Cards ── */}
-              <div>
-                {units.length === 0 ? (
-                  <div className="bg-white rounded-2xl p-16 text-center border border-gray-200/60 shadow-sm">
-                    <div className="w-14 h-14 rounded-2xl bg-purple-100 flex items-center justify-center mx-auto mb-4">
-                      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#7B2FF2" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />
-                      </svg>
-                    </div>
-                    {classInfo ? (
-                      <>
-                        <p className="text-gray-900 text-lg font-semibold mb-1">No units assigned yet</p>
-                        <p className="text-gray-500 text-sm">Your teacher will assign units for you to work on.</p>
-                      </>
-                    ) : (
-                      <>
-                        <p className="text-gray-900 text-lg font-semibold mb-1">You&apos;re not enrolled in any classes</p>
-                        <p className="text-gray-500 text-sm mb-4">Ask your teacher for a class code to get started.</p>
-                        <button
-                          onClick={async () => {
-                            await fetch("/api/auth/student-session", { method: "DELETE" });
-                            window.location.href = "/login";
-                          }}
-                          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-600 text-white text-sm font-medium hover:bg-purple-700 transition"
-                        >
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" /><polyline points="10 17 15 12 10 7" /><line x1="15" y1="12" x2="3" y2="12" />
-                          </svg>
-                          Join a class
-                        </button>
-                      </>
-                    )}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            {/* Left column: Units */}
+            <div className="lg:col-span-2">
+              {units.length === 0 ? (
+                <div className="rounded-2xl p-16 text-center" style={{ background: themeStyles["--st-surface"], borderColor: themeStyles["--st-border"], border: `1px solid ${themeStyles["--st-border"]}` }}>
+                  <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: `var(--st-accent)15` }}>
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--st-accent)" strokeWidth="1.5">
+                      <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />
+                    </svg>
                   </div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {units.map((unit) => {
-                      const unitPages = getPageList(unit.content_data);
-                      const firstPageId = unitPages.length > 0 ? unitPages[0].id : null;
-                      const unitLink = firstPageId ? `/unit/${unit.id}/${firstPageId}` : `/unit/${unit.id}/narrative`;
-                      const percent = getCompletionPercent(unit, unit.progress);
-                      const hasStudio = openStudioUnits.has(unit.id);
-                      const isComplete = percent === 100;
-                      const { gradient, label: subjectLabel } = detectSubject(unit);
+                  <p className="text-lg font-semibold mb-1" style={{ color: themeStyles["--st-text"] }}>No units assigned yet</p>
+                  <p className="text-sm" style={{ color: themeStyles["--st-text-secondary"] }}>Your teacher will assign units for you to work on.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {units.map((unit) => {
+                    const unitPages = getPageList(unit.content_data);
+                    const firstPageId = unitPages.length > 0 ? unitPages[0].id : null;
+                    const unitLink = firstPageId ? `/unit/${unit.id}/${firstPageId}` : `/unit/${unit.id}/narrative`;
+                    const percent = getCompletionPercent(unit, unit.progress);
+                    const hasStudio = openStudioUnits.has(unit.id);
+                    const isComplete = percent === 100;
+                    const { gradient, label: subjectLabel } = detectSubject(unit);
 
-                      return (
-                        <div key={unit.id} className="flex flex-col">
+                    return (
+                      <div key={unit.id} className="flex flex-col">
                         <Link
                           href={unitLink}
-                          className={`rounded-2xl overflow-hidden bg-white shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 flex flex-col ${
-                            "border border-gray-200/60"
-                          }`}
+                          className="rounded-2xl overflow-hidden shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 flex flex-col"
+                          style={{ background: themeStyles["--st-surface"], borderColor: themeStyles["--st-border"], border: `1px solid ${themeStyles["--st-border"]}` }}
                         >
-                          {/* Colored gradient header with subject label + progress ring */}
+                          {/* Gradient header */}
                           <div className={`relative bg-gradient-to-r ${gradient} px-4 py-5`}>
-                            <span className="text-white font-extrabold text-sm tracking-widest uppercase drop-shadow-sm">
-                              {subjectLabel}
-                            </span>
-                            {/* Thumbnail overlay (subtle) */}
+                            <span className="text-white font-extrabold text-sm tracking-widest uppercase drop-shadow-sm">{subjectLabel}</span>
                             {unit.thumbnail_url && (
                               <div className="absolute inset-0 opacity-20">
-                                <UnitThumbnail
-                                  thumbnailUrl={unit.thumbnail_url}
-                                  title={unit.title}
-                                  className="w-full h-full object-cover"
-                                />
+                                <UnitThumbnail thumbnailUrl={unit.thumbnail_url} title={unit.title} className="w-full h-full object-cover" />
                               </div>
                             )}
                             {/* Progress ring */}
@@ -447,23 +288,10 @@ export default function StudentDashboard() {
                               <div className="relative" style={{ width: 36, height: 36 }}>
                                 <svg width="36" height="36" className="transform -rotate-90">
                                   <circle cx="18" cy="18" r="14" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="2.5" />
-                                  <circle
-                                    cx="18" cy="18" r="14" fill="none"
-                                    stroke={isComplete ? "#10b981" : "#fff"}
-                                    strokeWidth="2.5"
-                                    strokeDasharray={2 * Math.PI * 14}
-                                    strokeDashoffset={2 * Math.PI * 14 * (1 - percent / 100)}
-                                    strokeLinecap="round"
-                                  />
+                                  <circle cx="18" cy="18" r="14" fill="none" stroke={isComplete ? "#10b981" : "#fff"} strokeWidth="2.5" strokeDasharray={2 * Math.PI * 14} strokeDashoffset={2 * Math.PI * 14 * (1 - percent / 100)} strokeLinecap="round" />
                                 </svg>
                                 <div className="absolute inset-0 flex items-center justify-center">
-                                  {isComplete ? (
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="#10b981">
-                                      <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" />
-                                    </svg>
-                                  ) : (
-                                    <span className="text-[10px] font-bold text-gray-700">{percent}%</span>
-                                  )}
+                                  {isComplete ? <svg width="14" height="14" viewBox="0 0 24 24" fill="#10b981"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z" /></svg> : <span className="text-[10px] font-bold text-gray-700">{percent}%</span>}
                                 </div>
                               </div>
                             </div>
@@ -471,138 +299,106 @@ export default function StudentDashboard() {
 
                           {/* Content */}
                           <div className="p-4 flex-1 flex flex-col">
-                            <h2 className="font-bold text-base text-gray-900 mb-1 line-clamp-2">
-                              {unit.title}
-                            </h2>
-                            <p className="text-sm text-gray-500">
+                            <h2 className="font-bold text-base mb-1 line-clamp-2" style={{ color: themeStyles["--st-text"] }}>{unit.title}</h2>
+                            <p className="text-sm" style={{ color: themeStyles["--st-text-secondary"] }}>
                               {percent === 0 ? "Start this unit" : isComplete ? "Complete" : "Continue where you left off"} &rarr;
                             </p>
                           </div>
 
-                          {/* Open Studio strip — Design units only (Mode 1). Never shown on Service/PP/PYPx units which use Discovery instead. */}
+                          {/* Open Studio */}
                           {hasStudio && !["SERVICE", "PP", "PYPX"].includes(subjectLabel) && (
                             <div className="bg-violet-600 text-white text-[11px] font-semibold flex items-center justify-center gap-1.5 py-1.5 rounded-b-2xl">
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                                <path d="M7 11V7a5 5 0 0 1 10 0" />
-                              </svg>
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0" /></svg>
                               Open Studio
                             </div>
                           )}
                         </Link>
-                        {/* Discovery Engine link — Mode 2 units only (Service, PP, PYPx). Never shown alongside Open Studio. */}
+
+                        {/* Discovery */}
                         {["SERVICE", "PP", "PYPX"].includes(subjectLabel) && (
-                          <Link
-                            href={`/discovery/${unit.id}?mode=mode_2${unit.class_id ? `&classId=${unit.class_id}` : ''}`}
-                            className="block bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-[11px] font-semibold flex items-center justify-center gap-1.5 py-1.5 rounded-b-2xl hover:from-indigo-500 hover:to-purple-500 transition-all"
-                          >
-                            <span>🧭</span>
-                            Start Discovery Journey
+                          <Link href={`/discovery/${unit.id}?mode=mode_2${unit.class_id ? `&classId=${unit.class_id}` : ''}`} className="block bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-[11px] font-semibold flex items-center justify-center gap-1.5 py-1.5 rounded-b-2xl hover:from-indigo-500 hover:to-purple-500 transition-all">
+                            🧭 Start Discovery Journey
                           </Link>
                         )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* ── Coming Up — unified card for safety tests, gallery rounds, due items ── */}
-              <ComingUpCard
-                pendingBadges={pendingBadges}
-                galleryRounds={galleryRounds.map((round: any) => {
-                  const matchedUnit = units.find((u: UnitWithProgress) => u.id === round.unitId);
-                  return {
-                    ...round,
-                    unitTitle: round.unitTitle || matchedUnit?.title || "",
-                  };
-                })}
-                dueItems={dueItems}
-              />
-
-              {/* ── Earned Badges — horizontal strip ── */}
-              {earnedBadges.length > 0 && (
-                <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden shadow-sm">
-                  <div className="px-4 py-2 bg-gradient-to-r from-purple-50 to-indigo-50 border-b border-gray-100 flex items-center gap-2">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5C7 4 7 7 7 7" />
-                      <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5C17 4 17 7 17 7" />
-                      <path d="M4 22h16" />
-                      <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
-                    </svg>
-                    <h2 className="text-xs font-bold text-purple-800">My Badges</h2>
-                    <span className="ml-auto text-[10px] font-semibold text-purple-500 bg-purple-100 px-1.5 py-0.5 rounded-full">
-                      {earnedBadges.length}
-                    </span>
-                  </div>
-                  <div className="px-3 py-2.5 overflow-hidden">
-                    <div className="flex gap-4 overflow-x-auto">
-                      {earnedBadges.map((b) => (
-                        <Link
-                          key={b.badge_id}
-                          href={`/safety/${b.badge_id}`}
-                          className="group flex flex-col items-center gap-1 w-[60px] flex-shrink-0 text-center"
-                        >
-                          <div
-                            className="relative w-11 h-11 rounded-full flex items-center justify-center text-lg group-hover:scale-110 transition-transform duration-200"
-                            style={{
-                              background: `linear-gradient(135deg, ${b.badge_color}30, ${b.badge_color}60)`,
-                              border: `2px solid ${b.badge_color}`,
-                            }}
-                          >
-                            {badgeIconEl(b.badge_icon, b.badge_color)}
-                            <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-green-500 border-[1.5px] border-white flex items-center justify-center">
-                              <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4">
-                                <polyline points="20 6 9 17 4 12" />
-                              </svg>
-                            </div>
-                          </div>
-                          <span className="text-[9px] font-semibold text-gray-500 leading-tight line-clamp-2">
-                            {b.badge_name}
-                          </span>
-                        </Link>
-                      ))}
-                    </div>
-                  </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
 
-            {/* ============ My Tools (compact) ============ */}
-            {recentToolSessions.length > 0 && (
-              <div className="mt-5">
-                <div className="flex items-center justify-between mb-2">
-                  <h2 className="text-sm font-bold text-gray-700">My Tools</h2>
-                  <Link href="/my-tools" className="text-xs text-purple-600 hover:text-purple-700 font-semibold">
-                    View all &rarr;
-                  </Link>
+            {/* Right column: Insights + Badges */}
+            <div className="space-y-5">
+              {/* What's Next */}
+              <div className="rounded-2xl" style={{ background: themeStyles["--st-surface"], borderColor: themeStyles["--st-border"], border: `1px solid ${themeStyles["--st-border"]}` }}>
+                <div className="px-4 py-3" style={{ borderBottom: `1px solid ${themeStyles["--st-border"]}`, background: `var(--st-accent)08` }}>
+                  <h2 className="text-sm font-bold" style={{ color: themeStyles["--st-text"] }}>What's Next</h2>
                 </div>
-                <div className="flex gap-2 flex-wrap">
-                  {recentToolSessions.slice(0, 8).map((session) => (
-                    <button
-                      key={session.id}
-                      onClick={() => setSelectedToolId(session.tool_id)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-gray-200 bg-white hover:bg-purple-50 hover:border-purple-200 transition-colors text-xs font-medium text-gray-700"
-                    >
-                      <span
-                        className="w-1.5 h-1.5 rounded-full"
-                        style={{ backgroundColor: session.status === "in_progress" ? "#10b981" : "#d1d5db" }}
-                      />
-                      <span className="capitalize">{session.tool_id.replace(/-/g, " ")}</span>
-                      {session.version > 1 && (
-                        <span className="text-gray-400">v{session.version}</span>
-                      )}
-                    </button>
-                  ))}
+                <div className="divide-y" style={{ "--tw-divide-color": themeStyles["--st-border"] } as React.CSSProperties}>
+                  {insights.length === 0 ? (
+                    <div className="p-4 text-center" style={{ color: themeStyles["--st-text-secondary"] }}>
+                      <p className="text-xs">All caught up!</p>
+                    </div>
+                  ) : (
+                    insights.slice(0, 6).map((insight, idx) => (
+                      <Link key={idx} href={insight.actionUrl || "/dashboard"} className="p-3 flex items-start gap-3 hover:opacity-75 transition">
+                        <div style={{ color: "var(--st-accent)" }} className="flex-shrink-0 mt-0.5">{insightIcon(insight.type)}</div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-semibold" style={{ color: themeStyles["--st-text"] }}>{insight.title}</p>
+                          {insight.subtitle && <p className="text-[11px] mt-0.5" style={{ color: themeStyles["--st-text-secondary"] }}>{insight.subtitle}</p>}
+                        </div>
+                        {insight.time && <span className="text-[10px] flex-shrink-0" style={{ color: themeStyles["--st-text-secondary"] }}>{insight.time}</span>}
+                      </Link>
+                    ))
+                  )}
                 </div>
+                {insights.length > 6 && (
+                  <div className="px-4 py-2 text-center border-t" style={{ borderColor: themeStyles["--st-border"] }}>
+                    <span className="text-[10px] font-semibold" style={{ color: "var(--st-accent)" }}>+{insights.length - 6} more</span>
+                  </div>
+                )}
               </div>
-            )}
 
-            {/* Recent Portfolio Activity — removed per user request (27 Mar 2026) */}
-          </>
+              {/* Earned Badges */}
+              {earnedBadges.length > 0 && (
+                <div className="rounded-2xl" style={{ background: themeStyles["--st-surface"], borderColor: themeStyles["--st-border"], border: `1px solid ${themeStyles["--st-border"]}` }}>
+                  <div className="px-4 py-3" style={{ borderBottom: `1px solid ${themeStyles["--st-border"]}`, background: `var(--st-accent)08` }}>
+                    <h2 className="text-sm font-bold" style={{ color: themeStyles["--st-text"] }}>Earned Badges</h2>
+                  </div>
+                  <div className="p-3 flex flex-col gap-2">
+                    {earnedBadges.map((b) => (
+                      <Link key={b.badge_id} href={`/safety/${b.badge_id}`} className="flex items-center gap-2 p-2 rounded-lg hover:opacity-75 transition" style={{ background: themeStyles["--st-accent-subtle"] }}>
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: `${b.badge_color}30`, color: b.badge_color }}>
+                          <BadgeIcon iconName={b.badge_icon} size={16} color={b.badge_color} />
+                        </div>
+                        <span className="text-xs font-semibold flex-1" style={{ color: themeStyles["--st-text"] }}>{b.badge_name}</span>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* My Tools */}
+              {recentToolSessions.length > 0 && (
+                <div className="rounded-2xl" style={{ background: themeStyles["--st-surface"], borderColor: themeStyles["--st-border"], border: `1px solid ${themeStyles["--st-border"]}` }}>
+                  <div className="px-4 py-3" style={{ borderBottom: `1px solid ${themeStyles["--st-border"]}`, background: `var(--st-accent)08` }}>
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-sm font-bold" style={{ color: themeStyles["--st-text"] }}>My Tools</h2>
+                      <Link href="/my-tools" className="text-xs font-semibold" style={{ color: "var(--st-accent)" }}>View all →</Link>
+                    </div>
+                  </div>
+                  <div className="p-3 flex flex-col gap-2">
+                    {recentToolSessions.slice(0, 5).map((session) => (
+                      <button key={session.id} onClick={() => setSelectedToolId(session.tool_id)} className="text-left px-2 py-1.5 rounded-lg text-xs font-medium transition" style={{ background: themeStyles["--st-accent-subtle"], color: themeStyles["--st-text"] }}>
+                        {session.tool_id.replace(/-/g, " ")}{session.version > 1 && ` v${session.version}`}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         )}
-
-        {/* Quick Capture FAB — removed from dashboard (27 Mar 2026), still available inside unit pages */}
       </div>
     </main>
   );
