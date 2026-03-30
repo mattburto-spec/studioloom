@@ -208,25 +208,6 @@ export default function Home() {
               </Link>
             </div>
 
-            {/* Hero preview — Discovery launchpad + Kit */}
-            <div className="relative mt-12 max-w-md mx-auto">
-              <div className="relative rounded-2xl overflow-hidden border border-white/15 shadow-2xl shadow-brand-purple/20">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/discovery/backgrounds/s7-launchpad.webp" alt="Discovery Engine — Launchpad station" className="w-full h-32 md:h-40 object-cover" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-                <div className="absolute bottom-3 left-4 right-4 flex items-end justify-between">
-                  <div>
-                    <div className="text-[10px] uppercase tracking-widest text-brand-lilac font-semibold">Discovery Engine</div>
-                    <div className="text-sm text-white font-bold">8 Interactive Stations</div>
-                  </div>
-                  <div className="w-12 h-12 rounded-full border-2 border-white/50 shadow-lg overflow-hidden bg-brand-purple/40 flex-shrink-0">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src="/discovery/kit/excited.png" alt="Kit — your design mentor" className="w-full h-full object-cover" />
-                  </div>
-                </div>
-              </div>
-            </div>
-
             {/* Quick stats */}
             <div className="flex items-center justify-center gap-8 md:gap-14 mt-10 pt-8 border-t border-white/10">
               <StatBadge value="42" label="Design Thinking Tools" />
