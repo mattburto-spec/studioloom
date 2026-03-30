@@ -67,22 +67,26 @@ export default function ToolkitLayout({
               ← All Tools
             </Link>
             <Link
-              href="/tools"
-              className="hidden sm:inline-block text-xs font-medium transition"
-              style={{ color: "rgba(255,255,255,0.35)" }}
+              href="/login"
+              className="text-xs font-semibold px-4 py-2 rounded-lg transition hover:opacity-90"
+              style={{
+                background: "rgba(236,72,153,0.15)",
+                border: "1px solid rgba(236,72,153,0.4)",
+                color: "#f472b6",
+              }}
             >
-              More Tools
+              Student Sign In
             </Link>
             <Link
               href="/teacher/login"
-              className="text-xs font-semibold px-4 py-2 rounded-lg transition"
+              className="text-xs font-semibold px-4 py-2 rounded-lg transition hover:opacity-90"
               style={{
                 background: "rgba(123,47,242,0.15)",
                 border: "1px solid rgba(123,47,242,0.3)",
                 color: "#c084fc",
               }}
             >
-              Teacher Portal
+              Teacher Sign In
             </Link>
           </div>
         </div>

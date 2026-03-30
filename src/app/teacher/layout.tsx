@@ -62,7 +62,7 @@ export default function TeacherLayout({
         const supabase = createClient();
         const { data: { user }, error: authError } = await supabase.auth.getUser();
 
-        if (authError) {
+        if (authError && authError.message !== "Auth session missing!") {
           console.error("[TeacherLayout] Auth error:", authError.message);
         }
 
