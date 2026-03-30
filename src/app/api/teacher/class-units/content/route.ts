@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireTeacherAuth } from "@/lib/auth/verify-teacher-unit";
-import { ensureForked } from "@/lib/units/resolve-content";
+import { ensureForked, hasContent } from "@/lib/units/resolve-content";
 import type { UnitContentData } from "@/types";
 
 // ─────────────────────────────────────────────────────────────────
@@ -72,7 +72,7 @@ async function GET(request: NextRequest) {
       .eq("class_id", classId)
       .maybeSingle();
 
-    const isForked = !!(classUnit?.content_data);
+    const isForked = hasContent(classUnit?.content_data);
     const content = isForked
       ? (classUnit!.content_data as UnitContentData)
       : (unit.content_data as UnitContentData);

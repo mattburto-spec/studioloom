@@ -14,18 +14,55 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { UnitContentData } from "@/types";
 
 // ---------------------------------------------------------------------------
+// Helper: check if content_data actually has meaningful content
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns true if the content_data has actual lesson/page content.
+ * Empty objects `{}`, empty pages arrays, and null/undefined return false.
+ * This prevents empty forks from shadowing the master content.
+ */
+export function hasContent(data: unknown): data is UnitContentData {
+  if (!data || typeof data !== "object") return false;
+  const d = data as Record<string, unknown>;
+
+  // v2 format: { pages: [...] }
+  if (Array.isArray(d.pages) && d.pages.length > 0) return true;
+
+  // v3 format: { journey: { ... } }
+  if (d.journey && typeof d.journey === "object") return true;
+
+  // v4 format: { timeline: [...] }
+  if (Array.isArray(d.timeline) && d.timeline.length > 0) return true;
+
+  // v1 format: object with page-id keys (not empty, not just metadata)
+  const keys = Object.keys(d);
+  const contentKeys = keys.filter(
+    (k) => !["pages", "journey", "timeline", "version", "metadata"].includes(k)
+  );
+  if (contentKeys.length > 0) {
+    // Check if any key holds a page-like object
+    const firstVal = d[contentKeys[0]];
+    if (firstVal && typeof firstVal === "object") return true;
+  }
+
+  return false;
+}
+
+// ---------------------------------------------------------------------------
 // Pure resolution (no DB calls)
 // ---------------------------------------------------------------------------
 
 /**
- * Returns class-local content if it exists, otherwise master content.
- * Use when you already have both values loaded from DB.
+ * Returns class-local content if it exists and has actual pages,
+ * otherwise master content. Use when you already have both values
+ * loaded from DB.
  */
 export function resolveClassUnitContent(
   masterContent: UnitContentData,
   classUnitContent: UnitContentData | null | undefined
 ): UnitContentData {
-  return classUnitContent ?? masterContent;
+  return hasContent(classUnitContent) ? classUnitContent! : masterContent;
 }
 
 // ---------------------------------------------------------------------------
@@ -60,16 +97,16 @@ export async function getResolvedContent(
     .eq("class_id", classId)
     .maybeSingle();
 
-  if (classUnit?.content_data) {
+  if (hasContent(classUnit?.content_data)) {
     return {
-      content: classUnit.content_data as UnitContentData,
+      content: classUnit!.content_data as UnitContentData,
       isForked: true,
-      forkedAt: classUnit.forked_at,
-      forkedFromVersion: classUnit.forked_from_version,
+      forkedAt: classUnit!.forked_at,
+      forkedFromVersion: classUnit!.forked_from_version,
     };
   }
 
-  // Fall back to master
+  // Fall back to master (also handles empty forks — fork exists but no pages)
   const { data: unit } = await supabase
     .from("units")
     .select("content_data")
@@ -121,9 +158,9 @@ export async function ensureForked(
     .eq("class_id", classId)
     .maybeSingle();
 
-  if (classUnit?.content_data) {
+  if (hasContent(classUnit?.content_data)) {
     return {
-      content: classUnit.content_data as UnitContentData,
+      content: classUnit!.content_data as UnitContentData,
       alreadyForked: true,
     };
   }

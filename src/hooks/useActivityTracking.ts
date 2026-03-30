@@ -47,6 +47,10 @@ interface ActivityTimerState {
   attemptNumber: number;
   /** Whether a non-empty previous response was revised */
   hasRevisions: boolean;
+  /** Pending response value waiting for commit (debounce timer) */
+  pendingValue: string | null;
+  /** Timer ID for debounced response commit */
+  commitTimerId: NodeJS.Timeout | null;
 }
 
 const EDITING_GAP_MS = 10_000; // 10 seconds = new editing session
@@ -76,6 +80,13 @@ export function useActivityTracking(
 
   // Reset on page change
   useEffect(() => {
+    // Clean up any pending timers from previous page
+    Array.from(timersRef.current.values()).forEach((timer) => {
+      if (timer.commitTimerId) {
+        clearTimeout(timer.commitTimerId);
+      }
+    });
+
     timersRef.current = new Map();
     setTrackingData({});
 
@@ -92,6 +103,8 @@ export function useActivityTracking(
         previousValue: typeof val === "string" ? val : JSON.stringify(val ?? ""),
         attemptNumber: val ? 1 : 0, // If there's already a response, it's attempt 1
         hasRevisions: false,
+        pendingValue: null,
+        commitTimerId: null,
       });
     }
   }, [pageId]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -163,6 +176,8 @@ export function useActivityTracking(
         previousValue: "",
         attemptNumber: 0,
         hasRevisions: false,
+        pendingValue: null,
+        commitTimerId: null,
       });
     }
   }, []);
@@ -215,21 +230,45 @@ export function useActivityTracking(
   }, []);
 
   /**
-   * Record that a response value changed. Tracks attempt number and revision detection.
+   * Record that a response value changed via keystroke/input.
+   * Queues a debounced commit that only fires after 2 seconds of no keystrokes.
+   * This prevents incrementing attempt_number on every keystroke.
    */
   const recordResponseChange = useCallback((key: string, newValue: string) => {
     const timer = timersRef.current.get(key);
     if (!timer) return;
 
-    // Only count as new attempt if the value actually changed and is non-empty
-    if (newValue.trim() && newValue !== timer.previousValue) {
-      // If there was a previous non-empty value, this is a revision
-      if (timer.previousValue.trim()) {
-        timer.hasRevisions = true;
-      }
-      timer.attemptNumber += 1;
-      timer.previousValue = newValue;
+    // Queue the pending value
+    timer.pendingValue = newValue;
+
+    // Cancel any existing debounce timer
+    if (timer.commitTimerId) {
+      clearTimeout(timer.commitTimerId);
     }
+
+    // Set up a new debounce timer: commit after 2 seconds of inactivity
+    timer.commitTimerId = setTimeout(() => {
+      const committedTimer = timersRef.current.get(key);
+      if (!committedTimer || committedTimer.pendingValue === null) return;
+
+      // Trim the values for comparison
+      const newTrimmed = committedTimer.pendingValue.trim();
+      const prevTrimmed = committedTimer.previousValue.trim();
+
+      // Only increment attempt_number if the committed value differs from the previously committed value
+      if (newTrimmed && newTrimmed !== prevTrimmed) {
+        // If there was a previous non-empty committed value, this is a revision
+        if (prevTrimmed) {
+          committedTimer.hasRevisions = true;
+        }
+        committedTimer.attemptNumber += 1;
+      }
+
+      // Update previousValue to the new committed value
+      committedTimer.previousValue = committedTimer.pendingValue;
+      committedTimer.pendingValue = null;
+      committedTimer.commitTimerId = null;
+    }, 2000); // 2 second debounce
   }, []);
 
   /**
