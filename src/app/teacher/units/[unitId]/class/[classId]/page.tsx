@@ -364,14 +364,18 @@ export default function ClassHubPage({
         .in("student_id", studentIds);
 
       const map: StudentProgressMap = {};
+      console.log("[ClassHub Progress] Raw rows:", progress?.length, "studentIds:", studentIds);
       (progress || []).forEach((p: StudentProgress) => {
         if (!map[p.student_id]) map[p.student_id] = {};
+        console.log("[ClassHub Progress] Row:", { student_id: p.student_id, page_id: p.page_id, status: p.status, responses: p.responses ? Object.keys(p.responses as Record<string, unknown>) : null });
         map[p.student_id][p.page_id] = {
           status: p.status as "not_started" | "in_progress" | "complete",
           hasResponses: p.responses !== null && typeof p.responses === "object" && Object.keys(p.responses as Record<string, unknown>).length > 0,
           timeSpent: p.time_spent || 0,
         };
       });
+      console.log("[ClassHub Progress] Page IDs in unit:", unitPages.map(p => p.id));
+      console.log("[ClassHub Progress] Page IDs in progress:", Object.keys(map[studentIds[0]] || {}));
       setProgressMap(map);
     }
 
