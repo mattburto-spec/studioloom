@@ -507,7 +507,7 @@ function TwoColumnDashboard({
       {/* ═══════════════════════════════════════════════════════════════ */}
       {/* MAIN — Class-unit cards                                       */}
       {/* ═══════════════════════════════════════════════════════════════ */}
-      <div className="lg:col-span-8 space-y-3">
+      <div className="lg:col-span-8 space-y-4">
         {classCards.length === 0 ? (
           <div className="bg-white rounded-2xl border border-border p-12 text-center">
             <p className="text-sm text-text-secondary">No units assigned to classes yet. Create a unit and assign it to get started.</p>
@@ -531,11 +531,11 @@ function TwoColumnDashboard({
                 <div className="h-1" style={{ background: `linear-gradient(90deg, ${typeBadge.bg}, ${typeBadge.bg}80)` }} />
 
                 <div className="flex items-stretch">
-                  {/* Compact photo — square thumbnail */}
+                  {/* Photo thumbnail */}
                   <Link
                     href={`/teacher/units/${u.unitId}/class/${u.classId}`}
-                    className="w-28 shrink-0 relative overflow-hidden"
-                    style={{ minHeight: "100px" }}
+                    className="w-40 shrink-0 relative overflow-hidden"
+                    style={{ minHeight: "120px" }}
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
@@ -547,14 +547,14 @@ function TwoColumnDashboard({
                     <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
                     {/* Unit type pill — bottom of photo */}
                     <span
-                      className="absolute bottom-2 left-2 text-[9px] font-black tracking-wider px-1.5 py-0.5 rounded"
+                      className="absolute bottom-2 left-2 text-[10px] font-black tracking-wider px-2 py-0.5 rounded"
                       style={{ background: typeBadge.bg, color: typeBadge.text }}
                     >
                       {typeBadge.label}
                     </span>
                   </Link>
 
-                  <div className="flex-1 px-4 py-3 flex flex-col min-w-0">
+                  <div className="flex-1 px-5 py-4 flex flex-col min-w-0">
                     {/* Top row: class name + student count + badges */}
                     <div className="flex items-center gap-2 mb-0.5">
                       <span className="text-xs font-bold truncate" style={{ color: c.fill }}>
@@ -596,7 +596,7 @@ function TwoColumnDashboard({
                     </div>
 
                     {/* Unit title */}
-                    <Link href={`/teacher/units/${u.unitId}/class/${u.classId}`} className="text-sm font-extrabold text-text-primary leading-snug tracking-tight hover:text-purple-700 transition truncate">
+                    <Link href={`/teacher/units/${u.unitId}/class/${u.classId}`} className="text-base font-extrabold text-text-primary leading-snug tracking-tight hover:text-purple-700 transition truncate">
                       {u.unitTitle}
                     </Link>
 
@@ -604,7 +604,7 @@ function TwoColumnDashboard({
                     <div className="flex items-center gap-3 mt-auto pt-2">
                       {/* Progress bar */}
                       <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <div className="flex-1 h-1.5 rounded-full bg-gray-100 overflow-hidden">
+                        <div className="flex-1 h-2 rounded-full bg-gray-100 overflow-hidden">
                           <div
                             className="h-full rounded-full transition-all duration-500"
                             style={{
@@ -622,7 +622,7 @@ function TwoColumnDashboard({
                       <div className="flex items-center gap-1.5 shrink-0">
                         <Link
                           href={`/teacher/teach/${u.unitId}?classId=${u.classId}`}
-                          className="inline-flex items-center gap-1 text-[11px] font-bold px-3 py-1.5 rounded-lg text-white transition hover:opacity-90 hover:shadow-md"
+                          className="inline-flex items-center gap-1 text-xs font-bold px-3.5 py-2 rounded-lg text-white transition hover:opacity-90 hover:shadow-md"
                           style={{ background: `linear-gradient(135deg, ${c.fill}, ${c.accent})` }}
                         >
                           <svg width="9" height="9" viewBox="0 0 24 24" fill="white" stroke="none"><polygon points="6 3 20 12 6 21 6 3" /></svg>
@@ -630,13 +630,13 @@ function TwoColumnDashboard({
                         </Link>
                         <Link
                           href={`/teacher/units/${u.unitId}/class/${u.classId}`}
-                          className="inline-flex items-center text-[11px] font-semibold px-2.5 py-1.5 rounded-lg text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
+                          className="inline-flex items-center text-xs font-semibold px-3 py-2 rounded-lg text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
                         >
                           Hub
                         </Link>
                         <Link
                           href={`/teacher/units/${u.unitId}/class/${u.classId}/edit`}
-                          className="inline-flex items-center text-[11px] font-semibold px-2.5 py-1.5 rounded-lg text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
+                          className="inline-flex items-center text-xs font-semibold px-3 py-2 rounded-lg text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
                         >
                           Edit
                         </Link>
