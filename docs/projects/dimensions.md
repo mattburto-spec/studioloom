@@ -1,7 +1,7 @@
 # Project Dimensions — Data Architecture Future-Proofing
 **Created: 29 March 2026**
 **Last updated: 30 March 2026**
-**Status: Phases 0-2 COMPLETE — pipeline live, migrations applied**
+**Status: Phases 0-2b COMPLETE — schemas, prompts, RAG pipeline, cognitive load + per-section difficulty all live**
 **Spec: `docs/specs/data-architecture-v2.md`**
 
 ---
@@ -78,18 +78,23 @@ Student profile: `accommodations` (UDL-aligned), `udl_strengths`, `udl_barriers`
 
 **Time model change:** `ActivitySection.durationMinutes` (existing, number) becomes optional soft suggestion. New primary field: `ActivitySection.timeWeight: 'quick' | 'moderate' | 'extended' | 'flexible'`. Workshop Model phases distribute time proportionally across activities by weight, not by fixed minutes.
 
-### Phase 2: AI Generation + Knowledge Pipeline Updates (PARTIALLY COMPLETE — 30 March 2026)
+### Phase 2: AI Generation + Knowledge Pipeline Updates (COMPLETE — 30 March 2026)
 
 **DONE — RAG analysis pipeline:**
 - `src/lib/knowledge/analyse.ts` — Pass 2 analysis prompts now request `udl_coverage`, `bloom_distribution`, `grouping_analysis` fields. Schema reordered so Dimensions fields come before verbose arrays (prevents AI truncation). Version 2.2.0.
-- **Pass 2b fallback (30 March 2026):** Dedicated lightweight Haiku call (`extractDimensionsFields()`) fires when Pass 2 omits any of the 3 Dimensions fields. Tiny focused schema (3 fields, 2048 max_tokens) — guaranteed to fit. Merges via `Object.assign`. Non-critical try/catch. This is the fix for AI silently dropping fields due to JSON truncation at `max_tokens` boundary (Lesson Learned #26).
-- `src/lib/knowledge/analysis-prompts.ts` — Added `buildDimensionsPrompt()` for Pass 2b. Main Pass 2 prompt updated with "REQUIRED" instruction + schema reorder.
+- **Pass 2b fallback (30 March 2026):** Dedicated lightweight Haiku call (`extractDimensionsFields()`) fires when Pass 2 omits any of the 3 Dimensions fields. Tiny focused schema (3 fields, 2048→3072 max_tokens) — guaranteed to fit. Merges via `Object.assign`. Non-critical try/catch. This is the fix for AI silently dropping fields due to JSON truncation at `max_tokens` boundary (Lesson Learned #26).
+- `src/lib/knowledge/analysis-prompts.ts` — Added `buildDimensionsPrompt()` for Pass 2b with `cognitive_load_curve` and `section_dimensions` extraction. Main Pass 2 prompt updated with "REQUIRED" instruction + schema reorder.
 - Migration 058 enriches `knowledge_chunks` with `bloom_level`, `grouping`, `udl_checkpoints` columns for filtered RAG retrieval.
 - **Knowledge card UI enhanced (30 March 2026):** `KnowledgeItemCard.tsx` expanded (~215→~400 lines) with analysis badges, Bloom's mini-bar, complexity pills, criteria dots. Items API returns `profileMap` from `lesson_profiles` (Lesson Learned #19 pattern).
+- **AnalysisDetailPanel wired (30 March 2026):** Rich analysis viewer mounted on knowledge page above edit form. Shows cognitive load curve, lesson flow timeline with bloom_level pills + time_weight badges, criteria coverage, pedagogical approach.
+- **Cognitive load + per-section difficulty (30 March 2026):** Fixed empty cognitive load for non-lesson documents. `extractDimensionsFields()` now extracts `cognitive_load_curve` and `section_dimensions` array. `applySectionDimensions()` maps bloom_level + time_weight onto each lesson_flow phase. Works for ALL document types (not just lesson plans).
 
-**REMAINING — AI generation prompts:**
-- `buildDesignTeachingContext()` in prompts.ts: inject UDL awareness
-- Tool schemas in schemas.ts: add `bloom_level`, `grouping`, `ai_rules`, `udl_checkpoints` to activity generation schema
+**DONE — AI generation schemas + prompts (30 March 2026):**
+- `src/lib/ai/schemas.ts` — `dimensionsActivityProperties` (bloom_level, timeWeight, grouping, ai_rules, udl_checkpoints, success_look_fors) already spread into ALL three schema builders: `buildPageContentSchema()`, `buildJourneyActivitySectionSchema()`, and `timelineActivitySchema`. `dimensionsPageProperties` (grouping_strategy, success_criteria) spread into page-level schema. All 10 generation routes inherit these fields via the tool schemas.
+- `src/lib/ai/prompts.ts` — `buildDesignTeachingContext()` principle #13 contains full DIMENSIONS METADATA instruction (bloom_level, timeWeight, grouping, ai_rules, udl_checkpoints, success_look_fors, grouping_strategy, success_criteria). `DIMENSIONS_METADATA_INSTRUCTION` constant appended to all non-design types (service, personal_project, inquiry). All unit types receive Dimensions guidance.
+- `src/lib/ai/anthropic.ts` — `generateCriterionPages()` calls `buildPageGenerationTool(criterion, pageCount, unitType)` → `buildPageContentSchema(unitType)` with Dimensions fields. Journey and timeline generation use equivalent schema builders.
+
+**REMAINING (lower priority):**
 - Timing validation: add `udl_coverage` gap check (warn if a lesson misses an entire UDL principle)
 - Student-facing prompts: read `learning_profile.accommodations` and adapt scaffolding
 - RAG retrieval (`retrieveContext`, `retrieveLessonProfiles`) — support optional filters: `bloom_level`, `udl_principle`, `grouping`
@@ -161,10 +166,10 @@ Student profile: `accommodations` (UDL-aligned), `udl_strengths`, `udl_barriers`
 - [ ] Verify existing content loads fine with null/undefined new fields (graceful degradation)
 
 ### Phase 2: AI Generation + Knowledge Pipeline
-- [ ] Add UDL awareness to `buildDesignTeachingContext()` in prompts.ts
-- [ ] Add `bloom_level`, `grouping`, `ai_rules`, `udl_checkpoints`, `timeWeight` to tool schemas
-- [ ] Update generation prompts: AI outputs `timeWeight` (quick/moderate/extended/flexible) instead of precise `durationMinutes`
-- [ ] Keep `durationMinutes` as optional AI suggestion (soft hint for PhaseTimelineBar display)
+- [x] Add UDL awareness to `buildDesignTeachingContext()` in prompts.ts — principle #13 with full Dimensions instructions
+- [x] Add `bloom_level`, `grouping`, `ai_rules`, `udl_checkpoints`, `timeWeight` to tool schemas — `dimensionsActivityProperties` spread into all 3 schema builders
+- [x] Update generation prompts: AI outputs `timeWeight` (quick/moderate/extended/flexible) alongside `durationMinutes`
+- [x] Keep `durationMinutes` as optional AI suggestion (soft hint for PhaseTimelineBar display) — both fields in schema
 - [ ] Update timing validation: distribute phase time across activities proportionally by weight, not by fixed minutes
 - [ ] Test: generate a unit and verify new fields appear in content_data
 - [ ] Add `udl_coverage` gap check to timing validation (warn if principle missing)
@@ -219,11 +224,11 @@ Student profile: `accommodations` (UDL-aligned), `udl_strengths`, `udl_barriers`
 |-------|------|-------------|--------|
 | Phase 0: Schema foundation | 0.5 | None | **COMPLETE** (30 Mar) |
 | Phase 1: Data layer (TypeScript) | 0.5 | Phase 0 | **COMPLETE** (30 Mar) |
-| Phase 2: AI generation + RAG pipeline | 2.5 | Phase 1 | **RAG pipeline done**, generation prompts remaining (~1.5 days) |
+| Phase 2: AI generation + RAG pipeline | 2.5 | Phase 1 | **COMPLETE** (30 Mar) — schemas, prompts, RAG pipeline, cognitive load, per-section difficulty |
 | Phase 3: Client tracking | 1 | Phase 1 | Pending |
 | Phase 4: Lesson editor UI | 1 | Phase 1 | Pending |
 | Phase 5: Reports + research metrics | 4-6 | Phases 1-4 + real student data | Deferred |
-| **Remaining (Phases 2b-4)** | **~3.5 days** | |
+| **Remaining (Phases 3-4)** | **~2 days** | |
 
 ---
 
