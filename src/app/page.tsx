@@ -208,11 +208,30 @@ export default function Home() {
               </Link>
             </div>
 
+            {/* Hero preview — Discovery launchpad + Kit */}
+            <div className="relative mt-12 max-w-md mx-auto">
+              <div className="relative rounded-2xl overflow-hidden border border-white/15 shadow-2xl shadow-brand-purple/20">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/discovery/backgrounds/s7-launchpad.webp" alt="Discovery Engine — Launchpad station" className="w-full h-32 md:h-40 object-cover" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                <div className="absolute bottom-3 left-4 right-4 flex items-end justify-between">
+                  <div>
+                    <div className="text-[10px] uppercase tracking-widest text-brand-lilac font-semibold">Discovery Engine</div>
+                    <div className="text-sm text-white font-bold">8 Interactive Stations</div>
+                  </div>
+                  <div className="w-12 h-12 rounded-full border-2 border-white/50 shadow-lg overflow-hidden bg-brand-purple/40 flex-shrink-0">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src="/discovery/kit/excited.png" alt="Kit — your design mentor" className="w-full h-full object-cover" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Quick stats */}
-            <div className="flex items-center justify-center gap-8 md:gap-14 mt-14 pt-8 border-t border-white/10">
+            <div className="flex items-center justify-center gap-8 md:gap-14 mt-10 pt-8 border-t border-white/10">
               <StatBadge value="42" label="Design Thinking Tools" />
               <StatBadge value="8+" label="Curriculum Frameworks" />
-              <StatBadge value="12" label="AI-Powered Interactive Tools" />
+              <StatBadge value="27" label="AI-Powered Interactive Tools" />
             </div>
           </div>
         </section>
@@ -252,7 +271,7 @@ export default function Home() {
                 <div className="w-8 h-8 rounded-lg bg-brand-purple/10 flex items-center justify-center">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7B2FF2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" /></svg>
                 </div>
-                <span className="text-sm font-bold text-brand-purple">12 AI-Powered Interactive Tools</span>
+                <span className="text-sm font-bold text-brand-purple">27 AI-Powered Interactive Tools</span>
               </div>
               <p className="text-sm text-text-secondary mb-4">
                 Not just templates — these guide students step-by-step with adaptive feedback,
@@ -260,13 +279,22 @@ export default function Home() {
               </p>
               <div className="grid grid-cols-2 gap-2">
                 {[
-                  "SCAMPER", "Six Thinking Hats", "PMI Chart", "Five Whys",
-                  "Empathy Map", "Decision Matrix", "How Might We", "Reverse Brainstorm",
-                  "SWOT Analysis", "Stakeholder Map", "Lotus Diagram", "Affinity Diagram"
+                  { name: "SCAMPER", svg: <svg viewBox="0 0 24 24" className="w-4 h-4"><circle cx="12" cy="12" r="4" fill="#7B2FF220" stroke="#7B2FF2" strokeWidth="1"/>{[0,60,120,180,240,300].map((a,i)=><line key={i} x1={12+4*Math.cos(a*Math.PI/180)} y1={12+4*Math.sin(a*Math.PI/180)} x2={12+9*Math.cos(a*Math.PI/180)} y2={12+9*Math.sin(a*Math.PI/180)} stroke="#7B2FF2" strokeWidth="1" strokeLinecap="round"/>)}{[0,60,120,180,240,300].map((a,i)=><circle key={`c${i}`} cx={12+9*Math.cos(a*Math.PI/180)} cy={12+9*Math.sin(a*Math.PI/180)} r="2" fill="#7B2FF240" stroke="#7B2FF2" strokeWidth="0.5"/>)}</svg> },
+                  { name: "Six Thinking Hats", svg: <svg viewBox="0 0 24 24" className="w-4 h-4">{["#2E86AB","#E86F2C","#1a1a1a","#FFD700","#2DA05E","#7B2FF2"].map((c,i)=><rect key={i} x={2+((i%3)*7.5)} y={i<3?3:13} width="6" height="8" rx="3" fill={c} opacity="0.6"/>)}</svg> },
+                  { name: "PMI Chart", svg: <svg viewBox="0 0 24 24" className="w-4 h-4"><rect x="1" y="4" width="7" height="16" rx="1.5" fill="#2DA05E30" stroke="#2DA05E" strokeWidth="0.5"/><rect x="8.5" y="4" width="7" height="16" rx="1.5" fill="#E86F2C30" stroke="#E86F2C" strokeWidth="0.5"/><rect x="16" y="4" width="7" height="16" rx="1.5" fill="#7B2FF230" stroke="#7B2FF2" strokeWidth="0.5"/></svg> },
+                  { name: "Five Whys", svg: <svg viewBox="0 0 24 24" className="w-4 h-4">{[0,1,2,3,4].map(i=><g key={i}><rect x="4" y={2+i*4.2} width={16-i*2} height="3" rx="1.5" fill={`rgba(123,47,242,${0.15+i*0.1})`} stroke="#7B2FF2" strokeWidth="0.5"/>{i<4&&<line x1="12" y1={5+i*4.2} x2="12" y2={6.2+i*4.2} stroke="#7B2FF2" strokeWidth="0.5"/>}</g>)}</svg> },
+                  { name: "Empathy Map", svg: <svg viewBox="0 0 24 24" className="w-4 h-4"><line x1="12" y1="2" x2="12" y2="22" stroke="#7B2FF2" strokeWidth="0.5"/><line x1="2" y1="12" x2="22" y2="12" stroke="#7B2FF2" strokeWidth="0.5"/><circle cx="12" cy="12" r="3" fill="#7B2FF220" stroke="#7B2FF2" strokeWidth="0.5"/><text x="6" y="8" fontSize="4" fill="#2E86AB" textAnchor="middle">S</text><text x="18" y="8" fontSize="4" fill="#E86F2C" textAnchor="middle">T</text><text x="6" y="18" fontSize="4" fill="#2DA05E" textAnchor="middle">D</text><text x="18" y="18" fontSize="4" fill="#7B2FF2" textAnchor="middle">F</text></svg> },
+                  { name: "Decision Matrix", svg: <svg viewBox="0 0 24 24" className="w-4 h-4"><rect x="2" y="2" width="20" height="20" rx="2" fill="none" stroke="#7B2FF2" strokeWidth="0.5"/>{[0,1,2].map(r=>[0,1,2].map(c=><rect key={`${r}${c}`} x={3+c*6.5} y={3+r*6.5} width="5.5" height="5.5" rx="1" fill={r===0?"#7B2FF215":`rgba(123,47,242,${0.1+Math.random()*0.3})`}/>))}</svg> },
+                  { name: "How Might We", svg: <svg viewBox="0 0 24 24" className="w-4 h-4"><text x="12" y="16" fontSize="14" fill="#7B2FF2" textAnchor="middle" fontWeight="bold" opacity="0.5">?</text><path d="M4 20 Q12 4 20 20" fill="none" stroke="#7B2FF2" strokeWidth="0.8" strokeDasharray="2 1.5"/></svg> },
+                  { name: "Reverse Brainstorm", svg: <svg viewBox="0 0 24 24" className="w-4 h-4"><circle cx="12" cy="10" r="6" fill="#E86F2C15" stroke="#E86F2C" strokeWidth="0.5"/><path d="M9 10 L15 10 M12 7 L12 13" stroke="#E86F2C" strokeWidth="1" strokeLinecap="round"/><path d="M8 19 L16 19" stroke="#2DA05E" strokeWidth="1" strokeLinecap="round"/><path d="M12 16 L12 19" stroke="#7B2FF2" strokeWidth="0.5" strokeDasharray="1 1"/></svg> },
+                  { name: "SWOT Analysis", svg: <svg viewBox="0 0 24 24" className="w-4 h-4"><rect x="2" y="2" width="9.5" height="9.5" rx="1.5" fill="#2DA05E30"/><rect x="12.5" y="2" width="9.5" height="9.5" rx="1.5" fill="#E86F2C30"/><rect x="2" y="12.5" width="9.5" height="9.5" rx="1.5" fill="#2E86AB30"/><rect x="12.5" y="12.5" width="9.5" height="9.5" rx="1.5" fill="#7B2FF230"/></svg> },
+                  { name: "Stakeholder Map", svg: <svg viewBox="0 0 24 24" className="w-4 h-4"><circle cx="12" cy="12" r="10" fill="none" stroke="#7B2FF2" strokeWidth="0.4" strokeDasharray="2 2"/><circle cx="12" cy="12" r="6" fill="none" stroke="#7B2FF2" strokeWidth="0.4" strokeDasharray="2 2"/><circle cx="12" cy="12" r="2" fill="#7B2FF230" stroke="#7B2FF2" strokeWidth="0.5"/>{[45,135,225,315].map((a,i)=><circle key={i} cx={12+7*Math.cos(a*Math.PI/180)} cy={12+7*Math.sin(a*Math.PI/180)} r="1.5" fill="#2E86AB40" stroke="#2E86AB" strokeWidth="0.4"/>)}</svg> },
+                  { name: "Lotus Diagram", svg: <svg viewBox="0 0 24 24" className="w-4 h-4"><rect x="9" y="9" width="6" height="6" rx="1" fill="#7B2FF230" stroke="#7B2FF2" strokeWidth="0.5"/>{[{x:2,y:2},{x:9,y:2},{x:16,y:2},{x:2,y:9},{x:16,y:9},{x:2,y:16},{x:9,y:16},{x:16,y:16}].map((p,i)=><rect key={i} x={p.x} y={p.y} width="6" height="6" rx="1" fill="#7B2FF210" stroke="#7B2FF2" strokeWidth="0.3"/>)}</svg> },
+                  { name: "Affinity Diagram", svg: <svg viewBox="0 0 24 24" className="w-4 h-4">{[{x:2,y:3,c:"#2E86AB"},{x:8,y:2,c:"#2E86AB"},{x:2,y:9,c:"#E86F2C"},{x:8,y:10,c:"#E86F2C"},{x:14,y:3,c:"#2DA05E"},{x:14,y:9,c:"#2DA05E"},{x:5,y:16,c:"#7B2FF2"},{x:11,y:16,c:"#7B2FF2"},{x:17,y:16,c:"#7B2FF2"}].map((n,i)=><rect key={i} x={n.x} y={n.y} width="6" height="5" rx="1" fill={n.c+"25"} stroke={n.c} strokeWidth="0.4"/>)}</svg> },
                 ].map((tool) => (
-                  <div key={tool} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-border text-xs text-text-primary font-medium">
-                    <span className="w-1.5 h-1.5 rounded-full bg-brand-purple flex-shrink-0" />
-                    {tool}
+                  <div key={tool.name} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-border text-xs text-text-primary font-medium">
+                    <span className="flex-shrink-0">{tool.svg}</span>
+                    {tool.name}
                   </div>
                 ))}
               </div>
@@ -320,6 +348,57 @@ export default function Home() {
               </p>
             </div>
 
+            {/* Teaching Mode mockup */}
+            <div className="mb-10 max-w-3xl mx-auto rounded-xl overflow-hidden border border-white/10 bg-black/40 shadow-2xl shadow-brand-purple/10">
+              {/* Title bar */}
+              <div className="flex items-center gap-2 px-4 py-2 bg-white/5 border-b border-white/10">
+                <div className="flex gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-red-400/60" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-yellow-400/60" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-green-400/60" />
+                </div>
+                <span className="text-[10px] text-white/30 ml-2">Teaching Mode — Unit: Sustainable Packaging</span>
+              </div>
+              {/* 3-column layout mockup */}
+              <div className="grid grid-cols-[140px_1fr_140px] gap-px bg-white/5 p-3 min-h-[140px]">
+                {/* Left: Lesson nav */}
+                <div className="space-y-1.5">
+                  <div className="text-[9px] text-white/30 uppercase tracking-wider mb-2 px-1">Lessons</div>
+                  {["1. Discover", "2. Define", "3. Ideate", "4. Prototype"].map((l, i) => (
+                    <div key={l} className={`text-[10px] px-2 py-1.5 rounded-md ${i === 2 ? "bg-brand-purple/30 text-white font-semibold" : "text-white/40"}`}>{l}</div>
+                  ))}
+                </div>
+                {/* Center: Student grid */}
+                <div className="px-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[9px] text-white/30 uppercase tracking-wider">Work Time — 18:42 remaining</span>
+                    <span className="text-[9px] px-2 py-0.5 rounded-full bg-accent-green/20 text-accent-green">● Live</span>
+                  </div>
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {[
+                      { c: "bg-accent-green/20", t: "✓" },
+                      { c: "bg-accent-green/20", t: "✓" },
+                      { c: "bg-amber-500/20", t: "…" },
+                      { c: "bg-accent-green/20", t: "✓" },
+                      { c: "bg-red-400/20", t: "!" },
+                      { c: "bg-accent-green/20", t: "✓" },
+                      { c: "bg-accent-green/20", t: "✓" },
+                      { c: "bg-amber-500/20", t: "…" },
+                    ].map((s, i) => (
+                      <div key={i} className={`${s.c} rounded-md h-8 flex items-center justify-center text-[10px] text-white/60`}>{s.t}</div>
+                    ))}
+                  </div>
+                  <div className="mt-2 text-[9px] text-white/25">1 student needs help · 6 on track · 1 completing</div>
+                </div>
+                {/* Right: Notes */}
+                <div className="space-y-1.5">
+                  <div className="text-[9px] text-white/30 uppercase tracking-wider mb-2 px-1">Notes</div>
+                  <div className="text-[9px] text-white/30 px-1 leading-relaxed">Sarah — check prototype</div>
+                  <div className="text-[9px] text-white/30 px-1 leading-relaxed">Extension: materials test</div>
+                </div>
+              </div>
+            </div>
+
             <div className="grid md:grid-cols-3 gap-5">
               {[
                 { icon: <IconGrid />, title: "Live Student Grid", desc: "See every student's current page, time spent, and status. \"Needs Help\" flags appear after 3 minutes of inactivity.", color: "#2E86AB" },
@@ -370,7 +449,8 @@ export default function Home() {
               },
               {
                 step: "02", title: "Guided Mentor", icon: <IconMessageCircle />, color: "#7B2FF2",
-                desc: "When students get stuck, a Socratic mentor asks questions instead of giving answers — adapting to their effort level and language."
+                desc: "When students get stuck, a Socratic mentor asks questions instead of giving answers — adapting to their effort level and language.",
+                avatar: "/discovery/kit/encouraging.png"
               },
               {
                 step: "03", title: "Peer Critique", icon: <IconUsers />, color: "#E86F2C",
@@ -383,8 +463,17 @@ export default function Home() {
             ].map((item) => (
               <div key={item.step} className="bg-white rounded-2xl border border-border p-6 relative">
                 <div className="text-[10px] font-bold uppercase tracking-widest mb-3" style={{ color: item.color }}>Step {item.step}</div>
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-3" style={{ background: `${item.color}12` }}>
-                  <div style={{ color: item.color }}>{item.icon}</div>
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `${item.color}12` }}>
+                    <div style={{ color: item.color }}>{item.icon}</div>
+                  </div>
+                  {/* Kit avatar on the Guided Mentor card */}
+                  {"avatar" in item && item.avatar && (
+                    <div className="w-10 h-10 rounded-full overflow-hidden border-2 shadow-sm" style={{ borderColor: `${item.color}40` }}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={item.avatar} alt="Kit mentor" className="w-full h-full object-cover" />
+                    </div>
+                  )}
                 </div>
                 <h3 className="font-bold text-text-primary mb-1.5">{item.title}</h3>
                 <p className="text-sm text-text-secondary leading-relaxed">{item.desc}</p>
@@ -643,16 +732,31 @@ export default function Home() {
               </p>
             </div>
 
-            <div className="rounded-2xl border border-brand-purple/20 p-6 bg-gradient-to-br from-brand-purple/5 to-white relative">
+            <div className="rounded-2xl border border-brand-purple/20 p-6 bg-gradient-to-br from-brand-purple/5 to-white relative overflow-hidden">
               <div className="w-10 h-10 rounded-xl bg-brand-purple/10 flex items-center justify-center mb-4 text-brand-purple">
                 <IconCompass />
               </div>
               <div className="text-[10px] font-bold uppercase tracking-widest text-brand-purple mb-2">Phase 2</div>
               <h3 className="text-base font-bold mb-2">Discovery Journey</h3>
-              <p className="text-sm text-text-secondary leading-relaxed">
+              <p className="text-sm text-text-secondary leading-relaxed mb-4">
                 An interactive 8-station exploration where students discover their design identity,
                 interests, and project direction — guided by Kit, a mentor character.
               </p>
+              {/* Discovery station preview strip */}
+              <div className="relative flex gap-1.5 rounded-xl overflow-hidden">
+                {["s1-campfire", "s3-collection", "s6-crossroads", "s7-launchpad"].map((bg) => (
+                  <div key={bg} className="relative w-1/4 h-16 rounded-lg overflow-hidden">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={`/discovery/backgrounds/${bg}.webp`} alt="" className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-brand-purple/20" />
+                  </div>
+                ))}
+                {/* Kit avatar overlapping the strip */}
+                <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-10 h-10 rounded-full border-2 border-white shadow-lg overflow-hidden bg-brand-purple/30">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/discovery/kit/excited.png" alt="Kit mentor" className="w-full h-full object-cover" />
+                </div>
+              </div>
             </div>
 
             <div className="rounded-2xl border border-accent-green/20 p-6 bg-gradient-to-br from-accent-green/5 to-white relative">
