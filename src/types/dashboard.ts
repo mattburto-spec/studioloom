@@ -5,6 +5,8 @@ export interface DashboardData {
   recentActivity: ActivityEvent[];
   /** Students with completed pages that may need teacher review/grading */
   unmarkedWork?: UnmarkedWorkItem[];
+  /** Smart priority-sorted insights — mixed alert types surfaced by urgency */
+  insights?: DashboardInsight[];
 }
 
 export interface DashboardClass {
@@ -64,6 +66,33 @@ export interface ActivityEvent {
   status: string;
   /** ISO timestamp */
   updatedAt: string;
+}
+
+/** Smart insight types surfaced on the teacher dashboard */
+export type InsightType =
+  | "integrity_flag"      // Completed page with suspicious writing behaviour
+  | "stale_unmarked"      // Completed work sitting unreviewed for 7+ days
+  | "unit_complete"       // Student finished all pages in a unit
+  | "stuck_student"       // In-progress for 48+ hours — might need help
+  | "recent_completion"   // Fresh completed work to review
+  | "integrity_warning";  // Moderate integrity concern (40-69 score range)
+
+export interface DashboardInsight {
+  type: InsightType;
+  /** 0-100 priority score — higher = more urgent */
+  priority: number;
+  /** Short title e.g. "Possible copy-paste" */
+  title: string;
+  /** Detail line e.g. "test · IGCSE TEST · Lesson 2" */
+  subtitle: string;
+  /** Where to navigate when clicked */
+  href: string;
+  /** Student name for the avatar */
+  studentName: string;
+  /** Accent color for the indicator */
+  accentColor: string;
+  /** ISO timestamp for recency display */
+  timestamp: string;
 }
 
 /** A student × unit pair with completed work that may need teacher review */

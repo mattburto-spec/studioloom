@@ -9,6 +9,7 @@ import type {
   StuckStudent,
   ActivityEvent,
   UnmarkedWorkItem,
+  DashboardInsight,
 } from "@/types/dashboard";
 import type { UnitContentData } from "@/types";
 
@@ -457,11 +458,157 @@ export const GET = withErrorHandler("teacher/dashboard:GET", async (request: Nex
     .sort((a, b) => new Date(b.lastCompletedAt).getTime() - new Date(a.lastCompletedAt).getTime())
     .slice(0, 20);
 
+  // --- Smart Insights: priority-sorted mixed alerts ---
+  const insights: DashboardInsight[] = [];
+  const nowMs = Date.now();
+  const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+  const twoDaysMs = 48 * 60 * 60 * 1000;
+
+  // Track which students completed ALL pages in a unit
+  const completedPagesByStudentUnit = new Map<string, number>(); // "sid-uid" -> count
+  for (const p of progress) {
+    if (p.status !== "complete") continue;
+    const key = `${p.student_id}-${p.unit_id}`;
+    completedPagesByStudentUnit.set(key, (completedPagesByStudentUnit.get(key) || 0) + 1);
+  }
+
+  // Deduplicate: one insight per student-unit per type
+  const insightSeen = new Set<string>();
+
+  for (const p of progress) {
+    const student = studentById.get(p.student_id);
+    if (!student) continue;
+    const cls = classById.get(student.class_id);
+    if (!cls) continue;
+    const unit = unitInfo.get(p.unit_id);
+    if (!unit) continue;
+
+    const updatedMs = new Date(p.updated_at).getTime();
+    const ageMs = nowMs - updatedMs;
+    const studentLabel = student.display_name || student.username;
+    const baseHref = `/teacher/units/${p.unit_id}/class/${student.class_id}`;
+
+    // --- Integrity flags on completed work ---
+    if (p.status === "complete" && p.integrity_metadata) {
+      const meta = p.integrity_metadata as Record<string, unknown>;
+      const pasteEvents = meta.pasteEvents as unknown[];
+      const hasPastes = Array.isArray(pasteEvents) && pasteEvents.length > 0;
+      const keystrokeCount = (meta.keystrokeCount as number) || 0;
+      const focusLossCount = (meta.focusLossCount as number) || 0;
+
+      // Red flag: significant paste activity or very low keystrokes with content
+      if (hasPastes || keystrokeCount < 20 || focusLossCount > 10) {
+        const ikey = `integrity-${p.student_id}-${p.unit_id}`;
+        if (!insightSeen.has(ikey)) {
+          insightSeen.add(ikey);
+          const isSevere = hasPastes && keystrokeCount < 50;
+          insights.push({
+            type: isSevere ? "integrity_flag" : "integrity_warning",
+            priority: isSevere ? 90 : 55,
+            title: hasPastes ? "Possible copy-paste detected" : focusLossCount > 10 ? "Frequent tab-switching" : "Very low keystroke count",
+            subtitle: `${studentLabel} · ${cls.name} · ${unit.title}`,
+            href: `${baseHref}?tab=progress`,
+            studentName: studentLabel,
+            accentColor: isSevere ? "#EF4444" : "#F59E0B",
+            timestamp: p.updated_at,
+          });
+        }
+      }
+    }
+
+    // --- Stale unmarked work (completed 7+ days ago) ---
+    if (p.status === "complete" && ageMs > sevenDaysMs) {
+      const skey = `stale-${p.student_id}-${p.unit_id}`;
+      if (!insightSeen.has(skey)) {
+        insightSeen.add(skey);
+        const days = Math.floor(ageMs / (24 * 60 * 60 * 1000));
+        insights.push({
+          type: "stale_unmarked",
+          priority: Math.min(85, 70 + days), // gets more urgent over time, cap at 85
+          title: `Unmarked work — ${days} days`,
+          subtitle: `${studentLabel} · ${cls.name} · ${unit.title}`,
+          href: `${baseHref}?tab=grade`,
+          studentName: studentLabel,
+          accentColor: "#F59E0B",
+          timestamp: p.updated_at,
+        });
+      }
+    }
+
+    // --- Recent completion (last 48 hours, not stale) ---
+    if (p.status === "complete" && ageMs <= twoDaysMs) {
+      const rkey = `recent-${p.student_id}-${p.unit_id}`;
+      if (!insightSeen.has(rkey)) {
+        insightSeen.add(rkey);
+        insights.push({
+          type: "recent_completion",
+          priority: 45,
+          title: "New work submitted",
+          subtitle: `${studentLabel} · ${cls.name} · ${unit.title}`,
+          href: `${baseHref}?tab=grade`,
+          studentName: studentLabel,
+          accentColor: "#10B981",
+          timestamp: p.updated_at,
+        });
+      }
+    }
+
+    // --- Stuck student (in_progress 48+ hours) ---
+    if (p.status === "in_progress" && ageMs > twoDaysMs) {
+      const stkey = `stuck-${p.student_id}-${p.unit_id}`;
+      if (!insightSeen.has(stkey)) {
+        insightSeen.add(stkey);
+        const days = Math.floor(ageMs / (24 * 60 * 60 * 1000));
+        insights.push({
+          type: "stuck_student",
+          priority: 55,
+          title: `Stuck for ${days > 0 ? days + "d" : Math.floor(ageMs / 3600000) + "h"}`,
+          subtitle: `${studentLabel} · ${cls.name} · ${unit.title}`,
+          href: `${baseHref}?tab=progress`,
+          studentName: studentLabel,
+          accentColor: "#6366F1",
+          timestamp: p.updated_at,
+        });
+      }
+    }
+  }
+
+  // --- Unit complete milestones ---
+  for (const [key, count] of completedPagesByStudentUnit) {
+    const [sid, uid] = key.split("-");
+    const unit = unitInfo.get(uid);
+    if (!unit || count < unit.totalPages || unit.totalPages === 0) continue;
+    const student = studentById.get(sid);
+    if (!student) continue;
+    const cls = classById.get(student.class_id);
+    if (!cls) continue;
+
+    const uckey = `complete-${sid}-${uid}`;
+    if (!insightSeen.has(uckey)) {
+      insightSeen.add(uckey);
+      insights.push({
+        type: "unit_complete",
+        priority: 65,
+        title: "Finished entire unit",
+        subtitle: `${student.display_name || student.username} · ${cls.name} · ${unit.title}`,
+        href: `/teacher/units/${uid}/class/${student.class_id}?tab=grade`,
+        studentName: student.display_name || student.username,
+        accentColor: "#7C3AED",
+        timestamp: new Date().toISOString(), // no single timestamp for "all pages done"
+      });
+    }
+  }
+
+  // Sort by priority (desc), then recency (desc). Limit to 20.
+  insights.sort((a, b) => b.priority - a.priority || new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  insights.splice(20);
+
   const data: DashboardData = {
     classes: dashboardClasses,
     stuckStudents,
     recentActivity,
     unmarkedWork,
+    insights,
   };
 
   return NextResponse.json(data, {

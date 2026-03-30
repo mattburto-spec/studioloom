@@ -5,7 +5,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { generateClassCode, timeAgo } from "@/lib/utils";
 import { useTeacher } from "../teacher-context";
-import type { DashboardData } from "@/types/dashboard";
+import type { DashboardData, DashboardInsight } from "@/types/dashboard";
 import type { TeacherStyleProfile } from "@/types/teacher-style";
 
 // ---------------------------------------------------------------------------
@@ -453,38 +453,20 @@ function TwoColumnDashboard({
           )}
         </SidebarSection>
 
-        {/* ── Work to Mark ── */}
-        {(data.unmarkedWork ?? []).length > 0 && (
+        {/* ── Smart Insights ── */}
+        {(data.insights ?? []).length > 0 && (
           <SidebarSection
-            title="Work to Mark"
-            subtitle={`${(data.unmarkedWork ?? []).length} student${(data.unmarkedWork ?? []).length !== 1 ? "s" : ""}`}
-            icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" /></svg>}
+            title="Insights"
+            subtitle={`${(data.insights ?? []).length} item${(data.insights ?? []).length !== 1 ? "s" : ""}`}
+            icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83" /></svg>}
             accentColor="#7C3AED"
           >
             <div className="divide-y divide-gray-100">
-              {(data.unmarkedWork ?? []).slice(0, 6).map((w) => (
-                <Link
-                  key={`mark-${w.studentId}-${w.unitId}`}
-                  href={`/teacher/units/${w.unitId}/class/${w.classId}?tab=grade`}
-                  className="flex items-center gap-2.5 px-3 py-2 hover:bg-purple-50/50 transition text-xs"
-                >
-                  <div className="w-6 h-6 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center text-[10px] font-bold shrink-0">
-                    {(w.studentName[0] || "?").toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-text-primary truncate">{w.studentName}</p>
-                    <p className="text-[10px] text-text-secondary truncate">{w.className} · {w.unitTitle}</p>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    {w.hasIntegrityFlags && (
-                      <span className="w-2 h-2 rounded-full bg-blue-500" title="Has integrity data" />
-                    )}
-                    <span className="text-purple-600 font-semibold whitespace-nowrap">{w.completedPages}/{w.totalPages}</span>
-                  </div>
-                </Link>
+              {(data.insights ?? []).slice(0, 6).map((insight, idx) => (
+                <InsightRow key={`insight-${idx}`} insight={insight} />
               ))}
-              {(data.unmarkedWork ?? []).length > 6 && (
-                <p className="text-[10px] text-text-secondary text-center py-2">+{(data.unmarkedWork ?? []).length - 6} more</p>
+              {(data.insights ?? []).length > 6 && (
+                <p className="text-[10px] text-text-secondary text-center py-2">+{(data.insights ?? []).length - 6} more</p>
               )}
             </div>
           </SidebarSection>
@@ -663,6 +645,57 @@ function TwoColumnDashboard({
         })()}
       </div>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// InsightRow — single row in the smart insights panel
+// ---------------------------------------------------------------------------
+
+const INSIGHT_ICONS: Record<string, React.ReactNode> = {
+  integrity_flag: (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
+  ),
+  integrity_warning: (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+  ),
+  stale_unmarked: (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
+  ),
+  unit_complete: (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
+  ),
+  stuck_student: (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M16 16s-1.5-2-4-2-4 2-4 2" /><line x1="9" y1="9" x2="9.01" y2="9" /><line x1="15" y1="9" x2="15.01" y2="9" /></svg>
+  ),
+  recent_completion: (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
+  ),
+};
+
+function InsightRow({ insight }: { insight: DashboardInsight }) {
+  return (
+    <Link
+      href={insight.href}
+      className="flex items-center gap-2.5 px-3 py-2.5 hover:bg-gray-50 transition text-xs group"
+    >
+      {/* Colored icon */}
+      <div
+        className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+        style={{ background: insight.accentColor + "18", color: insight.accentColor }}
+      >
+        {INSIGHT_ICONS[insight.type] || INSIGHT_ICONS.recent_completion}
+      </div>
+      {/* Content */}
+      <div className="flex-1 min-w-0">
+        <p className="font-semibold text-text-primary leading-tight truncate">{insight.title}</p>
+        <p className="text-[10px] text-text-secondary truncate mt-0.5">{insight.subtitle}</p>
+      </div>
+      {/* Recency */}
+      <span className="text-[10px] text-text-secondary whitespace-nowrap shrink-0">
+        {timeAgo(insight.timestamp)}
+      </span>
+    </Link>
   );
 }
 
