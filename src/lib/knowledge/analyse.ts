@@ -98,6 +98,12 @@ async function callAI<T>(options: AICallOptions): Promise<T> {
   const text =
     data.content?.[0]?.type === "text" ? data.content[0].text : "";
 
+  // Log stop_reason to detect truncation
+  const stopReason = data.stop_reason;
+  if (stopReason === "max_tokens") {
+    console.warn(`[callAI] WARNING: Response truncated (max_tokens reached) for model ${modelId}. Text length: ${text.length}`);
+  }
+
   // Extract JSON from response (handle markdown code blocks)
   const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/) ||
     text.match(/(\{[\s\S]*\})/);
@@ -169,7 +175,7 @@ export async function analysePass2(
     system: PASS2_SYSTEM_PROMPT + contextBlock,
     prompt: buildPass2Prompt(extractedText, pass1),
     model: "sonnet",
-    maxTokens: 6000,
+    maxTokens: 8192,
   });
 }
 
@@ -288,6 +294,15 @@ export function mergeIntoProfile(
   pass3: Pass3DesignTeaching,
   analysisModel: string
 ): LessonProfile {
+  // Dimensions v2 diagnostic logging — check what Pass 2 actually returned
+  console.log("[mergeIntoProfile] Dimensions v2 fields from Pass 2:", {
+    has_udl: !!pass2.udl_coverage,
+    has_bloom: !!pass2.bloom_distribution,
+    has_grouping: !!pass2.grouping_analysis,
+    udl_keys: pass2.udl_coverage ? Object.keys(pass2.udl_coverage) : "MISSING",
+    bloom_keys: pass2.bloom_distribution ? Object.keys(pass2.bloom_distribution) : "MISSING",
+    grouping_keys: pass2.grouping_analysis ? Object.keys(pass2.grouping_analysis) : "MISSING",
+  });
   // Build the lesson flow by combining Pass 1 sections with Pass 2 pedagogy and Pass 3 workshop data
   const lessonFlow: LessonFlowPhase[] = pass1.sections.map((section) => {
     // Find matching pedagogical analysis from Pass 2

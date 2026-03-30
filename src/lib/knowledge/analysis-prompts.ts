@@ -23,7 +23,7 @@ import type {
 } from "@/types/lesson-intelligence";
 
 /** Current prompt version — increment when prompts change significantly */
-export const ANALYSIS_PROMPT_VERSION = "2.1.0";
+export const ANALYSIS_PROMPT_VERSION = "2.2.0";
 
 /* ================================================================
    TEACHING CONTEXT BLOCK
@@ -233,6 +233,7 @@ ${extractedText}
 ${JSON.stringify(pass1, null, 2)}
 
 ## Required Output (JSON)
+IMPORTANT: Output ALL fields in this exact order. The udl_coverage, bloom_distribution, and grouping_analysis fields are REQUIRED — do not skip them.
 {
   "pedagogical_approach": {
     "primary": "string — inquiry-based | project-based | direct-instruction | design-thinking | experiential | problem-based | cooperative-learning",
@@ -251,6 +252,36 @@ ${JSON.stringify(pass1, null, 2)}
     "description": "string — describe the cognitive demand across the lesson timeline. Example: 'Starts low (vocabulary recall), peaks at minute 20 (open-ended design challenge with multiple constraints), eases through guided reflection'",
     "peak_moment": "string — when is the highest cognitive demand and what makes it demanding?",
     "recovery_moment": "string — when do students get a cognitive breather? If there isn't one, flag it."
+  },
+
+  "complexity_level": "introductory | developing | proficient | advanced — relative to the stated grade level, not absolute",
+
+  "udl_coverage": {
+    "engagement": ["string — UDL checkpoint IDs addressed under Engagement (1.1-3.3). e.g. '1.1 recruiting interest' if the lesson offers choice or relevance. Only include checkpoints genuinely addressed, not aspirational."],
+    "representation": ["string — UDL checkpoint IDs addressed under Representation (4.1-6.3). e.g. '5.2 illustrate through multiple media' if content is presented in multiple formats."],
+    "action_expression": ["string — UDL checkpoint IDs addressed under Action & Expression (7.1-9.3). e.g. '7.1 optimize individual choice' if students choose how to demonstrate learning."],
+    "principle_gaps": "string — which UDL principle (Engagement/Representation/Action & Expression) is LEAST addressed? What's missing?"
+  },
+
+  "bloom_distribution": {
+    "remember": "number — count of activities primarily at Remember level",
+    "understand": "number — count at Understand level",
+    "apply": "number — count at Apply level",
+    "analyze": "number — count at Analyze level",
+    "evaluate": "number — count at Evaluate level",
+    "create": "number — count at Create level",
+    "dominant_level": "string — which Bloom's level dominates? Is this appropriate for the grade level and lesson goals?"
+  },
+
+  "grouping_analysis": {
+    "progression": "string — describe grouping changes across the lesson (e.g. 'whole-class → pairs → individual → small-group critique')",
+    "time_distribution": {
+      "individual_pct": "number — approximate percentage of lesson time spent working individually",
+      "pair_pct": "number — percentage in pairs",
+      "small_group_pct": "number — percentage in small groups (3-5)",
+      "whole_class_pct": "number — percentage as whole class"
+    },
+    "rationale": "string — is the grouping progression intentional and pedagogically justified, or arbitrary?"
   },
 
   "phase_analysis": [
@@ -297,37 +328,7 @@ ${JSON.stringify(pass1, null, 2)}
       "what": "string — name the gap or weakness",
       "suggestion": "string — specific, actionable suggestion for improvement. Not generic advice — something a teacher could implement tomorrow."
     }
-  ],
-
-  "udl_coverage": {
-    "engagement": ["string — UDL checkpoint IDs addressed under Engagement (1.1-3.3). e.g. '1.1 recruiting interest' if the lesson offers choice or relevance. Only include checkpoints genuinely addressed, not aspirational."],
-    "representation": ["string — UDL checkpoint IDs addressed under Representation (4.1-6.3). e.g. '5.2 illustrate through multiple media' if content is presented in multiple formats."],
-    "action_expression": ["string — UDL checkpoint IDs addressed under Action & Expression (7.1-9.3). e.g. '7.1 optimize individual choice' if students choose how to demonstrate learning."],
-    "principle_gaps": "string — which UDL principle (Engagement/Representation/Action & Expression) is LEAST addressed? What's missing?"
-  },
-
-  "bloom_distribution": {
-    "remember": "number — count of activities primarily at Remember level",
-    "understand": "number — count at Understand level",
-    "apply": "number — count at Apply level",
-    "analyze": "number — count at Analyze level",
-    "evaluate": "number — count at Evaluate level",
-    "create": "number — count at Create level",
-    "dominant_level": "string — which Bloom's level dominates? Is this appropriate for the grade level and lesson goals?"
-  },
-
-  "grouping_analysis": {
-    "progression": "string — describe grouping changes across the lesson (e.g. 'whole-class → pairs → individual → small-group critique')",
-    "time_distribution": {
-      "individual_pct": "number — approximate percentage of lesson time spent working individually",
-      "pair_pct": "number — percentage in pairs",
-      "small_group_pct": "number — percentage in small groups (3-5)",
-      "whole_class_pct": "number — percentage as whole class"
-    },
-    "rationale": "string — is the grouping progression intentional and pedagogically justified, or arbitrary?"
-  },
-
-  "complexity_level": "introductory | developing | proficient | advanced — relative to the stated grade level, not absolute"
+  ]
 }
 
 ## Important Guidelines
