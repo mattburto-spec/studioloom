@@ -1150,6 +1150,41 @@ export default function ClassHubPage({
                           )}
                         </div>
 
+                        {/* Student Work Quick-View */}
+                        {unitPages.length > 0 && (
+                          <div className="p-3 bg-blue-50/50 rounded-lg border border-blue-100">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-[10px] font-semibold text-blue-600 uppercase tracking-wide">Student Work</span>
+                              <span className="text-[10px] text-blue-400">Click to view responses & integrity</span>
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {unitPages.map((page) => {
+                                const progress = progressMap[selectedStudentForGrading]?.[page.id];
+                                const hasResponses = progress?.responses && typeof progress.responses === "object" && Object.keys(progress.responses as Record<string, unknown>).length > 0;
+                                const rawP = progress as unknown as Record<string, unknown>;
+                                const hasIntegrity = rawP?.integrity_metadata && typeof rawP.integrity_metadata === "object" && Object.keys(rawP.integrity_metadata as Record<string, unknown>).length > 0;
+                                return (
+                                  <button
+                                    key={page.id}
+                                    onClick={() => loadStudentDetail({ id: selectedStudentForGrading, name: student?.display_name || student?.username || "" }, page.id)}
+                                    className={`relative px-2 py-1 rounded text-[11px] font-medium transition border ${
+                                      hasResponses
+                                        ? "bg-green-50 border-green-200 text-green-700 hover:bg-green-100"
+                                        : "bg-gray-50 border-gray-200 text-gray-400"
+                                    }`}
+                                    title={`${page.title || page.id}${hasIntegrity ? " • Has integrity data" : ""}`}
+                                  >
+                                    {page.title ? (page.title.length > 20 ? page.title.slice(0, 18) + "…" : page.title) : page.id}
+                                    {hasIntegrity && (
+                                      <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-blue-500 ring-1 ring-white" />
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
                         {/* Criteria sections */}
                         <div className="space-y-4">
                           {unitCriteriaForGrade.map((criterionKey) => {
