@@ -134,7 +134,7 @@ export default function TeacherDashboard() {
       {/* ================================================================= */}
       {/* Row 1 — Header strip: welcome + refresh + New Class button        */}
       {/* ================================================================= */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-3">
         <div>
           <h1 className="text-2xl font-bold text-text-primary tracking-tight">
             Welcome back{teacher?.name ? `, ${teacher.name.split(" ")[0]}` : ""}
