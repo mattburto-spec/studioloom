@@ -88,7 +88,7 @@ export default function Home() {
             </p>
             <div className="flex flex-wrap gap-4 justify-center">
               <Link href="/teacher/login" className="group px-7 py-3.5 gradient-cta text-white rounded-full font-semibold hover:opacity-90 transition text-base flex items-center gap-2 shadow-lg shadow-brand-pink/25">
-                Get Started Free
+                Get Started
                 <IconArrowRight />
               </Link>
               <Link href="/toolkit" className="px-7 py-3.5 bg-white/10 text-white rounded-full font-medium hover:bg-white/20 transition border border-white/20 text-base backdrop-blur-sm">
@@ -105,14 +105,14 @@ export default function Home() {
           </div>
         </section>
 
-        <WaveDivider fillClass="fill-[#0c0a1a]" />
+        <div className="h-24 md:h-32" style={{ background: "linear-gradient(to bottom, transparent 0%, #0c0a1a 100%)" }} />
       </div>
 
 
       {/* ══════════════════════════════════════════════════════════════ */}
       {/* 1. FREE TOOLKIT — Dark-themed showcase                        */}
       {/* ══════════════════════════════════════════════════════════════ */}
-      <section style={{ background: "linear-gradient(135deg, #0c0a1a 0%, #1a0e3a 40%, #0d1b2a 100%)" }}>
+      <section style={{ background: "linear-gradient(135deg, #0c0a1a 0%, #1a0e3a 40%, #0d1b2a 100%)", marginTop: "-1px" }}>
         <div className="max-w-6xl mx-auto px-6 py-20">
           <div className="text-center mb-12">
             <span className="text-xs font-semibold uppercase tracking-wider text-green-400 mb-3 block">Free for Every Teacher</span>
@@ -192,10 +192,6 @@ export default function Home() {
                 ))}
               </div>
               <div className="relative z-10">
-                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-accent-green/20 border border-accent-green/30 text-xs font-semibold text-accent-green mb-6">
-                  <span className="w-1.5 h-1.5 rounded-full bg-accent-green animate-pulse" />
-                  Free During Early Access
-                </div>
                 <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">Ready to Spend Less Time on Admin?</h2>
                 <p className="text-white/55 mb-8 max-w-lg mx-auto">
                   Start with the free toolkit — no login needed. Or set up your first class and see how it feels
@@ -203,7 +199,7 @@ export default function Home() {
                 </p>
                 <div className="flex flex-wrap gap-4 justify-center">
                   <Link href="/teacher/login" className="px-8 py-3.5 bg-white text-brand-purple rounded-full font-semibold hover:bg-white/90 transition text-base shadow-lg">
-                    Get Started Free
+                    Get Started
                   </Link>
                   <Link href="/toolkit" className="px-8 py-3.5 bg-white/10 text-white rounded-full font-medium hover:bg-white/20 transition border border-white/20 text-base backdrop-blur-sm">
                     Browse the Toolkit
