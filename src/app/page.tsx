@@ -222,99 +222,7 @@ export default function Home() {
 
 
       {/* ══════════════════════════════════════════════════════════════ */}
-      {/* 1. FREE TOOLKIT — Lead with the free offering                 */}
-      {/* ══════════════════════════════════════════════════════════════ */}
-      <section className="bg-white text-text-primary">
-        <div className="max-w-6xl mx-auto px-6 pt-24 pb-20">
-          <div className="text-center mb-12">
-            <span className="text-xs font-semibold uppercase tracking-wider text-accent-green mb-3 block">Free for Every Teacher</span>
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">The Design Thinking Toolkit</h2>
-            <p className="text-text-secondary max-w-xl mx-auto">
-              42 visual thinking tools, from Mind Maps to Morphological Charts. Filter by design phase,
-              deploy as presentation, worksheet, group activity, or solo task. No login required.
-            </p>
-          </div>
-
-          {/* Framework badges */}
-          <div className="flex flex-wrap items-center justify-center gap-2 mb-10">
-            {["IB MYP", "GCSE DT", "A-Level DT", "ACARA", "PLTW", "Stanford d.school", "IDEO", "Double Diamond"].map((fw) => (
-              <span key={fw} className="text-[11px] font-semibold px-3 py-1.5 rounded-full bg-surface-alt border border-border text-text-secondary">
-                {fw}
-              </span>
-            ))}
-          </div>
-
-          {/* Two-column: Interactive tools highlight + catalog preview */}
-          <div className="grid md:grid-cols-2 gap-8 items-start">
-            {/* Left: Interactive AI tools */}
-            <div className="rounded-2xl border border-brand-purple/20 bg-gradient-to-br from-brand-purple/5 to-white p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-8 h-8 rounded-lg bg-brand-purple/10 flex items-center justify-center">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7B2FF2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" /></svg>
-                </div>
-                <span className="text-sm font-bold text-brand-purple">27 AI-Powered Interactive Tools</span>
-              </div>
-              <p className="text-sm text-text-secondary mb-4">
-                Not just templates — these guide students step-by-step with adaptive feedback,
-                thinking timers, and prompts that respond to effort level.
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { name: "SCAMPER", svg: <svg viewBox="0 0 24 24" className="w-4 h-4"><circle cx="12" cy="12" r="4" fill="#7B2FF220" stroke="#7B2FF2" strokeWidth="1"/>{[0,60,120,180,240,300].map((a,i)=><line key={i} x1={12+4*Math.cos(a*Math.PI/180)} y1={12+4*Math.sin(a*Math.PI/180)} x2={12+9*Math.cos(a*Math.PI/180)} y2={12+9*Math.sin(a*Math.PI/180)} stroke="#7B2FF2" strokeWidth="1" strokeLinecap="round"/>)}{[0,60,120,180,240,300].map((a,i)=><circle key={`c${i}`} cx={12+9*Math.cos(a*Math.PI/180)} cy={12+9*Math.sin(a*Math.PI/180)} r="2" fill="#7B2FF240" stroke="#7B2FF2" strokeWidth="0.5"/>)}</svg> },
-                  { name: "Six Thinking Hats", svg: <svg viewBox="0 0 24 24" className="w-4 h-4">{["#2E86AB","#E86F2C","#1a1a1a","#FFD700","#2DA05E","#7B2FF2"].map((c,i)=><rect key={i} x={2+((i%3)*7.5)} y={i<3?3:13} width="6" height="8" rx="3" fill={c} opacity="0.6"/>)}</svg> },
-                  { name: "PMI Chart", svg: <svg viewBox="0 0 24 24" className="w-4 h-4"><rect x="1" y="4" width="7" height="16" rx="1.5" fill="#2DA05E30" stroke="#2DA05E" strokeWidth="0.5"/><rect x="8.5" y="4" width="7" height="16" rx="1.5" fill="#E86F2C30" stroke="#E86F2C" strokeWidth="0.5"/><rect x="16" y="4" width="7" height="16" rx="1.5" fill="#7B2FF230" stroke="#7B2FF2" strokeWidth="0.5"/></svg> },
-                  { name: "Five Whys", svg: <svg viewBox="0 0 24 24" className="w-4 h-4">{[0,1,2,3,4].map(i=><g key={i}><rect x="4" y={2+i*4.2} width={16-i*2} height="3" rx="1.5" fill={`rgba(123,47,242,${0.15+i*0.1})`} stroke="#7B2FF2" strokeWidth="0.5"/>{i<4&&<line x1="12" y1={5+i*4.2} x2="12" y2={6.2+i*4.2} stroke="#7B2FF2" strokeWidth="0.5"/>}</g>)}</svg> },
-                  { name: "Empathy Map", svg: <svg viewBox="0 0 24 24" className="w-4 h-4"><line x1="12" y1="2" x2="12" y2="22" stroke="#7B2FF2" strokeWidth="0.5"/><line x1="2" y1="12" x2="22" y2="12" stroke="#7B2FF2" strokeWidth="0.5"/><circle cx="12" cy="12" r="3" fill="#7B2FF220" stroke="#7B2FF2" strokeWidth="0.5"/><text x="6" y="8" fontSize="4" fill="#2E86AB" textAnchor="middle">S</text><text x="18" y="8" fontSize="4" fill="#E86F2C" textAnchor="middle">T</text><text x="6" y="18" fontSize="4" fill="#2DA05E" textAnchor="middle">D</text><text x="18" y="18" fontSize="4" fill="#7B2FF2" textAnchor="middle">F</text></svg> },
-                  { name: "Decision Matrix", svg: <svg viewBox="0 0 24 24" className="w-4 h-4"><rect x="2" y="2" width="20" height="20" rx="2" fill="none" stroke="#7B2FF2" strokeWidth="0.5"/>{[0,1,2].map(r=>[0,1,2].map(c=><rect key={`${r}${c}`} x={3+c*6.5} y={3+r*6.5} width="5.5" height="5.5" rx="1" fill={r===0?"#7B2FF215":`rgba(123,47,242,${0.1+Math.random()*0.3})`}/>))}</svg> },
-                  { name: "How Might We", svg: <svg viewBox="0 0 24 24" className="w-4 h-4"><text x="12" y="16" fontSize="14" fill="#7B2FF2" textAnchor="middle" fontWeight="bold" opacity="0.5">?</text><path d="M4 20 Q12 4 20 20" fill="none" stroke="#7B2FF2" strokeWidth="0.8" strokeDasharray="2 1.5"/></svg> },
-                  { name: "Reverse Brainstorm", svg: <svg viewBox="0 0 24 24" className="w-4 h-4"><circle cx="12" cy="10" r="6" fill="#E86F2C15" stroke="#E86F2C" strokeWidth="0.5"/><path d="M9 10 L15 10 M12 7 L12 13" stroke="#E86F2C" strokeWidth="1" strokeLinecap="round"/><path d="M8 19 L16 19" stroke="#2DA05E" strokeWidth="1" strokeLinecap="round"/><path d="M12 16 L12 19" stroke="#7B2FF2" strokeWidth="0.5" strokeDasharray="1 1"/></svg> },
-                  { name: "SWOT Analysis", svg: <svg viewBox="0 0 24 24" className="w-4 h-4"><rect x="2" y="2" width="9.5" height="9.5" rx="1.5" fill="#2DA05E30"/><rect x="12.5" y="2" width="9.5" height="9.5" rx="1.5" fill="#E86F2C30"/><rect x="2" y="12.5" width="9.5" height="9.5" rx="1.5" fill="#2E86AB30"/><rect x="12.5" y="12.5" width="9.5" height="9.5" rx="1.5" fill="#7B2FF230"/></svg> },
-                  { name: "Stakeholder Map", svg: <svg viewBox="0 0 24 24" className="w-4 h-4"><circle cx="12" cy="12" r="10" fill="none" stroke="#7B2FF2" strokeWidth="0.4" strokeDasharray="2 2"/><circle cx="12" cy="12" r="6" fill="none" stroke="#7B2FF2" strokeWidth="0.4" strokeDasharray="2 2"/><circle cx="12" cy="12" r="2" fill="#7B2FF230" stroke="#7B2FF2" strokeWidth="0.5"/>{[45,135,225,315].map((a,i)=><circle key={i} cx={12+7*Math.cos(a*Math.PI/180)} cy={12+7*Math.sin(a*Math.PI/180)} r="1.5" fill="#2E86AB40" stroke="#2E86AB" strokeWidth="0.4"/>)}</svg> },
-                  { name: "Lotus Diagram", svg: <svg viewBox="0 0 24 24" className="w-4 h-4"><rect x="9" y="9" width="6" height="6" rx="1" fill="#7B2FF230" stroke="#7B2FF2" strokeWidth="0.5"/>{[{x:2,y:2},{x:9,y:2},{x:16,y:2},{x:2,y:9},{x:16,y:9},{x:2,y:16},{x:9,y:16},{x:16,y:16}].map((p,i)=><rect key={i} x={p.x} y={p.y} width="6" height="6" rx="1" fill="#7B2FF210" stroke="#7B2FF2" strokeWidth="0.3"/>)}</svg> },
-                  { name: "Affinity Diagram", svg: <svg viewBox="0 0 24 24" className="w-4 h-4">{[{x:2,y:3,c:"#2E86AB"},{x:8,y:2,c:"#2E86AB"},{x:2,y:9,c:"#E86F2C"},{x:8,y:10,c:"#E86F2C"},{x:14,y:3,c:"#2DA05E"},{x:14,y:9,c:"#2DA05E"},{x:5,y:16,c:"#7B2FF2"},{x:11,y:16,c:"#7B2FF2"},{x:17,y:16,c:"#7B2FF2"}].map((n,i)=><rect key={i} x={n.x} y={n.y} width="6" height="5" rx="1" fill={n.c+"25"} stroke={n.c} strokeWidth="0.4"/>)}</svg> },
-                ].map((tool) => (
-                  <div key={tool.name} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-border text-xs text-text-primary font-medium">
-                    <span className="flex-shrink-0">{tool.svg}</span>
-                    {tool.name}
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Right: Browse catalog + other free tools */}
-            <div className="space-y-4">
-              <div className="rounded-2xl border border-border bg-surface-alt p-6">
-                <h3 className="font-bold text-text-primary mb-2">Full Browsing Catalog</h3>
-                <p className="text-sm text-text-secondary mb-4">
-                  42 tools across 7 categories — Ideation, Analysis, Evaluation, Research, Planning, Communication, and Reflection.
-                  Filter by phase, difficulty, group size, and deploy mode.
-                </p>
-                <Link href="/toolkit" className="group inline-flex items-center gap-2 text-sm font-semibold text-brand-purple hover:text-brand-violet transition">
-                  Open the Toolkit <IconArrowRight />
-                </Link>
-              </div>
-
-              <div className="rounded-2xl border border-border bg-white p-6">
-                <h3 className="font-bold text-text-primary mb-2">More Free Teacher Tools</h3>
-                <div className="space-y-2.5">
-                  <Link href="/tools/report-writer" className="flex items-start gap-3 text-sm text-text-secondary hover:text-text-primary transition group">
-                    <IconCheck />
-                    <span><strong className="text-text-primary">Report Writer</strong> — Bulk report comments for up to 10 students. Multi-framework, tone controls, Excel upload.</span>
-                  </Link>
-                  <Link href="/tools/safety" className="flex items-start gap-3 text-sm text-text-secondary hover:text-text-primary transition group">
-                    <IconCheck />
-                    <span><strong className="text-text-primary">Safety Quiz Builder</strong> — Create workshop safety quizzes with learning cards and auto-scoring.</span>
-                  </Link>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-
-      {/* ══════════════════════════════════════════════════════════════ */}
-      {/* 2. THE TEACHING COCKPIT — Live classroom control               */}
+      {/* 1. THE TEACHING COCKPIT — Live classroom control               */}
       {/* ══════════════════════════════════════════════════════════════ */}
       <div className="gradient-hero relative">
         <WaveDivider direction="top" fillClass="fill-white" />
@@ -682,8 +590,80 @@ export default function Home() {
             </div>
           </div>
         </section>
-        <WaveDivider fillClass="fill-white" />
+        <WaveDivider fillClass="fill-[#0c0a1a]" />
       </div>
+
+
+      {/* ══════════════════════════════════════════════════════════════ */}
+      {/* 6. FREE TOOLKIT — Dark-themed showcase                        */}
+      {/* ══════════════════════════════════════════════════════════════ */}
+      <section style={{ background: "linear-gradient(135deg, #0c0a1a 0%, #1a0e3a 40%, #0d1b2a 100%)" }}>
+        <div className="max-w-6xl mx-auto px-6 py-20">
+          <div className="text-center mb-12">
+            <span className="text-xs font-semibold uppercase tracking-wider text-green-400 mb-3 block">Free for Every Teacher</span>
+            <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">Design Thinking Toolkit</h2>
+            <p className="text-white/50 max-w-xl mx-auto">
+              42 visual thinking tools. 27 are AI-powered and interactive. Filter by design phase, deploy as
+              presentation, worksheet, group activity, or solo task. No login required.
+            </p>
+          </div>
+
+          {/* Tool name pills */}
+          <div className="flex flex-wrap items-center justify-center gap-2 mb-10 max-w-3xl mx-auto">
+            {["SCAMPER", "Six Thinking Hats", "PMI Chart", "Five Whys", "Empathy Map", "Decision Matrix", "SWOT Analysis", "Stakeholder Map", "Lotus Diagram", "How Might We", "Reverse Brainstorm", "Dot Voting", "Quick Sketch", "Affinity Diagram", "Morphological Chart"].map((name) => (
+              <span key={name} className="text-[11px] font-medium px-3 py-1.5 rounded-full border border-purple-500/30 bg-purple-500/10 text-purple-300">
+                {name}
+              </span>
+            ))}
+            <span className="text-[11px] font-medium px-3 py-1.5 rounded-full border border-white/10 bg-white/5 text-white/40">
+              +27 more
+            </span>
+          </div>
+
+          {/* Stats row */}
+          <div className="flex items-center justify-center gap-10 mb-10">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-white">42</div>
+              <div className="text-[11px] text-white/40 uppercase tracking-wider">Tools</div>
+            </div>
+            <div className="w-px h-8 bg-white/10" />
+            <div className="text-center">
+              <div className="text-2xl font-bold text-purple-400">27</div>
+              <div className="text-[11px] text-white/40 uppercase tracking-wider">Interactive</div>
+            </div>
+            <div className="w-px h-8 bg-white/10" />
+            <div className="text-center">
+              <div className="text-2xl font-bold text-green-400">8+</div>
+              <div className="text-[11px] text-white/40 uppercase tracking-wider">Frameworks</div>
+            </div>
+          </div>
+
+          {/* Framework badges */}
+          <div className="flex flex-wrap items-center justify-center gap-2 mb-10">
+            {["IB MYP", "GCSE DT", "A-Level DT", "ACARA", "PLTW", "Stanford d.school", "IDEO", "Double Diamond"].map((fw) => (
+              <span key={fw} className="text-[10px] font-semibold px-2.5 py-1 rounded-full border border-white/10 bg-white/5 text-white/30">
+                {fw}
+              </span>
+            ))}
+          </div>
+
+          {/* CTA */}
+          <div className="text-center">
+            <Link href="/toolkit" className="inline-flex items-center gap-2 px-8 py-3.5 bg-purple-600 hover:bg-purple-500 text-white rounded-full font-semibold transition text-base shadow-lg shadow-purple-600/25">
+              Open the Free Toolkit <IconArrowRight />
+            </Link>
+            <div className="mt-4 flex items-center justify-center gap-5">
+              <Link href="/tools/report-writer" className="text-xs text-white/30 hover:text-white/60 transition">
+                Report Writer
+              </Link>
+              <span className="text-white/10">|</span>
+              <Link href="/tools/safety" className="text-xs text-white/30 hover:text-white/60 transition">
+                Safety Quiz Builder
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
 
 
       {/* ══════════════════════════════════════════════════════════════ */}
