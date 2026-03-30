@@ -107,18 +107,17 @@ export default function Home() {
 
       </div>
 
-      {/* Curved wave overlaps BOTH sections — sits on top of the toolkit */}
-      <div className="relative z-10" style={{ marginBottom: "-5rem" }}>
-        <svg viewBox="0 0 1440 120" preserveAspectRatio="none" className="w-full h-24 md:h-32 lg:h-40 block">
-          <path d="M0,30 C280,100 580,0 900,50 C1100,80 1300,65 1440,45 L1440,120 L0,120 Z" fill="#0c0a1a" />
-        </svg>
-      </div>
-
       {/* ══════════════════════════════════════════════════════════════ */}
       {/* 1. FREE TOOLKIT — Dark-themed showcase                        */}
       {/* ══════════════════════════════════════════════════════════════ */}
       <section className="relative" style={{ background: "linear-gradient(135deg, #0c0a1a 0%, #1a0e3a 40%, #0d1b2a 100%)" }}>
-        <div className="max-w-6xl mx-auto px-6 py-20">
+        {/* Wave sits inside this section, pulled upward to overlap the hero */}
+        <div className="relative" style={{ marginTop: "-4rem" }}>
+          <svg viewBox="0 0 1440 120" preserveAspectRatio="none" className="w-full h-20 md:h-28 lg:h-36 block">
+            <path d="M0,30 C280,100 580,0 900,50 C1100,80 1300,65 1440,45 L1440,120 L0,120 Z" fill="#0c0a1a" />
+          </svg>
+        </div>
+        <div className="max-w-6xl mx-auto px-6 pb-20">
           <div className="text-center mb-12">
             <span className="text-xs font-semibold uppercase tracking-wider text-green-400 mb-3 block">Free for Every Teacher</span>
             <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">Design Thinking Toolkit</h2>
