@@ -218,10 +218,73 @@ export default function Home() {
 
 
       {/* ══════════════════════════════════════════════════════════════ */}
-      {/* 1. THE TEACHING COCKPIT — Live classroom control               */}
+      {/* 1. FREE TOOLKIT — Dark-themed showcase                        */}
+      {/* ══════════════════════════════════════════════════════════════ */}
+      <section style={{ background: "linear-gradient(135deg, #0c0a1a 0%, #1a0e3a 40%, #0d1b2a 100%)" }}>
+        <div className="max-w-6xl mx-auto px-6 py-20">
+          <div className="text-center mb-12">
+            <span className="text-xs font-semibold uppercase tracking-wider text-green-400 mb-3 block">Free for Every Teacher</span>
+            <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">Design Thinking Toolkit</h2>
+            <p className="text-white/50 max-w-xl mx-auto">
+              42 visual thinking tools. 27 are AI-powered and interactive. Filter by design phase, deploy as
+              presentation, worksheet, group activity, or solo task. No login required.
+            </p>
+          </div>
+
+          {/* Tool name pills */}
+          <div className="flex flex-wrap items-center justify-center gap-2 mb-10 max-w-3xl mx-auto">
+            {["SCAMPER", "Six Thinking Hats", "PMI Chart", "Five Whys", "Empathy Map", "Decision Matrix", "SWOT Analysis", "Stakeholder Map", "Lotus Diagram", "How Might We", "Reverse Brainstorm", "Dot Voting", "Quick Sketch", "Affinity Diagram", "Morphological Chart"].map((name) => (
+              <span key={name} className="text-[11px] font-medium px-3 py-1.5 rounded-full border border-purple-500/30 bg-purple-500/10 text-purple-300">
+                {name}
+              </span>
+            ))}
+            <span className="text-[11px] font-medium px-3 py-1.5 rounded-full border border-white/10 bg-white/5 text-white/40">
+              +27 more
+            </span>
+          </div>
+
+          {/* Stats row */}
+          <div className="flex items-center justify-center gap-10 mb-10">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-white">42</div>
+              <div className="text-[11px] text-white/40 uppercase tracking-wider">Tools</div>
+            </div>
+            <div className="w-px h-8 bg-white/10" />
+            <div className="text-center">
+              <div className="text-2xl font-bold text-purple-400">27</div>
+              <div className="text-[11px] text-white/40 uppercase tracking-wider">Interactive</div>
+            </div>
+            <div className="w-px h-8 bg-white/10" />
+            <div className="text-center">
+              <div className="text-2xl font-bold text-green-400">8+</div>
+              <div className="text-[11px] text-white/40 uppercase tracking-wider">Frameworks</div>
+            </div>
+          </div>
+
+          {/* Framework badges */}
+          <div className="flex flex-wrap items-center justify-center gap-2 mb-10">
+            {["IB MYP", "GCSE DT", "A-Level DT", "ACARA", "PLTW", "Stanford d.school", "IDEO", "Double Diamond"].map((fw) => (
+              <span key={fw} className="text-[10px] font-semibold px-2.5 py-1 rounded-full border border-white/10 bg-white/5 text-white/30">
+                {fw}
+              </span>
+            ))}
+          </div>
+
+          {/* CTA */}
+          <div className="text-center">
+            <Link href="/toolkit" className="inline-flex items-center gap-2 px-8 py-3.5 bg-purple-600 hover:bg-purple-500 text-white rounded-full font-semibold transition text-base shadow-lg shadow-purple-600/25">
+              Open the Free Toolkit <IconArrowRight />
+            </Link>
+          </div>
+        </div>
+      </section>
+
+
+      {/* ══════════════════════════════════════════════════════════════ */}
+      {/* 2. THE TEACHING COCKPIT — Live classroom control               */}
       {/* ══════════════════════════════════════════════════════════════ */}
       <div className="gradient-hero relative">
-        <WaveDivider direction="top" fillClass="fill-white" />
+        <WaveDivider direction="top" fillClass="fill-[#0c0a1a]" />
         <section className="text-white">
           <div className="max-w-6xl mx-auto px-6 py-20">
             <div className="text-center mb-14">
@@ -586,71 +649,8 @@ export default function Home() {
             </div>
           </div>
         </section>
-        <WaveDivider fillClass="fill-[#0c0a1a]" />
+        <WaveDivider fillClass="fill-white" />
       </div>
-
-
-      {/* ══════════════════════════════════════════════════════════════ */}
-      {/* 6. FREE TOOLKIT — Dark-themed showcase                        */}
-      {/* ══════════════════════════════════════════════════════════════ */}
-      <section style={{ background: "linear-gradient(135deg, #0c0a1a 0%, #1a0e3a 40%, #0d1b2a 100%)" }}>
-        <div className="max-w-6xl mx-auto px-6 py-20">
-          <div className="text-center mb-12">
-            <span className="text-xs font-semibold uppercase tracking-wider text-green-400 mb-3 block">Free for Every Teacher</span>
-            <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">Design Thinking Toolkit</h2>
-            <p className="text-white/50 max-w-xl mx-auto">
-              42 visual thinking tools. 27 are AI-powered and interactive. Filter by design phase, deploy as
-              presentation, worksheet, group activity, or solo task. No login required.
-            </p>
-          </div>
-
-          {/* Tool name pills */}
-          <div className="flex flex-wrap items-center justify-center gap-2 mb-10 max-w-3xl mx-auto">
-            {["SCAMPER", "Six Thinking Hats", "PMI Chart", "Five Whys", "Empathy Map", "Decision Matrix", "SWOT Analysis", "Stakeholder Map", "Lotus Diagram", "How Might We", "Reverse Brainstorm", "Dot Voting", "Quick Sketch", "Affinity Diagram", "Morphological Chart"].map((name) => (
-              <span key={name} className="text-[11px] font-medium px-3 py-1.5 rounded-full border border-purple-500/30 bg-purple-500/10 text-purple-300">
-                {name}
-              </span>
-            ))}
-            <span className="text-[11px] font-medium px-3 py-1.5 rounded-full border border-white/10 bg-white/5 text-white/40">
-              +27 more
-            </span>
-          </div>
-
-          {/* Stats row */}
-          <div className="flex items-center justify-center gap-10 mb-10">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-white">42</div>
-              <div className="text-[11px] text-white/40 uppercase tracking-wider">Tools</div>
-            </div>
-            <div className="w-px h-8 bg-white/10" />
-            <div className="text-center">
-              <div className="text-2xl font-bold text-purple-400">27</div>
-              <div className="text-[11px] text-white/40 uppercase tracking-wider">Interactive</div>
-            </div>
-            <div className="w-px h-8 bg-white/10" />
-            <div className="text-center">
-              <div className="text-2xl font-bold text-green-400">8+</div>
-              <div className="text-[11px] text-white/40 uppercase tracking-wider">Frameworks</div>
-            </div>
-          </div>
-
-          {/* Framework badges */}
-          <div className="flex flex-wrap items-center justify-center gap-2 mb-10">
-            {["IB MYP", "GCSE DT", "A-Level DT", "ACARA", "PLTW", "Stanford d.school", "IDEO", "Double Diamond"].map((fw) => (
-              <span key={fw} className="text-[10px] font-semibold px-2.5 py-1 rounded-full border border-white/10 bg-white/5 text-white/30">
-                {fw}
-              </span>
-            ))}
-          </div>
-
-          {/* CTA */}
-          <div className="text-center">
-            <Link href="/toolkit" className="inline-flex items-center gap-2 px-8 py-3.5 bg-purple-600 hover:bg-purple-500 text-white rounded-full font-semibold transition text-base shadow-lg shadow-purple-600/25">
-              Open the Free Toolkit <IconArrowRight />
-            </Link>
-          </div>
-        </div>
-      </section>
 
 
       {/* ══════════════════════════════════════════════════════════════ */}
