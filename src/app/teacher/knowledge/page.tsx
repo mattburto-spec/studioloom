@@ -7,6 +7,7 @@ import type { KnowledgeItem, KnowledgeItemType } from "@/types/knowledge-library
 import type { LessonProfile } from "@/types/lesson-intelligence";
 import KnowledgeItemCard from "@/components/teacher/knowledge/KnowledgeItemCard";
 import KnowledgeItemForm from "@/components/teacher/knowledge/KnowledgeItemForm";
+import AnalysisDetailPanel from "@/components/teacher/knowledge/AnalysisDetailPanel";
 import LessonProfileReview from "@/components/teacher/knowledge/LessonProfileReview";
 import TeacherFeedbackForm from "@/components/teacher/knowledge/TeacherFeedbackForm";
 import { generatePDFThumbnail, extractPDFPageImages } from "@/lib/pdf-thumbnail";
@@ -90,7 +91,7 @@ const TABS: { key: TabKey; label: string }[] = [
 export default function KnowledgeLibraryPage() {
   // Library state
   const [items, setItems] = useState<KnowledgeItem[]>([]);
-  const [profileMap, setProfileMap] = useState<Record<string, { pedagogicalApproach?: string; complexityLevel?: string; criteriaCovered?: string[]; lessonDurationMinutes?: number; analysisDate?: string; bloomDistribution?: Record<string, number> }>>({});
+  const [profileMap, setProfileMap] = useState<Record<string, { pedagogicalApproach?: string; complexityLevel?: string; criteriaCovered?: string[]; lessonDurationMinutes?: number; analysisDate?: string; bloomDistribution?: Record<string, number>; profileData?: Record<string, unknown> }>>({});
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabKey>("all");
   const [search, setSearch] = useState("");
@@ -723,7 +724,12 @@ export default function KnowledgeLibraryPage() {
         </div>
       </div>
 
-      {/* Create / Edit form */}
+      {/* Analysis detail panel + Create / Edit form */}
+      {showForm && editingItem?.source_upload_id && profileMap[editingItem.source_upload_id]?.profileData && (
+        <AnalysisDetailPanel
+          profileData={profileMap[editingItem.source_upload_id]!.profileData!}
+        />
+      )}
       {showForm && (
         <KnowledgeItemForm
           item={editingItem}

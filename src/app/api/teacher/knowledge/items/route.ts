@@ -13,7 +13,7 @@ import type {
 } from "@/types/knowledge-library";
 
 /**
- * Lightweight profile summary for knowledge item cards.
+ * Profile summary for knowledge item cards + detail panel.
  * Extracted from lesson_profiles.profile_data JSONB.
  */
 interface ProfileSummary {
@@ -23,6 +23,8 @@ interface ProfileSummary {
   lessonDurationMinutes?: number;
   analysisDate?: string;
   bloomDistribution?: Record<string, number>;
+  // Full profile_data for detail panel (only when available)
+  profileData?: Record<string, unknown>;
 }
 
 /**
@@ -94,6 +96,7 @@ export async function GET(request: NextRequest) {
             lessonDurationMinutes: p.estimated_duration_minutes || undefined,
             analysisDate: p.created_at || undefined,
             bloomDistribution: bloom || undefined,
+            profileData: pd || undefined,
           };
         }
       }
