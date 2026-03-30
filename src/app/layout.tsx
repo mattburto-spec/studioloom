@@ -15,7 +15,12 @@ export default function RootLayout({
     <html lang="en">
       <head>
         {/* Plausible Analytics — privacy-friendly, no cookies, COPPA/GDPR safe */}
-        <script defer src="https://plausible.io/js/pa-zQXWAmLhvFxtvFofMXkEb.js" />
+        <script async src="https://plausible.io/js/pa-zQXWAmLhvFxtvFofMXkEb.js"></script>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `window.plausible=window.plausible||function(){(plausible.q=plausible.q||[]).push(arguments)};plausible.init=plausible.init||function(i){plausible.o=i||{}};plausible.init();`,
+          }}
+        />
       </head>
       <body className="antialiased">
         {children}
