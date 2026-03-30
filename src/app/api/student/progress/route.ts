@@ -77,6 +77,10 @@ export const POST = withErrorHandler("student/progress:POST", async (request: Ne
     ...(integrityMetadata && { integrity_metadata: integrityMetadata }),
   };
 
+  if (integrityMetadata) {
+    console.log("[student/progress] Saving with integrity_metadata:", Object.keys(integrityMetadata));
+  }
+
   // Try page_id-based upsert (post-migration 011)
   let { data, error } = await supabase
     .from("student_progress")
@@ -85,7 +89,13 @@ export const POST = withErrorHandler("student/progress:POST", async (request: Ne
     .single();
 
   // Lesson Learned #17: retry without integrity_metadata if migration 054 not applied
-  if (error && integrityMetadata && (error.message?.includes("integrity_metadata") || error.code === "PGRST204")) {
+  // Check multiple error patterns: message includes column name, PGRST204, or PostgreSQL 42703 (undefined column)
+  if (error && integrityMetadata && (
+    error.message?.includes("integrity_metadata") ||
+    error.code === "PGRST204" ||
+    error.code === "42703"
+  )) {
+    console.warn("[student/progress] integrity_metadata column not found, retrying without it. Error:", error.message, error.code);
     delete upsertPayload.integrity_metadata;
     const retry = await supabase
       .from("student_progress")
