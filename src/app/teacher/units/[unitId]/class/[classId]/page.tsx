@@ -17,6 +17,9 @@ import type { AssessmentRecordRow } from "@/types/assessment";
 import { resolveClassUnitContent } from "@/lib/units/resolve-content";
 import { OpenStudioClassView } from "@/components/open-studio";
 import { PaceFeedbackSummary } from "@/components/teacher/PaceFeedbackSummary";
+import IntegrityReport from "@/components/teacher/IntegrityReport";
+import type { IntegrityMetadata } from "@/components/student/MonitoredTextarea";
+import { analyzeIntegrity } from "@/lib/integrity/analyze-integrity";
 import { ClassProfileOverview } from "@/components/teacher/ClassProfileOverview";
 import { GalleryRoundCreator, GalleryMonitor, GalleryRoundCard } from "@/components/gallery";
 import { getYearLevelNumber } from "@/lib/utils/year-level";
@@ -255,6 +258,7 @@ export default function ClassHubPage({
   const [selectedDetailStudent, setSelectedDetailStudent] = useState<{ id: string; name: string } | null>(null);
   const [selectedDetailPage, setSelectedDetailPage] = useState<string | null>(null);
   const [detailResponses, setDetailResponses] = useState<Record<string, string> | null>(null);
+  const [detailIntegrity, setDetailIntegrity] = useState<Record<string, IntegrityMetadata> | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [nmObserveStudent, setNmObserveStudent] = useState<{ id: string; name: string } | null>(null);
 
@@ -598,17 +602,23 @@ export default function ClassHubPage({
     setSelectedDetailPage(pageId);
     setDetailLoading(true);
     setDetailResponses(null);
+    setDetailIntegrity(null);
 
     const supabase = createClient();
     const { data } = await supabase
       .from("student_progress")
-      .select("responses")
+      .select("responses, integrity_metadata")
       .eq("student_id", student.id)
       .eq("unit_id", unitId)
       .eq("page_id", pageId)
-      .single();
+      .maybeSingle();
 
     setDetailResponses((data?.responses as Record<string, string>) || {});
+    const raw = data as unknown as Record<string, unknown>;
+    const intMeta = raw?.integrity_metadata;
+    if (intMeta && typeof intMeta === "object" && Object.keys(intMeta as Record<string, unknown>).length > 0) {
+      setDetailIntegrity(intMeta as Record<string, IntegrityMetadata>);
+    }
     setDetailLoading(false);
   }
 
@@ -994,7 +1004,7 @@ export default function ClassHubPage({
                     <h2 className="text-lg font-semibold text-text-primary">{selectedDetailStudent.name}</h2>
                     <p className="text-sm text-text-secondary">{selectedDetailPage}: {unitPages.find((p) => p.id === selectedDetailPage)?.title}</p>
                   </div>
-                  <button onClick={() => { setSelectedDetailStudent(null); setSelectedDetailPage(null); setDetailResponses(null); }} className="w-8 h-8 rounded-full hover:bg-surface-alt flex items-center justify-center text-text-secondary">✕</button>
+                  <button onClick={() => { setSelectedDetailStudent(null); setSelectedDetailPage(null); setDetailResponses(null); setDetailIntegrity(null); }} className="w-8 h-8 rounded-full hover:bg-surface-alt flex items-center justify-center text-text-secondary">✕</button>
                 </div>
                 <div className="px-6 py-4 overflow-y-auto flex-1">
                   {detailLoading ? (
@@ -1010,22 +1020,50 @@ export default function ClassHubPage({
                         const selectedUnitPage = unitPages.find((p) => p.id === selectedDetailPage);
                         const page = selectedUnitPage?.content as { sections?: { prompt: string }[]; reflection?: { type: string; items: string[] } } | undefined;
                         const sections = page?.sections || [];
-                        return Object.entries(detailResponses).map(([key, value]) => {
+                        return Object.entries(detailResponses).filter(([key]) => !key.startsWith("_tracking_")).map(([key, value]) => {
                           let label = key;
                           if (key.startsWith("section_")) { const idx = parseInt(key.replace("section_", "")); label = sections[idx]?.prompt || `Section ${idx + 1}`; }
+                          else if (key.startsWith("activity_")) { const actSection = sections.find((s: any) => s.activityId === key.replace("activity_", "")); label = actSection?.prompt || key; }
                           else if (key.startsWith("check_")) { const idx = parseInt(key.replace("check_", "")); label = page?.reflection?.items?.[idx] || `Checklist item ${idx + 1}`; }
                           else if (key.startsWith("reflection_")) { label = `Reflection ${parseInt(key.replace("reflection_", "")) + 1}`; }
                           else if (key === "freeform") { label = "Freeform notes"; }
+
+                          // Find matching integrity data for this response key
+                          const integrityMeta = detailIntegrity?.[key];
+
                           return (
                             <div key={key}>
                               <p className="text-xs font-medium text-text-secondary uppercase tracking-wide mb-1">{label}</p>
                               <div className="bg-surface-alt rounded-lg p-3">
-                                <p className="text-sm text-text-primary whitespace-pre-wrap">{value === "true" ? "✓ Checked" : value === "false" ? "☐ Not checked" : value || "—"}</p>
+                                <p className="text-sm text-text-primary whitespace-pre-wrap">{value === "true" ? "✓ Checked" : value === "false" ? "☐ Not checked" : typeof value === "string" ? value || "—" : JSON.stringify(value)}</p>
                               </div>
+                              {integrityMeta && (
+                                <div className="mt-2">
+                                  <IntegrityReport metadata={integrityMeta} analysis={analyzeIntegrity(integrityMeta)} />
+                                </div>
+                              )}
                             </div>
                           );
                         });
                       })()}
+
+                      {/* Aggregate integrity summary when data exists */}
+                      {detailIntegrity && Object.keys(detailIntegrity).length > 0 && (
+                        <div className="mt-6 pt-4 border-t border-border">
+                          <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wide mb-3">Writing Integrity Summary</h3>
+                          <div className="flex flex-wrap gap-2">
+                            {Object.entries(detailIntegrity).map(([key, meta]) => {
+                              const analysis = analyzeIntegrity(meta);
+                              const scoreColor = analysis.score >= 70 ? "bg-green-100 text-green-800" : analysis.score >= 40 ? "bg-amber-100 text-amber-800" : "bg-red-100 text-red-800";
+                              return (
+                                <span key={key} className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${scoreColor}`}>
+                                  {key.replace("section_", "S").replace("activity_", "A:")} — {analysis.score}%
+                                </span>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
