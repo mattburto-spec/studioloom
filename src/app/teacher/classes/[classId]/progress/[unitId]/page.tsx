@@ -10,6 +10,8 @@ import type { AssessmentRecordRow } from "@/types/assessment";
 import { OpenStudioUnlock, OpenStudioClassView } from "@/components/open-studio";
 import { ObservationSnap } from "@/components/nm";
 import { PaceFeedbackSummary } from "@/components/teacher/PaceFeedbackSummary";
+import IntegrityReport from "@/components/teacher/IntegrityReport";
+import type { IntegrityMetadata } from "@/components/student/MonitoredTextarea";
 import { AGENCY_ELEMENTS, type NMUnitConfig } from "@/lib/nm/constants";
 import { getYearLevelNumber } from "@/lib/utils/year-level";
 
@@ -17,6 +19,7 @@ interface ProgressCell {
   status: "not_started" | "in_progress" | "complete";
   hasResponses: boolean;
   timeSpent: number;
+  hasIntegrityData: boolean;
 }
 
 type GradingStatus = "ungraded" | "draft" | "published";
@@ -38,6 +41,7 @@ export default function ProgressTrackingPage({
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [selectedPage, setSelectedPage] = useState<string | null>(null);
   const [detailResponses, setDetailResponses] = useState<Record<string, string> | null>(null);
+  const [detailIntegrity, setDetailIntegrity] = useState<Record<string, unknown> | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [openStudioStatuses, setOpenStudioStatuses] = useState<Record<string, { unlocked_at: string | null }>>({});
   const [nmObserveStudent, setNmObserveStudent] = useState<Student | null>(null);
@@ -90,6 +94,8 @@ export default function ProgressTrackingPage({
       const map: StudentProgressMap = {};
       (progress || []).forEach((p: StudentProgress) => {
         if (!map[p.student_id]) map[p.student_id] = {};
+        const raw = p as unknown as Record<string, unknown>;
+        const integrityMeta = raw.integrity_metadata;
         map[p.student_id][p.page_id] = {
           status: p.status as "not_started" | "in_progress" | "complete",
           hasResponses:
@@ -97,6 +103,7 @@ export default function ProgressTrackingPage({
             typeof p.responses === "object" &&
             Object.keys(p.responses as Record<string, unknown>).length > 0,
           timeSpent: p.time_spent || 0,
+          hasIntegrityData: integrityMeta !== null && integrityMeta !== undefined && typeof integrityMeta === "object" && Object.keys(integrityMeta as Record<string, unknown>).length > 0,
         };
       });
       setProgressMap(map);
@@ -179,19 +186,24 @@ export default function ProgressTrackingPage({
     setSelectedPage(pageId);
     setDetailLoading(true);
     setDetailResponses(null);
+    setDetailIntegrity(null);
 
     const supabase = createClient();
     const { data } = await supabase
       .from("student_progress")
-      .select("responses")
+      .select("responses, integrity_metadata")
       .eq("student_id", student.id)
       .eq("unit_id", unitId)
       .eq("page_id", pageId)
-      .single();
+      .maybeSingle();
 
     setDetailResponses(
       (data?.responses as Record<string, string>) || {}
     );
+    const raw = data as unknown as Record<string, unknown>;
+    if (raw?.integrity_metadata && typeof raw.integrity_metadata === "object") {
+      setDetailIntegrity(raw.integrity_metadata as Record<string, unknown>);
+    }
     setDetailLoading(false);
   }
 
@@ -455,17 +467,22 @@ export default function ProgressTrackingPage({
                             key={page.id}
                             className="px-1 py-2 text-center"
                           >
-                            <button
-                              onClick={() =>
-                                loadStudentDetail(student, page.id)
-                              }
-                              className={`w-7 h-7 rounded text-xs font-medium transition hover:scale-110 ${getStatusColor(
-                                cell?.status
-                              )}`}
-                              title={`${student.display_name || student.username} - ${page.id}: ${cell?.status || "not_started"}`}
-                            >
-                              {getStatusIcon(cell?.status)}
-                            </button>
+                            <div className="relative inline-block">
+                              <button
+                                onClick={() =>
+                                  loadStudentDetail(student, page.id)
+                                }
+                                className={`w-7 h-7 rounded text-xs font-medium transition hover:scale-110 ${getStatusColor(
+                                  cell?.status
+                                )}`}
+                                title={`${student.display_name || student.username} - ${page.id}: ${cell?.status || "not_started"}${cell?.hasIntegrityData ? " • Integrity data collected" : ""}`}
+                              >
+                                {getStatusIcon(cell?.status)}
+                              </button>
+                              {cell?.hasIntegrityData && (
+                                <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-blue-500 ring-1 ring-white" title="Integrity monitoring data available" />
+                              )}
+                            </div>
                           </td>
                         );
                       })}
@@ -618,6 +635,31 @@ export default function ProgressTrackingPage({
                       }
                     );
                   })()}
+
+                  {/* Integrity Reports */}
+                  {detailIntegrity && Object.keys(detailIntegrity).length > 0 && (
+                    <div className="mt-6 pt-4 border-t border-border">
+                      <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                        </svg>
+                        Writing Integrity
+                      </h3>
+                      <div className="space-y-3">
+                        {Object.entries(detailIntegrity).map(([key, meta]) => {
+                          if (!meta || typeof meta !== "object") return null;
+                          return (
+                            <IntegrityReport
+                              key={key}
+                              metadata={meta as IntegrityMetadata}
+                              studentName={selectedStudent?.display_name || selectedStudent?.username}
+                              responseText={detailResponses?.[key] || undefined}
+                            />
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
