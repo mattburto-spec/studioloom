@@ -770,7 +770,9 @@ export default function GradingPage({
                     </p>
                   ) : (
                     <div className="space-y-3">
-                      {Object.entries(evidenceData).map(([key, value]) => {
+                      {Object.entries(evidenceData)
+                        .filter(([key]) => !key.startsWith("_tracking_"))
+                        .map(([key, value]) => {
                         let label = key;
                         if (key.startsWith("section_"))
                           label = `Response ${parseInt(key.replace("section_", "")) + 1}`;
@@ -780,6 +782,9 @@ export default function GradingPage({
                           label = `Reflection ${parseInt(key.replace("reflection_", "")) + 1}`;
                         else if (key === "freeform") label = "Notes";
 
+                        // Safety: skip non-string values (toolkit JSON, tracking objects)
+                        const displayValue = typeof value === "string" ? value : typeof value === "object" ? JSON.stringify(value).slice(0, 200) + "…" : String(value ?? "—");
+
                         return (
                           <div key={key}>
                             <p className="text-xs font-medium text-text-secondary uppercase tracking-wide mb-0.5">
@@ -787,11 +792,11 @@ export default function GradingPage({
                             </p>
                             <div className="bg-surface-alt rounded-lg p-2.5">
                               <p className="text-sm text-text-primary whitespace-pre-wrap">
-                                {value === "true"
+                                {displayValue === "true"
                                   ? "✓"
-                                  : value === "false"
+                                  : displayValue === "false"
                                   ? "☐"
-                                  : value || "—"}
+                                  : displayValue || "—"}
                               </p>
                             </div>
 
