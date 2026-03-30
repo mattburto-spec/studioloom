@@ -549,6 +549,49 @@ export default function GradingPage({
                   <StatusBadge status={getStudentStatus(selectedStudent.id)} />
                 </div>
 
+                {/* Student Work Quick-View */}
+                {unitPages.length > 0 && (
+                  <div className="bg-white rounded-xl border border-border p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wide">Student Work</h3>
+                      {evidencePageId && (
+                        <button onClick={() => setEvidencePageId(null)} className="text-xs text-accent-blue hover:underline">Close panel</button>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {unitPages.map((page) => {
+                        const progress = progressMap[selectedStudent.id]?.[page.id];
+                        const hasResponses = progress?.responses && typeof progress.responses === "object" && Object.keys(progress.responses as Record<string, unknown>).length > 0;
+                        const rawP = progress as unknown as Record<string, unknown>;
+                        const hasIntegrity = rawP?.integrity_metadata && typeof rawP.integrity_metadata === "object" && Object.keys(rawP.integrity_metadata as Record<string, unknown>).length > 0;
+                        const isActive = evidencePageId === page.id;
+                        return (
+                          <button
+                            key={page.id}
+                            onClick={() => loadEvidence(page.id)}
+                            className={`relative px-3 py-1.5 rounded-lg text-xs font-medium transition border ${
+                              isActive
+                                ? "bg-indigo-50 border-indigo-300 text-indigo-700"
+                                : hasResponses
+                                ? "bg-green-50 border-green-200 text-green-700 hover:bg-green-100"
+                                : "bg-gray-50 border-gray-200 text-gray-400"
+                            }`}
+                            title={`${page.title || page.id}${hasIntegrity ? " • Integrity data" : ""}`}
+                          >
+                            {page.title || page.id}
+                            {hasIntegrity && (
+                              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-blue-500 ring-1 ring-white" />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {!evidencePageId && (
+                      <p className="text-[11px] text-text-secondary mt-2">Click a lesson to view student responses and integrity data</p>
+                    )}
+                  </div>
+                )}
+
                 {/* Criterion Sections */}
                 {unitCriteria.map((key) => (
                   <CriterionSection
