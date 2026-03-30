@@ -1,6 +1,7 @@
 # Project Dimensions — Data Architecture Future-Proofing
 **Created: 29 March 2026**
-**Status: SPEC COMPLETE — ready for implementation**
+**Last updated: 30 March 2026**
+**Status: Phases 0-2 COMPLETE — pipeline live, migrations applied**
 **Spec: `docs/specs/data-architecture-v2.md`**
 
 ---
@@ -49,7 +50,17 @@ Units built without these fields will be missing data that future features need.
 
 ## Scope
 
-### Phase 1: Migration + TypeScript Interfaces (~1 day)
+### Phase 0: Schema Foundation (COMPLETE — 30 March 2026)
+
+**Migration 057** APPLIED — adds page/activity-level Dimensions fields to content_data JSONB schema:
+- Page level: `udl_coverage`, `grouping_strategy`, `bloom_distribution`
+- Activity level: `bloom_level`, `grouping`, `ai_rules`, `udl_checkpoints`, `timeWeight`
+
+**Migration 058** APPLIED — enriches `knowledge_chunks` table:
+- `bloom_level TEXT`, `grouping TEXT`, `udl_checkpoints TEXT[]` columns added
+- Enables filtered RAG retrieval ("find me all group activities at Evaluate level")
+
+### Phase 1: Migration + TypeScript Interfaces (COMPLETE — 30 March 2026)
 
 **Migration 057** — add columns to existing tables:
 
@@ -67,18 +78,20 @@ Student profile: `accommodations` (UDL-aligned), `udl_strengths`, `udl_barriers`
 
 **Time model change:** `ActivitySection.durationMinutes` (existing, number) becomes optional soft suggestion. New primary field: `ActivitySection.timeWeight: 'quick' | 'moderate' | 'extended' | 'flexible'`. Workshop Model phases distribute time proportionally across activities by weight, not by fixed minutes.
 
-### Phase 2: AI Generation + Knowledge Pipeline Updates (~2.5 days)
+### Phase 2: AI Generation + Knowledge Pipeline Updates (PARTIALLY COMPLETE — 30 March 2026)
 
-Update generation prompts to populate the new fields when creating content:
+**DONE — RAG analysis pipeline:**
+- `src/lib/knowledge/analyse.ts` — Pass 2 analysis prompts now request `udl_coverage`, `bloom_distribution`, `grouping_analysis` fields. Schema reordered so Dimensions fields come before verbose arrays (prevents AI truncation). Version 2.2.0.
+- **Pass 2b fallback (30 March 2026):** Dedicated lightweight Haiku call (`extractDimensionsFields()`) fires when Pass 2 omits any of the 3 Dimensions fields. Tiny focused schema (3 fields, 2048 max_tokens) — guaranteed to fit. Merges via `Object.assign`. Non-critical try/catch. This is the fix for AI silently dropping fields due to JSON truncation at `max_tokens` boundary (Lesson Learned #26).
+- `src/lib/knowledge/analysis-prompts.ts` — Added `buildDimensionsPrompt()` for Pass 2b. Main Pass 2 prompt updated with "REQUIRED" instruction + schema reorder.
+- Migration 058 enriches `knowledge_chunks` with `bloom_level`, `grouping`, `udl_checkpoints` columns for filtered RAG retrieval.
+- **Knowledge card UI enhanced (30 March 2026):** `KnowledgeItemCard.tsx` expanded (~215→~400 lines) with analysis badges, Bloom's mini-bar, complexity pills, criteria dots. Items API returns `profileMap` from `lesson_profiles` (Lesson Learned #19 pattern).
+
+**REMAINING — AI generation prompts:**
 - `buildDesignTeachingContext()` in prompts.ts: inject UDL awareness
 - Tool schemas in schemas.ts: add `bloom_level`, `grouping`, `ai_rules`, `udl_checkpoints` to activity generation schema
 - Timing validation: add `udl_coverage` gap check (warn if a lesson misses an entire UDL principle)
 - Student-facing prompts: read `learning_profile.accommodations` and adapt scaffolding
-
-Update Knowledge RAG analysis pipeline to extract Dimensions metadata from uploads:
-- `src/lib/knowledge/analyse.ts` — Pass 0 + type-specific pipelines should extract bloom levels, grouping patterns, and UDL characteristics from uploaded lesson plans/rubrics/textbooks
-- `src/lib/knowledge/analysis-prompts.ts` — Add extraction instructions to analysis prompts (v2.1.0): "Identify Bloom's taxonomy level of each activity", "Tag UDL principles covered", "Detect grouping strategies"
-- `src/lib/knowledge/chunks.ts` — Enrich chunk metadata with extracted bloom/UDL/grouping tags for filtered RAG retrieval ("find me all group activities at Evaluate level")
 - RAG retrieval (`retrieveContext`, `retrieveLessonProfiles`) — support optional filters: `bloom_level`, `udl_principle`, `grouping`
 
 **Note for Lesson Plan Converter (not yet built):** When built, the converter must output v2 schema with all Dimensions fields (bloom_level, ai_rules, udl_checkpoints, timeWeight, grouping). Spec this requirement in the converter's future spec doc. No work now.
@@ -117,18 +130,29 @@ Update Knowledge RAG analysis pipeline to extract Dimensions metadata from uploa
 | `src/lib/ai/prompts.ts` | Code | AI generation prompt updates for UDL + bloom + ai_rules |
 | `src/lib/ai/schemas.ts` | Code | Tool schema updates for new activity fields |
 | `src/hooks/usePageResponses.ts` | Code | Per-activity time tracking |
-| `src/lib/knowledge/analyse.ts` | Code | RAG analysis pipeline — bloom/UDL/grouping extraction |
-| `src/lib/knowledge/analysis-prompts.ts` | Code | Analysis prompt updates (v2.1.0) |
+| `src/lib/knowledge/analyse.ts` | Code | RAG analysis pipeline — Pass 2b `extractDimensionsFields()` fallback (v2.2.0) |
+| `src/lib/knowledge/analysis-prompts.ts` | Code | Analysis prompt updates (v2.2.0) + `buildDimensionsPrompt()` for Pass 2b |
 | `src/lib/knowledge/chunks.ts` | Code | Chunk metadata enrichment |
+| `src/components/teacher/knowledge/KnowledgeItemCard.tsx` | Code | Enhanced card UI with analysis badges, Bloom's bar, complexity, criteria dots |
+| `src/app/api/teacher/knowledge/items/route.ts` | Code | Extended GET to return `profileMap` from lesson_profiles |
+| `src/app/teacher/knowledge/page.tsx` | Code | Wires profileMap into KnowledgeItemCard props |
+| `supabase/migrations/057_data_dimensions.sql` | Migration | Page/activity-level Dimensions fields (APPLIED) |
+| `supabase/migrations/058_knowledge_chunks_enrichment.sql` | Migration | bloom_level, grouping, udl_checkpoints on knowledge_chunks (APPLIED) |
 | `docs/research/student-influence-factors.md` | Reference | 24-factor Hattie-style research synthesis — Phase 5 composite score formulas |
 
 ---
 
 ## Implementation Checklist
 
+### Phase 0: Schema Foundation
+- [x] Create migration 057 (page/activity-level Dimensions fields)
+- [x] Apply migration 057 to Supabase (APPLIED 30 March 2026)
+- [x] Create migration 058 (knowledge_chunks enrichment — bloom_level, grouping, udl_checkpoints)
+- [x] Apply migration 058 to Supabase (APPLIED 30 March 2026)
+
 ### Phase 1: Data Layer
-- [ ] Create migration 057 from spec SQL
-- [ ] Apply migration 057 to Supabase
+- [x] Create migration 057 from spec SQL
+- [x] Apply migration 057 to Supabase
 - [ ] Update `PageContent` interface with `inclusivity`, `udl_coverage`, `teacher_notes`, `success_criteria`, `grouping_strategy`
 - [ ] Update `ActivitySection` interface with `bloom_level`, `inclusivity`, `grouping`, `ai_rules`, `udl_checkpoints`, `success_look_fors`, `differentiation`, `tags`, `timeWeight`
 - [ ] Make `ActivitySection.durationMinutes` optional (was implicitly required in some generation schemas)
@@ -145,11 +169,13 @@ Update Knowledge RAG analysis pipeline to extract Dimensions metadata from uploa
 - [ ] Test: generate a unit and verify new fields appear in content_data
 - [ ] Add `udl_coverage` gap check to timing validation (warn if principle missing)
 - [ ] Wire `learning_profile.accommodations` into Design Assistant system prompt
-- [ ] **RAG analysis pipeline:** Update `analyse.ts` Pass 0 + type-specific pipelines to extract bloom_level, UDL coverage, grouping patterns from uploaded content
-- [ ] **RAG analysis prompts:** Update `analysis-prompts.ts` to v2.1.0 with extraction instructions for bloom/UDL/grouping
-- [ ] **RAG chunk enrichment:** Add bloom_level, udl_principles[], grouping tags to chunk metadata in `chunks.ts`
+- [x] **RAG analysis pipeline:** Pass 2 updated to request Dimensions fields + Pass 2b fallback added (`extractDimensionsFields()` in analyse.ts)
+- [x] **RAG analysis prompts:** `analysis-prompts.ts` updated to v2.2.0 with Dimensions extraction + `buildDimensionsPrompt()` for Pass 2b
+- [x] **RAG chunk enrichment:** Migration 058 adds bloom_level, grouping, udl_checkpoints columns to `knowledge_chunks` table
 - [ ] **RAG retrieval filters:** Add optional bloom_level, udl_principle, grouping filters to `retrieveContext()` and `retrieveLessonProfiles()`
 - [ ] **Test:** Upload a lesson plan → verify analysis extracts bloom levels and UDL tags → verify enriched chunks appear in retrieval
+- [x] **Knowledge card UI:** `KnowledgeItemCard.tsx` enhanced with analysis badges, Bloom's mini-bar, complexity pills, criteria dots, pedagogical approach
+- [x] **Knowledge items API:** Extended to return `profileMap` from `lesson_profiles` (separate query, Lesson Learned #19 pattern)
 
 ### Phase 3: Client Tracking
 - [ ] Add per-activity time tracking in usePageResponses.ts
@@ -189,14 +215,15 @@ Update Knowledge RAG analysis pipeline to extract Dimensions metadata from uploa
 
 ## Estimated Effort
 
-| Phase | Days | Dependencies |
-|-------|------|-------------|
-| Phase 1: Data layer | 0.5 | None |
-| Phase 2: AI generation + RAG pipeline | 2.5 | Phase 1 |
-| Phase 3: Client tracking | 1 | Phase 1 |
-| Phase 4: Lesson editor UI | 1 | Phase 1 |
-| Phase 5: Reports + research metrics | 4-6 | Phases 1-4 + real student data |
-| **Total (Phases 1-4)** | **5 days** | |
+| Phase | Days | Dependencies | Status |
+|-------|------|-------------|--------|
+| Phase 0: Schema foundation | 0.5 | None | **COMPLETE** (30 Mar) |
+| Phase 1: Data layer (TypeScript) | 0.5 | Phase 0 | **COMPLETE** (30 Mar) |
+| Phase 2: AI generation + RAG pipeline | 2.5 | Phase 1 | **RAG pipeline done**, generation prompts remaining (~1.5 days) |
+| Phase 3: Client tracking | 1 | Phase 1 | Pending |
+| Phase 4: Lesson editor UI | 1 | Phase 1 | Pending |
+| Phase 5: Reports + research metrics | 4-6 | Phases 1-4 + real student data | Deferred |
+| **Remaining (Phases 2b-4)** | **~3.5 days** | |
 
 ---
 
