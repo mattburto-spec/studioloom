@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { StudentContext } from "./student-context";
 import { StudentAvatar } from "@/components/student/StudentAvatar";
@@ -25,6 +25,7 @@ export default function StudentLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [student, setStudent] = useState<Student | null>(null);
   const [classInfo, setClassInfo] = useState<Class | null>(null);
   const [loading, setLoading] = useState(true);
@@ -202,8 +203,8 @@ export default function StudentLayout({
         </header>
         {children}
 
-        {/* QuickToolFAB — available on all student pages */}
-        <QuickToolFAB />
+        {/* QuickToolFAB — available on all student pages except dashboard */}
+        {pathname !== "/dashboard" && <QuickToolFAB />}
 
         {/* Settings modal — quick mentor/theme switcher */}
         {showSettings && student && (

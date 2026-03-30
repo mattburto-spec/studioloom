@@ -273,13 +273,12 @@ export default function StudentDashboard() {
                     const isComplete = percent === 100;
                     const { gradient, label: subjectLabel } = detectSubject(unit);
 
+                    const isDiscovery = ["SERVICE", "PP", "PYPX"].includes(subjectLabel);
+                    const hasBottomStrip = (hasStudio && !isDiscovery) || isDiscovery;
+
                     return (
-                      <div key={unit.id} className="flex flex-col">
-                        <Link
-                          href={unitLink}
-                          className="rounded-2xl overflow-hidden shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 flex flex-col"
-                          style={{ background: themeStyles["--st-surface"], borderColor: themeStyles["--st-border"], border: `1px solid ${themeStyles["--st-border"]}` }}
-                        >
+                      <div key={unit.id} className="rounded-2xl overflow-hidden shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 flex flex-col" style={{ background: themeStyles["--st-surface"], border: `1px solid ${themeStyles["--st-border"]}` }}>
+                        <Link href={unitLink} className="flex flex-col flex-1">
                           {/* Gradient header */}
                           <div className={`relative bg-gradient-to-r ${gradient} px-4 py-5`}>
                             <span className="text-white font-extrabold text-sm tracking-widest uppercase drop-shadow-sm">{subjectLabel}</span>
@@ -310,18 +309,18 @@ export default function StudentDashboard() {
                             </p>
                           </div>
 
-                          {/* Open Studio */}
-                          {hasStudio && !["SERVICE", "PP", "PYPX"].includes(subjectLabel) && (
-                            <div className="bg-violet-600 text-white text-[11px] font-semibold flex items-center justify-center gap-1.5 py-1.5 rounded-b-2xl">
+                          {/* Open Studio strip (inside unit link) */}
+                          {hasStudio && !isDiscovery && (
+                            <div className="bg-violet-600 text-white text-[11px] font-semibold flex items-center justify-center gap-1.5 py-1.5">
                               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0" /></svg>
                               Open Studio
                             </div>
                           )}
                         </Link>
 
-                        {/* Discovery */}
-                        {["SERVICE", "PP", "PYPX"].includes(subjectLabel) && (
-                          <Link href={`/discovery/${unit.id}?mode=mode_2${unit.class_id ? `&classId=${unit.class_id}` : ''}`} className="block bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-[11px] font-semibold flex items-center justify-center gap-1.5 py-1.5 rounded-b-2xl hover:from-indigo-500 hover:to-purple-500 transition-all">
+                        {/* Discovery strip (separate link, visually flush) */}
+                        {isDiscovery && (
+                          <Link href={`/discovery/${unit.id}?mode=mode_2${unit.class_id ? `&classId=${unit.class_id}` : ''}`} className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-[11px] font-semibold flex items-center justify-center gap-1.5 py-1.5 hover:from-indigo-500 hover:to-purple-500 transition-all">
                             🧭 Start Discovery Journey
                           </Link>
                         )}
