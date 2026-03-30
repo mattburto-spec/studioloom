@@ -51,6 +51,7 @@ interface ProgressCell {
   status: "not_started" | "in_progress" | "complete";
   hasResponses: boolean;
   timeSpent: number;
+  hasIntegrityData: boolean;
 }
 
 type GradingStatus = "ungraded" | "draft" | "published";
@@ -364,18 +365,17 @@ export default function ClassHubPage({
         .in("student_id", studentIds);
 
       const map: StudentProgressMap = {};
-      console.log("[ClassHub Progress] Raw rows:", progress?.length, "studentIds:", studentIds);
       (progress || []).forEach((p: StudentProgress) => {
         if (!map[p.student_id]) map[p.student_id] = {};
-        console.log("[ClassHub Progress] Row:", { student_id: p.student_id, page_id: p.page_id, status: p.status, responses: p.responses ? Object.keys(p.responses as Record<string, unknown>) : null });
+        const raw = p as unknown as Record<string, unknown>;
+        const integrityMeta = raw.integrity_metadata;
         map[p.student_id][p.page_id] = {
           status: p.status as "not_started" | "in_progress" | "complete",
           hasResponses: p.responses !== null && typeof p.responses === "object" && Object.keys(p.responses as Record<string, unknown>).length > 0,
           timeSpent: p.time_spent || 0,
+          hasIntegrityData: integrityMeta !== null && integrityMeta !== undefined && typeof integrityMeta === "object" && Object.keys(integrityMeta as Record<string, unknown>).length > 0,
         };
       });
-      console.log("[ClassHub Progress] Page IDs in unit:", unitPages.map(p => p.id));
-      console.log("[ClassHub Progress] Page IDs in progress:", Object.keys(map[studentIds[0]] || {}));
       setProgressMap(map);
     }
 
@@ -916,13 +916,18 @@ export default function ClassHubPage({
                               const cell = progressMap[student.id]?.[page.id];
                               return (
                                 <td key={page.id} className="px-1 py-2 text-center">
-                                  <button
-                                    onClick={() => loadStudentDetail({ id: student.id, name: studentName }, page.id)}
-                                    className={`w-7 h-7 rounded text-xs font-medium transition hover:scale-110 ${getStatusColor(cell?.status)}`}
-                                    title={`${studentName} - ${page.id}: ${cell?.status || "not_started"}`}
-                                  >
-                                    {getStatusIcon(cell?.status)}
-                                  </button>
+                                  <div className="relative inline-block">
+                                    <button
+                                      onClick={() => loadStudentDetail({ id: student.id, name: studentName }, page.id)}
+                                      className={`w-7 h-7 rounded text-xs font-medium transition hover:scale-110 ${getStatusColor(cell?.status)}`}
+                                      title={`${studentName} - ${page.id}: ${cell?.status || "not_started"}${cell?.hasIntegrityData ? " • Integrity data collected" : ""}`}
+                                    >
+                                      {getStatusIcon(cell?.status)}
+                                    </button>
+                                    {cell?.hasIntegrityData && (
+                                      <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-blue-500 ring-1 ring-white" title="Integrity monitoring data available" />
+                                    )}
+                                  </div>
                                 </td>
                               );
                             })}
