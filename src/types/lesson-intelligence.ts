@@ -142,6 +142,10 @@ export interface LessonFlowPhase {
   transition_from_previous?: string; // how does this connect to what came before?
   transition_to_next?: string; // how does this set up what comes next?
 
+  // ─── Dimensions v2: Per-Activity Intelligence ───
+  bloom_level?: CognitiveLevel; // Bloom's level for THIS specific activity (may differ from student_cognitive_level which is phase-based)
+  time_weight?: "quick" | "moderate" | "extended" | "flexible"; // difficulty/time weight — quick=5-10m, moderate=15-20m, extended=25-40m, flexible=fills remaining
+
   // ─── Source Mapping ───
   source_text_excerpt?: string; // key excerpt from original doc this maps to
 }

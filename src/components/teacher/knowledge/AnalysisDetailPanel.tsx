@@ -24,6 +24,8 @@ interface LessonFlowPhase {
   materials_needed?: string[];
   tools_required?: string[];
   safety_considerations?: string[];
+  bloom_level?: string;
+  time_weight?: string;
 }
 
 interface CriterionAnalysis {
@@ -233,9 +235,22 @@ function LessonFlowTimeline({ phases }: { phases: LessonFlowPhase[] }) {
                     {roleIcon}
                   </span>
                 )}
-                {phase.student_cognitive_level && (
-                  <span className={`text-[9px] px-1 py-0.5 rounded ${BLOOM_COLORS[phase.student_cognitive_level]?.bg || "bg-gray-50"} ${BLOOM_COLORS[phase.student_cognitive_level]?.text || "text-gray-600"}`}>
-                    {formatPhase(phase.student_cognitive_level)}
+                {(phase.bloom_level || phase.student_cognitive_level) && (
+                  <span className={`text-[9px] px-1 py-0.5 rounded ${BLOOM_COLORS[phase.bloom_level || phase.student_cognitive_level || ""]?.bg || "bg-gray-50"} ${BLOOM_COLORS[phase.bloom_level || phase.student_cognitive_level || ""]?.text || "text-gray-600"}`}>
+                    {formatPhase(phase.bloom_level || phase.student_cognitive_level || "")}
+                  </span>
+                )}
+                {phase.time_weight && (
+                  <span className={`text-[9px] px-1 py-0.5 rounded ${
+                    phase.time_weight === "quick" ? "bg-emerald-50 text-emerald-700" :
+                    phase.time_weight === "moderate" ? "bg-blue-50 text-blue-700" :
+                    phase.time_weight === "extended" ? "bg-orange-50 text-orange-700" :
+                    "bg-purple-50 text-purple-700"
+                  }`}>
+                    {phase.time_weight === "quick" ? "⚡ Quick" :
+                     phase.time_weight === "moderate" ? "📐 Moderate" :
+                     phase.time_weight === "extended" ? "🔬 Extended" :
+                     "🔄 Flexible"}
                   </span>
                 )}
               </div>

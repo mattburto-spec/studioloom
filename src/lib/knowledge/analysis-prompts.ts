@@ -828,17 +828,20 @@ export function buildDimensionsPrompt(
   extractedText: string,
   pass1: Pass1Structure
 ): string {
-  return `Analyse the lesson plan and extract three specific dimensions.
+  const sectionList = pass1.sections.map((s, i) => `  ${i}: "${s.title}" (${s.estimated_minutes}m)`).join("\n");
 
-## Lesson Summary (from Pass 1)
+  return `Analyse the document and extract dimensions of learning design.
+
+## Document Summary (from Pass 1)
 - Title: ${pass1.title}
 - Grade level: ${pass1.grade_level}
 - Subject: ${pass1.subject_area}
 - Duration: ${pass1.estimated_duration_minutes} minutes
-- Lesson type: ${pass1.lesson_type}
-- Sections: ${pass1.sections.map((s) => s.title).join(", ")}
+- Type: ${pass1.lesson_type}
+- Sections:
+${sectionList}
 
-## Full Lesson Plan
+## Full Document
 ${extractedText}
 
 ## Required Output (JSON ONLY)
@@ -847,7 +850,7 @@ ${extractedText}
     "engagement": ["checkpoint IDs showing how students are motivated/engaged — use CAST UDL framework 1.1-3.3"],
     "representation": ["checkpoint IDs showing how information is presented — CAST 4.1-6.3"],
     "action_expression": ["checkpoint IDs showing how students can demonstrate learning — CAST 7.1-9.3"],
-    "principle_gaps": "Which UDL principle is LEAST addressed in this lesson?"
+    "principle_gaps": "Which UDL principle is LEAST addressed?"
   },
   "bloom_distribution": {
     "remember": "number 0-100 — % of activities at Remember level",
@@ -856,23 +859,37 @@ ${extractedText}
     "analyze": "number",
     "evaluate": "number",
     "create": "number",
-    "dominant_level": "Which Bloom level dominates this lesson?"
+    "dominant_level": "Which Bloom level dominates?"
   },
   "grouping_analysis": {
     "progression": "How does grouping evolve? e.g., 'whole-class → pairs → individual → critique'",
     "time_distribution": {
-      "individual_pct": "% time spent on individual work",
+      "individual_pct": "% time on individual work",
       "pair_pct": "% time on pair/partner work",
       "small_group_pct": "% time on small groups (3-5)",
       "whole_class_pct": "% time on whole-class activities"
     }
-  }
+  },
+  "cognitive_load_curve": {
+    "description": "string — describe how cognitive demand changes across the document timeline. Example: 'Starts low with vocabulary recall, peaks at open-ended design challenge, eases through guided reflection'",
+    "peak_moment": "string — when is cognitive demand highest and what makes it demanding?",
+    "recovery_moment": "string — when do students get a cognitive breather? If there isn't one, flag it."
+  },
+  "section_dimensions": [
+    {
+      "section_index": 0,
+      "bloom_level": "remember | understand | apply | analyse | evaluate | create — the PRIMARY Bloom level for this section",
+      "time_weight": "quick | moderate | extended | flexible — how demanding is this section? quick=routine/5-10m, moderate=structured/15-20m, extended=complex/25-40m, flexible=open-ended"
+    }
+  ]
 }
 
 ## Scoring Rules
-- **UDL checkpoints:** Only include checkpoints you can actually EVIDENCE from the lesson text. If a principle is not addressed, use empty array.
+- **UDL checkpoints:** Only include checkpoints you can EVIDENCE from the text. If a principle is not addressed, use empty array.
 - **Bloom distribution:** Estimate percentages from activity types. Sum must equal 100 or close to it.
 - **Grouping:** Be specific — "whole-class introduction, then pairs for problem-solving" not vague generalizations.
+- **Cognitive load curve:** Describe the cognitive demand arc across the WHOLE document. Even non-lesson documents have varying complexity — a rubric starts simple (criteria names) then gets complex (level descriptors).
+- **Section dimensions:** Return one entry per section (matching the section indexes above). bloom_level = the dominant Bloom's level for that section's activities. time_weight = how much time/cognitive effort the section demands (quick for simple recall, extended for complex open-ended tasks).
 
 CRITICAL: If you cannot confidently extract a field, return empty object {} for that field. Do NOT fabricate checkpoints or make up Bloom levels. It is better to have incomplete data than incorrect data.`;
 }

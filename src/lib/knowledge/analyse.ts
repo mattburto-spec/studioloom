@@ -23,6 +23,8 @@ import type {
   AnalysisResult,
   LessonFlowPhase,
   EnergyState,
+  CognitiveLevel,
+  CognitiveLoadCurve,
 } from "@/types/lesson-intelligence";
 
 import type { PartialTeachingContext } from "@/types/lesson-intelligence";
@@ -205,19 +207,27 @@ export async function analysePass3(
  * when Pass 2 omitted them due to token limits or truncation.
  * Non-blocking: if it fails, returns empty object.
  */
+/** Extended Dimensions result including per-section data and cognitive load */
+interface DimensionsResult extends Partial<Pick<Pass2Pedagogy, 'udl_coverage' | 'bloom_distribution' | 'grouping_analysis'>> {
+  cognitive_load_curve?: CognitiveLoadCurve;
+  section_dimensions?: Array<{
+    section_index: number;
+    bloom_level: CognitiveLevel;
+    time_weight: "quick" | "moderate" | "extended" | "flexible";
+  }>;
+}
+
 async function extractDimensionsFields(
   extractedText: string,
   pass1: Pass1Structure,
   pass2: Pass2Pedagogy
-): Promise<Partial<Pick<Pass2Pedagogy, 'udl_coverage' | 'bloom_distribution' | 'grouping_analysis'>>> {
+): Promise<DimensionsResult> {
   try {
-    const result = await callAI<
-      Pick<Pass2Pedagogy, 'udl_coverage' | 'bloom_distribution' | 'grouping_analysis'>
-    >({
-      system: `You are a curriculum analyst specialising in UDL (Universal Design for Learning), Bloom's taxonomy, and student grouping patterns. Analyse the lesson plan and extract three specific dimensions: (1) UDL coverage by principle, (2) Bloom's taxonomy level distribution, and (3) grouping patterns throughout the lesson. Be precise and evidence-based.`,
+    const result = await callAI<DimensionsResult>({
+      system: `You are a curriculum analyst specialising in UDL (Universal Design for Learning), Bloom's taxonomy, cognitive load analysis, and student grouping patterns. Analyse the document and extract learning design dimensions. Be precise and evidence-based. Even non-lesson documents (rubrics, safety guides, schemes of work) have cognitive load curves and per-section complexity — assess them.`,
       prompt: buildDimensionsPrompt(extractedText, pass1),
       model: "haiku",
-      maxTokens: 2048,
+      maxTokens: 3072,
     });
 
     return result;
@@ -534,6 +544,31 @@ function createPlaceholderProfile(
   };
 }
 
+/**
+ * Apply per-section bloom_level and time_weight from Dimensions extraction
+ * to the profile's lesson_flow array. Matches by section_index.
+ */
+function applySectionDimensions(profile: LessonProfile, dims: DimensionsResult): void {
+  if (!dims.section_dimensions?.length || !profile.lesson_flow?.length) return;
+
+  for (const sd of dims.section_dimensions) {
+    const phase = profile.lesson_flow[sd.section_index];
+    if (!phase) continue;
+
+    // Validate bloom_level is a real CognitiveLevel
+    const validBlooms: CognitiveLevel[] = ["remember", "understand", "apply", "analyse", "evaluate", "create"];
+    if (sd.bloom_level && validBlooms.includes(sd.bloom_level as CognitiveLevel)) {
+      phase.bloom_level = sd.bloom_level as CognitiveLevel;
+    }
+
+    // Validate time_weight
+    const validWeights = ["quick", "moderate", "extended", "flexible"] as const;
+    if (sd.time_weight && (validWeights as readonly string[]).includes(sd.time_weight)) {
+      phase.time_weight = sd.time_weight as typeof validWeights[number];
+    }
+  }
+}
+
 /* ================================================================
    MAIN ORCHESTRATOR
    ================================================================ */
@@ -637,20 +672,25 @@ export async function analyseDocument(
       !pass2.bloom_distribution ||
       !pass2.grouping_analysis;
 
+    let lessonDimensionsResult: DimensionsResult = {};
     if (hasMissingDimensions) {
       onProgress?.("pass2_pedagogy", "Extracting UDL & Bloom data...");
-      const dimensionsResult = await extractDimensionsFields(
+      lessonDimensionsResult = await extractDimensionsFields(
         text,
         pass1,
         pass2
       );
-      // Merge Pass 2b results back into pass2
-      Object.assign(pass2, dimensionsResult);
+      // Merge Pass 2b results back into pass2 (udl, bloom, grouping only)
+      if (lessonDimensionsResult.udl_coverage) pass2.udl_coverage = lessonDimensionsResult.udl_coverage;
+      if (lessonDimensionsResult.bloom_distribution) pass2.bloom_distribution = lessonDimensionsResult.bloom_distribution;
+      if (lessonDimensionsResult.grouping_analysis) pass2.grouping_analysis = lessonDimensionsResult.grouping_analysis;
       console.log("[analyse] Pass 2b Dimensions filled:", {
         had_missing: hasMissingDimensions,
         now_has_udl: !!pass2.udl_coverage,
         now_has_bloom: !!pass2.bloom_distribution,
         now_has_grouping: !!pass2.grouping_analysis,
+        has_section_dims: !!lessonDimensionsResult.section_dimensions?.length,
+        has_cog_load: !!lessonDimensionsResult.cognitive_load_curve,
       });
     }
 
@@ -668,6 +708,14 @@ export async function analyseDocument(
     onProgress?.("merging", "Building lesson intelligence profile...");
     const analysisModel = "claude-sonnet-4-20250514";
     profile = mergeIntoProfile(pass1, pass2, pass3, analysisModel);
+
+    // Apply per-section dimensions to lesson flow if available from Pass 2b
+    applySectionDimensions(profile, lessonDimensionsResult);
+    // If Pass 2 cognitive load was empty but Pass 2b has it, use it
+    if (lessonDimensionsResult.cognitive_load_curve?.description &&
+        (!profile.cognitive_load_curve?.description || profile.cognitive_load_curve.description === "")) {
+      profile.cognitive_load_curve = lessonDimensionsResult.cognitive_load_curve;
+    }
   } else if (pipeline === "rubric") {
     // Rubric-specific analysis
     onProgress?.("pass2_type_specific", "Analysing rubric criteria...");
@@ -726,11 +774,21 @@ export async function analyseDocument(
       if (dimensionsResult.grouping_analysis) {
         profile.grouping_analysis = dimensionsResult.grouping_analysis;
       }
+      // Apply cognitive load curve if profile has placeholder
+      if (dimensionsResult.cognitive_load_curve?.description &&
+          (!profile.cognitive_load_curve?.description || profile.cognitive_load_curve.description === "Not assessed for this document type")) {
+        profile.cognitive_load_curve = dimensionsResult.cognitive_load_curve;
+      }
+      // Apply per-section bloom/timeWeight
+      applySectionDimensions(profile, dimensionsResult);
+
       console.log("[analyse] Universal Dimensions extraction:", {
         pipeline,
         got_bloom: !!dimensionsResult.bloom_distribution,
         got_udl: !!dimensionsResult.udl_coverage,
         got_grouping: !!dimensionsResult.grouping_analysis,
+        got_cog_load: !!dimensionsResult.cognitive_load_curve?.description,
+        got_section_dims: !!dimensionsResult.section_dimensions?.length,
       });
     } catch (err) {
       // Non-critical — cards still render without Dimensions data
