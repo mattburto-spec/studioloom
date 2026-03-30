@@ -1,7 +1,7 @@
 # Project: MonitoredTextarea Pipeline
 
 *Created: 28 March 2026*
-*Status: CODE COMPLETE — awaiting migration 054 apply + e2e testing*
+*Status: PIPELINE COMPLETE — migration 054 APPLIED, save timing fixed, RLS fixed (migration 059), Class Hub integrity indicators live. Needs: fresh student session verification.*
 
 ## Goal
 
@@ -19,11 +19,11 @@ Wire the existing academic integrity monitoring system end-to-end so teachers ca
 
 ## Completed Steps
 
-### Step 1: Migration 054 — Add `integrity_metadata` column ✅ DONE
+### Step 1: Migration 054 — Add `integrity_metadata` column ✅ APPLIED
 - `supabase/migrations/054_integrity_metadata.sql` created
 - Adds `integrity_metadata JSONB DEFAULT NULL` to `student_progress`
 - Partial index on `(student_id, unit_id) WHERE integrity_metadata IS NOT NULL`
-- **NOT YET APPLIED** — run in Supabase SQL editor
+- **APPLIED 30 Mar 2026**
 
 ### Step 2: Save integrity metadata alongside responses ✅ DONE
 - `usePageResponses.ts` — accepts optional `integrityMetadataRef` param, includes in save payload when non-empty
@@ -61,14 +61,38 @@ Wire the existing academic integrity monitoring system end-to-end so teachers ca
 5. `src/components/teacher/IntegrityReport.tsx` — replaced lucide-react with inline SVGs ✅
 6. `src/app/teacher/classes/[classId]/grading/[unitId]/page.tsx` — mount IntegrityReport in evidence panel ✅
 
+### Step 5: Fix save timing gap ✅ DONE (30 Mar 2026)
+- `MonitoredTextarea.tsx` — added debounced keystroke notify (1.5s) so `integrityMetadataRef.current` is populated before 2s auto-save fires
+- 30s monitoring tick now also calls `updateMetrics(true)` to fire callback
+- Cleanup for `keystrokeNotifyRef` in useEffect return
+
+### Step 6: Fix RLS for junction-enrolled students ✅ DONE (30 Mar 2026)
+- `supabase/migrations/059_student_progress_rls_junction.sql` — rewrites `student_progress` and `planning_tasks` RLS policies with UNION of `class_students` junction + legacy `students.class_id` paths
+- **APPLIED 30 Mar 2026** — teacher progress grid now shows data for junction-enrolled students
+
+### Step 7: Add integrity indicators to Class Hub progress grid ✅ DONE (30 Mar 2026)
+- `ProgressCell` type extended with `hasIntegrityData: boolean`
+- Map builder extracts `integrity_metadata` from progress rows
+- Grid cells show blue dot badge when integrity monitoring data exists
+- Standalone progress page also fixed with junction-first + legacy-fallback student query
+
+## Files Changed (additional)
+
+7. `src/components/student/MonitoredTextarea.tsx` — debounced keystroke notify for save timing ✅
+8. `supabase/migrations/059_student_progress_rls_junction.sql` — NEW, RLS junction fix ✅
+9. `src/app/teacher/units/[unitId]/class/[classId]/page.tsx` — Class Hub integrity indicators ✅
+10. `src/app/teacher/classes/[classId]/progress/[unitId]/page.tsx` — junction-first query + log cleanup ✅
+
 ## Test Checklist
 
-- [ ] **Apply migration 054** in Supabase SQL editor
-- [ ] Student writes text on lesson page → MonitoredTextarea captures metadata
-- [ ] Student saves/auto-saves → integrity_metadata stored in student_progress
+- [x] **Apply migration 054** in Supabase SQL editor — APPLIED 30 Mar
+- [x] **Apply migration 059** (RLS junction fix) — APPLIED 30 Mar
+- [x] Teacher progress grid shows colored dots (not all dashes) — VERIFIED 30 Mar
+- [ ] Student writes text on lesson page → MonitoredTextarea captures metadata → **new** integrity data appears in Supabase (needs fresh session with debounced notify deployed)
+- [ ] Teacher opens Class Hub progress tab → blue dots appear on cells with integrity data
 - [ ] Teacher opens grading page → selects student → opens evidence panel
 - [ ] Evidence panel shows responses + IntegrityReport with score, flags, playback
 - [ ] IntegrityReport playback slider scrubs through text snapshots
 - [ ] Paste log shows if student pasted content
 - [ ] Score badge colors match thresholds (green/amber/red)
-- [ ] Build succeeds (no lucide-react imports) ✅ Verified via `tsc --noEmit`
+- [x] Build succeeds (no lucide-react imports) ✅ Verified via `tsc --noEmit`

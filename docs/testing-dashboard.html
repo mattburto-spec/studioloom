@@ -1658,14 +1658,17 @@ const PROJECTS = [
         name: 'MonitoredTextarea Pipeline',
         desc: 'End-to-end academic integrity monitoring — paste detection, typing patterns, teacher report',
         file: 'docs/projects/monitored-textarea.md',
-        status: 'paused',
+        status: 'active',
         phases: [
             { name: 'MonitoredTextarea component', est: 'done', done: true },
             { name: 'Integrity analysis engine', est: 'done', done: true },
             { name: 'IntegrityReport UI (Vercel fix)', est: 'done', done: true },
             { name: 'Save pipeline wiring', est: 'done', done: true },
             { name: 'Apply migration 054', est: 'done', done: true },
-            { name: 'E2E testing', est: '1-2 hrs', done: false },
+            { name: 'Save timing fix (debounced notify)', est: 'done', done: true },
+            { name: 'RLS junction fix (migration 059)', est: 'done', done: true },
+            { name: 'Class Hub integrity indicators', est: 'done', done: true },
+            { name: 'Fresh student session verification', est: '30 min', done: false },
         ]
     },
     {
@@ -1767,7 +1770,7 @@ const PROJECTS = [
             { name: 'Phase 2b: AnalysisDetailPanel + cognitive load + per-section difficulty', est: '0.5 days', done: true },
             { name: 'Phase 2b: AI generation schemas + prompts (confirmed already wired)', est: '0 days', done: true },
             { name: 'Phase 2b: Browser-tested — Bloom pills, time_weight badges, cognitive load ✓', est: '0 days', done: true },
-            { name: 'Phase 3: Client-side tracking (per-activity timing)', est: '1 day', done: false },
+            { name: 'Phase 3: Client-side tracking (useActivityTracking hook)', est: '1 day', done: true },
             { name: 'Phase 4: Lesson editor UI (bloom selector, grouping, ai_rules)', est: '1 day', done: false },
             { name: 'Phase 5: Reports + Velocity Loop + Research Metrics', est: '4-6 days', done: false },
         ]
@@ -1784,6 +1787,22 @@ const PROJECTS = [
             { name: 'Phase 2: Auto-adaptive content layer (per-student AI adaptation)', est: '5-6 hrs', done: false },
             { name: 'Phase 3: UDL lesson editor blocks (Same Task Your Way, Worked Example)', est: '4-5 hrs', done: false },
             { name: 'Phase 5: Teacher intelligence — class needs dashboard', est: '3-4 hrs', done: false },
+        ]
+    },
+    {
+        id: 'graphics',
+        name: 'Graphics',
+        desc: 'Another World-style cinematic transitions for Discovery Engine — Rive animations, parallax scenes, Kit character rig',
+        file: 'docs/projects/graphics.md',
+        status: 'planned',
+        phases: [
+            { name: 'Phase 1: Learn Rive (crash course + community rigs)', est: '1 day', done: false },
+            { name: 'Phase 2: Kit character rig (walk cycle + 4-5 poses)', est: '1 day', done: false },
+            { name: 'Phase 3: First scene — Campfire transition (parallax + particles)', est: '1 day', done: false },
+            { name: 'Phase 4: React integration (@rive-app/react-canvas + TransitionScreen)', est: '0.5 days', done: false },
+            { name: 'Phase 5: Remaining 6 transition scenes', est: '3 days', done: false },
+            { name: 'Phase 6: Station background animations (ambient loops per station)', est: '2 days', done: false },
+            { name: 'Phase 7: Interactive branching (Kit reacts to archetype data)', est: '1-2 days', done: false },
         ]
     },
 ];
