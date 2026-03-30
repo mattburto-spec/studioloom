@@ -705,6 +705,39 @@ export async function analyseDocument(
     throw new Error(`Unknown pipeline: ${pipeline}`);
   }
 
+  // ─── Universal Dimensions extraction for ALL pipelines ───
+  // If profile doesn't have bloom_distribution yet, run the lightweight extraction
+  // This covers non-lesson pipelines (scope, lightweight, rubric, safety, exemplar, content)
+  // and also acts as a safety net for lesson pipeline if Pass 2b somehow failed
+  if (!profile.bloom_distribution) {
+    try {
+      onProgress?.("pass2_pedagogy", "Extracting Bloom & UDL data...");
+      const dimensionsResult = await extractDimensionsFields(
+        text,
+        pass1,
+        pass2 || ({} as Pass2Pedagogy)
+      );
+      if (dimensionsResult.bloom_distribution) {
+        profile.bloom_distribution = dimensionsResult.bloom_distribution;
+      }
+      if (dimensionsResult.udl_coverage) {
+        profile.udl_coverage = dimensionsResult.udl_coverage;
+      }
+      if (dimensionsResult.grouping_analysis) {
+        profile.grouping_analysis = dimensionsResult.grouping_analysis;
+      }
+      console.log("[analyse] Universal Dimensions extraction:", {
+        pipeline,
+        got_bloom: !!dimensionsResult.bloom_distribution,
+        got_udl: !!dimensionsResult.udl_coverage,
+        got_grouping: !!dimensionsResult.grouping_analysis,
+      });
+    } catch (err) {
+      // Non-critical — cards still render without Dimensions data
+      console.log("[analyse] Universal Dimensions extraction failed (non-critical):", err instanceof Error ? err.message : String(err));
+    }
+  }
+
   onProgress?.("complete", "Analysis complete");
 
   return {

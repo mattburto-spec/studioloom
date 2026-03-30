@@ -74,7 +74,18 @@ export async function GET(request: NextRequest) {
         for (const p of profiles) {
           // Extract bloom_distribution from profile_data JSONB if available
           const pd = p.profile_data as Record<string, unknown> | null;
-          const bloom = pd?.bloom_distribution as Record<string, number> | undefined;
+          const rawBloom = pd?.bloom_distribution as Record<string, unknown> | undefined;
+          // Clean bloom: keep only numeric values, coerce strings, strip dominant_level
+          let bloom: Record<string, number> | undefined;
+          if (rawBloom && typeof rawBloom === "object") {
+            const cleaned: Record<string, number> = {};
+            for (const [k, v] of Object.entries(rawBloom)) {
+              if (k === "dominant_level") continue; // Skip non-numeric field
+              const num = typeof v === "string" ? parseFloat(v) : Number(v);
+              if (!isNaN(num) && num > 0) cleaned[k] = num;
+            }
+            if (Object.keys(cleaned).length > 0) bloom = cleaned;
+          }
 
           profileMap[p.upload_id] = {
             pedagogicalApproach: p.pedagogical_approach || undefined,
