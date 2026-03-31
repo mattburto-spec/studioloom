@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { WaveDivider } from "@/components/ui/WaveDivider";
 import AnimatedJourneyPhase from "@/components/landing/AnimatedJourneyPhase";
+import ProcessSteps from "@/components/landing/ProcessSteps";
 
 /* ------------------------------------------------------------------ */
 /*  SVG icon helpers (no lucide-react in project)                      */
@@ -274,7 +275,7 @@ export default function Home() {
         <section className="relative z-10 max-w-6xl mx-auto px-6 pt-12 md:pt-20 pb-28 md:pb-36">
           <div className="max-w-3xl mx-auto text-center">
             <h1 className="text-4xl md:text-5xl lg:text-[3.5rem] font-bold tracking-tight leading-[1.1] mb-6">
-              The platform for classrooms where students{" "}
+              The platform for classrooms that{" "}
               <span className="text-white/90">make, solve, and create.</span>
             </h1>
             <p className="text-base md:text-lg text-white/50 mb-10 max-w-2xl mx-auto leading-relaxed">
@@ -296,19 +297,7 @@ export default function Home() {
 
           {/* Process steps — large colored pills */}
           <div className="relative z-10 max-w-3xl mx-auto mt-14 px-4">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-              {[
-                { step: "Plan", desc: "Build or browse units", bg: "bg-purple-500/20", border: "border-purple-400/30", text: "text-purple-200" },
-                { step: "Deliver", desc: "Live teaching cockpit", bg: "bg-blue-500/20", border: "border-blue-400/30", text: "text-blue-200" },
-                { step: "Assess", desc: "Criterion grading + gallery", bg: "bg-emerald-500/20", border: "border-emerald-400/30", text: "text-emerald-200" },
-                { step: "Showcase", desc: "Portfolio builds itself", bg: "bg-pink-500/20", border: "border-pink-400/30", text: "text-pink-200" },
-              ].map((s, i) => (
-                <div key={s.step} className={`${s.bg} ${s.border} border rounded-xl px-4 py-4 md:py-5 text-center`}>
-                  <div className="text-lg md:text-xl font-bold text-white mb-1">{s.step}</div>
-                  <div className={`text-xs ${s.text}`}>{s.desc}</div>
-                </div>
-              ))}
-            </div>
+            <ProcessSteps />
             <div className="flex items-center justify-center gap-6 mt-6 text-xs text-white/30">
               <span>8+ Frameworks</span>
               <span className="text-white/15">|</span>
