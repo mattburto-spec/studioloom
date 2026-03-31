@@ -694,6 +694,10 @@ export default function LessonEditor({
                   </button>
                 </div>
               )}
+              {/* Dimensions bar (non-sticky) when no timeline exists */}
+              {!phases && pageContent?.sections && pageContent.sections.length > 0 && (
+                <DimensionsSummaryBar sections={pageContent.sections} />
+              )}
               {phases && (
                 <div className="sticky top-0 z-20 bg-white/90 backdrop-blur-sm pb-3 mb-4 -mx-6 px-6 pt-2 border-b border-gray-100">
                   <div className="flex items-center gap-2 mb-1.5">
@@ -734,6 +738,10 @@ export default function LessonEditor({
                       {totalDuration} min
                     </span>
                   </div>
+                  {/* ─── Dimensions Summary Bar (sticky with timeline) ─── */}
+                  {pageContent?.sections && pageContent.sections.length > 0 && (
+                    <DimensionsSummaryBar sections={pageContent.sections} />
+                  )}
                 </div>
               )}
 
@@ -771,11 +779,6 @@ export default function LessonEditor({
                 page={selectedPage}
                 onUpdate={handleUpdatePageContent}
               />
-
-              {/* ─── Dimensions Summary Bar ─── */}
-              {pageContent?.sections && pageContent.sections.length > 0 && (
-                <DimensionsSummaryBar sections={pageContent.sections} />
-              )}
 
               {/* ─── Opening Phase ─── */}
               {phases && (
