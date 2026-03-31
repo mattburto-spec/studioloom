@@ -28,9 +28,120 @@ const BLOOM_COLORS: Record<BloomLevel, string> = {
 
 const BLOOM_ORDER: BloomLevel[] = ["remember", "understand", "apply", "analyze", "evaluate", "create"];
 
+// Bloom level → cognitive load score (1-6)
+const BLOOM_LOAD: Record<BloomLevel, number> = {
+  remember: 1,
+  understand: 2,
+  apply: 3,
+  analyze: 4,
+  evaluate: 5,
+  create: 6,
+};
+
+// Interpolate between green (low) → amber (mid) → red (high) based on 1-6 score
+function loadColor(score: number): string {
+  if (score <= 2) return "#22c55e"; // green
+  if (score <= 3) return "#eab308"; // yellow
+  if (score <= 4) return "#f97316"; // orange
+  return "#ef4444"; // red
+}
+
+/**
+ * CognitiveLoadCurve — mini sparkline SVG showing how cognitive demand flows
+ * across activities in order. Ideal Workshop Model pattern: low → peak → ease off.
+ */
+function CognitiveLoadCurve({ sections }: { sections: ActivitySection[] }) {
+  // Extract load points for activities that have bloom_level
+  const points = sections
+    .map((s, i) => ({
+      index: i,
+      load: s.bloom_level ? BLOOM_LOAD[s.bloom_level] : null,
+    }))
+    .filter((p): p is { index: number; load: number } => p.load !== null);
+
+  if (points.length < 2) return null;
+
+  const W = 120;
+  const H = 24;
+  const padY = 3;
+  const usableH = H - padY * 2;
+
+  // Map points to SVG coordinates
+  const coords = points.map((p, i) => ({
+    x: points.length === 1 ? W / 2 : (i / (points.length - 1)) * W,
+    y: padY + usableH - ((p.load - 1) / 5) * usableH, // 1→bottom, 6→top
+    load: p.load,
+  }));
+
+  // Build smooth curve path using cardinal spline approximation
+  // Simple: use SVG polyline with rounded corners via cubic bezier
+  let linePath = `M ${coords[0].x} ${coords[0].y}`;
+  for (let i = 1; i < coords.length; i++) {
+    const prev = coords[i - 1];
+    const curr = coords[i];
+    const cpx = (prev.x + curr.x) / 2;
+    linePath += ` C ${cpx} ${prev.y}, ${cpx} ${curr.y}, ${curr.x} ${curr.y}`;
+  }
+
+  // Area path (line path + close to bottom)
+  const areaPath = linePath + ` L ${coords[coords.length - 1].x} ${H} L ${coords[0].x} ${H} Z`;
+
+  // Compute average load for label
+  const avgLoad = points.reduce((sum, p) => sum + p.load, 0) / points.length;
+  const avgLabel = avgLoad <= 2 ? "Low" : avgLoad <= 3.5 ? "Medium" : avgLoad <= 4.5 ? "High" : "Very High";
+  const avgColor = loadColor(avgLoad);
+
+  // Check if pattern follows good Workshop Model shape (ramp up then ease off)
+  // Peak should be in middle-to-late section, not at very start or very end
+  const peakIdx = coords.reduce((best, c, i) => (c.y < coords[best].y ? i : best), 0);
+  const peakPosition = coords.length > 1 ? peakIdx / (coords.length - 1) : 0.5;
+  const goodShape = peakPosition >= 0.3 && peakPosition <= 0.85;
+
+  // Build hover title
+  const levelNames = points.map((p) => {
+    const name = Object.entries(BLOOM_LOAD).find(([, v]) => v === p.load)?.[0] || "";
+    return name.charAt(0).toUpperCase() + name.slice(1);
+  });
+  const title = `Cognitive load flow: ${levelNames.join(" → ")}${goodShape ? " ✓ Good shape" : ""}`;
+
+  return (
+    <div className="flex items-center gap-2" title={title}>
+      <span className="text-xs text-gray-500 font-medium">Load</span>
+      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="flex-shrink-0">
+        {/* Gradient fill under curve */}
+        <defs>
+          <linearGradient id="loadGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={avgColor} stopOpacity="0.3" />
+            <stop offset="100%" stopColor={avgColor} stopOpacity="0.05" />
+          </linearGradient>
+        </defs>
+        {/* Area fill */}
+        <path d={areaPath} fill="url(#loadGrad)" />
+        {/* Line */}
+        <path d={linePath} fill="none" stroke={avgColor} strokeWidth="1.5" strokeLinecap="round" />
+        {/* Dots at each point */}
+        {coords.map((c, i) => (
+          <circle key={i} cx={c.x} cy={c.y} r="2" fill={loadColor(c.load)} stroke="white" strokeWidth="0.5" />
+        ))}
+      </svg>
+      <span
+        className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
+        style={{ color: avgColor, backgroundColor: `${avgColor}15` }}
+      >
+        {avgLabel}
+      </span>
+      {goodShape && (
+        <span className="text-[10px] text-emerald-600" title="Cognitive load peaks in the middle — good Workshop Model shape">
+          ✓
+        </span>
+      )}
+    </div>
+  );
+}
+
 /**
  * DimensionsSummaryBar — compact summary of Dimensions metadata for a lesson's activities.
- * Shows: Bloom distribution mini-bar, UDL coverage dots (3 principles), grouping variety.
+ * Shows: Bloom distribution mini-bar, cognitive load curve, UDL coverage dots (3 principles), grouping variety.
  */
 export default function DimensionsSummaryBar({ sections }: DimensionsSummaryBarProps) {
   // Compute Bloom distribution
@@ -64,13 +175,16 @@ export default function DimensionsSummaryBar({ sections }: DimensionsSummaryBarP
   // Count activities with ai_rules set
   const aiRulesCount = sections.filter((s) => s.ai_rules && s.ai_rules.phase !== "neutral").length;
 
+  // Count activities with bloom_level (needed for cognitive load curve)
+  const bloomSections = sections.filter((s) => s.bloom_level);
+
   // If nothing is set, don't show the bar
   if (bloomTotal === 0 && udlCount === 0 && groupings.size === 0 && aiRulesCount === 0) {
     return null;
   }
 
   return (
-    <div className="flex items-center gap-4 px-4 py-2 mb-3 bg-gray-50 rounded-lg border border-gray-100">
+    <div className="flex items-center gap-4 px-4 py-2 mb-3 bg-gray-50 rounded-lg border border-gray-100 flex-wrap">
       {/* Bloom distribution mini-bar */}
       {bloomTotal > 0 && (
         <div className="flex items-center gap-2" title="Bloom's level distribution across activities">
@@ -90,6 +204,11 @@ export default function DimensionsSummaryBar({ sections }: DimensionsSummaryBarP
             })}
           </div>
         </div>
+      )}
+
+      {/* Cognitive load curve sparkline */}
+      {bloomSections.length >= 2 && (
+        <CognitiveLoadCurve sections={sections} />
       )}
 
       {/* UDL coverage dots */}
