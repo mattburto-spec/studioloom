@@ -38,7 +38,6 @@ interface UnitWithProgress extends Unit {
   class_name?: string | null;
   class_subject?: string | null;
   class_grade_level?: string | null;
-  thumbnail_url?: string | null;
 }
 
 export default function StudentDashboard() {

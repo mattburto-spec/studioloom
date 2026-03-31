@@ -74,6 +74,69 @@ const AI_PHASE_OPTIONS: { value: "divergent" | "convergent" | "neutral"; label: 
   { value: "neutral", label: "Neutral", desc: "Balanced support, follow student's lead" },
 ];
 
+// ── UDL Checkpoints (CAST framework, condensed) ──
+// 1.x-3.x = Engagement, 4.x-6.x = Representation, 7.x-9.x = Action & Expression
+const UDL_CHECKPOINTS: { id: string; short: string; label: string }[] = [
+  // Engagement
+  { id: "1.1", short: "Choice", label: "Optimize individual choice and autonomy" },
+  { id: "1.2", short: "Relevance", label: "Optimize relevance, value, and authenticity" },
+  { id: "1.3", short: "Threats", label: "Minimize threats and distractions" },
+  { id: "2.1", short: "Goals", label: "Heighten salience of goals and objectives" },
+  { id: "2.2", short: "Demands", label: "Vary demands and resources to optimize challenge" },
+  { id: "2.3", short: "Collab", label: "Foster collaboration and community" },
+  { id: "2.4", short: "Feedback", label: "Increase mastery-oriented feedback" },
+  { id: "3.1", short: "Motivation", label: "Promote expectations that optimize motivation" },
+  { id: "3.2", short: "Coping", label: "Facilitate personal coping skills and strategies" },
+  { id: "3.3", short: "Self-assess", label: "Develop self-assessment and reflection" },
+  // Representation
+  { id: "4.1", short: "Perception", label: "Offer ways of customizing the display of information" },
+  { id: "4.2", short: "Audio", label: "Offer alternatives for auditory information" },
+  { id: "4.3", short: "Visual", label: "Offer alternatives for visual information" },
+  { id: "5.1", short: "Vocab", label: "Clarify vocabulary and symbols" },
+  { id: "5.2", short: "Syntax", label: "Clarify syntax and structure" },
+  { id: "5.3", short: "Decoding", label: "Support decoding of text and notation" },
+  { id: "5.4", short: "Languages", label: "Promote understanding across languages" },
+  { id: "5.5", short: "Multi-media", label: "Illustrate through multiple media" },
+  { id: "6.1", short: "Prior know.", label: "Activate or supply background knowledge" },
+  { id: "6.2", short: "Patterns", label: "Highlight patterns, critical features, relationships" },
+  { id: "6.3", short: "Processing", label: "Guide information processing and visualization" },
+  { id: "6.4", short: "Transfer", label: "Maximize transfer and generalization" },
+  // Action & Expression
+  { id: "7.1", short: "Physical", label: "Vary methods for response and navigation" },
+  { id: "7.2", short: "Tools", label: "Optimize access to tools and assistive tech" },
+  { id: "8.1", short: "Media use", label: "Use multiple media for communication" },
+  { id: "8.2", short: "Composition", label: "Use multiple tools for construction and composition" },
+  { id: "8.3", short: "Fluency", label: "Build fluencies with graduated levels of support" },
+  { id: "9.1", short: "Goal-set", label: "Guide appropriate goal-setting" },
+  { id: "9.2", short: "Planning", label: "Support planning and strategy development" },
+  { id: "9.3", short: "Info manage", label: "Facilitate managing information and resources" },
+  { id: "9.4", short: "Monitoring", label: "Enhance capacity for monitoring progress" },
+];
+
+const UDL_GROUPS = [
+  {
+    principle: "engagement",
+    label: "Engagement (Why)",
+    dotColor: "bg-emerald-500",
+    selectedColor: "bg-emerald-100 text-emerald-800 border-emerald-300 font-medium",
+    checkpoints: UDL_CHECKPOINTS.filter((c) => parseFloat(c.id) < 4),
+  },
+  {
+    principle: "representation",
+    label: "Representation (What)",
+    dotColor: "bg-blue-500",
+    selectedColor: "bg-blue-100 text-blue-800 border-blue-300 font-medium",
+    checkpoints: UDL_CHECKPOINTS.filter((c) => parseFloat(c.id) >= 4 && parseFloat(c.id) < 7),
+  },
+  {
+    principle: "action",
+    label: "Action & Expression (How)",
+    dotColor: "bg-purple-500",
+    selectedColor: "bg-purple-100 text-purple-800 border-purple-300 font-medium",
+    checkpoints: UDL_CHECKPOINTS.filter((c) => parseFloat(c.id) >= 7),
+  },
+];
+
 /**
  * ActivityBlock — Single activity card in the editor
  *
@@ -515,6 +578,52 @@ export default function ActivityBlock({
                   <div>
                     <label className="text-xs font-medium text-gray-600 block mb-1">Activity Tags <span className="font-normal text-gray-400">(comma-separated)</span></label>
                     <input type="text" placeholder="e.g. hands-on, research, interview, prototyping" value={(activity.tags || []).join(", ")} onChange={(e) => { const tags = e.target.value.split(",").map(t => t.trim()).filter(Boolean); onUpdate({ tags: tags.length > 0 ? tags : undefined }); }} className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+                  </div>
+                  {/* UDL Checkpoint Tags */}
+                  <div>
+                    <label className="text-xs font-medium text-gray-600 block mb-2">
+                      UDL Checkpoints <span className="font-normal text-gray-400">(CAST Universal Design for Learning)</span>
+                    </label>
+                    {/* Selected checkpoints as removable pills */}
+                    {(activity.udl_checkpoints?.length || 0) > 0 && (
+                      <div className="flex flex-wrap gap-1 mb-2">
+                        {activity.udl_checkpoints!.map((cp) => {
+                          const info = UDL_CHECKPOINTS.find((u) => u.id === cp);
+                          const principle = parseFloat(cp) < 4 ? "engagement" : parseFloat(cp) < 7 ? "representation" : "action";
+                          const pillColor = principle === "engagement" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : principle === "representation" ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-purple-50 text-purple-700 border-purple-200";
+                          return (
+                            <button key={cp} onClick={() => { const next = (activity.udl_checkpoints || []).filter((c) => c !== cp); onUpdate({ udl_checkpoints: next.length > 0 ? next : undefined }); }} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border ${pillColor} hover:opacity-70 transition-opacity`} title={`Remove ${cp}: ${info?.label || cp}`}>
+                              {cp} {info?.short || ""} <span className="text-gray-400">×</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {/* Grouped picker */}
+                    <div className="space-y-2">
+                      {UDL_GROUPS.map((group) => (
+                        <div key={group.principle}>
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <span className={`w-2 h-2 rounded-full ${group.dotColor}`} />
+                            <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">{group.label}</span>
+                          </div>
+                          <div className="flex flex-wrap gap-1">
+                            {group.checkpoints.map((cp) => {
+                              const isSelected = (activity.udl_checkpoints || []).includes(cp.id);
+                              return (
+                                <button key={cp.id} onClick={() => {
+                                  const current = activity.udl_checkpoints || [];
+                                  const next = isSelected ? current.filter((c) => c !== cp.id) : [...current, cp.id];
+                                  onUpdate({ udl_checkpoints: next.length > 0 ? next : undefined });
+                                }} className={`px-2 py-0.5 rounded text-[11px] border transition-all ${isSelected ? group.selectedColor : "bg-white text-gray-500 border-gray-200 hover:border-gray-400"}`} title={cp.label}>
+                                  {cp.id} {cp.short}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               )}

@@ -26,6 +26,8 @@ export default function ClassesPage() {
   const [newName, setNewName] = useState("");
   const [newFramework, setNewFramework] = useState("IB_MYP");
   const [creating, setCreating] = useState(false);
+  const [newLang, setNewLang] = useState("en");
+  const [newAddLangs, setNewAddLangs] = useState<string[]>([]);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [archiving, setArchiving] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -95,15 +97,20 @@ export default function ClassesPage() {
       return;
     }
     const code = Math.random().toString(36).slice(2, 8).toUpperCase();
-    const { error } = await supabase.from("classes").insert({
+    const insertData: Record<string, unknown> = {
       name: newName.trim(),
       code,
       teacher_id: user.id,
       framework: newFramework,
-    });
+    };
+    if (newLang !== "en") insertData.instruction_language = newLang;
+    if (newAddLangs.length > 0) insertData.additional_languages = newAddLangs;
+    const { error } = await supabase.from("classes").insert(insertData);
     if (!error) {
       setNewName("");
-      setNewFramework("myp_design");
+      setNewFramework("IB_MYP");
+      setNewLang("en");
+      setNewAddLangs([]);
       setShowCreate(false);
       loadClasses();
     }
@@ -236,6 +243,50 @@ export default function ClassesPage() {
                     <div className="text-xs font-semibold text-text-primary leading-tight">{fw.label}</div>
                     <div className="text-[10px] text-text-secondary">{fw.desc}</div>
                   </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Language settings */}
+          <div className="mb-5">
+            <label className="text-xs font-semibold text-text-secondary mb-2.5 block">Language of Instruction</label>
+            <div className="flex gap-3">
+              <select value={newLang} onChange={(e) => setNewLang(e.target.value)}
+                className="flex-1 px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500">
+                <option value="en">English</option>
+                <option value="zh">Chinese (Mandarin)</option>
+                <option value="es">Spanish</option>
+                <option value="fr">French</option>
+                <option value="de">German</option>
+                <option value="ja">Japanese</option>
+                <option value="ko">Korean</option>
+                <option value="ar">Arabic</option>
+                <option value="pt">Portuguese</option>
+                <option value="hi">Hindi</option>
+                <option value="nl">Dutch</option>
+                <option value="it">Italian</option>
+                <option value="ms">Malay</option>
+                <option value="th">Thai</option>
+                <option value="vi">Vietnamese</option>
+              </select>
+            </div>
+            <p className="text-[10px] text-text-tertiary mt-1.5">Additional languages students may need support in:</p>
+            <div className="flex flex-wrap gap-1.5 mt-1.5">
+              {[
+                { code: "en", label: "English" }, { code: "zh", label: "Chinese" }, { code: "es", label: "Spanish" },
+                { code: "fr", label: "French" }, { code: "de", label: "German" }, { code: "ja", label: "Japanese" },
+                { code: "ko", label: "Korean" }, { code: "ar", label: "Arabic" }, { code: "pt", label: "Portuguese" },
+                { code: "hi", label: "Hindi" }, { code: "nl", label: "Dutch" }, { code: "ms", label: "Malay" },
+                { code: "th", label: "Thai" }, { code: "vi", label: "Vietnamese" },
+              ].filter((l) => l.code !== newLang).map((l) => (
+                <button key={l.code} onClick={() => setNewAddLangs(newAddLangs.includes(l.code) ? newAddLangs.filter((c) => c !== l.code) : [...newAddLangs, l.code])}
+                  className={`px-2 py-1 text-[10px] font-medium rounded-full border transition-colors ${
+                    newAddLangs.includes(l.code)
+                      ? "bg-purple-100 text-purple-700 border-purple-300"
+                      : "bg-gray-50 text-gray-500 border-gray-200 hover:border-gray-300"
+                  }`}>
+                  {l.label}
                 </button>
               ))}
             </div>

@@ -1,7 +1,7 @@
 # Project Dimensions — Data Architecture Future-Proofing
 **Created: 29 March 2026**
-**Last updated: 30 March 2026**
-**Status: Phases 0-3 COMPLETE — schemas, prompts, RAG pipeline, cognitive load + per-section difficulty + client-side activity tracking all live. Phase 3 browser-tested 30 Mar — tracking data saves correctly. attempt_number debounce fix committed 30 Mar.**
+**Last updated: 31 March 2026**
+**Status: Phases 0-4b COMPLETE — all Dimensions infrastructure live. Schemas, prompts, RAG pipeline, cognitive load, per-section difficulty, client-side activity tracking, lesson editor UI (Bloom/grouping/timeWeight/AI rules selectors, DimensionsSummaryBar, cognitive load curve), UDL checkpoint picker, unit metadata section (materials/outcomes/SDGs/prerequisites/cross-curricular), class language settings. Phase 5 (reports + velocity loop) deferred.**
 **Spec: `docs/specs/data-architecture-v2.md`**
 
 ---
@@ -217,9 +217,9 @@ Student profile: `accommodations` (UDL-aligned), `udl_strengths`, `udl_barriers`
 - [x] Update ActivityBlockAdd 7 templates with bloom_level + grouping + timeWeight + ai_rules defaults (Written Response=apply/moderate/individual, Creative Upload=create/extended/divergent, etc.) — 31 Mar 2026
 - [x] TimeWeight distribution summary in Work Time phase activity total row — 31 Mar 2026
 - [x] Backward compatibility verified: legacy activities (no Dimensions fields) render correctly — quick-bar shows "Learning Design" add button, DimensionsSummaryBar hides, no errors — 31 Mar 2026
-- [ ] UDL checkpoint tags on ActivityBlock (auto-tagged, editable) — DEFERRED: needs UDL checkpoint reference data + tag picker UI
-- [ ] Unit detail page: display materials_list, learning_outcomes, sdg_tags, prerequisite_knowledge, cross_curricular_links — DEFERRED to Phase 4b
-- [ ] Teacher settings page: instruction_language dropdown + additional_languages checkboxes on class creation/edit — DEFERRED to Phase 4b
+- [x] UDL checkpoint tag picker on ActivityBlock — 31 checkpoints across 3 CAST principles (Engagement/Representation/Action & Expression), grouped picker with color-coded pills (emerald/blue/purple), toggle behavior — 31 Mar 2026
+- [x] Unit detail page: collapsible "Unit Details" section with editable materials list, learning outcomes, SDG tags (toggle pills for all 17 goals), cross-curricular links, prerequisite knowledge. Save button persists to DB (migration 057 columns). Unit TypeScript interface updated with MaterialItem + LearningOutcome types. — 31 Mar 2026
+- [x] Language settings on class creation: instruction_language dropdown (15 languages) + additional_languages multi-select toggle pills. Persists to DB (migration 057 columns). — 31 Mar 2026
 
 ### Phase 5: Reports + Velocity Loop + Research Metrics (LATER — not in current sprint)
 - [ ] UDL coverage dashboard per unit
@@ -248,9 +248,9 @@ Student profile: `accommodations` (UDL-aligned), `udl_strengths`, `udl_barriers`
 | Phase 1: Data layer (TypeScript) | 0.5 | Phase 0 | **COMPLETE** (30 Mar) |
 | Phase 2: AI generation + RAG pipeline | 2.5 | Phase 1 | **COMPLETE** (30 Mar) — schemas, prompts, RAG pipeline, cognitive load, per-section difficulty |
 | Phase 3: Client tracking | 0.5 | Phase 1 | **COMPLETE** (30 Mar) |
-| Phase 4: Lesson editor UI | 1 | Phase 1 | **COMPLETE** (31 Mar) — core selectors + summary bar + templates. Phase 4b deferred (UDL tags, unit detail, language settings) |
+| Phase 4: Lesson editor UI | 1 | Phase 1 | **COMPLETE** (31 Mar) — core selectors + summary bar + templates |
+| Phase 4b: UDL tags + unit detail + language | 0.5 | Phase 4 | **COMPLETE** (31 Mar) — UDL checkpoint picker, unit metadata section, class language settings |
 | Phase 5: Reports + research metrics | 4-6 | Phases 1-4 + real student data | Deferred |
-| **Remaining (Phase 4b)** | **~0.5 day** | UDL tag picker, unit detail page fields, language settings |
 
 ---
 

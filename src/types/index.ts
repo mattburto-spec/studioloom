@@ -124,6 +124,34 @@ export interface Unit {
   unit_type?: UnitType;
   /** Free-text curriculum context for AI generation (e.g. "IB MYP Design Year 4", "GCSE D&T AQA") */
   curriculum_context?: string | null;
+  /** ISO 639-1 language code for unit content. Default 'en'. */
+  content_language?: string;
+  /** Structured materials list: [{name, quantity_per_student, unit_cost, category, alternatives}] */
+  materials_list?: MaterialItem[] | null;
+  /** Explicit learning outcomes: [{outcome, bloom_level, measurable}] */
+  learning_outcomes?: LearningOutcome[] | null;
+  /** UN Sustainable Development Goals (1-17) */
+  sdg_tags?: string[] | null;
+  /** Subject areas this unit connects to */
+  cross_curricular_links?: string[] | null;
+  /** What students should know before starting this unit */
+  prerequisite_knowledge?: string[] | null;
+  /** Unit-level accessibility considerations */
+  inclusivity_notes?: Record<string, string> | null;
+}
+
+export interface MaterialItem {
+  name: string;
+  quantity_per_student?: string;
+  unit_cost?: string;
+  category?: string;
+  alternatives?: string;
+}
+
+export interface LearningOutcome {
+  outcome: string;
+  bloom_level?: BloomLevel;
+  measurable?: boolean;
 }
 
 export interface ClassUnit {

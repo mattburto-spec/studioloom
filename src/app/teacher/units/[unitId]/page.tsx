@@ -68,6 +68,7 @@ export default function UnitDetailPage({
   const [loading, setLoading] = useState(true);
   const [showFeedback, setShowFeedback] = useState(false);
   const [showLessons, setShowLessons] = useState(false);
+  const [showMeta, setShowMeta] = useState(false);
   const [allClasses, setAllClasses] = useState<Array<{
     id: string;
     name: string;
@@ -551,6 +552,31 @@ export default function UnitDetailPage({
       )}
 
       {/* ----------------------------------------------------------------- */}
+      {/* Unit Metadata — collapsible                                        */}
+      {/* ----------------------------------------------------------------- */}
+      <button
+        onClick={() => setShowMeta(!showMeta)}
+        className="w-full flex items-center justify-between px-4 py-3.5 rounded-xl border border-border bg-white hover:bg-surface-alt transition-colors mb-3"
+      >
+        <div className="text-left">
+          <span className="text-base font-semibold text-text-primary">
+            Unit Details
+          </span>
+          <span className="block text-xs text-text-tertiary mt-0.5">
+            Materials, outcomes, prerequisites, SDGs, cross-curricular links
+          </span>
+        </div>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+          className={`text-text-tertiary transition-transform flex-shrink-0 ${showMeta ? "rotate-180" : ""}`}>
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+
+      {showMeta && (
+        <UnitMetadataSection unit={unit} unitId={unitId} />
+      )}
+
+      {/* ----------------------------------------------------------------- */}
       {/* Lesson / page list — collapsible                                   */}
       {/* ----------------------------------------------------------------- */}
       <button
@@ -967,6 +993,181 @@ function MiniPhaseBar({ phases }: { phases: { opening: number; miniLesson: numbe
         ))}
       </div>
       <span className="text-[9px] text-text-tertiary">{total}m</span>
+    </div>
+  );
+}
+
+// ── SDG names ──
+const SDG_NAMES: Record<string, string> = {
+  "1": "No Poverty", "2": "Zero Hunger", "3": "Good Health", "4": "Quality Education",
+  "5": "Gender Equality", "6": "Clean Water", "7": "Affordable Energy", "8": "Decent Work",
+  "9": "Industry & Innovation", "10": "Reduced Inequalities", "11": "Sustainable Cities",
+  "12": "Responsible Consumption", "13": "Climate Action", "14": "Life Below Water",
+  "15": "Life on Land", "16": "Peace & Justice", "17": "Partnerships",
+};
+
+function UnitMetadataSection({ unit, unitId }: { unit: Unit; unitId: string }) {
+  const supabase = createClient();
+
+  // ── Materials ──
+  const [materials, setMaterials] = useState<Array<{ name: string; quantity_per_student?: string; category?: string; alternatives?: string }>>(
+    (unit as any).materials_list || []
+  );
+  const [newMat, setNewMat] = useState("");
+
+  // ── Learning Outcomes ──
+  const [outcomes, setOutcomes] = useState<Array<{ outcome: string; bloom_level?: string; measurable?: boolean }>>(
+    (unit as any).learning_outcomes || []
+  );
+  const [newOutcome, setNewOutcome] = useState("");
+
+  // ── Tags (arrays) ──
+  const [sdgTags, setSdgTags] = useState<string[]>((unit as any).sdg_tags || []);
+  const [crossLinks, setCrossLinks] = useState<string[]>((unit as any).cross_curricular_links || []);
+  const [prereqs, setPrereqs] = useState<string[]>((unit as any).prerequisite_knowledge || []);
+  const [newCross, setNewCross] = useState("");
+  const [newPrereq, setNewPrereq] = useState("");
+
+  // ── Save state ──
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await supabase.from("units").update({
+        materials_list: materials.length > 0 ? materials : null,
+        learning_outcomes: outcomes.length > 0 ? outcomes : null,
+        sdg_tags: sdgTags.length > 0 ? sdgTags : null,
+        cross_curricular_links: crossLinks.length > 0 ? crossLinks : null,
+        prerequisite_knowledge: prereqs.length > 0 ? prereqs : null,
+      }).eq("id", unitId);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch {
+      // silent
+    }
+    setSaving(false);
+  }
+
+  return (
+    <div className="mb-6 p-5 rounded-xl border border-border bg-white space-y-5">
+      {/* ── Materials ── */}
+      <div>
+        <label className="text-xs font-semibold text-text-secondary mb-2 block">Materials & Resources</label>
+        {materials.length > 0 && (
+          <div className="space-y-1.5 mb-2">
+            {materials.map((m, i) => (
+              <div key={i} className="flex items-center gap-2 text-sm">
+                <span className="flex-1 text-text-primary">{m.name}</span>
+                {m.quantity_per_student && <span className="text-xs text-text-tertiary">×{m.quantity_per_student}/student</span>}
+                {m.category && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600">{m.category}</span>}
+                <button onClick={() => setMaterials(materials.filter((_, j) => j !== i))} className="text-xs text-red-400 hover:text-red-600">✕</button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="flex gap-2">
+          <input value={newMat} onChange={(e) => setNewMat(e.target.value)} placeholder="Add material (e.g. MDF sheets)"
+            className="flex-1 px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-purple-400"
+            onKeyDown={(e) => { if (e.key === "Enter" && newMat.trim()) { setMaterials([...materials, { name: newMat.trim() }]); setNewMat(""); } }} />
+          <button onClick={() => { if (newMat.trim()) { setMaterials([...materials, { name: newMat.trim() }]); setNewMat(""); } }}
+            className="px-3 py-1.5 text-xs font-medium text-purple-600 border border-purple-200 rounded-lg hover:bg-purple-50">Add</button>
+        </div>
+      </div>
+
+      {/* ── Learning Outcomes ── */}
+      <div>
+        <label className="text-xs font-semibold text-text-secondary mb-2 block">Learning Outcomes</label>
+        {outcomes.length > 0 && (
+          <div className="space-y-1.5 mb-2">
+            {outcomes.map((o, i) => (
+              <div key={i} className="flex items-center gap-2 text-sm">
+                <span className="flex-1 text-text-primary">{o.outcome}</span>
+                {o.bloom_level && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700">{o.bloom_level}</span>}
+                <button onClick={() => setOutcomes(outcomes.filter((_, j) => j !== i))} className="text-xs text-red-400 hover:text-red-600">✕</button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="flex gap-2">
+          <input value={newOutcome} onChange={(e) => setNewOutcome(e.target.value)} placeholder="Add learning outcome"
+            className="flex-1 px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-purple-400"
+            onKeyDown={(e) => { if (e.key === "Enter" && newOutcome.trim()) { setOutcomes([...outcomes, { outcome: newOutcome.trim() }]); setNewOutcome(""); } }} />
+          <button onClick={() => { if (newOutcome.trim()) { setOutcomes([...outcomes, { outcome: newOutcome.trim() }]); setNewOutcome(""); } }}
+            className="px-3 py-1.5 text-xs font-medium text-purple-600 border border-purple-200 rounded-lg hover:bg-purple-50">Add</button>
+        </div>
+      </div>
+
+      {/* ── SDG Tags ── */}
+      <div>
+        <label className="text-xs font-semibold text-text-secondary mb-2 block">UN Sustainable Development Goals</label>
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {Array.from({ length: 17 }, (_, i) => String(i + 1)).map((sdg) => (
+            <button key={sdg} onClick={() => setSdgTags(sdgTags.includes(sdg) ? sdgTags.filter((s) => s !== sdg) : [...sdgTags, sdg])}
+              className={`px-2 py-1 text-[10px] font-medium rounded-full border transition-colors ${
+                sdgTags.includes(sdg)
+                  ? "bg-emerald-100 text-emerald-700 border-emerald-300"
+                  : "bg-gray-50 text-gray-500 border-gray-200 hover:border-gray-300"
+              }`}
+              title={SDG_NAMES[sdg]}
+            >
+              SDG {sdg}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Cross-Curricular Links ── */}
+      <div>
+        <label className="text-xs font-semibold text-text-secondary mb-2 block">Cross-Curricular Links</label>
+        {crossLinks.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {crossLinks.map((l, i) => (
+              <span key={i} className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-700 flex items-center gap-1">
+                {l} <button onClick={() => setCrossLinks(crossLinks.filter((_, j) => j !== i))} className="text-blue-400 hover:text-blue-600">✕</button>
+              </span>
+            ))}
+          </div>
+        )}
+        <div className="flex gap-2">
+          <input value={newCross} onChange={(e) => setNewCross(e.target.value)} placeholder="e.g. Mathematics, Science, Visual Arts"
+            className="flex-1 px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-purple-400"
+            onKeyDown={(e) => { if (e.key === "Enter" && newCross.trim()) { setCrossLinks([...crossLinks, newCross.trim()]); setNewCross(""); } }} />
+          <button onClick={() => { if (newCross.trim()) { setCrossLinks([...crossLinks, newCross.trim()]); setNewCross(""); } }}
+            className="px-3 py-1.5 text-xs font-medium text-purple-600 border border-purple-200 rounded-lg hover:bg-purple-50">Add</button>
+        </div>
+      </div>
+
+      {/* ── Prerequisite Knowledge ── */}
+      <div>
+        <label className="text-xs font-semibold text-text-secondary mb-2 block">Prerequisite Knowledge</label>
+        {prereqs.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {prereqs.map((p, i) => (
+              <span key={i} className="px-2 py-1 text-xs rounded-full bg-amber-100 text-amber-700 flex items-center gap-1">
+                {p} <button onClick={() => setPrereqs(prereqs.filter((_, j) => j !== i))} className="text-amber-400 hover:text-amber-600">✕</button>
+              </span>
+            ))}
+          </div>
+        )}
+        <div className="flex gap-2">
+          <input value={newPrereq} onChange={(e) => setNewPrereq(e.target.value)} placeholder="e.g. Basic measurement skills"
+            className="flex-1 px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-purple-400"
+            onKeyDown={(e) => { if (e.key === "Enter" && newPrereq.trim()) { setPrereqs([...prereqs, newPrereq.trim()]); setNewPrereq(""); } }} />
+          <button onClick={() => { if (newPrereq.trim()) { setPrereqs([...prereqs, newPrereq.trim()]); setNewPrereq(""); } }}
+            className="px-3 py-1.5 text-xs font-medium text-purple-600 border border-purple-200 rounded-lg hover:bg-purple-50">Add</button>
+        </div>
+      </div>
+
+      {/* ── Save button ── */}
+      <div className="flex items-center gap-3 pt-2 border-t border-border">
+        <button onClick={save} disabled={saving}
+          className="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 transition disabled:opacity-50">
+          {saving ? "Saving..." : "Save Details"}
+        </button>
+        {saved && <span className="text-xs text-emerald-600 font-medium">Saved</span>}
+      </div>
     </div>
   );
 }
