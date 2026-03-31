@@ -272,7 +272,7 @@ export default function Home() {
         </nav>
 
         {/* Hero content */}
-        <section className="relative z-10 max-w-6xl mx-auto px-6 pt-12 md:pt-20 pb-28 md:pb-36">
+        <section className="relative z-10 max-w-6xl mx-auto px-6 pt-12 md:pt-20 pb-16 md:pb-20">
           <div className="max-w-3xl mx-auto text-center">
             <h1 className="text-4xl md:text-5xl lg:text-[3.5rem] font-bold tracking-tight leading-[1.1] mb-6">
               The platform for classrooms that{" "}
@@ -305,8 +305,12 @@ export default function Home() {
         </section>
       </div>
 
-      {/* Wave transition: dark hero → white content */}
-      <WaveDivider fillClass="fill-white" showAccent={false} className="-mt-4 gradient-hero" />
+      {/* Wave transition: dark hero → white content — negative margin pulls wave into hero */}
+      <div className="gradient-hero -mt-1">
+        <svg viewBox="0 0 1440 80" preserveAspectRatio="none" className="block w-full h-12 md:h-16 lg:h-20">
+          <path d="M0,30 C320,80 640,0 960,40 C1120,60 1320,50 1440,30 L1440,80 L0,80 Z" className="fill-white" />
+        </svg>
+      </div>
 
 
       {/* ══════════════════════════════════════════════════════════════ */}
@@ -314,7 +318,7 @@ export default function Home() {
       {/* ══════════════════════════════════════════════════════════════ */}
 
       {/* Phase 1: Plan */}
-      <section className="bg-white py-20">
+      <section className="bg-white py-12">
         <div className="max-w-6xl mx-auto px-6">
           <AnimatedJourneyPhase
             tag="Phase 1 — Plan"
