@@ -19,33 +19,34 @@ const IconArrowRight = () => (
 
 function MockPlan() {
   const units = [
-    { title: "Sustainable Packaging", type: "Design", typeColor: "bg-teal-500", img: "https://images.unsplash.com/photo-1605000797499-95a51c5269ae?w=400&h=400&fit=crop&crop=center", lessons: 12 },
-    { title: "Community Garden", type: "Service", typeColor: "bg-pink-500", img: "https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400&h=400&fit=crop&crop=center", lessons: 8 },
-    { title: "Smart Home Prototype", type: "Design", typeColor: "bg-teal-500", img: "https://images.unsplash.com/photo-1558002038-1055907df827?w=400&h=400&fit=crop&crop=center", lessons: 15 },
+    { title: "Sustainable Packaging", type: "Design", typeColor: "bg-teal-500", img: "https://images.unsplash.com/photo-1605000797499-95a51c5269ae?w=400&h=400&fit=crop&crop=center", lessons: 12, rotate: "-6deg", z: 1, left: "0%", top: "18px" },
+    { title: "Community Garden", type: "Service", typeColor: "bg-pink-500", img: "https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400&h=400&fit=crop&crop=center", lessons: 8, rotate: "2deg", z: 3, left: "30%", top: "0px" },
+    { title: "Smart Home Prototype", type: "Design", typeColor: "bg-teal-500", img: "https://images.unsplash.com/photo-1558002038-1055907df827?w=400&h=400&fit=crop&crop=center", lessons: 15, rotate: "5deg", z: 2, left: "58%", top: "24px" },
   ];
   return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-3 gap-3">
+    <div className="py-4">
+      <div className="relative h-[320px] md:h-[360px]">
         {units.map((u) => (
-          <div key={u.title} className="bg-white rounded-xl shadow-md border border-gray-100 overflow-hidden">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={u.img}
-              alt={u.title}
-              className="w-full aspect-square object-cover"
-              loading="lazy"
-            />
-            <div className="p-2.5">
-              <div className="flex items-center gap-1.5 mb-1">
-                <span className={`text-[8px] px-1.5 py-0.5 rounded-full text-white font-semibold ${u.typeColor}`}>{u.type}</span>
-                <span className="text-[9px] text-gray-400">{u.lessons} lessons</span>
+          <div
+            key={u.title}
+            className="absolute w-[52%] md:w-[48%] transition-transform duration-300 hover:scale-105 hover:!z-40"
+            style={{ transform: `rotate(${u.rotate})`, zIndex: u.z, left: u.left, top: u.top }}
+          >
+            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={u.img} alt={u.title} className="w-full aspect-[4/3] object-cover" loading="lazy" />
+              <div className="p-3 md:p-4">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className={`text-[9px] md:text-[10px] px-2 py-0.5 rounded-full text-white font-semibold ${u.typeColor}`}>{u.type}</span>
+                  <span className="text-[10px] md:text-[11px] text-gray-400">{u.lessons} lessons</span>
+                </div>
+                <div className="text-sm md:text-base font-semibold text-gray-800 leading-tight">{u.title}</div>
               </div>
-              <div className="text-xs font-semibold text-gray-800 leading-tight">{u.title}</div>
             </div>
           </div>
         ))}
       </div>
-      <div className="text-center text-[11px] text-gray-400 pt-1">Browse hundreds more or build your own →</div>
+      <div className="text-center text-[11px] text-gray-400 pt-2">Browse hundreds more or build your own →</div>
     </div>
   );
 }
