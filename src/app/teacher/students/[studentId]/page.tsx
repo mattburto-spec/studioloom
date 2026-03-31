@@ -46,7 +46,7 @@ export default function TeacherStudentView({
   params: Promise<{ studentId: string }>;
 }) {
   const { studentId } = use(params);
-  const [student, setStudent] = useState<{ display_name: string; username: string; class_id: string | null; graduation_year: number | null } | null>(null);
+  const [student, setStudent] = useState<{ display_name: string; username: string; class_id: string | null; graduation_year: number | null; mentor_id: string | null; theme_id: string | null; learning_profile: any | null } | null>(null);
   const [enrollments, setEnrollments] = useState<Array<{ class_id: string; class_name: string; is_active: boolean; enrolled_at: string; unenrolled_at: string | null; term_id: string | null; term_name: string | null; academic_year: string | null }>>([]);
   const [allClasses, setAllClasses] = useState<Array<{ id: string; name: string }>>([]);
   const [units, setUnits] = useState<UnitWithProgress[]>([]);
@@ -64,7 +64,7 @@ export default function TeacherStudentView({
     // Get student info
     const { data: studentData } = await supabase
       .from("students")
-      .select("display_name, username, class_id, graduation_year")
+      .select("display_name, username, class_id, graduation_year, mentor_id, theme_id, learning_profile")
       .eq("id", studentId)
       .single();
 
@@ -385,6 +385,130 @@ export default function TeacherStudentView({
 
       {/* ─── Overview Tab ──────────────────────────────────── */}
       {activeTab === "overview" && <>
+
+      {/* Student Profile Card */}
+      {(() => {
+        const lp = student.learning_profile;
+        const mentorId = student.mentor_id;
+        const themeId = student.theme_id;
+        const hasProfile = lp || mentorId || themeId;
+        if (!hasProfile) return null;
+
+        const MENTOR_INFO: Record<string, { name: string; emoji: string; desc: string }> = {
+          kit: { name: "Kit", emoji: "🟣", desc: "Warm workshop buddy" },
+          sage: { name: "Sage", emoji: "🔵", desc: "Calm thinking partner" },
+          spark: { name: "Spark", emoji: "🟠", desc: "Bold creative disruptor" },
+        };
+        const THEME_INFO: Record<string, { name: string; color: string }> = {
+          clean: { name: "Clean", color: "bg-gray-100 text-gray-700" },
+          bold: { name: "Bold", color: "bg-purple-100 text-purple-700" },
+          warm: { name: "Warm", color: "bg-amber-100 text-amber-700" },
+          dark: { name: "Dark", color: "bg-gray-800 text-gray-100" },
+        };
+        const CONFIDENCE_LABELS = ["", "Not confident", "A little", "Okay", "Confident", "Very confident"];
+        const CONFIDENCE_EMOJI = ["", "😟", "🤔", "😊", "💪", "🔥"];
+
+        const mentor = mentorId ? MENTOR_INFO[mentorId] : null;
+        const theme = themeId ? THEME_INFO[themeId] : null;
+
+        return (
+          <div className="mb-6 bg-white border border-gray-200 rounded-2xl p-5">
+            <h2 className="text-base font-bold text-gray-900 mb-3 flex items-center gap-2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              Student Profile
+            </h2>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {/* Mentor */}
+              {mentor && (
+                <div className="bg-gray-50 rounded-xl px-3 py-2.5">
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Mentor</p>
+                  <p className="text-sm font-semibold text-gray-900">{mentor.emoji} {mentor.name}</p>
+                  <p className="text-[11px] text-gray-500">{mentor.desc}</p>
+                </div>
+              )}
+
+              {/* Theme */}
+              {theme && (
+                <div className="bg-gray-50 rounded-xl px-3 py-2.5">
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Theme</p>
+                  <span className={`inline-flex px-2 py-0.5 text-xs font-semibold rounded-full ${theme.color}`}>
+                    {theme.name}
+                  </span>
+                </div>
+              )}
+
+              {/* Design Confidence */}
+              {lp?.design_confidence != null && (
+                <div className="bg-gray-50 rounded-xl px-3 py-2.5">
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Design Confidence</p>
+                  <p className="text-sm font-semibold text-gray-900">
+                    {CONFIDENCE_EMOJI[lp.design_confidence] || ""} {CONFIDENCE_LABELS[lp.design_confidence] || `${lp.design_confidence}/5`}
+                  </p>
+                </div>
+              )}
+
+              {/* Primary Language */}
+              {lp?.primary_language && (
+                <div className="bg-gray-50 rounded-xl px-3 py-2.5">
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Primary Language</p>
+                  <p className="text-sm font-semibold text-gray-900">{lp.primary_language}</p>
+                  {lp.additional_languages?.length > 0 && (
+                    <p className="text-[11px] text-gray-500">Also: {lp.additional_languages.join(", ")}</p>
+                  )}
+                </div>
+              )}
+
+              {/* Working Style */}
+              {lp?.working_style && (
+                <div className="bg-gray-50 rounded-xl px-3 py-2.5">
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Working Style</p>
+                  <p className="text-sm font-semibold text-gray-900 capitalize">{lp.working_style}</p>
+                </div>
+              )}
+
+              {/* Learning Differences */}
+              {lp?.learning_differences?.length > 0 && (
+                <div className="bg-gray-50 rounded-xl px-3 py-2.5">
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Learning Needs</p>
+                  <div className="flex flex-wrap gap-1 mt-0.5">
+                    {lp.learning_differences.map((d: string) => (
+                      <span key={d} className="inline-flex px-1.5 py-0.5 text-[10px] font-medium bg-amber-100 text-amber-700 rounded-full capitalize">
+                        {d}
+                      </span>
+                    ))}
+                  </div>
+                  {lp.learning_differences_other && (
+                    <p className="text-[11px] text-gray-500 mt-1">{lp.learning_differences_other}</p>
+                  )}
+                </div>
+              )}
+
+              {/* Sensory Preferences */}
+              {lp?.sensory_preferences?.length > 0 && (
+                <div className="bg-gray-50 rounded-xl px-3 py-2.5">
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Sensory Preferences</p>
+                  <div className="flex flex-wrap gap-1 mt-0.5">
+                    {lp.sensory_preferences.map((s: string) => (
+                      <span key={s} className="inline-flex px-1.5 py-0.5 text-[10px] font-medium bg-blue-100 text-blue-700 rounded-full capitalize">
+                        {s}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Support Needs */}
+              {lp?.support_needs && (
+                <div className="bg-gray-50 rounded-xl px-3 py-2.5 col-span-2 sm:col-span-3">
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Support Notes</p>
+                  <p className="text-sm text-gray-700">{lp.support_needs}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Enrollment History Timeline */}
       <div className="mb-6">
