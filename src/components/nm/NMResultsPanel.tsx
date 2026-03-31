@@ -204,14 +204,11 @@ export function NMResultsPanel({ unitId, classId }: NMResultsPanelProps) {
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [studentIds, students]);
 
-  // Shorten lesson names for column headers
-  function shortName(pid: string, maxLen: number = 10): string {
+  // Shorten lesson names for column headers — longer now that headers are rotated
+  function shortName(pid: string, maxLen: number = 28): string {
     const name = pageNames[pid];
-    if (!name) return `CP`;
+    if (!name) return `Checkpoint`;
     if (name.length <= maxLen) return name;
-    // Take first word + ellipsis, or first N chars
-    const firstWord = name.split(/\s+/)[0];
-    if (firstWord.length <= maxLen) return firstWord + "…";
     return name.slice(0, maxLen - 1) + "…";
   }
 
@@ -313,14 +310,26 @@ export function NMResultsPanel({ unitId, classId }: NMResultsPanelProps) {
                     </th>
                     {allColumnIds.map((pid, i) => (
                       <th key={pid} style={{
-                        padding: "8px 6px", textAlign: "center", fontWeight: 700,
+                        padding: "0 4px", textAlign: "left", fontWeight: 700,
                         fontFamily: "'Arial Black', sans-serif", fontSize: "10px",
                         color: pid === GENERAL_OBS_ID ? POP.hotPink : "#666",
-                        minWidth: "56px", maxWidth: "80px",
+                        minWidth: "48px", maxWidth: "56px",
+                        height: "90px", verticalAlign: "bottom", position: "relative",
                       }}
                         title={pid === GENERAL_OBS_ID ? "Teacher observations (general)" : (pageNames[pid] || `Checkpoint ${i + 1}`)}
                       >
-                        {pid === GENERAL_OBS_ID ? "General" : shortName(pid)}
+                        <div style={{
+                          transform: "rotate(-45deg)",
+                          transformOrigin: "bottom left",
+                          whiteSpace: "nowrap",
+                          position: "absolute",
+                          bottom: "8px",
+                          left: "50%",
+                          fontSize: "10px",
+                          lineHeight: 1.2,
+                        }}>
+                          {pid === GENERAL_OBS_ID ? "General" : shortName(pid)}
+                        </div>
                       </th>
                     ))}
                   </tr>
