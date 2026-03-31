@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, Fragment } from "react";
 import { AGENCY_ELEMENT_MAP } from "@/lib/nm/constants";
 import type { NMUnitConfig } from "@/lib/nm/constants";
 
@@ -323,206 +323,182 @@ export function NMResultsPanel({ unitId, classId }: NMResultsPanelProps) {
                   {allColumnIds.map((pid, i) => {
                     const isGeneral = pid === GENERAL_OBS_ID;
                     const lessonName = isGeneral ? "General observation" : (pageNames[pid] || `Checkpoint ${i + 1}`);
-                    return (
-                      <tr key={pid} style={{
-                        borderBottom: "1px solid #f0f0f0",
-                        background: isGeneral ? "#fff5f9" : undefined,
-                      }}>
-                        <td style={{
-                          padding: "10px 12px", fontWeight: 600,
-                          color: isGeneral ? POP.hotPink : POP.black,
-                          position: "sticky", left: 0,
-                          background: isGeneral ? "#fff5f9" : POP.white,
-                          zIndex: 1, fontSize: "12px",
-                        }}>
-                          {lessonName}
-                        </td>
-                        {sortedStudents.map(({ sid, name }) => {
-                          const cell = gridData[sid]?.[pid];
-                          const isActive = drillCell?.sid === sid && drillCell?.pid === pid;
+                    // Check if any cell in this row is drilled
+                    const rowHasDrill = drillCell?.pid === pid;
+                    const totalCols = sortedStudents.length + 1;
 
-                          if (!cell) {
+                    return (
+                      <Fragment key={pid}>
+                        <tr style={{
+                          borderBottom: rowHasDrill ? "none" : "1px solid #f0f0f0",
+                          background: isGeneral ? "#fff5f9" : undefined,
+                        }}>
+                          <td style={{
+                            padding: "10px 12px", fontWeight: 600,
+                            color: isGeneral ? POP.hotPink : POP.black,
+                            position: "sticky", left: 0,
+                            background: isGeneral ? "#fff5f9" : POP.white,
+                            zIndex: 1, fontSize: "12px",
+                          }}>
+                            {lessonName}
+                          </td>
+                          {sortedStudents.map(({ sid, name }) => {
+                            const cell = gridData[sid]?.[pid];
+                            const isActive = drillCell?.sid === sid && drillCell?.pid === pid;
+
+                            if (!cell) {
+                              return (
+                                <td key={sid} style={{ padding: "6px", textAlign: "center" }}>
+                                  <div style={{
+                                    width: "32px", height: "32px", borderRadius: "50%",
+                                    background: "#f5f5f5", margin: "0 auto",
+                                    display: "flex", alignItems: "center", justifyContent: "center",
+                                    color: "#ddd", fontSize: "11px",
+                                  }}>
+                                    —
+                                  </div>
+                                </td>
+                              );
+                            }
+
+                            const displayAvg = cell.selfAvg ?? cell.teacherAvg ?? 0;
+                            const hasTeacher = cell.teacherAvg !== null;
+
                             return (
                               <td key={sid} style={{ padding: "6px", textAlign: "center" }}>
-                                <div style={{
-                                  width: "32px", height: "32px", borderRadius: "50%",
-                                  background: "#f5f5f5", margin: "0 auto",
-                                  display: "flex", alignItems: "center", justifyContent: "center",
-                                  color: "#ddd", fontSize: "11px",
-                                }}>
-                                  —
-                                </div>
+                                <button
+                                  onClick={() => setDrillCell(isActive ? null : { sid, pid })}
+                                  style={{
+                                    position: "relative", border: "none", background: "none",
+                                    cursor: "pointer", padding: "0", margin: "0 auto", display: "block",
+                                  }}
+                                  title={`${name} — ${lessonName}`}
+                                >
+                                  <div style={{
+                                    width: "32px", height: "32px", borderRadius: "50%",
+                                    background: avgColor(displayAvg),
+                                    color: avgTextColor(displayAvg),
+                                    display: "flex", alignItems: "center", justifyContent: "center",
+                                    fontSize: "11px", fontWeight: 800,
+                                    fontFamily: "'Arial Black', sans-serif",
+                                    border: isActive ? `3px solid ${POP.hotPink}` : "2px solid rgba(255,255,255,0.8)",
+                                    boxShadow: isActive
+                                      ? `0 0 0 2px ${POP.hotPink}, 0 2px 4px rgba(0,0,0,0.15)`
+                                      : "0 1px 3px rgba(0,0,0,0.12)",
+                                    transition: "all 0.15s",
+                                    transform: isActive ? "scale(1.15)" : "scale(1)",
+                                  }}>
+                                    {displayAvg.toFixed(1)}
+                                  </div>
+                                  {hasTeacher && (
+                                    <div style={{
+                                      position: "absolute", bottom: "-2px", right: "-2px",
+                                      width: "12px", height: "12px", borderRadius: "50%",
+                                      background: POP.hotPink, border: "1.5px solid #fff",
+                                      display: "flex", alignItems: "center", justifyContent: "center",
+                                      fontSize: "7px", fontWeight: 900, color: "#fff",
+                                    }}>
+                                      T
+                                    </div>
+                                  )}
+                                </button>
                               </td>
                             );
-                          }
+                          })}
+                        </tr>
 
-                          const displayAvg = cell.selfAvg ?? cell.teacherAvg ?? 0;
-                          const hasTeacher = cell.teacherAvg !== null;
-
+                        {/* Inline drill-down row — appears directly below the clicked row */}
+                        {rowHasDrill && drillCell && (() => {
+                          const dd = gridData[drillCell.sid]?.[drillCell.pid];
+                          if (!dd) return null;
+                          const studentName = students[drillCell.sid]?.display_name || students[drillCell.sid]?.username || "Unknown";
                           return (
-                            <td key={sid} style={{ padding: "6px", textAlign: "center" }}>
-                              <button
-                                onClick={() => setDrillCell(isActive ? null : { sid, pid })}
-                                style={{
-                                  position: "relative", border: "none", background: "none",
-                                  cursor: "pointer", padding: "0", margin: "0 auto", display: "block",
-                                }}
-                                title={`${name} — ${lessonName}`}
-                              >
+                            <tr>
+                              <td colSpan={totalCols} style={{ padding: 0, borderBottom: "1px solid #f0f0f0" }}>
                                 <div style={{
-                                  width: "32px", height: "32px", borderRadius: "50%",
-                                  background: avgColor(displayAvg),
-                                  color: avgTextColor(displayAvg),
-                                  display: "flex", alignItems: "center", justifyContent: "center",
-                                  fontSize: "11px", fontWeight: 800,
-                                  fontFamily: "'Arial Black', sans-serif",
-                                  border: isActive ? `3px solid ${POP.hotPink}` : "2px solid rgba(255,255,255,0.8)",
-                                  boxShadow: isActive
-                                    ? `0 0 0 2px ${POP.hotPink}, 0 2px 4px rgba(0,0,0,0.15)`
-                                    : "0 1px 3px rgba(0,0,0,0.12)",
-                                  transition: "all 0.15s",
-                                  transform: isActive ? "scale(1.15)" : "scale(1)",
+                                  background: "#faf8ff",
+                                  padding: "12px 16px",
+                                  borderTop: `2px solid ${POP.hotPink}`,
+                                  animation: "nmSlideDown 0.15s ease-out",
                                 }}>
-                                  {displayAvg.toFixed(1)}
-                                </div>
-                                {hasTeacher && (
-                                  <div style={{
-                                    position: "absolute", bottom: "-2px", right: "-2px",
-                                    width: "12px", height: "12px", borderRadius: "50%",
-                                    background: POP.hotPink, border: "1.5px solid #fff",
-                                    display: "flex", alignItems: "center", justifyContent: "center",
-                                    fontSize: "7px", fontWeight: 900, color: "#fff",
-                                  }}>
-                                    T
+                                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                                    <div>
+                                      <span style={{ fontSize: "13px", fontWeight: 800, color: POP.black, fontFamily: "'Arial Black', sans-serif" }}>
+                                        {studentName}
+                                      </span>
+                                      <span style={{ fontSize: "12px", color: "#888", marginLeft: "8px" }}>
+                                        {dd.latestDate ? formatDate(dd.latestDate) : ""}
+                                      </span>
+                                    </div>
+                                    <button onClick={() => setDrillCell(null)} style={{
+                                      width: "24px", height: "24px", borderRadius: "6px",
+                                      border: `2px solid ${POP.black}`, background: POP.cream,
+                                      cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                                      fontSize: "12px", fontWeight: 900, color: POP.black,
+                                    }}>✕</button>
                                   </div>
-                                )}
-                              </button>
-                            </td>
+                                  <div style={{ display: "grid", gap: "6px" }}>
+                                    {elements.map(elemId => {
+                                      const elem = AGENCY_ELEMENT_MAP[elemId];
+                                      if (!elem) return null;
+                                      const selfR = dd.selfRatings[elemId];
+                                      const teacherR = dd.teacherRatings[elemId];
+                                      return (
+                                        <div key={elemId} style={{
+                                          display: "flex", alignItems: "center", gap: "10px",
+                                          padding: "6px 12px", borderRadius: "8px",
+                                          background: POP.white, border: "1px solid #e8e0f5",
+                                        }}>
+                                          <div style={{ flex: 1, fontSize: "12px", fontWeight: 600, color: POP.black }}>{elem.name}</div>
+                                          {selfR !== undefined ? (
+                                            <div style={{
+                                              padding: "2px 8px", borderRadius: "6px",
+                                              background: DOT[selfR]?.bg || "#e5e7eb", color: DOT[selfR]?.text || "#999",
+                                              fontSize: "10px", fontWeight: 800, fontFamily: "'Arial Black', sans-serif",
+                                              border: "1.5px solid rgba(0,0,0,0.1)", whiteSpace: "nowrap",
+                                            }}>{DOT[selfR]?.label || selfR}</div>
+                                          ) : (
+                                            <div style={{ fontSize: "10px", color: "#ccc", padding: "2px 8px" }}>No self</div>
+                                          )}
+                                          {teacherR !== undefined ? (
+                                            <div style={{
+                                              padding: "2px 8px", borderRadius: "6px",
+                                              background: TEACHER_DOT[teacherR]?.bg || "#e5e7eb", color: TEACHER_DOT[teacherR]?.text || "#999",
+                                              fontSize: "10px", fontWeight: 800, fontFamily: "'Arial Black', sans-serif",
+                                              border: `2px solid ${POP.hotPink}`, whiteSpace: "nowrap",
+                                            }}>T: {TEACHER_DOT[teacherR]?.label || teacherR}</div>
+                                          ) : (
+                                            <div style={{ fontSize: "10px", color: "#ccc", padding: "2px 8px" }}>No obs</div>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                  {(dd.selfComment || dd.teacherComment) && (
+                                    <div style={{ marginTop: "8px", display: "grid", gap: "4px" }}>
+                                      {dd.selfComment && (
+                                        <div style={{ padding: "6px 12px", borderRadius: "8px", background: "#f0fafb", border: "1px solid #d1ecf0", fontSize: "11px", color: "#444", lineHeight: 1.5 }}>
+                                          <span style={{ fontWeight: 700, color: "#0891b2" }}>Student:</span> {dd.selfComment}
+                                        </div>
+                                      )}
+                                      {dd.teacherComment && (
+                                        <div style={{ padding: "6px 12px", borderRadius: "8px", background: "#faf0fc", border: "1px solid #e0bff0", fontSize: "11px", color: "#444", lineHeight: 1.5 }}>
+                                          <span style={{ fontWeight: 700, color: POP.hotPink }}>Teacher:</span> {dd.teacherComment}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
                           );
-                        })}
-                      </tr>
+                        })()}
+                      </Fragment>
                     );
                   })}
                 </tbody>
               </table>
             </div>
-
-            {/* ===== DRILL-DOWN PANEL ===== */}
-            {drillCell && drillData && (
-              <div style={{
-                borderTop: `2px solid ${POP.black}`,
-                background: "#faf8ff",
-                padding: "16px",
-                animation: "nmSlideDown 0.2s ease-out",
-              }}>
-                {/* Header with close button */}
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-                  <div>
-                    <div style={{
-                      fontSize: "14px", fontWeight: 800, color: POP.black,
-                      fontFamily: "'Arial Black', sans-serif",
-                    }}>
-                      {drillStudentName}
-                    </div>
-                    <div style={{ fontSize: "12px", color: "#888" }}>
-                      {drillCell.pid === GENERAL_OBS_ID ? "General observation" : (pageNames[drillCell.pid] || "Checkpoint")} · {drillData.latestDate ? formatDate(drillData.latestDate) : ""}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setDrillCell(null)}
-                    style={{
-                      width: "28px", height: "28px", borderRadius: "8px",
-                      border: `2px solid ${POP.black}`, background: POP.cream,
-                      cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: "14px", fontWeight: 900, color: POP.black,
-                    }}
-                  >
-                    ✕
-                  </button>
-                </div>
-
-                {/* Per-element ratings */}
-                <div style={{ display: "grid", gap: "8px" }}>
-                  {elements.map(elemId => {
-                    const elem = AGENCY_ELEMENT_MAP[elemId];
-                    if (!elem) return null;
-                    const selfR = drillData.selfRatings[elemId];
-                    const teacherR = drillData.teacherRatings[elemId];
-
-                    return (
-                      <div key={elemId} style={{
-                        display: "flex", alignItems: "center", gap: "10px",
-                        padding: "8px 12px", borderRadius: "8px",
-                        background: POP.white, border: "1px solid #e8e0f5",
-                      }}>
-                        {/* Element name — full width, no truncation */}
-                        <div style={{ flex: 1, fontSize: "13px", fontWeight: 600, color: POP.black }}>
-                          {elem.name}
-                        </div>
-
-                        {/* Student self rating */}
-                        {selfR !== undefined ? (
-                          <div style={{
-                            padding: "3px 10px", borderRadius: "6px",
-                            background: DOT[selfR]?.bg || "#e5e7eb",
-                            color: DOT[selfR]?.text || "#999",
-                            fontSize: "11px", fontWeight: 800,
-                            fontFamily: "'Arial Black', sans-serif",
-                            border: "1.5px solid rgba(0,0,0,0.1)",
-                            whiteSpace: "nowrap",
-                          }}>
-                            {DOT[selfR]?.label || selfR}
-                          </div>
-                        ) : (
-                          <div style={{ fontSize: "11px", color: "#ccc", padding: "3px 10px" }}>No self</div>
-                        )}
-
-                        {/* Teacher rating */}
-                        {teacherR !== undefined ? (
-                          <div style={{
-                            padding: "3px 10px", borderRadius: "6px",
-                            background: TEACHER_DOT[teacherR]?.bg || "#e5e7eb",
-                            color: TEACHER_DOT[teacherR]?.text || "#999",
-                            fontSize: "11px", fontWeight: 800,
-                            fontFamily: "'Arial Black', sans-serif",
-                            border: `2px solid ${POP.hotPink}`,
-                            whiteSpace: "nowrap",
-                          }}>
-                            T: {TEACHER_DOT[teacherR]?.label || teacherR}
-                          </div>
-                        ) : (
-                          <div style={{ fontSize: "11px", color: "#ccc", padding: "3px 10px" }}>No obs</div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Comments */}
-                {(drillData.selfComment || drillData.teacherComment) && (
-                  <div style={{ marginTop: "12px", display: "grid", gap: "6px" }}>
-                    {drillData.selfComment && (
-                      <div style={{
-                        padding: "8px 12px", borderRadius: "8px",
-                        background: "#f0fafb", border: "1px solid #d1ecf0",
-                        fontSize: "12px", color: "#444", lineHeight: 1.5,
-                      }}>
-                        <span style={{ fontWeight: 700, color: "#0891b2" }}>Student:</span> {drillData.selfComment}
-                      </div>
-                    )}
-                    {drillData.teacherComment && (
-                      <div style={{
-                        padding: "8px 12px", borderRadius: "8px",
-                        background: "#faf0fc", border: "1px solid #e0bff0",
-                        fontSize: "12px", color: "#444", lineHeight: 1.5,
-                      }}>
-                        <span style={{ fontWeight: 700, color: POP.hotPink }}>Teacher:</span> {drillData.teacherComment}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
 
             {/* Legend */}
             <div style={{
