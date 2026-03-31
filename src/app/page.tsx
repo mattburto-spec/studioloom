@@ -17,40 +17,37 @@ const IconArrowRight = () => (
 /* ------------------------------------------------------------------ */
 
 function MockPlan() {
+  const units = [
+    { title: "Sustainable Packaging", type: "Design", typeColor: "bg-teal-500", img: "photo-1530982011887-3cc11cc85693", lessons: 12 },
+    { title: "Community Garden Project", type: "Service", typeColor: "bg-pink-500", img: "photo-1416879595882-3373a0480b5b", lessons: 8 },
+    { title: "Smart Home Prototype", type: "Design", typeColor: "bg-teal-500", img: "photo-1558618666-fcd25c85f82e", lessons: 15 },
+  ];
   return (
-    <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 space-y-4">
-      <div className="flex items-center gap-3 mb-2">
-        <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7c3aed" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+    <div className="space-y-3">
+      {units.map((u) => (
+        <div key={u.title} className="bg-white rounded-xl shadow-md border border-gray-100 overflow-hidden flex">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={`https://images.unsplash.com/${u.img}?w=200&h=140&fit=crop&crop=center`}
+            alt=""
+            className="w-28 md:w-36 h-24 object-cover flex-shrink-0"
+            loading="lazy"
+          />
+          <div className="flex-1 p-3 flex flex-col justify-center min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <span className={`text-[9px] px-1.5 py-0.5 rounded-full text-white font-semibold ${u.typeColor}`}>{u.type}</span>
+              <span className="text-[10px] text-gray-400">{u.lessons} lessons</span>
+            </div>
+            <div className="text-sm font-semibold text-gray-800 truncate">{u.title}</div>
+            <div className="flex items-center gap-1 mt-1.5">
+              {["Opening", "Mini-Lesson", "Work Time", "Debrief"].map((p, i) => (
+                <div key={p} className="h-1.5 flex-1 rounded-full" style={{ background: ["#6366f1", "#3b82f6", "#10b981", "#f59e0b"][i], opacity: 0.5 }} />
+              ))}
+            </div>
+          </div>
         </div>
-        <span className="text-sm font-semibold text-gray-700">Unit Builder</span>
-        <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium ml-auto">3 lanes</span>
-      </div>
-      <div className="grid grid-cols-3 gap-2">
-        {["Express", "Guided", "Architect"].map((lane, i) => (
-          <div key={lane} className={`rounded-lg p-3 text-center text-xs font-medium border ${i === 0 ? "bg-purple-50 border-purple-200 text-purple-700" : "bg-gray-50 border-gray-200 text-gray-500"}`}>
-            {lane}
-          </div>
-        ))}
-      </div>
-      <div className="grid grid-cols-4 gap-1.5 pt-2">
-        {["Design", "Service", "Capstone", "Inquiry"].map((t, i) => (
-          <div key={t} className={`rounded-md py-2 text-center text-[10px] font-semibold ${
-            [
-              "bg-teal-50 text-teal-700 border border-teal-200",
-              "bg-pink-50 text-pink-700 border border-pink-200",
-              "bg-purple-50 text-purple-700 border border-purple-200",
-              "bg-amber-50 text-amber-700 border border-amber-200",
-            ][i]
-          }`}>
-            {t}
-          </div>
-        ))}
-      </div>
-      <div className="flex items-center gap-2 pt-1 text-[10px] text-gray-400">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-        Workshop Model phases auto-generated
-      </div>
+      ))}
+      <div className="text-center text-[11px] text-gray-400 pt-1">Browse hundreds more or build your own →</div>
     </div>
   );
 }
@@ -152,30 +149,37 @@ function MockData() {
 
 function MockAssess() {
   return (
-    <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 space-y-4">
-      <div className="flex items-center gap-2 mb-1">
-        <span className="text-sm font-semibold text-gray-700">Grading + Portfolio</span>
+    <div className="space-y-4">
+      {/* Student work photo */}
+      <div className="rounded-2xl overflow-hidden shadow-lg border border-gray-100">
+        <img
+          src="https://images.unsplash.com/photo-1576595580361-90a855b84b20?w=800&h=300&fit=crop&crop=center"
+          alt="Student working on design project"
+          className="w-full h-40 md:h-48 object-cover"
+          loading="lazy"
+        />
       </div>
-      {/* Criterion scores mock */}
-      <div className="grid grid-cols-4 gap-2">
-        {[
-          { label: "A", score: 6, color: "bg-indigo-100 text-indigo-700 border-indigo-200" },
-          { label: "B", score: 5, color: "bg-emerald-100 text-emerald-700 border-emerald-200" },
-          { label: "C", score: 7, color: "bg-amber-100 text-amber-700 border-amber-200" },
-          { label: "D", score: 4, color: "bg-violet-100 text-violet-700 border-violet-200" },
-        ].map((c) => (
-          <div key={c.label} className={`rounded-lg p-3 text-center border ${c.color}`}>
-            <div className="text-[10px] font-medium mb-1">Criterion {c.label}</div>
-            <div className="text-lg font-bold">{c.score}</div>
-          </div>
-        ))}
-      </div>
-      {/* Gallery mock */}
-      <div className="flex items-center gap-2 pt-1">
-        <div className="flex -space-x-2">
-          {[0,1,2,3].map(i => <div key={i} className="w-6 h-6 rounded-full bg-gray-200 border-2 border-white"/>)}
+      {/* Criterion scores + gallery */}
+      <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-5 space-y-3">
+        <div className="grid grid-cols-4 gap-2">
+          {[
+            { label: "A", score: 6, color: "bg-indigo-100 text-indigo-700 border-indigo-200" },
+            { label: "B", score: 5, color: "bg-emerald-100 text-emerald-700 border-emerald-200" },
+            { label: "C", score: 7, color: "bg-amber-100 text-amber-700 border-amber-200" },
+            { label: "D", score: 4, color: "bg-violet-100 text-violet-700 border-violet-200" },
+          ].map((c) => (
+            <div key={c.label} className={`rounded-lg p-3 text-center border ${c.color}`}>
+              <div className="text-[10px] font-medium mb-1">Criterion {c.label}</div>
+              <div className="text-lg font-bold">{c.score}</div>
+            </div>
+          ))}
         </div>
-        <span className="text-[10px] text-gray-500">12 peer reviews completed this round</span>
+        <div className="flex items-center gap-2 pt-1">
+          <div className="flex -space-x-2">
+            {[0,1,2,3].map(i => <div key={i} className="w-6 h-6 rounded-full bg-gray-200 border-2 border-white"/>)}
+          </div>
+          <span className="text-[10px] text-gray-500">12 peer reviews completed this round</span>
+        </div>
       </div>
     </div>
   );
@@ -250,35 +254,31 @@ export default function Home() {
               </Link>
             </div>
 
-            {/* Stat badges — process-focused */}
-            <div className="flex items-center justify-center gap-6 md:gap-10 mt-10 pt-8 border-t border-white/10 text-xs md:text-sm text-white/40">
-              {["Plan", "Deliver", "Assess", "Showcase"].map((phase, i) => (
-                <span key={phase} className="flex items-center gap-2">
-                  {i > 0 && <span className="text-white/20">→</span>}
-                  {phase}
-                </span>
-              ))}
-              <span className="text-white/15 mx-1">|</span>
-              <span>8+ Frameworks</span>
-              <span className="text-white/15 mx-1">|</span>
-              <span>42 Thinking Tools</span>
-            </div>
+            {/* spacer — process steps are below */}
           </div>
 
-          {/* Hero image */}
-          <div className="relative z-10 max-w-4xl mx-auto mt-14 px-4">
-            <div className="rounded-2xl overflow-hidden shadow-2xl shadow-black/30 border border-white/10">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="https://images.unsplash.com/photo-1576595580361-90a855b84b20?w=1200&q=80&fit=crop&crop=center"
-                alt="Students sketching wireframes and prototyping with post-it notes in a design workshop"
-                className="w-full h-[280px] md:h-[380px] object-cover"
-                loading="eager"
-              />
+          {/* Process steps — large colored pills */}
+          <div className="relative z-10 max-w-3xl mx-auto mt-14 px-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+              {[
+                { step: "Plan", desc: "Build or browse units", bg: "bg-purple-500/20", border: "border-purple-400/30", text: "text-purple-200" },
+                { step: "Deliver", desc: "Live teaching cockpit", bg: "bg-blue-500/20", border: "border-blue-400/30", text: "text-blue-200" },
+                { step: "Assess", desc: "Criterion grading + gallery", bg: "bg-emerald-500/20", border: "border-emerald-400/30", text: "text-emerald-200" },
+                { step: "Showcase", desc: "Portfolio builds itself", bg: "bg-pink-500/20", border: "border-pink-400/30", text: "text-pink-200" },
+              ].map((s, i) => (
+                <div key={s.step} className={`${s.bg} ${s.border} border rounded-xl px-4 py-4 md:py-5 text-center`}>
+                  <div className="text-lg md:text-xl font-bold text-white mb-1">{s.step}</div>
+                  <div className={`text-xs ${s.text}`}>{s.desc}</div>
+                </div>
+              ))}
             </div>
-            <p className="text-center text-white/25 text-[11px] mt-3">
-              Built for how teachers actually teach and how students actually learn.
-            </p>
+            <div className="flex items-center justify-center gap-6 mt-6 text-xs text-white/30">
+              <span>8+ Frameworks</span>
+              <span className="text-white/15">|</span>
+              <span>42 Thinking Tools</span>
+              <span className="text-white/15">|</span>
+              <span>Built for how teachers actually teach</span>
+            </div>
           </div>
         </section>
       </div>
