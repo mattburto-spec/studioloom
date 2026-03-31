@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { WaveDivider } from "@/components/ui/WaveDivider";
+import AnimatedJourneyPhase from "@/components/landing/AnimatedJourneyPhase";
 
 /* ------------------------------------------------------------------ */
 /*  SVG icon helpers (no lucide-react in project)                      */
@@ -10,59 +11,6 @@ const IconArrowRight = () => (
     <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
   </svg>
 );
-
-/* ------------------------------------------------------------------ */
-/*  Journey phase section — alternating left/right layout              */
-/* ------------------------------------------------------------------ */
-
-function JourneyPhase({
-  tag,
-  tagColor,
-  headline,
-  headlineAccent,
-  description,
-  bullets,
-  visual,
-  reverse = false,
-}: {
-  tag: string;
-  tagColor: string;
-  headline: string;
-  headlineAccent?: string;
-  description: string;
-  bullets: string[];
-  visual: React.ReactNode;
-  reverse?: boolean;
-}) {
-  return (
-    <div className={`grid md:grid-cols-2 gap-12 lg:gap-16 items-center ${reverse ? "md:[direction:rtl]" : ""}`}>
-      {/* Visual */}
-      <div className={reverse ? "md:[direction:ltr]" : ""}>{visual}</div>
-      {/* Copy */}
-      <div className={reverse ? "md:[direction:ltr]" : ""}>
-        <span className={`text-[11px] font-semibold uppercase tracking-wider mb-3 block ${tagColor}`}>{tag}</span>
-        <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4 leading-tight">
-          {headline}
-          {headlineAccent && (
-            <>
-              {" "}
-              <span className="text-purple-600">{headlineAccent}</span>
-            </>
-          )}
-        </h2>
-        <p className="text-gray-500 mb-6 leading-relaxed">{description}</p>
-        <ul className="space-y-3">
-          {bullets.map((b, i) => (
-            <li key={i} className="flex items-start gap-3 text-gray-600 text-sm">
-              <span className="w-1.5 h-1.5 rounded-full bg-purple-400 flex-shrink-0 mt-2" />
-              <span>{b}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </div>
-  );
-}
 
 /* ------------------------------------------------------------------ */
 /*  Journey phase mock visuals (CSS-only, no images needed)            */
@@ -329,7 +277,7 @@ export default function Home() {
       {/* Phase 1: Plan */}
       <section className="bg-white py-20">
         <div className="max-w-6xl mx-auto px-6">
-          <JourneyPhase
+          <AnimatedJourneyPhase
             tag="Phase 1 — Plan"
             tagColor="text-purple-600"
             headline="Start from a library of"
@@ -349,7 +297,7 @@ export default function Home() {
       {/* Phase 2: Teach */}
       <section className="bg-gray-50 py-20">
         <div className="max-w-6xl mx-auto px-6">
-          <JourneyPhase
+          <AnimatedJourneyPhase
             tag="Phase 2 — Teach"
             tagColor="text-emerald-600"
             headline="Teach with a live dashboard,"
@@ -370,7 +318,7 @@ export default function Home() {
       {/* Phase 3: Students Work — the emotional centrepiece */}
       <section className="bg-white py-20">
         <div className="max-w-6xl mx-auto px-6">
-          <JourneyPhase
+          <AnimatedJourneyPhase
             tag="Phase 3 — Students Work"
             tagColor="text-pink-600"
             headline="They own the process."
@@ -391,7 +339,7 @@ export default function Home() {
       {/* Phase 4: See Everything */}
       <section className="bg-gray-50 py-20">
         <div className="max-w-6xl mx-auto px-6">
-          <JourneyPhase
+          <AnimatedJourneyPhase
             tag="Phase 4 — See Everything"
             tagColor="text-blue-600"
             headline="The data collects itself."
@@ -411,7 +359,7 @@ export default function Home() {
       {/* Phase 5: Assess & Showcase */}
       <section className="bg-white py-20">
         <div className="max-w-6xl mx-auto px-6">
-          <JourneyPhase
+          <AnimatedJourneyPhase
             tag="Phase 5 — Assess & Showcase"
             tagColor="text-violet-600"
             headline="From grading to gallery —"
