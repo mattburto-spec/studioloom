@@ -91,18 +91,12 @@ function CognitiveLoadCurve({ sections }: { sections: ActivitySection[] }) {
   const avgLabel = avgLoad <= 2 ? "Low" : avgLoad <= 3.5 ? "Medium" : avgLoad <= 4.5 ? "High" : "Very High";
   const avgColor = loadColor(avgLoad);
 
-  // Check if pattern follows good Workshop Model shape (ramp up then ease off)
-  // Peak should be in middle-to-late section, not at very start or very end
-  const peakIdx = coords.reduce((best, c, i) => (c.y < coords[best].y ? i : best), 0);
-  const peakPosition = coords.length > 1 ? peakIdx / (coords.length - 1) : 0.5;
-  const goodShape = peakPosition >= 0.3 && peakPosition <= 0.85;
-
   // Build hover title
   const levelNames = points.map((p) => {
     const name = Object.entries(BLOOM_LOAD).find(([, v]) => v === p.load)?.[0] || "";
     return name.charAt(0).toUpperCase() + name.slice(1);
   });
-  const title = `Cognitive load flow: ${levelNames.join(" → ")}${goodShape ? " ✓ Good shape" : ""}`;
+  const title = `Cognitive load flow: ${levelNames.join(" → ")}`;
 
   return (
     <div className="flex items-center gap-2" title={title}>
@@ -130,11 +124,6 @@ function CognitiveLoadCurve({ sections }: { sections: ActivitySection[] }) {
       >
         {avgLabel}
       </span>
-      {goodShape && (
-        <span className="text-[10px] text-emerald-600" title="Cognitive load peaks in the middle — good Workshop Model shape">
-          ✓
-        </span>
-      )}
     </div>
   );
 }
