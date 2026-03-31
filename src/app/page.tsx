@@ -332,14 +332,14 @@ export default function Home() {
           <JourneyPhase
             tag="Phase 1 — Plan"
             tagColor="text-purple-600"
-            headline="Build your unit in minutes,"
-            headlineAccent="not hours."
-            description="Pick a topic and a lane — Express for speed, Guided for conversation, Architect for full control. The platform generates structured lessons with Workshop Model phases, ELL scaffolding, and timing calibrated to your class."
+            headline="Start from a library of"
+            headlineAccent="classroom-tested units."
+            description="Hundreds of ready-to-go units built by real teachers for Design, Service, Capstone, Exhibition, and inquiry classrooms. Use one as-is, remix it for your context, or generate something entirely new with a unit builder that understands how to scaffold and extend students in project-based learning."
             bullets={[
-              "Design, Service, Capstone, Exhibition, or inquiry — one wizard handles all unit types",
-              "Workshop Model enforced: Opening, Mini-Lesson, Work Time, Debrief — every lesson, every time",
-              "Research-backed timing with 1+age instruction cap — no more accidental 40-minute lectures",
-              "Drag-and-drop lesson editor for teachers who want full control over every activity",
+              "Browse units by subject, framework, and grade level — each one structured with Workshop Model phases, scaffolding, and differentiation built in",
+              "Customise any unit per class: fork the content, adjust timing, swap activities — your version, your students",
+              "Or build from scratch: Express mode for speed, Guided for conversation, Architect for full control over every activity and phase",
+              "AI generation trained on design teaching pedagogy — it knows when to scaffold, when to stretch, and when to get out of the way",
             ]}
             visual={<MockPlan />}
           />
