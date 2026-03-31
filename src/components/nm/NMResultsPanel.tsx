@@ -295,7 +295,7 @@ export function NMResultsPanel({ unitId, classId }: NMResultsPanelProps) {
           </div>
         ) : (
           <div>
-            {/* ===== SUMMARY GRID ===== */}
+            {/* ===== TRANSPOSED GRID: lessons as rows, students as columns ===== */}
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
                 <thead>
@@ -304,114 +304,105 @@ export function NMResultsPanel({ unitId, classId }: NMResultsPanelProps) {
                       padding: "8px 12px", textAlign: "left", fontWeight: 800,
                       fontFamily: "'Arial Black', sans-serif", fontSize: "11px",
                       color: POP.black, position: "sticky", left: 0, background: POP.cream, zIndex: 2,
-                      minWidth: "110px",
+                      minWidth: "160px",
                     }}>
-                      Student
+                      Checkpoint
                     </th>
-                    {allColumnIds.map((pid, i) => (
-                      <th key={pid} style={{
-                        padding: "0 4px", textAlign: "left", fontWeight: 700,
-                        fontFamily: "'Arial Black', sans-serif", fontSize: "10px",
-                        color: pid === GENERAL_OBS_ID ? POP.hotPink : "#666",
-                        minWidth: "48px", maxWidth: "56px",
-                        height: "90px", verticalAlign: "bottom", position: "relative",
-                      }}
-                        title={pid === GENERAL_OBS_ID ? "Teacher observations (general)" : (pageNames[pid] || `Checkpoint ${i + 1}`)}
-                      >
-                        <div style={{
-                          transform: "rotate(-45deg)",
-                          transformOrigin: "bottom left",
-                          whiteSpace: "nowrap",
-                          position: "absolute",
-                          bottom: "8px",
-                          left: "50%",
-                          fontSize: "10px",
-                          lineHeight: 1.2,
-                        }}>
-                          {pid === GENERAL_OBS_ID ? "General" : shortName(pid)}
-                        </div>
+                    {sortedStudents.map(({ sid, name }) => (
+                      <th key={sid} style={{
+                        padding: "8px 6px", textAlign: "center", fontWeight: 700,
+                        fontFamily: "'Arial Black', sans-serif", fontSize: "11px",
+                        color: "#555", minWidth: "60px",
+                      }}>
+                        {name}
                       </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {sortedStudents.map(({ sid, name }) => (
-                    <tr key={sid} style={{ borderBottom: "1px solid #f0f0f0" }}>
-                      <td style={{
-                        padding: "10px 12px", fontWeight: 600, color: POP.black,
-                        position: "sticky", left: 0, background: POP.white, zIndex: 1,
-                        fontSize: "12px",
+                  {allColumnIds.map((pid, i) => {
+                    const isGeneral = pid === GENERAL_OBS_ID;
+                    const lessonName = isGeneral ? "General observation" : (pageNames[pid] || `Checkpoint ${i + 1}`);
+                    return (
+                      <tr key={pid} style={{
+                        borderBottom: "1px solid #f0f0f0",
+                        background: isGeneral ? "#fff5f9" : undefined,
                       }}>
-                        {name}
-                      </td>
-                      {allColumnIds.map(pid => {
-                        const cell = gridData[sid]?.[pid];
-                        const isActive = drillCell?.sid === sid && drillCell?.pid === pid;
+                        <td style={{
+                          padding: "10px 12px", fontWeight: 600,
+                          color: isGeneral ? POP.hotPink : POP.black,
+                          position: "sticky", left: 0,
+                          background: isGeneral ? "#fff5f9" : POP.white,
+                          zIndex: 1, fontSize: "12px",
+                        }}>
+                          {lessonName}
+                        </td>
+                        {sortedStudents.map(({ sid, name }) => {
+                          const cell = gridData[sid]?.[pid];
+                          const isActive = drillCell?.sid === sid && drillCell?.pid === pid;
 
-                        if (!cell) {
+                          if (!cell) {
+                            return (
+                              <td key={sid} style={{ padding: "6px", textAlign: "center" }}>
+                                <div style={{
+                                  width: "32px", height: "32px", borderRadius: "50%",
+                                  background: "#f5f5f5", margin: "0 auto",
+                                  display: "flex", alignItems: "center", justifyContent: "center",
+                                  color: "#ddd", fontSize: "11px",
+                                }}>
+                                  —
+                                </div>
+                              </td>
+                            );
+                          }
+
+                          const displayAvg = cell.selfAvg ?? cell.teacherAvg ?? 0;
+                          const hasTeacher = cell.teacherAvg !== null;
+
                           return (
-                            <td key={pid} style={{ padding: "6px", textAlign: "center" }}>
-                              <div style={{
-                                width: "32px", height: "32px", borderRadius: "50%",
-                                background: "#f5f5f5", margin: "0 auto",
-                                display: "flex", alignItems: "center", justifyContent: "center",
-                                color: "#ddd", fontSize: "11px",
-                              }}>
-                                —
-                              </div>
+                            <td key={sid} style={{ padding: "6px", textAlign: "center" }}>
+                              <button
+                                onClick={() => setDrillCell(isActive ? null : { sid, pid })}
+                                style={{
+                                  position: "relative", border: "none", background: "none",
+                                  cursor: "pointer", padding: "0", margin: "0 auto", display: "block",
+                                }}
+                                title={`${name} — ${lessonName}`}
+                              >
+                                <div style={{
+                                  width: "32px", height: "32px", borderRadius: "50%",
+                                  background: avgColor(displayAvg),
+                                  color: avgTextColor(displayAvg),
+                                  display: "flex", alignItems: "center", justifyContent: "center",
+                                  fontSize: "11px", fontWeight: 800,
+                                  fontFamily: "'Arial Black', sans-serif",
+                                  border: isActive ? `3px solid ${POP.hotPink}` : "2px solid rgba(255,255,255,0.8)",
+                                  boxShadow: isActive
+                                    ? `0 0 0 2px ${POP.hotPink}, 0 2px 4px rgba(0,0,0,0.15)`
+                                    : "0 1px 3px rgba(0,0,0,0.12)",
+                                  transition: "all 0.15s",
+                                  transform: isActive ? "scale(1.15)" : "scale(1)",
+                                }}>
+                                  {displayAvg.toFixed(1)}
+                                </div>
+                                {hasTeacher && (
+                                  <div style={{
+                                    position: "absolute", bottom: "-2px", right: "-2px",
+                                    width: "12px", height: "12px", borderRadius: "50%",
+                                    background: POP.hotPink, border: "1.5px solid #fff",
+                                    display: "flex", alignItems: "center", justifyContent: "center",
+                                    fontSize: "7px", fontWeight: 900, color: "#fff",
+                                  }}>
+                                    T
+                                  </div>
+                                )}
+                              </button>
                             </td>
                           );
-                        }
-
-                        // Show self avg as main dot, teacher as small indicator
-                        const displayAvg = cell.selfAvg ?? cell.teacherAvg ?? 0;
-                        const hasTeacher = cell.teacherAvg !== null;
-
-                        return (
-                          <td key={pid} style={{ padding: "6px", textAlign: "center" }}>
-                            <button
-                              onClick={() => setDrillCell(isActive ? null : { sid, pid })}
-                              style={{
-                                position: "relative", border: "none", background: "none",
-                                cursor: "pointer", padding: "0", margin: "0 auto", display: "block",
-                              }}
-                              title={`${name} — ${pageNames[pid] || "Checkpoint"}`}
-                            >
-                              {/* Main dot */}
-                              <div style={{
-                                width: "32px", height: "32px", borderRadius: "50%",
-                                background: avgColor(displayAvg),
-                                color: avgTextColor(displayAvg),
-                                display: "flex", alignItems: "center", justifyContent: "center",
-                                fontSize: "11px", fontWeight: 800,
-                                fontFamily: "'Arial Black', sans-serif",
-                                border: isActive ? `3px solid ${POP.hotPink}` : "2px solid rgba(255,255,255,0.8)",
-                                boxShadow: isActive
-                                  ? `0 0 0 2px ${POP.hotPink}, 0 2px 4px rgba(0,0,0,0.15)`
-                                  : "0 1px 3px rgba(0,0,0,0.12)",
-                                transition: "all 0.15s",
-                                transform: isActive ? "scale(1.15)" : "scale(1)",
-                              }}>
-                                {displayAvg.toFixed(1)}
-                              </div>
-                              {/* Teacher indicator — small pink dot at bottom-right */}
-                              {hasTeacher && (
-                                <div style={{
-                                  position: "absolute", bottom: "-2px", right: "-2px",
-                                  width: "12px", height: "12px", borderRadius: "50%",
-                                  background: POP.hotPink, border: "1.5px solid #fff",
-                                  display: "flex", alignItems: "center", justifyContent: "center",
-                                  fontSize: "7px", fontWeight: 900, color: "#fff",
-                                }}>
-                                  T
-                                </div>
-                              )}
-                            </button>
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
+                        })}
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -434,7 +425,7 @@ export function NMResultsPanel({ unitId, classId }: NMResultsPanelProps) {
                       {drillStudentName}
                     </div>
                     <div style={{ fontSize: "12px", color: "#888" }}>
-                      {drillCell.pid === GENERAL_OBS_ID ? "General observation" : (pageNames[drillCell.pid] || "Checkpoint")} · {formatDate(drillData.latestDate)}
+                      {drillCell.pid === GENERAL_OBS_ID ? "General observation" : (pageNames[drillCell.pid] || "Checkpoint")} · {drillData.latestDate ? formatDate(drillData.latestDate) : ""}
                     </div>
                   </div>
                   <button
