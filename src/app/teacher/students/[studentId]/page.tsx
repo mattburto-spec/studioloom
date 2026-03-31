@@ -448,14 +448,28 @@ export default function TeacherStudentView({
                 </div>
               )}
 
-              {/* Primary Language */}
-              {lp?.primary_language && (
+              {/* Languages at Home */}
+              {lp?.languages_at_home?.length > 0 && (
                 <div className="bg-gray-50 rounded-xl px-3 py-2.5">
-                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Primary Language</p>
-                  <p className="text-sm font-semibold text-gray-900">{lp.primary_language}</p>
-                  {lp.additional_languages?.length > 0 && (
-                    <p className="text-[11px] text-gray-500">Also: {lp.additional_languages.join(", ")}</p>
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Languages at Home</p>
+                  <p className="text-sm font-semibold text-gray-900">{lp.languages_at_home[0]}</p>
+                  {lp.languages_at_home.length > 1 && (
+                    <p className="text-[11px] text-gray-500">Also: {lp.languages_at_home.slice(1).join(", ")}</p>
                   )}
+                </div>
+              )}
+
+              {/* Countries Lived In */}
+              {lp?.countries_lived_in?.length > 0 && (
+                <div className="bg-gray-50 rounded-xl px-3 py-2.5">
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Countries Lived In</p>
+                  <div className="flex flex-wrap gap-1 mt-0.5">
+                    {lp.countries_lived_in.map((c: string) => (
+                      <span key={c} className="inline-flex px-1.5 py-0.5 text-[10px] font-medium bg-blue-100 text-blue-700 rounded-full">
+                        {c}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -463,7 +477,15 @@ export default function TeacherStudentView({
               {lp?.working_style && (
                 <div className="bg-gray-50 rounded-xl px-3 py-2.5">
                   <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Working Style</p>
-                  <p className="text-sm font-semibold text-gray-900 capitalize">{lp.working_style}</p>
+                  <p className="text-sm font-semibold text-gray-900 capitalize">{lp.working_style === "small_group" ? "Small Group" : lp.working_style}</p>
+                </div>
+              )}
+
+              {/* Feedback Preference */}
+              {lp?.feedback_preference && (
+                <div className="bg-gray-50 rounded-xl px-3 py-2.5">
+                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Feedback Preference</p>
+                  <p className="text-sm font-semibold text-gray-900 capitalize">{lp.feedback_preference}</p>
                 </div>
               )}
 
@@ -478,31 +500,6 @@ export default function TeacherStudentView({
                       </span>
                     ))}
                   </div>
-                  {lp.learning_differences_other && (
-                    <p className="text-[11px] text-gray-500 mt-1">{lp.learning_differences_other}</p>
-                  )}
-                </div>
-              )}
-
-              {/* Sensory Preferences */}
-              {lp?.sensory_preferences?.length > 0 && (
-                <div className="bg-gray-50 rounded-xl px-3 py-2.5">
-                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Sensory Preferences</p>
-                  <div className="flex flex-wrap gap-1 mt-0.5">
-                    {lp.sensory_preferences.map((s: string) => (
-                      <span key={s} className="inline-flex px-1.5 py-0.5 text-[10px] font-medium bg-blue-100 text-blue-700 rounded-full capitalize">
-                        {s}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Support Needs */}
-              {lp?.support_needs && (
-                <div className="bg-gray-50 rounded-xl px-3 py-2.5 col-span-2 sm:col-span-3">
-                  <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-1">Support Notes</p>
-                  <p className="text-sm text-gray-700">{lp.support_needs}</p>
                 </div>
               )}
             </div>
