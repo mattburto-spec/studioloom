@@ -18,74 +18,111 @@ const IconArrowRight = () => (
 
 function MockPlan() {
   const units = [
-    { title: "Sustainable Packaging", type: "Design", typeColor: "bg-teal-500", img: "photo-1530982011887-3cc11cc85693", lessons: 12 },
-    { title: "Community Garden Project", type: "Service", typeColor: "bg-pink-500", img: "photo-1416879595882-3373a0480b5b", lessons: 8 },
-    { title: "Smart Home Prototype", type: "Design", typeColor: "bg-teal-500", img: "photo-1558618666-fcd25c85f82e", lessons: 15 },
+    { title: "Sustainable Packaging", type: "Design", typeColor: "bg-teal-500", img: "https://images.unsplash.com/photo-1605000797499-95a51c5269ae?w=400&h=400&fit=crop&crop=center", lessons: 12 },
+    { title: "Community Garden", type: "Service", typeColor: "bg-pink-500", img: "https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=400&h=400&fit=crop&crop=center", lessons: 8 },
+    { title: "Smart Home Prototype", type: "Design", typeColor: "bg-teal-500", img: "https://images.unsplash.com/photo-1558002038-1055907df827?w=400&h=400&fit=crop&crop=center", lessons: 15 },
   ];
   return (
     <div className="space-y-3">
-      {units.map((u) => (
-        <div key={u.title} className="bg-white rounded-xl shadow-md border border-gray-100 overflow-hidden flex">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={`https://images.unsplash.com/${u.img}?w=200&h=140&fit=crop&crop=center`}
-            alt=""
-            className="w-28 md:w-36 h-24 object-cover flex-shrink-0"
-            loading="lazy"
-          />
-          <div className="flex-1 p-3 flex flex-col justify-center min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <span className={`text-[9px] px-1.5 py-0.5 rounded-full text-white font-semibold ${u.typeColor}`}>{u.type}</span>
-              <span className="text-[10px] text-gray-400">{u.lessons} lessons</span>
-            </div>
-            <div className="text-sm font-semibold text-gray-800 truncate">{u.title}</div>
-            <div className="flex items-center gap-1 mt-1.5">
-              {["Opening", "Mini-Lesson", "Work Time", "Debrief"].map((p, i) => (
-                <div key={p} className="h-1.5 flex-1 rounded-full" style={{ background: ["#6366f1", "#3b82f6", "#10b981", "#f59e0b"][i], opacity: 0.5 }} />
-              ))}
+      <div className="grid grid-cols-3 gap-3">
+        {units.map((u) => (
+          <div key={u.title} className="bg-white rounded-xl shadow-md border border-gray-100 overflow-hidden">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={u.img}
+              alt={u.title}
+              className="w-full aspect-square object-cover"
+              loading="lazy"
+            />
+            <div className="p-2.5">
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className={`text-[8px] px-1.5 py-0.5 rounded-full text-white font-semibold ${u.typeColor}`}>{u.type}</span>
+                <span className="text-[9px] text-gray-400">{u.lessons} lessons</span>
+              </div>
+              <div className="text-xs font-semibold text-gray-800 leading-tight">{u.title}</div>
             </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
       <div className="text-center text-[11px] text-gray-400 pt-1">Browse hundreds more or build your own →</div>
     </div>
   );
 }
 
 function MockTeach() {
-  const students = [
-    { color: "bg-green-400", label: "On track" },
-    { color: "bg-green-400", label: "On track" },
-    { color: "bg-amber-400", label: "Slow" },
-    { color: "bg-green-400", label: "On track" },
-    { color: "bg-red-400", label: "Needs help" },
-    { color: "bg-green-400", label: "On track" },
-    { color: "bg-green-400", label: "On track" },
-    { color: "bg-amber-400", label: "Slow" },
-    { color: "bg-green-400", label: "On track" },
-  ];
   return (
-    <div className="bg-gray-900 rounded-2xl shadow-lg p-5 text-white space-y-3">
-      {/* Title bar */}
-      <div className="flex items-center gap-2">
-        <div className="flex gap-1"><div className="w-2.5 h-2.5 rounded-full bg-red-500"/><div className="w-2.5 h-2.5 rounded-full bg-yellow-500"/><div className="w-2.5 h-2.5 rounded-full bg-green-500"/></div>
-        <span className="text-[10px] text-gray-400 ml-2">Teaching Mode — Live</span>
-        <span className="ml-auto text-[10px] px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 font-medium">1 needs help</span>
-      </div>
-      {/* Phase timer */}
-      <div className="flex items-center gap-2 bg-white/5 rounded-lg px-3 py-2">
-        <div className="text-[10px] font-medium text-emerald-400">Work Time</div>
-        <div className="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden"><div className="h-full w-3/5 bg-emerald-400 rounded-full"/></div>
-        <span className="text-[10px] text-gray-400">18:42</span>
-      </div>
-      {/* Student grid */}
-      <div className="grid grid-cols-3 gap-1.5">
-        {students.map((s, i) => (
-          <div key={i} className="bg-white/5 rounded-md px-2 py-1.5 flex items-center gap-1.5">
-            <div className={`w-2 h-2 rounded-full ${s.color}`}/>
-            <span className="text-[9px] text-gray-300">Student {i + 1}</span>
+    <div className="space-y-4">
+      {/* Student lesson page mock */}
+      <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
+        {/* Lesson header */}
+        <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-5 py-3.5">
+          <div className="text-[9px] text-white/50 uppercase tracking-wider mb-0.5">Lesson 4 of 12</div>
+          <div className="text-sm font-bold text-white">Exploring Sustainable Materials</div>
+        </div>
+        <div className="p-4 space-y-3">
+          {/* Video/media block */}
+          <div className="bg-gray-100 rounded-lg p-3 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center flex-shrink-0">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><polygon points="5,3 19,12 5,21" fill="#ef4444"/></svg>
+            </div>
+            <div>
+              <div className="text-[10px] font-semibold text-gray-700">How sustainable packaging is made</div>
+              <div className="text-[9px] text-gray-400">3 min video • auto-pauses for reflection</div>
+            </div>
           </div>
-        ))}
+          {/* Response types */}
+          <div className="space-y-2">
+            <div className="bg-gray-50 rounded-lg px-3 py-2.5 border border-gray-100">
+              <div className="text-[9px] text-purple-600 font-semibold mb-1">Written Response</div>
+              <div className="h-6 bg-white rounded border border-gray-200 flex items-center px-2"><span className="text-[8px] text-gray-300">Compare two materials you researched...</span></div>
+            </div>
+            <div className="flex gap-2">
+              <div className="flex-1 bg-gray-50 rounded-lg px-3 py-2 border border-gray-100">
+                <div className="text-[9px] text-pink-600 font-semibold mb-1">Upload Photo</div>
+                <div className="text-[8px] text-gray-400">of your prototype</div>
+              </div>
+              <div className="flex-1 bg-gray-50 rounded-lg px-3 py-2 border border-gray-100">
+                <div className="text-[9px] text-amber-600 font-semibold mb-1">Voice Note</div>
+                <div className="text-[8px] text-gray-400">explain your choice</div>
+              </div>
+            </div>
+          </div>
+          {/* Feature badges */}
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            {[
+              { label: "Extension ready", color: "bg-emerald-50 text-emerald-600 border-emerald-200" },
+              { label: "ELL scaffolding", color: "bg-blue-50 text-blue-600 border-blue-200" },
+              { label: "3 UDL checkpoints", color: "bg-purple-50 text-purple-600 border-purple-200" },
+              { label: "Integrity monitored", color: "bg-gray-50 text-gray-500 border-gray-200" },
+            ].map((b) => (
+              <span key={b.label} className={`text-[8px] font-medium px-2 py-0.5 rounded-full border ${b.color}`}>{b.label}</span>
+            ))}
+          </div>
+        </div>
+      </div>
+      {/* Teacher dashboard mini — live tracking */}
+      <div className="bg-gray-900 rounded-xl shadow-lg p-4 text-white">
+        <div className="flex items-center justify-between mb-2.5">
+          <span className="text-[10px] text-gray-400">Teacher Dashboard — Live</span>
+          <span className="text-[9px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-medium">24 active</span>
+        </div>
+        <div className="grid grid-cols-4 gap-1.5">
+          {[
+            { label: "Active", val: "21", color: "text-green-400" },
+            { label: "Slow", val: "2", color: "text-amber-400" },
+            { label: "Flagged", val: "1", color: "text-red-400" },
+            { label: "Done", val: "4", color: "text-blue-400" },
+          ].map((s) => (
+            <div key={s.label} className="bg-white/5 rounded-md px-2 py-1.5 text-center">
+              <div className={`text-sm font-bold ${s.color}`}>{s.val}</div>
+              <div className="text-[8px] text-gray-500">{s.label}</div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-2 flex items-center gap-2 bg-white/5 rounded-md px-2.5 py-1.5">
+          <div className="w-1.5 h-1.5 rounded-full bg-red-400"/>
+          <span className="text-[9px] text-gray-400">Maya — high paste ratio detected, review integrity report</span>
+        </div>
       </div>
     </div>
   );
@@ -315,16 +352,17 @@ export default function Home() {
       <section className="bg-gray-50 py-20">
         <div className="max-w-6xl mx-auto px-6">
           <AnimatedJourneyPhase
-            tag="Phase 2 — Teach"
+            tag="Phase 2 — Deliver"
             tagColor="text-emerald-600"
-            headline="Teach with a live dashboard,"
-            headlineAccent="not a stack of printouts."
-            description="A three-column teaching cockpit shows your lesson phases, a live student grid, and notes — all on one screen. Project the current phase to the board while you circulate. See who needs help before they raise their hand."
+            headline="Every unit comes with"
+            headlineAccent="the materials students actually use."
+            description="Lessons arrive ready to present — multimedia content, multiple submission types, extensions for early finishers, and language scaffolding built in. Students work through rich, structured activities while the platform silently tracks writing integrity, time on task, and effort signals."
             bullets={[
-              "Phase timer counts down each Workshop Model segment with one-click skip and extend",
-              "Live student grid shows active, slow, and stuck students — updated every 30 seconds",
-              "Projector view syncs automatically — students see the current phase, you see everything",
-              "One-tap observations for Melbourne Metrics competency tracking during class",
+              "Multimedia lessons with video, images, and interactive prompts — students submit via text, photo upload, voice, canvas, or embedded thinking tools",
+              "Automatic extension activities for early finishers, matched to the current design phase",
+              "3-tier ELL scaffolding: sentence starters, guided prompts, and stretch challenges — every lesson, every student",
+              "UDL checkpoints and inclusive learning practices baked into activities, not bolted on afterward",
+              "Live teacher dashboard tracks progress, pace, and writing integrity — flagging issues as they happen",
             ]}
             visual={<MockTeach />}
             reverse
