@@ -363,11 +363,13 @@ export function useLessonEditor({
   }, []);
 
   // Auto-save hook — routes to master or fork based on editMode
+  // Only enabled after initial content load succeeds (prevents empty saves on 404 or loading state)
   const saveStatus = useAutoSave({
     unitId,
     classId,
     content: content || { version: 2, pages: [] },
     editMode,
+    enabled: !loading && !error && content !== null,
   });
 
   return {

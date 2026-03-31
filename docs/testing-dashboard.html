@@ -1843,8 +1843,50 @@ const PROJECTS = [
             { name: 'Phase 2b: AI generation schemas + prompts (confirmed already wired)', est: '0 days', done: true },
             { name: 'Phase 2b: Browser-tested — Bloom pills, time_weight badges, cognitive load ✓', est: '0 days', done: true },
             { name: 'Phase 3: Client-side tracking (useActivityTracking hook)', est: '1 day', done: true },
-            { name: 'Phase 4: Lesson editor UI (bloom selector, grouping, ai_rules)', est: '1 day', done: false },
+            { name: 'Phase 4: Lesson editor UI (bloom selector, grouping, ai_rules)', est: '1 day', done: true },
             { name: 'Phase 5: Reports + Velocity Loop + Research Metrics', est: '4-6 days', done: false },
+        ]
+    },
+    {
+        id: 'grading',
+        name: 'Grading System Redesign',
+        desc: 'Per-activity assessment tasks, summative/formative distinction, importance weighting, grade rollup, report writing',
+        file: 'docs/projects/grading.md',
+        status: 'planned',
+        phases: [
+            { name: 'Phase 1: Assessment tasks data model', est: '2 days', done: false },
+            { name: 'Phase 2: Lesson editor assessment marking', est: '2 days', done: false },
+            { name: 'Phase 3: Multi-task grading UI', est: '3 days', done: false },
+            { name: 'Phase 4: Report writing (AI from grade data)', est: '2 days', done: false },
+            { name: 'Phase 5: Moderation & analytics', est: '2 days', done: false },
+        ]
+    },
+    {
+        id: 'lessons',
+        name: 'Student Lesson Content UX',
+        desc: 'Content display, multimedia, visual weight from Dimensions, rich content blocks, flow & navigation',
+        file: 'docs/projects/lessons.md',
+        status: 'planned',
+        phases: [
+            { name: 'Phase 1: Visual polish & content styling (timeWeight cards, markdown)', est: '2 days', done: false },
+            { name: 'Phase 2: Rich content blocks (gallery, steps, accordion, callouts)', est: '3 days', done: false },
+            { name: 'Phase 3: Multimedia enhancement (video player, audio, PDF viewer)', est: '2 days', done: false },
+            { name: 'Phase 4: Flow & navigation (time estimates, bookmarks, animations)', est: '2 days', done: false },
+            { name: 'Phase 5: Advanced content (branching, peer inspiration, 3D)', est: '2 days', done: false },
+        ]
+    },
+    {
+        id: 'pm-tools',
+        name: 'PM Tools Redesign',
+        desc: 'Design-cycle kanban (kill generic columns), Gantt drag-to-reschedule, time tracking, checklist view',
+        file: 'docs/projects/pm-tools.md',
+        status: 'planned',
+        phases: [
+            { name: 'Phase 1: Consolidate & ship v2 kanban (design cycle columns)', est: '2 days', done: false },
+            { name: 'Phase 2: Enhanced task model (effort, priority, description)', est: '1.5 days', done: false },
+            { name: 'Phase 3: Gantt improvements (drag-to-reschedule, zoom, keyboard)', est: '2 days', done: false },
+            { name: 'Phase 4: Time tracking + checklist view', est: '1.5 days', done: false },
+            { name: 'Phase 5: Intelligence & polish (AI suggestions, auto-tasks)', est: '2 days', done: false },
         ]
     },
     {

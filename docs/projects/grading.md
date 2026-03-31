@@ -158,7 +158,7 @@ This builds on the existing Report Writer free tool at `/tools/report-writer` bu
 ## Dependencies
 
 - **MYPflex Phase 1** (DONE) — Framework-flexible scales
-- **Project Dimensions Phase 3-4** (in progress) — Activity-level metadata (bloom_level, grouping) feeds assessment quality indicators
+- **Project Dimensions Phase 4** (DONE 31 Mar) — Activity-level metadata (bloom_level, grouping, ai_rules, timeWeight) now on every activity. Assessment importance can auto-suggest from Dimensions data.
 - **Phase 0.5 Lesson Editor** (DONE) — Assessment marking needs to integrate with existing editor components
 - **MonitoredTextarea Pipeline** (DONE) — Integrity data already flows to grading page
 

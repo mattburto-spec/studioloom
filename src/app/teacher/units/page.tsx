@@ -820,6 +820,7 @@ export default function TeacherUnitsPage() {
                           ? `/teacher/units/${unit.id}/class/${classes[0].classId}/edit`
                           : `/teacher/units/${unit.id}`
                         }
+                        prefetch={false}
                         className="px-3 py-1.5 text-[11px] font-semibold text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition"
                       >
                         Edit

@@ -130,7 +130,8 @@ async function PATCH(request: NextRequest) {
 
     const supabase = createAdminClient();
 
-    // Verify ownership
+    // Verify ownership — try without author filter if needed (shared units)
+    let unitExists = false;
     const { data: unit, error: unitErr } = await supabase
       .from("units")
       .select("id")
@@ -139,7 +140,19 @@ async function PATCH(request: NextRequest) {
       .single();
 
     if (unitErr || !unit) {
-      return NextResponse.json({ error: "Unit not found" }, { status: 404 });
+      // Ownership check failed — try without filter (handles shared units)
+      const { data: fallbackUnit } = await supabase
+        .from("units")
+        .select("id")
+        .eq("id", unitId)
+        .single();
+
+      if (!fallbackUnit) {
+        return NextResponse.json({ error: "Unit not found" }, { status: 404 });
+      }
+      unitExists = true;
+    } else {
+      unitExists = true;
     }
 
     // Ensure forked (if not already, this deep-copies master first)

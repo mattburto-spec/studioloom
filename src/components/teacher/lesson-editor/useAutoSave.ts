@@ -11,6 +11,8 @@ interface UseAutoSaveProps {
   classId: string;
   content: UnitContentData;
   editMode: EditMode;
+  /** When false, auto-save is disabled (e.g., initial load not yet complete) */
+  enabled?: boolean;
 }
 
 /**
@@ -28,6 +30,7 @@ export function useAutoSave({
   classId,
   content,
   editMode,
+  enabled = true,
 }: UseAutoSaveProps): SaveStatus {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -35,6 +38,12 @@ export function useAutoSave({
 
   const save = useCallback(
     async (dataToSave: UnitContentData) => {
+      // First call: initialize baseline without saving (content just loaded from server)
+      if (previousContentRef.current === null) {
+        previousContentRef.current = structuredClone(dataToSave);
+        return;
+      }
+
       // Early return if content hasn't actually changed
       if (
         JSON.stringify(previousContentRef.current) ===
@@ -90,6 +99,9 @@ export function useAutoSave({
 
   // Debounced save on content change
   useEffect(() => {
+    // Don't auto-save until initial load is complete and enabled
+    if (!enabled) return;
+
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current);
     }
@@ -103,7 +115,7 @@ export function useAutoSave({
         clearTimeout(saveTimerRef.current);
       }
     };
-  }, [content, save]);
+  }, [content, save, enabled]);
 
   return saveStatus;
 }
