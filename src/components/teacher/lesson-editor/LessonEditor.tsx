@@ -711,7 +711,7 @@ export default function LessonEditor({
         {/* Center: Editor main area */}
         <div className="flex-1 overflow-y-auto">
           {selectedPage && pageContent ? (
-            <div className="max-w-3xl mx-auto px-6 py-6">
+            <div className="max-w-5xl mx-auto px-6 py-6">
               {/* ─── Timing Bar (sticky) — or "Add Timing" prompt ─── */}
               {!phases && (
                 <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-gray-50 border border-dashed border-gray-300 rounded-lg">
