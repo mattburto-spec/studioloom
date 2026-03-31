@@ -672,7 +672,28 @@ export default function LessonEditor({
         <div className="flex-1 overflow-y-auto">
           {selectedPage && pageContent ? (
             <div className="max-w-3xl mx-auto px-6 py-6">
-              {/* ─── Timing Bar (sticky) ─── */}
+              {/* ─── Timing Bar (sticky) — or "Add Timing" prompt ─── */}
+              {!phases && (
+                <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-gray-50 border border-dashed border-gray-300 rounded-lg">
+                  <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  <span className="text-xs text-gray-500">No Workshop Model timing on this lesson.</span>
+                  <button
+                    onClick={() => {
+                      handleUpdatePageContent({
+                        workshopPhases: {
+                          opening: { durationMinutes: 5, hook: "" },
+                          miniLesson: { durationMinutes: 10, focus: "" },
+                          workTime: { durationMinutes: 22, activities: [] as string[], checkpoints: [] as string[] },
+                          debrief: { durationMinutes: 8, protocol: "", prompt: "" },
+                        },
+                      });
+                    }}
+                    className="ml-auto text-xs font-medium text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 px-2 py-1 rounded-md transition-colors"
+                  >
+                    + Add Timing
+                  </button>
+                </div>
+              )}
               {phases && (
                 <div className="sticky top-0 z-20 bg-white/90 backdrop-blur-sm pb-3 mb-4 -mx-6 px-6 pt-2 border-b border-gray-100">
                   <div className="flex items-center gap-2 mb-1.5">
