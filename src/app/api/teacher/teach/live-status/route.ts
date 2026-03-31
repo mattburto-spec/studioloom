@@ -42,31 +42,27 @@ export const GET = withErrorHandler("teacher/teach/live-status:GET", async (requ
     .eq("id", classId)
     .single();
 
-  // Get students in class — junction table first, legacy fallback
+  // Get students in class — junction table + legacy class_id, merged & deduplicated
   const { data: junctionRows } = await db
     .from("class_students")
     .select("student_id")
     .eq("class_id", classId);
   const junctionStudentIds = (junctionRows || []).map((r: { student_id: string }) => r.student_id);
 
-  let students: { id: string; username: string; display_name: string; avatar_url: string | null; ell_level: string | null }[] | null = null;
-  if (junctionStudentIds.length > 0) {
-    const { data } = await db
-      .from("students")
-      .select("id, username, display_name, avatar_url, ell_level")
-      .in("id", junctionStudentIds)
-      .order("display_name");
-    students = data;
-  }
-  if (!students || students.length === 0) {
-    // Legacy fallback — students.class_id
-    const { data } = await db
-      .from("students")
-      .select("id, username, display_name, avatar_url, ell_level")
-      .eq("class_id", classId)
-      .order("display_name");
-    students = data;
-  }
+  const [junctionResult, legacyResult] = await Promise.all([
+    junctionStudentIds.length > 0
+      ? db.from("students").select("id, username, display_name, avatar_url, ell_level").in("id", junctionStudentIds)
+      : Promise.resolve({ data: [] as any[] }),
+    db.from("students").select("id, username, display_name, avatar_url, ell_level").eq("class_id", classId),
+  ]);
+
+  // Merge both sources, deduplicate by ID
+  const studentMap = new Map<string, { id: string; username: string; display_name: string; avatar_url: string | null; ell_level: string | null }>();
+  for (const s of junctionResult.data || []) studentMap.set(s.id, s);
+  for (const s of legacyResult.data || []) { if (!studentMap.has(s.id)) studentMap.set(s.id, s); }
+  const students = Array.from(studentMap.values()).sort((a, b) =>
+    (a.display_name || a.username).localeCompare(b.display_name || b.username)
+  );
 
   if (!students || students.length === 0) {
     return NextResponse.json({
