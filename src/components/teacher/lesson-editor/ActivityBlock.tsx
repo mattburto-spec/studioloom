@@ -162,7 +162,7 @@ export default function ActivityBlock({
 }: ActivityBlockProps) {
   const dragControls = useDragControls();
   const { phases } = getDesignProcessPhases(framework);
-  type TabId = "design" | "airules" | "scaffolding" | "example" | "media" | null;
+  type TabId = "design" | "udl" | "airules" | "scaffolding" | "example" | "media" | null;
   const [activeTab, setActiveTab] = useState<TabId>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
@@ -496,6 +496,7 @@ export default function ActivityBlock({
       <div className="flex items-center gap-1 border-t border-gray-200 pt-3 mb-1">
         {([
           { id: "design" as TabId, label: "Design", icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" },
+          { id: "udl" as TabId, label: "UDL", icon: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" },
           { id: "airules" as TabId, label: "AI Rules", icon: "M13 10V3L4 14h7v7l9-11h-7z" },
           { id: "scaffolding" as TabId, label: "Scaffolding", icon: "M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" },
           { id: "example" as TabId, label: "Example", icon: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" },
@@ -505,6 +506,7 @@ export default function ActivityBlock({
           // Dot indicators for populated tabs
           const hasContent =
             id === "design" ? !!(activity.bloom_level || activity.timeWeight || activity.grouping || activity.success_look_fors?.length || activity.tags?.length) :
+            id === "udl" ? !!(activity.udl_checkpoints?.length) :
             id === "airules" ? !!(activity.ai_rules?.phase && activity.ai_rules.phase !== "neutral" || activity.ai_rules?.tone || activity.ai_rules?.rules?.length || activity.ai_rules?.forbidden_words?.length) :
             id === "scaffolding" ? !!(activity.scaffolding && Object.values(activity.scaffolding).some((v: any) => v?.sentenceStarters?.length)) :
             id === "example" ? !!activity.exampleResponse :
@@ -579,51 +581,52 @@ export default function ActivityBlock({
                     <label className="text-xs font-medium text-gray-600 block mb-1">Activity Tags <span className="font-normal text-gray-400">(comma-separated)</span></label>
                     <input type="text" placeholder="e.g. hands-on, research, interview, prototyping" value={(activity.tags || []).join(", ")} onChange={(e) => { const tags = e.target.value.split(",").map(t => t.trim()).filter(Boolean); onUpdate({ tags: tags.length > 0 ? tags : undefined }); }} className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
                   </div>
-                  {/* UDL Checkpoint Tags */}
-                  <div>
-                    <label className="text-xs font-medium text-gray-600 block mb-2">
-                      UDL Checkpoints <span className="font-normal text-gray-400">(CAST Universal Design for Learning)</span>
-                    </label>
-                    {/* Selected checkpoints as removable pills */}
-                    {(activity.udl_checkpoints?.length || 0) > 0 && (
-                      <div className="flex flex-wrap gap-1 mb-2">
-                        {activity.udl_checkpoints!.map((cp) => {
-                          const info = UDL_CHECKPOINTS.find((u) => u.id === cp);
-                          const principle = parseFloat(cp) < 4 ? "engagement" : parseFloat(cp) < 7 ? "representation" : "action";
-                          const pillColor = principle === "engagement" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : principle === "representation" ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-purple-50 text-purple-700 border-purple-200";
-                          return (
-                            <button key={cp} onClick={() => { const next = (activity.udl_checkpoints || []).filter((c) => c !== cp); onUpdate({ udl_checkpoints: next.length > 0 ? next : undefined }); }} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border ${pillColor} hover:opacity-70 transition-opacity`} title={`Remove ${cp}: ${info?.label || cp}`}>
-                              {cp} {info?.short || ""} <span className="text-gray-400">×</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                    {/* Grouped picker */}
-                    <div className="space-y-2">
-                      {UDL_GROUPS.map((group) => (
-                        <div key={group.principle}>
-                          <div className="flex items-center gap-1.5 mb-1">
-                            <span className={`w-2 h-2 rounded-full ${group.dotColor}`} />
-                            <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">{group.label}</span>
-                          </div>
-                          <div className="flex flex-wrap gap-1">
-                            {group.checkpoints.map((cp) => {
-                              const isSelected = (activity.udl_checkpoints || []).includes(cp.id);
-                              return (
-                                <button key={cp.id} onClick={() => {
-                                  const current = activity.udl_checkpoints || [];
-                                  const next = isSelected ? current.filter((c) => c !== cp.id) : [...current, cp.id];
-                                  onUpdate({ udl_checkpoints: next.length > 0 ? next : undefined });
-                                }} className={`px-2 py-0.5 rounded text-[11px] border transition-all ${isSelected ? group.selectedColor : "bg-white text-gray-500 border-gray-200 hover:border-gray-400"}`} title={cp.label}>
-                                  {cp.id} {cp.short}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      ))}
+                </div>
+              )}
+
+              {/* ── UDL tab ── */}
+              {activeTab === "udl" && (
+                <div className="space-y-3">
+                  <p className="text-xs text-gray-500">Tag which <a href="https://udlguidelines.cast.org" target="_blank" rel="noopener noreferrer" className="text-indigo-600 underline">CAST UDL</a> checkpoints this activity addresses.</p>
+                  {/* Selected checkpoints as removable pills */}
+                  {(activity.udl_checkpoints?.length || 0) > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {activity.udl_checkpoints!.map((cp) => {
+                        const info = UDL_CHECKPOINTS.find((u) => u.id === cp);
+                        const principle = parseFloat(cp) < 4 ? "engagement" : parseFloat(cp) < 7 ? "representation" : "action";
+                        const pillColor = principle === "engagement" ? "bg-emerald-50 text-emerald-700 border-emerald-200" : principle === "representation" ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-purple-50 text-purple-700 border-purple-200";
+                        return (
+                          <button key={cp} onClick={() => { const next = (activity.udl_checkpoints || []).filter((c) => c !== cp); onUpdate({ udl_checkpoints: next.length > 0 ? next : undefined }); }} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border ${pillColor} hover:opacity-70 transition-opacity`} title={`Remove ${cp}: ${info?.label || cp}`}>
+                            {cp} {info?.short || ""} <span className="text-gray-400">×</span>
+                          </button>
+                        );
+                      })}
                     </div>
+                  )}
+                  {/* Grouped picker */}
+                  <div className="space-y-2">
+                    {UDL_GROUPS.map((group) => (
+                      <div key={group.principle}>
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <span className={`w-2 h-2 rounded-full ${group.dotColor}`} />
+                          <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider">{group.label}</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {group.checkpoints.map((cp) => {
+                            const isSelected = (activity.udl_checkpoints || []).includes(cp.id);
+                            return (
+                              <button key={cp.id} onClick={() => {
+                                const current = activity.udl_checkpoints || [];
+                                const next = isSelected ? current.filter((c) => c !== cp.id) : [...current, cp.id];
+                                onUpdate({ udl_checkpoints: next.length > 0 ? next : undefined });
+                              }} className={`px-2 py-0.5 rounded text-[11px] border transition-all ${isSelected ? group.selectedColor : "bg-white text-gray-500 border-gray-200 hover:border-gray-400"}`} title={cp.label}>
+                                {cp.id} {cp.short}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
