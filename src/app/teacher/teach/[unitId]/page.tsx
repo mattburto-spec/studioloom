@@ -460,7 +460,7 @@ export default function TeachingDashboard({
         {/* ============================================================= */}
         <aside style={{
           display: "flex", flexDirection: "column", gap: "12px",
-          overflowY: "auto", maxHeight: "calc(100vh - 112px)", paddingRight: "8px",
+          overflowY: "auto", maxHeight: "calc(100vh - 112px)", paddingRight: "8px", paddingBottom: "80px",
         }}>
           <p style={{ fontSize: "14px", fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.05em", margin: "0", padding: "0 8px" }}>
             Lessons
@@ -530,6 +530,7 @@ export default function TeachingDashboard({
         <div style={{
           display: "flex", flexDirection: "column", gap: "20px",
           overflowY: "auto", maxHeight: "calc(100vh - 112px)",
+          paddingBottom: "80px", // Room for fixed TeachingToolbar at bottom
         }}>
 
           {/* Phase Timer — dark glass with gradient border */}
@@ -771,6 +772,7 @@ export default function TeachingDashboard({
         <aside style={{
           display: "flex", flexDirection: "column", gap: "12px",
           overflowY: "auto", maxHeight: "calc(100vh - 112px)",
+          paddingBottom: "80px", // Room for fixed TeachingToolbar at bottom
         }}>
 
           {/* Teaching Notes */}
