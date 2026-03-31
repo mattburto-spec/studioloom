@@ -18,6 +18,7 @@ import AITextField from "./AITextField";
 import ExtensionBlock from "./ExtensionBlock";
 import DimensionsSummaryBar from "./DimensionsSummaryBar";
 import UnitThumbnailEditor from "./UnitThumbnailEditor";
+import { autoPopulateBloomLevels } from "@/lib/dimensions/infer-bloom";
 import type {
   UnitPage,
   PageContent,
@@ -199,6 +200,31 @@ export default function LessonEditor({
       extensions: selectedPage.content.extensions || [],
     };
   }, [selectedPage]);
+
+  // --- Auto-populate Bloom's levels on legacy activities ---
+  // Runs once per page when activities lack bloom_level, infers from keywords, saves automatically
+  const [bloomPopulated, setBloomPopulated] = useState(false);
+  useEffect(() => {
+    if (!pageContent || !pageContent.sections.length || selectedPageIndex === null) {
+      setBloomPopulated(false);
+      return;
+    }
+    // Check if any sections are missing bloom_level
+    const missingCount = pageContent.sections.filter((s) => !s.bloom_level).length;
+    if (missingCount === 0) {
+      setBloomPopulated(false);
+      return;
+    }
+    // Run heuristic
+    const { sections: newSections, populatedCount } = autoPopulateBloomLevels(pageContent.sections);
+    if (populatedCount > 0) {
+      updatePage(selectedPageIndex, { sections: newSections });
+      setBloomPopulated(true);
+      // Auto-dismiss the notification after 4 seconds
+      setTimeout(() => setBloomPopulated(false), 4000);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPageIndex]); // Only run when page changes, not on every section edit
 
   // --- Mutation helpers ---
 
@@ -472,6 +498,20 @@ export default function LessonEditor({
                 className="text-xs text-emerald-600 font-medium"
               >
                 Saved as v{versionSaved}
+              </motion.span>
+            )}
+          </AnimatePresence>
+
+          {/* Bloom auto-populated toast */}
+          <AnimatePresence>
+            {bloomPopulated && (
+              <motion.span
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0 }}
+                className="text-xs text-indigo-600 font-medium"
+              >
+                ✦ Bloom&apos;s levels auto-detected
               </motion.span>
             )}
           </AnimatePresence>
