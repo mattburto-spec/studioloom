@@ -32,30 +32,36 @@ const POP = {
   purple: "#9B59B6",
 };
 
-// Timeline-friendly rating colors (softer, still readable)
-const DOT_COLORS: Record<number, { bg: string; text: string }> = {
-  1: { bg: "#fbbf24", text: "#92400e" },
-  2: { bg: "#38bdf8", text: "#fff" },
-  3: { bg: "#34d399", text: "#fff" },
-  4: { bg: "#a78bfa", text: "#fff" },
+// Rating dot colors — consistent everywhere
+const DOT: Record<number, { bg: string; text: string; label: string }> = {
+  1: { bg: "#fbbf24", text: "#92400e", label: "Hard" },
+  2: { bg: "#38bdf8", text: "#fff", label: "Getting there" },
+  3: { bg: "#34d399", text: "#fff", label: "Did well" },
 };
 
-const RATING_LABELS_STUDENT: Record<number, string> = {
-  1: "Hard",
-  2: "Getting there",
-  3: "Did well",
-};
-
-const RATING_LABELS_TEACHER: Record<number, string> = {
-  1: "Emerging",
-  2: "Developing",
-  3: "Applying",
-  4: "Extending",
+const TEACHER_DOT: Record<number, { bg: string; text: string; label: string }> = {
+  1: { bg: "#fbbf24", text: "#92400e", label: "Emerging" },
+  2: { bg: "#38bdf8", text: "#fff", label: "Developing" },
+  3: { bg: "#34d399", text: "#fff", label: "Applying" },
+  4: { bg: "#a78bfa", text: "#fff", label: "Extending" },
 };
 
 function formatDate(dateStr: string): string {
   const d = new Date(dateStr);
   return d.toLocaleDateString("en-AU", { day: "numeric", month: "short" });
+}
+
+/** Average rating → color */
+function avgColor(avg: number): string {
+  if (avg >= 2.5) return "#34d399";
+  if (avg >= 1.5) return "#38bdf8";
+  return "#fbbf24";
+}
+
+function avgTextColor(avg: number): string {
+  if (avg >= 2.5) return "#fff";
+  if (avg >= 1.5) return "#fff";
+  return "#92400e";
 }
 
 export function NMResultsPanel({ unitId, classId }: NMResultsPanelProps) {
@@ -65,7 +71,9 @@ export function NMResultsPanel({ unitId, classId }: NMResultsPanelProps) {
   const [students, setStudents] = useState<Record<string, { display_name: string; username: string }>>({});
   const [nmConfig, setNmConfig] = useState<NMUnitConfig | null>(null);
   const [pageNames, setPageNames] = useState<Record<string, string>>({});
-  const [expandedStudent, setExpandedStudent] = useState<string | null>(null);
+
+  // Which cell is drilled into: { studentId, checkpointPageId }
+  const [drillCell, setDrillCell] = useState<{ sid: string; pid: string } | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -90,69 +98,87 @@ export function NMResultsPanel({ unitId, classId }: NMResultsPanelProps) {
   const studentIds = [...new Set(assessments.map(a => a.student_id))];
   const elements = nmConfig?.elements || [];
 
-  // Get checkpoint page IDs in order from NM config
   const checkpointPageIds = useMemo(() => {
     if (!nmConfig?.checkpoints) return [];
     return Object.keys(nmConfig.checkpoints);
   }, [nmConfig]);
 
-  // Per-student timeline data
-  const studentData = useMemo(() => {
-    return studentIds.map(sid => {
-      const studentSelf = selfAssessments.filter(a => a.student_id === sid);
-      const studentTeacher = teacherObs.filter(a => a.student_id === sid);
-      const name = students[sid]?.display_name || students[sid]?.username || "Unknown";
+  // Build grid data: per student, per checkpoint → avg rating + has teacher obs
+  const gridData = useMemo(() => {
+    const data: Record<string, Record<string, {
+      selfAvg: number | null;
+      teacherAvg: number | null;
+      selfRatings: Record<string, number>;
+      teacherRatings: Record<string, number>;
+      selfComment: string | null;
+      teacherComment: string | null;
+      latestDate: string;
+    }>> = {};
 
-      // Per checkpoint, per element: { selfRating, teacherRating }
-      const checkpointData: Record<string, {
-        self: Record<string, number>;
-        teacher: Record<string, number>;
-        selfComment: string | null;
-        teacherComment: string | null;
-        latestDate: string;
-      }> = {};
+    for (const sid of studentIds) {
+      data[sid] = {};
+      for (const pid of checkpointPageIds) {
+        const selfHere = selfAssessments.filter(a => a.student_id === sid && a.page_id === pid);
+        const teacherHere = teacherObs.filter(a => a.student_id === sid && a.page_id === pid);
 
-      for (const a of studentSelf) {
-        const pid = a.page_id || "unknown";
-        if (!checkpointData[pid]) {
-          checkpointData[pid] = { self: {}, teacher: {}, selfComment: null, teacherComment: null, latestDate: a.created_at };
+        const selfRatings: Record<string, number> = {};
+        let selfComment: string | null = null;
+        let latestDate = "";
+        for (const a of selfHere) {
+          selfRatings[a.element] = a.rating;
+          if (a.comment?.trim()) selfComment = a.comment;
+          if (a.created_at > latestDate) latestDate = a.created_at;
         }
-        checkpointData[pid].self[a.element] = a.rating;
-        if (a.comment && a.comment.trim()) checkpointData[pid].selfComment = a.comment;
-        if (a.created_at > checkpointData[pid].latestDate) checkpointData[pid].latestDate = a.created_at;
-      }
 
-      for (const a of studentTeacher) {
-        const pid = a.page_id || "unknown";
-        if (!checkpointData[pid]) {
-          checkpointData[pid] = { self: {}, teacher: {}, selfComment: null, teacherComment: null, latestDate: a.created_at };
+        const teacherRatings: Record<string, number> = {};
+        let teacherComment: string | null = null;
+        for (const a of teacherHere) {
+          teacherRatings[a.element] = a.rating;
+          if (a.comment?.trim()) teacherComment = a.comment;
+          if (a.created_at > latestDate) latestDate = a.created_at;
         }
-        checkpointData[pid].teacher[a.element] = a.rating;
-        if (a.comment && a.comment.trim()) checkpointData[pid].teacherComment = a.comment;
-        if (a.created_at > checkpointData[pid].latestDate) checkpointData[pid].latestDate = a.created_at;
+
+        const selfVals = Object.values(selfRatings);
+        const teacherVals = Object.values(teacherRatings);
+        const selfAvg = selfVals.length > 0 ? selfVals.reduce((s, v) => s + v, 0) / selfVals.length : null;
+        const teacherAvg = teacherVals.length > 0 ? teacherVals.reduce((s, v) => s + v, 0) / teacherVals.length : null;
+
+        if (selfVals.length > 0 || teacherVals.length > 0) {
+          data[sid][pid] = { selfAvg, teacherAvg, selfRatings, teacherRatings, selfComment, teacherComment, latestDate };
+        }
       }
+    }
+    return data;
+  }, [studentIds, checkpointPageIds, selfAssessments, teacherObs]);
 
-      // Compute overall averages
-      const allSelfRatings = studentSelf.map(a => a.rating);
-      const allTeacherRatings = studentTeacher.map(a => a.rating);
-      const selfAvg = allSelfRatings.length > 0 ? allSelfRatings.reduce((s, v) => s + v, 0) / allSelfRatings.length : null;
-      const teacherAvg = allTeacherRatings.length > 0 ? allTeacherRatings.reduce((s, v) => s + v, 0) / allTeacherRatings.length : null;
+  // Sort students alphabetically
+  const sortedStudents = useMemo(() => {
+    return studentIds
+      .map(sid => ({ sid, name: students[sid]?.display_name || students[sid]?.username || "Unknown" }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [studentIds, students]);
 
-      return { sid, name, checkpointData, selfAvg, teacherAvg, totalCheckpoints: Object.keys(checkpointData).length };
-    }).sort((a, b) => a.name.localeCompare(b.name));
-  }, [studentIds, selfAssessments, teacherObs, students]);
+  // Shorten lesson names for column headers
+  function shortName(pid: string, maxLen: number = 10): string {
+    const name = pageNames[pid];
+    if (!name) return `CP`;
+    if (name.length <= maxLen) return name;
+    // Take first word + ellipsis, or first N chars
+    const firstWord = name.split(/\s+/)[0];
+    if (firstWord.length <= maxLen) return firstWord + "…";
+    return name.slice(0, maxLen - 1) + "…";
+  }
 
-  // Summary text
   const summaryText = loading
     ? "Loading..."
     : studentIds.length > 0
       ? `${studentIds.length} student${studentIds.length !== 1 ? "s" : ""} · ${selfAssessments.length} self · ${teacherObs.length} obs`
       : "No responses yet";
 
-  // Header
+  // Header button
   const headerButton = (
     <button
-      onClick={() => setOpen(!open)}
+      onClick={() => { setOpen(!open); setDrillCell(null); }}
       style={{
         width: "100%", display: "flex", alignItems: "center", gap: "10px",
         padding: "14px 16px", borderRadius: open ? "16px 16px 0 0" : "16px",
@@ -186,7 +212,6 @@ export function NMResultsPanel({ unitId, classId }: NMResultsPanelProps) {
           {summaryText}
         </div>
       </div>
-      {/* Arrow: points right when collapsed (click to open), points down when open (click to close) */}
       <svg width="20" height="20" viewBox="0 0 20 20" fill="none"
         style={{ position: "relative", transform: open ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
         <path d="M7.5 5L12.5 10L7.5 15" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -198,6 +223,10 @@ export function NMResultsPanel({ unitId, classId }: NMResultsPanelProps) {
     return <div style={{ marginBottom: "16px" }}>{headerButton}</div>;
   }
 
+  // Currently drilled cell data
+  const drillData = drillCell ? gridData[drillCell.sid]?.[drillCell.pid] : null;
+  const drillStudentName = drillCell ? (students[drillCell.sid]?.display_name || students[drillCell.sid]?.username || "Unknown") : "";
+
   return (
     <div style={{ marginBottom: "16px" }}>
       {headerButton}
@@ -205,6 +234,7 @@ export function NMResultsPanel({ unitId, classId }: NMResultsPanelProps) {
         border: `3px solid ${POP.black}`, borderTop: "none",
         borderRadius: "0 0 16px 16px", background: POP.white,
         boxShadow: `4px 4px 0 ${POP.black}`,
+        overflow: "hidden",
       }}>
         {loading ? (
           <div style={{ padding: "32px", textAlign: "center", color: "#888", fontSize: "14px" }}>
@@ -222,238 +252,267 @@ export function NMResultsPanel({ unitId, classId }: NMResultsPanelProps) {
           </div>
         ) : (
           <div>
-            {/* Checkpoint labels header row */}
-            {checkpointPageIds.length > 0 && (
+            {/* ===== SUMMARY GRID ===== */}
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
+                <thead>
+                  <tr style={{ background: POP.cream, borderBottom: `2px solid ${POP.black}` }}>
+                    <th style={{
+                      padding: "8px 12px", textAlign: "left", fontWeight: 800,
+                      fontFamily: "'Arial Black', sans-serif", fontSize: "11px",
+                      color: POP.black, position: "sticky", left: 0, background: POP.cream, zIndex: 2,
+                      minWidth: "110px",
+                    }}>
+                      Student
+                    </th>
+                    {checkpointPageIds.map((pid, i) => (
+                      <th key={pid} style={{
+                        padding: "8px 6px", textAlign: "center", fontWeight: 700,
+                        fontFamily: "'Arial Black', sans-serif", fontSize: "10px",
+                        color: "#666", minWidth: "56px", maxWidth: "80px",
+                      }}
+                        title={pageNames[pid] || `Checkpoint ${i + 1}`}
+                      >
+                        {shortName(pid)}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedStudents.map(({ sid, name }) => (
+                    <tr key={sid} style={{ borderBottom: "1px solid #f0f0f0" }}>
+                      <td style={{
+                        padding: "10px 12px", fontWeight: 600, color: POP.black,
+                        position: "sticky", left: 0, background: POP.white, zIndex: 1,
+                        fontSize: "12px",
+                      }}>
+                        {name}
+                      </td>
+                      {checkpointPageIds.map(pid => {
+                        const cell = gridData[sid]?.[pid];
+                        const isActive = drillCell?.sid === sid && drillCell?.pid === pid;
+
+                        if (!cell) {
+                          return (
+                            <td key={pid} style={{ padding: "6px", textAlign: "center" }}>
+                              <div style={{
+                                width: "32px", height: "32px", borderRadius: "50%",
+                                background: "#f5f5f5", margin: "0 auto",
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                color: "#ddd", fontSize: "11px",
+                              }}>
+                                —
+                              </div>
+                            </td>
+                          );
+                        }
+
+                        // Show self avg as main dot, teacher as small indicator
+                        const displayAvg = cell.selfAvg ?? cell.teacherAvg ?? 0;
+                        const hasTeacher = cell.teacherAvg !== null;
+
+                        return (
+                          <td key={pid} style={{ padding: "6px", textAlign: "center" }}>
+                            <button
+                              onClick={() => setDrillCell(isActive ? null : { sid, pid })}
+                              style={{
+                                position: "relative", border: "none", background: "none",
+                                cursor: "pointer", padding: "0", margin: "0 auto", display: "block",
+                              }}
+                              title={`${name} — ${pageNames[pid] || "Checkpoint"}`}
+                            >
+                              {/* Main dot */}
+                              <div style={{
+                                width: "32px", height: "32px", borderRadius: "50%",
+                                background: avgColor(displayAvg),
+                                color: avgTextColor(displayAvg),
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                fontSize: "11px", fontWeight: 800,
+                                fontFamily: "'Arial Black', sans-serif",
+                                border: isActive ? `3px solid ${POP.hotPink}` : "2px solid rgba(255,255,255,0.8)",
+                                boxShadow: isActive
+                                  ? `0 0 0 2px ${POP.hotPink}, 0 2px 4px rgba(0,0,0,0.15)`
+                                  : "0 1px 3px rgba(0,0,0,0.12)",
+                                transition: "all 0.15s",
+                                transform: isActive ? "scale(1.15)" : "scale(1)",
+                              }}>
+                                {displayAvg.toFixed(1)}
+                              </div>
+                              {/* Teacher indicator — small pink dot at bottom-right */}
+                              {hasTeacher && (
+                                <div style={{
+                                  position: "absolute", bottom: "-2px", right: "-2px",
+                                  width: "12px", height: "12px", borderRadius: "50%",
+                                  background: POP.hotPink, border: "1.5px solid #fff",
+                                  display: "flex", alignItems: "center", justifyContent: "center",
+                                  fontSize: "7px", fontWeight: 900, color: "#fff",
+                                }}>
+                                  T
+                                </div>
+                              )}
+                            </button>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* ===== DRILL-DOWN PANEL ===== */}
+            {drillCell && drillData && (
               <div style={{
-                display: "flex", alignItems: "center",
-                padding: "10px 16px 6px 130px",
-                borderBottom: `1px solid #e5e7eb`,
-                background: POP.cream,
+                borderTop: `2px solid ${POP.black}`,
+                background: "#faf8ff",
+                padding: "16px",
+                animation: "nmSlideDown 0.2s ease-out",
               }}>
-                {checkpointPageIds.map((pid, i) => (
-                  <div key={pid} style={{ display: "contents" }}>
-                    {i > 0 && <div style={{ flex: 1 }} />}
+                {/* Header with close button */}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                  <div>
                     <div style={{
-                      fontSize: "10px", color: "#888", fontWeight: 700,
-                      textAlign: "center", whiteSpace: "nowrap",
+                      fontSize: "14px", fontWeight: 800, color: POP.black,
                       fontFamily: "'Arial Black', sans-serif",
                     }}>
-                      {pageNames[pid] ? (pageNames[pid].length > 14 ? pageNames[pid].slice(0, 12) + "…" : pageNames[pid]) : `CP ${i + 1}`}
+                      {drillStudentName}
+                    </div>
+                    <div style={{ fontSize: "12px", color: "#888" }}>
+                      {pageNames[drillCell.pid] || "Checkpoint"} · {formatDate(drillData.latestDate)}
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
+                  <button
+                    onClick={() => setDrillCell(null)}
+                    style={{
+                      width: "28px", height: "28px", borderRadius: "8px",
+                      border: `2px solid ${POP.black}`, background: POP.cream,
+                      cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: "14px", fontWeight: 900, color: POP.black,
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
 
-            {/* Timeline per student */}
-            <div style={{ maxHeight: "700px", overflowY: "auto" }}>
-              {studentData.map(s => {
-                const isExpanded = expandedStudent === s.sid;
+                {/* Per-element ratings */}
+                <div style={{ display: "grid", gap: "8px" }}>
+                  {elements.map(elemId => {
+                    const elem = AGENCY_ELEMENT_MAP[elemId];
+                    if (!elem) return null;
+                    const selfR = drillData.selfRatings[elemId];
+                    const teacherR = drillData.teacherRatings[elemId];
 
-                return (
-                  <div key={s.sid} style={{ borderBottom: `1px solid #e5e7eb` }}>
-                    {/* Student header row — clickable */}
-                    <button
-                      onClick={() => setExpandedStudent(isExpanded ? null : s.sid)}
-                      style={{
-                        display: "flex", alignItems: "flex-start", gap: "0",
-                        width: "100%", padding: "14px 16px",
-                        border: "none", background: isExpanded ? "#f8f4ff" : "transparent",
-                        cursor: "pointer", transition: "background 0.15s",
-                      }}
-                    >
-                      {/* Name column */}
-                      <div style={{ width: "114px", flexShrink: 0, textAlign: "left", paddingTop: "2px" }}>
-                        <div style={{ fontSize: "13px", fontWeight: 700, color: POP.black }}>
-                          {s.name}
+                    return (
+                      <div key={elemId} style={{
+                        display: "flex", alignItems: "center", gap: "10px",
+                        padding: "8px 12px", borderRadius: "8px",
+                        background: POP.white, border: "1px solid #e8e0f5",
+                      }}>
+                        {/* Element name — full width, no truncation */}
+                        <div style={{ flex: 1, fontSize: "13px", fontWeight: 600, color: POP.black }}>
+                          {elem.name}
                         </div>
-                        <div style={{ fontSize: "10px", color: "#999", marginTop: "2px" }}>
-                          {s.selfAvg !== null && s.teacherAvg !== null
-                            ? `Self ${s.selfAvg.toFixed(1)} / T ${s.teacherAvg.toFixed(1)}`
-                            : s.selfAvg !== null
-                              ? `Self ${s.selfAvg.toFixed(1)}`
-                              : s.teacherAvg !== null
-                                ? `Teacher ${s.teacherAvg.toFixed(1)}`
-                                : ""}
-                        </div>
-                      </div>
 
-                      {/* Timeline tracks — one row per element */}
-                      <div style={{ flex: 1 }}>
-                        {elements.map(elemId => {
-                          const elem = AGENCY_ELEMENT_MAP[elemId];
-                          if (!elem) return null;
-                          return (
-                            <div key={elemId} style={{
-                              display: "flex", alignItems: "center", gap: "0",
-                              marginBottom: "4px", height: "26px",
-                            }}>
-                              {/* Element label */}
-                              <div style={{
-                                width: "70px", flexShrink: 0,
-                                fontSize: "10px", color: "#888", fontWeight: 600,
-                                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-                              }}>
-                                {elem.name.split(" ").slice(0, 2).join(" ")}
-                              </div>
-
-                              {/* Track line with dots */}
-                              <div style={{
-                                flex: 1, display: "flex", alignItems: "center",
-                                position: "relative", height: "26px",
-                              }}>
-                                {/* Background track */}
-                                <div style={{
-                                  position: "absolute", top: "12px", left: 0, right: 0,
-                                  height: "2px", background: "#e5e7eb", borderRadius: "1px",
-                                }} />
-
-                                {/* Dots for each checkpoint */}
-                                {checkpointPageIds.map((pid, i) => {
-                                  const cpData = s.checkpointData[pid];
-                                  const selfRating = cpData?.self[elemId];
-                                  const teacherRating = cpData?.teacher[elemId];
-                                  const hasSelf = selfRating !== undefined;
-                                  const hasTeacher = teacherRating !== undefined;
-
-                                  return (
-                                    <div key={pid} style={{ display: "contents" }}>
-                                      {i > 0 && <div style={{ flex: 1 }} />}
-
-                                      {/* Self dot */}
-                                      {hasSelf ? (
-                                        <div
-                                          title={`${pageNames[pid] || `CP ${i + 1}`} — Self: ${RATING_LABELS_STUDENT[selfRating] || selfRating} (${selfRating})`}
-                                          style={{
-                                            position: "relative", zIndex: 1,
-                                            width: "22px", height: "22px", borderRadius: "50%",
-                                            display: "flex", alignItems: "center", justifyContent: "center",
-                                            fontSize: "9px", fontWeight: 800,
-                                            background: DOT_COLORS[selfRating]?.bg || "#e5e7eb",
-                                            color: DOT_COLORS[selfRating]?.text || "#999",
-                                            border: "2px solid #fff",
-                                            boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
-                                          }}
-                                        >
-                                          {selfRating}
-                                        </div>
-                                      ) : !hasTeacher ? (
-                                        <div style={{
-                                          position: "relative", zIndex: 1,
-                                          width: "22px", height: "22px", borderRadius: "50%",
-                                          display: "flex", alignItems: "center", justifyContent: "center",
-                                          fontSize: "9px", fontWeight: 800,
-                                          background: "#f3f4f6", color: "#ccc",
-                                          border: "2px solid #fff",
-                                        }}>
-                                          —
-                                        </div>
-                                      ) : null}
-
-                                      {/* Teacher dot (smaller, pink border, overlaps slightly if self dot exists) */}
-                                      {hasTeacher && (
-                                        <div
-                                          title={`${pageNames[pid] || `CP ${i + 1}`} — Teacher: ${RATING_LABELS_TEACHER[teacherRating] || teacherRating} (${teacherRating})`}
-                                          style={{
-                                            position: "relative", zIndex: 2,
-                                            marginLeft: hasSelf ? "-6px" : "0",
-                                            width: "16px", height: "16px", borderRadius: "50%",
-                                            display: "flex", alignItems: "center", justifyContent: "center",
-                                            fontSize: "8px", fontWeight: 800,
-                                            background: DOT_COLORS[teacherRating]?.bg || "#e5e7eb",
-                                            color: DOT_COLORS[teacherRating]?.text || "#999",
-                                            border: `2px solid ${POP.hotPink}`,
-                                            boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
-                                          }}
-                                        >
-                                          {teacherRating}
-                                        </div>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </button>
-
-                    {/* Expanded: comments per checkpoint */}
-                    {isExpanded && (
-                      <div style={{ padding: "0 16px 14px 130px" }}>
-                        {checkpointPageIds.map((pid, i) => {
-                          const cpData = s.checkpointData[pid];
-                          if (!cpData) return null;
-                          const hasContent = cpData.selfComment || cpData.teacherComment;
-                          if (!hasContent) return null;
-
-                          return (
-                            <div key={pid} style={{
-                              marginBottom: "8px", padding: "8px 12px",
-                              borderRadius: "8px", background: "#f9f7ff",
-                              border: "1px solid #e8e0f5",
-                            }}>
-                              <div style={{
-                                fontSize: "11px", fontWeight: 700, color: "#7c3aed",
-                                marginBottom: "4px",
-                              }}>
-                                {pageNames[pid] || `Checkpoint ${i + 1}`}
-                                <span style={{ color: "#bbb", fontWeight: 400, marginLeft: "6px" }}>
-                                  {formatDate(cpData.latestDate)}
-                                </span>
-                              </div>
-                              {cpData.selfComment && (
-                                <div style={{ fontSize: "12px", color: "#555", lineHeight: 1.4, marginBottom: "3px" }}>
-                                  <span style={{ color: "#38bdf8", fontWeight: 700 }}>Student:</span> {cpData.selfComment}
-                                </div>
-                              )}
-                              {cpData.teacherComment && (
-                                <div style={{ fontSize: "12px", color: "#555", lineHeight: 1.4 }}>
-                                  <span style={{ color: POP.hotPink, fontWeight: 700 }}>Teacher:</span> {cpData.teacherComment}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                        {/* If no comments exist at all */}
-                        {!checkpointPageIds.some(pid => s.checkpointData[pid]?.selfComment || s.checkpointData[pid]?.teacherComment) && (
-                          <div style={{ fontSize: "12px", color: "#bbb", fontStyle: "italic" }}>
-                            No comments yet
+                        {/* Student self rating */}
+                        {selfR !== undefined ? (
+                          <div style={{
+                            padding: "3px 10px", borderRadius: "6px",
+                            background: DOT[selfR]?.bg || "#e5e7eb",
+                            color: DOT[selfR]?.text || "#999",
+                            fontSize: "11px", fontWeight: 800,
+                            fontFamily: "'Arial Black', sans-serif",
+                            border: "1.5px solid rgba(0,0,0,0.1)",
+                            whiteSpace: "nowrap",
+                          }}>
+                            {DOT[selfR]?.label || selfR}
                           </div>
+                        ) : (
+                          <div style={{ fontSize: "11px", color: "#ccc", padding: "3px 10px" }}>No self</div>
                         )}
+
+                        {/* Teacher rating */}
+                        {teacherR !== undefined ? (
+                          <div style={{
+                            padding: "3px 10px", borderRadius: "6px",
+                            background: TEACHER_DOT[teacherR]?.bg || "#e5e7eb",
+                            color: TEACHER_DOT[teacherR]?.text || "#999",
+                            fontSize: "11px", fontWeight: 800,
+                            fontFamily: "'Arial Black', sans-serif",
+                            border: `2px solid ${POP.hotPink}`,
+                            whiteSpace: "nowrap",
+                          }}>
+                            T: {TEACHER_DOT[teacherR]?.label || teacherR}
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: "11px", color: "#ccc", padding: "3px 10px" }}>No obs</div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Comments */}
+                {(drillData.selfComment || drillData.teacherComment) && (
+                  <div style={{ marginTop: "12px", display: "grid", gap: "6px" }}>
+                    {drillData.selfComment && (
+                      <div style={{
+                        padding: "8px 12px", borderRadius: "8px",
+                        background: "#f0fafb", border: "1px solid #d1ecf0",
+                        fontSize: "12px", color: "#444", lineHeight: 1.5,
+                      }}>
+                        <span style={{ fontWeight: 700, color: "#0891b2" }}>Student:</span> {drillData.selfComment}
+                      </div>
+                    )}
+                    {drillData.teacherComment && (
+                      <div style={{
+                        padding: "8px 12px", borderRadius: "8px",
+                        background: "#faf0fc", border: "1px solid #e0bff0",
+                        fontSize: "12px", color: "#444", lineHeight: 1.5,
+                      }}>
+                        <span style={{ fontWeight: 700, color: POP.hotPink }}>Teacher:</span> {drillData.teacherComment}
                       </div>
                     )}
                   </div>
-                );
-              })}
-            </div>
+                )}
+              </div>
+            )}
 
             {/* Legend */}
             <div style={{
-              display: "flex", flexWrap: "wrap", gap: "12px",
-              padding: "12px 16px", borderTop: `2px solid ${POP.black}`,
-              background: POP.cream, borderRadius: "0 0 13px 13px",
+              display: "flex", flexWrap: "wrap", gap: "12px", alignItems: "center",
+              padding: "10px 16px", borderTop: `2px solid ${POP.black}`,
+              background: POP.cream, borderRadius: drillCell ? "0" : "0 0 13px 13px",
               fontSize: "11px", color: "#666",
             }}>
               {[1, 2, 3].map(r => (
                 <div key={r} style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                   <div style={{
-                    width: "14px", height: "14px", borderRadius: "50%",
-                    background: DOT_COLORS[r]?.bg, border: "1.5px solid #fff",
+                    width: "12px", height: "12px", borderRadius: "50%",
+                    background: DOT[r]?.bg, border: "1.5px solid rgba(255,255,255,0.8)",
                     boxShadow: "0 0 0 1px #d1d5db",
                   }} />
-                  <span>{r} — {RATING_LABELS_STUDENT[r]}</span>
+                  <span>{DOT[r]?.label}</span>
                 </div>
               ))}
               <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                 <div style={{
-                  width: "14px", height: "14px", borderRadius: "50%",
-                  background: DOT_COLORS[4]?.bg, border: `2px solid ${POP.hotPink}`,
+                  width: "12px", height: "12px", borderRadius: "50%",
+                  background: POP.hotPink, border: "1.5px solid #fff",
                 }} />
-                <span>Teacher (pink border)</span>
+                <span>T = Teacher obs</span>
+              </div>
+              <div style={{ marginLeft: "auto", fontSize: "10px", color: "#aaa" }}>
+                Click any dot to see detail
               </div>
             </div>
+
+            {/* CSS animation */}
+            <style>{`
+              @keyframes nmSlideDown {
+                from { opacity: 0; max-height: 0; }
+                to { opacity: 1; max-height: 600px; }
+              }
+            `}</style>
           </div>
         )}
       </div>
