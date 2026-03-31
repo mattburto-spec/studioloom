@@ -25,7 +25,7 @@ const steps = [
   },
   {
     step: "Assess",
-    desc: "Criterion grading + gallery",
+    desc: "Grading + peer gallery",
     gradient: "from-emerald-500/30 to-emerald-600/10",
     glow: "shadow-emerald-500/20",
     border: "border-emerald-400/25",
@@ -103,7 +103,7 @@ export default function ProcessSteps() {
             </div>
 
             {/* Description */}
-            <div className="relative text-[11px] md:text-xs text-white/50 group-hover:text-white/70 transition-colors duration-300">
+            <div className="relative text-[11px] md:text-xs text-white/50 group-hover:text-white/70 transition-colors duration-300 whitespace-nowrap">
               {s.desc}
             </div>
 
