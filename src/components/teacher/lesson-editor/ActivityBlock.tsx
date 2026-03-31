@@ -4,7 +4,7 @@ import { useState } from "react";
 import { motion, useDragControls } from "framer-motion";
 import InlineEdit from "./InlineEdit";
 import { CRITERIA, type CriterionKey, getDesignProcessPhases } from "@/lib/constants";
-import type { ActivitySection, ResponseType } from "@/types";
+import type { ActivitySection, ResponseType, BloomLevel, TimeWeight, GroupingStrategy } from "@/types";
 import { tools as allToolkitTools, INTERACTIVE_SLUGS } from "@/app/toolkit/tools-data";
 
 interface ActivityBlockProps {
@@ -43,6 +43,37 @@ const RESPONSE_TYPE_LABELS: Record<ResponseType, string> = {
   canvas: "Canvas Drawing",
 };
 
+// ── Dimensions constants ──────────────────────────────────────────
+const BLOOM_LEVELS: { value: BloomLevel; label: string; color: string }[] = [
+  { value: "remember", label: "Remember", color: "bg-red-100 text-red-800 border-red-300" },
+  { value: "understand", label: "Understand", color: "bg-orange-100 text-orange-800 border-orange-300" },
+  { value: "apply", label: "Apply", color: "bg-yellow-100 text-yellow-800 border-yellow-300" },
+  { value: "analyze", label: "Analyze", color: "bg-green-100 text-green-800 border-green-300" },
+  { value: "evaluate", label: "Evaluate", color: "bg-blue-100 text-blue-800 border-blue-300" },
+  { value: "create", label: "Create", color: "bg-purple-100 text-purple-800 border-purple-300" },
+];
+
+const TIME_WEIGHTS: { value: TimeWeight; label: string; icon: string; desc: string }[] = [
+  { value: "quick", label: "Quick", icon: "⚡", desc: "1x weight" },
+  { value: "moderate", label: "Moderate", icon: "📐", desc: "2x weight" },
+  { value: "extended", label: "Extended", icon: "🔬", desc: "4x weight" },
+  { value: "flexible", label: "Flexible", icon: "🔄", desc: "Fills remaining" },
+];
+
+const GROUPING_OPTIONS: { value: GroupingStrategy; label: string; icon: string }[] = [
+  { value: "individual", label: "Solo", icon: "👤" },
+  { value: "pair", label: "Pair", icon: "👥" },
+  { value: "small_group", label: "Group", icon: "👨‍👩‍👧" },
+  { value: "whole_class", label: "Whole Class", icon: "🏫" },
+  { value: "mixed", label: "Mixed", icon: "🔀" },
+];
+
+const AI_PHASE_OPTIONS: { value: "divergent" | "convergent" | "neutral"; label: string; desc: string }[] = [
+  { value: "divergent", label: "Divergent", desc: "Encourage wild ideas, never evaluate" },
+  { value: "convergent", label: "Convergent", desc: "Push for analysis, trade-offs, evidence" },
+  { value: "neutral", label: "Neutral", desc: "Balanced support, follow student's lead" },
+];
+
 /**
  * ActivityBlock — Single activity card in the editor
  *
@@ -69,6 +100,8 @@ export default function ActivityBlock({
   const dragControls = useDragControls();
   const { phases } = getDesignProcessPhases(framework);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
+    dimensions: false,
+    airules: false,
     scaffolding: false,
     example: false,
     media: false,
@@ -329,8 +362,330 @@ export default function ActivityBlock({
         </div>
       )}
 
+      {/* Dimensions quick-bar: Bloom + Time Weight + Grouping pills inline */}
+      <div className="flex flex-wrap items-center gap-2 mb-4 border-t border-gray-200 pt-4">
+        {/* Bloom level pill */}
+        {activity.bloom_level && (
+          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${
+            BLOOM_LEVELS.find(b => b.value === activity.bloom_level)?.color || "bg-gray-100 text-gray-700 border-gray-300"
+          }`}>
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+            {BLOOM_LEVELS.find(b => b.value === activity.bloom_level)?.label}
+          </span>
+        )}
+        {/* Time weight pill */}
+        {activity.timeWeight && (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">
+            {TIME_WEIGHTS.find(t => t.value === activity.timeWeight)?.icon}{" "}
+            {TIME_WEIGHTS.find(t => t.value === activity.timeWeight)?.label}
+          </span>
+        )}
+        {/* Grouping pill */}
+        {activity.grouping && (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+            {GROUPING_OPTIONS.find(g => g.value === activity.grouping)?.icon}{" "}
+            {GROUPING_OPTIONS.find(g => g.value === activity.grouping)?.label}
+          </span>
+        )}
+        {/* AI rules phase pill */}
+        {activity.ai_rules?.phase && activity.ai_rules.phase !== "neutral" && (
+          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${
+            activity.ai_rules.phase === "divergent"
+              ? "bg-green-50 text-green-700 border-green-200"
+              : "bg-blue-50 text-blue-700 border-blue-200"
+          }`}>
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <path d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            {activity.ai_rules.phase === "divergent" ? "Divergent" : "Convergent"} AI
+          </span>
+        )}
+        {/* UDL checkpoints count */}
+        {(activity.udl_checkpoints?.length || 0) > 0 && (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+            </svg>
+            {activity.udl_checkpoints?.length} UDL
+          </span>
+        )}
+        {/* Edit dimensions button — only show if no pills yet (empty state) */}
+        {!activity.bloom_level && !activity.timeWeight && !activity.grouping && (
+          <button
+            onClick={() => toggleSection("dimensions")}
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-50 text-gray-500 border border-dashed border-gray-300 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+          >
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <path d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+            </svg>
+            Learning Design
+          </button>
+        )}
+        {/* Edit button when pills exist */}
+        {(activity.bloom_level || activity.timeWeight || activity.grouping) && (
+          <button
+            onClick={() => toggleSection("dimensions")}
+            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-xs text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+            aria-label="Edit learning design"
+          >
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+              <path d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+            </svg>
+          </button>
+        )}
+      </div>
+
       {/* Expandable sections */}
-      <div className="space-y-2 border-t border-gray-200 pt-4">
+      <div className="space-y-2">
+        {/* Learning Design editor */}
+        <ExpandableSection
+          title="Learning Design"
+          isOpen={expandedSections.dimensions}
+          onToggle={() => toggleSection("dimensions")}
+        >
+          <div className="space-y-4">
+            {/* Bloom's Level */}
+            <div>
+              <label className="text-xs font-medium text-gray-600 block mb-2">
+                Bloom&apos;s Level
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {BLOOM_LEVELS.map((bloom) => (
+                  <button
+                    key={bloom.value}
+                    onClick={() =>
+                      onUpdate({
+                        bloom_level:
+                          activity.bloom_level === bloom.value ? undefined : bloom.value,
+                      })
+                    }
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${
+                      activity.bloom_level === bloom.value
+                        ? bloom.color + " ring-2 ring-offset-1 ring-gray-300"
+                        : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"
+                    }`}
+                  >
+                    {bloom.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Time Weight */}
+            <div>
+              <label className="text-xs font-medium text-gray-600 block mb-2">
+                Time Weight
+                <span className="font-normal text-gray-400 ml-1">(how phase budget is shared)</span>
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {TIME_WEIGHTS.map((tw) => (
+                  <button
+                    key={tw.value}
+                    onClick={() =>
+                      onUpdate({
+                        timeWeight:
+                          activity.timeWeight === tw.value ? undefined : tw.value,
+                      })
+                    }
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all flex items-center gap-1.5 ${
+                      activity.timeWeight === tw.value
+                        ? "bg-indigo-100 text-indigo-800 border-indigo-300 ring-2 ring-offset-1 ring-indigo-200"
+                        : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"
+                    }`}
+                  >
+                    <span>{tw.icon}</span>
+                    <span>{tw.label}</span>
+                    <span className="text-gray-400 font-normal">{tw.desc}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Grouping */}
+            <div>
+              <label className="text-xs font-medium text-gray-600 block mb-2">
+                Grouping
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {GROUPING_OPTIONS.map((g) => (
+                  <button
+                    key={g.value}
+                    onClick={() =>
+                      onUpdate({
+                        grouping:
+                          activity.grouping === g.value ? undefined : g.value,
+                      })
+                    }
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all flex items-center gap-1.5 ${
+                      activity.grouping === g.value
+                        ? "bg-emerald-100 text-emerald-800 border-emerald-300 ring-2 ring-offset-1 ring-emerald-200"
+                        : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"
+                    }`}
+                  >
+                    <span>{g.icon}</span>
+                    <span>{g.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Success Look-Fors */}
+            <div>
+              <label className="text-xs font-medium text-gray-600 block mb-1">
+                Success Look-Fors
+                <span className="font-normal text-gray-400 ml-1">(observable behaviours)</span>
+              </label>
+              <textarea
+                placeholder="e.g. Student sketches at least 3 options&#10;Student labels all parts of the diagram&#10;Student discusses trade-offs with partner"
+                value={(activity.success_look_fors || []).join("\n")}
+                onChange={(e) => {
+                  const lines = e.target.value.split("\n").filter(Boolean);
+                  onUpdate({ success_look_fors: lines.length > 0 ? lines : undefined });
+                }}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                rows={3}
+              />
+            </div>
+
+            {/* Tags */}
+            <div>
+              <label className="text-xs font-medium text-gray-600 block mb-1">
+                Activity Tags
+                <span className="font-normal text-gray-400 ml-1">(comma-separated, for search)</span>
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. hands-on, research, interview, prototyping"
+                value={(activity.tags || []).join(", ")}
+                onChange={(e) => {
+                  const tags = e.target.value.split(",").map(t => t.trim()).filter(Boolean);
+                  onUpdate({ tags: tags.length > 0 ? tags : undefined });
+                }}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+        </ExpandableSection>
+
+        {/* AI Rules */}
+        <ExpandableSection
+          title="AI Rules"
+          isOpen={expandedSections.airules}
+          onToggle={() => toggleSection("airules")}
+        >
+          <div className="space-y-3">
+            {/* Thinking Phase */}
+            <div>
+              <label className="text-xs font-medium text-gray-600 block mb-2">
+                AI Thinking Phase
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {AI_PHASE_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => {
+                      const current = activity.ai_rules || { phase: "neutral" };
+                      onUpdate({
+                        ai_rules: {
+                          ...current,
+                          phase: current.phase === opt.value ? "neutral" : opt.value,
+                        },
+                      });
+                    }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                      (activity.ai_rules?.phase || "neutral") === opt.value
+                        ? opt.value === "divergent"
+                          ? "bg-green-100 text-green-800 border-green-300 ring-2 ring-offset-1 ring-green-200"
+                          : opt.value === "convergent"
+                          ? "bg-blue-100 text-blue-800 border-blue-300 ring-2 ring-offset-1 ring-blue-200"
+                          : "bg-gray-100 text-gray-800 border-gray-300 ring-2 ring-offset-1 ring-gray-200"
+                        : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"
+                    }`}
+                    title={opt.desc}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-gray-400 mt-1">
+                {AI_PHASE_OPTIONS.find(o => o.value === (activity.ai_rules?.phase || "neutral"))?.desc}
+              </p>
+            </div>
+
+            {/* Tone */}
+            <div>
+              <label className="text-xs font-medium text-gray-600 block mb-1">
+                AI Tone
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. warm and encouraging, analytical, challenging"
+                value={activity.ai_rules?.tone || ""}
+                onChange={(e) => {
+                  const current = activity.ai_rules || { phase: "neutral" as const };
+                  onUpdate({
+                    ai_rules: {
+                      ...current,
+                      tone: e.target.value || undefined,
+                    },
+                  });
+                }}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              />
+            </div>
+
+            {/* Custom Rules */}
+            <div>
+              <label className="text-xs font-medium text-gray-600 block mb-1">
+                Custom Rules
+                <span className="font-normal text-gray-400 ml-1">(one per line)</span>
+              </label>
+              <textarea
+                placeholder="e.g. Never give direct answers&#10;Push for at least 3 ideas before giving feedback&#10;Use question framing from Hattie HITS"
+                value={(activity.ai_rules?.rules || []).join("\n")}
+                onChange={(e) => {
+                  const rules = e.target.value.split("\n").filter(Boolean);
+                  const current = activity.ai_rules || { phase: "neutral" as const };
+                  onUpdate({
+                    ai_rules: {
+                      ...current,
+                      rules: rules.length > 0 ? rules : undefined,
+                    },
+                  });
+                }}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                rows={3}
+              />
+            </div>
+
+            {/* Forbidden Words */}
+            <div>
+              <label className="text-xs font-medium text-gray-600 block mb-1">
+                Forbidden Words
+                <span className="font-normal text-gray-400 ml-1">(comma-separated)</span>
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. good, bad, nice, wrong"
+                value={(activity.ai_rules?.forbidden_words || []).join(", ")}
+                onChange={(e) => {
+                  const words = e.target.value.split(",").map(w => w.trim()).filter(Boolean);
+                  const current = activity.ai_rules || { phase: "neutral" as const };
+                  onUpdate({
+                    ai_rules: {
+                      ...current,
+                      forbidden_words: words.length > 0 ? words : undefined,
+                    },
+                  });
+                }}
+                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              />
+            </div>
+          </div>
+        </ExpandableSection>
+
         {/* Scaffolding */}
         <ExpandableSection
           title="Scaffolding"

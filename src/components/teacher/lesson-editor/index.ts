@@ -11,6 +11,7 @@ export { default as GhostBlock } from "./GhostBlock";
 export { default as DropZone } from "./DropZone";
 export { default as AITextField } from "./AITextField";
 export { default as UnitThumbnailEditor } from "./UnitThumbnailEditor";
+export { default as DimensionsSummaryBar } from "./DimensionsSummaryBar";
 export { DndProvider, useDndContext } from "./DndContext";
 export { LessonSidebar } from "./LessonSidebar";
 export { ActivityBlockAdd } from "./ActivityBlockAdd";

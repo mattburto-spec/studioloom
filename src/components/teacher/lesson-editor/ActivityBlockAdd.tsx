@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { nanoid } from "nanoid";
-import type { ActivitySection, ResponseType } from "@/types";
+import type { ActivitySection, ResponseType, BloomLevel, TimeWeight, GroupingStrategy, ActivityAIRules } from "@/types";
 
 interface ActivityBlockAddProps {
   onAdd: (activity: ActivitySection) => void;
@@ -15,6 +15,11 @@ interface ActivityTemplate {
   responseType: ResponseType;
   defaultPrompt: string;
   defaultDuration: number;
+  // Dimensions defaults
+  bloom_level?: BloomLevel;
+  timeWeight?: TimeWeight;
+  grouping?: GroupingStrategy;
+  ai_rules?: ActivityAIRules;
 }
 
 const TEMPLATES: ActivityTemplate[] = [
@@ -24,6 +29,10 @@ const TEMPLATES: ActivityTemplate[] = [
     responseType: "text",
     defaultPrompt: "",
     defaultDuration: 10,
+    bloom_level: "apply",
+    timeWeight: "moderate",
+    grouping: "individual",
+    ai_rules: { phase: "neutral" },
   },
   {
     label: "Creative Upload",
@@ -31,6 +40,10 @@ const TEMPLATES: ActivityTemplate[] = [
     responseType: "upload",
     defaultPrompt: "Upload your work.",
     defaultDuration: 15,
+    bloom_level: "create",
+    timeWeight: "extended",
+    grouping: "individual",
+    ai_rules: { phase: "divergent" },
   },
   {
     label: "Voice Recording",
@@ -38,6 +51,9 @@ const TEMPLATES: ActivityTemplate[] = [
     responseType: "voice",
     defaultPrompt: "Record your explanation.",
     defaultDuration: 5,
+    bloom_level: "understand",
+    timeWeight: "quick",
+    grouping: "individual",
   },
   {
     label: "Canvas Drawing",
@@ -45,6 +61,10 @@ const TEMPLATES: ActivityTemplate[] = [
     responseType: "canvas",
     defaultPrompt: "Sketch your idea.",
     defaultDuration: 10,
+    bloom_level: "create",
+    timeWeight: "moderate",
+    grouping: "individual",
+    ai_rules: { phase: "divergent" },
   },
   {
     label: "Decision Matrix",
@@ -52,6 +72,10 @@ const TEMPLATES: ActivityTemplate[] = [
     responseType: "decision-matrix" as ResponseType,
     defaultPrompt: "Compare your options using the criteria below.",
     defaultDuration: 15,
+    bloom_level: "evaluate",
+    timeWeight: "extended",
+    grouping: "individual",
+    ai_rules: { phase: "convergent" },
   },
   {
     label: "Content Block",
@@ -59,6 +83,9 @@ const TEMPLATES: ActivityTemplate[] = [
     responseType: undefined as unknown as ResponseType,
     defaultPrompt: "Read the following information carefully.",
     defaultDuration: 5,
+    bloom_level: "remember",
+    timeWeight: "quick",
+    grouping: "whole_class",
   },
   {
     label: "Toolkit Tool",
@@ -66,6 +93,10 @@ const TEMPLATES: ActivityTemplate[] = [
     responseType: "toolkit-tool" as ResponseType,
     defaultPrompt: "Use the tool below to work through this activity.",
     defaultDuration: 15,
+    bloom_level: "apply",
+    timeWeight: "extended",
+    grouping: "individual",
+    ai_rules: { phase: "divergent" },
   },
 ];
 
@@ -78,6 +109,11 @@ export function ActivityBlockAdd({ onAdd }: ActivityBlockAddProps) {
       prompt: template.defaultPrompt,
       durationMinutes: template.defaultDuration,
       ...(template.responseType ? { responseType: template.responseType } : {}),
+      // Dimensions defaults from template
+      ...(template.bloom_level ? { bloom_level: template.bloom_level } : {}),
+      ...(template.timeWeight ? { timeWeight: template.timeWeight } : {}),
+      ...(template.grouping ? { grouping: template.grouping } : {}),
+      ...(template.ai_rules ? { ai_rules: template.ai_rules } : {}),
     };
     onAdd(activity);
     setIsOpen(false);

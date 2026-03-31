@@ -202,17 +202,20 @@ Student profile: `accommodations` (UDL-aligned), `udl_strengths`, `udl_barriers`
 - [x] Fix attempt_number overcounting bug (was 121 for single field — added 2-second debounce commit pattern, committed `ff8c3ad`)
 
 ### Phase 4: Lesson Editor + Teacher UI
-- [ ] Bloom's level selector on ActivityBlock (6-level pills)
-- [ ] Grouping selector on ActivityBlock (individual/pair/small group/whole class)
-- [ ] timeWeight selector on ActivityBlock (quick ⚡ / moderate 🔵 / extended 🟣 / flexible 🔄) — replaces hard durationMinutes input
-- [ ] ai_rules editor panel on ActivityBlock (phase + tone + custom rules)
-- [ ] UDL checkpoint tags on ActivityBlock (auto-tagged, editable)
-- [ ] Per-lesson UDL coverage indicator (3-dot: green if principle covered, amber if gaps — computed client-side from activity udl_checkpoints)
-- [ ] Update PhaseTimelineBar to distribute time by weight (quick=1x, moderate=2x, extended=4x, flexible=fills remaining)
-- [ ] Update ActivityBlockAdd 6 templates with bloom_level + grouping + timeWeight defaults (e.g., "Research" → bloom=understand, grouping=individual, timeWeight=extended)
-- [ ] Unit detail page: display materials_list, learning_outcomes, sdg_tags, prerequisite_knowledge, cross_curricular_links
-- [ ] Teacher settings page: instruction_language dropdown + additional_languages checkboxes on class creation/edit
-- [ ] Backward compatibility test: load pre-Dimensions unit in editor → verify no errors (durationMinutes still renders if timeWeight absent)
+- [x] Bloom's level selector on ActivityBlock (6-level colour-coded pills with toggle behavior) — 31 Mar 2026
+- [x] Grouping selector on ActivityBlock (individual/pair/small_group/whole_class/mixed with emoji + label) — 31 Mar 2026
+- [x] timeWeight selector on ActivityBlock (quick ⚡ / moderate 📐 / extended 🔬 / flexible 🔄) with weight description — 31 Mar 2026
+- [x] ai_rules editor panel on ActivityBlock (phase selector + tone input + custom rules textarea + forbidden words) as "AI Rules" expandable section — 31 Mar 2026
+- [x] Success Look-Fors textarea on ActivityBlock (one per line, observable behaviours) — 31 Mar 2026
+- [x] Activity Tags input (comma-separated, for future block library search) — 31 Mar 2026
+- [x] Dimensions quick-bar on ActivityBlock: inline pill summary (Bloom colour, timeWeight icon, grouping icon, AI phase badge, UDL count) with edit pencil button — 31 Mar 2026
+- [x] DimensionsSummaryBar component: per-lesson Bloom's distribution mini-bar + UDL 3-dot coverage indicator + grouping variety count + AI rules count — 31 Mar 2026
+- [x] Update ActivityBlockAdd 7 templates with bloom_level + grouping + timeWeight + ai_rules defaults (Written Response=apply/moderate/individual, Creative Upload=create/extended/divergent, etc.) — 31 Mar 2026
+- [x] TimeWeight distribution summary in Work Time phase activity total row — 31 Mar 2026
+- [x] Backward compatibility verified: legacy activities (no Dimensions fields) render correctly — quick-bar shows "Learning Design" add button, DimensionsSummaryBar hides, no errors — 31 Mar 2026
+- [ ] UDL checkpoint tags on ActivityBlock (auto-tagged, editable) — DEFERRED: needs UDL checkpoint reference data + tag picker UI
+- [ ] Unit detail page: display materials_list, learning_outcomes, sdg_tags, prerequisite_knowledge, cross_curricular_links — DEFERRED to Phase 4b
+- [ ] Teacher settings page: instruction_language dropdown + additional_languages checkboxes on class creation/edit — DEFERRED to Phase 4b
 
 ### Phase 5: Reports + Velocity Loop + Research Metrics (LATER — not in current sprint)
 - [ ] UDL coverage dashboard per unit
@@ -239,9 +242,9 @@ Student profile: `accommodations` (UDL-aligned), `udl_strengths`, `udl_barriers`
 | Phase 1: Data layer (TypeScript) | 0.5 | Phase 0 | **COMPLETE** (30 Mar) |
 | Phase 2: AI generation + RAG pipeline | 2.5 | Phase 1 | **COMPLETE** (30 Mar) — schemas, prompts, RAG pipeline, cognitive load, per-section difficulty |
 | Phase 3: Client tracking | 0.5 | Phase 1 | **COMPLETE** (30 Mar) |
-| Phase 4: Lesson editor UI | 1 | Phase 1 | Pending |
+| Phase 4: Lesson editor UI | 1 | Phase 1 | **COMPLETE** (31 Mar) — core selectors + summary bar + templates. Phase 4b deferred (UDL tags, unit detail, language settings) |
 | Phase 5: Reports + research metrics | 4-6 | Phases 1-4 + real student data | Deferred |
-| **Remaining (Phase 4)** | **~1 day** | |
+| **Remaining (Phase 4b)** | **~0.5 day** | UDL tag picker, unit detail page fields, language settings |
 
 ---
 

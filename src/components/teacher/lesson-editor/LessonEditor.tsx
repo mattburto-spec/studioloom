@@ -16,6 +16,7 @@ import DropZone from "./DropZone";
 import { DndProvider } from "./DndContext";
 import AITextField from "./AITextField";
 import ExtensionBlock from "./ExtensionBlock";
+import DimensionsSummaryBar from "./DimensionsSummaryBar";
 import UnitThumbnailEditor from "./UnitThumbnailEditor";
 import type {
   UnitPage,
@@ -750,6 +751,11 @@ export default function LessonEditor({
                 onUpdate={handleUpdatePageContent}
               />
 
+              {/* ─── Dimensions Summary Bar ─── */}
+              {pageContent?.sections && pageContent.sections.length > 0 && (
+                <DimensionsSummaryBar sections={pageContent.sections} />
+              )}
+
               {/* ─── Opening Phase ─── */}
               {phases && (
                 <div id="phase-opening">
@@ -972,19 +978,40 @@ export default function LessonEditor({
                       </AnimatePresence>
                     </Reorder.Group>
 
-                    {/* Activity duration summary */}
+                    {/* Activity duration summary + timeWeight distribution */}
                     {pageContent.sections.length > 0 && (
-                      <div className="text-xs text-gray-400 text-right py-1">
-                        Activities total: {activityTotalMinutes} min
-                        {phases?.workTime.durationMinutes &&
-                          activityTotalMinutes > phases.workTime.durationMinutes && (
-                            <span className="text-red-500 ml-1">
-                              (over by{" "}
-                              {activityTotalMinutes -
-                                phases.workTime.durationMinutes}{" "}
-                              min)
-                            </span>
-                          )}
+                      <div className="text-xs text-gray-400 text-right py-1 space-y-0.5">
+                        <div>
+                          Activities total: {activityTotalMinutes} min
+                          {phases?.workTime.durationMinutes &&
+                            activityTotalMinutes > phases.workTime.durationMinutes && (
+                              <span className="text-red-500 ml-1">
+                                (over by{" "}
+                                {activityTotalMinutes -
+                                  phases.workTime.durationMinutes}{" "}
+                                min)
+                              </span>
+                            )}
+                        </div>
+                        {/* TimeWeight distribution */}
+                        {(() => {
+                          const weights = pageContent.sections.reduce((acc, s) => {
+                            if (s.timeWeight) acc[s.timeWeight] = (acc[s.timeWeight] || 0) + 1;
+                            return acc;
+                          }, {} as Record<string, number>);
+                          const total = Object.values(weights).reduce((a, b) => a + b, 0);
+                          if (total === 0) return null;
+                          const icons: Record<string, string> = { quick: "⚡", moderate: "📐", extended: "🔬", flexible: "🔄" };
+                          return (
+                            <div className="flex items-center justify-end gap-2">
+                              {Object.entries(weights).map(([w, count]) => (
+                                <span key={w} className="inline-flex items-center gap-0.5">
+                                  {icons[w]} {count}
+                                </span>
+                              ))}
+                            </div>
+                          );
+                        })()}
                       </div>
                     )}
 
