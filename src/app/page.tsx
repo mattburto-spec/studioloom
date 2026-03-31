@@ -96,14 +96,31 @@ function MockTeach() {
 
 function MockStudentWork() {
   return (
-    <div className="rounded-2xl overflow-hidden shadow-lg">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src="https://images.unsplash.com/photo-1744809495173-217ca4faa8bc?w=800&q=80&fit=crop&crop=center"
-        alt="Student carefully drawing with a ruler, deeply focused on their design work"
-        className="w-full h-[320px] md:h-[400px] object-cover"
-        loading="lazy"
-      />
+    <div className="relative rounded-2xl overflow-hidden shadow-lg">
+      {/* Discovery station backgrounds strip */}
+      <div className="grid grid-cols-2 grid-rows-2 h-[320px] md:h-[400px]">
+        {/* eslint-disable @next/next/no-img-element */}
+        <img src="/discovery/backgrounds/s1-campfire.webp" alt="" className="w-full h-full object-cover" loading="lazy" />
+        <img src="/discovery/backgrounds/s3-collection.webp" alt="" className="w-full h-full object-cover" loading="lazy" />
+        <img src="/discovery/backgrounds/s6-crossroads.webp" alt="" className="w-full h-full object-cover" loading="lazy" />
+        <img src="/discovery/backgrounds/s7-launchpad.webp" alt="" className="w-full h-full object-cover" loading="lazy" />
+        {/* eslint-enable @next/next/no-img-element */}
+      </div>
+      {/* Soft overlay to unify the panels */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/20 pointer-events-none" />
+      {/* Kit mentor avatar — centred circle */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10">
+        <div className="w-28 h-28 md:w-36 md:h-36 rounded-full border-4 border-white shadow-xl overflow-hidden bg-purple-100">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/discovery/kit/encouraging.png" alt="Kit, your AI design mentor" className="w-full h-full object-cover" loading="lazy" />
+        </div>
+      </div>
+      {/* Label */}
+      <div className="absolute bottom-4 left-0 right-0 text-center z-10">
+        <span className="inline-block px-4 py-1.5 rounded-full bg-white/90 backdrop-blur-sm text-xs font-semibold text-gray-700 shadow-sm">
+          AI Mentor &middot; 8 Discovery Stations &middot; 42 Thinking Tools
+        </span>
+      </div>
     </div>
   );
 }
