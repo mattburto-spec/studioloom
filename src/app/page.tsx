@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { WaveDivider } from "@/components/ui/WaveDivider";
 import AnimatedJourneyPhase from "@/components/landing/AnimatedJourneyPhase";
-import ProcessSteps from "@/components/landing/ProcessSteps";
+// ProcessSteps removed from hero — style now used as phase pills on each section
 
 /* ------------------------------------------------------------------ */
 /*  SVG icon helpers (no lucide-react in project)                      */
@@ -292,25 +292,21 @@ export default function Home() {
               </Link>
             </div>
 
-            {/* spacer — process steps are below */}
           </div>
 
-          {/* Process steps — large colored pills */}
-          <div className="relative z-10 max-w-3xl mx-auto mt-14 px-4">
-            <ProcessSteps />
-            <div className="flex items-center justify-center gap-6 mt-6 text-xs text-white/30">
-              <span>8+ Frameworks</span>
-              <span className="text-white/15">|</span>
-              <span>42 Thinking Tools</span>
-              <span className="text-white/15">|</span>
-              <span>Built for how teachers actually teach</span>
-            </div>
+          {/* Stats bar */}
+          <div className="flex items-center justify-center gap-6 mt-12 text-xs text-white/30">
+            <span>8+ Frameworks</span>
+            <span className="text-white/15">|</span>
+            <span>42 Thinking Tools</span>
+            <span className="text-white/15">|</span>
+            <span>Built for how teachers actually teach</span>
           </div>
         </section>
       </div>
 
       {/* Wave transition: dark hero → white content */}
-      <WaveDivider fillClass="fill-white" showAccent={false} className="-mt-1 gradient-hero" />
+      <WaveDivider fillClass="fill-white" showAccent={false} className="-mt-4 gradient-hero" />
 
 
       {/* ══════════════════════════════════════════════════════════════ */}
@@ -323,6 +319,7 @@ export default function Home() {
           <AnimatedJourneyPhase
             tag="Phase 1 — Plan"
             tagColor="text-purple-600"
+            pill={{ step: 1, label: "Plan", accent: "#a855f7", gradientFrom: "from-purple-500/30", gradientTo: "to-purple-600/10" }}
             headline="Start from a library of"
             headlineAccent="classroom-tested units."
             description="Hundreds of ready-to-go units built by real teachers for Design, Service, Capstone, Exhibition, and inquiry classrooms. Use one as-is, remix it for your context, or generate something entirely new with a unit builder that understands how to scaffold and extend students in project-based learning."
@@ -343,6 +340,7 @@ export default function Home() {
           <AnimatedJourneyPhase
             tag="Phase 2 — Deliver"
             tagColor="text-emerald-600"
+            pill={{ step: 2, label: "Deliver", accent: "#3b82f6", gradientFrom: "from-blue-500/30", gradientTo: "to-blue-600/10" }}
             headline="Every unit comes with"
             headlineAccent="the materials students actually use."
             description="Lessons arrive ready to present — multimedia content, multiple submission types, extensions for early finishers, and language scaffolding built in. Students work through rich, structured activities while the platform silently tracks writing integrity, time on task, and effort signals."
@@ -365,6 +363,7 @@ export default function Home() {
           <AnimatedJourneyPhase
             tag="Phase 3 — Students Work"
             tagColor="text-pink-600"
+            pill={{ step: 3, label: "Students Work", accent: "#ec4899", gradientFrom: "from-pink-500/30", gradientTo: "to-pink-600/10" }}
             headline="They own the process."
             headlineAccent="You see it happen."
             description="Students work through real challenges at their own pace — sketching, prototyping, testing, reflecting. A mentor scaffolds without over-helping. They discover their own projects. They earn independence. They build a real portfolio."
@@ -386,6 +385,7 @@ export default function Home() {
           <AnimatedJourneyPhase
             tag="Phase 4 — See Everything"
             tagColor="text-blue-600"
+            pill={{ step: 4, label: "See Everything", accent: "#6366f1", gradientFrom: "from-indigo-500/30", gradientTo: "to-indigo-600/10" }}
             headline="The data collects itself."
             description="No spreadsheets. No manual data entry. Writing behaviour, time on task, attempt history, pace feedback — all captured silently while students work. Smart Insights surfaces what matters: stuck students, stale unmarked work, integrity flags."
             bullets={[
@@ -406,6 +406,7 @@ export default function Home() {
           <AnimatedJourneyPhase
             tag="Phase 5 — Assess & Showcase"
             tagColor="text-violet-600"
+            pill={{ step: 5, label: "Assess & Showcase", accent: "#8b5cf6", gradientFrom: "from-violet-500/30", gradientTo: "to-violet-600/10" }}
             headline="From grading to gallery —"
             headlineAccent="the evidence is already there."
             description="Grade with the evidence the platform already collected. Students showcase through structured peer review rounds, not just submission. The portfolio is already built — because it captured their work as they did it."
