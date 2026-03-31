@@ -1414,7 +1414,7 @@ export default function ClassHubPage({
       {/* METRICS TAB (NM / Melbourne Metrics)                              */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {activeTab === "metrics" && (
-        <div className="max-w-5xl">
+        <div>
           {globalNmEnabled ? (
             <>
               <div className="mb-6">

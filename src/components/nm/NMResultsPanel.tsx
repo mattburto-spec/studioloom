@@ -95,28 +95,49 @@ export function NMResultsPanel({ unitId, classId }: NMResultsPanelProps) {
 
   const selfAssessments = assessments.filter(a => a.source === "student_self");
   const teacherObs = assessments.filter(a => a.source === "teacher_observation");
-  const studentIds = [...new Set(assessments.map(a => a.student_id))];
+  // Include ALL students from the API response (students map), not just those with assessments
+  const studentIds = useMemo(() => {
+    const fromAssessments = assessments.map(a => a.student_id);
+    const fromStudentsMap = Object.keys(students);
+    return [...new Set([...fromAssessments, ...fromStudentsMap])];
+  }, [assessments, students]);
   const elements = nmConfig?.elements || [];
+
+  // Pseudo page ID for teacher observations that have no checkpoint (e.g. from Teaching Mode)
+  const GENERAL_OBS_ID = "__general_obs__";
 
   const checkpointPageIds = useMemo(() => {
     if (!nmConfig?.checkpoints) return [];
     return Object.keys(nmConfig.checkpoints);
   }, [nmConfig]);
 
+  // Check if any teacher observations have null page_id (i.e. made from Teaching Mode without checkpoint)
+  const hasGeneralObs = useMemo(() => {
+    return teacherObs.some(a => !a.page_id || !checkpointPageIds.includes(a.page_id));
+  }, [teacherObs, checkpointPageIds]);
+
+  // All column IDs including the General column if needed
+  const allColumnIds = useMemo(() => {
+    return hasGeneralObs ? [...checkpointPageIds, GENERAL_OBS_ID] : checkpointPageIds;
+  }, [checkpointPageIds, hasGeneralObs]);
+
   // Build grid data: per student, per checkpoint → avg rating + has teacher obs
+  type CellData = {
+    selfAvg: number | null;
+    teacherAvg: number | null;
+    selfRatings: Record<string, number>;
+    teacherRatings: Record<string, number>;
+    selfComment: string | null;
+    teacherComment: string | null;
+    latestDate: string;
+  };
   const gridData = useMemo(() => {
-    const data: Record<string, Record<string, {
-      selfAvg: number | null;
-      teacherAvg: number | null;
-      selfRatings: Record<string, number>;
-      teacherRatings: Record<string, number>;
-      selfComment: string | null;
-      teacherComment: string | null;
-      latestDate: string;
-    }>> = {};
+    const data: Record<string, Record<string, CellData>> = {};
 
     for (const sid of studentIds) {
       data[sid] = {};
+
+      // Regular checkpoint columns
       for (const pid of checkpointPageIds) {
         const selfHere = selfAssessments.filter(a => a.student_id === sid && a.page_id === pid);
         const teacherHere = teacherObs.filter(a => a.student_id === sid && a.page_id === pid);
@@ -147,9 +168,34 @@ export function NMResultsPanel({ unitId, classId }: NMResultsPanelProps) {
           data[sid][pid] = { selfAvg, teacherAvg, selfRatings, teacherRatings, selfComment, teacherComment, latestDate };
         }
       }
+
+      // General observations column — teacher obs with null page_id or page_id not in checkpoints
+      if (hasGeneralObs) {
+        const generalTeacher = teacherObs.filter(a =>
+          a.student_id === sid && (!a.page_id || !checkpointPageIds.includes(a.page_id))
+        );
+        if (generalTeacher.length > 0) {
+          const teacherRatings: Record<string, number> = {};
+          let teacherComment: string | null = null;
+          let latestDate = "";
+          for (const a of generalTeacher) {
+            teacherRatings[a.element] = a.rating;
+            if (a.comment?.trim()) teacherComment = a.comment;
+            if (a.created_at > latestDate) latestDate = a.created_at;
+          }
+          const teacherVals = Object.values(teacherRatings);
+          const teacherAvg = teacherVals.length > 0 ? teacherVals.reduce((s, v) => s + v, 0) / teacherVals.length : null;
+          if (teacherVals.length > 0) {
+            data[sid][GENERAL_OBS_ID] = {
+              selfAvg: null, teacherAvg, selfRatings: {}, teacherRatings,
+              selfComment: null, teacherComment, latestDate,
+            };
+          }
+        }
+      }
     }
     return data;
-  }, [studentIds, checkpointPageIds, selfAssessments, teacherObs]);
+  }, [studentIds, checkpointPageIds, selfAssessments, teacherObs, hasGeneralObs]);
 
   // Sort students alphabetically
   const sortedStudents = useMemo(() => {
@@ -265,15 +311,16 @@ export function NMResultsPanel({ unitId, classId }: NMResultsPanelProps) {
                     }}>
                       Student
                     </th>
-                    {checkpointPageIds.map((pid, i) => (
+                    {allColumnIds.map((pid, i) => (
                       <th key={pid} style={{
                         padding: "8px 6px", textAlign: "center", fontWeight: 700,
                         fontFamily: "'Arial Black', sans-serif", fontSize: "10px",
-                        color: "#666", minWidth: "56px", maxWidth: "80px",
+                        color: pid === GENERAL_OBS_ID ? POP.hotPink : "#666",
+                        minWidth: "56px", maxWidth: "80px",
                       }}
-                        title={pageNames[pid] || `Checkpoint ${i + 1}`}
+                        title={pid === GENERAL_OBS_ID ? "Teacher observations (general)" : (pageNames[pid] || `Checkpoint ${i + 1}`)}
                       >
-                        {shortName(pid)}
+                        {pid === GENERAL_OBS_ID ? "General" : shortName(pid)}
                       </th>
                     ))}
                   </tr>
@@ -288,7 +335,7 @@ export function NMResultsPanel({ unitId, classId }: NMResultsPanelProps) {
                       }}>
                         {name}
                       </td>
-                      {checkpointPageIds.map(pid => {
+                      {allColumnIds.map(pid => {
                         const cell = gridData[sid]?.[pid];
                         const isActive = drillCell?.sid === sid && drillCell?.pid === pid;
 
@@ -378,7 +425,7 @@ export function NMResultsPanel({ unitId, classId }: NMResultsPanelProps) {
                       {drillStudentName}
                     </div>
                     <div style={{ fontSize: "12px", color: "#888" }}>
-                      {pageNames[drillCell.pid] || "Checkpoint"} · {formatDate(drillData.latestDate)}
+                      {drillCell.pid === GENERAL_OBS_ID ? "General observation" : (pageNames[drillCell.pid] || "Checkpoint")} · {formatDate(drillData.latestDate)}
                     </div>
                   </div>
                   <button
