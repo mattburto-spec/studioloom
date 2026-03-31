@@ -529,8 +529,6 @@ export default function TeachingDashboard({
         {/* ============================================================= */}
         <div style={{
           display: "flex", flexDirection: "column", gap: "20px",
-          overflowY: "auto", maxHeight: "calc(100vh - 112px)",
-          paddingBottom: "80px", // Room for fixed TeachingToolbar at bottom
         }}>
 
           {/* Phase Timer — dark glass with gradient border */}
