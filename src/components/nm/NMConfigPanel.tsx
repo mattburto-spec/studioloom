@@ -139,15 +139,9 @@ export function NMConfigPanel({
         transition: "box-shadow 0.2s",
       }}
     >
-      {/* Header — pop art pink bar */}
+      {/* Header — pop art pink bar with separated toggle and settings */}
       <div
-        onClick={() => setExpanded(!expanded)}
         style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "12px 16px",
-          cursor: "pointer",
           background: enabled ? "#FF2D78" : "#f5f5f5",
           position: "relative",
           overflow: "hidden",
@@ -159,54 +153,97 @@ export function NMConfigPanel({
             position: "absolute", inset: 0,
             backgroundImage: "radial-gradient(circle, rgba(255,255,255,0.15) 1.5px, transparent 1.5px)",
             backgroundSize: "8px 8px",
+            pointerEvents: "none",
           }} />
         )}
-        <div style={{ position: "relative", display: "flex", alignItems: "center", gap: "10px" }}>
-          <div style={{
-            width: "28px", height: "28px", borderRadius: "8px",
-            border: "2px solid #1a1a1a",
-            background: "#FFE135",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: "11px", fontWeight: 900, fontFamily: "'Arial Black', sans-serif",
-            boxShadow: "1px 1px 0 #1a1a1a",
-          }}>NM</div>
-          <h3 style={{
-            margin: 0, fontSize: "15px", fontWeight: 900,
-            fontFamily: "'Arial Black', 'Impact', sans-serif",
-            color: enabled ? "#fff" : "#1a1a1a",
-            textShadow: enabled ? "1px 1px 0 rgba(0,0,0,0.3)" : "none",
-          }}>
-            New Metrics
-          </h3>
-          {enabled && selectedElements.length > 0 && (
-            <span style={{
-              fontSize: "11px", fontWeight: 700, color: "rgba(255,255,255,0.9)",
-              background: "rgba(0,0,0,0.2)", padding: "2px 8px", borderRadius: "999px",
+
+        {/* Top row: NM badge + title + stats + toggle */}
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "12px 16px", position: "relative",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <div style={{
+              width: "28px", height: "28px", borderRadius: "8px",
+              border: "2px solid #1a1a1a",
+              background: "#FFE135",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: "11px", fontWeight: 900, fontFamily: "'Arial Black', sans-serif",
+              boxShadow: "1px 1px 0 #1a1a1a",
+            }}>NM</div>
+            <h3 style={{
+              margin: 0, fontSize: "15px", fontWeight: 900,
+              fontFamily: "'Arial Black', 'Impact', sans-serif",
+              color: enabled ? "#fff" : "#1a1a1a",
+              textShadow: enabled ? "1px 1px 0 rgba(0,0,0,0.3)" : "none",
             }}>
-              {selectedElements.length} elements · {checkpointCount} checkpoint{checkpointCount !== 1 ? "s" : ""}
-            </span>
-          )}
+              New Metrics
+            </h3>
+            {enabled && selectedElements.length > 0 && (
+              <span style={{
+                fontSize: "11px", fontWeight: 700, color: "rgba(255,255,255,0.9)",
+                background: "rgba(0,0,0,0.2)", padding: "2px 8px", borderRadius: "999px",
+              }}>
+                {selectedElements.length} elements · {checkpointCount} checkpoint{checkpointCount !== 1 ? "s" : ""}
+              </span>
+            )}
+          </div>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setEnabled(!enabled);
+              if (!enabled) { setExpanded(true); setStep("competency"); }
+            }}
+            style={{
+              position: "relative", width: "44px", height: "24px", borderRadius: "999px",
+              border: "2px solid #1a1a1a", background: enabled ? "#FFE135" : "#d1d5db",
+              cursor: "pointer", padding: 0,
+            }}
+          >
+            <div style={{
+              position: "absolute", top: "1px", left: enabled ? "20px" : "1px",
+              width: "18px", height: "18px", borderRadius: "999px",
+              background: enabled ? "#1a1a1a" : "white",
+              border: "1px solid #1a1a1a",
+              transition: "left 0.2s",
+            }} />
+          </button>
         </div>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setEnabled(!enabled);
-            if (!enabled) { setExpanded(true); setStep("competency"); }
-          }}
-          style={{
-            position: "relative", width: "44px", height: "24px", borderRadius: "999px",
-            border: "2px solid #1a1a1a", background: enabled ? "#FFE135" : "#d1d5db",
-            cursor: "pointer", padding: 0,
-          }}
-        >
-          <div style={{
-            position: "absolute", top: "1px", left: enabled ? "20px" : "1px",
-            width: "18px", height: "18px", borderRadius: "999px",
-            background: enabled ? "#1a1a1a" : "white",
-            border: "1px solid #1a1a1a",
-            transition: "left 0.2s",
-          }} />
-        </button>
+
+        {/* Settings row — only when enabled */}
+        {enabled && (
+          <button
+            onClick={() => setExpanded(!expanded)}
+            style={{
+              display: "flex", alignItems: "center", gap: "6px",
+              width: "100%", padding: "6px 16px 10px",
+              border: "none", background: "transparent",
+              cursor: "pointer", position: "relative",
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+            <span style={{
+              fontSize: "12px", fontWeight: 700, color: "rgba(255,255,255,0.85)",
+              fontFamily: "'Arial Black', sans-serif",
+              letterSpacing: "0.3px",
+            }}>
+              Settings
+            </span>
+            <svg
+              width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke="rgba(255,255,255,0.85)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+              style={{
+                transition: "transform 0.2s",
+                transform: expanded ? "rotate(180deg)" : "rotate(0deg)",
+              }}
+            >
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+        )}
       </div>
 
       {/* Wizard content */}
