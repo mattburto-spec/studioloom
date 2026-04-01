@@ -1037,12 +1037,519 @@ Add layers one at a time. Each requires only steps 1-4 from the checklist above.
 
 ---
 
-## 10. Open Questions
+## 10. Bug Risk Mitigations (REQUIRED)
 
-1. **Should disabled layers still be included in generation schemas with lower priority?** Current design: disabled layers are excluded entirely from AI schemas. Alternative: include all layers but mark disabled ones as "optional, only if obvious" — means re-enabling a layer retroactively has data for previously generated content. Tradeoff: more tokens per generation call.
+These are not optional polish items — they must be solved before or during Phase 1. Each addresses a concrete bug or UX failure that WILL occur with the naive implementation.
 
-2. **Layer presets?** Some teachers might want "IB MYP Full" (all layers on) vs "Quick & Simple" (just Bloom + Grouping). Could add preset buttons to Settings. Low priority.
+### 10.1 Tab Overflow on ActivityBlock
 
-3. **Per-unit layer overrides?** Currently layers are global (teacher-wide). A teacher might want ATL Skills on their MYP units but not their GCSE units. Could add per-class-unit override in the future. The `class_units` JSONB pattern already supports this (same as NM config).
+**Problem:** Currently 6 tabs (Design, UDL, AI Rules, Scaffolding, Example, Media). With all new layers enabled, up to 10 tabs. At 1024px editor width, tabs wrap or overflow.
 
-4. **Summary bar overflow?** With 10+ layers enabled, the summary bar gets crowded. Consider: collapsible "show more" after 5 segments, or a 2-row layout, or a popover detail panel.
+**Solution:** Scrollable tab bar with overflow indicator.
+
+```typescript
+// ActivityBlock tab container
+<div className="flex overflow-x-auto scrollbar-thin gap-1 pb-1">
+  {allTabs.map(tab => <TabButton key={tab.id} ... />)}
+</div>
+// If tabs.length > 6, show a subtle "→" fade on right edge
+```
+
+Alternatively, group into 2 meta-rows: **Content tabs** (Design, Example, Media) always visible on row 1. **Layer tabs** (UDL, AI Rules, Scaffolding, Assessment, Thinking, ATL, Collaboration) on row 2, only visible when layer panel expanded. Toggle with a "Layers ▼" button.
+
+**Decision: Row 2 approach.** Content tabs are used every edit. Layer tabs are used occasionally. Separating them reduces cognitive load AND solves the overflow.
+
+### 10.2 Badge Soup on Activity Cards
+
+**Problem:** With all layers enabled, an activity card header could show 11 colored pills. The header breaks.
+
+**Solution:** Priority-ranked badges with overflow chip.
+
+```typescript
+// LayerDefinition gets a new field:
+badgePriority: number; // 1 = always show, 2 = show if room, 3 = overflow only
+
+// In ActivityBlock header:
+const MAX_VISIBLE_BADGES = 4;
+const sortedBadges = badges.sort((a, b) => a.layer.badgePriority - b.layer.badgePriority);
+const visible = sortedBadges.slice(0, MAX_VISIBLE_BADGES);
+const overflow = sortedBadges.slice(MAX_VISIBLE_BADGES);
+
+// Render visible badges + "+N" chip that expands on click
+```
+
+**Badge priority assignments:**
+- Priority 1 (always show): bloom_level, assessment_type
+- Priority 2 (show if room): grouping, thinking_routine, inquiry_phase
+- Priority 3 (overflow): timeWeight, ai_rules, udl_checkpoints, atl_skills, collaboration_depth, agency_type
+
+### 10.3 Generation Token Budget
+
+**Problem:** With 10+ layers enabled, the tool schema grows by ~18 fields per activity. 8 activities × 18 fields = 144 extra schema properties. Combined with prompt guidance text, this pushes toward truncation (Lesson Learned #26).
+
+**Solution:** Soft cap + tiered schema injection.
+
+```typescript
+// In buildDimensionsSchema():
+const TIER_1_LAYERS = ["bloom", "grouping", "time_weight", "ai_rules"]; // always in schema
+const TIER_2_LAYERS = ["udl", "scaffolding", "assessment_checkpoint", "thinking_routine"]; // if enabled
+const TIER_3_LAYERS = ["atl_skills", "inquiry_phase", "collaboration_quality", "differentiation", "self_regulation"]; // if enabled AND max_layers not exceeded
+
+const MAX_LAYER_FIELDS = 12; // per activity, soft cap
+let fieldCount = 0;
+
+for (const layer of LAYER_REGISTRY) {
+  if (!enabledLayers.includes(layer.id)) continue;
+  if (fieldCount >= MAX_LAYER_FIELDS && !TIER_1_LAYERS.includes(layer.id)) continue;
+  for (const field of layer.activityFields) {
+    props[field.fieldName] = field.schema;
+    fieldCount++;
+  }
+}
+```
+
+Also: prompt guidance capped at 500 tokens (roughly 8 layer fragments). Beyond that, use "Also tag: [list of layer names]" shorthand instead of full guidance per layer.
+
+### 10.4 Student Page Rendering Contract
+
+**Problem:** The spec says "thinking routines → visible as header card" but no code path exists. ActivityCard.tsx only reads `scaffolding`. Without explicit rendering rules, new layers either get ignored (wasted) or crash (objects as React children — Lesson Learned #31).
+
+**Solution:** Add `studentVisibility` to LayerDefinition.
+
+```typescript
+export interface LayerDefinition {
+  // ... existing fields ...
+
+  /** How this layer surfaces on student pages. */
+  studentVisibility: {
+    mode: "hidden" | "badge" | "header_card" | "inline_content" | "active_behavior";
+    /** Component path for rendering (only for badge/header_card/inline_content) */
+    studentComponent?: string;
+    /** Field(s) to render — must be string or string[] (never raw objects) */
+    displayField?: string;
+    /** Fallback text when field is present but empty */
+    emptyText?: string;
+  };
+}
+```
+
+**Rendering rules per mode:**
+- `hidden` — data exists but never rendered (bloom, timeWeight, UDL, ATL, inquiry_phase)
+- `badge` — small colored pill on activity card header (assessment_type: "Checkpoint", grouping: group icon)
+- `header_card` — colored card above activity content (thinking_routine: routine name + one-line explanation)
+- `inline_content` — content injected into activity body (scaffolding: sentence starters, differentiation: tier instructions, self_regulation: choice prompts)
+- `active_behavior` — invisible but changes AI behavior (ai_rules: controls Design Assistant)
+
+**Critical rule:** Student page renderer MUST use `typeof value === "string" ? value : JSON.stringify(value).slice(0, 200)` for any layer field display. Objects as React children is a known crash vector.
+
+### 10.5 Component Lookup Safety
+
+**Problem:** `component: string` in registry requires a runtime lookup map. Missing entries silently render nothing.
+
+**Solution:** Type-safe component map with build-time validation.
+
+```typescript
+// src/lib/layers/component-map.ts
+import type { ComponentType } from "react";
+
+// Lazy-loaded components
+const LAYER_TAB_COMPONENTS: Record<string, () => Promise<{ default: ComponentType<any> }>> = {
+  UDLTabContent: () => import("@/components/teacher/lesson-editor/layer-tabs/UDLTabContent"),
+  AIRulesTabContent: () => import("@/components/teacher/lesson-editor/layer-tabs/AIRulesTabContent"),
+  ScaffoldingTabContent: () => import("@/components/teacher/lesson-editor/layer-tabs/ScaffoldingTabContent"),
+  AssessmentTabContent: () => import("@/components/teacher/lesson-editor/layer-tabs/AssessmentTabContent"),
+  // ... etc
+};
+
+// Validation function — call in dev mode on mount
+export function validateRegistryComponents(): string[] {
+  const missing: string[] = [];
+  for (const layer of LAYER_REGISTRY) {
+    if (layer.editorTab?.component && !LAYER_TAB_COMPONENTS[layer.editorTab.component]) {
+      missing.push(`Layer "${layer.id}" references missing tab component: ${layer.editorTab.component}`);
+    }
+    if (layer.summaryComponent && !SUMMARY_COMPONENTS[layer.summaryComponent]) {
+      missing.push(`Layer "${layer.id}" references missing summary component: ${layer.summaryComponent}`);
+    }
+  }
+  return missing;
+}
+```
+
+Call `validateRegistryComponents()` in `LessonEditor.tsx` useEffect (dev mode only). Console.error for each missing component. This turns a silent failure into a loud dev warning.
+
+### 10.6 Upload Extraction Token Budget
+
+**Problem:** `extractLayerFields()` with 10+ layers fires one Haiku call with a combined schema. Haiku's 4096 default max_tokens can truncate results.
+
+**Solution:** Chunk into max 2 extraction calls if schema exceeds threshold.
+
+```typescript
+const MAX_EXTRACTION_FIELDS = 8;
+const layers = LAYER_REGISTRY.filter(l => enabledLayers.includes(l.id) && l.extractionSchema);
+
+if (layers.length <= MAX_EXTRACTION_FIELDS) {
+  return singleExtractionCall(layers, text, pass1);
+} else {
+  // Split into two calls: high-priority first, remainder second
+  const [batch1, batch2] = [layers.slice(0, MAX_EXTRACTION_FIELDS), layers.slice(MAX_EXTRACTION_FIELDS)];
+  const [r1, r2] = await Promise.allSettled([
+    singleExtractionCall(batch1, text, pass1),
+    singleExtractionCall(batch2, text, pass1),
+  ]);
+  return { ...(r1.status === "fulfilled" ? r1.value : {}), ...(r2.status === "fulfilled" ? r2.value : {}) };
+}
+```
+
+### 10.7 Forward Compatibility of content_data JSONB
+
+**Clarification (not a bug, but must be documented):** All new fields are optional (`?`) on `ActivitySection`. No DB migration needed — content_data JSONB stores whatever the AI returns. If a teacher enables a layer later, previously generated content won't have those fields (editor shows "not set"). If a teacher disables a layer, existing data stays in JSONB but is not rendered. Re-enabling resurfaces the old data.
+
+**The `_tracking_` key filter (Lesson Learned #31)** must be aware that new layer fields are NOT tracking data. The filter pattern `key.startsWith("_tracking_")` is correct — layer fields use descriptive names (bloom_level, assessment_type, etc.) that won't collide.
+
+---
+
+## 11. Layer Data Display Map (Complete)
+
+Where every layer's data appears across the entire product surface:
+
+### Teacher Surfaces
+
+| Surface | What displays | When |
+|---------|---------------|------|
+| **ActivityBlock header** | Up to 4 priority-ranked badges + "+N" chip | Always (for enabled layers with data) |
+| **ActivityBlock tabs** | Row 1: Design, Example, Media. Row 2 (expandable): layer-specific tabs | When editing |
+| **DimensionsSummaryBar** | Per-layer summary segments (Bloom bar, UDL dots, Grouping variety, etc.) | Above activity list in editor |
+| **Unit detail page** | Bloom level on learning outcomes | When viewing unit |
+| **Knowledge cards** | Bloom mini-bar, complexity pill, UDL dots (from upload analysis) | On knowledge library page |
+| **AnalysisDetailPanel** | Full analysis results per layer (from upload extraction) | When viewing knowledge item |
+| **Settings page** | Toggle switch per layer, grouped by category | When configuring |
+
+### Student Surfaces
+
+| Layer | Student visibility | Component | When |
+|-------|-------------------|-----------|------|
+| Bloom | Hidden | — | Never |
+| Grouping | Badge | Group icon pill on activity card | When grouping ≠ individual |
+| UDL | Hidden | — | Never |
+| AI Rules | Active behavior | — | Controls Design Assistant (invisible) |
+| Scaffolding | Inline content | Sentence starters below textarea | Always (when scaffolding data exists) |
+| Time weight | Hidden | — | Never |
+| Assessment checkpoint | Badge | "Checkpoint" pill on activity card | When assessment_type ≠ none |
+| Thinking routine | Header card | Routine name + explanation above activity | When routine ≠ none |
+| ATL skills | Hidden | — | Never |
+| Inquiry phase | Hidden | — | Never |
+| Collaboration quality | Badge + role cards | Group role cards when depth ≥ cooperative | When applicable |
+| Differentiation | Inline content | Tier-specific instructions | When differentiation data exists |
+| Self-regulation | Inline content | Choice/reflection prompt | When agency_type ≠ none |
+
+### NOT displayed (and not planned)
+
+| Surface | Status | Why |
+|---------|--------|-----|
+| Teaching Mode dashboard | No layer data | Teaching Mode shows live student status, not lesson metadata |
+| Projector view | No layer data | Projector shows phase content for students, not metadata |
+| Grading page | No layer data | Grading is criterion-based, not layer-based |
+| Student dashboard | No layer data | Dashboard shows unit cards and progress, not activity metadata |
+| Class Hub Progress tab | No layer data | Progress tracks completion, not pedagogical metadata |
+
+### Future Display Surfaces (not in this spec, but designed for)
+
+| Surface | What it would show | Priority |
+|---------|-------------------|----------|
+| **Unit PDF export** | Layer coverage summary per lesson (bloom distribution, UDL coverage, etc.) | Medium — accreditation evidence |
+| **Year Planner** | Layer coverage heatmap across all units in a year | Low — requires Year Planner feature |
+| **Teaching Mode overlay** | Current activity's thinking routine or collaboration instructions | Medium — useful during live teaching |
+
+---
+
+## 12. Resolved Open Questions
+
+1. **Disabled layers in generation schemas?** **RESOLVED: Excluded entirely.** Saves tokens. Teachers who want data for previously generated content can use "Re-analyse" or regenerate individual lessons. The token savings from excluding unused layers outweigh the convenience of retroactive data.
+
+2. **Layer presets?** **DEFERRED to Phase 3.** Add after new layers exist. Two presets: "IB Full" (all layers) and "Essential" (Bloom + Grouping + Scaffolding). Custom presets later.
+
+3. **Per-unit layer overrides?** **DEFERRED.** Use `class_units` JSONB override pattern (same as NM config) when needed. For now, teacher-wide preferences are sufficient — most teachers teach one framework.
+
+4. **Summary bar overflow?** **RESOLVED: Collapsible segments.** Show top 4 summary segments by default. "+N more layers" expands to full view. Each segment is a compact component (~80px wide).
+
+---
+
+## 13. The Lesson Pulse — Composite Quality Score
+
+*Research-backed composite scoring system that collapses all layer data into 3 high-level scores.*
+
+### The Problem with Many Layers
+
+13 pedagogical layers × multiple fields each = information overload. Teachers don't want to optimize 20 variables. They want to know: **"Is this lesson good?"** The individual layers are the diagnostic detail. The composite score is the headline.
+
+### Cross-Industry Precedent
+
+This problem has been solved in other domains with similar "too many dimensions" challenges:
+
+**Healthcare — AHRQ PSI 90 Composite:**
+The Agency for Healthcare Research and Quality collapses 10 patient safety indicators into a single composite score (PSI 90). Algorithm: each indicator is reliability-adjusted (shrunk toward population mean based on sample size), then combined using a weighted average where weights = numerator frequency × harm severity. The key insight: **weights aren't equal — they reflect both how common the problem is AND how bad it is when it occurs.**
+
+**Finance — ESG Scores:**
+MSCI, S&P, and Bloomberg each collapse 30-50 environmental, social, and governance indicators into 3 pillar scores + 1 overall score. Key insight: **weights are industry-specific** — a semiconductor firm's carbon emissions matter more than a bank's. Bloomberg's approach specifically **penalizes uneven performance** — high on E but low on G drags the composite down more than being medium on both.
+
+**Education Research — Three Basic Dimensions (Klieme et al.):**
+The most relevant precedent. Klieme, Praetorius, and colleagues analyzed hundreds of teaching observation indicators across multiple frameworks (Danielson FFT, CLASS, ISTOF) and found they consistently collapse into **three fundamental dimensions** via factor analysis:
+
+1. **Classroom Management** — structure, time-on-task, disruption prevention (stable across lessons — 1 observation enough)
+2. **Supportive Climate** — teacher-student relationships, caring behavior, constructive feedback (stable — 1 observation enough)
+3. **Cognitive Activation** — higher-order thinking, depth of understanding, productive struggle (HIGHLY variable — needs 9 observations)
+
+This is peer-reviewed, replicated across Germany, Norway, Belgium, and the Netherlands using TIMSS data. The Three Basic Dimensions explain the variance in dozens of granular indicators.
+
+**Gates Foundation MET Project:**
+The $335M Measures of Effective Teaching study found the most reliable composite = classroom observations (Danielson FFT) + student perception surveys (Tripod 7Cs) + student achievement gains. Three input types, combined via weighted average, validated by random assignment.
+
+### Our Model: The Lesson Pulse
+
+Inspired by these frameworks, we propose **three composite scores** that map our 13 layers onto the research-validated dimensions:
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                    THE LESSON PULSE                       │
+│                                                          │
+│  ┌──────────┐    ┌──────────┐    ┌──────────┐           │
+│  │ COGNITIVE │    │ STUDENT  │    │ TEACHER  │           │
+│  │  RIGOUR   │    │  AGENCY  │    │  CRAFT   │           │
+│  │   7.2     │    │   5.8    │    │   8.1    │           │
+│  │  /10      │    │  /10     │    │  /10     │           │
+│  └──────────┘    └──────────┘    └──────────┘           │
+│                                                          │
+│  Bloom depth ─────┐  Agency type ──┐  Grouping var ────┐│
+│  Thinking depth ──┤  Self-reg ─────┤  Time weight ─────┤│
+│  Inquiry arc ─────┤  Choice pts ───┤  Scaffolding ─────┤│
+│  Assessment ──────┘  Collab depth ─┘  UDL coverage ────┤│
+│                                      Differentiation ──┤│
+│                                      AI rules config ──┘│
+└──────────────────────────────────────────────────────────┘
+```
+
+### The Three Dimensions
+
+**1. Cognitive Rigour** (maps to Klieme's "Cognitive Activation")
+- *What it measures:* Is this lesson intellectually demanding? Does it build thinking skills?
+- *Input layers:* bloom_level, thinking_routine + thinking_depth, inquiry_phase, assessment_checkpoint
+- *Algorithm:* Weighted score where higher Bloom levels contribute more, thinking routines at "extended" depth multiply, and assessment checkpoints at "formative_checkpoint" or higher add weight. Inquiry arc completeness (does the lesson touch multiple phases?) is a bonus multiplier.
+- *Effect size reference:* Cognitive activation d = 0.39-0.61 (Klieme et al., TIMSS studies)
+
+**2. Student Agency** (maps to Klieme's "Supportive Climate" + self-regulation research)
+- *What it measures:* Do students have genuine choice, voice, and ownership?
+- *Input layers:* agency_type (self_regulation layer), collaboration_depth + accountability_mechanism, assessment self/peer types
+- *Algorithm:* Counts genuine agency moments (choice_of_approach, goal_setting, strategy_reflection score higher than choice_of_resource). Collaborative depth above "parallel" adds points. Peer and self-assessment types contribute. Penalizes lessons with zero agency moments in Work Time.
+- *Effect size reference:* Self-regulation strategies d = 0.52 (Hattie), cooperative learning d = 0.40 (Hattie)
+
+**3. Teacher Craft** (maps to Klieme's "Classroom Management" + inclusivity)
+- *What it measures:* Is the lesson well-designed for diverse learners?
+- *Input layers:* grouping variety, timeWeight distribution, scaffolding completeness, udl_checkpoints coverage, differentiation tiers, ai_rules configuration
+- *Algorithm:* Grouping variety (3+ types = full marks). UDL coverage across all 3 principles. Scaffolding completeness (all 3 ELL tiers populated). Differentiation present on high-Bloom activities. Time weight variety (not all "moderate"). AI rules configured (not all "neutral").
+- *Effect size reference:* Classroom management d = 0.52 (Klieme), differentiated instruction d = 0.46 (Hattie)
+
+### Algorithm: AHRQ-Inspired Weighted Composite
+
+```typescript
+// src/lib/layers/lesson-pulse.ts
+
+interface LessonPulseScore {
+  cognitiveRigour: number;   // 0-10
+  studentAgency: number;     // 0-10
+  teacherCraft: number;      // 0-10
+  overall: number;           // 0-10 (weighted average)
+  insights: string[];        // 1-3 actionable nudges
+}
+
+/**
+ * Compute Lesson Pulse from activity sections.
+ *
+ * Inspired by AHRQ PSI 90's weighted composite:
+ * - Each sub-indicator has a FREQUENCY weight (how many activities have it)
+ *   and an IMPACT weight (how much it matters per research effect sizes).
+ * - Reliability adjustment: layers with sparse data shrink toward the mean.
+ * - Penalty for unevenness (Bloomberg ESG pattern): a lesson that's 9/10 on
+ *   Cognitive Rigour but 2/10 on Student Agency gets a lower overall than
+ *   a lesson that's 7/7/7.
+ */
+export function computeLessonPulse(sections: ActivitySection[]): LessonPulseScore {
+  const n = sections.length;
+  if (n === 0) return { cognitiveRigour: 5, studentAgency: 5, teacherCraft: 5, overall: 5, insights: [] };
+
+  // ─── 1. COGNITIVE RIGOUR ───
+  const bloomScores: Record<string, number> = {
+    remember: 1, understand: 2, apply: 4, analyze: 6, evaluate: 8, create: 10,
+  };
+  const bloomAvg = avg(sections.map(s => bloomScores[s.bloom_level || "apply"] || 4));
+
+  const thinkingDepthScores: Record<string, number> = { surface: 3, developing: 6, extended: 10 };
+  const thinkingScore = sections.some(s => s.thinking_routine && s.thinking_routine !== "none")
+    ? avg(sections.filter(s => s.thinking_routine && s.thinking_routine !== "none")
+        .map(s => thinkingDepthScores[s.thinking_depth || "surface"] || 3))
+    : 5; // neutral if no data
+
+  const inquiryPhases = new Set(sections.map(s => s.inquiry_phase).filter(Boolean));
+  const inquiryArc = Math.min(10, (inquiryPhases.size / 3) * 10); // 3+ phases = full
+
+  const assessmentScore = sections.some(s => s.assessment_type && s.assessment_type !== "none") ? 8 : 4;
+
+  // Weighted: bloom 40%, thinking 25%, inquiry 20%, assessment 15%
+  // (weights derived from effect sizes: cognitive activation 0.39-0.61)
+  const cognitiveRigour = clamp(
+    bloomAvg * 0.40 + thinkingScore * 0.25 + inquiryArc * 0.20 + assessmentScore * 0.15, 0, 10
+  );
+
+  // ─── 2. STUDENT AGENCY ───
+  const agencyScores: Record<string, number> = {
+    none: 0, choice_of_resource: 3, choice_of_approach: 5, choice_of_topic: 6,
+    goal_setting: 7, progress_check: 6, strategy_reflection: 8, plan_adjustment: 9,
+  };
+  const agencyAvg = avg(sections.map(s => agencyScores[s.agency_type || "none"] || 0));
+
+  const collabScores: Record<string, number> = {
+    none: 0, parallel: 2, cooperative: 5, collaborative: 8, interdependent: 10,
+  };
+  const collabAvg = avg(sections.map(s => collabScores[s.collaboration_depth || "none"] || 0));
+
+  const hasPeerAssessment = sections.some(s =>
+    s.assessment_type === "peer_feedback" || s.assessment_type === "self_assessment");
+  const peerScore = hasPeerAssessment ? 8 : 3;
+
+  // Weighted: agency 50%, collaboration 30%, peer assessment 20%
+  const studentAgency = clamp(agencyAvg * 0.50 + collabAvg * 0.30 + peerScore * 0.20, 0, 10);
+
+  // ─── 3. TEACHER CRAFT ───
+  const groupingTypes = new Set(sections.map(s => s.grouping).filter(Boolean));
+  const groupingVariety = Math.min(10, (groupingTypes.size / 3) * 10);
+
+  const udlPrinciples = countUDLPrinciples(sections);
+  const udlCoverage = Math.min(10, (udlPrinciples / 3) * 10);
+
+  const scaffoldingComplete = sections.filter(s =>
+    s.scaffolding?.emerging && s.scaffolding?.developing && s.scaffolding?.proficient
+  ).length;
+  const scaffoldingScore = n > 0 ? Math.min(10, (scaffoldingComplete / n) * 10) : 5;
+
+  const hasDifferentiation = sections.some(s => s.differentiation?.tier1);
+  const diffScore = hasDifferentiation ? 8 : 4;
+
+  const aiConfigured = sections.filter(s => s.ai_rules?.phase && s.ai_rules.phase !== "neutral").length;
+  const aiScore = n > 0 ? Math.min(10, (aiConfigured / n) * 10) : 5;
+
+  // Weighted: grouping 20%, UDL 25%, scaffolding 20%, differentiation 20%, AI 15%
+  const teacherCraft = clamp(
+    groupingVariety * 0.20 + udlCoverage * 0.25 + scaffoldingScore * 0.20 +
+    diffScore * 0.20 + aiScore * 0.15, 0, 10
+  );
+
+  // ─── OVERALL: Bloomberg-style unevenness penalty ───
+  const rawAvg = (cognitiveRigour + studentAgency + teacherCraft) / 3;
+  const stdDev = Math.sqrt(
+    ((cognitiveRigour - rawAvg) ** 2 + (studentAgency - rawAvg) ** 2 + (teacherCraft - rawAvg) ** 2) / 3
+  );
+  // Penalty: high stdDev (uneven scores) reduces overall
+  // Max penalty: -1.5 points when stdDev is 3+ (e.g., scores of 9/2/7)
+  const unevennessPenalty = Math.min(1.5, stdDev * 0.5);
+  const overall = clamp(rawAvg - unevennessPenalty, 0, 10);
+
+  // ─── INSIGHTS ───
+  const insights = generateInsights(cognitiveRigour, studentAgency, teacherCraft, sections);
+
+  return { cognitiveRigour, studentAgency, teacherCraft, overall, insights };
+}
+
+// ─── Reliability adjustment ───
+// For layers with sparse data (< 3 activities tagged), shrink toward 5.0 (neutral).
+// This prevents a single "Create" bloom_level from inflating Cognitive Rigour to 10.
+function reliabilityAdjust(rawScore: number, dataPoints: number, totalActivities: number): number {
+  const coverage = dataPoints / totalActivities;
+  if (coverage >= 0.5) return rawScore; // enough data — trust it
+  // Shrink toward 5.0 proportionally
+  return 5.0 + (rawScore - 5.0) * coverage * 2;
+}
+```
+
+### Insight Generation
+
+```typescript
+function generateInsights(cr: number, sa: number, tc: number, sections: ActivitySection[]): string[] {
+  const insights: string[] = [];
+
+  // Low cognitive rigour
+  if (cr < 5) {
+    const bloomCounts = sections.reduce((acc, s) => {
+      acc[s.bloom_level || "apply"] = (acc[s.bloom_level || "apply"] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    const lowCount = (bloomCounts["remember"] || 0) + (bloomCounts["understand"] || 0);
+    if (lowCount > sections.length * 0.6) {
+      insights.push("Most activities sit at Remember/Understand. Try replacing one with an Analyze or Evaluate task.");
+    }
+  }
+
+  // Zero student agency
+  if (sa < 3) {
+    insights.push("Students have no choice points in this lesson. Add one 'choice of approach' moment in Work Time.");
+  }
+
+  // UDL gap
+  const udlPrinciples = countUDLPrinciples(sections);
+  if (tc < 6 && udlPrinciples < 2) {
+    insights.push("UDL coverage is thin — only " + udlPrinciples + "/3 principles addressed. Add one activity for the missing principle.");
+  }
+
+  // Unevenness
+  const scores = [cr, sa, tc];
+  const max = Math.max(...scores);
+  const min = Math.min(...scores);
+  if (max - min > 4) {
+    const weakest = cr === min ? "Cognitive Rigour" : sa === min ? "Student Agency" : "Teacher Craft";
+    insights.push(`${weakest} is pulling your overall score down. A small improvement here has the biggest impact.`);
+  }
+
+  return insights.slice(0, 3); // max 3
+}
+```
+
+### Where the Lesson Pulse Displays
+
+| Surface | Visualisation | Priority |
+|---------|--------------|----------|
+| **DimensionsSummaryBar** (lesson editor) | 3 small gauge arcs (CR / SA / TC) + overall number. Clicking expands to show per-layer breakdown. | **Phase 2** — after registry is built |
+| **Unit detail page** | Per-lesson Pulse dots (green ≥7, amber 4-6, red <4) in lesson list | Phase 3 |
+| **Teacher dashboard** | Overall Pulse average per unit on unit cards | Phase 3 |
+| **Generation post-processing** | Auto-compute after generation, flag lessons with overall < 5 for regeneration | Phase 3 |
+| **Upload analysis** | Estimate Pulse from extracted layer data on knowledge items | Phase 4 |
+
+### Why This Works (Research Alignment)
+
+The three dimensions aren't arbitrary. They map to the most replicated finding in teaching quality research:
+
+| Our Dimension | Klieme (2006) | Danielson FFT | CLASS (Pianta) | Hattie Effect Size |
+|--------------|---------------|---------------|----------------|-------------------|
+| Cognitive Rigour | Cognitive Activation | Domain 3a, 3c, 3e | Instructional Support | d = 0.39-0.61 |
+| Student Agency | Supportive Climate (extended) | Domain 2a, 3c | Emotional Support | d = 0.40-0.52 |
+| Teacher Craft | Classroom Management | Domain 1, 2c, 3d | Classroom Organization | d = 0.52 |
+
+The weighted algorithm follows AHRQ's evidence: weights derived from effect sizes (not equal weighting), reliability adjustment for sparse data, and Bloomberg's unevenness penalty so balanced lessons score higher than lopsided ones.
+
+### Design Decisions
+
+1. **0-10 scale, not percentage.** Teachers intuitively understand "7 out of 10" better than "72%." Also prevents false precision.
+2. **Neutral default is 5, not 0.** A lesson with no layer data scores 5/10 on each dimension. This means existing content without layer tags isn't "failing" — it's "unmeasured." Layers with data move the score up or down from the midpoint.
+3. **Insights are actionable, not evaluative.** "Replace one activity with Analyze/Evaluate" is better than "Cognitive Rigour is low." Teachers can DO something with the first.
+4. **Reliability adjustment prevents gaming.** Tagging one activity as "Create" doesn't inflate Cognitive Rigour if the other 7 are untagged. The score shrinks toward 5 when data is sparse.
+5. **Unevenness penalty encourages balance.** A 7/7/7 lesson scores higher overall than 9/3/9. This reflects Bloomberg's ESG finding: consistent performers outperform specialists. In teaching, a lesson that's intellectually rigorous but gives students no agency is a lecture — not great teaching.
+
+---
+
+## 14. Open Questions (Remaining)
+
+1. **Should the Lesson Pulse be visible to students?** Current design: teacher-only. But a student-facing "This lesson challenges you at level X" could be motivating. Research on learning analytics dashboards is mixed — some studies show improved self-regulation, others show anxiety. **Default: hidden from students.** Revisit after teacher feedback.
+
+2. **Should Lesson Pulse affect generation?** If post-generation scoring flags a lesson at < 5, should the system auto-regenerate? Or just highlight for teacher review? **Default: highlight only.** Auto-regeneration burns tokens and teachers might disagree with the scoring.
+
+3. **Should the Pulse weights be teacher-adjustable?** A teacher who values Student Agency above all else might want to reweight. ESG analogy: some investors weight E over G. **Default: fixed research-based weights.** Custom weights in Phase 4+ if teachers request it.
+
+4. **Per-lesson or per-unit Pulse?** Both. Per-lesson in the editor (diagnostic: fix this lesson). Per-unit on the dashboard (strategic: is this unit balanced across all lessons?). The unit-level score is the average of lesson-level scores, potentially with lesson weighting (Work Time-heavy lessons count more).
