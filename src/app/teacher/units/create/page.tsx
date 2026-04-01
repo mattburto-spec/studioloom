@@ -702,14 +702,27 @@ export default function CreateUnitWizardPage() {
               } else if (event.type === "quality_report" && event.qualityReport) {
                 dispatch({ type: "SET_QUALITY_REPORT", report: event.qualityReport });
               } else if (event.type === "error") {
-                dispatch({ type: "SET_LESSON_GENERATION_STATUS", lessonId: lesson.lessonId, status: "error" });
-                dispatch({ type: "SET_ERROR", error: event.error });
-                return { success: false, activities: [] };
+                // If we already received activities via "complete", this is a non-fatal
+                // post-generation error (e.g., quality evaluator timeout, stream abort).
+                // Don't fail the lesson — the content is already merged into state.
+                if (newActivities.length > 0) {
+                  console.warn(`[generateLessonActivities] Non-fatal error after complete for "${lesson.title}": ${event.error}`);
+                } else {
+                  dispatch({ type: "SET_LESSON_GENERATION_STATUS", lessonId: lesson.lessonId, status: "error" });
+                  dispatch({ type: "SET_ERROR", error: event.error });
+                  return { success: false, activities: [] };
+                }
               }
             } catch {
               // Ignore malformed SSE
             }
           }
+        }
+        // If we got activities from "complete" event, the lesson succeeded even if
+        // a post-complete error occurred (stream terminated, quality eval timeout, etc.)
+        if (newActivities.length > 0) {
+          dispatch({ type: "SET_LESSON_GENERATION_STATUS", lessonId: lesson.lessonId, status: "done" });
+          return { success: true, activities: newActivities };
         }
         return { success: true, activities: newActivities };
       }

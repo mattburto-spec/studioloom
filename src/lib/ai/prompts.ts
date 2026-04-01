@@ -1651,6 +1651,15 @@ Tag every CORE activity with criterionTags (e.g. ["A"], ["B","C"]). Warmup/intro
 - Work Time is ONE sustained block — do NOT fragment it into many small 5-10 minute activities. Group related tasks into one long work block
 - ALWAYS include 2-3 extension activities per lesson-length chunk for early finishers, indexed to the current design phase
 
+## Activity Ordering (CRITICAL)
+Within each lesson-length chunk, activities MUST follow this strict sequence:
+1. **warmup** activity (vocab retrieval, engagement hook) — ALWAYS FIRST
+2. **intro** / **content** activities (connecting to prior learning, new concepts, teacher modelling)
+3. **core** activities (sustained student work — the bulk of the lesson)
+4. **reflection** activity (exit ticket, debrief, one-word whip, self-assessment) — ALWAYS LAST
+
+NEVER place exit activities, reflections, debrief activities, or "lesson exit" activities in the MIDDLE of a lesson. They MUST be the final activity/activities in the sequence. If an activity title contains "exit", "debrief", "whip-around", "closing", or "wrap-up", it belongs at the END, not in the middle.
+
 ## Sequencing
 ### Bloom's Progression
 Early: Remember/Understand (research, vocabulary, existing product analysis)
@@ -2412,9 +2421,14 @@ ${buildTimingBlock(getGradeTimingProfile(input.gradeLevel), input.lessonLengthMi
 
 ## Generation Target
 Generate 3-6 activities totalling approximately ${lesson.estimatedMinutes} minutes.
-Include a warmup at the start and a reflection at the end.
 Activity IDs should be: L${String(lesson.lessonNumber).padStart(2, "0")}-a1, L${String(lesson.lessonNumber).padStart(2, "0")}-a2, etc.
 All activities in this lesson should have phaseLabel: "${lesson.phaseLabel}"
+
+STRICT ORDERING (do NOT violate):
+1. First activity: warmup (role="warmup") — vocab retrieval + engagement hook
+2. Middle activities: intro/content/core — the teaching and sustained work
+3. LAST activity: reflection (role="reflection") — exit ticket, debrief, or self-assessment
+NEVER place exit/debrief/reflection/closing activities in the middle of the sequence. The reflection MUST be the final activity.
 
 Remember:
 - Every activity needs: id, role, title, prompt, durationMinutes

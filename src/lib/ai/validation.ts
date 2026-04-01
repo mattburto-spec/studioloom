@@ -198,9 +198,54 @@ export function validateTimelineActivities(
     valid.push(a as unknown as TimelineActivity);
   }
 
+  // Post-validation: enforce activity ordering within each lesson batch.
+  // Warmup activities must come first, reflection/exit activities must come last.
+  // The AI sometimes places exit/debrief activities mid-lesson — reorder them.
+  const reordered = enforceActivityOrdering(valid);
+  if (reordered.reordered) {
+    errors.push("Reordered activities: moved exit/reflection activities to end of sequence");
+  }
+
   return {
     valid: errors.length === 0,
     errors,
-    activities: valid,
+    activities: reordered.activities,
   };
+}
+
+/**
+ * Enforce Workshop Model activity ordering:
+ * warmup first → intro/content/core in middle → reflection/exit last.
+ *
+ * Detects misplaced exit/reflection activities by role AND by title keywords,
+ * then moves them to the end of the sequence.
+ */
+function enforceActivityOrdering(activities: TimelineActivity[]): { activities: TimelineActivity[]; reordered: boolean } {
+  if (activities.length <= 1) return { activities, reordered: false };
+
+  const EXIT_KEYWORDS = /\b(exit|debrief|wrap[- ]?up|closing|whip[- ]?around|lesson exit|one[- ]?word)\b/i;
+
+  // Separate into 3 buckets: warmups, middle (core/content/intro), exits (reflection + exit-titled)
+  const warmups: TimelineActivity[] = [];
+  const middle: TimelineActivity[] = [];
+  const exits: TimelineActivity[] = [];
+
+  for (const a of activities) {
+    if (a.role === "warmup") {
+      warmups.push(a);
+    } else if (a.role === "reflection") {
+      exits.push(a);
+    } else if (EXIT_KEYWORDS.test(a.title || "")) {
+      // Core/content activity with exit-like title — treat as exit
+      exits.push(a);
+    } else {
+      middle.push(a);
+    }
+  }
+
+  // Check if reordering actually changed anything
+  const reorderedList = [...warmups, ...middle, ...exits];
+  const wasReordered = reorderedList.some((a, i) => a !== activities[i]);
+
+  return { activities: reorderedList, reordered: wasReordered };
 }
