@@ -183,6 +183,7 @@ export default function StudentDashboard() {
     [["service as action", "service", "community"], "from-pink-400 to-rose-300", "SERVICE"],
     [["personal project", " pp ", "pp"], "from-violet-500 to-purple-400", "PP"],
     [["pypx", "exhibition"], "from-amber-400 to-yellow-300", "PYPX"],
+    [["inquiry", "interdisciplinary", "transdisciplinary"], "from-blue-500 to-indigo-400", "INQUIRY"],
     [["design"], "from-teal-500 to-emerald-400", "DESIGN"],
     [["technology", "tech"], "from-sky-500 to-blue-400", "TECHNOLOGY"],
     [["art", "visual"], "from-fuchsia-500 to-pink-400", "ART"],

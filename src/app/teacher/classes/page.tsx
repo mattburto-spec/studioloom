@@ -16,6 +16,7 @@ interface ClassRow {
   studentCount: number;
   unitCount: number;
   framework?: string;
+  subject?: string;
 }
 
 export default function ClassesPage() {
@@ -26,6 +27,7 @@ export default function ClassesPage() {
   const [newName, setNewName] = useState("");
   const [newFramework, setNewFramework] = useState("IB_MYP");
   const [creating, setCreating] = useState(false);
+  const [newSubject, setNewSubject] = useState("design");
   const [newLang, setNewLang] = useState("en");
   const [newAddLangs, setNewAddLangs] = useState<string[]>([]);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
@@ -38,7 +40,7 @@ export default function ClassesPage() {
     const supabase = createClient();
     const { data: classData } = await supabase
       .from("classes")
-      .select("id, name, code, created_at, is_archived, framework")
+      .select("id, name, code, created_at, is_archived, framework, subject")
       .order("created_at", { ascending: false });
 
     if (!classData) {
@@ -102,12 +104,14 @@ export default function ClassesPage() {
       code,
       teacher_id: user.id,
       framework: newFramework,
+      subject: newSubject,
     };
     if (newLang !== "en") insertData.instruction_language = newLang;
     if (newAddLangs.length > 0) insertData.additional_languages = newAddLangs;
     const { error } = await supabase.from("classes").insert(insertData);
     if (!error) {
       setNewName("");
+      setNewSubject("design");
       setNewFramework("IB_MYP");
       setNewLang("en");
       setNewAddLangs([]);
@@ -206,6 +210,37 @@ export default function ClassesPage() {
               onKeyDown={(e) => e.key === "Enter" && createClass()}
               autoFocus
             />
+          </div>
+
+          {/* Subject / Programme Type selector */}
+          <div className="mb-5">
+            <label className="text-xs font-semibold text-text-secondary mb-2.5 block">Subject / Programme Type</label>
+            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+              {[
+                { id: "design", label: "Design", color: "#14B8A6", icon: "M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" },
+                { id: "service", label: "Service", color: "#EC4899", icon: "M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" },
+                { id: "pp", label: "Personal Project", color: "#8B5CF6", icon: "M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm0 6a1 1 0 0 1 1 1v3h3a1 1 0 1 1 0 2h-3v3a1 1 0 1 1-2 0v-3H8a1 1 0 1 1 0-2h3V9a1 1 0 0 1 1-1z" },
+                { id: "pypx", label: "PYP Exhibition", color: "#F59E0B", icon: "M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" },
+                { id: "inquiry", label: "Inquiry", color: "#3B82F6", icon: "M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3M12 17h.01M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" },
+              ].map((s) => (
+                <button key={s.id} onClick={() => setNewSubject(s.id)}
+                  className={`flex flex-col items-center gap-1.5 p-2.5 rounded-xl border-2 transition-all ${
+                    newSubject === s.id ? "border-purple-500 bg-purple-50 shadow-sm" : "border-gray-200 hover:border-gray-300 bg-white"
+                  }`}
+                >
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                    style={{ background: newSubject === s.id ? s.color : "#F3F4F6" }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                      stroke={newSubject === s.id ? "#fff" : "#9CA3AF"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d={s.icon} />
+                    </svg>
+                  </div>
+                  <span className={`text-[11px] font-semibold leading-tight text-center ${newSubject === s.id ? "text-purple-700" : "text-gray-500"}`}>
+                    {s.label}
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Framework selector */}
@@ -378,6 +413,18 @@ export default function ClassesPage() {
                             >
                               {cls.name}
                             </Link>
+                            {cls.subject && cls.subject !== "design" && (
+                              <span
+                                className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide"
+                                style={{
+                                  background: ({ service: "#FDF2F8", pp: "#F5F3FF", pypx: "#FFFBEB", inquiry: "#EFF6FF" } as Record<string, string>)[cls.subject] || "#F3F4F6",
+                                  color: ({ service: "#9D174D", pp: "#5B21B6", pypx: "#92400E", inquiry: "#1E40AF" } as Record<string, string>)[cls.subject] || "#374151",
+                                  border: `1px solid ${({ service: "#FBCFE8", pp: "#EDE9FE", pypx: "#FEF3C7", inquiry: "#BFDBFE" } as Record<string, string>)[cls.subject] || "#E5E7EB"}`,
+                                }}
+                              >
+                                {({ service: "Service", pp: "PP", pypx: "PYPx", inquiry: "Inquiry" } as Record<string, string>)[cls.subject] || cls.subject}
+                              </span>
+                            )}
                             {cls.framework && (
                               <span
                                 className="text-[10px] font-semibold px-2 py-0.5 rounded-full border"
