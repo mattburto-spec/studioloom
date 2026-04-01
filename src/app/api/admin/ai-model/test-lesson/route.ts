@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
 
     // Get timing from config
     const timingProfile = getGradeTimingProfile(testInput.gradeLevel, framework, resolvedConfig.timingProfiles);
-    const timingBlock = buildTimingBlock(timingProfile, lessonLengthMinutes);
+    const timingBlock = buildTimingBlock(timingProfile, lessonLengthMinutes, undefined, unitType, testInput.lessonType);
 
     // Build the user prompt using the journey prompt builder with framework
     const userPrompt = buildJourneyPrompt([lessonId], input, {
@@ -181,7 +181,8 @@ export async function POST(request: NextRequest) {
       const result = validateLessonTiming(
         lesson as GeneratedLesson,
         timingProfile,
-        timingCtx
+        timingCtx,
+        testInput.lessonType
       );
       timingValidation = {
         valid: result.valid,

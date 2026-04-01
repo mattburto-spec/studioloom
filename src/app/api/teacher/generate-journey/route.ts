@@ -59,13 +59,18 @@ export const POST = withErrorHandler("teacher/generate-journey:POST", async (req
     selectedOutline,
     previousLessonSummary,
     stream: wantStream,
+    lessonTypeMap: rawLessonTypeMap,
   } = body as {
     journeyInput: LessonJourneyInput;
     lessonIds: string[];
     selectedOutline?: JourneyOutlineOption | null;
     previousLessonSummary?: string;
     stream?: boolean;
+    /** Maps lessonId → DesignLessonType for structure-aware timing validation */
+    lessonTypeMap?: Record<string, string>;
   };
+  // Validated map: only accept known lesson types
+  const lessonTypeMap = rawLessonTypeMap || {};
 
   // Validate inputs
   if (!journeyInput || !lessonIds?.length) {
@@ -226,7 +231,7 @@ export const POST = withErrorHandler("teacher/generate-journey:POST", async (req
       // Only validate pages that have workshopPhases (i.e., the AI included timing)
       const lessonPage = page as unknown as GeneratedLesson;
       if (lessonPage.workshopPhases) {
-        const result = validateLessonTiming(lessonPage, timingProfile, timingCtx);
+        const result = validateLessonTiming(lessonPage, timingProfile, timingCtx, lessonTypeMap[pageId]);
         // Replace with auto-repaired version
         validation.pages[pageId] = result.repairedLesson as unknown as typeof page;
         timingResults[pageId] = {

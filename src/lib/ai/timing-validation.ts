@@ -1,21 +1,33 @@
 /**
  * Timing Validation Engine
  *
- * Validates AI-generated lessons against the Workshop Model and auto-repairs timing issues.
- * Run this on every generated lesson before saving to database.
+ * Validates AI-generated lessons against lesson-type-specific structures
+ * and auto-repairs timing issues.
  *
- * Workshop Model rules:
- * 1. Every lesson has 4 phases: Opening, Mini-Lesson, Work Time, Debrief
- * 2. Direct instruction <= (1 + avg student age) minutes
- * 3. Work Time >= 45% of usable time
- * 4. Debrief >= 5 minutes (non-negotiable)
- * 5. Section durations sum to usable time (not raw period)
- * 6. No passive phase > 20 min (Y7-9) or > 30 min (Y10+)
- * 7. Extensions present (2-3 per lesson, phase-indexed)
+ * Lesson types get their own validated structures:
+ * - Workshop Model (default): Opening → Mini-Lesson → Work Time → Debrief
+ * - Research: Mini-Lesson → Guided Investigation → Independent Analysis → Share Findings
+ * - Ideation: Stimulus → Divergent → Convergent → Select & Refine
+ * - Skills-Demo: Safety & Demo → Guided Practice → Independent Practice → Reflection
+ * - Making: Safety Check → Extended Making → Clean-Up → Reflection
+ * - Testing: Review & Predict → Test & Gather → Analyse → Plan Iteration
+ * - Critique: Criteria Reminder → Gallery Walk → Self-Assessment → Goal-Setting
+ *
+ * Common rules across all types:
+ * 1. Instruction cap (1+age) applies where the structure defines instruction phases
+ * 2. Main block meets minimum floor % (varies by type)
+ * 3. Closing reflection present (varies in duration by type)
+ * 4. Section durations sum to usable time (not raw period)
+ * 5. No passive phase > 20 min (Y7-9) or > 30 min (Y10+)
+ * 6. Extensions present (2-3 per lesson, phase-indexed)
+ *
+ * Lesson Pulse scoring is UNAFFECTED — it measures activity-level qualities
+ * (bloom, agency, grouping), not structural concerns.
  */
 
 import type { GradeTimingProfile } from "./prompts";
 import { maxInstructionMinutes, MIN_WORK_TIME_PERCENT, calculateUsableTime, type TimingContext } from "./prompts";
+import { getLessonStructure, getMainBlockFloor, getEffectiveInstructionCap, structureHasInstructionCap } from "./lesson-structures";
 
 // =========================================================================
 // Types
@@ -111,109 +123,123 @@ const DEBRIEF_PROTOCOLS: Record<string, { protocol: string; prompt: string }> = 
 // =========================================================================
 
 /**
- * Validate a generated lesson against the Workshop Model rules.
+ * Validate a generated lesson against lesson-type-specific structure rules.
  * Returns issues found + an auto-repaired copy of the lesson.
+ *
+ * When lessonType is provided, validation uses the type-specific structure
+ * (e.g., critique lessons don't need 45% "work time" because the critique IS the work).
+ * When lessonType is absent, falls back to Workshop Model rules.
  */
 export function validateLessonTiming(
   lesson: GeneratedLesson,
   profile: GradeTimingProfile,
-  timingCtx: TimingContext
+  timingCtx: TimingContext,
+  lessonType?: string
 ): TimingValidationResult {
   const issues: TimingIssue[] = [];
   // Deep clone for repair
   const repaired: GeneratedLesson = JSON.parse(JSON.stringify(lesson));
 
   const usable = calculateUsableTime(timingCtx);
-  const instructionCap = maxInstructionMinutes(profile);
+  const baseInstructionCap = maxInstructionMinutes(profile);
+  const effectiveCap = getEffectiveInstructionCap(baseInstructionCap, lessonType);
+  const structure = getLessonStructure(lessonType);
+  const mainBlockFloor = getMainBlockFloor(undefined, lessonType);
+  const hasInstructionPhase = structureHasInstructionCap(lessonType);
 
   // ---- 1. Workshop phases present? ----
+  // workshopPhases is the legacy 4-phase structure. For typed lessons, we still
+  // use it as the phase timing container (mapping type-specific phases onto it)
+  // because the entire UI and downstream code reads workshopPhases.
   if (!repaired.workshopPhases) {
     issues.push({
       code: "MISSING_WORKSHOP_PHASES",
       severity: "warning",
-      message: "Lesson has no workshopPhases. Auto-generating from sections.",
+      message: `Lesson has no workshopPhases. Auto-generating from sections (structure: ${structure.name}).`,
       autoFixed: true,
     });
-    repaired.workshopPhases = inferWorkshopPhases(repaired, usable, instructionCap);
+    repaired.workshopPhases = inferWorkshopPhases(repaired, usable, effectiveCap);
   }
 
   const phases = repaired.workshopPhases!;
 
-  // ---- 2. Instruction cap (1 + age) ----
-  if (phases.miniLesson.durationMinutes > instructionCap) {
+  // ---- 2. Instruction cap ----
+  // Only enforce instruction cap if the lesson structure has instruction phases
+  if (hasInstructionPhase && phases.miniLesson.durationMinutes > effectiveCap) {
     issues.push({
       code: "INSTRUCTION_OVER_CAP",
       severity: "warning",
-      message: `Mini-Lesson is ${phases.miniLesson.durationMinutes} min but cap is ${instructionCap} min (1 + age ${profile.avgStudentAge}). Clamping.`,
+      message: `Instruction phase is ${phases.miniLesson.durationMinutes} min but cap is ${effectiveCap} min${structure.relaxedInstructionCap ? " (relaxed 1.5× for demo)" : ` (1 + age ${profile.avgStudentAge})`}. Clamping.`,
       phase: "miniLesson",
       autoFixed: true,
     });
-    const excess = phases.miniLesson.durationMinutes - instructionCap;
-    phases.miniLesson.durationMinutes = instructionCap;
+    const excess = phases.miniLesson.durationMinutes - effectiveCap;
+    phases.miniLesson.durationMinutes = effectiveCap;
     // Give excess to work time
     phases.workTime.durationMinutes += excess;
   }
 
-  // ---- 3. Work time floor (45%) ----
+  // ---- 3. Main block floor (varies by lesson type) ----
   const totalPhaseMinutes = phases.opening.durationMinutes + phases.miniLesson.durationMinutes + phases.workTime.durationMinutes + phases.debrief.durationMinutes;
-  const workPercent = phases.workTime.durationMinutes / usable;
+  const mainBlockPercent = phases.workTime.durationMinutes / usable;
+  const floorPercent = mainBlockFloor;
 
-  if (workPercent < MIN_WORK_TIME_PERCENT) {
-    const minWork = Math.round(usable * MIN_WORK_TIME_PERCENT);
+  if (mainBlockPercent < floorPercent) {
+    const minMainBlock = Math.round(usable * floorPercent);
     issues.push({
       code: "WORK_TIME_TOO_SHORT",
       severity: "error",
-      message: `Work Time is ${phases.workTime.durationMinutes} min (${Math.round(workPercent * 100)}%) but minimum is ${minWork} min (45%). Redistributing time.`,
+      message: `Main block is ${phases.workTime.durationMinutes} min (${Math.round(mainBlockPercent * 100)}%) but ${structure.name} requires minimum ${minMainBlock} min (${Math.round(floorPercent * 100)}%). Redistributing time.`,
       phase: "workTime",
       autoFixed: true,
     });
-    // Compress mini-lesson and opening to make room
-    const deficit = minWork - phases.workTime.durationMinutes;
-    const compressible = phases.miniLesson.durationMinutes - 5 + Math.max(0, phases.opening.durationMinutes - 5);
+    // Compress instruction and opening to make room
+    const deficit = minMainBlock - phases.workTime.durationMinutes;
+    const compressible = phases.miniLesson.durationMinutes - 3 + Math.max(0, phases.opening.durationMinutes - 3);
     if (compressible >= deficit) {
-      // Take from mini-lesson first, then opening
-      const fromMiniLesson = Math.min(deficit, phases.miniLesson.durationMinutes - 5);
+      const fromMiniLesson = Math.min(deficit, phases.miniLesson.durationMinutes - 3);
       phases.miniLesson.durationMinutes -= fromMiniLesson;
       const remaining = deficit - fromMiniLesson;
       if (remaining > 0) {
         phases.opening.durationMinutes -= remaining;
       }
     } else {
-      // Do our best
-      phases.miniLesson.durationMinutes = 5;
-      phases.opening.durationMinutes = 5;
+      // Do our best — compress both to 3 min
+      phases.miniLesson.durationMinutes = 3;
+      phases.opening.durationMinutes = 3;
     }
     phases.workTime.durationMinutes = usable - phases.opening.durationMinutes - phases.miniLesson.durationMinutes - phases.debrief.durationMinutes;
   }
 
-  // ---- 4. Debrief present and >= 5 min ----
-  if (!phases.debrief || phases.debrief.durationMinutes < 5) {
+  // ---- 4. Closing reflection present ----
+  // All structures require some form of closing, but minimum varies
+  const minClosing = structure.requiresClosingReflection ? 3 : 0;
+  if (structure.requiresClosingReflection && (!phases.debrief || phases.debrief.durationMinutes < minClosing)) {
     issues.push({
       code: "DEBRIEF_TOO_SHORT",
       severity: "warning",
-      message: `Debrief is ${phases.debrief?.durationMinutes ?? 0} min. Setting to 5 min minimum.`,
+      message: `Closing reflection is ${phases.debrief?.durationMinutes ?? 0} min. Setting to ${Math.max(3, minClosing)} min minimum for ${structure.name}.`,
       phase: "debrief",
       autoFixed: true,
     });
-    const debriefNeeded = 5 - (phases.debrief?.durationMinutes ?? 0);
+    const debriefNeeded = Math.max(3, minClosing) - (phases.debrief?.durationMinutes ?? 0);
     phases.debrief = {
       ...(phases.debrief || {}),
-      durationMinutes: 5,
+      durationMinutes: Math.max(3, minClosing),
       ...DEBRIEF_PROTOCOLS["quick-share"],
     };
-    // Take time from work time if needed
-    if (phases.workTime.durationMinutes > debriefNeeded + 15) {
+    if (phases.workTime.durationMinutes > debriefNeeded + 10) {
       phases.workTime.durationMinutes -= debriefNeeded;
     }
   }
 
-  // Ensure debrief has a protocol
-  if (!phases.debrief.protocol) {
+  // Ensure debrief has a protocol (only for structures that have a full debrief phase)
+  if (phases.debrief && !phases.debrief.protocol && phases.debrief.durationMinutes >= 5) {
     phases.debrief = { ...phases.debrief, ...DEBRIEF_PROTOCOLS["quick-share"] };
     issues.push({
       code: "DEBRIEF_NO_PROTOCOL",
       severity: "info",
-      message: "Debrief had no structured protocol. Added 'quick-share' protocol.",
+      message: "Closing phase had no structured protocol. Added 'quick-share' protocol.",
       phase: "debrief",
       autoFixed: true,
     });
@@ -225,10 +251,9 @@ export function validateLessonTiming(
     issues.push({
       code: "TOTAL_TIME_MISMATCH",
       severity: "warning",
-      message: `Phase durations sum to ${repairedTotal} min but usable time is ${usable} min. Adjusting work time.`,
+      message: `Phase durations sum to ${repairedTotal} min but usable time is ${usable} min. Adjusting main block.`,
       autoFixed: true,
     });
-    // Adjust work time to absorb the difference
     phases.workTime.durationMinutes += (usable - repairedTotal);
   }
 
@@ -256,12 +281,12 @@ export function validateLessonTiming(
     });
   }
 
-  // ---- 8. Check-in points for long work blocks ----
+  // ---- 8. Check-in points for long main blocks ----
   if (phases.workTime.durationMinutes >= 30 && (!phases.workTime.checkpoints || phases.workTime.checkpoints.length === 0)) {
     issues.push({
       code: "MISSING_CHECKPOINTS",
       severity: "info",
-      message: `Work Time is ${phases.workTime.durationMinutes} min with no checkpoints. Adding a midpoint check-in.`,
+      message: `Main block is ${phases.workTime.durationMinutes} min with no checkpoints. Adding a midpoint check-in.`,
       phase: "workTime",
       autoFixed: true,
     });
@@ -311,7 +336,7 @@ export function validateLessonTiming(
       workTimeMinutes: phases.workTime.durationMinutes,
       workTimePercent: Math.round(finalWorkPercent * 100),
       instructionMinutes: phases.miniLesson.durationMinutes,
-      instructionCap,
+      instructionCap: effectiveCap,
       hasDebrief: phases.debrief.durationMinutes >= 5,
       extensionCount,
     },
@@ -324,7 +349,9 @@ export function validateLessonTiming(
 export function validateUnitTiming(
   lessons: Record<string, GeneratedLesson>,
   profile: GradeTimingProfile,
-  timingCtx: TimingContext
+  timingCtx: TimingContext,
+  /** Optional map of lessonId → lessonType for structure-aware validation */
+  lessonTypeMap?: Record<string, string>
 ): {
   lessonResults: Record<string, TimingValidationResult>;
   unitIssues: TimingIssue[];
@@ -333,7 +360,7 @@ export function validateUnitTiming(
   const unitIssues: TimingIssue[] = [];
 
   for (const [id, lesson] of Object.entries(lessons)) {
-    lessonResults[id] = validateLessonTiming(lesson, profile, timingCtx);
+    lessonResults[id] = validateLessonTiming(lesson, profile, timingCtx, lessonTypeMap?.[id]);
   }
 
   // Unit-wide checks

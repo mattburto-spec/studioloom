@@ -1,4 +1,5 @@
 import type { UnitWizardInput, LessonJourneyInput, JourneyOutlineOption, TimelineOutlineOption, TimelinePhase, TimelineLessonSkeleton, TimelineSkeleton, DesignLessonType } from "@/types";
+import { getLessonStructure, getMainBlockFloor, getEffectiveInstructionCap } from "@/lib/ai/lesson-structures";
 import { CRITERIA, type CriterionKey, MYP_GLOBAL_CONTEXTS, MYP_KEY_CONCEPTS, MYP_RELATED_CONCEPTS_DESIGN, EMPHASIS_PAGE_COUNT, buildPageDefinitions, getCriterion, getFrameworkCriterionKeys } from "@/lib/constants";
 import { getActivityLibrarySummary } from "@/lib/activity-library";
 import { getActivityCardSummaryEnriched } from "@/lib/activity-cards";
@@ -218,76 +219,56 @@ export function buildTimingBlock(
   profile: GradeTimingProfile,
   lessonLengthMinutes: number,
   timingCtx?: TimingContext,
-  unitType?: UnitType
+  unitType?: UnitType,
+  lessonType?: string
 ): string {
   // Always use usable time — construct default TimingContext if none provided
   const ctx: TimingContext = timingCtx || buildTimingContext(profile, lessonLengthMinutes, false);
   const usable = calculateUsableTime(ctx);
-  const lessonType = ctx.isWorkshop ? "WORKSHOP" : "THEORY";
-  const instructionCap = maxInstructionMinutes(profile);
+  const roomType = ctx.isWorkshop ? "WORKSHOP" : "THEORY";
+  const baseInstructionCap = maxInstructionMinutes(profile);
+  const effectiveCap = getEffectiveInstructionCap(baseInstructionCap, lessonType);
 
-  // Type-specific work time floor (as % of usable time)
-  const workTimeFloor: Record<string, number> = {
-    design: 0.45,
-    service: 0.30,      // Service learning has fieldwork, meetings — less structured class time
-    personal_project: 0.40,  // PP is mostly independent work, supervisions are check-ins
-    inquiry: 0.35,      // Inquiry is mixed investigation and instruction
-  };
-  const floor = workTimeFloor[unitType || "design"] || 0.45;
-  const minWorkTime = Math.round(usable * floor);
-  const idealWorkTime = Math.round(usable * Math.max(floor + 0.15, 0.60)); // Ideal is floor + 15%, or 60% min
+  // Get the appropriate lesson structure
+  const structure = getLessonStructure(lessonType);
+  const floor = getMainBlockFloor(unitType, lessonType);
+  const minMainBlock = Math.round(usable * floor);
+  const idealMainBlock = Math.round(usable * Math.max(floor + 0.15, 0.60));
+
+  // Build the structure-specific prompt block
+  const structureBlock = structure.promptBlock({
+    usableMinutes: usable,
+    instructionCap: effectiveCap,
+    minMainBlockMinutes: minMainBlock,
+    idealMainBlockMinutes: idealMainBlock,
+    profile: { mypYear: profile.mypYear, avgStudentAge: profile.avgStudentAge, pacingNote: profile.pacingNote },
+  });
 
   return `## Timing Context
-Schedule: ${ctx.periodMinutes}-minute period | Lesson type: ${lessonType} | MYP Year ${profile.mypYear} (avg age ${profile.avgStudentAge})
+Schedule: ${ctx.periodMinutes}-minute period | Room type: ${roomType} | MYP Year ${profile.mypYear} (avg age ${profile.avgStudentAge})
 Usable time: **${usable} minutes** (after ${ctx.transitionMinutes} min transition${ctx.isWorkshop ? `, ${ctx.setupMinutes} min setup, ${ctx.cleanupMinutes} min cleanup` : ""})
+${lessonType ? `Lesson type: **${lessonType}** → using **${structure.name}** structure` : "Lesson type: general → using **Workshop Model** structure"}
 
 CRITICAL: Generate activities that sum to ${usable} minutes. Do NOT generate ${ctx.periodMinutes} minutes of content.
 ${ctx.isWorkshop ? `Include setup (${ctx.setupMinutes} min) and cleanup (${ctx.cleanupMinutes} min) as explicit lesson phases.` : ""}
-
-## LESSON STRUCTURE — MANDATORY WORKSHOP MODEL
-Every lesson MUST follow the 4-Phase Workshop Model. This is non-negotiable.
-
-### Phase 1: OPENING (5-10 min)
-Hook, context, connect to prior learning. Set expectations for the session.
-Activate curiosity — a compelling question, image, or problem.
-
-### Phase 2: MINI-LESSON (max ${instructionCap} min — the "1 + age" rule)
-Teach ONE skill or concept. Demonstrate a technique. Short and focused.
-Maximum ${instructionCap} minutes of direct instruction (1 + avg student age of ${profile.avgStudentAge}).
-After ${instructionCap} minutes, student attention drops sharply. Stop teaching and start working.
-
-### Phase 3: WORK TIME (minimum ${minWorkTime} min, ideally ${idealWorkTime}+ min — at least ${Math.round(floor * 100)}% of usable time)
-THE MAIN EVENT. Students create, research, prototype, test, build.
-This is ONE sustained block — do NOT fragment it into multiple small activities.
-Teacher circulates: 1-on-1 conferences, formative assessment, just-in-time teaching.
-${usable >= 80 ? `For this long period, include a check-in at ~${Math.round(idealWorkTime * 0.5)} min ("Where are you up to? What's your next step?").` : ""}
-${usable >= 80 ? `Consider a 5-min refocus break at the midpoint.` : ""}
-
-### Phase 4: DEBRIEF (5-10 min — NON-NEGOTIABLE, never skip)
-Structured reflection using a protocol. Options:
-- **5-min Quick Debrief:** 2-3 students share (1 min each), teacher synthesises ("I noticed..."), bridge to next lesson
-- **10-min Pair Feedback:** I Like / I Wish / I Wonder protocol — presenters frame their work, partners give structured feedback
-- **Exit Ticket:** Students write 1 thing they learned + 1 question they still have
+${structureBlock}
 
 ## Age-Appropriate Pacing
 ${profile.pacingNote}
 
 Activity duration limits for MYP Year ${profile.mypYear}:
-- Direct instruction / demonstration: max ${instructionCap} min (1+age rule, then switch to student work)
-- Independent making / prototyping: max ${profile.maxHandsOnMinutes} min (with checkpoints every ${Math.min(15, instructionCap)} min)
+${structure.hasInstructionCap ? `- Direct instruction / demonstration: max ${effectiveCap} min (${structure.relaxedInstructionCap ? "relaxed 1.5×(1+age) for demo" : "1+age rule"}, then switch to student work)` : "- No dedicated instruction phase in this lesson type"}
+- Independent making / prototyping: max ${profile.maxHandsOnMinutes} min (with checkpoints every ${Math.min(15, baseInstructionCap)} min)
 - Digital work / CAD / research: max ${profile.maxDigitalMinutes} min
 - Critique / gallery walk / peer review: max ${profile.maxCollaborativeMinutes} min
-- Debrief / reflection: 5-10 min (non-negotiable, always at end)
-- Opening / hook: 5-10 min (always at start)
-
-Usable time budget: Opening (5-10) + Mini-Lesson (max ${instructionCap}) + Work Time (${minWorkTime}-${idealWorkTime}+) + Debrief (5-10) = ${usable} min
+- Closing reflection: 3-10 min (always at end)
 
 Energy sequencing rules:
 - Never place two high-cognitive activities back-to-back
 - Workshop making can follow theory (welcome shift)
 - Theory should NOT follow long workshop (students are physically tired)
 - Critique/gallery walk works best mid-lesson after students have work to show
-- Always end with debrief — it's the last thing students do before leaving
+- Always end with a closing reflection — it's the last thing students do before leaving
 
 ## EXTENSIONS (REQUIRED)
 For EVERY lesson, generate 2-3 extension activities for students who finish early.
@@ -2252,36 +2233,40 @@ export async function buildRAGSkeletonPrompt(
 // =========================================================================
 
 function getLessonTypeGuidance(type: DesignLessonType): string {
+  // NOTE: Phase STRUCTURE is now handled by buildTimingBlock() via lesson-structures.ts.
+  // This function provides PEDAGOGICAL TIPS only — teacher notes, activity hints, and
+  // instructional strategies that complement (not contradict) the structure block.
   const guidance: Record<DesignLessonType, string> = {
     "research": `
-Structure: Mini-lesson (5-10min) → Guided investigation → Independent analysis → Share findings
+Pedagogical tips for RESEARCH lessons:
 - Include a content activity to model the analysis technique before students try it
 - Core activities should use compare/contrast or structured investigation frameworks
 - teacherNotes questions: "What patterns do you notice?", "How does this relate to your user's needs?", "What evidence supports that conclusion?"`,
     "ideation": `
-Structure: Stimulus/inspiration (5min) → Divergent thinking (individual, 15-20min) → Convergent (group, 10-15min) → Select/refine
+Pedagogical tips for IDEATION lessons:
 - Start with visual stimulus or constraint introduction — NOT a lecture
 - Core activities: sketching, SCAMPER, mind mapping, brainstorming — keep these as LONG activities, don't fragment
+- AI feedback must be DIVERGENT during ideation: "What else? Push further!" — NEVER evaluate ideas during ideation
 - teacherNotes questions: "What if you combined these two ideas?", "What constraint haven't you considered?", "Which idea best meets the user's needs?"`,
     "skills-demo": `
-Structure: Safety briefing + Demo — I Do (10-15min) → Guided practice — We Do (10min) → Independent practice — You Do (15-25min)
+Pedagogical tips for SKILLS-DEMO lessons:
 - The demo/I Do phase is a CONTENT activity (no student response) with safety warnings
 - We Do should be scaffolded with checkpoints
 - You Do should have clear success criteria and teacher circulation
 - teacherNotes questions: "Show me your technique before continuing", "What should you check before the next step?", "What safety precaution applies here?"`,
     "making": `
-Structure: Brief safety check (2-3min) → Extended making with teacher circulation (25-40min) → Clean-up (5min) → Quick reflection (5min)
+Pedagogical tips for MAKING lessons:
 - Making time should be ONE long core activity — do NOT fragment into multiple short activities
 - Teacher circulates and gives verbal feedback (include teacherNotes for what to look for)
 - Safety considerations are NON-NEGOTIABLE for this lesson type
 - teacherNotes questions: "Talk me through your process", "What's your next step and why?", "How does this compare to your plan?"`,
     "testing": `
-Structure: Review hypothesis/design intent (5min) → Test/gather data (15-25min) → Record results → Analyse → Plan iteration
+Pedagogical tips for TESTING lessons:
 - Frame as predict → test → reflect cycle (productive failure built in)
 - Include a structured recording template (table, checklist, or rubric)
 - teacherNotes questions: "What did you expect to happen?", "What does this result tell you about your design?", "What would you change for the next iteration?"`,
     "critique": `
-Structure: Criteria reminder (5min) → Gallery walk OR peer critique protocol (15-20min) → Self-assessment (10min) → Goal-setting (5min)
+Pedagogical tips for CRITIQUE lessons:
 - Use a structured critique protocol (Two Stars & a Wish, TAG feedback, etc.)
 - Include self-assessment against rubric criteria
 - teacherNotes questions: "What specific evidence supports that feedback?", "How will you use this feedback in your next iteration?", "What's the strongest aspect of this design?"`,
@@ -2417,7 +2402,7 @@ ${options?.teachingMoves ? "\n" + options.teachingMoves + "\n" : ""}
 
 ${buildTeachingContext(input.unitType || "design", options?.teacherStyleProfile)}
 
-${buildTimingBlock(getGradeTimingProfile(input.gradeLevel), input.lessonLengthMinutes, undefined, input.unitType)}
+${buildTimingBlock(getGradeTimingProfile(input.gradeLevel), input.lessonLengthMinutes, undefined, input.unitType, lesson.lessonType)}
 
 ## Generation Target
 Generate 3-6 activities totalling approximately ${lesson.estimatedMinutes} minutes.
