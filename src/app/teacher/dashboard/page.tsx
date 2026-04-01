@@ -255,12 +255,69 @@ export default function TeacherDashboard() {
 // Welcome Onboarding — shown when teacher has no classes
 // ---------------------------------------------------------------------------
 
+const FRAMEWORKS = [
+  { id: "IB_MYP", label: "IB MYP", desc: "Design cycle, criteria A-D", color: "#6366F1" },
+  { id: "GCSE_DT", label: "GCSE D&T", desc: "AO1-AO5 assessment", color: "#0D9488" },
+  { id: "IGCSE_DT", label: "IGCSE D&T", desc: "Cambridge pathway", color: "#0891B2" },
+  { id: "A_LEVEL_DT", label: "A-Level D&T", desc: "Advanced design", color: "#7C3AED" },
+  { id: "ACARA_DT", label: "ACARA D&T", desc: "Australian curriculum", color: "#D97706" },
+  { id: "PLTW", label: "PLTW", desc: "Project Lead the Way", color: "#DC2626" },
+];
+
+const PERIOD_OPTIONS = [
+  { value: 40, label: "40 min" },
+  { value: 45, label: "45 min" },
+  { value: 50, label: "50 min" },
+  { value: 55, label: "55 min" },
+  { value: 60, label: "60 min" },
+  { value: 75, label: "75 min" },
+  { value: 80, label: "80 min" },
+  { value: 90, label: "90 min" },
+];
+
+const CYCLE_OPTIONS = [
+  { value: 5, label: "5-day (weekly)" },
+  { value: 6, label: "6-day" },
+  { value: 7, label: "7-day" },
+  { value: 8, label: "8-day" },
+  { value: 10, label: "10-day" },
+];
+
 function WelcomeOnboarding({ teacherName, onCreateClass }: { teacherName: string; onCreateClass: () => void }) {
-  const [showQuickSetup, setShowQuickSetup] = useState(false);
+  const [step, setStep] = useState<"choose" | "school" | "class">("choose");
+  const [saving, setSaving] = useState(false);
+
+  // School setup fields
+  const [schoolName, setSchoolName] = useState("");
+  const [country, setCountry] = useState("");
+  const [framework, setFramework] = useState("IB_MYP");
+  const [periodMinutes, setPeriodMinutes] = useState(50);
+  const [cycleLength, setCycleLength] = useState(5);
+
+  async function saveSchoolAndContinue() {
+    setSaving(true);
+    try {
+      await fetch("/api/teacher/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          school_name: schoolName.trim() || null,
+          country: country.trim() || null,
+          curriculum_framework: framework,
+          typical_period_minutes: periodMinutes,
+          school_context: { cycle_length: cycleLength },
+        }),
+      });
+    } catch {
+      // Non-blocking — settings can be updated later
+    }
+    setSaving(false);
+    setStep("class");
+  }
 
   return (
     <div className="space-y-5">
-      {/* Hero welcome — warm, personal */}
+      {/* Hero welcome */}
       <div
         className="rounded-2xl px-8 py-8 relative overflow-hidden"
         style={{ background: "linear-gradient(135deg, #7B2FF2 0%, #4F46E5 50%, #3B82F6 100%)" }}
@@ -271,26 +328,31 @@ function WelcomeOnboarding({ teacherName, onCreateClass }: { teacherName: string
         }} />
         <div className="relative">
           <div className="flex items-center gap-3 mb-3">
-            <span className="text-3xl">👋</span>
             <h1 className="text-2xl font-bold text-white tracking-tight">
               Welcome{teacherName ? `, ${teacherName}` : ""}!
             </h1>
           </div>
           <p className="text-white/80 text-base max-w-xl leading-relaxed">
-            StudioLoom is your teaching cockpit — build units, run lessons, and guide students through real design projects with AI support.
+            StudioLoom helps you build units, run lessons, and guide students through real design projects with AI support.
           </p>
-          <p className="text-white/50 text-sm mt-2">
-            Let&apos;s get you set up. It only takes a minute.
-          </p>
+          {step === "choose" && (
+            <p className="text-white/50 text-sm mt-2">Let&apos;s get you set up — it only takes a minute.</p>
+          )}
+          {step !== "choose" && (
+            <div className="flex items-center gap-2 mt-3">
+              <StepDot active={step === "school"} done={step === "class"} label="1" />
+              <div className="w-8 h-px bg-white/20" />
+              <StepDot active={step === "class"} done={false} label="2" />
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Two options: Quick Setup or Explore */}
-      {!showQuickSetup ? (
+      {/* Step: Choose path */}
+      {step === "choose" && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Option 1: Quick Setup */}
           <button
-            onClick={() => setShowQuickSetup(true)}
+            onClick={() => setStep("school")}
             className="group bg-white rounded-2xl p-6 border-2 border-purple-200 hover:border-purple-400 shadow-sm hover:shadow-md transition-all duration-200 text-left relative overflow-hidden"
           >
             <div className="absolute top-0 right-0 w-24 h-24 opacity-5 group-hover:opacity-10 transition-opacity"
@@ -305,66 +367,141 @@ function WelcomeOnboarding({ teacherName, onCreateClass }: { teacherName: string
               <span className="text-xs font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full uppercase tracking-wide">Recommended</span>
             </div>
             <h3 className="text-base font-bold text-gray-900 mb-1">Quick Setup</h3>
-            <p className="text-sm text-gray-500 leading-relaxed">Create your first class and you&apos;re ready to build a unit. Takes about 30 seconds.</p>
+            <p className="text-sm text-gray-500 leading-relaxed">Tell us about your school and create your first class. Takes about a minute.</p>
           </button>
 
-          {/* Option 2: Explore first */}
           <Link
             href="/teacher/toolkit"
             className="group bg-white rounded-2xl p-6 border-2 border-gray-200 hover:border-gray-300 shadow-sm hover:shadow-md transition-all duration-200 text-left relative overflow-hidden"
           >
             <div className="absolute top-0 right-0 w-24 h-24 opacity-5 group-hover:opacity-10 transition-opacity"
               style={{ background: "radial-gradient(circle, #3B82F6 0%, transparent 70%)" }} />
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center group-hover:bg-blue-50 transition-colors">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="10" />
-                  <path d="M12 16v-4" />
-                  <path d="M12 8h.01" />
-                </svg>
-              </div>
+            <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center group-hover:bg-blue-50 transition-colors mb-3">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" />
+              </svg>
             </div>
             <h3 className="text-base font-bold text-gray-900 mb-1">Explore First</h3>
             <p className="text-sm text-gray-500 leading-relaxed">
-              Browse the toolkit, look around, and come back when you&apos;re ready. You can always create a class from the
-              <span className="inline-flex items-center gap-1 mx-1 text-purple-600 font-medium">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" />
-                </svg>
-                Classes
-              </span>
-              page.
+              Look around and come back when you&apos;re ready. Set up from
+              <span className="text-purple-600 font-medium mx-1">Settings</span>
+              anytime.
             </p>
           </Link>
         </div>
-      ) : (
-        /* Quick Setup inline form */
-        <div className="bg-white rounded-2xl p-8 border border-border shadow-sm">
-          <div className="flex items-center gap-3 mb-1">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center"
-              style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)" }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-              </svg>
-            </div>
-            <h2 className="text-lg font-bold text-gray-900">Quick Setup</h2>
-          </div>
-          <p className="text-sm text-gray-500 mb-5 ml-11">Create your first class — students will use a join code to connect.</p>
+      )}
 
-          <div className="ml-11">
+      {/* Step 1: School basics */}
+      {step === "school" && (
+        <div className="bg-white rounded-2xl p-6 border border-border shadow-sm space-y-5">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900 mb-0.5">About Your School</h2>
+            <p className="text-sm text-gray-400">This helps the AI generate lessons that fit your timetable. You can change all of this in Settings later.</p>
+          </div>
+
+          {/* School name */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1.5">School Name <span className="text-gray-300 font-normal">(optional)</span></label>
+            <input
+              type="text"
+              value={schoolName}
+              onChange={(e) => setSchoolName(e.target.value)}
+              placeholder="e.g. Nanjing International School"
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-400 transition-all text-sm"
+            />
+          </div>
+
+          {/* Location */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1.5">Location <span className="text-gray-300 font-normal">(optional)</span></label>
+            <input
+              type="text"
+              value={country}
+              onChange={(e) => setCountry(e.target.value)}
+              placeholder="e.g. China, Australia, UK"
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-400 transition-all text-sm"
+            />
+          </div>
+
+          {/* Framework */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1.5">Curriculum Framework</label>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {FRAMEWORKS.map((fw) => (
+                <button
+                  key={fw.id}
+                  onClick={() => setFramework(fw.id)}
+                  className={`p-2.5 rounded-xl border-2 text-left transition-all ${
+                    framework === fw.id
+                      ? "border-purple-500 bg-purple-50 shadow-sm"
+                      : "border-gray-200 hover:border-gray-300 bg-white"
+                  }`}
+                >
+                  <div className="text-xs font-bold text-gray-900">{fw.label}</div>
+                  <div className="text-[10px] text-gray-400 mt-0.5">{fw.desc}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Period + Cycle in one row */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1.5">Period Length</label>
+              <div className="flex flex-wrap gap-1.5">
+                {PERIOD_OPTIONS.map((p) => (
+                  <button
+                    key={p.value}
+                    onClick={() => setPeriodMinutes(p.value)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                      periodMinutes === p.value
+                        ? "bg-purple-100 text-purple-700 border border-purple-300"
+                        : "bg-gray-50 text-gray-500 border border-gray-200 hover:border-gray-300"
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1.5">Timetable Cycle</label>
+              <div className="flex flex-wrap gap-1.5">
+                {CYCLE_OPTIONS.map((c) => (
+                  <button
+                    key={c.value}
+                    onClick={() => setCycleLength(c.value)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                      cycleLength === c.value
+                        ? "bg-purple-100 text-purple-700 border border-purple-300"
+                        : "bg-gray-50 text-gray-500 border border-gray-200 hover:border-gray-300"
+                    }`}
+                  >
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center gap-3 pt-2">
             <button
-              onClick={() => { setShowQuickSetup(false); onCreateClass(); }}
-              className="inline-flex items-center gap-2.5 px-6 py-3 text-sm font-bold text-white rounded-xl transition-all duration-200 hover:scale-[1.02] hover:shadow-lg active:scale-[0.98]"
-              style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)", boxShadow: "0 4px 14px rgba(123, 47, 242, 0.35)" }}
+              onClick={saveSchoolAndContinue}
+              disabled={saving}
+              className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-bold text-white rounded-xl transition-all duration-200 hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] disabled:opacity-50"
+              style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)", boxShadow: "0 4px 14px rgba(123, 47, 242, 0.3)" }}
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 5v14m-7-7h14" />
-              </svg>
-              Create Your First Class
+              {saving ? "Saving..." : "Next — Create a Class"}
+              {!saving && (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M5 12h14M12 5l7 7-7 7" />
+                </svg>
+              )}
             </button>
             <button
-              onClick={() => setShowQuickSetup(false)}
-              className="ml-3 text-sm text-gray-400 hover:text-gray-600 transition-colors"
+              onClick={() => setStep("choose")}
+              className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
             >
               Back
             </button>
@@ -372,10 +509,50 @@ function WelcomeOnboarding({ teacherName, onCreateClass }: { teacherName: string
         </div>
       )}
 
-      {/* Helpful tip */}
-      <p className="text-center text-xs text-gray-400 mt-2">
-        Need help? Click the <span className="inline-flex items-center align-middle mx-0.5 w-5 h-5 rounded-md" style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)", display: "inline-flex", verticalAlign: "middle" }}><svg width="10" height="10" viewBox="0 0 32 32" fill="none" className="mx-auto"><rect x="2" y="8" width="28" height="5" rx="2.5" fill="white" /><rect x="2" y="19" width="28" height="5" rx="2.5" fill="white" /><rect x="8" y="2" width="5" height="28" rx="2.5" fill="white" /><rect x="19" y="2" width="5" height="28" rx="2.5" fill="white" /></svg></span> button in the bottom-right corner anytime.
-      </p>
+      {/* Step 2: Create class */}
+      {step === "class" && (
+        <div className="bg-white rounded-2xl p-6 border border-border shadow-sm">
+          <div className="mb-5">
+            <div className="flex items-center gap-2 mb-0.5">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22C55E" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
+              <span className="text-xs font-medium text-green-600">School settings saved</span>
+            </div>
+            <h2 className="text-lg font-bold text-gray-900 mt-2 mb-0.5">Create Your First Class</h2>
+            <p className="text-sm text-gray-400">Students will use a join code to connect. You can create more classes later.</p>
+          </div>
+
+          <button
+            onClick={onCreateClass}
+            className="inline-flex items-center gap-2.5 px-6 py-3 text-sm font-bold text-white rounded-xl transition-all duration-200 hover:scale-[1.02] hover:shadow-lg active:scale-[0.98]"
+            style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)", boxShadow: "0 4px 14px rgba(123, 47, 242, 0.35)" }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 5v14m-7-7h14" />
+            </svg>
+            Create a Class
+          </button>
+          <button
+            onClick={() => setStep("school")}
+            className="ml-3 text-sm text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            Back
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StepDot({ active, done, label }: { active: boolean; done: boolean; label: string }) {
+  return (
+    <div
+      className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+        done ? "bg-green-400 text-white" : active ? "bg-white text-purple-700" : "bg-white/20 text-white/50"
+      }`}
+    >
+      {done ? (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
+      ) : label}
     </div>
   );
 }
