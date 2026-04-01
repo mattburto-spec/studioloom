@@ -3,7 +3,9 @@
 import { useState, useRef, useCallback } from "react";
 import type { PageContent, ResponseType, WorkshopPhases, LessonExtension } from "@/types";
 import type { WizardDispatch } from "@/hooks/useWizardState";
+import type { LessonPulseScore } from "@/lib/layers/lesson-pulse";
 import PhaseTimelineBar, { type PhaseConfig, type OverheadConfig, buildDefaultPhases } from "@/components/lesson-timing/PhaseTimelineBar";
+import PulseGauges from "@/components/teacher/wizard/PulseGauge";
 
 interface Props {
   pageId: string;
@@ -17,6 +19,8 @@ interface Props {
   periodMinutes?: number;
   /** Max instruction minutes from 1+age rule (default 14) */
   instructionCap?: number;
+  /** Lesson Pulse quality scores */
+  pulseScore?: LessonPulseScore | null;
 }
 
 const RESPONSE_TYPE_OPTIONS: { value: ResponseType; label: string }[] = [
@@ -142,7 +146,7 @@ function TimeBar({ sections, color }: { sections: PageContent["sections"]; color
   );
 }
 
-export function JourneyLessonCard({ pageId, content, color, isExpanded, dispatch, onActivityDrop, onRegeneratePage, periodMinutes = 60, instructionCap = 14 }: Props) {
+export function JourneyLessonCard({ pageId, content, color, isExpanded, dispatch, onActivityDrop, onRegeneratePage, periodMinutes = 60, instructionCap = 14, pulseScore }: Props) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editingSection, setEditingSection] = useState<number | null>(null);
@@ -226,6 +230,9 @@ export function JourneyLessonCard({ pageId, content, color, isExpanded, dispatch
               <p className="text-[11px] text-text-secondary mt-0.5 line-clamp-1">{content.learningGoal}</p>
             )}
           </div>
+          {pulseScore && (
+            <PulseGauges pulse={pulseScore} variant="compact" />
+          )}
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-text-tertiary flex-shrink-0">
             <path d="M6 9l6 6 6-6" />
           </svg>
@@ -299,6 +306,13 @@ export function JourneyLessonCard({ pageId, content, color, isExpanded, dispatch
                 <EditIcon onClick={() => setEditingField("goal")} title="Edit learning goal" />
               </>
             )}
+          </div>
+        )}
+
+        {/* Lesson Pulse scores — shows when pulse data exists */}
+        {pulseScore && (
+          <div className="pt-1">
+            <PulseGauges pulse={pulseScore} variant="expanded" />
           </div>
         )}
 

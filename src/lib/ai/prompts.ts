@@ -20,6 +20,7 @@ import { getFrameworkFromContext } from "@/lib/ai/teacher-context";
 import type { TeacherStyleProfile } from "@/types/teacher-style";
 import { buildTeacherStyleBlock } from "@/lib/teacher-style/profile-service";
 import type { UnitType } from "@/lib/ai/unit-types";
+import { getTeachingMoves, formatMovesForPrompt, type DesignPhase as MovePhase } from "@/lib/ai/teaching-moves";
 
 // =========================================================================
 // Grade-Aware Timing Profiles
@@ -608,7 +609,7 @@ ${activitySuggestions}
 - Key Concept: ${input.keyConcept}
 - Related Concepts: ${(input.relatedConcepts || []).join(", ")}
 - Statement of Inquiry: ${input.statementOfInquiry}
-- ATL Skills: ${(input.atlSkills || []).join(", ")}${skillsSection}${resourceSection}${requirementsSection}${curriculumSection}${buildTypeSpecificContext(input)}
+- ATL Skills: ${(input.atlSkills || []).join(", ")}${skillsSection}${resourceSection}${requirementsSection}${curriculumSection}${buildTypeSpecificContext(input)}${buildContextInjection(input)}
 
 ## Pages to Generate
 ${pageDescriptions}
@@ -746,6 +747,26 @@ Rules:
 5. Output ONLY valid JSON — no markdown, no explanations`;
 
 /**
+ * Build a Context Injection block — grounds generation in this specific classroom's reality.
+ * Fields are optional free-text from the wizard. When present, the AI weaves them into
+ * opening hooks, activity scenarios, reflection prompts, and constraint-aware planning.
+ */
+export function buildContextInjection(input: UnitWizardInput | LessonJourneyInput): string {
+  const lines: string[] = [];
+  if (input.realWorldContext) {
+    lines.push(`- Real-World Connection: ${input.realWorldContext} — weave this into opening hooks, activity scenarios, and reflection questions. Students should feel this is about THEIR world, not an abstract exercise.`);
+  }
+  if (input.studentContext) {
+    lines.push(`- Student Background: ${input.studentContext} — adjust energy levels, avoid repetition of recent work, and build on what students already know.`);
+  }
+  if (input.classroomConstraints) {
+    lines.push(`- Classroom Constraints: ${input.classroomConstraints} — plan activities around these realities. Don't suggest tools/spaces/materials that aren't available.`);
+  }
+  if (lines.length === 0) return "";
+  return `\n\n## Classroom Context (Teacher-Provided)\n${lines.join("\n")}`;
+}
+
+/**
  * Build a block of type-specific context fields to include in generation prompts.
  * Only includes fields that are populated (non-null, non-empty).
  */
@@ -852,7 +873,7 @@ ${ragSection}
 - Key Concept: ${input.keyConcept}
 - Related Concepts: ${(input.relatedConcepts || []).join(", ")}
 - Statement of Inquiry: ${input.statementOfInquiry}
-- ATL Skills: ${(input.atlSkills || []).join(", ")}${skillsSection}${requirementsSection}${curriculumSection}${buildTypeSpecificContext(input)}
+- ATL Skills: ${(input.atlSkills || []).join(", ")}${skillsSection}${requirementsSection}${curriculumSection}${buildTypeSpecificContext(input)}${buildContextInjection(input)}
 - Criteria Focus: ${criteriaFocusStr}
 
 ## Page Structure (${totalPages} pages total)
@@ -1264,7 +1285,7 @@ ${activitySuggestions}
 - Related Concepts: ${(input.relatedConcepts || []).join(", ")}
 - Statement of Inquiry: ${input.statementOfInquiry}
 - ATL Skills: ${(input.atlSkills || []).join(", ")}${skillsSection}${resourceSection}${requirementsSection}
-- Assessment Criteria: ${(input.assessmentCriteria || []).join(", ")} (tag each section with the relevant criteria)${input.curriculumContext ? `\n- Curriculum Context: ${input.curriculumContext}` : ""}${buildTypeSpecificContext(input)}
+- Assessment Criteria: ${(input.assessmentCriteria || []).join(", ")} (tag each section with the relevant criteria)${input.curriculumContext ? `\n- Curriculum Context: ${input.curriculumContext}` : ""}${buildTypeSpecificContext(input)}${buildContextInjection(input)}
 
 ${buildTeachingContext(input.unitType || "design", options?.teacherStyleProfile)}
 
@@ -1480,7 +1501,7 @@ ${ragSection}
 - Key Concept: ${input.keyConcept}
 - Related Concepts: ${(input.relatedConcepts || []).join(", ")}
 - Statement of Inquiry: ${input.statementOfInquiry}
-- ATL Skills: ${(input.atlSkills || []).join(", ")}${skillsSection}${requirementsSection}
+- ATL Skills: ${(input.atlSkills || []).join(", ")}${skillsSection}${requirementsSection}${buildContextInjection(input)}
 - Assessment Criteria to Tag: ${(input.assessmentCriteria || []).join(", ")}
 
 ## Lesson IDs
@@ -1566,7 +1587,7 @@ ${ragSection}
 - Key Concept: ${input.keyConcept}
 - Related Concepts: ${(input.relatedConcepts || []).join(", ")}
 - Statement of Inquiry: ${input.statementOfInquiry}
-- ATL Skills: ${(input.atlSkills || []).join(", ")}${skillsSection}${requirementsSection}
+- ATL Skills: ${(input.atlSkills || []).join(", ")}${skillsSection}${requirementsSection}${buildContextInjection(input)}
 - Assessment Criteria to Tag: ${(input.assessmentCriteria || []).join(", ")}
 
 ## Lesson IDs
@@ -1779,7 +1800,7 @@ ${activitySuggestions}
 - Related Concepts: ${(input.relatedConcepts || []).join(", ")}
 - Statement of Inquiry: ${input.statementOfInquiry}
 - ATL Skills: ${(input.atlSkills || []).join(", ")}${skillsSection}${resourceSection}${requirementsSection}
-- Assessment Criteria: ${(input.assessmentCriteria || []).join(", ")} (tag each core activity)${buildTypeSpecificContext(input)}
+- Assessment Criteria: ${(input.assessmentCriteria || []).join(", ")} (tag each core activity)${buildTypeSpecificContext(input)}${buildContextInjection(input)}
 
 ${buildTeachingContext(input.unitType || "design", options?.teacherStyleProfile)}
 
@@ -1857,7 +1878,7 @@ ${ragSection}
 - Key Concept: ${input.keyConcept}
 - Related Concepts: ${(input.relatedConcepts || []).join(", ")}
 - Statement of Inquiry: ${input.statementOfInquiry}
-- ATL Skills: ${(input.atlSkills || []).join(", ")}${skillsSection}${requirementsSection}
+- ATL Skills: ${(input.atlSkills || []).join(", ")}${skillsSection}${requirementsSection}${buildContextInjection(input)}
 - Assessment Criteria: ${(input.assessmentCriteria || []).join(", ")}
 
 ## Requirements
@@ -1929,7 +1950,7 @@ ${ragSection}
 - Key Concept: ${input.keyConcept}
 - Related Concepts: ${(input.relatedConcepts || []).join(", ")}
 - Statement of Inquiry: ${input.statementOfInquiry}
-- ATL Skills: ${(input.atlSkills || []).join(", ")}${skillsSection}${requirementsSection}
+- ATL Skills: ${(input.atlSkills || []).join(", ")}${skillsSection}${requirementsSection}${buildContextInjection(input)}
 - Assessment Criteria: ${(input.assessmentCriteria || []).join(", ")}
 
 ## Requirements
@@ -2134,7 +2155,7 @@ ${outline.phases.map((p) => `  - ${p.title} (~${p.estimatedLessons} lessons): ${
 - Key Concept: ${input.keyConcept}
 - Related Concepts: ${(input.relatedConcepts || []).join(", ")}
 - Statement of Inquiry: ${input.statementOfInquiry}
-- ATL Skills: ${(input.atlSkills || []).join(", ")}${skillsSection}${requirementsSection}
+- ATL Skills: ${(input.atlSkills || []).join(", ")}${skillsSection}${requirementsSection}${buildContextInjection(input)}
 - Assessment Criteria: ${(input.assessmentCriteria || []).join(", ")}
 
 ## Requirements
@@ -2276,6 +2297,7 @@ export function buildPerLessonTimelinePrompt(
     lessonContext?: string;
     activitySummary?: string;
     teacherStyleProfile?: TeacherStyleProfile | null;
+    teachingMoves?: string;
   }
 ): string {
   const totalLessons = skeleton.lessons.length;
@@ -2375,14 +2397,14 @@ ${continuitySection}${spacedRetrievalSection}${selfAssessmentSection}${compareCo
 ## Available Activity Cards
 Consider incorporating these where appropriate:
 ${activitySuggestions}
-
+${options?.teachingMoves ? "\n" + options.teachingMoves + "\n" : ""}
 ## Unit Context
 - End Goal: ${input.endGoal}
 - Topic: ${input.topic}
 - Grade Level: ${input.gradeLevel}
 - Lesson Length: ${input.lessonLengthMinutes} minutes
 - Key Concept: ${input.keyConcept}
-- Assessment Criteria: ${(input.assessmentCriteria || []).join(", ")}${buildTypeSpecificContext(input)}
+- Assessment Criteria: ${(input.assessmentCriteria || []).join(", ")}${buildTypeSpecificContext(input)}${buildContextInjection(input)}
 
 ${buildTeachingContext(input.unitType || "design", options?.teacherStyleProfile)}
 
@@ -2474,14 +2496,46 @@ export async function buildRAGPerLessonPrompt(
     ? contextPrefix + (lessonWithFeedback ? "\n\n---\n\n" + lessonWithFeedback : "")
     : lessonWithFeedback || undefined;
 
+  // Retrieve teaching moves filtered by lesson phase + unit type
+  let teachingMovesStr = "";
+  try {
+    const phase = mapPhaseLabelToMovePhase(lesson.phaseLabel);
+    const moves = getTeachingMoves({
+      phase,
+      unitType: (input.unitType as "design" | "service" | "pp" | "inquiry") || undefined,
+      maxResults: 4,
+    });
+    if (moves.length > 0) {
+      teachingMovesStr = formatMovesForPrompt(moves);
+    }
+  } catch {
+    // Teaching moves are enhancement, not requirement
+  }
+
   const prompt = buildPerLessonTimelinePrompt(input, lesson, skeleton, {
     ragContext: ragContext || undefined,
     lessonContext: enrichedLessonContext,
     activitySummary,
     teacherStyleProfile,
+    teachingMoves: teachingMovesStr || undefined,
   });
 
   return { prompt, chunkIds };
+}
+
+// =========================================================================
+// TEACHING MOVES HELPERS
+// =========================================================================
+
+/** Map AI-generated phaseLabel strings to the Teaching Moves DesignPhase enum */
+function mapPhaseLabelToMovePhase(phaseLabel: string): MovePhase {
+  const lower = phaseLabel.toLowerCase();
+  if (lower.includes("discover") || lower.includes("research") || lower.includes("inquir")) return "discover";
+  if (lower.includes("define") || lower.includes("brief") || lower.includes("specification")) return "define";
+  if (lower.includes("ideat") || lower.includes("brainstorm") || lower.includes("concept") || lower.includes("generat")) return "ideate";
+  if (lower.includes("prototype") || lower.includes("prototyp") || lower.includes("develop") || lower.includes("mak") || lower.includes("build") || lower.includes("creat")) return "prototype";
+  if (lower.includes("test") || lower.includes("evaluat") || lower.includes("refin") || lower.includes("feedback") || lower.includes("present")) return "test";
+  return "any";
 }
 
 // =========================================================================

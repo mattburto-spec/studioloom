@@ -13,6 +13,8 @@ import { validateLessonTiming } from "@/lib/ai/timing-validation";
 import type { GeneratedLesson } from "@/lib/ai/timing-validation";
 import { buildLessonGenerationTool } from "@/lib/ai/schemas";
 import type { AIModelConfig } from "@/types/ai-model-config";
+import { computeLessonPulse } from "@/lib/layers/lesson-pulse";
+import type { PulseActivity } from "@/lib/layers/lesson-pulse";
 import type { LessonJourneyInput } from "@/types";
 import Anthropic from "@anthropic-ai/sdk";
 import { buildUnitTypeSystemPrompt, UNIT_TYPES } from "@/lib/ai/unit-types";
@@ -190,6 +192,18 @@ export async function POST(request: NextRequest) {
       repairedLesson = result.repairedLesson;
     }
 
+    // --- Lesson Pulse scoring ---
+    let pulseScore = null;
+    try {
+      const lessonObj = repairedLesson as Record<string, unknown> | null;
+      const sections = lessonObj && Array.isArray(lessonObj.sections) ? lessonObj.sections : null;
+      if (sections && sections.length > 0) {
+        pulseScore = computeLessonPulse(sections as PulseActivity[]);
+      }
+    } catch {
+      // Pulse scoring is enhancement, not requirement
+    }
+
     return NextResponse.json({
       lesson: repairedLesson,
       lessonRaw: lesson, // Original AI output for comparison
@@ -197,6 +211,7 @@ export async function POST(request: NextRequest) {
       elapsed,
       tokensUsed: response.usage,
       timingValidation,
+      pulseScore,
       unitType,
       unitTypeLabel: UNIT_TYPES[unitType].label,
       configApplied: {

@@ -64,9 +64,10 @@ Based on the [full site audit](full-site-audit-2026-03-24.md): ~25% of code is b
 - ✅ Discovery Engine BUILT (26 Mar) — ~9,500 lines, 8 stations, all content.
 - ✅ Student Onboarding ("Studio Setup") BUILT (27 Mar) — 4-screen character creation, 3 mentors, 4 themes.
 - ✅ Landing Page Rebuild (27 Mar) — complete rewrite showcasing all features.
+- ✅ **Lesson Pulse Phase 1 COMPLETE (1 Apr)** — Algorithm (~550 lines, 47 tests), generation wiring (4 routes with try/catch), review UI (PulseGauges on JourneyLessonCard), Context Injection (3 wizard fields in all lanes). Validated against 3 real lesson plans (scores 4.4–4.8, correct differentiation). **Remaining:** Teaching Moves Library (~3 days), editor UI (gauge arcs on DimensionsSummaryBar), unit detail (per-lesson dots), dashboard (unit averages), Teaching Mode (flagged-student hints). Spec: `docs/specs/lesson-layer-architecture.md` §13. Plan: `docs/projects/lesson-pulse.md`.
 - ⬜ Lesson Plan Converter — spec at `docs/specs/lesson-plan-converter.md`.
 - ⬜ Year Planner & Curriculum Connection — spec at `docs/specs/year-planner-spec.md`.
-- ⬜ **Project Dimensions** (~5 days) — Data architecture future-proofing. UDL inclusivity, timeWeight model, ai_rules on activities, bloom_level, RAG pipeline enrichment, velocity learning loop. Spec: `docs/specs/data-architecture-v2.md`. Plan: `docs/projects/dimensions.md`. Phase 5 (reports + research metrics) deferred.
+- ✅ **Project Dimensions Phases 0-4b COMPLETE (31 Mar)** — Migrations 057+058 APPLIED. RAG pipeline enrichment (Pass 2b fallback), generation schemas wired, knowledge card UI, client tracking hook, lesson editor UI (bloom/grouping/ai_rules/UDL tabs). Phase 5 (reports + velocity loop) remaining. Spec: `docs/specs/data-architecture-v2.md`. Plan: `docs/projects/dimensions.md`.
 
 ### Wiring Sprint (from site audit — ~2-3 days)
 - ⬜ Wire MonitoredTextarea into submissions (see Tier 1)

@@ -628,7 +628,50 @@ export function ArchitectForm({ state, dispatch, onGenerate }: Props) {
           </div>
         </div>
 
-        {/* Section 5: Criteria Emphasis */}
+        {/* Section 5: Classroom Context (optional) */}
+        <div className="bg-white rounded-2xl border border-border p-6 space-y-4">
+          <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wide">Classroom Context <span className="font-normal normal-case">(optional)</span></h3>
+          <p className="text-xs text-text-secondary -mt-2">Ground the AI in your actual classroom reality.</p>
+
+          <div>
+            <label className="block text-xs font-semibold text-text-secondary mb-1">
+              Real-world connection
+            </label>
+            <textarea
+              value={state.input.realWorldContext || ""}
+              onChange={(e) => handleInputChange("realWorldContext", e.target.value)}
+              placeholder="e.g. We're redesigning the school cafeteria queue system"
+              className="w-full p-3 rounded-lg border border-border bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/20 resize-none"
+              rows={2}
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-text-secondary mb-1">
+              Student background
+            </label>
+            <textarea
+              value={state.input.studentContext || ""}
+              onChange={(e) => handleInputChange("studentContext", e.target.value)}
+              placeholder="e.g. Just completed a sustainability unit, burned out on research"
+              className="w-full p-3 rounded-lg border border-border bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/20 resize-none"
+              rows={2}
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-text-secondary mb-1">
+              Constraints
+            </label>
+            <textarea
+              value={state.input.classroomConstraints || ""}
+              onChange={(e) => handleInputChange("classroomConstraints", e.target.value)}
+              placeholder="e.g. No workshop until Week 3, 28 students, half never used Arduino"
+              className="w-full p-3 rounded-lg border border-border bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/20 resize-none"
+              rows={2}
+            />
+          </div>
+        </div>
+
+        {/* Section 6: Criteria Emphasis */}
         <div className="bg-white rounded-2xl border border-border p-6 space-y-4">
           <h3 className="text-sm font-bold text-text-secondary uppercase tracking-wide">Criteria Emphasis</h3>
 

@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Discovery Engine — Another World Transitions Prototype</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --station-0: #7B2FF2; /* purple — Identity */
+    --station-1: #F97316; /* orange — Campfire */
+    --station-2: #F59E0B; /* amber — Workshop */
+    --station-3: #14B8A6; /* teal — Collection Wall */
+    --station-4: #3B82F6; /* blue — Window */
+    --station-5: #10B981; /* emerald — Toolkit */
+    --station-6: #8B5CF6; /* violet — Crossroads */
+    --station-7: #F43F5E; /* rose — Launchpad */
+  }
+
+  body {
+    background: #0a0a0a;
+    color: #fff;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    overflow-x: hidden;
+  }
+
+  /* ─── Controls ─────────────────────────────────────────── */
+  .controls {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    background: rgba(0,0,0,0.85);
+    backdrop-filter: blur(12px);
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  .controls h1 {
+    font-size: 13px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.5);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    margin-right: auto;
+  }
+  .controls button {
+    padding: 6px 16px;
+    border-radius: 20px;
+    border: 1px solid rgba(255,255,255,0.15);
+    background: rgba(255,255,255,0.06);
+    color: rgba(255,255,255,0.7);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .controls button:hover {
+    background: rgba(255,255,255,0.12);
+    color: #fff;
+  }
+  .controls button.active {
+    background: rgba(123, 47, 242, 0.3);
+    border-color: rgba(123, 47, 242, 0.6);
+    color: #fff;
+  }
+
+  /* ─── Cinema Frame ─────────────────────────────────────── */
+  .cinema {
+    position: fixed;
+    top: 50px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    overflow: hidden;
+    /* Letterbox bars for cinematic ratio */
+  }
+  .letterbox-top, .letterbox-bottom {
+    position: absolute;
+    left: 0;
+    right: 0;
+    background: #000;
+    z-index: 50;
+    transition: height 0.8s ease;
+  }
+  .letterbox-top { top: 0; height: 12%; }
+  .letterbox-bottom { bottom: 0; height: 12%; }
+  .cinema.wide .letterbox-top { height: 0; }
+  .cinema.wide .letterbox-bottom { height: 0; }
+
+  /* ─── Scene Container ──────────────────────────────────── */
+  .scene {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+  }
+
+  /* ─── Parallax Layers ──────────────────────────────────── */
+  .layer {
+    position: absolute;
+    inset: 0;
+    will-change: transform;
+    transition: transform 6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+  .layer.sky { z-index: 1; }
+  .layer.far { z-index: 2; }
+  .layer.mid { z-index: 3; }
+  .layer.near { z-index: 4; }
+  .layer.ground { z-index: 5; }
+  .layer.characters { z-index: 6; }
+  .layer.foreground { z-index: 7; }
+  .layer.overlay { z-index: 8; }
+
+  /* Parallax pan amounts when .pan-right is toggled */
+  .scene.pan-right .layer.sky       { transform: translateX(-2%); }
+  .scene.pan-right .layer.far       { transform: translateX(-5%); }
+  .scene.pan-right .layer.mid       { transform: translateX(-10%); }
+  .scene.pan-right .layer.near      { transform: translateX(-16%); }
+  .scene.pan-right .layer.ground    { transform: translateX(-20%); }
+  .scene.pan-right .layer.characters{ transform: translateX(-20%); }
+  .scene.pan-right .layer.foreground{ transform: translateX(-30%); }
+
+  /* ─── SVG Elements ─────────────────────────────────────── */
+  svg { width: 100%; height: 100%; }
+
+  /* ─── Kit Character ────────────────────────────────────── */
+  .kit-silhouette {
+    position: absolute;
+    bottom: 22%;
+    left: 35%;
+    width: 60px;
+    height: 120px;
+    transition: all 4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+  .scene.pan-right .kit-silhouette {
+    left: 55%;
+  }
+  /* Walk cycle animation */
+  @keyframes walk {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    25% { transform: translateY(-4px) rotate(1deg); }
+    50% { transform: translateY(0) rotate(0deg); }
+    75% { transform: translateY(-4px) rotate(-1deg); }
+  }
+  .kit-silhouette.walking {
+    animation: walk 0.6s ease-in-out infinite;
+  }
+
+  /* ─── Fade overlay for scene transitions ───────────────── */
+  .fade-overlay {
+    position: absolute;
+    inset: 0;
+    background: #000;
+    z-index: 90;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 1.2s ease;
+  }
+  .fade-overlay.active { opacity: 1; }
+
+  /* ─── Kit Dialogue ─────────────────────────────────────── */
+  .dialogue {
+    position: absolute;
+    bottom: 14%;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 60;
+    max-width: 600px;
+    width: 90%;
+    text-align: center;
+    opacity: 0;
+    transition: opacity 1s ease 2s;
+    pointer-events: none;
+  }
+  .dialogue.visible { opacity: 1; }
+  .dialogue p {
+    font-size: 16px;
+    font-weight: 400;
+    color: rgba(255,255,255,0.9);
+    line-height: 1.6;
+    font-style: italic;
+    text-shadow: 0 2px 12px rgba(0,0,0,0.8);
+    letter-spacing: 0.3px;
+  }
+  .dialogue .speaker {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: rgba(255,255,255,0.4);
+    margin-bottom: 8px;
+    font-style: normal;
+  }
+
+  /* ─── Station Label ────────────────────────────────────── */
+  .station-label {
+    position: absolute;
+    top: 14%;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 60;
+    text-align: center;
+    opacity: 0;
+    transition: opacity 1.5s ease 3s;
+    pointer-events: none;
+  }
+  .station-label.visible { opacity: 1; }
+  .station-label .next-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    color: rgba(255,255,255,0.35);
+    margin-bottom: 6px;
+  }
+  .station-label .name {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: 1px;
+  }
+
+  /* ─── Particle / ambient effects ───────────────────────── */
+  @keyframes float-particle {
+    0% { transform: translateY(0) translateX(0); opacity: 0; }
+    10% { opacity: 0.6; }
+    90% { opacity: 0.6; }
+    100% { transform: translateY(-200px) translateX(30px); opacity: 0; }
+  }
+  .particles {
+    position: absolute;
+    inset: 0;
+    z-index: 9;
+    overflow: hidden;
+    pointer-events: none;
+  }
+  .particle {
+    position: absolute;
+    border-radius: 50%;
+    animation: float-particle linear infinite;
+  }
+
+  /* ─── Light shaft effect ───────────────────────────────── */
+  @keyframes light-shaft {
+    0% { opacity: 0; transform: translateX(-20px) skewX(-5deg); }
+    50% { opacity: 0.08; }
+    100% { opacity: 0; transform: translateX(20px) skewX(-5deg); }
+  }
+  .light-shaft {
+    position: absolute;
+    width: 120px;
+    height: 100%;
+    z-index: 8;
+    animation: light-shaft 8s ease-in-out infinite;
+    pointer-events: none;
+  }
+
+  /* ─── Continue prompt ──────────────────────────────────── */
+  @keyframes pulse-continue {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 0.8; }
+  }
+  .continue-prompt {
+    position: absolute;
+    bottom: 5%;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 70;
+    font-size: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.4);
+    animation: pulse-continue 2s ease-in-out infinite;
+    opacity: 0;
+    transition: opacity 1s ease 4.5s;
+    cursor: pointer;
+  }
+  .continue-prompt.visible { opacity: 1; animation: pulse-continue 2s ease-in-out infinite; }
+
+  /* ─── Scanlines (Another World CRT feel) ───────────────── */
+  .scanlines {
+    position: absolute;
+    inset: 0;
+    z-index: 95;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.04) 2px,
+      rgba(0,0,0,0.04) 4px
+    );
+    opacity: 0.5;
+  }
+</style>
+</head>
+<body>
+
+<!-- Controls -->
+<div class="controls">
+  <h1>Another World Transitions — Discovery Engine</h1>
+  <button onclick="playTransition(0)" class="active">0→1 Campfire</button>
+  <button onclick="playTransition(1)">1→2 Workshop</button>
+  <button onclick="playTransition(2)">2→3 Collection</button>
+  <button onclick="playTransition(3)">3→4 Window</button>
+  <button onclick="playTransition(4)">4→5 Toolkit</button>
+  <button onclick="playTransition(5)">5→6 Crossroads</button>
+  <button onclick="playTransition(6)">6→7 Launchpad</button>
+</div>
+
+<!-- Cinema Frame -->
+<div class="cinema" id="cinema">
+  <div class="letterbox-top"></div>
+  <div class="letterbox-bottom"></div>
+
+  <!-- Scene container — all parallax layers go here -->
+  <div class="scene" id="scene">
+    <!-- Layers injected by JS per transition -->
+  </div>
+
+  <!-- Fade overlay -->
+  <div class="fade-overlay" id="fade"></div>
+
+  <!-- Scanlines -->
+  <div class="scanlines"></div>
+
+  <!-- Kit's dialogue -->
+  <div class="dialogue" id="dialogue">
+    <div class="speaker">Kit</div>
+    <p id="dialogue-text"></p>
+  </div>
+
+  <!-- Next station label -->
+  <div class="station-label" id="station-label">
+    <div class="next-label">Next</div>
+    <div class="name" id="station-name"></div>
+  </div>
+
+  <!-- Continue prompt -->
+  <div class="continue-prompt" id="continue" onclick="advanceScene()">
+    Click to continue ▸
+  </div>
+</div>
+
+<script>
+// ─── Transition Data ────────────────────────────────────────────
+const TRANSITIONS = [
+  {
+    // 0→1: Identity Card → Campfire
+    from: { name: 'Identity Card', color: '#7B2FF2', station: 0 },
+    to: { name: 'The Campfire', color: '#F97316', station: 1 },
+    kitLine: "Nice identity card. Now I know your aesthetic. But aesthetics are just the surface — let's find out how you actually think.",
+    scene: 'identity_to_campfire',
+    bgFrom: 'linear-gradient(180deg, #0d0520 0%, #1a0533 30%, #2d1b69 70%, #1e1145 100%)',
+    bgTo: 'linear-gradient(180deg, #0f0a02 0%, #2d1306 30%, #7c2d12 60%, #431407 100%)',
+  },
+  {
+    // 1→2: Campfire → Workshop
+    from: { name: 'The Campfire', color: '#F97316', station: 1 },
+    to: { name: 'The Workshop', color: '#F59E0B', station: 2 },
+    kitLine: "Quick-fire round done. I'm starting to see how your brain works. Now let's put that to the test with some real situations.",
+    scene: 'campfire_to_workshop',
+    bgFrom: 'linear-gradient(180deg, #0f0a02 0%, #2d1306 30%, #7c2d12 60%, #431407 100%)',
+    bgTo: 'linear-gradient(180deg, #0f0d02 0%, #1c1a05 30%, #78350f 60%, #451a03 100%)',
+  },
+  {
+    // 2→3: Workshop → Collection Wall
+    from: { name: 'The Workshop', color: '#F59E0B', station: 2 },
+    to: { name: 'The Collection Wall', color: '#14B8A6', station: 3 },
+    kitLine: "I'm building a picture of your strengths. Now I need to know what you actually care about — what grabs your attention and what makes you angry.",
+    scene: 'workshop_to_collection',
+    bgFrom: 'linear-gradient(180deg, #0f0d02 0%, #1c1a05 30%, #78350f 60%, #451a03 100%)',
+    bgTo: 'linear-gradient(180deg, #021a19 0%, #042f2e 30%, #134e4a 60%, #0f302c 100%)',
+  },
+  {
+    // 3→4: Collection Wall → Window
+    from: { name: 'The Collection Wall', color: '#14B8A6', station: 3 },
+    to: { name: 'The Window', color: '#3B82F6', station: 4 },
+    kitLine: "Your collection wall says a lot about you. Now let's look outward — there's a world of problems out there. Let's see which ones call to you.",
+    scene: 'collection_to_window',
+    bgFrom: 'linear-gradient(180deg, #021a19 0%, #042f2e 30%, #134e4a 60%, #0f302c 100%)',
+    bgTo: 'linear-gradient(180deg, #050d1a 0%, #0c1929 30%, #1e3a5f 60%, #0f172a 100%)',
+  },
+  {
+    // 4→5: Window → Toolkit
+    from: { name: 'The Window', color: '#3B82F6', station: 4 },
+    to: { name: 'The Toolkit', color: '#10B981', station: 5 },
+    kitLine: "You've got an eye for problems. Now the reality check — what tools and resources do you actually have to work with?",
+    scene: 'window_to_toolkit',
+    bgFrom: 'linear-gradient(180deg, #050d1a 0%, #0c1929 30%, #1e3a5f 60%, #0f172a 100%)',
+    bgTo: 'linear-gradient(180deg, #021a0d 0%, #052e16 30%, #14532d 60%, #0a2818 100%)',
+  },
+  {
+    // 5→6: Toolkit → Crossroads
+    from: { name: 'The Toolkit', color: '#10B981', station: 5 },
+    to: { name: 'The Crossroads', color: '#8B5CF6', station: 6 },
+    kitLine: "I know your strengths, your interests, your resources. Now comes the moment of truth — three paths forward. Only one is yours.",
+    scene: 'toolkit_to_crossroads',
+    bgFrom: 'linear-gradient(180deg, #021a0d 0%, #052e16 30%, #14532d 60%, #0a2818 100%)',
+    bgTo: 'linear-gradient(180deg, #0d0520 0%, #1e0a3e 30%, #4c1d95 60%, #2e1065 100%)',
+  },
+  {
+    // 6→7: Crossroads → Launchpad
+    from: { name: 'The Crossroads', color: '#8B5CF6', station: 6 },
+    to: { name: 'The Launchpad', color: '#F43F5E', station: 7 },
+    kitLine: "You've chosen your path. One last thing before you go — let's make it real. A statement, a commitment, a launch.",
+    scene: 'crossroads_to_launchpad',
+    bgFrom: 'linear-gradient(180deg, #0d0520 0%, #1e0a3e 30%, #4c1d95 60%, #2e1065 100%)',
+    bgTo: 'linear-gradient(180deg, #1a050f 0%, #2a0a1e 30%, #881337 60%, #4c0519 100%)',
+  },
+];
+
+// ─── Scene SVG Generators ───────────────────────────────────────
+// Each returns layered SVG strings for the parallax scene.
+// Style: flat polygon silhouettes, limited palette, Another World aesthetic.
+
+function buildSceneSVGs(transition) {
+  const { from, to } = transition;
+  const fromC = from.color;
+  const toC = to.color;
+
+  // Dynamic scene elements based on destination station
+  const scenes = {
+    identity_to_campfire: {
+      sky: `<svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+        <defs>
+          <linearGradient id="nightsky" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#050208"/>
+            <stop offset="60%" stop-color="#1a0a05"/>
+            <stop offset="100%" stop-color="#2d1306"/>
+          </linearGradient>
+        </defs>
+        <rect width="1920" height="1080" fill="url(#nightsky)"/>
+        <!-- Stars -->
+        <circle cx="200" cy="80" r="1.5" fill="#fff" opacity="0.6"/>
+        <circle cx="450" cy="120" r="1" fill="#fff" opacity="0.4"/>
+        <circle cx="700" cy="60" r="2" fill="#fff" opacity="0.7"/>
+        <circle cx="1100" cy="90" r="1.2" fill="#fff" opacity="0.5"/>
+        <circle cx="1400" cy="140" r="1.8" fill="#fff" opacity="0.6"/>
+        <circle cx="1650" cy="70" r="1" fill="#fff" opacity="0.3"/>
+        <circle cx="900" cy="40" r="1.5" fill="#fff" opacity="0.5"/>
+        <circle cx="300" cy="200" r="1" fill="#fff" opacity="0.3"/>
+        <circle cx="1200" cy="180" r="1.3" fill="#fff" opacity="0.4"/>
+        <circle cx="1800" cy="160" r="1" fill="#fff" opacity="0.35"/>
+      </svg>`,
+      far: `<svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+        <!-- Distant mountains -->
+        <polygon points="0,650 300,380 600,520 900,340 1200,480 1500,360 1920,550 1920,1080 0,1080" fill="#0d0604" opacity="0.9"/>
+      </svg>`,
+      mid: `<svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+        <!-- Mid-range hills with trees -->
+        <polygon points="0,720 200,580 400,650 700,530 1000,620 1300,510 1600,600 1920,680 1920,1080 0,1080" fill="#1a0a04"/>
+        <!-- Sparse tree silhouettes on the ridge -->
+        <polygon points="680,530 700,430 720,530" fill="#120802"/>
+        <polygon points="990,620 1010,500 1030,620" fill="#120802"/>
+        <polygon points="1290,510 1310,400 1330,510" fill="#120802"/>
+        <polygon points="390,650 410,560 430,650" fill="#120802"/>
+      </svg>`,
+      near: `<svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+        <!-- Near hills -->
+        <polygon points="0,800 150,700 400,760 700,680 1000,740 1300,700 1600,760 1920,720 1920,1080 0,1080" fill="#261008"/>
+        <!-- Campfire glow on horizon -->
+        <circle cx="1100" cy="700" r="120" fill="${toC}" opacity="0.06"/>
+        <circle cx="1100" cy="700" r="60" fill="${toC}" opacity="0.12"/>
+      </svg>`,
+      ground: `<svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+        <!-- Ground plane -->
+        <polygon points="0,850 1920,830 1920,1080 0,1080" fill="#1a0a04"/>
+        <!-- Path suggestion -->
+        <polygon points="700,860 760,1080 840,1080 780,860" fill="#221008" opacity="0.5"/>
+      </svg>`,
+      particles: { color: toC, count: 8, style: 'embers' },
+    },
+    campfire_to_workshop: {
+      sky: `<svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+        <defs>
+          <linearGradient id="dawnsky" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#0a0603"/>
+            <stop offset="70%" stop-color="#1c1a05"/>
+            <stop offset="100%" stop-color="#2a2008"/>
+          </linearGradient>
+        </defs>
+        <rect width="1920" height="1080" fill="url(#dawnsky)"/>
+        <circle cx="350" cy="100" r="1" fill="#fff" opacity="0.3"/>
+        <circle cx="800" cy="60" r="1.5" fill="#fff" opacity="0.25"/>
+        <circle cx="1500" cy="90" r="1" fill="#fff" opacity="0.2"/>
+      </svg>`,
+      far: `<svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+        <polygon points="0,600 400,420 800,500 1200,380 1600,460 1920,520 1920,1080 0,1080" fill="#0f0c03" opacity="0.9"/>
+      </svg>`,
+      mid: `<svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+        <!-- Workshop building silhouette in the distance -->
+        <polygon points="0,700 300,650 500,700 1920,680 1920,1080 0,1080" fill="#1a1505"/>
+        <!-- Workshop structure -->
+        <rect x="1100" y="480" width="320" height="220" fill="#1a1505"/>
+        <polygon points="1060,480 1260,380 1460,480" fill="#1a1505"/>
+        <!-- Windows glowing -->
+        <rect x="1140" y="530" width="40" height="50" fill="${toC}" opacity="0.2" rx="2"/>
+        <rect x="1220" y="530" width="40" height="50" fill="${toC}" opacity="0.15" rx="2"/>
+        <rect x="1300" y="530" width="40" height="50" fill="${toC}" opacity="0.2" rx="2"/>
+        <!-- Chimney -->
+        <rect x="1350" y="400" width="30" height="80" fill="#1a1505"/>
+      </svg>`,
+      near: `<svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+        <polygon points="0,780 1920,800 1920,1080 0,1080" fill="#26200a"/>
+      </svg>`,
+      ground: `<svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+        <polygon points="0,840 1920,850 1920,1080 0,1080" fill="#1a1505"/>
+        <polygon points="800,850 860,1080 940,1080 880,850" fill="#221c08" opacity="0.4"/>
+      </svg>`,
+      particles: { color: toC, count: 5, style: 'dust' },
+    },
+    workshop_to_collection: {
+      sky: `<svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+        <defs>
+          <linearGradient id="tealsky" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#020f0e"/>
+            <stop offset="60%" stop-color="#042f2e"/>
+            <stop offset="100%" stop-color="#0a3d3a"/>
+          </linearGradient>
+        </defs>
+        <rect width="1920" height="1080" fill="url(#tealsky)"/>
+        <!-- Subtle aurora -->
+        <ellipse cx="960" cy="200" rx="600" ry="150" fill="${toC}" opacity="0.03"/>
+      </svg>`,
+      far: `<svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+        <polygon points="0,580 250,440 500,520 800,400 1100,480 1400,390 1700,470 1920,530 1920,1080 0,1080" fill="#031a18"/>
+      </svg>`,
+      mid: `<svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+        <polygon points="0,680 200,620 500,670 800,600 1100,650 1400,590 1700,640 1920,670 1920,1080 0,1080" fill="#052e2a"/>
+        <!-- Tall wall structure in distance -->
+        <rect x="1050" y="400" width="400" height="270" fill="#052e2a"/>
+        <!-- Pinned items on wall (small rectangles) -->
+        <rect x="1080" y="430" width="30" height="40" fill="${toC}" opacity="0.1" rx="2"/>
+        <rect x="1130" y="420" width="35" height="45" fill="${toC}" opacity="0.08" rx="2"/>
+        <rect x="1190" y="435" width="25" height="35" fill="${toC}" opacity="0.12" rx="2"/>
+        <rect x="1240" y="425" width="30" height="40" fill="${toC}" opacity="0.09" rx="2"/>
+        <rect x="1300" y="440" width="35" height="30" fill="${toC}" opacity="0.1" rx="2"/>
+        <rect x="1350" y="420" width="28" height="42" fill="${toC}" opacity="0.07" rx="2"/>
+      </svg>`,
+      near: `<svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+        <polygon points="0,780 1920,760 1920,1080 0,1080" fill="#0a3d3a"/>
+      </svg>`,
+      ground: `<svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+        <polygon points="0,850 1920,840 1920,1080 0,1080" fill="#052e2a"/>
+      </svg>`,
+      particles: { color: toC, count: 6, style: 'firefly' },
+    },
+    collection_to_window: {
+      sky: `<svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+        <defs>
+          <linearGradient id="bluesky" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#030810"/>
+            <stop offset="50%" stop-color="#0c1929"/>
+            <stop offset="100%" stop-color="#142642"/>
+          </linearGradient>
+        </defs>
+        <rect width="1920" height="1080" fill="url(#bluesky)"/>
+        <!-- Moon -->
+        <circle cx="1500" cy="180" r="40" fill="#c4d4e8" opacity="0.15"/>
+        <circle cx="1510" cy="175" r="38" fill="#030810"/>
+        <circle cx="1500" cy="180" r="40" fill="#c4d4e8" opacity="0.05"/>
+      </svg>`,
+      far: `<svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+        <!-- City skyline very far -->
+        <rect x="200" y="480" width="60" height="120" fill="#0a1520"/>
+        <rect x="280" y="440" width="50" height="160" fill="#0a1520"/>
+        <rect x="350" y="500" width="40" height="100" fill="#0a1520"/>
+        <rect x="1400" y="460" width="70" height="140" fill="#0a1520"/>
+        <rect x="1500" y="490" width="45" height="110" fill="#0a1520"/>
+        <polygon points="0,600 1920,600 1920,1080 0,1080" fill="#081420"/>
+      </svg>`,
+      mid: `<svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+        <polygon points="0,700 1920,700 1920,1080 0,1080" fill="#0f1e30"/>
+        <!-- Large window frame -->
+        <rect x="1000" y="380" width="450" height="350" fill="#0f1e30" stroke="${toC}" stroke-width="3" stroke-opacity="0.15" rx="4"/>
+        <!-- Window panes -->
+        <line x1="1225" y1="380" x2="1225" y2="730" stroke="${toC}" stroke-width="2" stroke-opacity="0.1"/>
+        <line x1="1000" y1="555" x2="1450" y2="555" stroke="${toC}" stroke-width="2" stroke-opacity="0.1"/>
+        <!-- Light through window -->
+        <rect x="1005" y="385" width="218" height="168" fill="${toC}" opacity="0.04" rx="2"/>
+        <rect x="1230" y="385" width="218" height="168" fill="${toC}" opacity="0.03" rx="2"/>
+      </svg>`,
+      near: `<svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+        <polygon points="0,780 1920,770 1920,1080 0,1080" fill="#142642"/>
+      </svg>`,
+      ground: `<svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+        <polygon points="0,850 1920,840 1920,1080 0,1080" fill="#0f1e30"/>
+      </svg>`,
+      particles: { color: toC, count: 4, style: 'dust' },
+    },
+    window_to_toolkit: {
+      sky: `<svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+        <defs>
+          <linearGradient id="greensky" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#020d07"/>
+            <stop offset="60%" stop-color="#052e16"/>
+            <stop offset="100%" stop-color="#0a3d1e"/>
+          </linearGradient>
+        </defs>
+        <rect width="1920" height="1080" fill="url(#greensky)"/>
+      </svg>`,
+      far: `<svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+        <polygon points="0,560 300,440 600,500 900,400 1200,460 1500,380 1800,450 1920,500 1920,1080 0,1080" fill="#031a0c"/>
+      </svg>`,
+      mid: `<svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+        <polygon points="0,680 1920,660 1920,1080 0,1080" fill="#052e16"/>
+        <!-- Toolkit shelves / structure -->
+        <rect x="1050" y="440" width="380" height="240" fill="#052e16"/>
+        <!-- Shelves -->
+        <line x1="1060" y1="510" x2="1420" y2="510" stroke="${toC}" stroke-width="2" stroke-opacity="0.12"/>
+        <line x1="1060" y1="580" x2="1420" y2="580" stroke="${toC}" stroke-width="2" stroke-opacity="0.1"/>
+        <line x1="1060" y1="650" x2="1420" y2="650" stroke="${toC}" stroke-width="2" stroke-opacity="0.08"/>
+        <!-- Tools on shelves (small shapes) -->
+        <rect x="1080" y="490" width="15" height="18" fill="${toC}" opacity="0.1" rx="1"/>
+        <circle cx="1130" cy="500" r="8" fill="${toC}" opacity="0.08"/>
+        <rect x="1170" y="492" width="20" height="16" fill="${toC}" opacity="0.12" rx="1"/>
+        <polygon points="1250,510 1265,488 1280,510" fill="${toC}" opacity="0.09"/>
+        <rect x="1320" y="495" width="12" height="14" fill="${toC}" opacity="0.1" rx="1"/>
+      </svg>`,
+      near: `<svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+        <polygon points="0,780 1920,770 1920,1080 0,1080" fill="#0a3d1e"/>
+      </svg>`,
+      ground: `<svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+        <polygon points="0,850 1920,845 1920,1080 0,1080" fill="#052e16"/>
+      </svg>`,
+      particles: { color: toC, count: 5, style: 'firefly' },
+    },
+    toolkit_to_crossroads: {
+      sky: `<svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+        <defs>
+          <linearGradient id="violetsky" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#06020f"/>
+            <stop offset="50%" stop-color="#1e0a3e"/>
+            <stop offset="100%" stop-color="#2a1055"/>
+          </linearGradient>
+        </defs>
+        <rect width="1920" height="1080" fill="url(#violetsky)"/>
+        <circle cx="300" cy="100" r="1.5" fill="#c4b5fd" opacity="0.4"/>
+        <circle cx="700" cy="60" r="1" fill="#c4b5fd" opacity="0.3"/>
+        <circle cx="1200" cy="120" r="1.8" fill="#c4b5fd" opacity="0.35"/>
+        <circle cx="1600" cy="80" r="1.2" fill="#c4b5fd" opacity="0.25"/>
+      </svg>`,
+      far: `<svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+        <polygon points="0,600 400,480 800,540 1200,450 1600,520 1920,560 1920,1080 0,1080" fill="#0d0520"/>
+      </svg>`,
+      mid: `<svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+        <polygon points="0,700 1920,690 1920,1080 0,1080" fill="#1e0a3e"/>
+        <!-- Three doorways / arches — the crossroads -->
+        <rect x="900" y="460" width="120" height="240" fill="#0d0520" rx="60" ry="60"/>
+        <rect x="1100" y="440" width="130" height="260" fill="#0d0520" rx="65" ry="65"/>
+        <rect x="1310" y="470" width="110" height="230" fill="#0d0520" rx="55" ry="55"/>
+        <!-- Glow from doorways -->
+        <ellipse cx="960" cy="580" rx="40" ry="60" fill="${toC}" opacity="0.06"/>
+        <ellipse cx="1165" cy="570" rx="45" ry="65" fill="${toC}" opacity="0.08"/>
+        <ellipse cx="1365" cy="585" rx="35" ry="55" fill="${toC}" opacity="0.05"/>
+      </svg>`,
+      near: `<svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+        <polygon points="0,780 1920,775 1920,1080 0,1080" fill="#2a1055"/>
+        <!-- Corridor walls narrowing -->
+        <polygon points="0,500 200,700 200,1080 0,1080" fill="#150830" opacity="0.7"/>
+        <polygon points="1920,520 1720,710 1720,1080 1920,1080" fill="#150830" opacity="0.7"/>
+      </svg>`,
+      ground: `<svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+        <polygon points="0,850 1920,845 1920,1080 0,1080" fill="#1e0a3e"/>
+      </svg>`,
+      particles: { color: toC, count: 7, style: 'dust' },
+    },
+    crossroads_to_launchpad: {
+      sky: `<svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+        <defs>
+          <linearGradient id="rosesky" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="#0a0308"/>
+            <stop offset="40%" stop-color="#2a0a1e"/>
+            <stop offset="100%" stop-color="#3d1028"/>
+          </linearGradient>
+        </defs>
+        <rect width="1920" height="1080" fill="url(#rosesky)"/>
+        <!-- Dawn breaking on horizon -->
+        <ellipse cx="960" cy="500" rx="800" ry="200" fill="${toC}" opacity="0.03"/>
+        <ellipse cx="960" cy="520" rx="400" ry="100" fill="${toC}" opacity="0.05"/>
+        <circle cx="500" cy="80" r="1.5" fill="#fda4af" opacity="0.4"/>
+        <circle cx="1100" cy="60" r="1" fill="#fda4af" opacity="0.3"/>
+        <circle cx="1500" cy="100" r="1.8" fill="#fda4af" opacity="0.35"/>
+      </svg>`,
+      far: `<svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+        <polygon points="0,580 300,480 700,530 1000,450 1400,500 1920,540 1920,1080 0,1080" fill="#1a050f"/>
+      </svg>`,
+      mid: `<svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+        <polygon points="0,680 1920,670 1920,1080 0,1080" fill="#2a0a1e"/>
+        <!-- Launchpad platform -->
+        <rect x="1000" y="600" width="400" height="15" fill="#3d1028" rx="3"/>
+        <rect x="1050" y="615" width="8" height="55" fill="#3d1028"/>
+        <rect x="1340" y="615" width="8" height="55" fill="#3d1028"/>
+        <!-- Rocket silhouette -->
+        <polygon points="1200,400 1180,550 1220,550" fill="#2a0a1e"/>
+        <polygon points="1200,380 1190,410 1210,410" fill="#2a0a1e"/>
+        <rect x="1188" y="550" width="24" height="50" fill="#2a0a1e"/>
+        <!-- Exhaust glow -->
+        <ellipse cx="1200" cy="610" rx="25" ry="15" fill="${toC}" opacity="0.1"/>
+      </svg>`,
+      near: `<svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+        <polygon points="0,780 1920,770 1920,1080 0,1080" fill="#3d1028"/>
+      </svg>`,
+      ground: `<svg viewBox="0 0 1920 1080" preserveAspectRatio="xMidYMid slice">
+        <polygon points="0,850 1920,845 1920,1080 0,1080" fill="#2a0a1e"/>
+      </svg>`,
+      particles: { color: toC, count: 10, style: 'embers' },
+    },
+  };
+
+  return scenes[transition.scene] || scenes.identity_to_campfire;
+}
+
+// ─── Kit Character SVG ──────────────────────────────────────────
+function kitSVG(accent) {
+  return `<svg viewBox="0 0 60 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <!-- Kit silhouette — flat polygon style like Another World -->
+    <!-- Head -->
+    <ellipse cx="30" cy="22" rx="12" ry="14" fill="#0a0a0a"/>
+    <!-- Hair tousle -->
+    <path d="M18 18 Q22 8 30 10 Q38 8 42 18" fill="#0a0a0a"/>
+    <!-- Body -->
+    <polygon points="22,36 38,36 42,80 18,80" fill="#0a0a0a"/>
+    <!-- Apron suggestion -->
+    <polygon points="24,50 36,50 38,78 20,78" fill="${accent}" opacity="0.15"/>
+    <!-- Arms -->
+    <polygon points="18,40 12,65 16,66 22,42" fill="#0a0a0a"/>
+    <polygon points="42,40 48,62 44,63 38,42" fill="#0a0a0a"/>
+    <!-- Legs -->
+    <polygon points="22,80 18,115 24,115 28,80" fill="#0a0a0a"/>
+    <polygon points="32,80 36,115 42,115 38,80" fill="#0a0a0a"/>
+    <!-- Feet -->
+    <ellipse cx="21" cy="117" rx="6" ry="3" fill="#0a0a0a"/>
+    <ellipse cx="39" cy="117" rx="6" ry="3" fill="#0a0a0a"/>
+    <!-- Subtle edge highlight -->
+    <path d="M22,36 Q30,34 38,36" stroke="${accent}" stroke-width="0.5" stroke-opacity="0.3" fill="none"/>
+  </svg>`;
+}
+
+// ─── Particle Generator ─────────────────────────────────────────
+function createParticles(container, config) {
+  const { color, count, style } = config;
+  const particleContainer = document.createElement('div');
+  particleContainer.className = 'particles';
+
+  for (let i = 0; i < count; i++) {
+    const p = document.createElement('div');
+    p.className = 'particle';
+    const size = style === 'embers' ? Math.random() * 4 + 2 : Math.random() * 3 + 1;
+    const left = Math.random() * 100;
+    const bottom = Math.random() * 40 + 20;
+    const duration = Math.random() * 6 + 4;
+    const delay = Math.random() * 4;
+
+    p.style.cssText = `
+      width: ${size}px;
+      height: ${size}px;
+      left: ${left}%;
+      bottom: ${bottom}%;
+      background: ${color};
+      opacity: 0;
+      animation-duration: ${duration}s;
+      animation-delay: ${delay}s;
+      ${style === 'embers' ? `box-shadow: 0 0 ${size * 2}px ${color}66;` : ''}
+      ${style === 'firefly' ? `box-shadow: 0 0 ${size * 3}px ${color}44; border-radius: 50%;` : ''}
+    `;
+    particleContainer.appendChild(p);
+  }
+
+  container.appendChild(particleContainer);
+}
+
+// ─── Light Shaft Generator ──────────────────────────────────────
+function createLightShaft(container, color) {
+  const shaft = document.createElement('div');
+  shaft.className = 'light-shaft';
+  shaft.style.cssText = `
+    left: ${30 + Math.random() * 40}%;
+    background: linear-gradient(180deg, transparent 0%, ${color}08 30%, ${color}12 50%, ${color}08 70%, transparent 100%);
+    animation-delay: ${Math.random() * 3}s;
+  `;
+  container.appendChild(shaft);
+}
+
+// ─── Scene Builder ──────────────────────────────────────────────
+let currentTransition = 0;
+let scenePhase = 0; // 0 = initial, 1 = panning, 2 = arrived
+
+function playTransition(index) {
+  currentTransition = index;
+  scenePhase = 0;
+
+  // Update button states
+  document.querySelectorAll('.controls button').forEach((btn, i) => {
+    btn.classList.toggle('active', i === index);
+  });
+
+  const transition = TRANSITIONS[index];
+  const scene = document.getElementById('scene');
+  const fade = document.getElementById('fade');
+  const dialogue = document.getElementById('dialogue');
+  const dialogueText = document.getElementById('dialogue-text');
+  const stationLabel = document.getElementById('station-label');
+  const stationName = document.getElementById('station-name');
+  const continueEl = document.getElementById('continue');
+
+  // Phase 1: Fade to black
+  fade.classList.add('active');
+  dialogue.classList.remove('visible');
+  stationLabel.classList.remove('visible');
+  continueEl.classList.remove('visible');
+
+  setTimeout(() => {
+    // Clear scene
+    scene.innerHTML = '';
+    scene.className = 'scene';
+
+    // Build SVG layers
+    const svgs = buildSceneSVGs(transition);
+
+    const layers = ['sky', 'far', 'mid', 'near', 'ground'];
+    layers.forEach(layerName => {
+      if (svgs[layerName]) {
+        const div = document.createElement('div');
+        div.className = `layer ${layerName}`;
+        div.innerHTML = svgs[layerName];
+        scene.appendChild(div);
+      }
+    });
+
+    // Add Kit character
+    const kitLayer = document.createElement('div');
+    kitLayer.className = 'layer characters';
+    const kitEl = document.createElement('div');
+    kitEl.className = 'kit-silhouette walking';
+    kitEl.innerHTML = kitSVG(transition.to.color);
+    kitLayer.appendChild(kitEl);
+    scene.appendChild(kitLayer);
+
+    // Add particles
+    if (svgs.particles) {
+      createParticles(scene, svgs.particles);
+    }
+
+    // Add light shaft
+    createLightShaft(scene, transition.to.color);
+
+    // Set dialogue
+    dialogueText.textContent = transition.kitLine;
+    stationName.textContent = transition.to.name;
+    stationName.style.color = transition.to.color;
+
+    // Phase 2: Fade from black (scene revealed)
+    setTimeout(() => {
+      fade.classList.remove('active');
+      scenePhase = 1;
+
+      // Phase 3: Start parallax pan after a beat
+      setTimeout(() => {
+        scene.classList.add('pan-right');
+
+        // Show dialogue during pan
+        setTimeout(() => {
+          dialogue.classList.add('visible');
+        }, 1000);
+
+        // Show station label
+        setTimeout(() => {
+          stationLabel.classList.add('visible');
+        }, 500);
+
+        // Stop walk animation when pan finishes
+        setTimeout(() => {
+          const kit = scene.querySelector('.kit-silhouette');
+          if (kit) kit.classList.remove('walking');
+          scenePhase = 2;
+
+          // Show continue prompt
+          continueEl.classList.add('visible');
+        }, 5500);
+
+      }, 800);
+    }, 400);
+
+  }, 1200);
+}
+
+function advanceScene() {
+  if (currentTransition < TRANSITIONS.length - 1) {
+    playTransition(currentTransition + 1);
+  }
+}
+
+// Auto-play first transition on load
+window.addEventListener('load', () => {
+  setTimeout(() => playTransition(0), 500);
+});
+</script>
+</body>
+</html>

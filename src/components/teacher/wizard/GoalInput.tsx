@@ -204,6 +204,9 @@ export function GoalInput({ state, dispatch, onSelectMode }: Props) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [dragOverBucket, setDragOverBucket] = useState<KeywordPriority | null>(null);
   const [lastUsedLane, setLastUsedLane] = useState<WizardMode | null>(null);
+  const [showContext, setShowContext] = useState(
+    !!(state.input.realWorldContext || state.input.studentContext || state.input.classroomConstraints)
+  );
 
   // Load last-used lane from localStorage
   useEffect(() => {
@@ -529,6 +532,61 @@ export function GoalInput({ state, dispatch, onSelectMode }: Props) {
                 ~{state.input.durationWeeks * (state.journeyInput.lessonsPerWeek || 3)} lessons
               </span>
             </div>
+          </div>
+        )}
+
+        {/* ── Classroom Context (optional) ── */}
+        {showConfig && (
+          <div className="mt-4">
+            <button
+              type="button"
+              onClick={() => setShowContext((v) => !v)}
+              className="text-xs font-semibold text-text-secondary hover:text-brand-purple transition-colors flex items-center gap-1.5"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 113 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+              {showContext ? "Hide classroom context" : "Add classroom context"}
+              <span className="text-text-secondary/50">(optional)</span>
+            </button>
+            {showContext && (
+            <div className="mt-3 space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">
+                  Real-world connection
+                </label>
+                <textarea
+                  value={state.input.realWorldContext || ""}
+                  onChange={(e) => dispatch({ type: "SET_INPUT", key: "realWorldContext", value: e.target.value })}
+                  placeholder="e.g. We're redesigning the school cafeteria queue system"
+                  className="w-full p-2.5 rounded-lg border border-border bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/20 resize-none"
+                  rows={2}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">
+                  Student background
+                </label>
+                <textarea
+                  value={state.input.studentContext || ""}
+                  onChange={(e) => dispatch({ type: "SET_INPUT", key: "studentContext", value: e.target.value })}
+                  placeholder="e.g. Just completed a sustainability unit, burned out on research"
+                  className="w-full p-2.5 rounded-lg border border-border bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/20 resize-none"
+                  rows={2}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-text-secondary mb-1">
+                  Constraints
+                </label>
+                <textarea
+                  value={state.input.classroomConstraints || ""}
+                  onChange={(e) => dispatch({ type: "SET_INPUT", key: "classroomConstraints", value: e.target.value })}
+                  placeholder="e.g. No workshop until Week 3, 28 students, half never used Arduino"
+                  className="w-full p-2.5 rounded-lg border border-border bg-white text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple/20 resize-none"
+                  rows={2}
+                />
+              </div>
+            </div>
+            )}
           </div>
         )}
 

@@ -10,6 +10,8 @@ import { CRITERIA, DEFAULT_MYP_PAGES, type CriterionKey } from "@/lib/constants"
 import { getPageList } from "@/lib/unit-adapter";
 import { getActivityLibrarySummary } from "@/lib/activity-library";
 import { buildFrameworkPromptBlock } from "@/lib/ai/framework-vocabulary";
+import { computeLessonPulse } from "@/lib/layers/lesson-pulse";
+import type { PulseActivity } from "@/lib/layers/lesson-pulse";
 import {
   retrieveLessonProfiles,
   formatLessonProfiles,
@@ -219,11 +221,23 @@ Remember to include ELL scaffolding (ell1, ell2, ell3) for every section.`;
       // Timing validation is enhancement, not requirement
     }
 
+    // --- Lesson Pulse scoring ---
+    let pulseScore = null;
+    try {
+      const sections = (page as unknown as { sections?: unknown[] })?.sections;
+      if (Array.isArray(sections) && sections.length > 0) {
+        pulseScore = computeLessonPulse(sections as PulseActivity[]);
+      }
+    } catch {
+      // Pulse scoring is enhancement, not requirement
+    }
+
     return NextResponse.json({
       page,
       pageId,
       warnings: validation.errors,
       timingValidation,
+      pulseScore,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";

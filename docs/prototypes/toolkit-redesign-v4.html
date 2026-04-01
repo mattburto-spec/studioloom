@@ -1,0 +1,1058 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StudioLoom Toolkit — v4 Prototype</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', sans-serif; background: #0a0a12; color: #e2e2f0; min-height: 100vh; }
+
+  /* ── HERO ── */
+  .hero {
+    background: linear-gradient(135deg, #0a0a12 0%, #1a1030 40%, #0d1a2a 70%, #0a0a12 100%);
+    padding: 48px 24px 32px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 30% 20%, rgba(139,92,246,0.15) 0%, transparent 60%),
+                radial-gradient(ellipse at 70% 80%, rgba(59,130,246,0.1) 0%, transparent 60%);
+  }
+  .hero h1 { font-size: 2.5rem; font-weight: 900; position: relative; letter-spacing: -0.02em; }
+  .hero h1 span { background: linear-gradient(135deg, #a78bfa, #60a5fa, #34d399); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .hero p { color: #9393b0; margin-top: 8px; font-size: 1rem; position: relative; }
+
+  /* ── AI SEARCH ── */
+  .search-wrap {
+    max-width: 640px; margin: 24px auto 0; position: relative;
+  }
+  .search-wrap input {
+    width: 100%; padding: 14px 20px 14px 48px;
+    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 16px; color: #e2e2f0; font-size: 1rem; outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .search-wrap input:focus {
+    border-color: rgba(139,92,246,0.5);
+    box-shadow: 0 0 0 3px rgba(139,92,246,0.15);
+  }
+  .search-wrap input::placeholder { color: #6b6b8a; }
+  .search-wrap .search-icon {
+    position: absolute; left: 16px; top: 50%; transform: translateY(-50%);
+    color: #8b5cf6; width: 20px; height: 20px;
+  }
+  .search-suggestions {
+    position: absolute; top: calc(100% + 8px); left: 0; right: 0;
+    background: #1a1a2e; border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px; padding: 8px; z-index: 100;
+    display: none; box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+  }
+  .search-suggestions.active { display: block; }
+  .search-suggestion {
+    display: flex; align-items: center; gap: 12px; padding: 10px 12px;
+    border-radius: 8px; cursor: pointer; transition: background 0.15s;
+  }
+  .search-suggestion:hover { background: rgba(139,92,246,0.15); }
+  .search-suggestion .ss-thumb {
+    width: 40px; height: 40px; border-radius: 8px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .search-suggestion .ss-name { font-weight: 600; font-size: 0.9rem; }
+  .search-suggestion .ss-why { font-size: 0.78rem; color: #9393b0; }
+
+  /* ── CONTENT ── */
+  .content { max-width: 1200px; margin: 0 auto; padding: 0 24px 64px; }
+
+  /* ── CURATED COLLECTIONS ── */
+  .collections { margin-bottom: 40px; padding-top: 16px; }
+  .collections h2 {
+    font-size: 0.8rem; font-weight: 700; color: #c4c4e0; margin-bottom: 16px;
+    text-transform: uppercase; letter-spacing: 0.06em;
+  }
+  .collections-row {
+    display: flex; gap: 12px; overflow-x: auto; padding-bottom: 8px; padding-right: 24px;
+    scrollbar-width: thin; scrollbar-color: #333 transparent;
+  }
+  .collection-card {
+    flex-shrink: 0; width: 280px; padding: 20px;
+    border-radius: 16px; cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    position: relative; overflow: hidden;
+  }
+  .collection-card:hover { transform: translateY(-3px); box-shadow: 0 8px 30px rgba(0,0,0,0.3); }
+  .collection-card.active { transform: translateY(-3px); }
+  .cc-beginner.active { border-color: rgba(52,211,153,0.8); box-shadow: 0 0 20px rgba(52,211,153,0.25), 0 0 0 1px rgba(52,211,153,0.5); }
+  .cc-pipeline.active { border-color: rgba(139,92,246,0.8); box-shadow: 0 0 20px rgba(139,92,246,0.25), 0 0 0 1px rgba(139,92,246,0.5); }
+  .cc-quick.active { border-color: rgba(251,191,36,0.8); box-shadow: 0 0 20px rgba(251,191,36,0.25), 0 0 0 1px rgba(251,191,36,0.5); }
+  .cc-research.active { border-color: rgba(59,130,246,0.8); box-shadow: 0 0 20px rgba(59,130,246,0.25), 0 0 0 1px rgba(59,130,246,0.5); }
+  .cc-evaluate.active { border-color: rgba(244,114,182,0.8); box-shadow: 0 0 20px rgba(244,114,182,0.25), 0 0 0 1px rgba(244,114,182,0.5); }
+  .collection-card.active .cc-check {
+    display: flex;
+  }
+  .collection-card .cc-emoji { font-size: 1.5rem; margin-bottom: 8px; }
+  .collection-card .cc-title { font-weight: 700; font-size: 1rem; margin-bottom: 4px; }
+  .collection-card .cc-desc { font-size: 0.82rem; color: rgba(255,255,255,0.7); line-height: 1.4; }
+  .collection-card .cc-count {
+    display: inline-block; margin-top: 10px; padding: 3px 10px;
+    background: rgba(255,255,255,0.15); border-radius: 20px;
+    font-size: 0.75rem; font-weight: 600;
+  }
+  .collection-card .cc-check {
+    display: none; position: absolute; top: 10px; right: 10px;
+    width: 24px; height: 24px; border-radius: 50%;
+    align-items: center; justify-content: center;
+  }
+  .cc-beginner .cc-check { background: rgba(52,211,153,0.9); }
+  .cc-pipeline .cc-check { background: rgba(139,92,246,0.9); }
+  .cc-quick .cc-check { background: rgba(251,191,36,0.9); }
+  .cc-research .cc-check { background: rgba(59,130,246,0.9); }
+  .cc-evaluate .cc-check { background: rgba(244,114,182,0.9); }
+  .collection-card .cc-check svg { width: 14px; height: 14px; stroke: white; fill: none; stroke-width: 3; }
+
+  /* ── FILTER BAR ── */
+  .filter-bar {
+    display: none; align-items: center; justify-content: center; gap: 12px;
+    padding: 12px 20px; margin-bottom: 24px;
+    background: rgba(139,92,246,0.1); border: 1px solid rgba(139,92,246,0.25);
+    border-radius: 12px; font-size: 0.88rem; color: #c4c4e0;
+  }
+  .filter-bar.active { display: flex; }
+  .filter-bar strong { color: #a78bfa; }
+  .filter-bar .clear-btn {
+    background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
+    color: #e2e2f0; padding: 5px 14px; border-radius: 8px; font-size: 0.8rem;
+    font-weight: 600; cursor: pointer; transition: background 0.15s;
+  }
+  .filter-bar .clear-btn:hover { background: rgba(255,255,255,0.15); }
+
+  .cc-beginner { background: linear-gradient(135deg, #1a2a1a, #0d2010); border: 1px solid rgba(52,211,153,0.3); }
+  .cc-pipeline { background: linear-gradient(135deg, #1a1a30, #10102a); border: 1px solid rgba(139,92,246,0.3); }
+  .cc-quick { background: linear-gradient(135deg, #2a1a10, #201510); border: 1px solid rgba(251,191,36,0.3); }
+  .cc-research { background: linear-gradient(135deg, #0d1a2a, #0a1520); border: 1px solid rgba(59,130,246,0.3); }
+  .cc-evaluate { background: linear-gradient(135deg, #2a0d1a, #200a15); border: 1px solid rgba(244,114,182,0.3); }
+
+  /* ── PHASE PATH ── */
+  .phase-path { margin-bottom: 40px; }
+  .phase-path h2 {
+    font-size: 0.8rem; font-weight: 700; color: #c4c4e0; margin-bottom: 16px;
+    text-transform: uppercase; letter-spacing: 0.06em;
+  }
+  .path-track {
+    display: flex; align-items: center; gap: 0; position: relative;
+    padding: 8px 0; overflow-x: auto; justify-content: center;
+  }
+  .path-node {
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    cursor: pointer; padding: 12px 20px; border-radius: 12px;
+    transition: background 0.2s; flex-shrink: 0; min-width: 120px;
+    position: relative;
+  }
+  .path-node:hover { background: rgba(255,255,255,0.05); }
+  .path-node.active { background: rgba(139,92,246,0.15); }
+  .path-dot {
+    width: 40px; height: 40px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.1rem; font-weight: 700; transition: transform 0.2s;
+  }
+  .path-node:hover .path-dot { transform: scale(1.15); }
+  .path-label { font-size: 0.78rem; font-weight: 600; }
+  .path-count { font-size: 0.7rem; color: #6b6b8a; }
+  .path-connector {
+    width: 40px; height: 2px; flex-shrink: 0;
+    background: linear-gradient(90deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
+  }
+
+  .pd-discover .path-dot { background: rgba(59,130,246,0.2); color: #60a5fa; border: 2px solid rgba(59,130,246,0.4); }
+  .pd-define .path-dot { background: rgba(168,85,247,0.2); color: #a78bfa; border: 2px solid rgba(168,85,247,0.4); }
+  .pd-ideate .path-dot { background: rgba(52,211,153,0.2); color: #34d399; border: 2px solid rgba(52,211,153,0.4); }
+  .pd-prototype .path-dot { background: rgba(251,191,36,0.2); color: #fbbf24; border: 2px solid rgba(251,191,36,0.4); }
+  .pd-test .path-dot { background: rgba(244,114,182,0.2); color: #f472b6; border: 2px solid rgba(244,114,182,0.4); }
+
+  /* ── VIEW TOGGLE ── */
+  .toolbar {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 20px; flex-wrap: wrap; gap: 12px;
+  }
+  .toolbar-left { display: flex; align-items: center; gap: 8px; }
+  .view-toggle {
+    display: flex; background: rgba(255,255,255,0.06); border-radius: 10px; padding: 3px;
+  }
+  .view-btn {
+    padding: 7px 14px; border-radius: 8px; border: none; background: none;
+    color: #9393b0; font-size: 0.82rem; font-weight: 600; cursor: pointer;
+    transition: all 0.2s;
+  }
+  .view-btn.active { background: rgba(139,92,246,0.25); color: #e2e2f0; }
+  .tool-count { font-size: 0.82rem; color: #6b6b8a; }
+
+  /* ── TOOL GRID ── */
+  .tool-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+  }
+
+  /* ── TOOL CARD ── */
+  .tool-card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px; overflow: hidden;
+    cursor: pointer; transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+  }
+  .tool-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+    border-color: rgba(255,255,255,0.15);
+  }
+
+  /* Thumbnail area */
+  .tool-thumb {
+    height: 140px; display: flex; align-items: center; justify-content: center;
+    position: relative; overflow: hidden;
+  }
+  .tool-thumb svg { width: 100%; height: 100%; }
+
+  /* Interactive badge */
+  .interactive-badge {
+    position: absolute; top: 8px; right: 8px;
+    background: rgba(139,92,246,0.9); color: white;
+    font-size: 0.65rem; font-weight: 700; padding: 3px 8px;
+    border-radius: 6px; text-transform: uppercase; letter-spacing: 0.04em;
+  }
+
+  /* Category stripe */
+  .cat-stripe {
+    height: 3px; width: 100%;
+  }
+
+  /* Card body */
+  .tool-body { padding: 14px 16px 16px; }
+  .tool-name { font-weight: 700; font-size: 0.95rem; margin-bottom: 4px; }
+  .tool-desc {
+    font-size: 0.8rem; color: #9393b0; line-height: 1.45;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .tool-meta {
+    display: flex; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap;
+  }
+  .tool-tag {
+    font-size: 0.7rem; font-weight: 600; padding: 3px 8px;
+    border-radius: 6px; background: rgba(255,255,255,0.06);
+    color: #9393b0;
+  }
+  .tool-tag.phase { color: var(--phase-color); background: var(--phase-bg); }
+
+  /* ── CATEGORY SECTION (category view) ── */
+  .category-section { margin-bottom: 32px; }
+  .category-header {
+    display: flex; align-items: center; gap: 12px; cursor: pointer;
+    padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.08);
+    margin-bottom: 16px;
+  }
+  .category-header:hover .cat-label { color: #e2e2f0; }
+  .cat-swatch {
+    width: 16px; height: 16px; border-radius: 4px; flex-shrink: 0;
+  }
+  .cat-label { font-weight: 700; font-size: 1rem; color: #c4c4e0; transition: color 0.15s; }
+  .cat-count { font-size: 0.8rem; color: #6b6b8a; margin-left: auto; }
+  .cat-chevron { color: #6b6b8a; transition: transform 0.2s; font-size: 0.9rem; }
+  .category-header.collapsed .cat-chevron { transform: rotate(-90deg); }
+  .category-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px; overflow: hidden; transition: max-height 0.3s ease, opacity 0.3s;
+  }
+  .category-grid.collapsed { max-height: 0; opacity: 0; margin-top: -16px; }
+
+  /* ── LIST VIEW ── */
+  .tool-list { display: flex; flex-direction: column; gap: 4px; }
+  .tool-list-item {
+    display: flex; align-items: center; gap: 14px; padding: 10px 14px;
+    background: rgba(255,255,255,0.03); border-radius: 10px; cursor: pointer;
+    transition: background 0.15s;
+  }
+  .tool-list-item:hover { background: rgba(255,255,255,0.07); }
+  .tl-thumb {
+    width: 44px; height: 44px; border-radius: 8px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; overflow: hidden;
+  }
+  .tl-thumb svg { width: 100%; height: 100%; }
+  .tl-info { flex: 1; min-width: 0; }
+  .tl-name { font-weight: 600; font-size: 0.88rem; }
+  .tl-desc { font-size: 0.78rem; color: #6b6b8a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tl-tags { display: flex; gap: 6px; flex-shrink: 0; }
+
+  /* ── TOP-LEVEL TOOLKIT TABS ── */
+  .toolkit-tabs {
+    display: flex; align-items: center; gap: 4px;
+    max-width: 1200px; margin: 0 auto; padding: 20px 24px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    overflow-x: auto; scrollbar-width: none;
+  }
+  .toolkit-tabs::-webkit-scrollbar { display: none; }
+  .toolkit-tab {
+    padding: 10px 20px; border-radius: 10px 10px 0 0;
+    font-size: 0.88rem; font-weight: 600; cursor: pointer;
+    transition: all 0.2s; white-space: nowrap; border: none; background: none;
+    color: #6b6b8a; position: relative;
+  }
+  .toolkit-tab:hover { color: #9393b0; background: rgba(255,255,255,0.03); }
+  .toolkit-tab.active {
+    color: #e2e2f0; background: rgba(139,92,246,0.12);
+  }
+  .toolkit-tab.active::after {
+    content: ''; position: absolute; bottom: -1px; left: 12px; right: 12px;
+    height: 2px; background: #8b5cf6; border-radius: 2px 2px 0 0;
+  }
+  .toolkit-tab .tab-count {
+    font-size: 0.7rem; font-weight: 700; padding: 1px 6px;
+    border-radius: 10px; margin-left: 6px; vertical-align: middle;
+    background: rgba(255,255,255,0.08); color: #6b6b8a;
+  }
+  .toolkit-tab.active .tab-count { background: rgba(139,92,246,0.3); color: #a78bfa; }
+  .toolkit-tab.coming-soon-tab { opacity: 0.5; cursor: default; }
+  .toolkit-tab.coming-soon-tab .tab-badge {
+    font-size: 0.6rem; font-weight: 700; padding: 2px 6px;
+    border-radius: 10px; margin-left: 6px; vertical-align: middle;
+    background: rgba(255,255,255,0.06); color: #6b6b8a;
+    text-transform: uppercase; letter-spacing: 0.04em;
+  }
+
+  /* ── COLORS ── */
+  :root {
+    --ideation: #34d399; --ideation-bg: rgba(52,211,153,0.12);
+    --analysis: #60a5fa; --analysis-bg: rgba(96,165,250,0.12);
+    --evaluation: #f472b6; --evaluation-bg: rgba(244,114,182,0.12);
+    --research: #a78bfa; --research-bg: rgba(167,139,250,0.12);
+    --planning: #fbbf24; --planning-bg: rgba(251,191,36,0.12);
+    --communication: #f97316; --communication-bg: rgba(249,115,22,0.12);
+    --reflection: #2dd4bf; --reflection-bg: rgba(45,212,191,0.12);
+  }
+</style>
+</head>
+<body>
+
+<!-- ══════ HERO ══════ -->
+<div class="hero">
+  <h1><span>Design Thinking Toolkit</span></h1>
+  <p>Tools to think better, design smarter, and create with confidence</p>
+
+  <div class="search-wrap">
+    <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+    <input type="text" id="searchInput" placeholder="What are you trying to do? e.g. 'narrow down my options'" autocomplete="off">
+    <div class="search-suggestions" id="suggestions"></div>
+  </div>
+</div>
+
+<!-- ══════ TOOLKIT TABS ══════ -->
+<div class="toolkit-tabs">
+  <button class="toolkit-tab active" onclick="switchToolkit('design-thinking')">
+    Design Thinking <span class="tab-count">48</span>
+  </button>
+  <button class="toolkit-tab coming-soon-tab">
+    Visual Thinking <span class="tab-badge">Soon</span>
+  </button>
+  <button class="toolkit-tab coming-soon-tab">
+    Collaboration <span class="tab-badge">Soon</span>
+  </button>
+  <button class="toolkit-tab coming-soon-tab">
+    Project Management <span class="tab-badge">Soon</span>
+  </button>
+  <button class="toolkit-tab coming-soon-tab">
+    Reflection <span class="tab-badge">Soon</span>
+  </button>
+</div>
+
+<div class="content">
+
+  <!-- ══════ CURATED COLLECTIONS ══════ -->
+  <div class="collections">
+    <h2>Start here</h2>
+    <div class="collections-row">
+
+      <div class="collection-card cc-beginner" data-collection="beginner" onclick="filterCollection('beginner')">
+        <div class="cc-check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <div class="cc-emoji">🌱</div>
+        <div class="cc-title">First Time?</div>
+        <div class="cc-desc">5 essential tools every design thinker should know. Start here and build your toolkit.</div>
+        <span class="cc-count">5 tools</span>
+      </div>
+
+      <div class="collection-card cc-pipeline" data-collection="pipeline" onclick="filterCollection('pipeline')">
+        <div class="cc-check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <div class="cc-emoji">🔗</div>
+        <div class="cc-title">Full Design Cycle</div>
+        <div class="cc-desc">One tool per phase — a complete brainstorm-to-decision pipeline for any project.</div>
+        <span class="cc-count">5 tools</span>
+      </div>
+
+      <div class="collection-card cc-quick" data-collection="quick" onclick="filterCollection('quick')">
+        <div class="cc-check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <div class="cc-emoji">⚡</div>
+        <div class="cc-title">Quick Wins</div>
+        <div class="cc-desc">Under 10 minutes each. Perfect for warm-ups, energisers, or when time is short.</div>
+        <span class="cc-count">8 tools</span>
+      </div>
+
+      <div class="collection-card cc-research" data-collection="research" onclick="filterCollection('research')">
+        <div class="cc-check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <div class="cc-emoji">🔬</div>
+        <div class="cc-title">Deep Research</div>
+        <div class="cc-desc">Understand your users, map systems, and uncover real needs before designing.</div>
+        <span class="cc-count">6 tools</span>
+      </div>
+
+      <div class="collection-card cc-evaluate" data-collection="evaluate" onclick="filterCollection('evaluate')">
+        <div class="cc-check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+        <div class="cc-emoji">⚖️</div>
+        <div class="cc-title">Make Decisions</div>
+        <div class="cc-desc">Compare options, score trade-offs, and choose with evidence — not guessing.</div>
+        <span class="cc-count">7 tools</span>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══════ FILTER BAR ══════ -->
+  <div class="filter-bar" id="filterBar">
+    <span>Showing <strong id="filterCount">0</strong> of 48 tools from <strong id="filterName"></strong></span>
+    <button class="clear-btn" onclick="clearFilters()">Clear filter</button>
+  </div>
+
+  <!-- ══════ PHASE PATH ══════ -->
+  <div class="phase-path">
+    <h2>Browse by phase</h2>
+    <div class="path-track">
+      <div class="path-node pd-discover" onclick="filterPhase('discover')">
+        <div class="path-dot">D</div>
+        <div class="path-label">Discover</div>
+        <div class="path-count">12 tools</div>
+      </div>
+      <div class="path-connector"></div>
+      <div class="path-node pd-define" onclick="filterPhase('define')">
+        <div class="path-dot">D</div>
+        <div class="path-label">Define</div>
+        <div class="path-count">10 tools</div>
+      </div>
+      <div class="path-connector"></div>
+      <div class="path-node pd-ideate" onclick="filterPhase('ideate')">
+        <div class="path-dot">I</div>
+        <div class="path-label">Ideate</div>
+        <div class="path-count">14 tools</div>
+      </div>
+      <div class="path-connector"></div>
+      <div class="path-node pd-prototype" onclick="filterPhase('prototype')">
+        <div class="path-dot">P</div>
+        <div class="path-label">Prototype</div>
+        <div class="path-count">6 tools</div>
+      </div>
+      <div class="path-connector"></div>
+      <div class="path-node pd-test" onclick="filterPhase('test')">
+        <div class="path-dot">T</div>
+        <div class="path-label">Test</div>
+        <div class="path-count">8 tools</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════ TOOLBAR ══════ -->
+  <div class="toolbar">
+    <div class="toolbar-left">
+      <div class="view-toggle">
+        <button class="view-btn active" onclick="setView('grid')">Grid</button>
+        <button class="view-btn" onclick="setView('category')">Category</button>
+        <button class="view-btn" onclick="setView('list')">List</button>
+      </div>
+      <span class="tool-count" id="toolCount">48 tools</span>
+    </div>
+  </div>
+
+  <!-- ══════ TOOL CONTAINER ══════ -->
+  <div id="toolContainer"></div>
+
+  <!-- ══════ COMING SOON ══════ -->
+  <div class="coming-soon" id="comingSoon">
+    <h2 style="text-align:center;font-size:1.3rem;font-weight:800;margin-top:60px;padding-top:40px;border-top:1px solid rgba(255,255,255,0.08);">Coming Soon</h2>
+    <p style="text-align:center;color:#6b6b8a;margin:8px 0 32px;font-size:0.9rem;">New categories expanding the toolkit beyond design thinking</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;" id="comingSoonGrid"></div>
+  </div>
+
+</div>
+
+<script>
+// ── STRUCTURAL THUMBNAIL SVGs ──
+// These show the OUTPUT SHAPE of each tool — what the result looks like
+const THUMBS = {
+  // IDEATION
+  "scamper": `<svg viewBox="0 0 260 140" xmlns="http://www.w3.org/2000/svg">
+    <rect width="260" height="140" fill="#0d1a14"/>
+    <g transform="translate(20,16)">
+      ${['S','C','A','M','P','E','R'].map((l,i) => `
+        <rect x="${i*32}" y="0" width="28" height="108" rx="4" fill="${i===2?'rgba(52,211,153,0.4)':'rgba(52,211,153,0.12)'}" stroke="rgba(52,211,153,0.3)" stroke-width="0.5"/>
+        <text x="${i*32+14}" y="16" text-anchor="middle" fill="#34d399" font-size="11" font-weight="700" font-family="Inter">${l}</text>
+        ${[0,1,2].map(j => `<rect x="${i*32+4}" y="${26+j*28}" width="20" height="20" rx="3" fill="rgba(52,211,153,${j===0?0.2:0.08})"/>`).join('')}
+      `).join('')}
+    </g>
+  </svg>`,
+
+  "six-thinking-hats": `<svg viewBox="0 0 260 140" xmlns="http://www.w3.org/2000/svg">
+    <rect width="260" height="140" fill="#0d0d1a"/>
+    <g transform="translate(22,20)">
+      ${[
+        {c:'#fff',l:'White'},{c:'#ef4444',l:'Red'},{c:'#1a1a1a',l:'Black'},
+        {c:'#facc15',l:'Yellow'},{c:'#22c55e',l:'Green'},{c:'#3b82f6',l:'Blue'}
+      ].map((h,i) => {
+        const x=(i%3)*74, y=Math.floor(i/3)*56;
+        return `<g transform="translate(${x},${y})">
+          <rect width="68" height="48" rx="8" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5"/>
+          <circle cx="16" cy="16" r="8" fill="${h.c}" ${h.c==='#1a1a1a'?'stroke="rgba(255,255,255,0.3)" stroke-width="1"':''}/>
+          <text x="30" y="19" fill="#9393b0" font-size="8" font-family="Inter">${h.l}</text>
+          <rect x="8" y="30" width="52" height="4" rx="2" fill="rgba(255,255,255,0.08)"/>
+          <rect x="8" y="38" width="36" height="4" rx="2" fill="rgba(255,255,255,0.05)"/>
+        </g>`;
+      }).join('')}
+    </g>
+  </svg>`,
+
+  "mind-map": `<svg viewBox="0 0 260 140" xmlns="http://www.w3.org/2000/svg">
+    <rect width="260" height="140" fill="#0d1a14"/>
+    <g transform="translate(130,70)">
+      ${[0,60,120,180,240,300].map((a,i) => {
+        const r=45, x=Math.cos(a*Math.PI/180)*r, y=Math.sin(a*Math.PI/180)*r;
+        return `<line x1="0" y1="0" x2="${x}" y2="${y}" stroke="rgba(52,211,153,0.2)" stroke-width="1.5"/>
+        <circle cx="${x}" cy="${y}" r="14" fill="rgba(52,211,153,0.15)" stroke="rgba(52,211,153,0.3)" stroke-width="0.5"/>
+        <rect x="${x-8}" y="${y-2}" width="16" height="4" rx="2" fill="rgba(52,211,153,0.3)"/>`;
+      }).join('')}
+      <circle cx="0" cy="0" r="20" fill="rgba(52,211,153,0.25)" stroke="rgba(52,211,153,0.5)" stroke-width="1"/>
+      <text x="0" y="4" text-anchor="middle" fill="#34d399" font-size="9" font-weight="700" font-family="Inter">TOPIC</text>
+    </g>
+  </svg>`,
+
+  "reverse-brainstorm": `<svg viewBox="0 0 260 140" xmlns="http://www.w3.org/2000/svg">
+    <rect width="260" height="140" fill="#0d1a14"/>
+    <g transform="translate(16,16)">
+      <rect x="0" y="0" width="108" height="108" rx="10" fill="rgba(239,68,68,0.08)" stroke="rgba(239,68,68,0.25)" stroke-width="0.5"/>
+      <text x="54" y="18" text-anchor="middle" fill="#ef4444" font-size="9" font-weight="700" font-family="Inter">BAD IDEAS</text>
+      ${[0,1,2,3].map(i => `<rect x="10" y="${28+i*20}" width="88" height="14" rx="4" fill="rgba(239,68,68,0.12)"/>
+        <rect x="14" y="${32+i*20}" width="${50+Math.random()*30}" height="6" rx="2" fill="rgba(239,68,68,0.2)"/>`).join('')}
+      <text x="130" y="60" fill="rgba(255,255,255,0.3)" font-size="20" font-family="Inter">→</text>
+      <rect x="148" y="0" width="80" height="108" rx="10" fill="rgba(52,211,153,0.08)" stroke="rgba(52,211,153,0.25)" stroke-width="0.5"/>
+      <text x="188" y="18" text-anchor="middle" fill="#34d399" font-size="9" font-weight="700" font-family="Inter">FLIPPED</text>
+      ${[0,1,2,3].map(i => `<rect x="156" y="${28+i*20}" width="64" height="14" rx="4" fill="rgba(52,211,153,0.12)"/>
+        <rect x="160" y="${32+i*20}" width="${30+Math.random()*25}" height="6" rx="2" fill="rgba(52,211,153,0.2)"/>`).join('')}
+    </g>
+  </svg>`,
+
+  "lotus-diagram": `<svg viewBox="0 0 260 140" xmlns="http://www.w3.org/2000/svg">
+    <rect width="260" height="140" fill="#0d1a14"/>
+    <g transform="translate(58,6)">
+      ${[[-1,-1],[0,-1],[1,-1],[-1,0],[0,0],[1,0],[-1,1],[0,1],[1,1]].map(([cx,cy],i) => {
+        const x=cx*46+46, y=cy*42+44;
+        const isCenter = i===4;
+        return `<rect x="${x}" y="${y}" width="40" height="36" rx="4"
+          fill="${isCenter?'rgba(52,211,153,0.25)':'rgba(52,211,153,0.06)'}"
+          stroke="${isCenter?'rgba(52,211,153,0.6)':'rgba(52,211,153,0.15)'}" stroke-width="${isCenter?1:0.5}"/>
+        ${isCenter?`<text x="${x+20}" y="${y+22}" text-anchor="middle" fill="#34d399" font-size="8" font-weight="700" font-family="Inter">CORE</text>`:
+        `<rect x="${x+6}" y="${y+10}" width="28" height="3" rx="1.5" fill="rgba(52,211,153,0.15)"/>
+         <rect x="${x+6}" y="${y+17}" width="20" height="3" rx="1.5" fill="rgba(52,211,153,0.08)"/>
+         <rect x="${x+6}" y="${y+24}" width="24" height="3" rx="1.5" fill="rgba(52,211,153,0.08)"/>`}`;
+      }).join('')}
+    </g>
+  </svg>`,
+
+  "dot-voting": `<svg viewBox="0 0 260 140" xmlns="http://www.w3.org/2000/svg">
+    <rect width="260" height="140" fill="#1a0a14"/>
+    <g transform="translate(20,16)">
+      ${['Option A','Option B','Option C','Option D'].map((label,i) => {
+        const dots = [7,3,5,2][i];
+        return `<g transform="translate(0,${i*27})">
+          <rect x="0" y="0" width="220" height="22" rx="6" fill="rgba(244,114,182,0.06)" stroke="rgba(244,114,182,0.15)" stroke-width="0.5"/>
+          <text x="8" y="14" fill="#f472b6" font-size="8" font-weight="600" font-family="Inter">${label}</text>
+          <g transform="translate(80,4)">
+            ${Array.from({length:dots}).map((_,d) => `<circle cx="${d*16+7}" cy="7" r="5" fill="rgba(244,114,182,${0.3+d*0.08})"/>`).join('')}
+          </g>
+          <text x="212" y="14" text-anchor="end" fill="rgba(244,114,182,0.6)" font-size="9" font-weight="700" font-family="Inter">${dots}</text>
+        </g>`;
+      }).join('')}
+    </g>
+  </svg>`,
+
+  // ANALYSIS
+  "swot-analysis": `<svg viewBox="0 0 260 140" xmlns="http://www.w3.org/2000/svg">
+    <rect width="260" height="140" fill="#0d1020"/>
+    <g transform="translate(22,12)">
+      ${[
+        {x:0,y:0,l:'S',c:'#22c55e'},{x:110,y:0,l:'W',c:'#ef4444'},
+        {x:0,y:58,l:'O',c:'#3b82f6'},{x:110,y:58,l:'T',c:'#f97316'}
+      ].map(q => `
+        <rect x="${q.x}" y="${q.y}" width="104" height="52" rx="8" fill="rgba(${q.c==='#22c55e'?'34,197,94':q.c==='#ef4444'?'239,68,68':q.c==='#3b82f6'?'59,130,246':'249,115,22'},0.08)"
+          stroke="rgba(${q.c==='#22c55e'?'34,197,94':q.c==='#ef4444'?'239,68,68':q.c==='#3b82f6'?'59,130,246':'249,115,22'},0.25)" stroke-width="0.5"/>
+        <text x="${q.x+10}" y="${q.y+16}" fill="${q.c}" font-size="13" font-weight="800" font-family="Inter">${q.l}</text>
+        <rect x="${q.x+10}" y="${q.y+24}" width="60" height="4" rx="2" fill="rgba(255,255,255,0.08)"/>
+        <rect x="${q.x+10}" y="${q.y+32}" width="80" height="4" rx="2" fill="rgba(255,255,255,0.05)"/>
+        <rect x="${q.x+10}" y="${q.y+40}" width="45" height="4" rx="2" fill="rgba(255,255,255,0.05)"/>
+      `).join('')}
+    </g>
+  </svg>`,
+
+  "empathy-map": `<svg viewBox="0 0 260 140" xmlns="http://www.w3.org/2000/svg">
+    <rect width="260" height="140" fill="#0d1020"/>
+    <g transform="translate(22,12)">
+      ${[
+        {x:0,y:0,l:'SAYS',c:'#60a5fa'},{x:110,y:0,l:'THINKS',c:'#a78bfa'},
+        {x:0,y:58,l:'DOES',c:'#fbbf24'},{x:110,y:58,l:'FEELS',c:'#f472b6'}
+      ].map(q => `
+        <rect x="${q.x}" y="${q.y}" width="104" height="52" rx="8" fill="rgba(255,255,255,0.03)"
+          stroke="rgba(255,255,255,0.1)" stroke-width="0.5"/>
+        <text x="${q.x+10}" y="${q.y+16}" fill="${q.c}" font-size="8" font-weight="700" font-family="Inter">${q.l}</text>
+        <rect x="${q.x+10}" y="${q.y+24}" width="70" height="4" rx="2" fill="rgba(${q.c==='#60a5fa'?'96,165,250':q.c==='#a78bfa'?'167,139,250':q.c==='#fbbf24'?'251,191,36':'244,114,182'},0.15)"/>
+        <rect x="${q.x+10}" y="${q.y+32}" width="50" height="4" rx="2" fill="rgba(255,255,255,0.06)"/>
+        <rect x="${q.x+10}" y="${q.y+40}" width="60" height="4" rx="2" fill="rgba(255,255,255,0.06)"/>
+      `).join('')}
+      <circle cx="108" cy="57" r="14" fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.15)" stroke-width="0.5"/>
+      <circle cx="104" cy="54" r="2" fill="rgba(255,255,255,0.3)"/>
+      <circle cx="112" cy="54" r="2" fill="rgba(255,255,255,0.3)"/>
+      <path d="M105 60 Q108 63 111 60" stroke="rgba(255,255,255,0.3)" fill="none" stroke-width="1"/>
+    </g>
+  </svg>`,
+
+  "five-whys": `<svg viewBox="0 0 260 140" xmlns="http://www.w3.org/2000/svg">
+    <rect width="260" height="140" fill="#0d1020"/>
+    <g transform="translate(70,10)">
+      ${[0,1,2,3,4].map(i => {
+        const shade = 0.15 + i*0.08;
+        return `<rect x="0" y="${i*24}" width="120" height="20" rx="6"
+          fill="rgba(96,165,250,${shade*0.5})" stroke="rgba(96,165,250,${shade})" stroke-width="0.5"/>
+        <text x="8" y="${i*24+13}" fill="rgba(96,165,250,${0.5+i*0.1})" font-size="8" font-weight="700" font-family="Inter">Why ${i+1}?</text>
+        <rect x="46" y="${i*24+7}" width="${65-i*8}" height="5" rx="2" fill="rgba(96,165,250,${shade*0.6})"/>
+        ${i<4?`<line x1="60" y1="${i*24+20}" x2="60" y2="${(i+1)*24}" stroke="rgba(96,165,250,0.2)" stroke-width="1" stroke-dasharray="2 2"/>`:''}`;
+      }).join('')}
+      <text x="60" y="136" text-anchor="middle" fill="rgba(96,165,250,0.6)" font-size="7" font-weight="700" font-family="Inter">ROOT CAUSE</text>
+    </g>
+  </svg>`,
+
+  "pmi-chart": `<svg viewBox="0 0 260 140" xmlns="http://www.w3.org/2000/svg">
+    <rect width="260" height="140" fill="#0d1020"/>
+    <g transform="translate(14,12)">
+      ${[
+        {x:0,l:'PLUS',c:'#22c55e'},{x:78,l:'MINUS',c:'#ef4444'},{x:156,l:'INTERESTING',c:'#a78bfa'}
+      ].map(col => `
+        <rect x="${col.x}" y="0" width="72" height="116" rx="8" fill="rgba(255,255,255,0.03)"
+          stroke="rgba(255,255,255,0.08)" stroke-width="0.5"/>
+        <text x="${col.x+36}" y="18" text-anchor="middle" fill="${col.c}" font-size="8" font-weight="700" font-family="Inter">${col.l}</text>
+        ${[0,1,2,3].map(i => `<rect x="${col.x+8}" y="${28+i*22}" width="56" height="16" rx="4"
+          fill="rgba(${col.c==='#22c55e'?'34,197,94':col.c==='#ef4444'?'239,68,68':'167,139,250'},0.08)"/>
+          <rect x="${col.x+12}" y="${33+i*22}" width="${30+Math.random()*18}" height="4" rx="2"
+          fill="rgba(${col.c==='#22c55e'?'34,197,94':col.c==='#ef4444'?'239,68,68':'167,139,250'},0.2)"/>`).join('')}
+      `).join('')}
+    </g>
+  </svg>`,
+
+  "decision-matrix": `<svg viewBox="0 0 260 140" xmlns="http://www.w3.org/2000/svg">
+    <rect width="260" height="140" fill="#0d1020"/>
+    <g transform="translate(16,14)">
+      <!-- Header row -->
+      <rect x="60" y="0" width="52" height="20" rx="4" fill="rgba(244,114,182,0.1)"/>
+      <text x="86" y="14" text-anchor="middle" fill="#f472b6" font-size="7" font-weight="700" font-family="Inter">Cost</text>
+      <rect x="116" y="0" width="52" height="20" rx="4" fill="rgba(244,114,182,0.1)"/>
+      <text x="142" y="14" text-anchor="middle" fill="#f472b6" font-size="7" font-weight="700" font-family="Inter">Impact</text>
+      <rect x="172" y="0" width="52" height="20" rx="4" fill="rgba(244,114,182,0.1)"/>
+      <text x="198" y="14" text-anchor="middle" fill="#f472b6" font-size="7" font-weight="700" font-family="Inter">Total</text>
+      <!-- Rows -->
+      ${['Opt A','Opt B','Opt C'].map((label,i) => {
+        const scores = [[4,5,9],[3,3,6],[5,2,7]][i];
+        const best = i===0;
+        return `<g transform="translate(0,${24+i*28})">
+          <rect x="0" y="0" width="56" height="24" rx="4" fill="rgba(255,255,255,0.04)"/>
+          <text x="28" y="16" text-anchor="middle" fill="#c4c4e0" font-size="8" font-weight="600" font-family="Inter">${label}</text>
+          ${scores.map((s,j) => `
+            <rect x="${60+j*56}" y="0" width="52" height="24" rx="4" fill="${j===2&&best?'rgba(52,211,153,0.15)':'rgba(255,255,255,0.03)'}"/>
+            <text x="${86+j*56}" y="16" text-anchor="middle" fill="${j===2&&best?'#34d399':'#9393b0'}" font-size="12" font-weight="${j===2?'800':'600'}" font-family="Inter">${s}</text>
+          `).join('')}
+        </g>`;
+      }).join('')}
+    </g>
+  </svg>`,
+
+  "stakeholder-map": `<svg viewBox="0 0 260 140" xmlns="http://www.w3.org/2000/svg">
+    <rect width="260" height="140" fill="#0d1020"/>
+    <g transform="translate(130,72)">
+      <!-- Concentric rings -->
+      <circle r="55" fill="none" stroke="rgba(167,139,250,0.1)" stroke-width="0.5"/>
+      <circle r="35" fill="none" stroke="rgba(167,139,250,0.15)" stroke-width="0.5"/>
+      <circle r="15" fill="rgba(167,139,250,0.15)" stroke="rgba(167,139,250,0.3)" stroke-width="0.5"/>
+      <text x="0" y="4" text-anchor="middle" fill="#a78bfa" font-size="6" font-weight="700" font-family="Inter">YOU</text>
+      <!-- Stakeholders -->
+      ${[
+        {a:30,r:35,s:10},{a:120,r:35,s:8},{a:210,r:35,s:12},
+        {a:0,r:55,s:7},{a:80,r:55,s:6},{a:160,r:55,s:9},{a:270,r:55,s:5}
+      ].map(p => {
+        const x=Math.cos(p.a*Math.PI/180)*p.r, y=Math.sin(p.a*Math.PI/180)*p.r;
+        return `<circle cx="${x}" cy="${y}" r="${p.s}" fill="rgba(167,139,250,0.15)" stroke="rgba(167,139,250,0.3)" stroke-width="0.5"/>
+        <rect x="${x-6}" y="${y-2}" width="12" height="4" rx="2" fill="rgba(167,139,250,0.3)"/>`;
+      }).join('')}
+    </g>
+  </svg>`,
+
+  "quick-sketch": `<svg viewBox="0 0 260 140" xmlns="http://www.w3.org/2000/svg">
+    <rect width="260" height="140" fill="#1a1508"/>
+    <g transform="translate(20,16)">
+      <rect x="0" y="0" width="140" height="108" rx="8" fill="rgba(251,191,36,0.06)" stroke="rgba(251,191,36,0.2)" stroke-width="0.5"/>
+      <!-- Sketch lines (gestural) -->
+      <path d="M20 80 Q40 30 60 50 T100 40" stroke="rgba(251,191,36,0.4)" fill="none" stroke-width="2" stroke-linecap="round"/>
+      <path d="M30 90 L50 70 L80 85 L110 60" stroke="rgba(251,191,36,0.25)" fill="none" stroke-width="1.5" stroke-linecap="round"/>
+      <circle cx="75" cy="50" r="18" fill="none" stroke="rgba(251,191,36,0.3)" stroke-width="1.5"/>
+      <!-- Timer -->
+      <g transform="translate(170,20)">
+        <circle cx="24" cy="24" r="24" fill="rgba(251,191,36,0.08)" stroke="rgba(251,191,36,0.3)" stroke-width="1"/>
+        <path d="M24 24 L24 6" stroke="#fbbf24" stroke-width="2" stroke-linecap="round"/>
+        <path d="M24 24 L36 24" stroke="rgba(251,191,36,0.5)" stroke-width="1.5" stroke-linecap="round"/>
+        <text x="24" y="62" text-anchor="middle" fill="#fbbf24" font-size="9" font-weight="700" font-family="Inter">60s</text>
+      </g>
+      <!-- Gallery strip -->
+      <g transform="translate(160,80)">
+        ${[0,1,2].map(i => `<rect x="${i*22}" y="0" width="18" height="18" rx="3" fill="rgba(251,191,36,0.1)" stroke="rgba(251,191,36,0.2)" stroke-width="0.5"/>`).join('')}
+      </g>
+    </g>
+  </svg>`,
+
+  // Generic fallback
+  "generic": `<svg viewBox="0 0 260 140" xmlns="http://www.w3.org/2000/svg">
+    <rect width="260" height="140" fill="#0d0d1a"/>
+    <g transform="translate(90,30)">
+      <rect x="0" y="0" width="80" height="80" rx="12" fill="rgba(139,92,246,0.08)" stroke="rgba(139,92,246,0.2)" stroke-width="0.5"/>
+      <text x="40" y="36" text-anchor="middle" fill="rgba(139,92,246,0.4)" font-size="28" font-family="Inter">#</text>
+      <rect x="16" y="50" width="48" height="4" rx="2" fill="rgba(139,92,246,0.1)"/>
+      <rect x="22" y="60" width="36" height="4" rx="2" fill="rgba(139,92,246,0.08)"/>
+    </g>
+  </svg>`
+};
+
+// ── TOOL DATA ──
+const CATEGORIES = {
+  ideation:       { label: 'Ideation',        color: '#34d399', bg: '#0d1a14' },
+  analysis:       { label: 'Analysis',         color: '#60a5fa', bg: '#0d1020' },
+  evaluation:     { label: 'Evaluation',       color: '#f472b6', bg: '#1a0a14' },
+  research:       { label: 'Research',         color: '#a78bfa', bg: '#12091f' },
+  planning:       { label: 'Planning',         color: '#fbbf24', bg: '#1a1508' },
+  communication:  { label: 'Communication',    color: '#f97316', bg: '#1a1008' },
+  reflection:     { label: 'Reflection',       color: '#2dd4bf', bg: '#091a18' },
+};
+
+const TOOLS = [
+  // IDEATION (10)
+  { name:'SCAMPER', slug:'scamper', cat:'ideation', phases:['ideate'], diff:'beginner', time:'15-25 min', interactive:true, desc:'7-step creative modification technique. Substitute, Combine, Adapt, Modify, Put to use, Eliminate, Reverse.' },
+  { name:'Reverse Brainstorm', slug:'reverse-brainstorm', cat:'ideation', phases:['ideate'], diff:'beginner', time:'10-20 min', interactive:true, desc:'Generate bad ideas first, then flip them into creative solutions.' },
+  { name:'Mind Map', slug:'mind-map', cat:'ideation', phases:['discover','ideate'], diff:'beginner', time:'10-20 min', interactive:true, desc:'Visual branching diagram connecting related concepts outward from a central topic.' },
+  { name:'Lotus Diagram', slug:'lotus-diagram', cat:'ideation', phases:['ideate'], diff:'intermediate', time:'20-30 min', interactive:true, desc:'Structured 9-cell expansion tool. Core idea in centre, 8 related themes surround it.' },
+  { name:'Morphological Chart', slug:'morphological-chart', cat:'ideation', phases:['ideate','prototype'], diff:'intermediate', time:'20-30 min', interactive:true, desc:'Systematic combination of sub-solutions. Define parameters, list options, combine.' },
+  { name:'Brainstorm Web', slug:'brainstorm-web', cat:'ideation', phases:['ideate'], diff:'beginner', time:'5-15 min', interactive:true, desc:'Free-form idea generation with visual clustering and connection lines.' },
+  { name:'Biomimicry Cards', slug:'biomimicry', cat:'ideation', phases:['ideate'], diff:'advanced', time:'20-30 min', interactive:true, desc:'Nature-inspired design solutions. Match design challenges to biological strategies.' },
+  { name:'Dot Voting', slug:'dot-voting', cat:'ideation', phases:['define','ideate','test'], diff:'beginner', time:'5-15 min', interactive:true, desc:'Democratic prioritisation: add options, distribute limited dots, reveal group preference.' },
+  { name:'Quick Sketch', slug:'quick-sketch', cat:'ideation', phases:['ideate','prototype'], diff:'beginner', time:'5-10 min', interactive:true, desc:'Rapid visual ideation with timer. Draw fast, think freely, capture concepts.' },
+  { name:'Random Word Trigger', cat:'ideation', phases:['ideate'], diff:'beginner', time:'5-10 min', interactive:false, desc:'Use random words to spark unexpected connections and creative leaps.' },
+
+  // ANALYSIS (6)
+  { name:'SWOT Analysis', slug:'swot-analysis', cat:'analysis', phases:['define','test'], diff:'beginner', time:'15-25 min', interactive:true, desc:'Strengths, Weaknesses, Opportunities, Threats — classic 2×2 strategic analysis.' },
+  { name:'Five Whys', slug:'five-whys', cat:'analysis', phases:['define'], diff:'beginner', time:'10-15 min', interactive:true, desc:'Drill down to root cause. Each answer becomes the next question.' },
+  { name:'Fishbone Diagram', slug:'fishbone', cat:'analysis', phases:['define'], diff:'intermediate', time:'15-25 min', interactive:true, desc:'Cause-and-effect analysis. Main categories branch into specific contributing factors.' },
+  { name:'Affinity Diagram', slug:'affinity-diagram', cat:'analysis', phases:['define'], diff:'intermediate', time:'15-25 min', interactive:true, desc:'Group related ideas into natural clusters. Patterns emerge from chaos.' },
+  { name:'Systems Map', slug:'systems-map', cat:'analysis', phases:['discover','define'], diff:'advanced', time:'20-30 min', interactive:true, desc:'Map interconnections between elements. See feedback loops and leverage points.' },
+  { name:'Trend Analysis', cat:'analysis', phases:['discover'], diff:'intermediate', time:'15-25 min', interactive:false, desc:'Identify patterns across time — social, technological, economic, environmental, political.' },
+
+  // EVALUATION (7)
+  { name:'PMI Chart', slug:'pmi-chart', cat:'evaluation', phases:['test'], diff:'beginner', time:'10-15 min', interactive:true, desc:'Plus, Minus, Interesting — structured evaluation without binary judgment.' },
+  { name:'Decision Matrix', slug:'decision-matrix', cat:'evaluation', phases:['test'], diff:'intermediate', time:'20-30 min', interactive:true, desc:'Score options against weighted criteria. Best choice emerges from the numbers.' },
+  { name:'Pairwise Comparison', slug:'pairwise-comparison', cat:'evaluation', phases:['test'], diff:'intermediate', time:'15-20 min', interactive:true, desc:'Compare options head-to-head in every pair. Rankings emerge from accumulated wins.' },
+  { name:'Impact/Effort Matrix', slug:'impact-effort-matrix', cat:'evaluation', phases:['define','test'], diff:'beginner', time:'10-15 min', interactive:true, desc:'Plot ideas on a 2×2 grid: high/low impact vs high/low effort. Quick wins surface.' },
+  { name:'Six Thinking Hats', slug:'six-thinking-hats', cat:'evaluation', phases:['test','ideate'], diff:'intermediate', time:'20-30 min', interactive:true, desc:'Six perspectives on one idea: facts, emotions, risks, benefits, creativity, process.' },
+  { name:'Design Specification', slug:'design-specification', cat:'evaluation', phases:['define'], diff:'intermediate', time:'20-30 min', interactive:true, desc:'Define requirements with must/should/could priorities and measurable targets.' },
+  { name:'Feedback Capture Grid', slug:'feedback-capture-grid', cat:'evaluation', phases:['test'], diff:'beginner', time:'10-15 min', interactive:true, desc:'Capture testing feedback in 4 quadrants: likes, wishes, questions, ideas.' },
+
+  // RESEARCH (6)
+  { name:'Empathy Map', slug:'empathy-map', cat:'research', phases:['discover'], diff:'beginner', time:'15-25 min', interactive:true, desc:'Says, Thinks, Does, Feels — map what you observe about your user.' },
+  { name:'Stakeholder Map', slug:'stakeholder-map', cat:'research', phases:['discover'], diff:'intermediate', time:'15-25 min', interactive:true, desc:'Identify who is affected, map their influence, understand their needs.' },
+  { name:'User Persona', slug:'user-persona', cat:'research', phases:['discover','define'], diff:'intermediate', time:'20-30 min', interactive:true, desc:'Create a fictional but research-based profile of your target user.' },
+  { name:'Journey Map', slug:'journey-map', cat:'research', phases:['discover','define'], diff:'advanced', time:'25-40 min', interactive:true, desc:'Map the full user experience over time — touchpoints, emotions, pain points.' },
+  { name:'How Might We', slug:'how-might-we', cat:'research', phases:['define'], diff:'beginner', time:'10-15 min', interactive:true, desc:'Reframe problems as opportunities. Turn insights into actionable design challenges.' },
+  { name:'Point of View', slug:'point-of-view', cat:'research', phases:['define'], diff:'intermediate', time:'10-20 min', interactive:true, desc:'Define the design challenge: [User] needs [need] because [insight].' },
+
+  // PLANNING (4)
+  { name:'Gantt Chart', cat:'planning', phases:['prototype'], diff:'intermediate', time:'20-30 min', interactive:false, desc:'Timeline-based project planning with tasks, durations, and dependencies.' },
+  { name:'Action Plan', cat:'planning', phases:['prototype'], diff:'beginner', time:'10-15 min', interactive:false, desc:'Who does what by when. Simple task assignment with deadlines.' },
+  { name:'Resource Planner', cat:'planning', phases:['prototype'], diff:'intermediate', time:'15-20 min', interactive:false, desc:'Map materials, tools, skills, and time needed for each project phase.' },
+  { name:'Risk Register', cat:'planning', phases:['prototype'], diff:'advanced', time:'15-20 min', interactive:false, desc:'Identify potential problems, rate likelihood and impact, plan mitigations.' },
+
+  // COMMUNICATION (4)
+  { name:'Pitch Builder', cat:'communication', phases:['test'], diff:'intermediate', time:'20-30 min', interactive:false, desc:'Structure a compelling presentation of your design with audience hooks.' },
+  { name:'Storyboard', cat:'communication', phases:['prototype'], diff:'beginner', time:'15-25 min', interactive:false, desc:'Visual narrative showing how your design works in context, frame by frame.' },
+  { name:'Annotated Sketch', cat:'communication', phases:['prototype'], diff:'beginner', time:'10-20 min', interactive:false, desc:'Combine drawings with labels and callouts to explain design decisions.' },
+  { name:'Design Brief', cat:'communication', phases:['define'], diff:'intermediate', time:'15-25 min', interactive:false, desc:'Formal document outlining constraints, requirements, and success criteria.' },
+
+  // REFLECTION (5)
+  { name:'KWL Chart', cat:'reflection', phases:['discover','test'], diff:'beginner', time:'5-10 min', interactive:false, desc:'Know, Want to Know, Learned — track understanding before and after.' },
+  { name:'Reflection Journal', cat:'reflection', phases:['test'], diff:'beginner', time:'5-15 min', interactive:false, desc:'Structured prompts for documenting what you learned and what you would change.' },
+  { name:'Self Assessment', cat:'reflection', phases:['test'], diff:'beginner', time:'10-15 min', interactive:false, desc:'Rate your own work against criteria. Identify strengths and growth areas.' },
+  { name:'Process Timeline', cat:'reflection', phases:['test'], diff:'intermediate', time:'15-20 min', interactive:false, desc:'Visual documentation of your design journey — decisions, pivots, breakthroughs.' },
+  { name:'Peer Feedback', cat:'reflection', phases:['test'], diff:'beginner', time:'10-15 min', interactive:false, desc:'Structured protocols for giving and receiving constructive design critique.' },
+];
+
+// ── COLLECTIONS ──
+const COLLECTIONS = {
+  beginner:  ['scamper','empathy-map','pmi-chart','mind-map','how-might-we'],
+  pipeline:  ['empathy-map','how-might-we','scamper','decision-matrix','feedback-capture-grid'],
+  quick:     ['dot-voting','quick-sketch','brainstorm-web','pmi-chart','five-whys','how-might-we','impact-effort-matrix','mind-map'],
+  research:  ['empathy-map','stakeholder-map','user-persona','journey-map','systems-map','point-of-view'],
+  evaluate:  ['pmi-chart','decision-matrix','pairwise-comparison','six-thinking-hats','swot-analysis','impact-effort-matrix','feedback-capture-grid'],
+};
+
+// ── AI SEARCH RULES ──
+const SEARCH_RULES = [
+  { keywords: ['narrow','decide','choose','pick','select','prioriti','rank','vote'], tools: ['decision-matrix','pairwise-comparison','dot-voting','impact-effort-matrix'], reason: 'Tools for narrowing options and making decisions' },
+  { keywords: ['brainstorm','idea','generat','creat','invent','think of'], tools: ['scamper','reverse-brainstorm','lotus-diagram','brainstorm-web','mind-map'], reason: 'Tools for generating lots of ideas' },
+  { keywords: ['understand','user','empathy','people','audience','customer','who'], tools: ['empathy-map','user-persona','stakeholder-map','journey-map'], reason: 'Tools for understanding your users' },
+  { keywords: ['problem','why','cause','root','issue','diagnos'], tools: ['five-whys','fishbone','how-might-we','systems-map'], reason: 'Tools for finding the real problem' },
+  { keywords: ['evaluat','judge','assess','compar','review','test','feedback'], tools: ['pmi-chart','decision-matrix','six-thinking-hats','feedback-capture-grid','swot-analysis'], reason: 'Tools for evaluating ideas and designs' },
+  { keywords: ['plan','organis','schedul','task','project','manage'], tools: ['Action Plan','Gantt Chart','Resource Planner','Risk Register'], reason: 'Tools for project planning' },
+  { keywords: ['quick','fast','warm','energi','5 min','ten min','short'], tools: ['dot-voting','quick-sketch','brainstorm-web','pmi-chart','how-might-we'], reason: 'Quick activities under 10 minutes' },
+  { keywords: ['group','team','collaborat','class','together','pair'], tools: ['dot-voting','six-thinking-hats','affinity-diagram','brainstorm-web'], reason: 'Tools that work well in groups' },
+  { keywords: ['visual','draw','sketch','diagram','map','chart'], tools: ['mind-map','quick-sketch','journey-map','systems-map','empathy-map','fishbone'], reason: 'Visual thinking tools' },
+  { keywords: ['strength','weakness','opportun','threat','swot'], tools: ['swot-analysis','pmi-chart'], reason: 'Strategic analysis tools' },
+  { keywords: ['nature','bio','animal','organic'], tools: ['biomimicry'], reason: 'Nature-inspired design' },
+  { keywords: ['present','pitch','communicat','explain','share','show'], tools: ['Pitch Builder','Storyboard','Annotated Sketch','Design Brief'], reason: 'Tools for communicating your design' },
+];
+
+// ── STATE ──
+let currentView = 'grid';
+let activePhase = null;
+let activeCollection = null;
+
+// ── RENDER ──
+function getThumb(tool) {
+  if (tool.slug && THUMBS[tool.slug]) return THUMBS[tool.slug];
+  return THUMBS.generic;
+}
+
+function renderCard(tool) {
+  const cat = CATEGORIES[tool.cat];
+  return `
+    <div class="tool-card" onclick="openTool('${tool.slug||''}')">
+      <div class="tool-thumb" style="background:${cat.bg}">
+        ${getThumb(tool)}
+        ${tool.interactive?'<span class="interactive-badge">Interactive</span>':''}
+      </div>
+      <div class="cat-stripe" style="background:${cat.color}"></div>
+      <div class="tool-body">
+        <div class="tool-name">${tool.name}</div>
+        <div class="tool-desc">${tool.desc}</div>
+        <div class="tool-meta">
+          <span class="tool-tag">${tool.time}</span>
+          <span class="tool-tag" style="--phase-color:${cat.color};--phase-bg:${cat.bg};color:${cat.color}">${cat.label}</span>
+          <span class="tool-tag">${tool.diff}</span>
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderListItem(tool) {
+  const cat = CATEGORIES[tool.cat];
+  return `
+    <div class="tool-list-item" onclick="openTool('${tool.slug||''}')">
+      <div class="tl-thumb" style="background:${cat.bg}">${getThumb(tool)}</div>
+      <div class="tl-info">
+        <div class="tl-name">${tool.name}${tool.interactive?' <span style="color:#8b5cf6;font-size:0.7rem">● Interactive</span>':''}</div>
+        <div class="tl-desc">${tool.desc}</div>
+      </div>
+      <div class="tl-tags">
+        <span class="tool-tag">${tool.time}</span>
+        <span class="tool-tag" style="color:${cat.color}">${cat.label}</span>
+      </div>
+    </div>`;
+}
+
+function getFilteredTools() {
+  let tools = TOOLS;
+  if (activePhase) {
+    tools = tools.filter(t => t.phases.includes(activePhase));
+  }
+  if (activeCollection) {
+    const slugs = COLLECTIONS[activeCollection];
+    tools = tools.filter(t => slugs.includes(t.slug) || slugs.includes(t.name));
+  }
+  return tools;
+}
+
+function render() {
+  const container = document.getElementById('toolContainer');
+  const tools = getFilteredTools();
+  document.getElementById('toolCount').textContent = `${tools.length} tool${tools.length!==1?'s':''}`;
+  updateFilterBar();
+
+  if (currentView === 'list') {
+    container.innerHTML = `<div class="tool-list">${tools.map(renderListItem).join('')}</div>`;
+  } else if (currentView === 'category') {
+    const byCat = {};
+    tools.forEach(t => { (byCat[t.cat] = byCat[t.cat]||[]).push(t); });
+    container.innerHTML = Object.entries(byCat).map(([catKey, catTools]) => {
+      const cat = CATEGORIES[catKey];
+      return `<div class="category-section">
+        <div class="category-header" onclick="toggleCategory(this)">
+          <div class="cat-swatch" style="background:${cat.color}"></div>
+          <span class="cat-label">${cat.label}</span>
+          <span class="cat-count">${catTools.length} tools</span>
+          <span class="cat-chevron">▾</span>
+        </div>
+        <div class="category-grid">${catTools.map(renderCard).join('')}</div>
+      </div>`;
+    }).join('');
+  } else {
+    container.innerHTML = `<div class="tool-grid">${tools.map(renderCard).join('')}</div>`;
+  }
+}
+
+function setView(v) {
+  currentView = v;
+  document.querySelectorAll('.view-btn').forEach(b => b.classList.toggle('active', b.textContent.toLowerCase()===v));
+  render();
+}
+
+function toggleCategory(header) {
+  header.classList.toggle('collapsed');
+  header.nextElementSibling.classList.toggle('collapsed');
+}
+
+function filterPhase(phase) {
+  activeCollection = null;
+  activePhase = activePhase===phase ? null : phase;
+  document.querySelectorAll('.path-node').forEach(n => n.classList.toggle('active', n.classList.contains('pd-'+activePhase)));
+  document.querySelectorAll('.collection-card').forEach(c => c.classList.remove('active'));
+  updateFilterBar();
+  render();
+}
+
+function filterCollection(key) {
+  activePhase = null;
+  activeCollection = activeCollection===key ? null : key;
+  document.querySelectorAll('.path-node').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('.collection-card').forEach(c => {
+    c.classList.toggle('active', c.dataset.collection === activeCollection);
+  });
+  updateFilterBar();
+  render();
+}
+
+function clearFilters() {
+  activePhase = null;
+  activeCollection = null;
+  document.querySelectorAll('.path-node').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('.collection-card').forEach(c => c.classList.remove('active'));
+  updateFilterBar();
+  render();
+}
+
+const COLLECTION_NAMES = { beginner: 'First Time?', pipeline: 'Full Design Cycle', quick: 'Quick Wins', research: 'Deep Research', evaluate: 'Make Decisions' };
+const PHASE_NAMES = { discover: 'Discover', define: 'Define', ideate: 'Ideate', prototype: 'Prototype', test: 'Test' };
+
+function updateFilterBar() {
+  const bar = document.getElementById('filterBar');
+  if (activeCollection || activePhase) {
+    const tools = getFilteredTools();
+    document.getElementById('filterCount').textContent = tools.length;
+    document.getElementById('filterName').textContent = activeCollection ? COLLECTION_NAMES[activeCollection] : PHASE_NAMES[activePhase];
+    bar.classList.add('active');
+  } else {
+    bar.classList.remove('active');
+  }
+}
+
+function openTool(slug) {
+  if (slug) alert('Would open: /toolkit/' + slug);
+}
+
+// ── SEARCH ──
+const searchInput = document.getElementById('searchInput');
+const suggestionsEl = document.getElementById('suggestions');
+
+searchInput.addEventListener('input', () => {
+  const q = searchInput.value.toLowerCase().trim();
+  if (q.length < 2) { suggestionsEl.classList.remove('active'); return; }
+
+  const matches = [];
+  SEARCH_RULES.forEach(rule => {
+    if (rule.keywords.some(kw => q.includes(kw))) {
+      rule.tools.forEach(slugOrName => {
+        const tool = TOOLS.find(t => t.slug===slugOrName || t.name===slugOrName);
+        if (tool && !matches.find(m => m.name===tool.name)) matches.push(tool);
+      });
+    }
+  });
+
+  // Fallback: name/desc search
+  if (matches.length === 0) {
+    TOOLS.forEach(t => {
+      if ((t.name.toLowerCase().includes(q) || t.desc.toLowerCase().includes(q)) && !matches.find(m=>m.name===t.name))
+        matches.push(t);
+    });
+  }
+
+  if (matches.length === 0) { suggestionsEl.classList.remove('active'); return; }
+
+  suggestionsEl.innerHTML = matches.slice(0,5).map(t => {
+    const cat = CATEGORIES[t.cat];
+    return `<div class="search-suggestion" onclick="openTool('${t.slug||''}'); suggestionsEl.classList.remove('active'); searchInput.value='${t.name}';">
+      <div class="ss-thumb" style="background:${cat.bg}; border:1px solid ${cat.color}30;">${getThumb(t)}</div>
+      <div>
+        <div class="ss-name">${t.name}${t.interactive?' <span style="color:#8b5cf6;font-size:0.7rem">●</span>':''}</div>
+        <div class="ss-why">${t.desc.substring(0,70)}...</div>
+      </div>
+    </div>`;
+  }).join('');
+  suggestionsEl.classList.add('active');
+});
+
+searchInput.addEventListener('blur', () => { setTimeout(()=>suggestionsEl.classList.remove('active'), 200); });
+searchInput.addEventListener('focus', () => { if (searchInput.value.length>=2) searchInput.dispatchEvent(new Event('input')); });
+
+// ── COMING SOON DATA ──
+const COMING_SOON = [
+  { icon: '🧠', name: 'Psychometric & Self-Discovery', color: '#c084fc', tools: ['Learning Style Mapper', 'Strengths Finder', 'Team Role Identifier', 'Design Identity Card'], desc: 'Know yourself as a designer. Discover your thinking patterns, strengths, and creative style.' },
+  { icon: '🤝', name: 'Collaboration & Teamwork', color: '#22d3ee', tools: ['Team Contract Builder', 'Role Rotation Wheel', 'Group Norms Setter', 'Collaboration Health Check'], desc: 'Build effective teams. Set expectations, distribute work, and resolve friction.' },
+  { icon: '✏️', name: 'Drawing & Visual Thinking', color: '#fb923c', tools: ['Gesture Drawing', 'Technical Sketch Guide', 'Exploded View Builder', 'Scale Drawing Helper'], desc: "Think with your hands. Visual tools that don't require artistic talent." },
+  { icon: '📊', name: 'Planning & Project Management', color: '#fbbf24', tools: ['Sprint Planner', 'Risk Register', 'Milestone Tracker', 'Time Budget Calculator'], desc: 'Stay on track. Tools for managing complexity, time, and resources.' },
+  { icon: '🎤', name: 'Communication & Presentation', color: '#f472b6', tools: ['Pitch Builder', 'Presentation Outline', 'Audience Mapper', 'Feedback Rehearsal'], desc: 'Tell your design story. Structure compelling presentations and critiques.' },
+  { icon: '🔄', name: 'Reflection & Metacognition', color: '#6ee7b7', tools: ['Process Timeline', 'Growth Tracker', 'Decision Log', 'What If Journal'], desc: 'Learn from your process. Build metacognitive habits that transfer beyond design.' },
+];
+
+function renderComingSoon() {
+  document.getElementById('comingSoonGrid').innerHTML = COMING_SOON.map(s => `
+    <div style="background:rgba(255,255,255,0.03);border:1px dashed rgba(255,255,255,0.1);border-radius:16px;padding:24px;position:relative;overflow:hidden;transition:border-color 0.2s;"
+         onmouseover="this.style.borderColor='rgba(255,255,255,0.2)'" onmouseout="this.style.borderColor='rgba(255,255,255,0.1)'">
+      <span style="position:absolute;top:12px;right:12px;font-size:0.65rem;font-weight:700;padding:3px 10px;border-radius:20px;background:rgba(255,255,255,0.06);color:#6b6b8a;text-transform:uppercase;letter-spacing:0.04em;">Coming soon</span>
+      <div style="width:48px;height:48px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:1.4rem;margin-bottom:12px;background:${s.color}15;border:1px solid ${s.color}30">${s.icon}</div>
+      <h3 style="font-size:1.05rem;font-weight:700;margin-bottom:6px;color:${s.color}">${s.name}</h3>
+      <p style="font-size:0.82rem;color:#6b6b8a;line-height:1.4;margin-bottom:12px;">${s.desc}</p>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        ${s.tools.map(t => `<span style="font-size:0.7rem;padding:3px 10px;border-radius:20px;font-weight:500;background:${s.color}12;border:1px solid ${s.color}25;color:${s.color}">${t}</span>`).join('')}
+      </div>
+    </div>
+  `).join('');
+}
+
+function switchToolkit(id) {
+  // Only design-thinking is active for now
+  document.querySelectorAll('.toolkit-tab').forEach(t => t.classList.remove('active'));
+  document.querySelector('.toolkit-tab').classList.add('active'); // first tab
+  clearFilters();
+  render();
+}
+
+// Initial render
+renderComingSoon();
+render();
+</script>
+</body>
+</html>

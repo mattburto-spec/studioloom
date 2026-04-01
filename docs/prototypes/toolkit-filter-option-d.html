@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StudioLoom Toolkit — Option D (Pills + Auto-scroll)</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', sans-serif; background: #0a0a12; color: #e2e2f0; min-height: 100vh; }
+
+  /* ── OPTION D BADGE ── */
+  .option-badge {
+    position: fixed; top: 8px; left: 12px;
+    background: rgba(139,92,246,0.9); color: white;
+    padding: 4px 12px; border-radius: 8px;
+    font-size: 0.75rem; font-weight: 700; z-index: 999;
+  }
+
+  /* ── HERO ── */
+  .hero {
+    background: linear-gradient(135deg, #0a0a12 0%, #1a1030 40%, #0d1a2a 70%, #0a0a12 100%);
+    padding: 48px 24px 32px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 30% 20%, rgba(139,92,246,0.15) 0%, transparent 60%),
+                radial-gradient(ellipse at 70% 80%, rgba(59,130,246,0.1) 0%, transparent 60%);
+  }
+  .hero h1 { font-size: 2.5rem; font-weight: 900; position: relative; letter-spacing: -0.02em; }
+  .hero h1 span { background: linear-gradient(135deg, #a78bfa, #60a5fa, #34d399); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .hero p { color: #9393b0; margin-top: 8px; font-size: 1rem; position: relative; }
+
+  /* ── AI SEARCH ── */
+  .search-wrap {
+    max-width: 640px; margin: 24px auto 0; position: relative;
+  }
+  .search-wrap input {
+    width: 100%; padding: 14px 20px 14px 48px;
+    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 16px; color: #e2e2f0; font-size: 1rem; outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .search-wrap input:focus {
+    border-color: rgba(139,92,246,0.5);
+    box-shadow: 0 0 0 3px rgba(139,92,246,0.15);
+  }
+  .search-wrap input::placeholder { color: #6b6b8a; }
+  .search-wrap .search-icon {
+    position: absolute; left: 16px; top: 50%; transform: translateY(-50%);
+    color: #8b5cf6; width: 20px; height: 20px;
+  }
+  .search-suggestions {
+    position: absolute; top: calc(100% + 8px); left: 0; right: 0;
+    background: #1a1a2e; border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px; padding: 8px; z-index: 100;
+    display: none; box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+  }
+  .search-suggestions.active { display: block; }
+  .search-suggestion {
+    display: flex; align-items: center; gap: 12px; padding: 10px 12px;
+    border-radius: 8px; cursor: pointer; transition: background 0.15s;
+  }
+  .search-suggestion:hover { background: rgba(139,92,246,0.15); }
+  .search-suggestion .ss-thumb {
+    width: 40px; height: 40px; border-radius: 8px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .search-suggestion .ss-name { font-weight: 600; font-size: 0.9rem; }
+  .search-suggestion .ss-why { font-size: 0.78rem; color: #9393b0; }
+
+  /* ── CONTENT ── */
+  .content { max-width: 1200px; margin: 0 auto; padding: 0 24px 64px; }
+
+  /* ── COMPACT COLLECTION PILLS ── */
+  .collections {
+    margin-bottom: 0;
+    padding-top: 12px;
+  }
+  .collections h2 {
+    font-size: 0.8rem; font-weight: 700; color: #c4c4e0;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    margin-bottom: 12px;
+  }
+  .collections-row {
+    display: flex; gap: 8px; flex-wrap: wrap;
+    padding-bottom: 12px;
+  }
+  .collection-pill {
+    padding: 8px 16px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 0.9rem;
+    font-weight: 600;
+    border: 1.5px solid transparent;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .collection-pill .pill-emoji { font-size: 1rem; }
+  .collection-pill .pill-check {
+    display: none;
+    width: 16px; height: 16px;
+    margin-left: 4px;
+  }
+  .collection-pill .pill-check svg {
+    width: 100%; height: 100%;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 3;
+  }
+
+  /* Pill colors (tinted backgrounds, inactive state) */
+  .cp-beginner {
+    background: rgba(52,211,153,0.12);
+    color: rgba(52,211,153,0.8);
+    border-color: rgba(52,211,153,0.25);
+  }
+  .cp-beginner:hover {
+    background: rgba(52,211,153,0.2);
+    border-color: rgba(52,211,153,0.4);
+  }
+  .cp-beginner.active {
+    background: rgba(52,211,153,0.3);
+    color: #34d399;
+    border-color: rgba(52,211,153,0.6);
+    box-shadow: 0 0 12px rgba(52,211,153,0.2);
+  }
+  .cp-beginner.active .pill-check {
+    display: inline;
+  }
+
+  .cp-pipeline {
+    background: rgba(139,92,246,0.12);
+    color: rgba(139,92,246,0.8);
+    border-color: rgba(139,92,246,0.25);
+  }
+  .cp-pipeline:hover {
+    background: rgba(139,92,246,0.2);
+    border-color: rgba(139,92,246,0.4);
+  }
+  .cp-pipeline.active {
+    background: rgba(139,92,246,0.3);
+    color: #a78bfa;
+    border-color: rgba(139,92,246,0.6);
+    box-shadow: 0 0 12px rgba(139,92,246,0.2);
+  }
+  .cp-pipeline.active .pill-check {
+    display: inline;
+  }
+
+  .cp-quick {
+    background: rgba(251,191,36,0.12);
+    color: rgba(251,191,36,0.8);
+    border-color: rgba(251,191,36,0.25);
+  }
+  .cp-quick:hover {
+    background: rgba(251,191,36,0.2);
+    border-color: rgba(251,191,36,0.4);
+  }
+  .cp-quick.active {
+    background: rgba(251,191,36,0.3);
+    color: #fbbf24;
+    border-color: rgba(251,191,36,0.6);
+    box-shadow: 0 0 12px rgba(251,191,36,0.2);
+  }
+  .cp-quick.active .pill-check {
+    display: inline;
+  }
+
+  .cp-research {
+    background: rgba(59,130,246,0.12);
+    color: rgba(59,130,246,0.8);
+    border-color: rgba(59,130,246,0.25);
+  }
+  .cp-research:hover {
+    background: rgba(59,130,246,0.2);
+    border-color: rgba(59,130,246,0.4);
+  }
+  .cp-research.active {
+    background: rgba(59,130,246,0.3);
+    color: #60a5fa;
+    border-color: rgba(59,130,246,0.6);
+    box-shadow: 0 0 12px rgba(59,130,246,0.2);
+  }
+  .cp-research.active .pill-check {
+    display: inline;
+  }
+
+  .cp-evaluate {
+    background: rgba(244,114,182,0.12);
+    color: rgba(244,114,182,0.8);
+    border-color: rgba(244,114,182,0.25);
+  }
+  .cp-evaluate:hover {
+    background: rgba(244,114,182,0.2);
+    border-color: rgba(244,114,182,0.4);
+  }
+  .cp-evaluate.active {
+    background: rgba(244,114,182,0.3);
+    color: #f472b6;
+    border-color: rgba(244,114,182,0.6);
+    box-shadow: 0 0 12px rgba(244,114,182,0.2);
+  }
+  .cp-evaluate.active .pill-check {
+    display: inline;
+  }
+
+  /* ── FILTER BAR ── */
+  .filter-bar {
+    display: none; align-items: center; justify-content: center; gap: 12px;
+    padding: 10px 20px; margin-bottom: 16px;
+    background: rgba(139,92,246,0.1); border: 1px solid rgba(139,92,246,0.25);
+    border-radius: 12px; font-size: 0.88rem; color: #c4c4e0;
+  }
+  .filter-bar.active { display: flex; }
+  .filter-bar strong { color: #a78bfa; }
+  .filter-bar .clear-btn {
+    background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
+    color: #e2e2f0; padding: 5px 14px; border-radius: 8px; font-size: 0.8rem;
+    font-weight: 600; cursor: pointer; transition: background 0.15s;
+  }
+  .filter-bar .clear-btn:hover { background: rgba(255,255,255,0.15); }
+
+  /* ── UNIFIED PHASE + TOOLBAR ROW ── */
+  .filter-section {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+
+  /* ── PHASE PATH (COMPACT) ── */
+  .phase-path {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 280px;
+  }
+  .path-track {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    position: relative;
+  }
+  .path-node {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    padding: 6px 12px;
+    border-radius: 10px;
+    transition: background 0.2s;
+    flex-shrink: 0;
+    position: relative;
+  }
+  .path-node:hover { background: rgba(255,255,255,0.05); }
+  .path-node.active { background: rgba(139,92,246,0.15); }
+  .path-dot {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+    font-weight: 700;
+    transition: transform 0.2s;
+  }
+  .path-node:hover .path-dot { transform: scale(1.1); }
+  .path-label { font-size: 0.7rem; font-weight: 600; }
+  .path-count { font-size: 0.65rem; color: #6b6b8a; }
+  .path-connector {
+    width: 24px;
+    height: 2px;
+    flex-shrink: 0;
+    background: linear-gradient(90deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
+  }
+
+  .pd-discover .path-dot { background: rgba(59,130,246,0.2); color: #60a5fa; border: 2px solid rgba(59,130,246,0.4); }
+  .pd-define .path-dot { background: rgba(168,85,247,0.2); color: #a78bfa; border: 2px solid rgba(168,85,247,0.4); }
+  .pd-ideate .path-dot { background: rgba(52,211,153,0.2); color: #34d399; border: 2px solid rgba(52,211,153,0.4); }
+  .pd-prototype .path-dot { background: rgba(251,191,36,0.2); color: #fbbf24; border: 2px solid rgba(251,191,36,0.4); }
+  .pd-test .path-dot { background: rgba(244,114,182,0.2); color: #f472b6; border: 2px solid rgba(244,114,182,0.4); }
+
+  /* ── VIEW TOGGLE + COUNT ── */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .view-toggle {
+    display: flex;
+    background: rgba(255,255,255,0.06);
+    border-radius: 10px;
+    padding: 3px;
+  }
+  .view-btn {
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: none;
+    background: none;
+    color: #9393b0;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .view-btn.active {
+    background: rgba(139,92,246,0.25);
+    color: #e2e2f0;
+  }
+  .tool-count {
+    font-size: 0.8rem;
+    color: #6b6b8a;
+    white-space: nowrap;
+  }
+
+  /* ── TOOL GRID ── */
+  #toolContainer {
+    scroll-margin-top: 40px;
+  }
+  .tool-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+  }
+
+  /* ── TOOL CARD ── */
+  .tool-card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px;
+    padding: 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .tool-card:hover {
+    background: rgba(255,255,255,0.08);
+    border-color: rgba(139,92,246,0.3);
+    transform: translateY(-2px);
+  }
+  .tool-card .tc-thumb {
+    width: 100%;
+    height: 140px;
+    background: rgba(139,92,246,0.15);
+    border-radius: 10px;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 3rem;
+  }
+  .tool-card .tc-name {
+    font-weight: 700;
+    font-size: 0.95rem;
+    margin-bottom: 6px;
+    color: #e2e2f0;
+  }
+  .tool-card .tc-phase {
+    display: inline-block;
+    padding: 3px 10px;
+    background: rgba(139,92,246,0.2);
+    border-radius: 6px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #a78bfa;
+    margin-bottom: 8px;
+  }
+  .tool-card .tc-desc {
+    font-size: 0.82rem;
+    color: rgba(255,255,255,0.7);
+    line-height: 1.4;
+    margin-bottom: 10px;
+  }
+  .tool-card .tc-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    color: #6b6b8a;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255,255,255,0.05);
+  }
+
+  /* ── COMING SOON ── */
+  .coming-soon {
+    margin-top: 56px;
+    padding-top: 40px;
+    border-top: 1px solid rgba(255,255,255,0.1);
+  }
+  .coming-soon h3 {
+    font-size: 1rem;
+    font-weight: 700;
+    margin-bottom: 24px;
+    color: #c4c4e0;
+  }
+  .cs-categories {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 24px;
+  }
+  .cs-category h4 {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #a78bfa;
+    margin-bottom: 12px;
+  }
+  .cs-list {
+    list-style: none;
+  }
+  .cs-list li {
+    font-size: 0.85rem;
+    color: rgba(255,255,255,0.6);
+    margin-bottom: 8px;
+    padding-left: 16px;
+    position: relative;
+  }
+  .cs-list li::before {
+    content: '◆';
+    position: absolute;
+    left: 0;
+    color: #6b6b8a;
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .hero h1 { font-size: 2rem; }
+    .tool-grid {
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    }
+    .filter-section {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    .phase-path {
+      width: 100%;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="option-badge">Option D: Pills + Auto-scroll</div>
+
+<!-- HERO -->
+<div class="hero">
+  <h1>StudioLoom<br><span>Toolkit</span></h1>
+  <p>48 design thinking tools for discovery, ideation, analysis & execution</p>
+  <div class="search-wrap">
+    <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="11" cy="11" r="8"></circle>
+      <path d="m21 21-4.35-4.35"></path>
+    </svg>
+    <input type="text" id="searchInput" placeholder="Search tools...">
+    <div class="search-suggestions" id="searchSuggestions"></div>
+  </div>
+</div>
+
+<!-- CONTENT -->
+<div class="content">
+
+  <!-- COMPACT COLLECTION PILLS -->
+  <div class="collections">
+    <h2>Curated Collections</h2>
+    <div class="collections-row">
+      <button class="collection-pill cp-beginner" data-collection="beginner">
+        <span class="pill-emoji">🌱</span>
+        <span>First Time? (5)</span>
+        <svg class="pill-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+      </button>
+      <button class="collection-pill cp-pipeline" data-collection="pipeline">
+        <span class="pill-emoji">🔗</span>
+        <span>Full Cycle (5)</span>
+        <svg class="pill-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+      </button>
+      <button class="collection-pill cp-quick" data-collection="quick">
+        <span class="pill-emoji">⚡</span>
+        <span>Quick Wins (8)</span>
+        <svg class="pill-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+      </button>
+      <button class="collection-pill cp-research" data-collection="research">
+        <span class="pill-emoji">🔬</span>
+        <span>Research (6)</span>
+        <svg class="pill-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+      </button>
+      <button class="collection-pill cp-evaluate" data-collection="evaluate">
+        <span class="pill-emoji">⚖️</span>
+        <span>Decisions (7)</span>
+        <svg class="pill-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- FILTER BAR (shown when active) -->
+  <div class="filter-bar" id="filterBar">
+    Showing <strong id="toolCount">0</strong> of 48
+    <button class="clear-btn" id="clearBtn">Clear all</button>
+  </div>
+
+  <!-- UNIFIED PHASE + TOOLBAR ROW -->
+  <div class="filter-section">
+    <div class="phase-path">
+      <div class="path-track">
+        <div class="path-node pd-discover active" data-phase="discover">
+          <div class="path-dot">🔍</div>
+          <div class="path-label">Discover</div>
+        </div>
+        <div class="path-connector"></div>
+        <div class="path-node pd-define" data-phase="define">
+          <div class="path-dot">📋</div>
+          <div class="path-label">Define</div>
+        </div>
+        <div class="path-connector"></div>
+        <div class="path-node pd-ideate" data-phase="ideate">
+          <div class="path-dot">💡</div>
+          <div class="path-label">Ideate</div>
+        </div>
+        <div class="path-connector"></div>
+        <div class="path-node pd-prototype" data-phase="prototype">
+          <div class="path-dot">🔨</div>
+          <div class="path-label">Prototype</div>
+        </div>
+        <div class="path-connector"></div>
+        <div class="path-node pd-test" data-phase="test">
+          <div class="path-dot">✓</div>
+          <div class="path-label">Test</div>
+        </div>
+      </div>
+    </div>
+    <div class="toolbar">
+      <div class="view-toggle">
+        <button class="view-btn active" data-view="grid">Grid</button>
+        <button class="view-btn" data-view="list">List</button>
+      </div>
+      <div class="tool-count" id="displayCount">48 tools</div>
+    </div>
+  </div>
+
+  <!-- TOOL GRID -->
+  <div class="tool-grid" id="toolContainer"></div>
+
+  <!-- COMING SOON -->
+  <div class="coming-soon">
+    <h3>Coming Soon: 24 More Tools</h3>
+    <div class="cs-categories">
+      <div class="cs-category">
+        <h4>Empathy & Context</h4>
+        <ul class="cs-list">
+          <li>Stakeholder Power Grid</li>
+          <li>Cultural Landscape Map</li>
+          <li>Sustainability Canvas</li>
+        </ul>
+      </div>
+      <div class="cs-category">
+        <h4>Rapid Experimentation</h4>
+        <ul class="cs-list">
+          <li>Paper Prototyping Cards</li>
+          <li>A/B Testing Matrix</li>
+          <li>Assumption Buster Game</li>
+        </ul>
+      </div>
+      <div class="cs-category">
+        <h4>Systems Thinking</h4>
+        <ul class="cs-list">
+          <li>Causal Loop Diagram</li>
+          <li>Futures Cone Builder</li>
+          <li>Ripple Effect Mapper</li>
+        </ul>
+      </div>
+      <div class="cs-category">
+        <h4>Scaling & Impact</h4>
+        <ul class="cs-list">
+          <li>Business Model Canvas</li>
+          <li>Rollout Timeline</li>
+          <li>Measurement Framework</li>
+        </ul>
+      </div>
+      <div class="cs-category">
+        <h4>Facilitation</h4>
+        <ul class="cs-list">
+          <li>Warm-up Activity Library</li>
+          <li>Conflict Navigation Guide</li>
+          <li>Energy Level Pulser</li>
+        </ul>
+      </div>
+      <div class="cs-category">
+        <h4>Reflection</h4>
+        <ul class="cs-list">
+          <li>Design DNA Profiler</li>
+          <li>Failure Post-Mortem</li>
+          <li>Growth Reflection Journal</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────────────────
+// DATA (copied from v4 — complete tool database)
+// ─────────────────────────────────────────────────────────────────────
+
+const THUMBS = {
+  'mind-map': '🧠', 'scamper': '🎨', 'lotus': '🌸', 'affinity': '🧩',
+  'empathy-map': '💭', 'pmi': '⚖️', 'decision-matrix': '📊',
+  'how-might-we': '🤔', 'reverse-brainstorm': '🔄', 'five-whys': '❓',
+  'six-hats': '🎩', 'swot': '📈', 'stakeholder-map': '👥',
+  'morphological': '🔀', 'journey-map': '🗺️', 'fishbone': '🦴',
+  'biomimicry': '🦋', 'tree-diagram': '🌳', 'concept-map': '🗂️',
+  'comparison': '↔️', 'target-audience': '🎯', 'value-prop': '💎',
+  'persona': '👤', 'systems-map': '⚙️', 'design-sprint': '⚡',
+  'brainstorm-web': '🕸️', 'dot-voting': '●●●', 'brainwrite': '✍️',
+  'moodboard': '🎭', 'design-spec': '📐', 'design-dialogue': '💬',
+  'feedback-grid': '🏁', 'user-story': '📖', 'storyboard': '📺',
+  'design-criteria': '✓', 'rubric-maker': '📋', 'assessment': '🎓',
+  'iteration-tracker': '🔁', 'portfolio-review': '🖼️', 'sketch': '✏️'
+};
+
+const TOOLS = [
+  { id: 'mind-map', name: 'Mind Map', phase: 'discover', difficulty: 'beginner', time: '15-30m', group: 'ideation', collection: 'beginner' },
+  { id: 'scamper', name: 'SCAMPER', phase: 'ideate', difficulty: 'intermediate', time: '20-40m', group: 'ideation', collection: 'pipeline' },
+  { id: 'lotus', name: 'Lotus Diagram', phase: 'ideate', difficulty: 'intermediate', time: '25-45m', group: 'ideation', collection: 'pipeline' },
+  { id: 'affinity', name: 'Affinity Diagram', phase: 'define', difficulty: 'intermediate', time: '20-40m', group: 'analysis', collection: 'quick' },
+  { id: 'empathy-map', name: 'Empathy Map', phase: 'discover', difficulty: 'beginner', time: '15-30m', group: 'research', collection: 'beginner' },
+  { id: 'pmi', name: 'PMI Chart', phase: 'test', difficulty: 'beginner', time: '10-20m', group: 'evaluation', collection: 'evaluate' },
+  { id: 'decision-matrix', name: 'Decision Matrix', phase: 'test', difficulty: 'intermediate', time: '20-40m', group: 'evaluation', collection: 'evaluate' },
+  { id: 'how-might-we', name: 'How Might We?', phase: 'define', difficulty: 'intermediate', time: '15-30m', group: 'analysis', collection: 'quick' },
+  { id: 'reverse-brainstorm', name: 'Reverse Brainstorm', phase: 'ideate', difficulty: 'intermediate', time: '15-30m', group: 'ideation', collection: 'ideation' },
+  { id: 'five-whys', name: 'Five Whys', phase: 'define', difficulty: 'intermediate', time: '10-20m', group: 'analysis', collection: 'quick' },
+  { id: 'six-hats', name: 'Six Thinking Hats', phase: 'test', difficulty: 'advanced', time: '30-60m', group: 'evaluation', collection: 'research' },
+  { id: 'swot', name: 'SWOT Analysis', phase: 'define', difficulty: 'intermediate', time: '15-30m', group: 'analysis', collection: 'research' },
+  { id: 'stakeholder-map', name: 'Stakeholder Map', phase: 'discover', difficulty: 'intermediate', time: '20-30m', group: 'research', collection: 'research' },
+  { id: 'morphological', name: 'Morphological Chart', phase: 'ideate', difficulty: 'advanced', time: '30-45m', group: 'ideation', collection: 'ideation' },
+  { id: 'journey-map', name: 'Journey Map', phase: 'discover', difficulty: 'intermediate', time: '30-45m', group: 'research', collection: 'pipeline' },
+  { id: 'fishbone', name: 'Fishbone Diagram', phase: 'define', difficulty: 'intermediate', time: '15-30m', group: 'analysis', collection: 'quick' },
+  { id: 'biomimicry', name: 'Biomimicry Canvas', phase: 'ideate', difficulty: 'advanced', time: '30-60m', group: 'ideation', collection: 'research' },
+  { id: 'tree-diagram', name: 'Tree Diagram', phase: 'ideate', difficulty: 'intermediate', time: '15-30m', group: 'ideation', collection: 'ideation' },
+  { id: 'concept-map', name: 'Concept Map', phase: 'define', difficulty: 'intermediate', time: '20-40m', group: 'analysis', collection: 'quick' },
+  { id: 'comparison', name: 'Pairwise Comparison', phase: 'test', difficulty: 'beginner', time: '10-20m', group: 'evaluation', collection: 'quick' },
+  { id: 'target-audience', name: 'Target Audience Profile', phase: 'discover', difficulty: 'beginner', time: '15-25m', group: 'research', collection: 'beginner' },
+  { id: 'value-prop', name: 'Value Proposition Canvas', phase: 'prototype', difficulty: 'intermediate', time: '20-40m', group: 'planning', collection: 'pipeline' },
+  { id: 'persona', name: 'User Persona', phase: 'discover', difficulty: 'intermediate', time: '20-40m', group: 'research', collection: 'beginner' },
+  { id: 'systems-map', name: 'Systems Map', phase: 'define', difficulty: 'advanced', time: '30-60m', group: 'analysis', collection: 'research' },
+  { id: 'design-sprint', name: 'Design Sprint Planning', phase: 'prototype', difficulty: 'advanced', time: '60+ min', group: 'planning', collection: 'pipeline' },
+  { id: 'brainstorm-web', name: 'Brainstorm Web', phase: 'ideate', difficulty: 'beginner', time: '15-30m', group: 'ideation', collection: 'beginner' },
+  { id: 'dot-voting', name: 'Dot Voting', phase: 'test', difficulty: 'beginner', time: '10-20m', group: 'evaluation', collection: 'quick' },
+  { id: 'brainwrite', name: 'Brainwrite', phase: 'ideate', difficulty: 'intermediate', time: '15-30m', group: 'ideation', collection: 'ideation' },
+  { id: 'moodboard', name: 'Mood Board', phase: 'prototype', difficulty: 'beginner', time: '20-40m', group: 'planning', collection: 'quick' },
+  { id: 'design-spec', name: 'Design Specification', phase: 'prototype', difficulty: 'advanced', time: '30-60m', group: 'planning', collection: 'pipeline' },
+  { id: 'design-dialogue', name: 'Design Dialogue', phase: 'discover', difficulty: 'beginner', time: '15-30m', group: 'research', collection: 'beginner' },
+  { id: 'feedback-grid', name: 'Feedback Capture Grid', phase: 'test', difficulty: 'beginner', time: '10-20m', group: 'evaluation', collection: 'evaluate' },
+  { id: 'user-story', name: 'User Story Mapping', phase: 'define', difficulty: 'intermediate', time: '20-40m', group: 'analysis', collection: 'pipeline' },
+  { id: 'storyboard', name: 'Storyboard', phase: 'prototype', difficulty: 'intermediate', time: '25-45m', group: 'planning', collection: 'quick' },
+  { id: 'design-criteria', name: 'Design Criteria', phase: 'define', difficulty: 'beginner', time: '10-20m', group: 'analysis', collection: 'quick' },
+  { id: 'rubric-maker', name: 'Assessment Rubric', phase: 'test', difficulty: 'intermediate', time: '20-40m', group: 'evaluation', collection: 'evaluate' },
+  { id: 'assessment', name: 'Peer Assessment', phase: 'test', difficulty: 'intermediate', time: '15-30m', group: 'evaluation', collection: 'evaluate' },
+  { id: 'iteration-tracker', name: 'Iteration Tracker', phase: 'prototype', difficulty: 'intermediate', time: '10-20m', group: 'planning', collection: 'pipeline' },
+  { id: 'portfolio-review', name: 'Portfolio Review', phase: 'test', difficulty: 'advanced', time: '30-60m', group: 'evaluation', collection: 'research' },
+  { id: 'sketch', name: 'Quick Sketch', phase: 'prototype', difficulty: 'beginner', time: '10-30m', group: 'planning', collection: 'quick' }
+];
+
+const PHASE_LABELS = {
+  'discover': 'Discover',
+  'define': 'Define',
+  'ideate': 'Ideate',
+  'prototype': 'Prototype',
+  'test': 'Test'
+};
+
+const PHASE_COLORS = {
+  'discover': '#60a5fa',
+  'define': '#a78bfa',
+  'ideate': '#34d399',
+  'prototype': '#fbbf24',
+  'test': '#f472b6'
+};
+
+// ─────────────────────────────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────────────────────────────
+
+let state = {
+  activePhase: 'discover',
+  activeCollection: null,
+  searchQuery: '',
+  viewMode: 'grid'
+};
+
+// ─────────────────────────────────────────────────────────────────────
+// RENDER FUNCTIONS
+// ─────────────────────────────────────────────────────────────────────
+
+function getFilteredTools() {
+  return TOOLS.filter(tool => {
+    let match = true;
+    if (state.activePhase) match = match && tool.phase === state.activePhase;
+    if (state.activeCollection) match = match && tool.collection === state.activeCollection;
+    if (state.searchQuery) {
+      const q = state.searchQuery.toLowerCase();
+      match = match && (tool.name.toLowerCase().includes(q) || tool.group.toLowerCase().includes(q));
+    }
+    return match;
+  });
+}
+
+function renderToolGrid() {
+  const tools = getFilteredTools();
+  const container = document.getElementById('toolContainer');
+  const count = tools.length;
+
+  document.getElementById('toolCount').textContent = count;
+  document.getElementById('displayCount').textContent = count + ' tool' + (count !== 1 ? 's' : '');
+
+  if (tools.length === 0) {
+    container.innerHTML = '<div style="grid-column: 1/-1; padding: 40px; text-align: center; color: #6b6b8a;">No tools match your filters</div>';
+    return;
+  }
+
+  container.innerHTML = tools.map(tool => `
+    <div class="tool-card">
+      <div class="tc-thumb">${THUMBS[tool.id] || '🛠️'}</div>
+      <div class="tc-name">${tool.name}</div>
+      <div class="tc-phase">${PHASE_LABELS[tool.phase]}</div>
+      <div class="tc-desc">${tool.group.charAt(0).toUpperCase() + tool.group.slice(1)} tool for the ${PHASE_LABELS[tool.phase].toLowerCase()} phase.</div>
+      <div class="tc-meta">
+        <span>${tool.difficulty}</span>
+        <span>${tool.time}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+function updateFilterBar() {
+  const bar = document.getElementById('filterBar');
+  if (state.activeCollection || state.searchQuery) {
+    bar.classList.add('active');
+  } else {
+    bar.classList.remove('active');
+  }
+}
+
+function scrollToTools() {
+  const container = document.getElementById('toolContainer');
+  container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// EVENT LISTENERS
+// ─────────────────────────────────────────────────────────────────────
+
+// Collection pills
+document.querySelectorAll('.collection-pill').forEach(pill => {
+  pill.addEventListener('click', (e) => {
+    const collection = e.currentTarget.dataset.collection;
+    state.activeCollection = state.activeCollection === collection ? null : collection;
+
+    document.querySelectorAll('.collection-pill').forEach(p => {
+      p.classList.toggle('active', p.dataset.collection === collection && state.activeCollection === collection);
+    });
+
+    updateFilterBar();
+    renderToolGrid();
+    scrollToTools();
+  });
+});
+
+// Phase nodes
+document.querySelectorAll('.path-node').forEach(node => {
+  node.addEventListener('click', (e) => {
+    const phase = e.currentTarget.dataset.phase;
+    state.activePhase = state.activePhase === phase ? null : phase;
+
+    document.querySelectorAll('.path-node').forEach(n => {
+      n.classList.toggle('active', n.dataset.phase === phase && state.activePhase === phase);
+    });
+
+    renderToolGrid();
+    scrollToTools();
+  });
+});
+
+// View toggle
+document.querySelectorAll('.view-btn').forEach(btn => {
+  btn.addEventListener('click', (e) => {
+    state.viewMode = e.currentTarget.dataset.view;
+    document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
+    e.currentTarget.classList.add('active');
+  });
+});
+
+// Search
+document.getElementById('searchInput').addEventListener('input', (e) => {
+  state.searchQuery = e.target.value;
+  updateFilterBar();
+  renderToolGrid();
+  if (state.searchQuery) {
+    scrollToTools();
+  }
+});
+
+// Clear filters
+document.getElementById('clearBtn').addEventListener('click', () => {
+  state.activeCollection = null;
+  state.searchQuery = '';
+  document.getElementById('searchInput').value = '';
+  document.querySelectorAll('.collection-pill').forEach(p => p.classList.remove('active'));
+  updateFilterBar();
+  renderToolGrid();
+});
+
+// Initial render
+renderToolGrid();
+</script>
+
+</body>
+</html>

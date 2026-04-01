@@ -12,6 +12,8 @@ import type { TimingContext } from "@/lib/ai/prompts";
 import { validateLessonTiming } from "@/lib/ai/timing-validation";
 import type { GeneratedLesson, TimingValidationResult } from "@/lib/ai/timing-validation";
 import type { LessonJourneyInput, JourneyOutlineOption } from "@/types";
+import { computeLessonPulse } from "@/lib/layers/lesson-pulse";
+import type { PulseActivity, LessonPulseScore } from "@/lib/layers/lesson-pulse";
 
 function createSupabaseServer(request: NextRequest) {
   return createServerClient(
@@ -235,12 +237,28 @@ export const POST = withErrorHandler("teacher/generate-journey:POST", async (req
       }
     }
 
+    // ── Lesson Pulse scoring ──
+    const pulseScores: Record<string, LessonPulseScore> = {};
+    try {
+      for (const [pid, page] of Object.entries(validation.pages)) {
+        if (page && typeof page === "object" && "sections" in page) {
+          const sections = (page as unknown as { sections?: unknown[] }).sections;
+          if (Array.isArray(sections) && sections.length > 0) {
+            pulseScores[pid] = computeLessonPulse(sections as PulseActivity[]);
+          }
+        }
+      }
+    } catch {
+      // Pulse scoring is enhancement, not requirement
+    }
+
     return NextResponse.json({
       pages: validation.pages,
       warnings: validation.errors,
       lessonIds,
       ragChunkIds: chunkIds,
       timingValidation: Object.keys(timingResults).length > 0 ? timingResults : undefined,
+      pulseScores: Object.keys(pulseScores).length > 0 ? pulseScores : undefined,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";

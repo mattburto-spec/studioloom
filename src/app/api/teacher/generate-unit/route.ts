@@ -11,6 +11,8 @@ import type { UnitWizardInput } from "@/types";
 import { getCriterionKeys, getFrameworkCriterionKeys } from "@/lib/constants";
 import type { CriterionKey } from "@/lib/constants";
 import { onUnitCreated } from "@/lib/teacher-style/profile-service";
+import { computeLessonPulse } from "@/lib/layers/lesson-pulse";
+import type { PulseActivity, LessonPulseScore } from "@/lib/layers/lesson-pulse";
 
 function createSupabaseServer(request: NextRequest) {
   return createServerClient(
@@ -222,6 +224,21 @@ export const POST = withErrorHandler("teacher/generate-unit:POST", async (reques
       }
     }
 
+    // ── Lesson Pulse scoring ──
+    const pulseScores: Record<string, LessonPulseScore> = {};
+    try {
+      for (const [pid, page] of Object.entries(validation.pages)) {
+        if (page && typeof page === "object" && "sections" in page) {
+          const sections = (page as unknown as { sections?: unknown[] }).sections;
+          if (Array.isArray(sections) && sections.length > 0) {
+            pulseScores[pid] = computeLessonPulse(sections as PulseActivity[]);
+          }
+        }
+      }
+    } catch {
+      // Pulse scoring is enhancement, not requirement
+    }
+
     // Signal teacher style profile: unit generated
     onUnitCreated(user.id).catch(() => {}); // non-fatal
 
@@ -231,6 +248,7 @@ export const POST = withErrorHandler("teacher/generate-unit:POST", async (reques
       criterion,
       ragChunkIds: chunkIds,
       timingValidation: Object.keys(timingResults).length > 0 ? timingResults : undefined,
+      pulseScores: Object.keys(pulseScores).length > 0 ? pulseScores : undefined,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";

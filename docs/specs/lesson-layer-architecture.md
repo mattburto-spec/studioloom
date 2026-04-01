@@ -1717,3 +1717,8 @@ The weighted algorithm follows AHRQ's evidence: weights derived from effect size
 3. **Should repair be silent or opt-in?** Current design: silent repair with revert. Alternative: show "we found 3 improvements" screen and let teacher approve each. Silent is better UX (fewer clicks) but riskier (teacher might not notice changes). **Decision needed after first build.**
 
 4. **Should Pulse data persist on content_data?** Options: (a) compute on-demand every time (pure, always fresh, slight compute cost), (b) cache `_pulse` on PageContent JSONB (fast reads, stale if teacher edits without recomputing). **Leaning toward (a) for editor, (b) for dashboard/generation review** — editor needs live updates, dashboard can tolerate cached scores.
+
+5. **Should `technical_load` modify the Teacher Craft scaffolding sub-score?** (Added 1 April 2026.) Matt's observation: students struggle in design because they simultaneously manage time, resources, new tech/software, AND being a student. The `technical_load` field on activities (see Dimensions v2 spec) captures tool/tech novelty per activity. Two integration points with Pulse:
+   - **Scaffolding modifier:** If `technical_load.novelty === 'high'` AND `technical_load.scaffolding_provided === 'none'`, the Teacher Craft scaffolding sub-score should be penalised (introduced complex tech without support). If novelty is high but scaffolding is `'tutorial'`, no penalty.
+   - **Insight generation:** "Activity 3 introduces Arduino with no technical scaffolding — consider adding a demo or FAQ sheet." This is a surgical repair target.
+   - **Decision:** Implement AFTER Pulse Phase 1 ships and `technical_load` data exists on activities. Don't block the initial build on this.

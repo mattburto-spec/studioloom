@@ -1,6 +1,7 @@
 import { useReducer } from "react";
 import type { UnitWizardInput, PageContent, LessonJourneyInput, JourneyOutlineOption, TimelineActivity, ComputedLesson, TimelineOutlineOption, TimelineSkeleton, TimelineLessonSkeleton } from "@/types";
 import type { QualityReport } from "@/types/lesson-intelligence";
+import type { LessonPulseScore } from "@/lib/layers/lesson-pulse";
 import type { CriterionKey } from "@/lib/constants";
 import { getCriterionKeys } from "@/lib/constants";
 import { computeLessonBoundaries } from "@/lib/timeline";
@@ -98,6 +99,8 @@ export interface WizardState {
   qualityReportStatus: "idle" | "loading" | "done" | "error";
   // --- RAG chunk tracking (Layer 2) ---
   ragChunkIds: string[];
+  // --- Lesson Pulse scores ---
+  pulseScores: Record<string, LessonPulseScore>;
 }
 
 type Action =
@@ -179,7 +182,9 @@ type Action =
   | { type: "SET_QUALITY_REPORT"; report: QualityReport }
   | { type: "SET_QUALITY_REPORT_STATUS"; status: WizardState["qualityReportStatus"] }
   // RAG chunk tracking
-  | { type: "ADD_RAG_CHUNK_IDS"; ids: string[] };
+  | { type: "ADD_RAG_CHUNK_IDS"; ids: string[] }
+  // Lesson Pulse scores
+  | { type: "MERGE_PULSE_SCORES"; scores: Record<string, LessonPulseScore> };
 
 function emphasisToFocus(value: number): "light" | "standard" | "emphasis" {
   if (value <= 33) return "light";
@@ -822,6 +827,10 @@ function reducer(state: WizardState, action: Action): WizardState {
       return { ...state, ragChunkIds: [...state.ragChunkIds, ...newIds] };
     }
 
+    // --- Lesson Pulse scores ---
+    case "MERGE_PULSE_SCORES":
+      return { ...state, pulseScores: { ...state.pulseScores, ...action.scores } };
+
     default:
       return state;
   }
@@ -936,6 +945,7 @@ const initialState: WizardState = {
   qualityReport: null,
   qualityReportStatus: "idle",
   ragChunkIds: [],
+  pulseScores: {},
 };
 
 export function useWizardState() {

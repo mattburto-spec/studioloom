@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Unit Card Redesign — Mockup</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #F8F9FB;
+    padding: 40px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  h1 { font-size: 20px; font-weight: 800; color: #1a1a2e; margin-bottom: 8px; }
+  .subtitle { font-size: 13px; color: #888; margin-bottom: 24px; }
+  .cards { display: flex; flex-direction: column; gap: 16px; }
+
+  .card {
+    background: #fff;
+    border-radius: 16px;
+    border: 1px solid #e5e7eb;
+    overflow: hidden;
+    display: flex;
+    transition: box-shadow 0.2s;
+    cursor: pointer;
+  }
+  .card:hover { box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
+
+  /* Photo panel */
+  .photo-panel {
+    width: 192px;
+    min-height: 140px;
+    flex-shrink: 0;
+    position: relative;
+    overflow: hidden;
+  }
+  .photo-panel img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s;
+  }
+  .card:hover .photo-panel img { transform: scale(1.05); }
+  .photo-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.1) 50%, rgba(0,0,0,0.25) 100%);
+  }
+
+  /* Type badge */
+  .type-badge {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0.05em;
+    padding: 2px 8px;
+    border-radius: 4px;
+    z-index: 2;
+  }
+  .type-design  { background: #0D9488; color: #fff; }
+  .type-service { background: #EC4899; color: #fff; }
+  .type-pp      { background: #8B5CF6; color: #fff; }
+  .type-inquiry { background: #F59E0B; color: #fff; }
+
+  /* Student count on photo */
+  .student-count {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    font-size: 11px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.8);
+    z-index: 2;
+  }
+
+  /* Right panel */
+  .info-panel {
+    flex: 1;
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .top-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .class-name {
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .unit-title {
+    font-size: 17px;
+    font-weight: 800;
+    color: #1a1a2e;
+    letter-spacing: -0.02em;
+    line-height: 1.3;
+  }
+  .unit-title:hover { color: #7C3AED; }
+
+  /* Customized badge */
+  .fork-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: #FFF7ED;
+    color: #B45309;
+    border: 1px solid #FDE68A;
+  }
+
+  /* Progress ring */
+  .progress-ring {
+    width: 48px;
+    height: 48px;
+    flex-shrink: 0;
+    position: relative;
+    margin-top: 4px;
+  }
+  .progress-ring svg { width: 48px; height: 48px; transform: rotate(-90deg); }
+  .progress-ring .pct {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: #888;
+  }
+
+  /* Bottom row */
+  .bottom-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: auto;
+    padding-top: 12px;
+  }
+  .buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 6px 14px;
+    border-radius: 8px;
+    text-decoration: none;
+    transition: 0.15s;
+    border: none;
+    cursor: pointer;
+  }
+  .btn-teach {
+    background: linear-gradient(135deg, #7C3AED, #6D28D9);
+    color: #fff;
+    box-shadow: 0 1px 3px rgba(124,58,237,0.3);
+  }
+  .btn-teach:hover { opacity: 0.9; }
+  .btn-outline {
+    background: transparent;
+    color: #666;
+    border: 1px solid #e5e7eb;
+    font-weight: 600;
+  }
+  .btn-outline:hover { background: #f9fafb; }
+
+  /* Feature badges */
+  .feature-badges { display: flex; gap: 6px; flex-shrink: 0; }
+  .feat {
+    width: 24px; height: 24px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 8px;
+    font-weight: 900;
+  }
+
+  /* Comparison section */
+  .compare-section {
+    margin-top: 48px;
+    padding-top: 24px;
+    border-top: 2px dashed #e5e7eb;
+  }
+  .compare-section h2 { font-size: 16px; font-weight: 700; color: #999; margin-bottom: 16px; }
+
+  /* OLD card style for comparison */
+  .old-photo-panel {
+    width: 176px;
+    min-height: 120px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 12px;
+    color: #fff;
+    position: relative;
+    overflow: hidden;
+  }
+  .old-photo-panel .circle1 {
+    position: absolute; top: -24px; left: -24px;
+    width: 96px; height: 96px; border-radius: 50%;
+    background: rgba(255,255,255,0.1);
+  }
+  .old-photo-panel .circle2 {
+    position: absolute; bottom: -16px; right: -16px;
+    width: 80px; height: 80px; border-radius: 50%;
+    background: rgba(255,255,255,0.1);
+  }
+  .old-class-name {
+    font-size: 18px; font-weight: 800;
+    text-align: center; line-height: 1.2;
+    position: relative; z-index: 1;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.1);
+  }
+  .old-student-count {
+    font-size: 12px; opacity: 0.75;
+    margin-top: 6px; position: relative; z-index: 1;
+  }
+</style>
+</head>
+<body>
+
+<h1>New Design</h1>
+<p class="subtitle">Photo thumbnail + unit type badge + class name above title</p>
+
+<div class="cards">
+  <!-- Card 1: Service -->
+  <div class="card">
+    <div class="photo-panel">
+      <img src="https://images.unsplash.com/photo-1544717305-2782549b5136?w=400&h=300&fit=crop" alt="">
+      <div class="photo-overlay"></div>
+      <span class="type-badge type-service">SERVICE</span>
+      <span class="student-count">1 student</span>
+    </div>
+    <div class="info-panel">
+      <div class="top-row">
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <span class="class-name" style="color:#3B82F6;">Service LEEDers</span>
+          </div>
+          <div class="unit-title">Arcade Machine Project</div>
+        </div>
+        <div class="progress-ring">
+          <svg viewBox="0 0 36 36">
+            <circle cx="18" cy="18" r="15" fill="none" stroke="#f3f4f6" stroke-width="3"/>
+            <circle cx="18" cy="18" r="15" fill="none" stroke="#3B82F6" stroke-width="3" stroke-dasharray="0 94.2" stroke-linecap="round"/>
+          </svg>
+          <span class="pct">0%</span>
+        </div>
+      </div>
+      <div class="bottom-row">
+        <div class="buttons">
+          <a class="btn btn-teach">▶ Teach</a>
+          <a class="btn btn-outline">Class Hub</a>
+          <a class="btn btn-outline">Edit</a>
+        </div>
+        <div class="feature-badges">
+          <span class="feat" style="background:#F3E8FF;" title="Open Studio">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+          </span>
+          <span class="feat" style="background:#FF2D78;color:#fff;font-family:Arial Black;">NM</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Card 2: Design -->
+  <div class="card">
+    <div class="photo-panel">
+      <img src="https://images.unsplash.com/photo-1572981779307-38b8cabb2407?w=400&h=300&fit=crop" alt="">
+      <div class="photo-overlay"></div>
+      <span class="type-badge type-design">DESIGN</span>
+      <span class="student-count">0 students</span>
+    </div>
+    <div class="info-panel">
+      <div class="top-row">
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <span class="class-name" style="color:#10B981;">6 Design</span>
+          </div>
+          <div class="unit-title">Designing and Building a Coffee Table</div>
+        </div>
+        <div class="progress-ring">
+          <svg viewBox="0 0 36 36">
+            <circle cx="18" cy="18" r="15" fill="none" stroke="#f3f4f6" stroke-width="3"/>
+            <circle cx="18" cy="18" r="15" fill="none" stroke="#10B981" stroke-width="3" stroke-dasharray="0 94.2" stroke-linecap="round"/>
+          </svg>
+          <span class="pct">0%</span>
+        </div>
+      </div>
+      <div class="bottom-row">
+        <div class="buttons">
+          <a class="btn btn-teach">▶ Teach</a>
+          <a class="btn btn-outline">Class Hub</a>
+          <a class="btn btn-outline">Edit</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Card 3: Design with Customized badge -->
+  <div class="card">
+    <div class="photo-panel">
+      <img src="https://images.unsplash.com/photo-1581783898377-1c85bf937427?w=400&h=300&fit=crop" alt="">
+      <div class="photo-overlay"></div>
+      <span class="type-badge type-design">DESIGN</span>
+      <span class="student-count">1 student</span>
+    </div>
+    <div class="info-panel">
+      <div class="top-row">
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <span class="class-name" style="color:#8B5CF6;">10 Design</span>
+            <span class="fork-badge">⑂ Customized</span>
+          </div>
+          <div class="unit-title">Designing and Building a Coffee Table</div>
+        </div>
+        <div class="progress-ring">
+          <svg viewBox="0 0 36 36">
+            <circle cx="18" cy="18" r="15" fill="none" stroke="#f3f4f6" stroke-width="3"/>
+            <circle cx="18" cy="18" r="15" fill="none" stroke="#8B5CF6" stroke-width="3" stroke-dasharray="0 94.2" stroke-linecap="round"/>
+          </svg>
+          <span class="pct">0%</span>
+        </div>
+      </div>
+      <div class="bottom-row">
+        <div class="buttons">
+          <a class="btn btn-teach">▶ Teach</a>
+          <a class="btn btn-outline">Class Hub</a>
+          <a class="btn btn-outline">Edit</a>
+        </div>
+        <div class="feature-badges">
+          <span class="feat" style="background:#F3E8FF;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Card 4: Design with high progress -->
+  <div class="card">
+    <div class="photo-panel">
+      <img src="https://images.unsplash.com/photo-1581092160562-40aa08e78837?w=400&h=300&fit=crop" alt="">
+      <div class="photo-overlay"></div>
+      <span class="type-badge type-design">DESIGN</span>
+      <span class="student-count">24 students</span>
+    </div>
+    <div class="info-panel">
+      <div class="top-row">
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <span class="class-name" style="color:#F97316;">10 Design</span>
+            <span class="fork-badge">⑂ Customized</span>
+          </div>
+          <div class="unit-title">CO2 Racer: Speed Through Science and Design</div>
+        </div>
+        <div class="progress-ring">
+          <svg viewBox="0 0 36 36">
+            <circle cx="18" cy="18" r="15" fill="none" stroke="#f3f4f6" stroke-width="3"/>
+            <circle cx="18" cy="18" r="15" fill="none" stroke="#F97316" stroke-width="3" stroke-dasharray="56.52 94.2" stroke-linecap="round"/>
+          </svg>
+          <span class="pct">60%</span>
+        </div>
+      </div>
+      <div class="bottom-row">
+        <div class="buttons">
+          <a class="btn btn-teach">▶ Teach</a>
+          <a class="btn btn-outline">Class Hub</a>
+          <a class="btn btn-outline">Edit</a>
+        </div>
+        <div class="feature-badges">
+          <span class="feat" style="background:#FEF3C7;border:1px solid #FDE68A;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="#F59E0B" stroke="#92400E" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── OLD DESIGN comparison ── -->
+<div class="compare-section">
+  <h2>Old Design (for comparison)</h2>
+  <div class="cards">
+    <div class="card">
+      <div class="old-photo-panel" style="background:linear-gradient(135deg,#3B82F6,#818CF8);">
+        <div class="circle1"></div>
+        <div class="circle2"></div>
+        <div class="old-class-name">Service LEEDers</div>
+        <div class="old-student-count">1 student</div>
+      </div>
+      <div class="info-panel">
+        <div class="top-row">
+          <div class="unit-title" style="font-size:20px;">Arcade Machine Project</div>
+          <div class="progress-ring" style="width:56px;height:56px;">
+            <svg viewBox="0 0 36 36" style="width:56px;height:56px;">
+              <circle cx="18" cy="18" r="15" fill="none" stroke="#f3f4f6" stroke-width="2.5"/>
+            </svg>
+            <span class="pct">0%</span>
+          </div>
+        </div>
+        <div class="bottom-row">
+          <div class="buttons">
+            <a class="btn btn-teach">▶ Teach</a>
+            <a class="btn btn-outline" style="border-color:#C4B5FD;color:#7C3AED;">🏠 Class Hub</a>
+            <a class="btn btn-outline">✏ Edit Unit</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

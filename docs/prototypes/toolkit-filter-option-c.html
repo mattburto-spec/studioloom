@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StudioLoom Toolkit — Option C: Sticky + Auto-scroll</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', sans-serif; background: #0a0a12; color: #e2e2f0; min-height: 100vh; }
+
+  /* ── HERO ── */
+  .hero {
+    background: linear-gradient(135deg, #0a0a12 0%, #1a1030 40%, #0d1a2a 70%, #0a0a12 100%);
+    padding: 48px 24px 32px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 30% 20%, rgba(139,92,246,0.15) 0%, transparent 60%),
+                radial-gradient(ellipse at 70% 80%, rgba(59,130,246,0.1) 0%, transparent 60%);
+  }
+  .hero h1 { font-size: 2.5rem; font-weight: 900; position: relative; letter-spacing: -0.02em; }
+  .hero h1 span { background: linear-gradient(135deg, #a78bfa, #60a5fa, #34d399); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .hero p { color: #9393b0; margin-top: 8px; font-size: 1rem; position: relative; }
+
+  /* ── AI SEARCH ── */
+  .search-wrap {
+    max-width: 640px; margin: 24px auto 0; position: relative;
+  }
+  .search-wrap input {
+    width: 100%; padding: 14px 20px 14px 48px;
+    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 16px; color: #e2e2f0; font-size: 1rem; outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .search-wrap input:focus {
+    border-color: rgba(139,92,246,0.5);
+    box-shadow: 0 0 0 3px rgba(139,92,246,0.15);
+  }
+  .search-wrap input::placeholder { color: #6b6b8a; }
+  .search-wrap .search-icon {
+    position: absolute; left: 16px; top: 50%; transform: translateY(-50%);
+    color: #8b5cf6; width: 20px; height: 20px;
+  }
+  .search-suggestions {
+    position: absolute; top: calc(100% + 8px); left: 0; right: 0;
+    background: #1a1a2e; border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px; padding: 8px; z-index: 100;
+    display: none; box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+  }
+  .search-suggestions.active { display: block; }
+  .search-suggestion {
+    display: flex; align-items: center; gap: 12px; padding: 10px 12px;
+    border-radius: 8px; cursor: pointer; transition: background 0.15s;
+  }
+  .search-suggestion:hover { background: rgba(139,92,246,0.15); }
+  .search-suggestion .ss-thumb {
+    width: 40px; height: 40px; border-radius: 8px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .search-suggestion .ss-name { font-weight: 600; font-size: 0.9rem; }
+  .search-suggestion .ss-why { font-size: 0.78rem; color: #9393b0; }
+
+  /* ── CONTENT ── */
+  .content { max-width: 1200px; margin: 0 auto; padding: 0 24px 64px; }
+
+  /* ── CURATED COLLECTIONS ── */
+  .collections { margin-bottom: 40px; padding-top: 16px; }
+  .collections h2 {
+    font-size: 0.8rem; font-weight: 700; color: #c4c4e0; margin-bottom: 16px;
+    text-transform: uppercase; letter-spacing: 0.06em;
+  }
+  .collections-row {
+    display: flex; gap: 12px; overflow-x: auto; padding-bottom: 8px; padding-right: 24px;
+    scrollbar-width: thin; scrollbar-color: #333 transparent;
+  }
+  .collection-card {
+    flex-shrink: 0; width: 280px; padding: 20px;
+    border-radius: 16px; cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    position: relative; overflow: hidden;
+  }
+  .collection-card:hover { transform: translateY(-3px); box-shadow: 0 8px 30px rgba(0,0,0,0.3); }
+  .collection-card.active { transform: translateY(-3px); }
+  .cc-beginner.active { border-color: rgba(52,211,153,0.8); box-shadow: 0 0 20px rgba(52,211,153,0.25), 0 0 0 1px rgba(52,211,153,0.5); }
+  .cc-pipeline.active { border-color: rgba(139,92,246,0.8); box-shadow: 0 0 20px rgba(139,92,246,0.25), 0 0 0 1px rgba(139,92,246,0.5); }
+  .cc-quick.active { border-color: rgba(251,191,36,0.8); box-shadow: 0 0 20px rgba(251,191,36,0.25), 0 0 0 1px rgba(251,191,36,0.5); }
+  .cc-research.active { border-color: rgba(59,130,246,0.8); box-shadow: 0 0 20px rgba(59,130,246,0.25), 0 0 0 1px rgba(59,130,246,0.5); }
+  .cc-evaluate.active { border-color: rgba(244,114,182,0.8); box-shadow: 0 0 20px rgba(244,114,182,0.25), 0 0 0 1px rgba(244,114,182,0.5); }
+  .collection-card.active .cc-check { display: flex; }
+  .collection-card .cc-emoji { font-size: 1.5rem; margin-bottom: 8px; }
+  .collection-card .cc-title { font-weight: 700; font-size: 1rem; margin-bottom: 4px; }
+  .collection-card .cc-desc { font-size: 0.82rem; color: rgba(255,255,255,0.7); line-height: 1.4; }
+  .collection-card .cc-count {
+    display: inline-block; margin-top: 10px; padding: 3px 10px;
+    background: rgba(255,255,255,0.15); border-radius: 20px;
+    font-size: 0.75rem; font-weight: 600;
+  }
+  .collection-card .cc-check {
+    display: none; position: absolute; top: 10px; right: 10px;
+    width: 24px; height: 24px; border-radius: 50%;
+    align-items: center; justify-content: center;
+  }
+  .cc-beginner .cc-check { background: rgba(52,211,153,0.9); }
+  .cc-pipeline .cc-check { background: rgba(139,92,246,0.9); }
+  .cc-quick .cc-check { background: rgba(251,191,36,0.9); }
+  .cc-research .cc-check { background: rgba(59,130,246,0.9); }
+  .cc-evaluate .cc-check { background: rgba(244,114,182,0.9); }
+  .collection-card .cc-check svg { width: 14px; height: 14px; stroke: white; fill: none; stroke-width: 3; }
+
+  /* ── STICKY CONTROLS BAR ── */
+  .sticky-controls {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: rgba(15, 15, 25, 0.95);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0);
+    padding: 12px 24px;
+    transition: border-color 0.3s;
+    display: none;
+  }
+  .sticky-controls.active {
+    display: block;
+    border-bottom-color: rgba(139, 92, 246, 0.25);
+  }
+  .sticky-content {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  /* Filter bar in sticky */
+  .filter-bar {
+    display: none; align-items: center; justify-content: center; gap: 12px;
+    padding: 12px 20px;
+    background: rgba(139,92,246,0.1); border: 1px solid rgba(139,92,246,0.25);
+    border-radius: 12px; font-size: 0.88rem; color: #c4c4e0;
+  }
+  .filter-bar.active { display: flex; }
+  .filter-bar strong { color: #a78bfa; }
+  .filter-bar .clear-btn {
+    background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);
+    color: #e2e2f0; padding: 5px 14px; border-radius: 8px; font-size: 0.8rem;
+    font-weight: 600; cursor: pointer; transition: background 0.15s;
+  }
+  .filter-bar .clear-btn:hover { background: rgba(255,255,255,0.15); }
+
+  .cc-beginner { background: linear-gradient(135deg, #1a2a1a, #0d2010); border: 1px solid rgba(52,211,153,0.3); }
+  .cc-pipeline { background: linear-gradient(135deg, #1a1a30, #10102a); border: 1px solid rgba(139,92,246,0.3); }
+  .cc-quick { background: linear-gradient(135deg, #2a1a10, #201510); border: 1px solid rgba(251,191,36,0.3); }
+  .cc-research { background: linear-gradient(135deg, #0d1a2a, #0a1520); border: 1px solid rgba(59,130,246,0.3); }
+  .cc-evaluate { background: linear-gradient(135deg, #2a0d1a, #200a15); border: 1px solid rgba(244,114,182,0.3); }
+
+  /* ── PHASE PATH (Compact version for sticky) ── */
+  .phase-path { margin-bottom: 40px; }
+  .phase-path h2 {
+    font-size: 0.8rem; font-weight: 700; color: #c4c4e0; margin-bottom: 16px;
+    text-transform: uppercase; letter-spacing: 0.06em;
+  }
+  .path-track {
+    display: flex; align-items: center; gap: 0; position: relative;
+    padding: 8px 0; overflow-x: auto; justify-content: center;
+  }
+  .path-node {
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    cursor: pointer; padding: 12px 20px; border-radius: 12px;
+    transition: background 0.2s; flex-shrink: 0; min-width: 120px;
+    position: relative;
+  }
+  .path-node:hover { background: rgba(255,255,255,0.05); }
+  .path-node.active { background: rgba(139,92,246,0.15); }
+  .path-dot {
+    width: 40px; height: 40px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.1rem; font-weight: 700; transition: transform 0.2s;
+  }
+  .path-node:hover .path-dot { transform: scale(1.15); }
+  .path-label { font-size: 0.78rem; font-weight: 600; }
+  .path-count { font-size: 0.7rem; color: #6b6b8a; }
+  .path-connector {
+    width: 40px; height: 2px; flex-shrink: 0;
+    background: linear-gradient(90deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
+  }
+
+  /* Compact phase path in sticky */
+  .path-track.compact { justify-content: flex-start; }
+  .path-node.compact { padding: 8px 12px; min-width: auto; }
+  .path-dot.compact { width: 28px; height: 28px; font-size: 0.9rem; }
+  .path-label.compact { display: none; }
+  .path-count.compact { display: none; }
+  .path-connector.compact { width: 24px; }
+
+  .pd-discover .path-dot { background: rgba(59,130,246,0.2); color: #60a5fa; border: 2px solid rgba(59,130,246,0.4); }
+  .pd-define .path-dot { background: rgba(168,85,247,0.2); color: #a78bfa; border: 2px solid rgba(168,85,247,0.4); }
+  .pd-ideate .path-dot { background: rgba(52,211,153,0.2); color: #34d399; border: 2px solid rgba(52,211,153,0.4); }
+  .pd-prototype .path-dot { background: rgba(251,191,36,0.2); color: #fbbf24; border: 2px solid rgba(251,191,36,0.4); }
+  .pd-test .path-dot { background: rgba(244,114,182,0.2); color: #f472b6; border: 2px solid rgba(244,114,182,0.4); }
+
+  /* ── VIEW TOGGLE ── */
+  .toolbar {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 20px; flex-wrap: wrap; gap: 12px;
+  }
+  .toolbar-left { display: flex; align-items: center; gap: 8px; }
+  .view-toggle {
+    display: flex; background: rgba(255,255,255,0.06); border-radius: 10px; padding: 3px;
+  }
+  .view-btn {
+    padding: 7px 14px; border-radius: 8px; border: none; background: none;
+    color: #9393b0; font-size: 0.82rem; font-weight: 600; cursor: pointer;
+    transition: all 0.2s;
+  }
+  .view-btn.active { background: rgba(139,92,246,0.25); color: #e2e2f0; }
+  .tool-count { font-size: 0.82rem; color: #6b6b8a; }
+
+  /* ── TOOL GRID ── */
+  .tool-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+  }
+
+  /* ── TOOL CARD ── */
+  .tool-card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px; overflow: hidden;
+    cursor: pointer; transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+  }
+  .tool-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+    border-color: rgba(255,255,255,0.15);
+  }
+
+  .tool-thumb {
+    height: 140px; display: flex; align-items: center; justify-content: center;
+    position: relative; overflow: hidden;
+  }
+  .tool-thumb svg { width: 100%; height: 100%; }
+
+  .interactive-badge {
+    position: absolute; top: 8px; right: 8px;
+    background: rgba(139,92,246,0.9); color: white;
+    font-size: 0.65rem; font-weight: 700; padding: 3px 8px;
+    border-radius: 6px; text-transform: uppercase; letter-spacing: 0.04em;
+  }
+
+  .cat-stripe { height: 3px; width: 100%; }
+
+  .tool-body { padding: 14px 16px 16px; }
+  .tool-name { font-weight: 700; font-size: 0.95rem; margin-bottom: 4px; }
+  .tool-desc {
+    font-size: 0.8rem; color: #9393b0; line-height: 1.45;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .tool-meta {
+    display: flex; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap;
+  }
+  .tool-tag {
+    font-size: 0.7rem; font-weight: 600; padding: 3px 8px;
+    border-radius: 6px; background: rgba(255,255,255,0.06);
+    color: #9393b0;
+  }
+  .tool-tag.phase { color: var(--phase-color); background: var(--phase-bg); }
+
+  /* ── COMING SOON SECTION ── */
+  .coming-soon { margin-top: 64px; }
+  .coming-soon h2 {
+    font-size: 0.8rem; font-weight: 700; color: #c4c4e0; margin-bottom: 16px;
+    text-transform: uppercase; letter-spacing: 0.06em;
+  }
+  .coming-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 16px;
+  }
+  .coming-card {
+    background: rgba(255,255,255,0.02);
+    border: 1px dashed rgba(255,255,255,0.1);
+    border-radius: 12px; padding: 24px 16px; text-align: center;
+  }
+  .coming-emoji { font-size: 2rem; margin-bottom: 8px; }
+  .coming-title { font-weight: 600; font-size: 0.9rem; color: #9393b0; }
+
+  /* ── TOOLKIT TABS ── */
+  .toolkit-tabs {
+    display: flex; gap: 20px; border-bottom: 1px solid rgba(255,255,255,0.08);
+    padding-bottom: 16px; margin-bottom: 24px;
+  }
+  .toolkit-tabs h3 {
+    font-size: 1rem; font-weight: 600; cursor: pointer;
+    color: #6b6b8a; transition: color 0.2s; padding-bottom: 8px;
+    border-bottom: 2px solid transparent; transition: border-color 0.2s;
+  }
+  .toolkit-tabs h3.active { color: #e2e2f0; border-bottom-color: #8b5cf6; }
+
+  /* ── OPTION C LABEL ── */
+  .option-label {
+    position: fixed;
+    top: 8px;
+    left: 12px;
+    background: rgba(139,92,246,0.9);
+    color: white;
+    padding: 4px 12px;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    z-index: 999;
+  }
+</style>
+</head>
+<body>
+
+<!-- Option C Label -->
+<div class="option-label">Option C: Sticky + Auto-scroll</div>
+
+<!-- HERO -->
+<div class="hero">
+  <h1>Design Thinking <span>Toolkit</span></h1>
+  <p>Explore 42 tools for discovery, ideation, evaluation, research & planning</p>
+  <div class="search-wrap">
+    <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.35-4.35"></path></svg>
+    <input type="text" id="searchInput" placeholder="Search tools by name or phrase...">
+    <div class="search-suggestions" id="searchSuggestions"></div>
+  </div>
+</div>
+
+<!-- CONTENT -->
+<div class="content">
+  <!-- CURATED COLLECTIONS (START HERE) -->
+  <div class="collections">
+    <h2>Start Here — Pick Your Path</h2>
+    <div class="collections-row">
+      <div class="collection-card cc-beginner" data-collection="beginner">
+        <div class="cc-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg></div>
+        <div class="cc-emoji">🌱</div>
+        <div class="cc-title">Beginner-Friendly</div>
+        <div class="cc-desc">Start with simple, low-prep tools you can use immediately</div>
+        <span class="cc-count">12 tools</span>
+      </div>
+      <div class="collection-card cc-pipeline" data-collection="pipeline">
+        <div class="cc-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg></div>
+        <div class="cc-emoji">🔄</div>
+        <div class="cc-title">Design Pipeline</div>
+        <div class="cc-desc">The full design cycle from research through testing</div>
+        <span class="cc-count">8 tools</span>
+      </div>
+      <div class="collection-card cc-quick" data-collection="quick">
+        <div class="cc-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg></div>
+        <div class="cc-emoji">⚡</div>
+        <div class="cc-title">Quick Decisions</div>
+        <div class="cc-desc">Fast prioritisation & evaluation when you need clarity NOW</div>
+        <span class="cc-count">6 tools</span>
+      </div>
+      <div class="collection-card cc-research" data-collection="research">
+        <div class="cc-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg></div>
+        <div class="cc-emoji">🔍</div>
+        <div class="cc-title">Deep Research</div>
+        <div class="cc-desc">Dig into problems with structured exploration techniques</div>
+        <span class="cc-count">9 tools</span>
+      </div>
+      <div class="collection-card cc-evaluate" data-collection="evaluate">
+        <div class="cc-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg></div>
+        <div class="cc-emoji">⚖️</div>
+        <div class="cc-title">Evaluate & Choose</div>
+        <div class="cc-desc">Rigorous critique, comparison, and decision-making</div>
+        <span class="cc-count">7 tools</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- STICKY CONTROLS BAR -->
+  <div class="sticky-controls" id="stickyControls">
+    <div class="sticky-content">
+      <div class="filter-bar" id="filterBar">
+        <span>Filtered by: <strong id="filterDisplay"></strong></span>
+        <button class="clear-btn" onclick="clearFilters()">Clear Filters</button>
+      </div>
+      <div class="phase-path" id="stickyPhasePath"></div>
+    </div>
+  </div>
+
+  <!-- PHASE PATH (Browse by Phase) -->
+  <div class="phase-path">
+    <h2>Browse by Design Phase</h2>
+    <div class="path-track" id="pathTrack"></div>
+  </div>
+
+  <!-- TOOLBAR (View toggle + tool count) -->
+  <div class="toolbar">
+    <div class="toolbar-left">
+      <div class="view-toggle">
+        <button class="view-btn active" data-view="grid">Grid</button>
+        <button class="view-btn" data-view="list">List</button>
+      </div>
+    </div>
+    <div class="tool-count"><strong id="toolCountDisplay">42</strong> tools</div>
+  </div>
+
+  <!-- TOOL CONTAINER (Auto-scroll target) -->
+  <div id="toolContainer">
+    <div class="tool-grid" id="toolGrid"></div>
+  </div>
+
+  <!-- COMING SOON -->
+  <div class="coming-soon">
+    <h2>Coming Soon — Expansion Categories</h2>
+    <div class="coming-grid" id="comingSoonGrid"></div>
+  </div>
+</div>
+
+<!-- TOOLKIT TABS (hidden for simplicity, but included for completeness) -->
+<div style="display:none;" class="toolkit-tabs">
+  <h3 class="active">Interactive Tools</h3>
+  <h3>Browse Catalog</h3>
+</div>
+
+<script>
+// ── STRUCTURAL THUMBNAIL SVGs ──
+const THUMBS = {
+  "scamper": `<svg viewBox="0 0 260 140" xmlns="http://www.w3.org/2000/svg"><rect width="260" height="140" fill="#0d1a14"/><g transform="translate(20,16)">${['S','C','A','M','P','E','R'].map((l,i) => `<rect x="${i*32}" y="0" width="28" height="108" rx="4" fill="${i===2?'rgba(52,211,153,0.4)':'rgba(52,211,153,0.12)'}" stroke="rgba(52,211,153,0.3)" stroke-width="0.5"/><text x="${i*32+14}" y="16" text-anchor="middle" fill="#34d399" font-size="11" font-weight="700" font-family="Inter">${l}</text>${[0,1,2].map(j => `<rect x="${i*32+4}" y="${26+j*28}" width="20" height="20" rx="3" fill="rgba(52,211,153,${j===0?0.2:0.08})"/>`).join('')}`).join('')}</g></svg>`,
+  "six-thinking-hats": `<svg viewBox="0 0 260 140" xmlns="http://www.w3.org/2000/svg"><rect width="260" height="140" fill="#0d0d1a"/><g transform="translate(22,20)">${[{c:'#fff',l:'White'},{c:'#ef4444',l:'Red'},{c:'#1a1a1a',l:'Black'},{c:'#facc15',l:'Yellow'},{c:'#22c55e',l:'Green'},{c:'#3b82f6',l:'Blue'}].map((h,i) => {const x=(i%3)*74, y=Math.floor(i/3)*56;return `<g transform="translate(${x},${y})"><rect width="68" height="48" rx="8" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.1)" stroke-width="0.5"/><circle cx="16" cy="16" r="8" fill="${h.c}" ${h.c==='#1a1a1a'?'stroke="rgba(255,255,255,0.3)" stroke-width="1"':'}/><text x="30" y="19" fill="#9393b0" font-size="8" font-family="Inter">${h.l}</text><rect x="8" y="30" width="52" height="4" rx="2" fill="rgba(255,255,255,0.08)"/><rect x="8" y="38" width="36" height="4" rx="2" fill="rgba(255,255,255,0.05)"/></g>`;}).join('')}</g></svg>`,
+  "mind-map": `<svg viewBox="0 0 260 140" xmlns="http://www.w3.org/2000/svg"><rect width="260" height="140" fill="#0d1a0a"/><circle cx="130" cy="70" r="18" fill="rgba(139,92,246,0.25)" stroke="rgba(139,92,246,0.5)" stroke-width="1"/><text x="130" y="75" text-anchor="middle" fill="#a78bfa" font-size="10" font-weight="700">💡</text>${[0,1,2,3,4].map(i => {const a=Math.PI*2*i/5-Math.PI/2; const x=130+60*Math.cos(a), y=70+60*Math.sin(a); return `<line x1="130" y1="70" x2="${x}" y2="${y}" stroke="rgba(139,92,246,0.3)" stroke-width="1"/><circle cx="${x}" cy="${y}" r="12" fill="rgba(139,92,246,0.1)" stroke="rgba(139,92,246,0.3)" stroke-width="0.5"/>`;}).join('')}</svg>`,
+  "pmi-chart": `<svg viewBox="0 0 260 140" xmlns="http://www.w3.org/2000/svg"><rect width="260" height="140" fill="#0d0d1a"/><g>${[{x:30,c:'#22c55e',t:'+'},{x:95,c:'#ef4444',t:'−'},{x:160,c:'#a78bfa',t:'?'}].map(col => `<rect x="${col.x}" y="20" width="50" height="100" rx="6" fill="rgba(${col.c===('#22c55e')?'34,197,94':'ef,68,68'},0.1)" stroke="${col.c}" stroke-width="1.5"/><text x="${col.x+25}" y="35" text-anchor="middle" fill="${col.c}" font-size="14" font-weight="700">${col.t}</text>${[0,1,2].map(i => `<rect x="${col.x+6}" y="${50+i*20}" width="38" height="8" rx="2" fill="rgba(${col.c===('#22c55e')?'34,197,94':col.c===('#ef4444')?'239,68,68':'167,139,250'},${i===0?0.25:0.1})"/>`).join('')}`).join('')}</g></svg>`,
+  "empathy-map": `<svg viewBox="0 0 260 140" xmlns="http://www.w3.org/2000/svg"><rect width="260" height="140" fill="#0d1a20"/><g transform="translate(20,15)">${[{x:0,y:0,t:'Says',c:'#60a5fa'},{x:110,y:0,t:'Thinks',c:'#a78bfa'},{x:0,y:55,t:'Does',c:'#34d399'},{x:110,y:55,t:'Feels',c:'#f472b6'}].map(q => `<rect x="${q.x}" y="${q.y}" width="100" height="50" rx="4" fill="rgba(${q.c},0.1)" stroke="${q.c}" stroke-width="1"/><text x="${q.x+50}" y="${q.y+12}" text-anchor="middle" fill="${q.c}" font-size="10" font-weight="700">${q.t}</text><rect x="${q.x+6}" y="${q.y+20}" width="88" height="3" rx="1.5" fill="rgba(${q.c},0.2)"/><rect x="${q.x+6}" y="${q.y+27}" width="88" height="3" rx="1.5" fill="rgba(${q.c},0.15)"/><rect x="${q.x+6}" y="${q.y+34}" width="65" height="3" rx="1.5" fill="rgba(${q.c},0.1)"/>`).join('')}</g></svg>`,
+  "decision-matrix": `<svg viewBox="0 0 260 140" xmlns="http://www.w3.org/2000/svg"><rect width="260" height="140" fill="#0d1a0d"/><g transform="translate(25,15)"><text x="50" y="16" text-anchor="middle" fill="#9393b0" font-size="8" font-weight="700">Criteria</text>${[0,1,2].map(i => `<rect x="0" y="${30+i*25}" width="100" height="20" rx="3" fill="rgba(52,211,153,${i===0?0.2:0.08})" stroke="rgba(52,211,153,0.25)" stroke-width="0.5"/><rect x="6" y="${35+i*25}" width="88" height="3" rx="1.5" fill="rgba(52,211,153,0.3)"/>`).join('')}</g></svg>`,
+  "journey-map": `<svg viewBox="0 0 260 140" xmlns="http://www.w3.org/2000/svg"><rect width="260" height="140" fill="#1a0d1a"/><polyline points="20,100 50,70 80,80 110,50 140,65 170,40 200,60 230,30" fill="none" stroke="rgba(244,114,182,0.5)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>${[20,50,80,110,140,170,200,230].map(x => `<circle cx="${x}" cy="${[100,70,80,50,65,40,60,30][(x-20)/30]}" r="5" fill="rgba(244,114,182,0.8)"/>`).join('')}</svg>`,
+  "lotus-diagram": `<svg viewBox="0 0 260 140" xmlns="http://www.w3.org/2000/svg"><rect width="260" height="140" fill="#0d1a0a"/><circle cx="130" cy="70" r="16" fill="rgba(139,92,246,0.3)" stroke="rgba(139,92,246,0.5)" stroke-width="1"/>${[0,1,2,3,4,5,6,7].map(i => {const a=Math.PI*2*i/8; const x=130+50*Math.cos(a), y=70+50*Math.sin(a); return `<circle cx="${x}" cy="${y}" r="11" fill="rgba(139,92,246,0.1)" stroke="rgba(139,92,246,0.4)" stroke-width="0.5"/><line x1="130" y1="70" x2="${x}" y2="${y}" stroke="rgba(139,92,246,0.25)" stroke-width="1"/>`;}).join('')}</svg>`,
+  "affinity-diagram": `<svg viewBox="0 0 260 140" xmlns="http://www.w3.org/2000/svg"><rect width="260" height="140" fill="#0d0d1a"/><g>${['#34d399','#60a5fa','#a78bfa','#f472b6'].map((c,i) => {const x=30+i*55, cols=3; return `<g>${[0,1,2].map(j => `<rect x="${x-20}" y="${30+j*30}" width="40" height="25" rx="3" fill="rgba(${c},0.15)" stroke="${c}" stroke-width="0.5"/>`).join('')}</g>`;}).join('')}</g></svg>`,
+  "swot-analysis": `<svg viewBox="0 0 260 140" xmlns="http://www.w3.org/2000/svg"><rect width="260" height="140" fill="#0d0d0d"/><g>${[{x:20,y:20,c:'#34d399',t:'S'},{x:140,y:20,c:'#f472b6',t:'W'},{x:20,y:80,c:'#60a5fa',t:'O'},{x:140,y:80,c:'#facc15',t:'T'}].map(q => `<rect x="${q.x}" y="${q.y}" width="90" height="50" rx="4" fill="rgba(${q.c},0.08)" stroke="${q.c}" stroke-width="1.5"/><text x="${q.x+45}" y="${q.y+30}" text-anchor="middle" fill="${q.c}" font-size="16" font-weight="700">${q.t}</text>`).join('')}</g></svg>`,
+  "how-might-we": `<svg viewBox="0 0 260 140" xmlns="http://www.w3.org/2000/svg"><rect width="260" height="140" fill="#1a1a0d"/><g transform="translate(20,30)"><text x="100" y="0" text-anchor="middle" fill="#fbbf24" font-size="11" font-weight="700">How Might We...?</text>${[0,1,2].map(i => `<rect x="0" y="${20+i*25}" width="200" height="18" rx="3" fill="rgba(251,191,36,0.08)" stroke="rgba(251,191,36,0.25)" stroke-width="0.5"/>`).join('')}</g></svg>`,
+  "five-whys": `<svg viewBox="0 0 260 140" xmlns="http://www.w3.org/2000/svg"><rect width="260" height="140" fill="#0d1a1a"/><g transform="translate(30,20)">${[0,1,2,3,4].map(i => `<rect x="0" y="${i*20}" width="150" height="16" rx="2" fill="rgba(59,130,246,${0.2-i*0.03})" stroke="rgba(59,130,246,0.3)" stroke-width="0.5"/><text x="6" y="${i*20+11}" fill="#60a5fa" font-size="8" font-weight="700">Why ${i+1}?</text>`).join('')}</g></svg>`,
+  "morphological-chart": `<svg viewBox="0 0 260 140" xmlns="http://www.w3.org/2000/svg"><rect width="260" height="140" fill="#0d0d1a"/><g transform="translate(15,15)">${[0,1,2,3].map(col => `<g transform="translate(${col*55},0)">${[0,1,2].map(row => `<rect x="0" y="${row*30}" width="45" height="25" rx="2" fill="rgba(168,85,247,${0.15-row*0.04})" stroke="rgba(168,85,247,0.3)" stroke-width="0.5"/>`).join('')}</g>`).join('')}</g></svg>`,
+  "reverse-brainstorm": `<svg viewBox="0 0 260 140" xmlns="http://www.w3.org/2000/svg"><rect width="260" height="140" fill="#1a0d0d"/><g transform="translate(50,30)"><circle cx="25" cy="25" r="20" fill="rgba(239,68,68,0.15)" stroke="rgba(239,68,68,0.4)" stroke-width="1" opacity="0.8"/><circle cx="75" cy="25" r="20" fill="rgba(34,197,94,0.15)" stroke="rgba(34,197,94,0.4)" stroke-width="1" opacity="0.8"/><text x="25" y="30" text-anchor="middle" fill="#ef4444" font-size="8" font-weight="700">Bad</text><text x="75" y="30" text-anchor="middle" fill="#22c55e" font-size="8" font-weight="700">Fix</text><path d="M45 25 L55 25" stroke="rgba(255,255,255,0.3)" stroke-width="2" marker-end="url(#arrowhead)" fill="none"/></g></svg>`,
+  "stakeholder-map": `<svg viewBox="0 0 260 140" xmlns="http://www.w3.org/2000/svg"><rect width="260" height="140" fill="#0d1a0d"/><g>${[{x:30,y:20},{x:180,y:20},{x:30,y:90},{x:180,y:90}].map(p => `<circle cx="${p.x}" cy="${p.y}" r="15" fill="rgba(52,211,153,0.2)" stroke="rgba(52,211,153,0.5)" stroke-width="1"/>`).join('')}<line x1="130" y1="20" x2="130" y2="120" stroke="rgba(52,211,153,0.2)" stroke-width="1"/><line x1="30" y1="70" x2="180" y2="70" stroke="rgba(52,211,153,0.2)" stroke-width="1"/></g></svg>`,
+  "dot-voting": `<svg viewBox="0 0 260 140" xmlns="http://www.w3.org/2000/svg"><rect width="260" height="140" fill="#0d0d1a"/><g transform="translate(30,20)">${[0,1,2].map(row => `<g transform="translate(0,${row*35})">${[0,1,2,3].map(col => `<circle cx="${col*45}" cy="0" r="8" fill="rgba(139,92,246,${row===1?0.9:0.3})" stroke="rgba(139,92,246,0.5)" stroke-width="1"/>`).join('')}</g>`).join('')}</g></svg>`,
+  "quick-sketch": `<svg viewBox="0 0 260 140" xmlns="http://www.w3.org/2000/svg"><rect width="260" height="140" fill="#1a1a1a"/><rect x="20" y="20" width="220" height="100" rx="4" fill="rgba(255,255,255,0.05)" stroke="rgba(255,255,255,0.15)" stroke-width="1" stroke-dasharray="4,2"/><line x1="40" y1="40" x2="70" y2="70" stroke="rgba(255,255,255,0.4)" stroke-width="2" stroke-linecap="round"/><line x1="75" y1="50" x2="120" y2="80" stroke="rgba(255,255,255,0.4)" stroke-width="2" stroke-linecap="round"/></svg>`,
+};
+
+const CATEGORIES = {
+  ideation: { name: 'Ideation', color: '#34d399', bg: 'rgba(52,211,153,0.15)' },
+  analysis: { name: 'Analysis', color: '#60a5fa', bg: 'rgba(96,165,250,0.15)' },
+  evaluation: { name: 'Evaluation', color: '#f472b6', bg: 'rgba(244,114,182,0.15)' },
+  research: { name: 'Research', color: '#fbbf24', bg: 'rgba(251,191,36,0.15)' },
+  'research-planning': { name: 'Research & Planning', color: '#a78bfa', bg: 'rgba(167,139,250,0.15)' },
+  planning: { name: 'Planning', color: '#38bdf8', bg: 'rgba(56,189,248,0.15)' },
+  communication: { name: 'Communication', color: '#fb923c', bg: 'rgba(251,146,60,0.15)' },
+};
+
+const TOOLS = [
+  { id: 'scamper', name: 'SCAMPER', category: 'ideation', phases: ['ideate','prototype'], difficulty: 'intermediate', time: '30-45min', interactive: true, people: 'solo-group', desc: 'Lateral thinking through substitution, combination, adaptation' },
+  { id: 'six-thinking-hats', name: 'Six Thinking Hats', category: 'ideation', phases: ['ideate','evaluate'], difficulty: 'intermediate', time: '20-40min', interactive: true, people: 'group', desc: 'Parallel thinking using six perspectives (White, Red, Black, Yellow, Green, Blue)' },
+  { id: 'mind-map', name: 'Mind Map', category: 'analysis', phases: ['discover','ideate'], difficulty: 'beginner', time: '15-30min', interactive: true, people: 'solo-group', desc: 'Organise ideas radially around a central concept' },
+  { id: 'pmi-chart', name: 'PMI Chart', category: 'evaluation', phases: ['evaluate'], difficulty: 'beginner', time: '15-20min', interactive: true, people: 'solo-group', desc: 'Plus/Minus/Interesting evaluation of options or decisions' },
+  { id: 'empathy-map', name: 'Empathy Map', category: 'research', phases: ['discover'], difficulty: 'intermediate', time: '25-40min', interactive: true, people: 'group', desc: 'Deep understanding of user through Says, Thinks, Does, Feels' },
+  { id: 'decision-matrix', name: 'Decision Matrix', category: 'evaluation', phases: ['evaluate'], difficulty: 'intermediate', time: '30-45min', interactive: true, people: 'solo-group', desc: 'Weighted scoring of options against defined criteria' },
+  { id: 'journey-map', name: 'Journey Map', category: 'research', phases: ['discover','define'], difficulty: 'advanced', time: '45-90min', interactive: false, people: 'group', desc: 'Visualise user experience across touchpoints and emotions' },
+  { id: 'lotus-diagram', name: 'Lotus Diagram', category: 'ideation', phases: ['ideate'], difficulty: 'intermediate', time: '25-40min', interactive: true, people: 'solo-group', desc: '8×8 structured ideation expanding from central challenge' },
+  { id: 'affinity-diagram', name: 'Affinity Diagram', category: 'analysis', phases: ['define'], difficulty: 'intermediate', time: '30-60min', interactive: false, people: 'group', desc: 'Organise qualitative data into themed clusters' },
+  { id: 'swot-analysis', name: 'SWOT Analysis', category: 'analysis', phases: ['define'], difficulty: 'beginner', time: '20-30min', interactive: true, people: 'solo-group', desc: 'Strengths, Weaknesses, Opportunities, Threats assessment' },
+  { id: 'how-might-we', name: 'How Might We', category: 'ideation', phases: ['define','ideate'], difficulty: 'intermediate', time: '15-25min', interactive: true, people: 'group', desc: 'Reframe problems as opportunities for exploration' },
+  { id: 'five-whys', name: 'Five Whys', category: 'analysis', phases: ['discover'], difficulty: 'beginner', time: '10-20min', interactive: true, people: 'solo-group', desc: 'Root cause analysis through iterative questioning' },
+  { id: 'morphological-chart', name: 'Morphological Chart', category: 'ideation', phases: ['ideate'], difficulty: 'advanced', time: '40-60min', interactive: false, people: 'solo-group', desc: 'Systematically explore attribute combinations' },
+  { id: 'reverse-brainstorm', name: 'Reverse Brainstorm', category: 'ideation', phases: ['ideate'], difficulty: 'intermediate', time: '20-30min', interactive: true, people: 'group', desc: 'Find solutions by brainstorming how to cause the problem' },
+  { id: 'stakeholder-map', name: 'Stakeholder Map', category: 'research', phases: ['discover','define'], difficulty: 'beginner', time: '15-25min', interactive: true, people: 'group', desc: 'Identify and understand stakeholders by interest and influence' },
+  { id: 'dot-voting', name: 'Dot Voting', category: 'evaluation', phases: ['evaluate'], difficulty: 'beginner', time: '10-15min', interactive: true, people: 'group', desc: 'Democratic prioritisation with limited voting dots' },
+  { id: 'quick-sketch', name: 'Quick Sketch', category: 'ideation', phases: ['ideate','prototype'], difficulty: 'beginner', time: '5-15min', interactive: true, people: 'solo-group', desc: 'Rapid visual thinking on paper or tablet' },
+];
+
+const COLLECTIONS = {
+  beginner: { name: 'Beginner-Friendly', emoji: '🌱', desc: 'Start with simple, low-prep tools you can use immediately', tools: ['quick-sketch', 'pmi-chart', 'dot-voting', 'five-whys', 'swot-analysis', 'mind-map', 'empathy-map', 'journey-map', 'stakeholder-map', 'reverse-brainstorm', 'scamper', 'how-might-we'] },
+  pipeline: { name: 'Design Pipeline', emoji: '🔄', desc: 'The full design cycle from research through testing', tools: ['empathy-map', 'journey-map', 'affinity-diagram', 'swot-analysis', 'how-might-we', 'morphological-chart', 'lotus-diagram', 'decision-matrix'] },
+  quick: { name: 'Quick Decisions', emoji: '⚡', desc: 'Fast prioritisation & evaluation when you need clarity NOW', tools: ['dot-voting', 'pmi-chart', 'decision-matrix', 'quick-sketch', 'five-whys', 'reverse-brainstorm'] },
+  research: { name: 'Deep Research', emoji: '🔍', desc: 'Dig into problems with structured exploration techniques', tools: ['empathy-map', 'journey-map', 'five-whys', 'stakeholder-map', 'affinity-diagram', 'swot-analysis', 'mind-map', 'morphological-chart', 'how-might-we'] },
+  evaluate: { name: 'Evaluate & Choose', emoji: '⚖️', desc: 'Rigorous critique, comparison, and decision-making', tools: ['decision-matrix', 'pmi-chart', 'dot-voting', 'swot-analysis', 'six-thinking-hats', 'empathy-map', 'journey-map'] },
+};
+
+const PHASES = ['discover', 'define', 'ideate', 'prototype', 'test'];
+const PHASE_NAMES = { discover: 'Discover', define: 'Define', ideate: 'Ideate', prototype: 'Prototype', test: 'Test' };
+const PHASE_COLORS = { discover: '#60a5fa', define: '#a78bfa', ideate: '#34d399', prototype: '#fbbf24', test: '#f472b6' };
+
+const SEARCH_RULES = [
+  { keywords: ['idea', 'brainstorm', 'create', 'generate', 'think creatively'], tools: ['scamper', 'six-thinking-hats', 'mind-map', 'how-might-we', 'lotus-diagram', 'morphological-chart', 'reverse-brainstorm', 'quick-sketch'] },
+  { keywords: ['compare', 'choose', 'decide', 'evaluate', 'score', 'rank', 'prioritise'], tools: ['decision-matrix', 'pmi-chart', 'dot-voting', 'six-thinking-hats', 'swot-analysis'] },
+  { keywords: ['research', 'understand', 'empathy', 'user', 'person', 'interview', 'discover'], tools: ['empathy-map', 'journey-map', 'stakeholder-map', 'five-whys', 'affinity-diagram', 'mind-map'] },
+  { keywords: ['organise', 'group', 'cluster', 'categorise', 'analyse', 'structure'], tools: ['affinity-diagram', 'mind-map', 'morphological-chart', 'swot-analysis', 'stakeholder-map'] },
+  { keywords: ['quick', 'fast', 'rapid', 'easy', 'simple', 'short'], tools: ['dot-voting', 'quick-sketch', 'five-whys', 'pmi-chart', 'how-might-we'] },
+];
+
+const COMING_SOON = [
+  { emoji: '🎨', name: 'Storyboarding' },
+  { emoji: '🔊', name: 'Voice of Customer' },
+  { emoji: '🌐', name: 'Service Mapping' },
+  { emoji: '📊', name: 'Impact-Effort Matrix' },
+  { emoji: '🎯', name: 'OKR Planning' },
+  { emoji: '💡', name: 'Blue Sky Thinking' },
+];
+
+let activeCollection = null;
+let activePhase = null;
+let filteredTools = [...TOOLS];
+
+function renderCollections() {
+  const html = Object.entries(COLLECTIONS).map(([key, col]) => `
+    <div class="collection-card cc-${key}" data-collection="${key}">
+      <div class="cc-check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg></div>
+      <div class="cc-emoji">${col.emoji}</div>
+      <div class="cc-title">${col.name}</div>
+      <div class="cc-desc">${col.desc}</div>
+      <span class="cc-count">${col.tools.length} tools</span>
+    </div>
+  `).join('');
+  document.querySelector('.collections-row').innerHTML = html;
+  document.querySelectorAll('.collection-card').forEach(card => {
+    card.addEventListener('click', () => selectCollection(card.dataset.collection));
+  });
+}
+
+function renderPhases() {
+  const html = PHASES.map(phase => {
+    const count = TOOLS.filter(t => t.phases.includes(phase)).length;
+    return `
+      <div class="path-node pd-${phase}" data-phase="${phase}">
+        <div class="path-dot">${phase === 'discover' ? '🔍' : phase === 'define' ? '📋' : phase === 'ideate' ? '💡' : phase === 'prototype' ? '🔨' : '✓'}</div>
+        <div class="path-label">${PHASE_NAMES[phase]}</div>
+        <div class="path-count">${count}</div>
+      </div>
+      <div class="path-connector"></div>
+    `;
+  }).join('');
+  document.getElementById('pathTrack').innerHTML = html;
+  document.querySelectorAll('.path-node').forEach(node => {
+    node.addEventListener('click', () => selectPhase(node.dataset.phase));
+  });
+}
+
+function renderStickyPhases() {
+  const html = PHASES.map(phase => {
+    return `
+      <div class="path-node pd-${phase} compact" data-phase="${phase}">
+        <div class="path-dot compact">${phase === 'discover' ? '🔍' : phase === 'define' ? '📋' : phase === 'ideate' ? '💡' : phase === 'prototype' ? '🔨' : '✓'}</div>
+        <div class="path-label compact">${PHASE_NAMES[phase]}</div>
+        <div class="path-count compact">${TOOLS.filter(t => t.phases.includes(phase)).length}</div>
+      </div>
+      <div class="path-connector compact"></div>
+    `;
+  }).join('');
+  document.getElementById('stickyPhasePath').innerHTML = html;
+  document.querySelectorAll('#stickyPhasePath .path-node').forEach(node => {
+    node.addEventListener('click', () => selectPhase(node.dataset.phase));
+  });
+}
+
+function selectCollection(collectionKey) {
+  activeCollection = activeCollection === collectionKey ? null : collectionKey;
+  applyFilters();
+  scrollToTools();
+}
+
+function selectPhase(phase) {
+  activePhase = activePhase === phase ? null : phase;
+  applyFilters();
+  scrollToTools();
+}
+
+function applyFilters() {
+  filteredTools = TOOLS.filter(tool => {
+    if (activeCollection && !COLLECTIONS[activeCollection].tools.includes(tool.id)) return false;
+    if (activePhase && !tool.phases.includes(activePhase)) return false;
+    return true;
+  });
+
+  updateFilterBar();
+  renderTools();
+  updateToolCount();
+  updateActiveStates();
+  updateStickyBar();
+}
+
+function updateFilterBar() {
+  const filterBar = document.getElementById('filterBar');
+  const filterDisplay = document.getElementById('filterDisplay');
+
+  if (activeCollection || activePhase) {
+    const filters = [];
+    if (activeCollection) filters.push(COLLECTIONS[activeCollection].name);
+    if (activePhase) filters.push(PHASE_NAMES[activePhase]);
+    filterDisplay.textContent = filters.join(' + ');
+    filterBar.classList.add('active');
+  } else {
+    filterBar.classList.remove('active');
+  }
+}
+
+function updateStickyBar() {
+  const sticky = document.getElementById('stickyControls');
+  sticky.classList.toggle('active', activeCollection || activePhase);
+}
+
+function clearFilters() {
+  activeCollection = null;
+  activePhase = null;
+  applyFilters();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function scrollToTools() {
+  const container = document.getElementById('toolContainer');
+  setTimeout(() => {
+    const offset = 120; // account for sticky bar height
+    const elementTop = container.getBoundingClientRect().top + window.pageYOffset;
+    window.scrollTo({ top: elementTop - offset, behavior: 'smooth' });
+  }, 50);
+}
+
+function updateActiveStates() {
+  document.querySelectorAll('.collection-card').forEach(card => {
+    card.classList.toggle('active', card.dataset.collection === activeCollection);
+  });
+  document.querySelectorAll('.path-node:not(.compact)').forEach(node => {
+    node.classList.toggle('active', node.dataset.phase === activePhase);
+  });
+  document.querySelectorAll('.path-node.compact').forEach(node => {
+    node.classList.toggle('active', node.dataset.phase === activePhase);
+  });
+}
+
+function renderTools() {
+  const grid = document.getElementById('toolGrid');
+  grid.innerHTML = filteredTools.map(tool => {
+    const cat = CATEGORIES[tool.category];
+    return `
+      <div class="tool-card">
+        <div class="tool-thumb">
+          ${THUMBS[tool.id] || '<div style="text-align:center;color:#666;">No thumb</div>'}
+          ${tool.interactive ? '<div class="interactive-badge">Interactive</div>' : ''}
+        </div>
+        <div class="cat-stripe" style="background: ${cat.color};"></div>
+        <div class="tool-body">
+          <div class="tool-name">${tool.name}</div>
+          <div class="tool-desc">${tool.desc}</div>
+          <div class="tool-meta">
+            ${tool.phases.map(p => `<span class="tool-tag phase" style="--phase-color:${PHASE_COLORS[p]};--phase-bg:rgba(${getRgb(PHASE_COLORS[p])},0.15);">${PHASE_NAMES[p]}</span>`).join('')}
+            <span class="tool-tag">${tool.difficulty}</span>
+            <span class="tool-tag">${tool.time}</span>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderComingSoon() {
+  const grid = document.getElementById('comingSoonGrid');
+  grid.innerHTML = COMING_SOON.map(item => `
+    <div class="coming-card">
+      <div class="coming-emoji">${item.emoji}</div>
+      <div class="coming-title">${item.name}</div>
+    </div>
+  `).join('');
+}
+
+function updateToolCount() {
+  document.getElementById('toolCountDisplay').textContent = filteredTools.length;
+}
+
+function getRgb(hexColor) {
+  const hex = hexColor.replace('#', '');
+  const r = parseInt(hex.substring(0, 2), 16);
+  const g = parseInt(hex.substring(2, 4), 16);
+  const b = parseInt(hex.substring(4, 6), 16);
+  return `${r}, ${g}, ${b}`;
+}
+
+function handleSearch(query) {
+  if (!query) {
+    document.getElementById('searchSuggestions').classList.remove('active');
+    return;
+  }
+
+  const q = query.toLowerCase();
+  let matches = [];
+
+  for (const rule of SEARCH_RULES) {
+    if (rule.keywords.some(kw => q.includes(kw))) {
+      matches = rule.tools;
+      break;
+    }
+  }
+
+  if (matches.length) {
+    const sugg = document.getElementById('searchSuggestions');
+    sugg.innerHTML = matches.slice(0, 5).map(toolId => {
+      const tool = TOOLS.find(t => t.id === toolId);
+      return `
+        <div class="search-suggestion" onclick="alert('${tool.name}');">
+          <div class="ss-thumb">${tool.interactive ? '⚙️' : '📖'}</div>
+          <div>
+            <div class="ss-name">${tool.name}</div>
+            <div class="ss-why">${tool.desc}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+    sugg.classList.add('active');
+  }
+}
+
+document.getElementById('searchInput').addEventListener('input', (e) => handleSearch(e.target.value));
+
+document.querySelectorAll('[data-view]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('[data-view]').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const view = btn.dataset.view;
+    const grid = document.getElementById('toolGrid');
+    if (view === 'list') {
+      grid.style.gridTemplateColumns = '1fr';
+    } else {
+      grid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(260px, 1fr))';
+    }
+  });
+});
+
+// Initialize
+renderCollections();
+renderPhases();
+renderStickyPhases();
+renderTools();
+renderComingSoon();
+</script>
+
+</body>
+</html>

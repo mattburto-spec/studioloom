@@ -105,6 +105,9 @@ export default function CreateUnitWizardPage() {
                 if (event.ragChunkIds?.length) {
                   dispatch({ type: "ADD_RAG_CHUNK_IDS", ids: event.ragChunkIds });
                 }
+                if (event.pulseScores && Object.keys(event.pulseScores).length > 0) {
+                  dispatch({ type: "MERGE_PULSE_SCORES", scores: event.pulseScores });
+                }
                 dispatch({ type: "SET_CRITERION_STATUS", criterion, status: "done" });
                 dispatch({ type: "SET_STREAMING", text: "", criterion: null });
               } else if (event.type === "error") {
@@ -129,6 +132,9 @@ export default function CreateUnitWizardPage() {
       }
       if (data.ragChunkIds?.length) {
         dispatch({ type: "ADD_RAG_CHUNK_IDS", ids: data.ragChunkIds });
+      }
+      if (data.pulseScores && Object.keys(data.pulseScores).length > 0) {
+        dispatch({ type: "MERGE_PULSE_SCORES", scores: data.pulseScores });
       }
       dispatch({ type: "SET_CRITERION_STATUS", criterion, status: "done" });
       dispatch({ type: "SET_STREAMING", text: "", criterion: null });
@@ -243,6 +249,9 @@ export default function CreateUnitWizardPage() {
                 if (event.ragChunkIds?.length) {
                   dispatch({ type: "ADD_RAG_CHUNK_IDS", ids: event.ragChunkIds });
                 }
+                if (event.pulseScores && Object.keys(event.pulseScores).length > 0) {
+                  dispatch({ type: "MERGE_PULSE_SCORES", scores: event.pulseScores });
+                }
                 dispatch({ type: "SET_BATCH_STATUS", batchIndex, status: "done" });
                 dispatch({ type: "SET_STREAMING", text: "", criterion: null });
                 // Stagger reveal lessons one-by-one for animation
@@ -265,6 +274,9 @@ export default function CreateUnitWizardPage() {
       // Non-streaming fallback
       const data = await res.json();
       dispatch({ type: "MERGE_PAGES", pages: data.pages });
+      if (data.pulseScores && Object.keys(data.pulseScores).length > 0) {
+        dispatch({ type: "MERGE_PULSE_SCORES", scores: data.pulseScores });
+      }
       dispatch({ type: "SET_BATCH_STATUS", batchIndex, status: "done" });
       // Stagger reveal
       lessonIds.forEach((id, j) => {

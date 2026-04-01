@@ -639,6 +639,13 @@ export interface UnitWizardInput {
   centralIdea?: string;
   transdisciplinaryTheme?: string;
   linesOfInquiry?: string[];
+  // Context Injection fields — ground generation in classroom reality
+  /** Real-world connection or driving scenario (e.g. "We're redesigning the school cafeteria queue system") */
+  realWorldContext?: string;
+  /** What students just finished or relevant class background (e.g. "Just completed a sustainability unit, burned out on research") */
+  studentContext?: string;
+  /** Room/equipment/time constraints (e.g. "No access to workshop until Week 3, 28 students, half never used Arduino") */
+  classroomConstraints?: string;
 }
 
 // --- Journey-Based Unit Generation Types (v3) ---
@@ -680,6 +687,13 @@ export interface LessonJourneyInput {
   centralIdea?: string;
   transdisciplinaryTheme?: string;
   linesOfInquiry?: string[];
+  // Context Injection fields — ground generation in classroom reality
+  /** Real-world connection or driving scenario */
+  realWorldContext?: string;
+  /** What students just finished or relevant class background */
+  studentContext?: string;
+  /** Room/equipment/time constraints */
+  classroomConstraints?: string;
 }
 
 /** A single lesson in a journey outline. */

@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NM Results — 3 Display Options</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', -apple-system, sans-serif; background: #f3f4f6; padding: 24px; }
+
+  .mockup-label {
+    display: inline-block;
+    padding: 6px 16px; border-radius: 8px;
+    font-size: 13px; font-weight: 800;
+    color: #fff; margin-bottom: 12px;
+    letter-spacing: 0.03em;
+  }
+  .label-1 { background: #7c3aed; }
+  .label-2 { background: #059669; }
+  .label-3 { background: #2563eb; }
+
+  h2 { font-size: 18px; font-weight: 800; color: #111; margin-bottom: 4px; }
+  .subtitle { font-size: 13px; color: #888; margin-bottom: 16px; }
+
+  .section {
+    background: #fff; border-radius: 16px; padding: 24px;
+    margin-bottom: 40px; border: 1px solid #e5e7eb;
+    max-width: 900px;
+  }
+
+  /* ============ OPTION 1: Progress Cards ============ */
+  .progress-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+
+  .student-card {
+    border: 2px solid #e5e7eb; border-radius: 14px; padding: 16px;
+    background: #fafafa; transition: border-color 0.2s;
+  }
+  .student-card:hover { border-color: #c4b5fd; }
+
+  .card-header {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 14px;
+  }
+  .card-avatar {
+    width: 36px; height: 36px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 700; color: #fff;
+  }
+  .card-name { font-size: 14px; font-weight: 700; color: #111; }
+  .card-meta { font-size: 11px; color: #999; margin-top: 1px; }
+
+  .card-ratings { display: flex; flex-direction: column; gap: 8px; }
+
+  .rating-row {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .rating-label {
+    font-size: 11px; color: #666; width: 110px; flex-shrink: 0;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .rating-bar-track {
+    flex: 1; height: 20px; background: #f0f0f0; border-radius: 10px;
+    overflow: hidden; position: relative;
+  }
+  .rating-bar-fill {
+    height: 100%; border-radius: 10px;
+    display: flex; align-items: center; padding-left: 8px;
+    font-size: 10px; font-weight: 700; color: #fff;
+    transition: width 0.5s ease;
+  }
+  .trend-arrow {
+    font-size: 14px; width: 20px; text-align: center; flex-shrink: 0;
+  }
+  .trend-up { color: #059669; }
+  .trend-same { color: #9ca3af; }
+  .trend-down { color: #ef4444; }
+
+  .card-summary {
+    display: flex; gap: 8px; margin-top: 12px; padding-top: 10px;
+    border-top: 1px solid #e5e7eb;
+  }
+  .summary-pill {
+    padding: 3px 10px; border-radius: 8px;
+    font-size: 11px; font-weight: 700;
+  }
+  .pill-self { background: #ede9fe; color: #7c3aed; }
+  .pill-teacher { background: #fce7f3; color: #be185d; }
+
+  /* ============ OPTION 2: Traffic Light Grid ============ */
+  .grid-table {
+    width: 100%; border-collapse: separate; border-spacing: 0;
+    border-radius: 12px; overflow: hidden; border: 2px solid #e5e7eb;
+  }
+  .grid-table th {
+    padding: 10px 12px; font-size: 11px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.05em;
+    background: #f9fafb; color: #666; border-bottom: 2px solid #e5e7eb;
+    text-align: center;
+  }
+  .grid-table th:first-child { text-align: left; width: 160px; }
+  .grid-table td {
+    padding: 10px 12px; text-align: center;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  .grid-table td:first-child { text-align: left; font-weight: 600; font-size: 13px; color: #111; }
+  .grid-table tr:last-child td { border-bottom: none; }
+  .grid-table tr:hover td { background: #faf8ff; }
+
+  .dot {
+    display: inline-block; width: 28px; height: 28px; border-radius: 50%;
+    line-height: 28px; font-size: 11px; font-weight: 800; color: #fff;
+  }
+  .dot-empty { background: #f0f0f0; color: #ccc; }
+  .dot-1 { background: #fbbf24; color: #92400e; }  /* Amber = Hard/Emerging */
+  .dot-2 { background: #38bdf8; color: #0c4a6e; }  /* Blue = Getting there/Developing */
+  .dot-3 { background: #34d399; color: #064e3b; }  /* Green = Did well/Applying */
+  .dot-4 { background: #a78bfa; color: #fff; }      /* Purple = Extending */
+
+  .teacher-dot {
+    width: 12px; height: 12px; border-radius: 50%;
+    display: inline-block; margin-left: 2px; vertical-align: super;
+    border: 1.5px solid #fff; box-shadow: 0 0 0 1px #be185d;
+  }
+  .teacher-dot-1 { background: #fbbf24; }
+  .teacher-dot-2 { background: #38bdf8; }
+  .teacher-dot-3 { background: #34d399; }
+  .teacher-dot-4 { background: #a78bfa; }
+
+  .grid-legend {
+    display: flex; gap: 16px; margin-top: 10px; padding: 8px 0;
+    flex-wrap: wrap;
+  }
+  .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #666; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 50%; }
+  .legend-teacher-ring {
+    width: 12px; height: 12px; border-radius: 50%;
+    border: 2px solid #be185d; background: transparent;
+  }
+
+  /* Element abbreviations for column headers */
+  .elem-abbr { font-size: 10px; font-weight: 600; color: #999; display: block; margin-top: 2px; text-transform: none; letter-spacing: 0; }
+
+  /* ============ OPTION 3: Timeline ============ */
+  .timeline-container { display: flex; flex-direction: column; gap: 16px; }
+
+  .timeline-student {
+    display: flex; align-items: flex-start; gap: 14px;
+    padding: 12px 0;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  .timeline-student:last-child { border-bottom: none; }
+
+  .timeline-name-col { width: 100px; flex-shrink: 0; padding-top: 4px; }
+  .timeline-name { font-size: 13px; font-weight: 700; color: #111; }
+  .timeline-avg { font-size: 11px; color: #999; margin-top: 2px; }
+
+  .timeline-track-col { flex: 1; }
+
+  .timeline-element-row {
+    display: flex; align-items: center; gap: 0; margin-bottom: 6px;
+  }
+  .timeline-elem-label {
+    font-size: 10px; color: #888; width: 80px; flex-shrink: 0;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .timeline-line {
+    flex: 1; display: flex; align-items: center; position: relative;
+    height: 28px;
+  }
+  .timeline-track-bg {
+    position: absolute; top: 13px; left: 0; right: 0;
+    height: 2px; background: #e5e7eb; border-radius: 1px;
+  }
+  .checkpoint-dot {
+    position: relative; z-index: 1;
+    width: 22px; height: 22px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 9px; font-weight: 800; color: #fff;
+    border: 2px solid #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+    cursor: default;
+  }
+  .checkpoint-dot[title]:hover {
+    transform: scale(1.2);
+    transition: transform 0.15s;
+  }
+  .checkpoint-spacer { flex: 1; }
+
+  .timeline-checkpoint-labels {
+    display: flex; align-items: center; margin-bottom: 10px; padding-left: 80px;
+  }
+  .cp-label {
+    font-size: 10px; color: #999; font-weight: 600;
+    text-align: center;
+  }
+  .cp-label-spacer { flex: 1; }
+
+  /* Tabs */
+  .tab-bar { display: flex; gap: 0; margin-bottom: 24px; border-bottom: 2px solid #e5e7eb; }
+  .tab {
+    padding: 10px 20px; font-size: 14px; font-weight: 700;
+    cursor: pointer; border: none; background: none;
+    color: #999; border-bottom: 2px solid transparent;
+    margin-bottom: -2px; transition: all 0.15s;
+  }
+  .tab.active { color: #7c3aed; border-bottom-color: #7c3aed; }
+  .tab:hover:not(.active) { color: #666; }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+</style>
+</head>
+<body>
+
+<div style="max-width: 920px; margin: 0 auto;">
+  <h1 style="font-size: 24px; font-weight: 900; color: #111; margin-bottom: 4px;">NM Results — Display Options</h1>
+  <p style="font-size: 14px; color: #888; margin-bottom: 24px;">Same data, three different views. Click tabs to compare.</p>
+
+  <div class="tab-bar">
+    <button class="tab active" onclick="showTab(1)">1. Progress Cards</button>
+    <button class="tab" onclick="showTab(2)">2. Traffic Light Grid</button>
+    <button class="tab" onclick="showTab(3)">3. Timeline</button>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- OPTION 1: Per-Student Progress Cards                         -->
+  <!-- ============================================================ -->
+  <div class="tab-content active" id="tab1">
+    <div class="section">
+      <span class="mockup-label label-1">OPTION 1</span>
+      <h2>Per-Student Progress Cards</h2>
+      <p class="subtitle">Each student gets a card with their latest ratings per element + trend arrows. Like a report card snapshot.</p>
+
+      <div class="progress-cards">
+        <!-- Student 1: 9ds test student -->
+        <div class="student-card">
+          <div class="card-header">
+            <div class="card-avatar" style="background: #7c3aed;">9</div>
+            <div>
+              <div class="card-name">9ds test student</div>
+              <div class="card-meta">1 checkpoint</div>
+            </div>
+          </div>
+          <div class="card-ratings">
+            <div class="rating-row">
+              <div class="rating-label">Acting w/ Autonomy</div>
+              <div class="rating-bar-track">
+                <div class="rating-bar-fill" style="width: 100%; background: linear-gradient(90deg, #a78bfa, #7c3aed);">Extending</div>
+              </div>
+              <div class="trend-arrow trend-same">—</div>
+            </div>
+            <div class="rating-row">
+              <div class="rating-label">Demonstrating Drive</div>
+              <div class="rating-bar-track">
+                <div class="rating-bar-fill" style="width: 50%; background: linear-gradient(90deg, #38bdf8, #0ea5e9);">Developing</div>
+              </div>
+              <div class="trend-arrow trend-same">—</div>
+            </div>
+          </div>
+          <div class="card-summary">
+            <span class="summary-pill pill-teacher">Teacher avg: 3.5</span>
+          </div>
+        </div>
+
+        <!-- Student 2: Matt Burton -->
+        <div class="student-card">
+          <div class="card-header">
+            <div class="card-avatar" style="background: #2563eb;">M</div>
+            <div>
+              <div class="card-name">Matt Burton</div>
+              <div class="card-meta">1 checkpoint</div>
+            </div>
+          </div>
+          <div class="card-ratings">
+            <div class="rating-row">
+              <div class="rating-label">Acting w/ Autonomy</div>
+              <div class="rating-bar-track">
+                <div class="rating-bar-fill" style="width: 75%; background: linear-gradient(90deg, #34d399, #059669);">Applying</div>
+              </div>
+              <div class="trend-arrow trend-same">—</div>
+            </div>
+            <div class="rating-row">
+              <div class="rating-label">Demonstrating Drive</div>
+              <div class="rating-bar-track">
+                <div class="rating-bar-fill" style="width: 0%; background: #f0f0f0;"></div>
+              </div>
+              <div class="trend-arrow trend-same" style="color: #ddd;">—</div>
+            </div>
+          </div>
+          <div class="card-summary">
+            <span class="summary-pill pill-teacher">Teacher avg: 3.0</span>
+          </div>
+        </div>
+
+        <!-- Student 3: test -->
+        <div class="student-card">
+          <div class="card-header">
+            <div class="card-avatar" style="background: #059669;">T</div>
+            <div>
+              <div class="card-name">test</div>
+              <div class="card-meta">3 checkpoints</div>
+            </div>
+          </div>
+          <div class="card-ratings">
+            <div class="rating-row">
+              <div class="rating-label">Acting w/ Autonomy</div>
+              <div class="rating-bar-track">
+                <div class="rating-bar-fill" style="width: 50%; background: linear-gradient(90deg, #38bdf8, #0ea5e9);">Developing</div>
+              </div>
+              <div class="trend-arrow trend-up">↑</div>
+            </div>
+            <div class="rating-row">
+              <div class="rating-label">Demonstrating Drive</div>
+              <div class="rating-bar-track">
+                <div class="rating-bar-fill" style="width: 25%; background: linear-gradient(90deg, #fbbf24, #f59e0b);">Emerging</div>
+              </div>
+              <div class="trend-arrow trend-down">↓</div>
+            </div>
+          </div>
+          <div class="card-summary">
+            <span class="summary-pill pill-self">Self avg: 1.0</span>
+            <span class="summary-pill pill-teacher">Teacher avg: 2.5</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- OPTION 2: Traffic Light Grid                                 -->
+  <!-- ============================================================ -->
+  <div class="tab-content" id="tab2">
+    <div class="section">
+      <span class="mockup-label label-2">OPTION 2</span>
+      <h2>Traffic Light Grid</h2>
+      <p class="subtitle">Students as rows, elements as columns. Big colored dots = latest student self-rating. Small ring = teacher observation. Instant class overview.</p>
+
+      <table class="grid-table">
+        <thead>
+          <tr>
+            <th style="text-align: left;">Student</th>
+            <th>
+              Autonomy
+              <span class="elem-abbr">Acting with Autonomy</span>
+            </th>
+            <th>
+              Drive
+              <span class="elem-abbr">Demonstrating Drive</span>
+            </th>
+            <th>Avg</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              9ds test student
+              <div style="font-size: 11px; color: #999; font-weight: 400;">1 checkpoint</div>
+            </td>
+            <td>
+              <span class="dot dot-empty">—</span>
+              <span class="teacher-dot teacher-dot-4" title="Teacher: Extending"></span>
+            </td>
+            <td>
+              <span class="dot dot-empty">—</span>
+              <span class="teacher-dot teacher-dot-3" title="Teacher: Applying"></span>
+            </td>
+            <td>
+              <span style="font-size: 13px; font-weight: 800; color: #a78bfa;">T 3.5</span>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              Matt Burton
+              <div style="font-size: 11px; color: #999; font-weight: 400;">1 checkpoint</div>
+            </td>
+            <td>
+              <span class="dot dot-empty">—</span>
+              <span class="teacher-dot teacher-dot-3" title="Teacher: Applying"></span>
+            </td>
+            <td>
+              <span class="dot dot-empty">—</span>
+            </td>
+            <td>
+              <span style="font-size: 13px; font-weight: 800; color: #a78bfa;">T 3.0</span>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              test
+              <div style="font-size: 11px; color: #999; font-weight: 400;">3 checkpoints</div>
+            </td>
+            <td>
+              <span class="dot dot-1">1</span>
+              <span class="teacher-dot teacher-dot-2" title="Teacher: Developing"></span>
+            </td>
+            <td>
+              <span class="dot dot-1">1</span>
+              <span class="teacher-dot teacher-dot-3" title="Teacher: Applying"></span>
+            </td>
+            <td>
+              <div style="font-size: 13px; font-weight: 800; color: #fbbf24;">S 1.0</div>
+              <div style="font-size: 11px; font-weight: 700; color: #a78bfa;">T 2.5</div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="grid-legend">
+        <div class="legend-item"><span class="legend-dot" style="background: #fbbf24;"></span> Hard / Emerging</div>
+        <div class="legend-item"><span class="legend-dot" style="background: #38bdf8;"></span> Getting there / Developing</div>
+        <div class="legend-item"><span class="legend-dot" style="background: #34d399;"></span> Did well / Applying</div>
+        <div class="legend-item"><span class="legend-dot" style="background: #a78bfa;"></span> Extending</div>
+        <div class="legend-item"><span class="legend-teacher-ring"></span> Teacher observation</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- OPTION 3: Timeline                                           -->
+  <!-- ============================================================ -->
+  <div class="tab-content" id="tab3">
+    <div class="section">
+      <span class="mockup-label label-3">OPTION 3</span>
+      <h2>Timeline View</h2>
+      <p class="subtitle">Each student shows dots on a timeline per element. See growth over multiple checkpoints. Colors = rating level.</p>
+
+      <div class="timeline-container">
+        <!-- Checkpoint labels -->
+        <div class="timeline-checkpoint-labels">
+          <div class="cp-label" style="flex: 0 0 auto;">Lesson 3</div>
+          <div class="cp-label-spacer"></div>
+          <div class="cp-label" style="flex: 0 0 auto;">Lesson 5</div>
+          <div class="cp-label-spacer"></div>
+          <div class="cp-label" style="flex: 0 0 auto;">Lesson 8</div>
+        </div>
+
+        <!-- 9ds test student (1 checkpoint only) -->
+        <div class="timeline-student">
+          <div class="timeline-name-col">
+            <div class="timeline-name">9ds test student</div>
+            <div class="timeline-avg">Teacher only</div>
+          </div>
+          <div class="timeline-track-col">
+            <div class="timeline-element-row">
+              <div class="timeline-elem-label">Autonomy</div>
+              <div class="timeline-line">
+                <div class="timeline-track-bg"></div>
+                <div class="checkpoint-spacer"></div>
+                <div class="checkpoint-dot" style="background: #a78bfa; border-color: #be185d;" title="Lesson 5 — Teacher: Extending (4)">4</div>
+                <div class="checkpoint-spacer"></div>
+              </div>
+            </div>
+            <div class="timeline-element-row">
+              <div class="timeline-elem-label">Drive</div>
+              <div class="timeline-line">
+                <div class="timeline-track-bg"></div>
+                <div class="checkpoint-spacer"></div>
+                <div class="checkpoint-dot" style="background: #34d399; border-color: #be185d;" title="Lesson 5 — Teacher: Applying (3)">3</div>
+                <div class="checkpoint-spacer"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Matt Burton (1 checkpoint) -->
+        <div class="timeline-student">
+          <div class="timeline-name-col">
+            <div class="timeline-name">Matt Burton</div>
+            <div class="timeline-avg">Teacher only</div>
+          </div>
+          <div class="timeline-track-col">
+            <div class="timeline-element-row">
+              <div class="timeline-elem-label">Autonomy</div>
+              <div class="timeline-line">
+                <div class="timeline-track-bg"></div>
+                <div class="checkpoint-spacer"></div>
+                <div class="checkpoint-dot" style="background: #34d399; border-color: #be185d;" title="Lesson 5 — Teacher: Applying (3)">3</div>
+                <div class="checkpoint-spacer"></div>
+              </div>
+            </div>
+            <div class="timeline-element-row">
+              <div class="timeline-elem-label">Drive</div>
+              <div class="timeline-line">
+                <div class="timeline-track-bg"></div>
+                <div class="checkpoint-spacer"></div>
+                <div class="checkpoint-dot" style="background: #e5e7eb; color: #bbb;" title="No data">—</div>
+                <div class="checkpoint-spacer"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- test (3 checkpoints — this one shows real growth!) -->
+        <div class="timeline-student">
+          <div class="timeline-name-col">
+            <div class="timeline-name">test</div>
+            <div class="timeline-avg">Self: 1.0 / T: 2.5</div>
+          </div>
+          <div class="timeline-track-col">
+            <div class="timeline-element-row">
+              <div class="timeline-elem-label">Autonomy</div>
+              <div class="timeline-line">
+                <div class="timeline-track-bg"></div>
+                <div class="checkpoint-dot" style="background: #fbbf24; color: #92400e;" title="Lesson 3 — Self: Hard (1)">1</div>
+                <div class="checkpoint-spacer"></div>
+                <div class="checkpoint-dot" style="background: #fbbf24; color: #92400e;" title="Lesson 5 — Self: Hard (1)">1</div>
+                <div style="position: relative; z-index: 2; margin-left: -4px;">
+                  <div class="checkpoint-dot" style="background: #38bdf8; border-color: #be185d; width: 16px; height: 16px; font-size: 8px;" title="Lesson 5 — Teacher: Developing (2)">2</div>
+                </div>
+                <div class="checkpoint-spacer"></div>
+                <div class="checkpoint-dot" style="background: #fbbf24; color: #92400e;" title="Lesson 8 — Self: Hard (1)">1</div>
+              </div>
+            </div>
+            <div class="timeline-element-row">
+              <div class="timeline-elem-label">Drive</div>
+              <div class="timeline-line">
+                <div class="timeline-track-bg"></div>
+                <div class="checkpoint-dot" style="background: #fbbf24; color: #92400e;" title="Lesson 3 — Self: Hard (1)">1</div>
+                <div class="checkpoint-spacer"></div>
+                <div class="checkpoint-dot" style="background: #fbbf24; color: #92400e;" title="Lesson 5 — Self: Hard (1)">1</div>
+                <div style="position: relative; z-index: 2; margin-left: -4px;">
+                  <div class="checkpoint-dot" style="background: #34d399; border-color: #be185d; width: 16px; height: 16px; font-size: 8px;" title="Lesson 5 — Teacher: Applying (3)">3</div>
+                </div>
+                <div class="checkpoint-spacer"></div>
+                <div class="checkpoint-dot" style="background: #fbbf24; color: #92400e;" title="Lesson 8 — Self: Hard (1)">1</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-legend" style="margin-top: 16px; padding-top: 12px; border-top: 1px solid #e5e7eb;">
+        <div class="legend-item"><span class="legend-dot" style="background: #fbbf24;"></span> 1 — Hard / Emerging</div>
+        <div class="legend-item"><span class="legend-dot" style="background: #38bdf8;"></span> 2 — Getting there / Developing</div>
+        <div class="legend-item"><span class="legend-dot" style="background: #34d399;"></span> 3 — Did well / Applying</div>
+        <div class="legend-item"><span class="legend-dot" style="background: #a78bfa;"></span> 4 — Extending</div>
+        <div class="legend-item"><span class="legend-teacher-ring"></span> Pink border = Teacher obs</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function showTab(n) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab' + n).classList.add('active');
+  document.querySelectorAll('.tab')[n - 1].classList.add('active');
+}
+</script>
+</body>
+</html>

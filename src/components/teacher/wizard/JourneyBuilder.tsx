@@ -145,6 +145,7 @@ export function JourneyBuilder({ state, dispatch, onActivityDrop, onRegeneratePa
                     dispatch={dispatch}
                     onActivityDrop={onActivityDrop}
                     onRegeneratePage={onRegeneratePage}
+                    pulseScore={state.pulseScores?.[lessonId] ?? null}
                   />
                 </div>
               </div>

@@ -458,6 +458,59 @@ CONTINUOUS:
 
 ---
 
+## Technical Load — The Hidden Cognitive Layer
+
+**Added: 1 April 2026. Origin: Matt's observation that students struggle in design because they simultaneously manage time, resources, new tech/software, AND being a student.**
+
+In design education, students aren't just learning design thinking — they're often learning to use unfamiliar tools at the same time. An Arduino lesson requires understanding Young's Modulus (content), wiring a circuit (hardware skill), reading a serial plotter (software skill), calibrating an FSR (technique), AND applying the engineering design process (design thinking). That's 5 layers of novelty in one activity. The cognitive overhead of managing unfamiliar tools and materials is invisible in the current data model.
+
+**This is NOT a Pulse dimension** — Pulse measures lesson design quality (did the teacher structure it well?). Technical load is a **lesson context variable** that modifies how Pulse interprets scores and how the timing engine allocates time.
+
+### What `technical_load` captures:
+
+| Field | Type | Example |
+|-------|------|---------|
+| `new_tools` | String[] | Tools/tech introduced for the FIRST TIME: `["Arduino Uno", "Serial Plotter"]` |
+| `assumed_skills` | String[] | Prerequisites students must already have: `["basic circuit wiring", "reading graphs"]` |
+| `novelty` | Enum | `none` / `low` (familiar tool, new context) / `medium` (new tool, guided) / `high` (new tool AND new technique) |
+| `scaffolding_provided` | Enum | `none` / `demo` (teacher shows once) / `guide` (FAQ/cheat sheet) / `tutorial` (step-by-step with checkpoints) |
+
+### How it connects to existing systems:
+
+**1. Timing engine modifier:**
+Activities with high technical novelty need significantly more Work Time than the same activity with familiar tools. The velocity learning loop should track `technical_load.novelty` as a covariate: "research activities take 14 min average, but research activities with `novelty: high` take 22 min." This means the first time a class uses a 3D printer, the system allocates more time than the fifth time.
+
+**2. Teacher Craft scaffolding sub-score (Pulse):**
+If an activity has `novelty: high` but `scaffolding_provided: none`, that's a Teacher Craft gap — the teacher introduced complex technology without support. Pulse should flag: "Activity 3 introduces Arduino with no technical scaffolding." Conversely, `novelty: high` + `scaffolding_provided: tutorial` is good teaching — Pulse should not penalise.
+
+**3. Cross-lesson balancing:**
+The generation pipeline should track cumulative technical novelty across a unit. Don't introduce Arduino AND 3D printing AND laser cutting in the same week. If lesson N has `novelty: high`, lesson N+1 should default to familiar tools unless the teacher overrides. Prompt injection: "The previous lesson introduced [new_tools]. This lesson should use familiar tools to let students focus on the design thinking."
+
+**4. Materials list connection:**
+`materials_list` on units already captures WHAT students use. `technical_load.new_tools` captures which of those materials require NEW LEARNING. The difference matters: scissors are in the materials list but have zero technical novelty for Year 9 students. A CNC router is in the materials list AND has high technical novelty.
+
+**5. Student struggle detection:**
+When `useActivityTracking` reports `time_spent_seconds` 3x above class average on an activity with `novelty: high`, the system can distinguish "student is struggling with the TOOL" (technical barrier) from "student is struggling with the THINKING" (cognitive barrier). Different interventions: technical struggle → show demo video or FAQ. Thinking struggle → Socratic AI nudge.
+
+### Where `assumed_skills` data comes from:
+
+Phase 1 (now): AI generation infers from materials list + activity description. "Uses Arduino Uno" → `assumed_skills: ["basic circuit wiring", "can read serial plotter"]`.
+
+Phase 2 (future): Teacher edits in lesson editor — the `technical_load` section appears alongside UDL and AI Rules on the activity block. Teachers know what their students can and can't do.
+
+Phase 3 (future): Cross-unit tracking. If Unit 1 introduced Arduino and students demonstrated competency, Unit 3 can mark Arduino as `novelty: none` (assumed skill). The system builds a class-level "tool competency map" that grows over the year.
+
+### Implementation priority:
+
+- `technical_load` field on ActivitySection: **Phase 5** (add to interface + generation schemas)
+- AI generation populates it: **Phase 5** (prompt instruction: "For each activity, assess what tools/tech are new to students")
+- Timing engine reads it: **Phase 5** (velocity loop covariate)
+- Lesson editor UI for it: **Phase 5** (alongside UDL tab on ActivityBlock)
+- Cross-unit tool competency tracking: **FUTURE** (requires class-level tool_competencies JSONB)
+- Pulse scaffolding modifier: **FUTURE** (after Pulse Phase 1 ships)
+
+---
+
 ## Student Tracking Signals (What to Capture)
 
 ### Passive Signals (Captured Automatically — No Student Action Required)
@@ -581,6 +634,12 @@ interface ActivitySection {
   tags?: string[];
   reusable?: boolean;
   estimated_word_count?: number;
+  technical_load?: {
+    new_tools: string[];              // Tools/tech introduced for the FIRST TIME in this activity (e.g., "Arduino Uno", "Fusion 360")
+    assumed_skills: string[];         // Skills students must already have (e.g., "basic soldering", "can use a scroll saw")
+    novelty: 'none' | 'low' | 'medium' | 'high';  // How much new technical learning is happening ON TOP of the design thinking
+    scaffolding_provided: 'none' | 'demo' | 'guide' | 'tutorial';  // What support exists for the technical learning
+  };
 }
 
 // Add to student response structure
@@ -647,6 +706,8 @@ Based on research across Canvas, ManageBac, Toddle, Moodle, Google Classroom, an
 
 7. **No platform has discovery-based student profiling** — archetype scoring from behavioral scenarios is novel. Other platforms use self-report surveys.
 
+8. **No platform tracks technical cognitive load** — when a student is slow on a task, no other platform can distinguish "struggling with the tool" from "struggling with the thinking." StudioLoom's `technical_load` field on activities, combined with per-activity `time_spent_seconds`, enables this distinction. Different root causes → different interventions.
+
 ---
 
 ## Decision Summary
@@ -666,6 +727,8 @@ Based on research across Canvas, ManageBac, Toddle, Moodle, Google Classroom, an
 - `programme` on classes (IF teaching approach ever needs to diverge from framework — decision: keep together for now)
 - `intelligence_profile` on students (Phase 3.5)
 - `risk_level` on students (Phase 4)
+- `technical_load` on activities — per-activity tool/tech novelty tracking + scaffolding adequacy (Phase 5). See "Technical Load" section. Feeds timing engine, Pulse scaffolding modifier, cross-lesson balancing, struggle detection.
+- Class-level `tool_competencies` JSONB — grows as students demonstrate competency with tools across units (FUTURE, after technical_load ships)
 - xAPI statement export (enterprise feature)
 - Full content translation pipeline
 - Activity block library with `tags` and `reusable` flag

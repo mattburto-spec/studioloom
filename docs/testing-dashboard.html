@@ -1919,6 +1919,31 @@ const PROJECTS = [
             { name: 'Phase 7: Interactive branching (Kit reacts to archetype data)', est: '1-2 days', done: false },
         ]
     },
+    {
+        id: 'lesson-pulse',
+        name: 'Lesson Pulse',
+        desc: 'Composite quality scoring — 3 dimensions (Cognitive Rigour, Student Agency, Teacher Craft) + overall. Generation co-pilot first, then editor. Algorithm validated against 3 real lesson plans (1 Apr).',
+        file: 'docs/projects/lesson-pulse.md',
+        status: 'active',
+        phases: [
+            { name: 'Algorithm design + test run (TeachEngineering validation)', est: 'done', done: true },
+            { name: 'Generation quality gap analysis (5 features identified)', est: 'done', done: true },
+            { name: 'Phase 1a: Algorithm (computeLessonPulse + helpers)', est: 'done', done: true },
+            { name: 'Phase 1b: Unit tests (47/47 passing)', est: 'done', done: true },
+            { name: 'Context Injection (3 wizard fields + prompt injection)', est: 'done', done: true },
+            { name: 'Phase 1c: Generation wiring (4 routes + try/catch)', est: 'done', done: true },
+            { name: 'Phase 1d: Review screen UI (PulseGauges SVG arcs)', est: 'done', done: true },
+            { name: 'Real lesson plan validation (3 plans scored: 4.4–4.8)', est: 'done', done: true },
+            { name: 'Teaching Moves Library (data model + seed ~50 moves + generation + editor + extraction)', est: '3 days', done: false },
+            { name: 'Voice/Personality Layer (style profile extension + prompt injection)', est: '2 days', done: false },
+            { name: 'Sequencing Intuition (energy curve model + activity energy tagging)', est: '1.5 days', done: false },
+            { name: 'Exemplar Contrast (annotation format + retrieval + prompt integration)', est: '2 days', done: false },
+            { name: 'Phase 2a: Editor UI (DimensionsSummaryBar gauge arcs)', est: '1 day', done: false },
+            { name: 'Phase 2b: Unit detail (per-lesson Pulse dots)', est: '0.5 days', done: false },
+            { name: 'Phase 3a: Dashboard (unit-level Pulse average on cards)', est: '0.5 days', done: false },
+            { name: 'Phase 3b: Teaching Mode hints (flagged-student contextual card)', est: '0.5 days', done: false },
+        ]
+    },
 ];
 
 let projectData = [];
