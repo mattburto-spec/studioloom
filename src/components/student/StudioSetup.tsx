@@ -291,13 +291,17 @@ export function StudioSetup({ studentName, onComplete }: StudioSetupProps) {
                   {/* Mentor avatar */}
                   <div className="flex items-center gap-3 mb-4">
                     <div
-                      className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl"
+                      className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl overflow-hidden"
                       style={{
                         background: isSelected ? "rgba(255,255,255,0.2)" : `${m.accent}18`,
                         border: `2px solid ${isSelected ? "rgba(255,255,255,0.3)" : m.accent + "30"}`,
                       }}
                     >
-                      {m.emoji}
+                      {m.image ? (
+                        <img src={m.image} alt={m.name} className="w-full h-full object-cover" />
+                      ) : (
+                        m.emoji
+                      )}
                     </div>
                     <div>
                       <h3
@@ -472,10 +476,14 @@ export function StudioSetup({ studentName, onComplete }: StudioSetupProps) {
           {/* Mentor avatar + name */}
           <div className="flex items-center gap-3 mb-6">
             <div
-              className="w-12 h-12 rounded-2xl flex items-center justify-center text-xl"
+              className="w-12 h-12 rounded-2xl flex items-center justify-center text-xl overflow-hidden"
               style={{ background: `${mentor.accent}20`, border: `2px solid ${mentor.accent}40` }}
             >
-              {mentor.emoji}
+              {mentor.image ? (
+                <img src={mentor.image} alt={mentor.name} className="w-full h-full object-cover" />
+              ) : (
+                mentor.emoji
+              )}
             </div>
             <div>
               <p className="text-sm font-bold text-white">{mentor.name}</p>
@@ -690,14 +698,18 @@ export function StudioSetup({ studentName, onComplete }: StudioSetupProps) {
         <div className="w-full max-w-md mx-auto px-4 py-16 text-center animate-fadeIn">
           {/* Mentor avatar large */}
           <div
-            className="w-20 h-20 rounded-3xl flex items-center justify-center text-4xl mx-auto mb-6"
+            className="w-20 h-20 rounded-3xl flex items-center justify-center text-4xl mx-auto mb-6 overflow-hidden"
             style={{
               background: `${mentor.accent}20`,
               border: `3px solid ${mentor.accent}40`,
               boxShadow: `0 8px 32px ${mentor.accent}20`,
             }}
           >
-            {mentor.emoji}
+            {mentor.image ? (
+              <img src={mentor.image} alt={mentor.name} className="w-full h-full object-cover" />
+            ) : (
+              mentor.emoji
+            )}
           </div>
 
           {/* Welcome message */}

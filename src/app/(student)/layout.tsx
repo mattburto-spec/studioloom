@@ -228,7 +228,7 @@ export default function StudentLayout({
               <div className="mb-4">
                 <label className="text-xs font-semibold uppercase tracking-wider opacity-60">Your Mentor</label>
                 <div className="flex gap-2 mt-2">
-                  {(Object.values(MENTORS) as { id: MentorId; name: string; emoji: string; accent: string; tagline: string }[]).map((m) => {
+                  {(Object.values(MENTORS) as { id: MentorId; name: string; emoji: string; image: string | null; accent: string; tagline: string }[]).map((m) => {
                     const isActive = (student as any).mentor_id === m.id;
                     return (
                       <button
@@ -247,7 +247,13 @@ export default function StudentLayout({
                           background: isActive ? `${m.accent}18` : themeStyles["--st-bg"],
                         }}
                       >
-                        <div className="text-2xl mb-1">{m.emoji}</div>
+                        <div className="text-2xl mb-1">
+                          {m.image ? (
+                            <img src={m.image} alt={m.name} className="w-10 h-10 rounded-lg object-cover mx-auto" />
+                          ) : (
+                            m.emoji
+                          )}
+                        </div>
                         <div className="text-sm font-semibold">{m.name}</div>
                         <div className="text-xs opacity-60">{m.tagline}</div>
                       </button>
