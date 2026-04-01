@@ -108,6 +108,7 @@ export default function TeacherStudentsPage() {
 
   const [enrollmentMap, setEnrollmentMap] = useState<Map<string, string[]>>(new Map()); // student_id → class_ids
   const [showAddStudent, setShowAddStudent] = useState(false);
+  const [showBulkImport, setShowBulkImport] = useState(false);
   const [newUsername, setNewUsername] = useState("");
   const [newDisplayName, setNewDisplayName] = useState("");
   const [newYearLevel, setNewYearLevel] = useState<number | "">("");
@@ -292,16 +293,27 @@ export default function TeacherStudentsPage() {
             {classes.length} class{classes.length !== 1 ? "es" : ""}
           </p>
         </div>
-        <button
-          onClick={() => setShowAddStudent(true)}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all"
-          style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)" }}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-            <path d="M12 5v14m-7-7h14" />
-          </svg>
-          Add Student
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowBulkImport(true)}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-purple-700 border-2 border-purple-200 bg-white hover:border-purple-400 hover:bg-purple-50 shadow-sm hover:shadow-md transition-all"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" />
+            </svg>
+            Import List
+          </button>
+          <button
+            onClick={() => setShowAddStudent(true)}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all"
+            style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)" }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <path d="M12 5v14m-7-7h14" />
+            </svg>
+            Add Student
+          </button>
+        </div>
       </div>
 
       {/* ── Add Student Modal ── */}
@@ -396,6 +408,15 @@ export default function TeacherStudentsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── Bulk Import Modal ── */}
+      {showBulkImport && (
+        <BulkImportModal
+          classes={classes}
+          onClose={() => setShowBulkImport(false)}
+          onImported={() => { setShowBulkImport(false); loadData(); }}
+        />
       )}
 
       {/* ── Summary strip ── */}
@@ -833,6 +854,377 @@ function SummaryCard({
       <div>
         <p className="text-lg font-extrabold text-text-primary leading-none">{value}</p>
         <p className="text-[10px] text-text-tertiary font-medium mt-0.5">{label}</p>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Bulk Import Modal
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface ParsedStudent {
+  username: string;
+  displayName: string;
+  yearLevel: number | null;
+  status: "pending" | "ok" | "duplicate" | "error";
+  errorMsg?: string;
+}
+
+function BulkImportModal({
+  classes,
+  onClose,
+  onImported,
+}: {
+  classes: ClassRow[];
+  onClose: () => void;
+  onImported: () => void;
+}) {
+  const [step, setStep] = useState<"input" | "preview" | "done">("input");
+  const [rawText, setRawText] = useState("");
+  const [parsedStudents, setParsedStudents] = useState<ParsedStudent[]>([]);
+  const [assignClassId, setAssignClassId] = useState<string>("");
+  const [importing, setImporting] = useState(false);
+  const [importResults, setImportResults] = useState<{ added: number; skipped: number; errors: number }>({ added: 0, skipped: 0, errors: 0 });
+
+  function parseInput(text: string): ParsedStudent[] {
+    const lines = text.split(/\n/).map((l) => l.trim()).filter(Boolean);
+    const results: ParsedStudent[] = [];
+    const seen = new Set<string>();
+
+    for (const line of lines) {
+      // Skip header rows
+      if (/^(username|name|student|first|last|display)/i.test(line)) continue;
+
+      // Split by comma, tab, or pipe
+      const parts = line.split(/[,\t|]/).map((p) => p.trim()).filter(Boolean);
+
+      let username = "";
+      let displayName = "";
+      let yearLevel: number | null = null;
+
+      if (parts.length >= 3) {
+        // 3+ columns: could be "first, last, year" or "username, display, year"
+        const lastPart = parts[parts.length - 1];
+        const yearMatch = lastPart.match(/^(?:year\s*)?(\d{1,2})$/i);
+        if (yearMatch) {
+          yearLevel = parseInt(yearMatch[1]);
+          // Check if first two parts look like "first last"
+          const maybeFirst = parts[0];
+          const maybeLast = parts[1];
+          if (!maybeFirst.includes(" ") && !maybeLast.includes(" ")) {
+            displayName = `${maybeFirst} ${maybeLast}`;
+            username = `${maybeFirst.toLowerCase().charAt(0)}${maybeLast.toLowerCase()}`;
+          } else {
+            displayName = parts[0];
+            username = parts[1] || parts[0].toLowerCase().replace(/\s+/g, "");
+          }
+        } else {
+          // username, displayname, something
+          username = parts[0];
+          displayName = parts[1];
+        }
+      } else if (parts.length === 2) {
+        // "first last" or "username, display" or "name, year"
+        const yearMatch = parts[1].match(/^(?:year\s*)?(\d{1,2})$/i);
+        if (yearMatch) {
+          yearLevel = parseInt(yearMatch[1]);
+          displayName = parts[0];
+          username = parts[0].toLowerCase().replace(/\s+/g, "");
+        } else {
+          // Could be "first, last" or "username, display"
+          if (parts[0].includes(" ") || parts[1].includes(" ")) {
+            displayName = parts[0].includes(" ") ? parts[0] : `${parts[0]} ${parts[1]}`;
+            username = displayName.toLowerCase().replace(/\s+/g, "");
+          } else {
+            // Two single words — treat as "first last"
+            displayName = `${parts[0]} ${parts[1]}`;
+            username = `${parts[0].toLowerCase().charAt(0)}${parts[1].toLowerCase()}`;
+          }
+        }
+      } else {
+        // Single value — use as both
+        displayName = parts[0];
+        username = parts[0].toLowerCase().replace(/\s+/g, "");
+      }
+
+      // Clean username
+      username = username.toLowerCase().replace(/[^a-z0-9._-]/g, "").slice(0, 40);
+
+      if (!username) continue;
+
+      const isDuplicate = seen.has(username);
+      seen.add(username);
+
+      results.push({
+        username,
+        displayName: displayName || username,
+        yearLevel,
+        status: isDuplicate ? "duplicate" : "pending",
+        errorMsg: isDuplicate ? "Duplicate username in list" : undefined,
+      });
+    }
+
+    return results;
+  }
+
+  function handleParse() {
+    const parsed = parseInput(rawText);
+    setParsedStudents(parsed);
+    if (parsed.length > 0) setStep("preview");
+  }
+
+  function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      setRawText(text);
+      const parsed = parseInput(text);
+      setParsedStudents(parsed);
+      if (parsed.length > 0) setStep("preview");
+    };
+    reader.readAsText(file);
+  }
+
+  async function doImport() {
+    setImporting(true);
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setImporting(false); return; }
+
+    let added = 0, skipped = 0, errors = 0;
+    const updated = [...parsedStudents];
+
+    for (let i = 0; i < updated.length; i++) {
+      const s = updated[i];
+      if (s.status === "duplicate") { skipped++; continue; }
+
+      const insertPayload: Record<string, unknown> = {
+        username: s.username,
+        display_name: s.displayName,
+        ell_level: 3,
+        author_teacher_id: user.id,
+        class_id: null,
+        graduation_year: s.yearLevel ? yearLevelToGraduationYear(s.yearLevel) : null,
+      };
+
+      const { data: student, error } = await supabase
+        .from("students")
+        .insert(insertPayload)
+        .select("id")
+        .single();
+
+      if (error) {
+        updated[i] = { ...s, status: "error", errorMsg: error.code === "23505" ? "Username already exists" : error.message };
+        if (error.code === "23505") skipped++; else errors++;
+        continue;
+      }
+
+      // Enroll in selected class if chosen
+      if (assignClassId && student?.id) {
+        await supabase.from("class_students").insert({
+          class_id: assignClassId,
+          student_id: student.id,
+        }).then(() => {});
+      }
+
+      updated[i] = { ...s, status: "ok" };
+      added++;
+    }
+
+    setParsedStudents(updated);
+    setImportResults({ added, skipped, errors });
+    setStep("done");
+    setImporting(false);
+  }
+
+  const validCount = parsedStudents.filter((s) => s.status === "pending").length;
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div className="px-6 pt-6 pb-4 border-b border-gray-100">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-extrabold text-gray-900">Import Students</h2>
+              <p className="text-sm text-gray-500 mt-0.5">
+                {step === "input" && "Paste a list of student names or upload a CSV file."}
+                {step === "preview" && `${parsedStudents.length} students found — review before importing.`}
+                {step === "done" && "Import complete."}
+              </p>
+            </div>
+            <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition text-gray-400 hover:text-gray-600">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
+            </button>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-6 py-4">
+          {step === "input" && (
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-gray-600 block mb-1.5">Paste student names</label>
+                <textarea
+                  value={rawText}
+                  onChange={(e) => setRawText(e.target.value)}
+                  placeholder={"John Smith, 10\nJane Doe, 10\nAlex Chen, 11\n\nOr: first, last, year\nOr just names — one per line"}
+                  rows={8}
+                  className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-400 transition-all font-mono leading-relaxed resize-none"
+                />
+                <p className="text-[11px] text-gray-400 mt-1.5">Accepts: name per line, comma/tab separated, first + last + year. Header rows auto-skipped.</p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-px bg-gray-200" />
+                <span className="text-xs text-gray-400 font-medium">or</span>
+                <div className="flex-1 h-px bg-gray-200" />
+              </div>
+
+              <label className="flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-200 rounded-xl cursor-pointer hover:border-purple-300 hover:bg-purple-50/50 transition-all">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" />
+                </svg>
+                <span className="text-sm text-gray-500">Upload CSV or TXT file</span>
+                <input type="file" accept=".csv,.txt,.tsv" onChange={handleFileUpload} className="hidden" />
+              </label>
+            </div>
+          )}
+
+          {step === "preview" && (
+            <div className="space-y-4">
+              {/* Optional class assignment */}
+              {classes.length > 0 && (
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 block mb-1.5">Assign to class <span className="text-gray-300 font-normal">(optional)</span></label>
+                  <select
+                    value={assignClassId}
+                    onChange={(e) => setAssignClassId(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-400"
+                  >
+                    <option value="">Don&apos;t assign yet</option>
+                    {classes.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Preview table */}
+              <div className="border border-gray-200 rounded-xl overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 text-left">
+                      <th className="px-3 py-2 text-xs font-semibold text-gray-500">Username</th>
+                      <th className="px-3 py-2 text-xs font-semibold text-gray-500">Display Name</th>
+                      <th className="px-3 py-2 text-xs font-semibold text-gray-500">Year</th>
+                      <th className="px-3 py-2 text-xs font-semibold text-gray-500 w-8"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {parsedStudents.map((s, i) => (
+                      <tr key={i} className={`border-t border-gray-100 ${s.status === "duplicate" ? "opacity-40" : ""}`}>
+                        <td className="px-3 py-2 font-mono text-xs text-gray-700">{s.username}</td>
+                        <td className="px-3 py-2 text-gray-900">{s.displayName}</td>
+                        <td className="px-3 py-2 text-gray-500">{s.yearLevel || "—"}</td>
+                        <td className="px-3 py-2">
+                          {s.status === "duplicate" && (
+                            <span className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded font-medium">Dupe</span>
+                          )}
+                          <button
+                            onClick={() => {
+                              const next = [...parsedStudents];
+                              next.splice(i, 1);
+                              setParsedStudents(next);
+                              if (next.length === 0) setStep("input");
+                            }}
+                            className="text-gray-300 hover:text-red-500 transition ml-1"
+                            title="Remove"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <button
+                onClick={() => { setStep("input"); }}
+                className="text-xs text-gray-400 hover:text-gray-600 transition"
+              >
+                ← Edit list
+              </button>
+            </div>
+          )}
+
+          {step === "done" && (
+            <div className="text-center py-6 space-y-3">
+              <div className="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center mx-auto">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#22C55E" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
+              </div>
+              <div>
+                <p className="text-lg font-bold text-gray-900">{importResults.added} student{importResults.added !== 1 ? "s" : ""} added</p>
+                {importResults.skipped > 0 && <p className="text-sm text-amber-600">{importResults.skipped} skipped (duplicates)</p>}
+                {importResults.errors > 0 && <p className="text-sm text-red-600">{importResults.errors} failed</p>}
+              </div>
+              {/* Show errors */}
+              {parsedStudents.some((s) => s.status === "error") && (
+                <div className="text-left mt-3 space-y-1">
+                  {parsedStudents.filter((s) => s.status === "error").map((s, i) => (
+                    <div key={i} className="text-xs text-red-600 bg-red-50 px-3 py-1.5 rounded-lg">
+                      <span className="font-medium">{s.username}</span>: {s.errorMsg}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-end gap-2">
+          {step === "input" && (
+            <>
+              <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 transition">Cancel</button>
+              <button
+                onClick={handleParse}
+                disabled={!rawText.trim()}
+                className="px-5 py-2 rounded-xl text-sm font-semibold text-white transition disabled:opacity-40"
+                style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)" }}
+              >
+                Preview
+              </button>
+            </>
+          )}
+          {step === "preview" && (
+            <>
+              <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-gray-800 transition">Cancel</button>
+              <button
+                onClick={doImport}
+                disabled={importing || validCount === 0}
+                className="px-5 py-2 rounded-xl text-sm font-semibold text-white transition disabled:opacity-40"
+                style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)" }}
+              >
+                {importing ? `Importing ${validCount}...` : `Import ${validCount} Student${validCount !== 1 ? "s" : ""}`}
+              </button>
+            </>
+          )}
+          {step === "done" && (
+            <button
+              onClick={onImported}
+              className="px-5 py-2 rounded-xl text-sm font-semibold text-white transition"
+              style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)" }}
+            >
+              Done
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
