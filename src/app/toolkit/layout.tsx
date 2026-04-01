@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Design Toolkit — 42 Visual Thinking Tools for Every Design Teacher | StudioLoom",
@@ -38,7 +37,7 @@ export default function ToolkitLayout({
         }}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2.5 group">
+          <a href="/" className="flex items-center gap-2.5 group">
             <div
               className="w-8 h-8 rounded-lg flex items-center justify-center"
               style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)" }}
@@ -53,23 +52,23 @@ export default function ToolkitLayout({
             <span className="text-sm font-semibold" style={{ color: "rgba(255,255,255,0.7)" }}>
               Studio<span style={{ color: "#fff" }}>Loom</span>
             </span>
-          </Link>
+          </a>
           <div className="flex items-center gap-2">
-            <Link
+            <a
               href="/login"
               className="text-xs font-medium px-3 py-1.5 rounded-md transition hover:opacity-80"
               style={{ color: "#f472b6" }}
             >
               Student
-            </Link>
+            </a>
             <span style={{ color: "rgba(255,255,255,0.15)", fontSize: "11px" }}>|</span>
-            <Link
+            <a
               href="/teacher/login"
               className="text-xs font-medium px-3 py-1.5 rounded-md transition hover:opacity-80"
               style={{ color: "#c084fc" }}
             >
               Teacher
-            </Link>
+            </a>
           </div>
         </div>
       </nav>
