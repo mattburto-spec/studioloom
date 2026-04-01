@@ -333,7 +333,7 @@ function WelcomeOnboarding({ teacherName, onCreateClass }: { teacherName: string
             </h1>
           </div>
           <p className="text-white/80 text-base max-w-xl leading-relaxed">
-            StudioLoom helps you build units, run lessons, and guide students through real design projects with AI support.
+            The platform for classrooms where students make, solve, and create — with AI that supports your teaching.
           </p>
           {step === "choose" && (
             <p className="text-white/50 text-sm mt-2">Let&apos;s get you set up — it only takes a minute.</p>
