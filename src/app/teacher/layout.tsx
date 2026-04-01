@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { TeacherContext } from "./teacher-context";
+import TeacherAIFAB from "@/components/teacher/TeacherAIFAB";
 import type { Teacher } from "@/types";
 
 const NAV_ITEMS = [
@@ -197,7 +198,7 @@ export default function TeacherLayout({
                 onClick={async () => {
                   const supabase = createClient();
                   await supabase.auth.signOut();
-                  router.push("/teacher/login");
+                  window.location.href = "/";
                 }}
                 className="text-sm text-text-secondary/60 hover:text-text-primary transition-colors px-2 py-1 rounded-lg hover:bg-surface-alt"
               >
@@ -208,6 +209,7 @@ export default function TeacherLayout({
         </header>
 
         {children}
+        <TeacherAIFAB />
       </div>
     </TeacherContext.Provider>
   );

@@ -140,55 +140,43 @@ export default function TeacherDashboard() {
 
   return (
     <main className="max-w-7xl mx-auto px-6 py-5">
-      {/* ================================================================= */}
-      {/* Hero Header — gradient banner with welcome + stats               */}
-      {/* ================================================================= */}
-      <div
-        className="rounded-2xl px-6 py-5 mb-5 relative overflow-hidden"
-        style={{ background: "linear-gradient(135deg, #7B2FF2 0%, #4F46E5 50%, #3B82F6 100%)" }}
-      >
-        {/* Subtle pattern overlay */}
-        <div className="absolute inset-0 opacity-10" style={{
-          backgroundImage: "radial-gradient(circle at 20% 50%, white 1px, transparent 1px), radial-gradient(circle at 80% 20%, white 1px, transparent 1px)",
-          backgroundSize: "60px 60px, 40px 40px",
-        }} />
-        <div className="relative flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold text-white tracking-tight">
-              Welcome back{teacher?.name ? `, ${teacher.name.split(" ")[0]}` : ""}
-            </h1>
-            <p className="text-white/60 text-xs mt-0.5 flex items-center gap-2">
-              {refreshing && (
-                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-              )}
-              Updated {timeAgo(lastRefresh.toISOString())}
-            </p>
-          </div>
-          {/* Quick stats */}
-          {hasClasses && (
-            <div className="flex items-center gap-5">
-              <StatPill label="Classes" value={totalClasses} />
-              <StatPill label="Units" value={totalUnits} />
-              <StatPill label="Students" value={totalStudents} />
-            </div>
-          )}
-        </div>
-      </div>
-
       {!hasClasses ? (
-        <div className="bg-white rounded-2xl p-16 text-center border border-border shadow-sm">
-          <div className="w-16 h-16 rounded-2xl bg-brand-purple/10 flex items-center justify-center mx-auto mb-4">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#7B2FF2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 5v14m-7-7h14" />
-            </svg>
-          </div>
-          <p className="text-text-primary text-lg font-semibold">No classes yet</p>
-          <p className="text-text-secondary text-sm mt-2 max-w-xs mx-auto">
-            Create your first class to start building units and tracking student progress.
-          </p>
-        </div>
+        <WelcomeOnboarding
+          teacherName={teacher?.name?.split(" ")[0] || ""}
+          onCreateClass={() => setShowCreate(true)}
+        />
       ) : (
-        <TwoColumnDashboard data={data!} styleProfile={styleProfile} />
+        <>
+          {/* Hero Header — gradient banner with welcome + stats */}
+          <div
+            className="rounded-2xl px-6 py-5 mb-5 relative overflow-hidden"
+            style={{ background: "linear-gradient(135deg, #7B2FF2 0%, #4F46E5 50%, #3B82F6 100%)" }}
+          >
+            <div className="absolute inset-0 opacity-10" style={{
+              backgroundImage: "radial-gradient(circle at 20% 50%, white 1px, transparent 1px), radial-gradient(circle at 80% 20%, white 1px, transparent 1px)",
+              backgroundSize: "60px 60px, 40px 40px",
+            }} />
+            <div className="relative flex items-center justify-between">
+              <div>
+                <h1 className="text-xl font-bold text-white tracking-tight">
+                  Welcome back{teacher?.name ? `, ${teacher.name.split(" ")[0]}` : ""}
+                </h1>
+                <p className="text-white/60 text-xs mt-0.5 flex items-center gap-2">
+                  {refreshing && (
+                    <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                  )}
+                  Updated {timeAgo(lastRefresh.toISOString())}
+                </p>
+              </div>
+              <div className="flex items-center gap-5">
+                <StatPill label="Classes" value={totalClasses} />
+                <StatPill label="Units" value={totalUnits} />
+                <StatPill label="Students" value={totalStudents} />
+              </div>
+            </div>
+          </div>
+          <TwoColumnDashboard data={data!} styleProfile={styleProfile} />
+        </>
       )}
 
       {/* Create class modal */}
@@ -260,6 +248,147 @@ export default function TeacherDashboard() {
         </div>
       )}
     </main>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Welcome Onboarding — shown when teacher has no classes
+// ---------------------------------------------------------------------------
+
+function WelcomeOnboarding({ teacherName, onCreateClass }: { teacherName: string; onCreateClass: () => void }) {
+  const [showQuickSetup, setShowQuickSetup] = useState(false);
+
+  return (
+    <div className="space-y-5">
+      {/* Hero welcome — warm, personal */}
+      <div
+        className="rounded-2xl px-8 py-8 relative overflow-hidden"
+        style={{ background: "linear-gradient(135deg, #7B2FF2 0%, #4F46E5 50%, #3B82F6 100%)" }}
+      >
+        <div className="absolute inset-0 opacity-10" style={{
+          backgroundImage: "radial-gradient(circle at 20% 50%, white 1px, transparent 1px), radial-gradient(circle at 80% 20%, white 1px, transparent 1px)",
+          backgroundSize: "60px 60px, 40px 40px",
+        }} />
+        <div className="relative">
+          <div className="flex items-center gap-3 mb-3">
+            <span className="text-3xl">👋</span>
+            <h1 className="text-2xl font-bold text-white tracking-tight">
+              Welcome{teacherName ? `, ${teacherName}` : ""}!
+            </h1>
+          </div>
+          <p className="text-white/80 text-base max-w-xl leading-relaxed">
+            StudioLoom is your teaching cockpit — build units, run lessons, and guide students through real design projects with AI support.
+          </p>
+          <p className="text-white/50 text-sm mt-2">
+            Let&apos;s get you set up. It only takes a minute.
+          </p>
+        </div>
+      </div>
+
+      {/* Two options: Quick Setup or Explore */}
+      {!showQuickSetup ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Option 1: Quick Setup */}
+          <button
+            onClick={() => setShowQuickSetup(true)}
+            className="group bg-white rounded-2xl p-6 border-2 border-purple-200 hover:border-purple-400 shadow-sm hover:shadow-md transition-all duration-200 text-left relative overflow-hidden"
+          >
+            <div className="absolute top-0 right-0 w-24 h-24 opacity-5 group-hover:opacity-10 transition-opacity"
+              style={{ background: "radial-gradient(circle, #7B2FF2 0%, transparent 70%)" }} />
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center"
+                style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)" }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                </svg>
+              </div>
+              <span className="text-xs font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full uppercase tracking-wide">Recommended</span>
+            </div>
+            <h3 className="text-base font-bold text-gray-900 mb-1">Quick Setup</h3>
+            <p className="text-sm text-gray-500 leading-relaxed">Create your first class and you&apos;re ready to build a unit. Takes about 30 seconds.</p>
+          </button>
+
+          {/* Option 2: Explore first */}
+          <Link
+            href="/teacher/toolkit"
+            className="group bg-white rounded-2xl p-6 border-2 border-gray-200 hover:border-gray-300 shadow-sm hover:shadow-md transition-all duration-200 text-left relative overflow-hidden"
+          >
+            <div className="absolute top-0 right-0 w-24 h-24 opacity-5 group-hover:opacity-10 transition-opacity"
+              style={{ background: "radial-gradient(circle, #3B82F6 0%, transparent 70%)" }} />
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center group-hover:bg-blue-50 transition-colors">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 16v-4" />
+                  <path d="M12 8h.01" />
+                </svg>
+              </div>
+            </div>
+            <h3 className="text-base font-bold text-gray-900 mb-1">Explore First</h3>
+            <p className="text-sm text-gray-500 leading-relaxed">
+              Browse the toolkit, look around, and come back when you&apos;re ready. You can always create a class from the
+              <span className="inline-flex items-center gap-1 mx-1 text-purple-600 font-medium">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" />
+                </svg>
+                Classes
+              </span>
+              page.
+            </p>
+          </Link>
+        </div>
+      ) : (
+        /* Quick Setup inline form */
+        <div className="bg-white rounded-2xl p-8 border border-border shadow-sm">
+          <div className="flex items-center gap-3 mb-1">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center"
+              style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)" }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+              </svg>
+            </div>
+            <h2 className="text-lg font-bold text-gray-900">Quick Setup</h2>
+          </div>
+          <p className="text-sm text-gray-500 mb-5 ml-11">Create your first class — students will use a join code to connect.</p>
+
+          <div className="ml-11">
+            <button
+              onClick={() => { setShowQuickSetup(false); onCreateClass(); }}
+              className="inline-flex items-center gap-2.5 px-6 py-3 text-sm font-bold text-white rounded-xl transition-all duration-200 hover:scale-[1.02] hover:shadow-lg active:scale-[0.98]"
+              style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)", boxShadow: "0 4px 14px rgba(123, 47, 242, 0.35)" }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 5v14m-7-7h14" />
+              </svg>
+              Create Your First Class
+            </button>
+            <button
+              onClick={() => setShowQuickSetup(false)}
+              className="ml-3 text-sm text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              Back
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* What you can do — feature preview cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {[
+          { icon: "M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20", title: "Build Units", desc: "AI-powered unit builder with 3 creation modes" },
+          { icon: "M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5", title: "Teach Live", desc: "Teaching cockpit with phase timer and student grid" },
+          { icon: "M2 4h20v16H2zM12 4v16M2 12h20", title: "27 Thinking Tools", desc: "Interactive design tools students use in-lesson" },
+        ].map((f, i) => (
+          <div key={i} className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
+            <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center mb-2.5">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7B2FF2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={f.icon} /></svg>
+            </div>
+            <p className="text-sm font-semibold text-gray-900">{f.title}</p>
+            <p className="text-xs text-gray-400 mt-0.5">{f.desc}</p>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

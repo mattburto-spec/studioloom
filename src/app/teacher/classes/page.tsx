@@ -365,10 +365,13 @@ export default function ClassesPage() {
           <p className="text-sm text-text-secondary mb-5">Create your first class to start assigning units and adding students.</p>
           <button
             onClick={() => setShowCreate(true)}
-            className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold text-white rounded-xl transition"
-            style={{ background: "linear-gradient(135deg, #7C3AED, #6D28D9)" }}
+            className="inline-flex items-center gap-2.5 px-6 py-3 text-sm font-bold text-white rounded-xl transition-all duration-200 hover:scale-[1.03] hover:shadow-xl active:scale-[0.97] active:shadow-md"
+            style={{
+              background: "linear-gradient(135deg, #7C3AED, #5B21B6)",
+              boxShadow: "0 4px 14px rgba(124, 58, 237, 0.35)",
+            }}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round">
               <path d="M12 5v14m-7-7h14" />
             </svg>
             Create Your First Class
