@@ -1512,15 +1512,167 @@ function generateInsights(cr: number, sa: number, tc: number, sections: Activity
 }
 ```
 
-### Where the Lesson Pulse Displays
+### PRIMARY USE CASE: Generation Co-Pilot
 
-| Surface | Visualisation | Priority |
-|---------|--------------|----------|
-| **DimensionsSummaryBar** (lesson editor) | 3 small gauge arcs (CR / SA / TC) + overall number. Clicking expands to show per-layer breakdown. | **Phase 2** — after registry is built |
-| **Unit detail page** | Per-lesson Pulse dots (green ≥7, amber 4-6, red <4) in lesson list | Phase 3 |
-| **Teacher dashboard** | Overall Pulse average per unit on unit cards | Phase 3 |
-| **Generation post-processing** | Auto-compute after generation, flag lessons with overall < 5 for regeneration | Phase 3 |
-| **Upload analysis** | Estimate Pulse from extracted layer data on knowledge items | Phase 4 |
+Pulse's highest-value application is **steering the AI generation pipeline**. This is the priority — build this BEFORE the editor display. The generation pipeline currently has timing validation (Workshop Model compliance) but zero quality validation. Pulse fills that gap.
+
+#### 13a. Post-Generation Scoring + Surgical Repair
+
+After the AI generates all lessons for a unit, `computeLessonPulse()` runs on each lesson automatically (same pattern as `validateLessonTiming()`). Any lesson scoring below 5.0 overall — or below 4.0 on any single dimension — triggers a **targeted repair prompt**, not a full regeneration.
+
+```typescript
+// In generate-unit/route.ts, after structural + timing validation:
+
+for (const page of generatedPages) {
+  const pulse = computeLessonPulse(page.sections || []);
+  page._pulse = pulse; // attach for UI display
+
+  // Find the weakest dimension
+  const dims = [
+    { name: "Cognitive Rigour", score: pulse.cognitiveRigour, key: "cr" },
+    { name: "Student Agency", score: pulse.studentAgency, key: "sa" },
+    { name: "Teacher Craft", score: pulse.teacherCraft, key: "tc" },
+  ];
+  const weakest = dims.sort((a, b) => a.score - b.score)[0];
+
+  if (pulse.overall < 5.0 || weakest.score < 4.0) {
+    // Surgical repair: single Haiku call targeting the weak dimension
+    const repairPrompt = buildPulseRepairPrompt(page, weakest, pulse.insights);
+    const repairedSections = await callHaiku(repairPrompt, {
+      max_tokens: 2048,
+      // Only regenerate Work Time activities — cheapest, highest impact
+      tool_schema: buildActivityRepairSchema(weakest.key),
+    });
+    if (repairedSections) {
+      page.sections = mergeSections(page.sections, repairedSections);
+      page._pulseRepaired = true;
+      page._pulseBeforeRepair = pulse;
+      page._pulse = computeLessonPulse(page.sections); // recompute
+    }
+  }
+}
+```
+
+**Repair prompt strategies per dimension:**
+
+| Weak Dimension | Repair Target | Prompt Instruction |
+|---------------|---------------|-------------------|
+| Cognitive Rigour < 4 | Work Time activities | "Rewrite 1-2 activities to target Analyze or Evaluate level. Add a thinking routine (See-Think-Wonder, Claim-Support-Question, or similar)." |
+| Student Agency < 4 | Work Time activities | "Add a genuine choice point: let students choose their approach, material, or presentation format. Add one moment of self-assessment or peer feedback." |
+| Teacher Craft < 4 | All phases | "Vary the grouping (add one pair and one small-group activity). Add sentence starters for ELL scaffolding on the most text-heavy activity." |
+
+**Cost:** ~500 tokens per repair call (Haiku). On a 10-lesson unit, maybe 2-3 lessons get repaired = ~1,500 tokens total. Negligible compared to the ~50,000 tokens for full generation.
+
+**Teacher visibility:** Repaired lessons show a subtle "✨ Enhanced" badge on the review screen. Clicking reveals: "Pulse scored this lesson 3.8 — we added a thinking routine and student choice point to strengthen it. Overall is now 6.4." Teacher can accept or revert.
+
+#### 13b. Cross-Lesson Balancing During Generation
+
+The bigger win. Currently each lesson is generated independently — the AI doesn't know the Pulse profile of previously generated lessons. This produces units that are accidentally lopsided (8 consecutive teacher-directed lessons, or 8 consecutive Remember-level activities).
+
+After lesson N is generated, compute the **running unit Pulse average** across lessons 1..N and inject it into the prompt for lesson N+1:
+
+```typescript
+// In buildRAGPerLessonPrompt() or buildRAGTimelinePrompt():
+
+function buildPulseContext(previousPages: PageContent[]): string {
+  if (previousPages.length === 0) return "";
+
+  const pulses = previousPages.map(p => computeLessonPulse(p.sections || []));
+  const avgCR = avg(pulses.map(p => p.cognitiveRigour));
+  const avgSA = avg(pulses.map(p => p.studentAgency));
+  const avgTC = avg(pulses.map(p => p.teacherCraft));
+
+  const parts: string[] = [];
+
+  // Only inject guidance when a dimension is trending weak
+  if (avgCR < 5.5) {
+    parts.push(
+      `The unit so far averages ${avgCR.toFixed(1)}/10 on Cognitive Rigour. ` +
+      `This lesson should include at least one Analyze or Evaluate activity and a thinking routine.`
+    );
+  }
+  if (avgSA < 5.5) {
+    parts.push(
+      `Student Agency is averaging ${avgSA.toFixed(1)}/10. ` +
+      `This lesson should include at least one student choice moment and one collaborative activity.`
+    );
+  }
+  if (avgTC < 5.5) {
+    parts.push(
+      `Teacher Craft is averaging ${avgTC.toFixed(1)}/10. ` +
+      `This lesson should vary grouping from previous lessons and include scaffolding for diverse learners.`
+    );
+  }
+
+  if (parts.length === 0) return ""; // all dimensions healthy — don't over-constrain
+
+  return `\n\n## Unit Balance (Lesson Pulse)\n${parts.join("\n")}`;
+}
+```
+
+**Token cost:** ~80-120 tokens injected into the prompt when a dimension is weak. Zero tokens when the unit is balanced. Self-limiting — as the unit improves, the guidance disappears.
+
+**Express mode benefits most.** Express generates everything from a topic string with zero teacher input. Without Pulse balancing, Express mode produces whatever the AI's default style is (often heavy on recall, light on agency). With Pulse, Express units are pedagogically balanced from the start — the AI self-corrects across the lesson arc.
+
+#### 13c. Pulse Targets in Skeleton Generation
+
+The skeleton prompt (outline generation) can include quality targets:
+
+```
+Generate an outline for a ${lessonCount}-lesson unit on "${topic}".
+
+Quality targets (Lesson Pulse):
+- Aim for 6+ on all three dimensions: Cognitive Rigour, Student Agency, Teacher Craft
+- Vary Bloom levels across lessons (don't cluster at Remember/Understand)
+- Include at least 2 lessons with explicit student choice moments
+- Vary grouping across the unit (not all individual work)
+- At least 1 lesson should include peer feedback or self-assessment
+```
+
+This steers the outline structure before any full lessons are generated.
+
+### Where the Lesson Pulse Displays (Priority Order)
+
+| # | Surface | What | Phase | Rationale |
+|---|---------|------|-------|-----------|
+| 1 | **Generation pipeline** | Post-generation scoring + surgical repair + cross-lesson balancing + skeleton targets | **Phase 1** (build with registry) | Highest impact: every generated unit gets better. Zero teacher effort required. |
+| 2 | **Generation review screen** | 3 gauge arcs per lesson on skeleton/review cards. "✨ Enhanced" badge on repaired lessons. Insights shown as tips. | **Phase 1** | Teacher sees the quality signal before committing. |
+| 3 | **DimensionsSummaryBar** (lesson editor) | 3 small gauge arcs (CR / SA / TC) + overall number. Click expands per-layer breakdown. Live update on edit. | **Phase 2** | Feedback loop: edit activity → watch score change. Makes layers feel purposeful. |
+| 4 | **Unit detail page** | Per-lesson Pulse dots (green ≥7, amber 4-6, red <4) in lesson list | **Phase 2** | Strategic overview: which lessons need attention. |
+| 5 | **Teacher dashboard** | Overall Pulse average per unit on unit cards | **Phase 3** | Cross-unit comparison: which units need redesign. |
+| 6 | **Teaching Mode (flagged students only)** | Contextual hint when teacher clicks a "Needs Help" student: shows current activity's weakest Pulse dimension + actionable suggestion | **Phase 3** | See §13d below |
+| 7 | **Upload analysis** | Estimate Pulse from extracted layer data on knowledge items | **Phase 4** | Low priority — analysis data is partial |
+
+**NOT displayed:** Teaching Mode main grid, projector view, student pages, grading. Pulse is a design quality metric, not a live teaching or student-facing metric.
+
+#### 13d. Teaching Mode: Flagged-Student Contextual Hints
+
+Pulse is a design-time metric — it measures the lesson plan, not what's happening live. Showing it on the main teaching grid adds noise to a high-cognitive-load screen. However, when a teacher clicks on a **flagged student** (Needs Help, stuck 3+ minutes, or integrity-flagged), a small contextual card can help diagnose whether the problem is the student or the lesson design.
+
+```
+┌─────────────────────────────────────────┐
+│  🔍 Sarah Chen — Needs Help             │
+│  On: Activity 3 "Design a solution"     │
+│  Time stuck: 4m 12s                     │
+│                                         │
+│  💡 This activity scores low on         │
+│     Student Agency (2.1/10).            │
+│     Try offering Sarah a choice of      │
+│     approach — "sketch, model, or       │
+│     describe your solution."            │
+│                                         │
+│  [Dismiss]  [Open Studio for Sarah]     │
+└─────────────────────────────────────────┘
+```
+
+**Rules:**
+- Only appears when the teacher clicks a flagged student (never on the main grid)
+- Only shows when the current activity scores below 4.0 on any dimension
+- The suggestion is generated from `generateInsights()` scoped to the single activity, not the whole lesson
+- If all dimensions are 4+, the hint says nothing about Pulse — the problem is likely student-specific, not design-specific
+- Zero additional API calls — Pulse scores are pre-computed on the lesson content and cached
+
+**Why this works:** Teachers in the cockpit are asking "why is this student stuck?" Pulse gives one possible answer — "the activity itself doesn't give students enough agency/scaffolding/rigour." That's a design insight the teacher can act on in the moment ("let me give Sarah a choice") AND after class ("I should redesign this activity").
 
 ### Why This Works (Research Alignment)
 
@@ -1544,12 +1696,24 @@ The weighted algorithm follows AHRQ's evidence: weights derived from effect size
 
 ---
 
-## 14. Open Questions (Remaining)
+## 14. Resolved + Remaining Open Questions
 
-1. **Should the Lesson Pulse be visible to students?** Current design: teacher-only. But a student-facing "This lesson challenges you at level X" could be motivating. Research on learning analytics dashboards is mixed — some studies show improved self-regulation, others show anxiety. **Default: hidden from students.** Revisit after teacher feedback.
+### Resolved (1 April 2026)
 
-2. **Should Lesson Pulse affect generation?** If post-generation scoring flags a lesson at < 5, should the system auto-regenerate? Or just highlight for teacher review? **Default: highlight only.** Auto-regeneration burns tokens and teachers might disagree with the scoring.
+1. **Should Lesson Pulse affect generation?** **YES — this is the primary use case.** Post-generation scoring + surgical repair (targeted Haiku call on weak dimensions) + cross-lesson balancing (running Pulse average injected into subsequent lesson prompts) + skeleton quality targets. See §13a-c. Silent repair with "✨ Enhanced" badge and teacher revert option.
 
-3. **Should the Pulse weights be teacher-adjustable?** A teacher who values Student Agency above all else might want to reweight. ESG analogy: some investors weight E over G. **Default: fixed research-based weights.** Custom weights in Phase 4+ if teachers request it.
+2. **Should Pulse appear in Teaching Mode?** **Only for flagged students.** When teacher clicks a "Needs Help" student, a contextual hint shows the current activity's weakest dimension + actionable suggestion. Never on the main teaching grid — that screen is for live monitoring, not design review. See §13d.
 
-4. **Per-lesson or per-unit Pulse?** Both. Per-lesson in the editor (diagnostic: fix this lesson). Per-unit on the dashboard (strategic: is this unit balanced across all lessons?). The unit-level score is the average of lesson-level scores, potentially with lesson weighting (Work Time-heavy lessons count more).
+3. **Priority order?** **Generation first, editor second, dashboard third.** Generation is highest impact (every unit gets better with zero teacher effort). Editor is the feedback loop (teachers see their edits move the needle). Dashboard is strategic overview (which units need redesign).
+
+4. **Per-lesson or per-unit Pulse?** Both. Per-lesson in the generation review + editor (diagnostic). Per-unit on the dashboard (strategic). Unit-level = average of lesson-level scores weighted by lesson Work Time duration.
+
+### Still Open
+
+1. **Should the Lesson Pulse be visible to students?** Current design: teacher-only. Research on learning analytics dashboards is mixed. **Default: hidden from students.** Revisit after teacher feedback.
+
+2. **Should the Pulse weights be teacher-adjustable?** **Default: fixed research-based weights.** Custom weights in Phase 4+ if teachers request it.
+
+3. **Should repair be silent or opt-in?** Current design: silent repair with revert. Alternative: show "we found 3 improvements" screen and let teacher approve each. Silent is better UX (fewer clicks) but riskier (teacher might not notice changes). **Decision needed after first build.**
+
+4. **Should Pulse data persist on content_data?** Options: (a) compute on-demand every time (pure, always fresh, slight compute cost), (b) cache `_pulse` on PageContent JSONB (fast reads, stale if teacher edits without recomputing). **Leaning toward (a) for editor, (b) for dashboard/generation review** — editor needs live updates, dashboard can tolerate cached scores.
