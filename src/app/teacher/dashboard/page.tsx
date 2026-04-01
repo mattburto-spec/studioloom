@@ -256,45 +256,122 @@ export default function TeacherDashboard() {
 // ---------------------------------------------------------------------------
 
 const FRAMEWORKS = [
-  { id: "IB_MYP", label: "IB MYP", desc: "Design cycle, criteria A-D", color: "#6366F1" },
-  { id: "GCSE_DT", label: "GCSE D&T", desc: "AO1-AO5 assessment", color: "#0D9488" },
-  { id: "IGCSE_DT", label: "IGCSE D&T", desc: "Cambridge pathway", color: "#0891B2" },
-  { id: "A_LEVEL_DT", label: "A-Level D&T", desc: "Advanced design", color: "#7C3AED" },
-  { id: "ACARA_DT", label: "ACARA D&T", desc: "Australian curriculum", color: "#D97706" },
-  { id: "PLTW", label: "PLTW", desc: "Project Lead the Way", color: "#DC2626" },
+  { id: "IB_MYP", label: "IB MYP", desc: "Design cycle, criteria A-D" },
+  { id: "GCSE_DT", label: "GCSE D&T", desc: "AO1-AO5 assessment" },
+  { id: "IGCSE_DT", label: "IGCSE D&T", desc: "Cambridge pathway" },
+  { id: "A_LEVEL_DT", label: "A-Level D&T", desc: "Advanced design" },
+  { id: "ACARA_DT", label: "ACARA D&T", desc: "Australian curriculum" },
+  { id: "PLTW", label: "PLTW", desc: "Project Lead the Way" },
 ];
 
 const PERIOD_OPTIONS = [
-  { value: 40, label: "40 min" },
-  { value: 45, label: "45 min" },
-  { value: 50, label: "50 min" },
-  { value: 55, label: "55 min" },
-  { value: 60, label: "60 min" },
-  { value: 75, label: "75 min" },
-  { value: 80, label: "80 min" },
-  { value: 90, label: "90 min" },
+  { value: 40, label: "40 min" }, { value: 45, label: "45 min" },
+  { value: 50, label: "50 min" }, { value: 55, label: "55 min" },
+  { value: 60, label: "60 min" }, { value: 75, label: "75 min" },
+  { value: 80, label: "80 min" }, { value: 90, label: "90 min" },
 ];
 
 const CYCLE_OPTIONS = [
-  { value: 5, label: "5-day (weekly)" },
-  { value: 6, label: "6-day" },
-  { value: 7, label: "7-day" },
-  { value: 8, label: "8-day" },
-  { value: 10, label: "10-day" },
+  { value: 5, label: "5-day (weekly)" }, { value: 6, label: "6-day" },
+  { value: 7, label: "7-day" }, { value: 8, label: "8-day" }, { value: 10, label: "10-day" },
 ];
 
+const TERM_TEMPLATES: Record<string, { label: string; names: string[] }> = {
+  "4terms": { label: "4 Terms", names: ["Term 1", "Term 2", "Term 3", "Term 4"] },
+  "2semesters": { label: "2 Semesters", names: ["Semester 1", "Semester 2"] },
+  "3trimesters": { label: "3 Trimesters", names: ["Trimester 1", "Trimester 2", "Trimester 3"] },
+};
+
+const GRADE_OPTIONS = [
+  { value: "6", label: "Year 6" }, { value: "7", label: "Year 7" },
+  { value: "8", label: "Year 8" }, { value: "9", label: "Year 9" },
+  { value: "10", label: "Year 10" }, { value: "11", label: "Year 11" },
+  { value: "12", label: "Year 12" }, { value: "13", label: "Year 13" },
+];
+
+const SUBJECT_OPTIONS = [
+  "Design", "Technology", "Engineering", "Art", "Digital Design",
+  "Food Technology", "Textiles", "Woodwork", "Product Design",
+];
+
+function currentAcademicYear(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  // Aug-Dec = this year start, Jan-Jul = previous year start
+  return month >= 7 ? `${year}-${year + 1}` : `${year - 1}-${year}`;
+}
+
 function WelcomeOnboarding({ teacherName, onCreateClass }: { teacherName: string; onCreateClass: () => void }) {
-  const [step, setStep] = useState<"choose" | "school" | "class">("choose");
+  const [step, setStep] = useState<"choose" | "school" | "teaching" | "class">("choose");
   const [saving, setSaving] = useState(false);
 
-  // School setup fields
+  // Step 1: School basics
   const [schoolName, setSchoolName] = useState("");
   const [country, setCountry] = useState("");
   const [framework, setFramework] = useState("IB_MYP");
   const [periodMinutes, setPeriodMinutes] = useState(50);
   const [cycleLength, setCycleLength] = useState(5);
+  const [termStructure, setTermStructure] = useState("4terms");
+  const [academicYear] = useState(currentAcademicYear);
 
-  async function saveSchoolAndContinue() {
+  // Step 2: Teaching preferences
+  const [gradeLevels, setGradeLevels] = useState<string[]>([]);
+  const [subjects, setSubjects] = useState<string[]>(["Design"]);
+  const [enableNM, setEnableNM] = useState(false);
+  const [enableUDL, setEnableUDL] = useState(false);
+
+  function toggleGrade(g: string) {
+    setGradeLevels((prev) => prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g]);
+  }
+  function toggleSubject(s: string) {
+    setSubjects((prev) => prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]);
+  }
+
+  async function saveSchoolStep() {
+    setSaving(true);
+    const headers = { "Content-Type": "application/json" };
+    try {
+      // 1. Save profile
+      await fetch("/api/teacher/profile", {
+        method: "POST", headers,
+        body: JSON.stringify({
+          school_name: schoolName.trim() || null,
+          country: country.trim() || null,
+          curriculum_framework: framework,
+          typical_period_minutes: periodMinutes,
+          school_context: { cycle_length: cycleLength },
+        }),
+      });
+
+      // 2. Create timetable (so Settings > Rotating Cycle is populated)
+      await fetch("/api/teacher/timetable", {
+        method: "POST", headers,
+        body: JSON.stringify({ cycle_length: cycleLength }),
+      }).catch(() => {});
+
+      // 3. Create school calendar terms
+      const template = TERM_TEMPLATES[termStructure];
+      if (template) {
+        await fetch("/api/teacher/school-calendar", {
+          method: "POST", headers,
+          body: JSON.stringify({
+            academic_year: academicYear,
+            terms: template.names.map((name, i) => ({
+              term_name: name,
+              term_order: i + 1,
+            })),
+          }),
+        }).catch(() => {});
+      }
+    } catch {
+      // Non-blocking — settings can be updated later
+    }
+    setSaving(false);
+    setStep("teaching");
+  }
+
+  async function saveTeachingAndContinue() {
     setSaving(true);
     try {
       await fetch("/api/teacher/profile", {
@@ -305,15 +382,20 @@ function WelcomeOnboarding({ teacherName, onCreateClass }: { teacherName: string
           country: country.trim() || null,
           curriculum_framework: framework,
           typical_period_minutes: periodMinutes,
+          grade_levels_taught: gradeLevels,
+          subjects_taught: subjects,
           school_context: { cycle_length: cycleLength },
+          teacher_preferences: { enable_nm: enableNM, enable_udl: enableUDL },
         }),
       });
     } catch {
-      // Non-blocking — settings can be updated later
+      // Non-blocking
     }
     setSaving(false);
     setStep("class");
   }
+
+  const stepNumber = step === "school" ? 1 : step === "teaching" ? 2 : step === "class" ? 3 : 0;
 
   return (
     <div className="space-y-5">
@@ -327,22 +409,22 @@ function WelcomeOnboarding({ teacherName, onCreateClass }: { teacherName: string
           backgroundSize: "60px 60px, 40px 40px",
         }} />
         <div className="relative">
-          <div className="flex items-center gap-3 mb-3">
-            <h1 className="text-2xl font-bold text-white tracking-tight">
-              Welcome{teacherName ? `, ${teacherName}` : ""}!
-            </h1>
-          </div>
+          <h1 className="text-2xl font-bold text-white tracking-tight mb-2">
+            Welcome{teacherName ? `, ${teacherName}` : ""}!
+          </h1>
           <p className="text-white/80 text-base max-w-xl leading-relaxed">
             The platform for classrooms where students make, solve, and create — with AI that supports your teaching.
           </p>
           {step === "choose" && (
-            <p className="text-white/50 text-sm mt-2">Let&apos;s get you set up — it only takes a minute.</p>
+            <p className="text-white/50 text-sm mt-2">Let&apos;s get you set up — it only takes a couple of minutes.</p>
           )}
-          {step !== "choose" && (
+          {stepNumber > 0 && (
             <div className="flex items-center gap-2 mt-3">
-              <StepDot active={step === "school"} done={step === "class"} label="1" />
-              <div className="w-8 h-px bg-white/20" />
-              <StepDot active={step === "class"} done={false} label="2" />
+              <StepDot active={stepNumber === 1} done={stepNumber > 1} label="1" />
+              <div className="w-6 h-px bg-white/20" />
+              <StepDot active={stepNumber === 2} done={stepNumber > 2} label="2" />
+              <div className="w-6 h-px bg-white/20" />
+              <StepDot active={stepNumber === 3} done={false} label="3" />
             </div>
           )}
         </div>
@@ -367,7 +449,7 @@ function WelcomeOnboarding({ teacherName, onCreateClass }: { teacherName: string
               <span className="text-xs font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full uppercase tracking-wide">Recommended</span>
             </div>
             <h3 className="text-base font-bold text-gray-900 mb-1">Quick Setup</h3>
-            <p className="text-sm text-gray-500 leading-relaxed">Tell us about your school and create your first class. Takes about a minute.</p>
+            <p className="text-sm text-gray-500 leading-relaxed">Tell us about your school and teaching. Takes about two minutes.</p>
           </button>
 
           <Link
@@ -396,31 +478,23 @@ function WelcomeOnboarding({ teacherName, onCreateClass }: { teacherName: string
         <div className="bg-white rounded-2xl p-6 border border-border shadow-sm space-y-5">
           <div>
             <h2 className="text-lg font-bold text-gray-900 mb-0.5">About Your School</h2>
-            <p className="text-sm text-gray-400">This helps the AI generate lessons that fit your timetable. You can change all of this in Settings later.</p>
+            <p className="text-sm text-gray-400">This drives lesson timing, timetable, and AI generation. Change anytime in Settings.</p>
           </div>
 
-          {/* School name */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 mb-1.5">School Name <span className="text-gray-300 font-normal">(optional)</span></label>
-            <input
-              type="text"
-              value={schoolName}
-              onChange={(e) => setSchoolName(e.target.value)}
-              placeholder="e.g. Nanjing International School"
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-400 transition-all text-sm"
-            />
-          </div>
-
-          {/* Location */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 mb-1.5">Location <span className="text-gray-300 font-normal">(optional)</span></label>
-            <input
-              type="text"
-              value={country}
-              onChange={(e) => setCountry(e.target.value)}
-              placeholder="e.g. China, Australia, UK"
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-400 transition-all text-sm"
-            />
+          {/* School name + Location row */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1.5">School Name <span className="text-gray-300 font-normal">(optional)</span></label>
+              <input type="text" value={schoolName} onChange={(e) => setSchoolName(e.target.value)}
+                placeholder="e.g. Nanjing International School"
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-400 transition-all text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1.5">Location <span className="text-gray-300 font-normal">(optional)</span></label>
+              <input type="text" value={country} onChange={(e) => setCountry(e.target.value)}
+                placeholder="e.g. China, Australia, UK"
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-400 transition-all text-sm" />
+            </div>
           </div>
 
           {/* Framework */}
@@ -428,15 +502,8 @@ function WelcomeOnboarding({ teacherName, onCreateClass }: { teacherName: string
             <label className="block text-xs font-semibold text-gray-500 mb-1.5">Curriculum Framework</label>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               {FRAMEWORKS.map((fw) => (
-                <button
-                  key={fw.id}
-                  onClick={() => setFramework(fw.id)}
-                  className={`p-2.5 rounded-xl border-2 text-left transition-all ${
-                    framework === fw.id
-                      ? "border-purple-500 bg-purple-50 shadow-sm"
-                      : "border-gray-200 hover:border-gray-300 bg-white"
-                  }`}
-                >
+                <button key={fw.id} onClick={() => setFramework(fw.id)}
+                  className={`p-2.5 rounded-xl border-2 text-left transition-all ${framework === fw.id ? "border-purple-500 bg-purple-50 shadow-sm" : "border-gray-200 hover:border-gray-300 bg-white"}`}>
                   <div className="text-xs font-bold text-gray-900">{fw.label}</div>
                   <div className="text-[10px] text-gray-400 mt-0.5">{fw.desc}</div>
                 </button>
@@ -444,21 +511,14 @@ function WelcomeOnboarding({ teacherName, onCreateClass }: { teacherName: string
             </div>
           </div>
 
-          {/* Period + Cycle in one row */}
+          {/* Period + Cycle */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-gray-500 mb-1.5">Period Length</label>
               <div className="flex flex-wrap gap-1.5">
                 {PERIOD_OPTIONS.map((p) => (
-                  <button
-                    key={p.value}
-                    onClick={() => setPeriodMinutes(p.value)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                      periodMinutes === p.value
-                        ? "bg-purple-100 text-purple-700 border border-purple-300"
-                        : "bg-gray-50 text-gray-500 border border-gray-200 hover:border-gray-300"
-                    }`}
-                  >
+                  <button key={p.value} onClick={() => setPeriodMinutes(p.value)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${periodMinutes === p.value ? "bg-purple-100 text-purple-700 border border-purple-300" : "bg-gray-50 text-gray-500 border border-gray-200 hover:border-gray-300"}`}>
                     {p.label}
                   </button>
                 ))}
@@ -468,16 +528,30 @@ function WelcomeOnboarding({ teacherName, onCreateClass }: { teacherName: string
               <label className="block text-xs font-semibold text-gray-500 mb-1.5">Timetable Cycle</label>
               <div className="flex flex-wrap gap-1.5">
                 {CYCLE_OPTIONS.map((c) => (
-                  <button
-                    key={c.value}
-                    onClick={() => setCycleLength(c.value)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                      cycleLength === c.value
-                        ? "bg-purple-100 text-purple-700 border border-purple-300"
-                        : "bg-gray-50 text-gray-500 border border-gray-200 hover:border-gray-300"
-                    }`}
-                  >
+                  <button key={c.value} onClick={() => setCycleLength(c.value)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${cycleLength === c.value ? "bg-purple-100 text-purple-700 border border-purple-300" : "bg-gray-50 text-gray-500 border border-gray-200 hover:border-gray-300"}`}>
                     {c.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Academic Year + Term Structure */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1.5">Academic Year</label>
+              <div className="px-4 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-700 bg-gray-50">
+                {academicYear}
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1.5">Term Structure</label>
+              <div className="flex flex-wrap gap-1.5">
+                {Object.entries(TERM_TEMPLATES).map(([key, t]) => (
+                  <button key={key} onClick={() => setTermStructure(key)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${termStructure === key ? "bg-purple-100 text-purple-700 border border-purple-300" : "bg-gray-50 text-gray-500 border border-gray-200 hover:border-gray-300"}`}>
+                    {t.label}
                   </button>
                 ))}
               </div>
@@ -486,57 +560,113 @@ function WelcomeOnboarding({ teacherName, onCreateClass }: { teacherName: string
 
           {/* Actions */}
           <div className="flex items-center gap-3 pt-2">
-            <button
-              onClick={saveSchoolAndContinue}
-              disabled={saving}
+            <button onClick={saveSchoolStep} disabled={saving}
               className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-bold text-white rounded-xl transition-all duration-200 hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] disabled:opacity-50"
-              style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)", boxShadow: "0 4px 14px rgba(123, 47, 242, 0.3)" }}
-            >
-              {saving ? "Saving..." : "Next — Create a Class"}
-              {!saving && (
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M5 12h14M12 5l7 7-7 7" />
-                </svg>
-              )}
+              style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)", boxShadow: "0 4px 14px rgba(123, 47, 242, 0.3)" }}>
+              {saving ? "Saving..." : "Next — Your Teaching"}
+              {!saving && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg>}
             </button>
-            <button
-              onClick={() => setStep("choose")}
-              className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
-            >
-              Back
-            </button>
+            <button onClick={() => setStep("choose")} className="text-sm text-gray-400 hover:text-gray-600 transition-colors">Back</button>
           </div>
         </div>
       )}
 
-      {/* Step 2: Create class */}
+      {/* Step 2: Teaching preferences */}
+      {step === "teaching" && (
+        <div className="bg-white rounded-2xl p-6 border border-border shadow-sm space-y-5">
+          <div>
+            <div className="flex items-center gap-2 mb-0.5">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22C55E" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
+              <span className="text-xs font-medium text-green-600">School settings saved</span>
+            </div>
+            <h2 className="text-lg font-bold text-gray-900 mt-2 mb-0.5">Your Teaching</h2>
+            <p className="text-sm text-gray-400">Helps us tailor the experience. All optional.</p>
+          </div>
+
+          {/* Grade levels */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1.5">Year Levels You Teach</label>
+            <div className="flex flex-wrap gap-1.5">
+              {GRADE_OPTIONS.map((g) => (
+                <button key={g.value} onClick={() => toggleGrade(g.value)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${gradeLevels.includes(g.value) ? "bg-purple-100 text-purple-700 border border-purple-300" : "bg-gray-50 text-gray-500 border border-gray-200 hover:border-gray-300"}`}>
+                  {g.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Subjects */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1.5">Subjects You Teach</label>
+            <div className="flex flex-wrap gap-1.5">
+              {SUBJECT_OPTIONS.map((s) => (
+                <button key={s} onClick={() => toggleSubject(s)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${subjects.includes(s) ? "bg-purple-100 text-purple-700 border border-purple-300" : "bg-gray-50 text-gray-500 border border-gray-200 hover:border-gray-300"}`}>
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Feature toggles */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-2">Optional Features</label>
+            <div className="space-y-2.5">
+              <label className="flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-purple-200 transition-all cursor-pointer">
+                <input type="checkbox" checked={enableNM} onChange={(e) => setEnableNM(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500" />
+                <div>
+                  <div className="text-sm font-semibold text-gray-900">Melbourne Metrics (NM)</div>
+                  <div className="text-xs text-gray-400 mt-0.5">Competency-based assessment from the University of Melbourne framework. Students self-assess, teachers observe.</div>
+                </div>
+              </label>
+              <label className="flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-purple-200 transition-all cursor-pointer">
+                <input type="checkbox" checked={enableUDL} onChange={(e) => setEnableUDL(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500" />
+                <div>
+                  <div className="text-sm font-semibold text-gray-900">Universal Design for Learning (UDL)</div>
+                  <div className="text-xs text-gray-400 mt-0.5">Tag activities with CAST UDL checkpoints. Track inclusivity coverage across your units.</div>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center gap-3 pt-2">
+            <button onClick={saveTeachingAndContinue} disabled={saving}
+              className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-bold text-white rounded-xl transition-all duration-200 hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] disabled:opacity-50"
+              style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)", boxShadow: "0 4px 14px rgba(123, 47, 242, 0.3)" }}>
+              {saving ? "Saving..." : "Next — Create a Class"}
+              {!saving && <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M12 5l7 7-7 7" /></svg>}
+            </button>
+            <button onClick={() => setStep("school")} className="text-sm text-gray-400 hover:text-gray-600 transition-colors">Back</button>
+            <button onClick={() => setStep("class")} className="text-sm text-gray-400 hover:text-gray-600 transition-colors ml-auto">Skip</button>
+          </div>
+        </div>
+      )}
+
+      {/* Step 3: Create class */}
       {step === "class" && (
         <div className="bg-white rounded-2xl p-6 border border-border shadow-sm">
           <div className="mb-5">
             <div className="flex items-center gap-2 mb-0.5">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22C55E" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
-              <span className="text-xs font-medium text-green-600">School settings saved</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22C55E" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
+              <span className="text-xs font-medium text-green-600">Settings saved</span>
             </div>
             <h2 className="text-lg font-bold text-gray-900 mt-2 mb-0.5">Create Your First Class</h2>
             <p className="text-sm text-gray-400">Students will use a join code to connect. You can create more classes later.</p>
           </div>
 
-          <button
-            onClick={onCreateClass}
+          <button onClick={onCreateClass}
             className="inline-flex items-center gap-2.5 px-6 py-3 text-sm font-bold text-white rounded-xl transition-all duration-200 hover:scale-[1.02] hover:shadow-lg active:scale-[0.98]"
-            style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)", boxShadow: "0 4px 14px rgba(123, 47, 242, 0.35)" }}
-          >
+            style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)", boxShadow: "0 4px 14px rgba(123, 47, 242, 0.35)" }}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 5v14m-7-7h14" />
             </svg>
             Create a Class
           </button>
-          <button
-            onClick={() => setStep("school")}
-            className="ml-3 text-sm text-gray-400 hover:text-gray-600 transition-colors"
-          >
-            Back
-          </button>
+          <button onClick={() => setStep("teaching")} className="ml-3 text-sm text-gray-400 hover:text-gray-600 transition-colors">Back</button>
         </div>
       )}
     </div>
