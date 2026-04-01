@@ -4,6 +4,7 @@ import type { ActivitySection, BloomLevel } from "@/types";
 
 interface DimensionsSummaryBarProps {
   sections: ActivitySection[];
+  udlEnabled?: boolean;
 }
 
 // UDL checkpoint → principle mapping (CAST framework)
@@ -132,7 +133,7 @@ function CognitiveLoadCurve({ sections }: { sections: ActivitySection[] }) {
  * DimensionsSummaryBar — compact summary of Dimensions metadata for a lesson's activities.
  * Shows: Bloom distribution mini-bar, cognitive load curve, UDL coverage dots (3 principles), grouping variety.
  */
-export default function DimensionsSummaryBar({ sections }: DimensionsSummaryBarProps) {
+export default function DimensionsSummaryBar({ sections, udlEnabled = true }: DimensionsSummaryBarProps) {
   // Compute Bloom distribution
   const bloomCounts: Record<BloomLevel, number> = {
     remember: 0, understand: 0, apply: 0, analyze: 0, evaluate: 0, create: 0,
@@ -201,7 +202,7 @@ export default function DimensionsSummaryBar({ sections }: DimensionsSummaryBarP
       )}
 
       {/* UDL coverage dots */}
-      <div className="flex items-center gap-1.5" title={`UDL coverage: ${udlCount}/3 principles`}>
+      {udlEnabled && <div className="flex items-center gap-1.5" title={`UDL coverage: ${udlCount}/3 principles`}>
         <span className="text-xs text-gray-500 font-medium">UDL</span>
         <div className="flex gap-1">
           <span
@@ -229,7 +230,7 @@ export default function DimensionsSummaryBar({ sections }: DimensionsSummaryBarP
             title={`Action & Expression: ${udlCoverage.action_expression ? "Covered" : "Not covered"}`}
           />
         </div>
-      </div>
+      </div>}
 
       {/* Grouping variety */}
       {groupings.size > 0 && (

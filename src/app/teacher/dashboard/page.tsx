@@ -388,8 +388,8 @@ function WelcomeOnboarding({ teacherName, onCreateClass }: { teacherName: string
           typical_period_minutes: periodMinutes,
           grade_levels_taught: gradeLevels,
           subjects_taught: subjects,
-          school_context: { cycle_length: cycleLength },
-          teacher_preferences: { enable_nm: enableNM, enable_udl: enableUDL },
+          school_context: { cycle_length: cycleLength, use_new_metrics: enableNM },
+          teacher_preferences: { enable_udl: enableUDL },
         }),
       });
     } catch {

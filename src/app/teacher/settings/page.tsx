@@ -105,6 +105,7 @@ export default function TeacherSettingsPage() {
   const [studentAgeMin, setStudentAgeMin] = useState<number>(11);
   const [studentAgeMax, setStudentAgeMax] = useState<number>(16);
   const [useNewMetrics, setUseNewMetrics] = useState(false);
+  const [useUDL, setUseUDL] = useState(false);
   const [teachingStyle, setTeachingStyle] = useState("");
   const [yearsExperience, setYearsExperience] = useState<number | "">("");
   const [savingProfile, setSavingProfile] = useState(false);
@@ -250,6 +251,8 @@ export default function TeacherSettingsPage() {
         const tp = p.teacher_preferences || {};
         setTeachingStyle(tp.classroom_management_style || "");
         setYearsExperience(tp.years_experience || "");
+        // UDL
+        setUseUDL(tp.enable_udl || false);
         setProfileLoaded(true);
       }
     } catch {
@@ -405,6 +408,7 @@ export default function TeacherSettingsPage() {
           teacher_preferences: {
             classroom_management_style: teachingStyle.trim() || null,
             years_experience: yearsExperience || null,
+            enable_udl: useUDL,
           },
         }),
       });
@@ -1220,6 +1224,33 @@ export default function TeacherSettingsPage() {
             {useNewMetrics && (
               <div className="mt-4 p-3 rounded-lg" style={{ background: "rgba(123,47,242,0.05)", border: "1px solid rgba(123,47,242,0.15)" }}>
                 <p className="text-sm text-text-secondary">Student self-assessment pulse and teacher observation snap will appear on checkpoint pages. Configure which competencies to track per class in each unit&apos;s class settings.</p>
+              </div>
+            )}
+          </section>
+
+          {/* ── 6. UDL ── */}
+          <section className="bg-white rounded-xl p-6 border border-border">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-text-primary mb-1">Universal Design for Learning</h2>
+                <p className="text-sm text-text-secondary">Tag activities with CAST UDL checkpoints and track inclusivity coverage across your units.</p>
+              </div>
+              <button
+                onClick={() => setUseUDL(!useUDL)}
+                className="relative flex-shrink-0 w-12 h-7 rounded-full transition-colors duration-200"
+                style={{ background: useUDL ? "#7B2FF2" : "#D1D5DB" }}
+                role="switch"
+                aria-checked={useUDL}
+              >
+                <span
+                  className="absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform duration-200"
+                  style={{ transform: useUDL ? "translateX(20px)" : "translateX(0)" }}
+                />
+              </button>
+            </div>
+            {useUDL && (
+              <div className="mt-4 p-3 rounded-lg" style={{ background: "rgba(123,47,242,0.05)", border: "1px solid rgba(123,47,242,0.15)" }}>
+                <p className="text-sm text-text-secondary">The UDL tab will appear in the lesson editor so you can tag activities with CAST checkpoints (Engagement, Representation, Action &amp; Expression). Coverage indicators will show on each lesson.</p>
               </div>
             )}
           </section>

@@ -102,6 +102,14 @@ export default function LessonEditor({
     suggestedBlockIds,
   } = useAISuggestions({ unitId, classId });
 
+  // Teacher preferences (UDL gating)
+  const [udlEnabled, setUdlEnabled] = useState(false);
+  useEffect(() => {
+    fetch("/api/teacher/profile").then(r => r.ok ? r.json() : null).then(data => {
+      if (data) setUdlEnabled(data.teacher_preferences?.enable_udl || data.school_context?.enable_udl || false);
+    }).catch(() => {});
+  }, []);
+
   // AI generation state
   const [showAIGenerate, setShowAIGenerate] = useState(false);
   const [aiTopic, setAiTopic] = useState("");
@@ -736,7 +744,7 @@ export default function LessonEditor({
               )}
               {/* Dimensions bar (non-sticky) when no timeline exists */}
               {!phases && pageContent?.sections && pageContent.sections.length > 0 && (
-                <DimensionsSummaryBar sections={pageContent.sections} />
+                <DimensionsSummaryBar sections={pageContent.sections} udlEnabled={udlEnabled} />
               )}
               {phases && (
                 <div className="sticky top-0 z-20 bg-white/90 backdrop-blur-sm pb-3 mb-4 -mx-6 px-6 pt-2 border-b border-gray-100">
@@ -780,7 +788,7 @@ export default function LessonEditor({
                   </div>
                   {/* ─── Dimensions Summary Bar (sticky with timeline) ─── */}
                   {pageContent?.sections && pageContent.sections.length > 0 && (
-                    <DimensionsSummaryBar sections={pageContent.sections} />
+                    <DimensionsSummaryBar sections={pageContent.sections} udlEnabled={udlEnabled} />
                   )}
                 </div>
               )}
@@ -1028,6 +1036,7 @@ export default function LessonEditor({
                                 activity={section}
                                 index={index}
                                 framework={framework}
+                                udlEnabled={udlEnabled}
                                 onUpdate={(partial) =>
                                   handleUpdateActivity(index, partial)
                                 }
