@@ -1922,7 +1922,7 @@ const PROJECTS = [
     {
         id: 'lesson-pulse',
         name: 'Lesson Pulse',
-        desc: 'Composite quality scoring — 3 dimensions (Cognitive Rigour, Student Agency, Teacher Craft) + overall. Generation co-pilot first, then editor. Algorithm validated against 3 real lesson plans (1 Apr).',
+        desc: 'Composite quality scoring — 3 dimensions (Cognitive Rigour, Student Agency, Teacher Craft) + overall. Generation co-pilot first, then editor. Algorithm + Teaching Moves Library validated against 3 real lesson plans (1-2 Apr).',
         file: 'docs/projects/lesson-pulse.md',
         status: 'active',
         phases: [
@@ -1934,7 +1934,7 @@ const PROJECTS = [
             { name: 'Phase 1c: Generation wiring (4 routes + try/catch)', est: 'done', done: true },
             { name: 'Phase 1d: Review screen UI (PulseGauges SVG arcs)', est: 'done', done: true },
             { name: 'Real lesson plan validation (3 plans scored: 4.4–4.8)', est: 'done', done: true },
-            { name: 'Teaching Moves Library (data model + seed ~50 moves + generation + editor + extraction)', est: '3 days', done: false },
+            { name: 'Teaching Moves Library (~65 curated moves, scored retrieval, generation + Pulse repair wiring, 29 tests)', est: 'done', done: true },
             { name: 'Voice/Personality Layer (style profile extension + prompt injection)', est: '2 days', done: false },
             { name: 'Sequencing Intuition (energy curve model + activity energy tagging)', est: '1.5 days', done: false },
             { name: 'Exemplar Contrast (annotation format + retrieval + prompt integration)', est: '2 days', done: false },
@@ -1942,6 +1942,18 @@ const PROJECTS = [
             { name: 'Phase 2b: Unit detail (per-lesson Pulse dots)', est: '0.5 days', done: false },
             { name: 'Phase 3a: Dashboard (unit-level Pulse average on cards)', est: '0.5 days', done: false },
             { name: 'Phase 3b: Teaching Mode hints (flagged-student contextual card)', est: '0.5 days', done: false },
+        ]
+    },
+    {
+        id: 'studentchoice',
+        name: 'Student Choice Units',
+        desc: 'Students pick their own unit from a teacher-curated list. Depends on content library being populated (Unified Upload Architecture first). Phase 4+ feature.',
+        file: 'docs/projects/studentchoice.md',
+        status: 'planned',
+        phases: [
+            { name: 'Phase 1: Basic Choice (Choice Round creation, student browse + select, mixed-unit progress tracking)', est: '3 days', done: false },
+            { name: 'Phase 2: Smart Recommendations (AI suggests based on Discovery Profile + difficulty matching)', est: '2 days', done: false },
+            { name: 'Phase 3: Peer Grouping (same-unit students see each other, mini gallery, cross-unit review)', est: '2 days', done: false },
         ]
     },
 ];

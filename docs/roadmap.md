@@ -64,10 +64,16 @@ Based on the [full site audit](full-site-audit-2026-03-24.md): ~25% of code is b
 - ✅ Discovery Engine BUILT (26 Mar) — ~9,500 lines, 8 stations, all content.
 - ✅ Student Onboarding ("Studio Setup") BUILT (27 Mar) — 4-screen character creation, 3 mentors, 4 themes.
 - ✅ Landing Page Rebuild (27 Mar) — complete rewrite showcasing all features.
-- ✅ **Lesson Pulse Phase 1 COMPLETE (1 Apr)** — Algorithm (~550 lines, 47 tests), generation wiring (4 routes with try/catch), review UI (PulseGauges on JourneyLessonCard), Context Injection (3 wizard fields in all lanes). Validated against 3 real lesson plans (scores 4.4–4.8, correct differentiation). **Remaining:** Teaching Moves Library (~3 days), editor UI (gauge arcs on DimensionsSummaryBar), unit detail (per-lesson dots), dashboard (unit averages), Teaching Mode (flagged-student hints). Spec: `docs/specs/lesson-layer-architecture.md` §13. Plan: `docs/projects/lesson-pulse.md`.
+- ✅ **Lesson Pulse Phase 1 + Teaching Moves Library COMPLETE (1-2 Apr)** — Algorithm (~550 lines, 47 tests), generation wiring (4 routes with try/catch), review UI (PulseGauges on JourneyLessonCard), Context Injection (3 wizard fields in all lanes), Teaching Moves Library (~65 curated moves, scored retrieval, wired into generation prompts + Pulse repair + cross-lesson balancing, 29 tests). Validated against 3 real lesson plans (Under Pressure 4.4, Packaging Redesign 4.8, Biomimicry 4.6). **Remaining:** Voice/Personality Layer, Sequencing Intuition, editor UI (gauge arcs), unit detail (per-lesson dots), dashboard (unit averages), Teaching Mode (flagged-student hints). Spec: `docs/specs/lesson-layer-architecture.md` §13. Plan: `docs/projects/lesson-pulse.md`.
 - ⬜ Lesson Plan Converter — spec at `docs/specs/lesson-plan-converter.md`.
 - ⬜ Year Planner & Curriculum Connection — spec at `docs/specs/year-planner-spec.md`.
+- ⬜ **Student Choice Units** — students pick their own unit from teacher-curated list. Depends on content library (Unified Upload Architecture first). Project doc: `docs/projects/studentchoice.md`. Phase 4+ feature.
+- ⬜ **Feedback Loop Closure (2 Apr analysis)** — 4 items to close 6/10→8/10 gap: (1) closed-loop activity tracking (Dimensions Phase 5), (2) cold-start velocity learning (Dimensions Phase 5), (3) real-time difficulty routing (Intelligence Profile Phase 3), (4) adaptive Discovery shortening (Discovery Intelligence Layer Phase B). All need real student data first — infrastructure collecting, loops don't exist yet.
 - ✅ **Project Dimensions Phases 0-4b COMPLETE (31 Mar)** — Migrations 057+058 APPLIED. RAG pipeline enrichment (Pass 2b fallback), generation schemas wired, knowledge card UI, client tracking hook, lesson editor UI (bloom/grouping/ai_rules/UDL tabs). Phase 5 (reports + velocity loop) remaining. Spec: `docs/specs/data-architecture-v2.md`. Plan: `docs/projects/dimensions.md`.
+
+### Tech Debt
+- ⬜ **Wizard refactor (refactor on contact)** — 10,900 LOC, 73 actions, 28 state fields. Split useWizardState into 4 focused hooks, unify input sources, add GenerationMode enum (~2-3 days). Do when next touching wizard state — not as standalone task. Decision: 2 Apr 2026.
+- ⬜ API deduplication (~2,890 wasted lines from 17× copied `callHaiku()`)
 
 ### Wiring Sprint (from site audit — ~2-3 days)
 - ⬜ Wire MonitoredTextarea into submissions (see Tier 1)
