@@ -14,6 +14,14 @@ export interface Class {
   name: string;
   code: string;
   created_at: string;
+  // Class properties (migration 033 + 055)
+  framework?: string | null;
+  subject?: string | null;
+  grade_level?: string | null;
+  is_archived?: boolean;
+  academic_year?: string | null;
+  instruction_language?: string | null;
+  additional_languages?: string[] | null;
   // LMS integration (provider-agnostic)
   external_class_id: string | null;
   external_provider: string | null;

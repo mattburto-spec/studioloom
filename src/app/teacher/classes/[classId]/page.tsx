@@ -136,6 +136,76 @@ export default function ClassDetailPage({
   const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
   const [syncError, setSyncError] = useState("");
 
+  // Class details editing
+  const [showClassSettings, setShowClassSettings] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editFramework, setEditFramework] = useState("");
+  const [editSubject, setEditSubject] = useState("");
+  const [editGradeLevel, setEditGradeLevel] = useState("");
+  const [savingClass, setSavingClass] = useState(false);
+  const [classSaveStatus, setClassSaveStatus] = useState<"" | "saved" | "error">("");
+
+  // Sync edit fields when classInfo loads
+  useEffect(() => {
+    if (classInfo) {
+      setEditName(classInfo.name || "");
+      setEditFramework(classInfo.framework || "IB_MYP");
+      setEditSubject(classInfo.subject || "design");
+      setEditGradeLevel(classInfo.grade_level || "");
+    }
+  }, [classInfo]);
+
+  async function saveClassDetails() {
+    if (!classInfo) return;
+    setSavingClass(true);
+    setClassSaveStatus("");
+    try {
+      const supabase = createClient();
+      const updates: Record<string, unknown> = {};
+      if (editName.trim() && editName.trim() !== classInfo.name) updates.name = editName.trim();
+      if (editFramework !== (classInfo.framework || "IB_MYP")) updates.framework = editFramework;
+      if (editSubject !== (classInfo.subject || "design")) updates.subject = editSubject;
+      if ((editGradeLevel || null) !== (classInfo.grade_level || null)) updates.grade_level = editGradeLevel || null;
+
+      if (Object.keys(updates).length === 0) {
+        setSavingClass(false);
+        setClassSaveStatus("saved");
+        setTimeout(() => setClassSaveStatus(""), 2000);
+        return;
+      }
+
+      const { error } = await supabase
+        .from("classes")
+        .update(updates)
+        .eq("id", classId);
+
+      if (error) throw error;
+
+      // Update local state
+      setClassInfo({ ...classInfo, ...updates } as Class);
+      setClassSaveStatus("saved");
+      setTimeout(() => setClassSaveStatus(""), 2000);
+    } catch (err) {
+      console.error("Failed to save class details:", err);
+      setClassSaveStatus("error");
+    } finally {
+      setSavingClass(false);
+    }
+  }
+
+  async function toggleArchive() {
+    if (!classInfo) return;
+    const supabase = createClient();
+    const newVal = !classInfo.is_archived;
+    const { error } = await supabase
+      .from("classes")
+      .update({ is_archived: newVal })
+      .eq("id", classId);
+    if (!error) {
+      setClassInfo({ ...classInfo, is_archived: newVal });
+    }
+  }
+
   useEffect(() => {
     loadData();
     checkIntegration();
@@ -764,15 +834,179 @@ export default function ClassDetailPage({
         <div>
           <h1 className="text-3xl font-extrabold text-gray-900">
             {classInfo?.name}
+            {classInfo?.is_archived && (
+              <span className="ml-3 text-sm font-semibold px-2.5 py-1 rounded-full bg-gray-100 text-gray-500 align-middle">Archived</span>
+            )}
           </h1>
-          <div className="flex items-center gap-2 mt-1">
+          <div className="flex items-center gap-3 mt-1">
             <span className="text-gray-500 text-sm">Class Code:</span>
             <span className="font-mono font-semibold text-sm px-2.5 py-0.5 rounded-lg" style={{ background: "#DBEAFE", color: "#1E40AF" }}>
               {classInfo?.code}
             </span>
+            {classInfo?.framework && (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border"
+                style={{
+                  background: ({ IB_MYP: "#EEF2FF", GCSE_DT: "#ECFDF5", IGCSE_DT: "#EFF6FF", A_LEVEL_DT: "#FFFBEB", ACARA_DT: "#FDF2F8", PLTW: "#F5F3FF", NESA_DT: "#F0F9FF", VIC_DT: "#F0FDFA" } as Record<string, string>)[classInfo.framework] || "#F3F4F6",
+                  color: ({ IB_MYP: "#3730A3", GCSE_DT: "#065F46", IGCSE_DT: "#1E40AF", A_LEVEL_DT: "#92400E", ACARA_DT: "#9D174D", PLTW: "#5B21B6", NESA_DT: "#0369A1", VIC_DT: "#0F766E" } as Record<string, string>)[classInfo.framework] || "#374151",
+                  borderColor: ({ IB_MYP: "#C7D2FE", GCSE_DT: "#A7F3D0", IGCSE_DT: "#BFDBFE", A_LEVEL_DT: "#FEF3C7", ACARA_DT: "#FBCFE8", PLTW: "#EDE9FE", NESA_DT: "#BAE6FD", VIC_DT: "#99F6E4" } as Record<string, string>)[classInfo.framework] || "#E5E7EB",
+                }}>
+                {({ IB_MYP: "MYP", GCSE_DT: "GCSE", IGCSE_DT: "IGCSE", A_LEVEL_DT: "A-Level", ACARA_DT: "ACARA", PLTW: "PLTW", NESA_DT: "NESA", VIC_DT: "VIC" } as Record<string, string>)[classInfo.framework] || classInfo.framework}
+              </span>
+            )}
+            {classInfo?.subject && classInfo.subject !== "design" && (
+              <span className="text-xs text-gray-500 capitalize">{({ service: "Service", pp: "Personal Project", pypx: "PYP Exhibition", inquiry: "Inquiry" } as Record<string, string>)[classInfo.subject] || classInfo.subject}</span>
+            )}
+            {classInfo?.grade_level && (
+              <span className="text-xs text-gray-400">{classInfo.grade_level}</span>
+            )}
           </div>
         </div>
+        <button
+          onClick={() => setShowClassSettings(!showClassSettings)}
+          className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition"
+          title="Class Settings"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+          </svg>
+        </button>
       </div>
+
+      {/* ── Class Settings Panel ── */}
+      {showClassSettings && (
+        <section className="mb-6 bg-white rounded-2xl border border-gray-200 overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <h2 className="text-sm font-bold text-gray-900 flex items-center gap-2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+              </svg>
+              Class Settings
+            </h2>
+            <div className="flex items-center gap-2">
+              {classSaveStatus === "saved" && <span className="text-xs text-emerald-600 font-medium">Saved</span>}
+              {classSaveStatus === "error" && <span className="text-xs text-red-500 font-medium">Save failed</span>}
+              <button
+                onClick={saveClassDetails}
+                disabled={savingClass}
+                className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-purple-600 text-white hover:bg-purple-700 transition disabled:opacity-50"
+              >
+                {savingClass ? "Saving..." : "Save Changes"}
+              </button>
+            </div>
+          </div>
+
+          <div className="px-5 py-4 space-y-4">
+            {/* Class name */}
+            <div>
+              <label className="text-xs font-semibold text-gray-600 mb-1.5 block">Class Name</label>
+              <input
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder="e.g. Year 10 Design & Technology"
+                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Subject / Programme Type */}
+              <div>
+                <label className="text-xs font-semibold text-gray-600 mb-1.5 block">Subject / Programme Type</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { id: "design", label: "Design", color: "#14B8A6" },
+                    { id: "service", label: "Service", color: "#EC4899" },
+                    { id: "pp", label: "Personal Project", color: "#8B5CF6" },
+                    { id: "pypx", label: "PYP Exhibition", color: "#F59E0B" },
+                    { id: "inquiry", label: "Inquiry", color: "#3B82F6" },
+                  ].map((s) => (
+                    <button
+                      key={s.id}
+                      onClick={() => setEditSubject(s.id)}
+                      className={`px-3 py-1.5 text-xs font-semibold rounded-lg border-2 transition-all ${
+                        editSubject === s.id
+                          ? "border-purple-500 text-purple-700"
+                          : "border-gray-200 text-gray-500 hover:border-gray-300"
+                      }`}
+                      style={editSubject === s.id ? { background: `${s.color}15` } : {}}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Grade Level */}
+              <div>
+                <label className="text-xs font-semibold text-gray-600 mb-1.5 block">Grade Level</label>
+                <input
+                  value={editGradeLevel}
+                  onChange={(e) => setEditGradeLevel(e.target.value)}
+                  placeholder="e.g. Year 10, MYP 5, Grade 9"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+
+            {/* Framework */}
+            <div>
+              <label className="text-xs font-semibold text-gray-600 mb-1.5 block">Curriculum Framework</label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {[
+                  { id: "IB_MYP", label: "IB MYP", desc: "Criteria A-D, 1-8", color: "#6366F1" },
+                  { id: "GCSE_DT", label: "GCSE D&T", desc: "AO1-AO5, %", color: "#10B981" },
+                  { id: "IGCSE_DT", label: "IGCSE D&T", desc: "AO1-AO4, %", color: "#3B82F6" },
+                  { id: "A_LEVEL_DT", label: "A-Level D&T", desc: "AO1-AO4, %", color: "#F59E0B" },
+                  { id: "ACARA_DT", label: "ACARA D&T", desc: "K&U + Processes", color: "#EC4899" },
+                  { id: "NESA_DT", label: "NSW D&T", desc: "A-E, NESA", color: "#0EA5E9" },
+                  { id: "VIC_DT", label: "VIC D&T", desc: "A-E, VCAA", color: "#14B8A6" },
+                  { id: "PLTW", label: "PLTW", desc: "1-4 scale", color: "#8B5CF6" },
+                ].map((fw) => (
+                  <button
+                    key={fw.id}
+                    onClick={() => setEditFramework(fw.id)}
+                    className={`flex items-center gap-2 p-2.5 rounded-lg border-2 text-left transition-all ${
+                      editFramework === fw.id
+                        ? "border-purple-500 bg-purple-50"
+                        : "border-gray-200 hover:border-gray-300 bg-white"
+                    }`}
+                  >
+                    <div
+                      className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0"
+                      style={{ background: editFramework === fw.id ? fw.color : "#F3F4F6" }}
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={editFramework === fw.id ? "#fff" : "#9CA3AF"} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 5L2 10l10 5 10-5-10-5zM2 19l10 5 10-5M2 14.5l10 5 10-5" />
+                      </svg>
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-[11px] font-semibold text-gray-900 leading-tight">{fw.label}</div>
+                      <div className="text-[9px] text-gray-400">{fw.desc}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Archive toggle */}
+            <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+              <div>
+                <p className="text-xs font-semibold text-gray-600">Archive Class</p>
+                <p className="text-[10px] text-gray-400">Archived classes are hidden from the dashboard but data is preserved.</p>
+              </div>
+              <button
+                onClick={toggleArchive}
+                className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition ${
+                  classInfo?.is_archived
+                    ? "border-emerald-200 text-emerald-600 hover:bg-emerald-50"
+                    : "border-red-200 text-red-500 hover:bg-red-50"
+                }`}
+              >
+                {classInfo?.is_archived ? "Unarchive" : "Archive"}
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Cohort / Term Banner */}
       <section className="mb-6 bg-white rounded-2xl border border-gray-200 px-5 py-4">
@@ -1614,6 +1848,7 @@ function UnitsSection({
   onToggle: (unitId: string, isActive: boolean) => void;
 }) {
   const [showHistory, setShowHistory] = useState(false);
+  const [showInlineAdd, setShowInlineAdd] = useState(false);
 
   // Split into current (active class_units) and inactive/unassigned
   const currentUnits: Array<{ unit: Unit; cu: ClassUnit }> = [];
@@ -1650,17 +1885,79 @@ function UnitsSection({
               <span className="text-sm font-normal text-text-tertiary ml-1">({currentUnits.length})</span>
             )}
           </h2>
+          {unassignedUnits.length > 0 && currentUnits.length > 0 && (
+            <button
+              onClick={() => setShowInlineAdd(!showInlineAdd)}
+              className="inline-flex items-center gap-1 text-xs font-semibold text-purple-600 hover:text-purple-700 transition px-2 py-1 rounded-lg hover:bg-purple-50"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <path d="M12 5v14m-7-7h14" />
+              </svg>
+              Add Unit
+            </button>
+          )}
         </div>
 
         {currentUnits.length === 0 ? (
           <div className="bg-white rounded-xl border border-dashed border-gray-300 p-8 text-center">
-            <div className="w-12 h-12 rounded-xl bg-purple-50 flex items-center justify-center mx-auto mb-3">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 5v14m-7-7h14" />
-              </svg>
-            </div>
-            <p className="text-sm text-text-secondary mb-1">No active units for this class.</p>
-            <p className="text-xs text-text-tertiary">Activate a unit below or assign one from the Units page.</p>
+            {unassignedUnits.length > 0 ? (
+              <>
+                <button
+                  onClick={() => setShowInlineAdd(!showInlineAdd)}
+                  className="w-12 h-12 rounded-xl bg-purple-50 hover:bg-purple-100 flex items-center justify-center mx-auto mb-3 transition cursor-pointer"
+                >
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 5v14m-7-7h14" />
+                  </svg>
+                </button>
+                <p className="text-sm text-text-secondary mb-1">No active units for this class.</p>
+                <button
+                  onClick={() => setShowInlineAdd(!showInlineAdd)}
+                  className="text-sm font-semibold text-purple-600 hover:text-purple-700 transition"
+                >
+                  {showInlineAdd ? "Hide units" : "Assign a unit"}
+                </button>
+                {showInlineAdd && (
+                  <div className="mt-4 space-y-1.5 text-left">
+                    {unassignedUnits.map((unit) => (
+                      <div
+                        key={unit.id}
+                        className="bg-gray-50 rounded-lg border border-gray-200 px-4 py-3 flex items-center justify-between hover:border-purple-200 transition"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-text-primary">{unit.title}</p>
+                          {unit.description && (
+                            <p className="text-xs text-text-tertiary mt-0.5 line-clamp-1">{unit.description}</p>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => onToggle(unit.id, true)}
+                          className="text-sm font-semibold text-purple-600 hover:text-purple-700 transition px-3 py-1.5 rounded-lg hover:bg-purple-50 shrink-0"
+                        >
+                          + Assign
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <div className="w-12 h-12 rounded-xl bg-gray-50 flex items-center justify-center mx-auto mb-3">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                  </svg>
+                </div>
+                <p className="text-sm text-text-secondary mb-1">No units yet.</p>
+                <Link
+                  href="/teacher/units"
+                  className="text-sm font-semibold text-purple-600 hover:text-purple-700 transition"
+                >
+                  Create a unit first &rarr;
+                </Link>
+              </>
+            )}
           </div>
         ) : (
           <div className="space-y-3">
@@ -1744,9 +2041,29 @@ function UnitsSection({
         )}
       </div>
 
-      {/* ── Add Unit ── */}
-      {unassignedUnits.length > 0 && (
-        <AddUnitPicker units={unassignedUnits} onActivate={(unitId) => onToggle(unitId, true)} />
+      {/* ── Add Unit (inline when toggled from header or empty state) ── */}
+      {showInlineAdd && unassignedUnits.length > 0 && currentUnits.length > 0 && (
+        <div className="space-y-1.5">
+          {unassignedUnits.map((unit) => (
+            <div
+              key={unit.id}
+              className="bg-white rounded-lg border border-gray-200 px-4 py-3 flex items-center justify-between hover:border-purple-200 transition"
+            >
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-text-primary">{unit.title}</p>
+                {unit.description && (
+                  <p className="text-xs text-text-tertiary mt-0.5 line-clamp-1">{unit.description}</p>
+                )}
+              </div>
+              <button
+                onClick={() => { onToggle(unit.id, true); setShowInlineAdd(false); }}
+                className="text-sm font-semibold text-purple-600 hover:text-purple-700 transition px-3 py-1.5 rounded-lg hover:bg-purple-50 shrink-0"
+              >
+                + Assign
+              </button>
+            </div>
+          ))}
+        </div>
       )}
 
       {/* ── Unit History ── */}
