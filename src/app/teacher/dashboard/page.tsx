@@ -372,22 +372,10 @@ function WelcomeOnboarding({ teacherName, onCreateClass }: { teacherName: string
         </div>
       )}
 
-      {/* What you can do — feature preview cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        {[
-          { icon: "M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20", title: "Build Units", desc: "AI-powered unit builder with 3 creation modes" },
-          { icon: "M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5", title: "Teach Live", desc: "Teaching cockpit with phase timer and student grid" },
-          { icon: "M2 4h20v16H2zM12 4v16M2 12h20", title: "27 Thinking Tools", desc: "Interactive design tools students use in-lesson" },
-        ].map((f, i) => (
-          <div key={i} className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm">
-            <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center mb-2.5">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7B2FF2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={f.icon} /></svg>
-            </div>
-            <p className="text-sm font-semibold text-gray-900">{f.title}</p>
-            <p className="text-xs text-gray-400 mt-0.5">{f.desc}</p>
-          </div>
-        ))}
-      </div>
+      {/* Helpful tip */}
+      <p className="text-center text-xs text-gray-400 mt-2">
+        Need help? Click the <span className="inline-flex items-center align-middle mx-0.5 w-5 h-5 rounded-md" style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)", display: "inline-flex", verticalAlign: "middle" }}><svg width="10" height="10" viewBox="0 0 32 32" fill="none" className="mx-auto"><rect x="2" y="8" width="28" height="5" rx="2.5" fill="white" /><rect x="2" y="19" width="28" height="5" rx="2.5" fill="white" /><rect x="8" y="2" width="5" height="28" rx="2.5" fill="white" /><rect x="19" y="2" width="5" height="28" rx="2.5" fill="white" /></svg></span> button in the bottom-right corner anytime.
+      </p>
     </div>
   );
 }
