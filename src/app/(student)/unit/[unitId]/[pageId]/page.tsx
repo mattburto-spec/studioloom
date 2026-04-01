@@ -126,7 +126,7 @@ function UnitPageViewInner({
     <div className="min-h-screen bg-white">
       {/* ── Sticky top nav bar ── */}
       <div className="sticky top-0 z-40 bg-white/95 backdrop-blur-sm border-b border-gray-100 shadow-sm">
-        <div className="max-w-4xl mx-auto px-4 py-2 flex items-center justify-between">
+        <div className="max-w-5xl mx-auto px-4 py-2 flex items-center justify-between">
           <div className="flex items-center gap-2">
             {unitNav && (
               <button
@@ -165,7 +165,7 @@ function UnitPageViewInner({
       {/* ── Hero header — full-width gradient block ── */}
       {currentPage ? (
       <div className="w-full" style={{ background: `linear-gradient(135deg, #1A1A2E 0%, ${pageColor} 100%)` }}>
-        <div className="max-w-4xl mx-auto px-6 pt-6 pb-10">
+        <div className="max-w-5xl mx-auto px-6 pt-6 pb-10">
 
           <p className="text-sm text-white/70 font-medium mb-3 uppercase tracking-wider">
             Lesson {currentIndex + 1} of {enabledPages.length}
@@ -224,7 +224,7 @@ function UnitPageViewInner({
       ) : (
       /* No lesson content — show a helpful empty state instead of blank page */
       <div className="w-full" style={{ background: "linear-gradient(135deg, #1A1A2E 0%, #6B7280 100%)" }}>
-        <div className="max-w-4xl mx-auto px-6 pt-6 pb-10">
+        <div className="max-w-5xl mx-auto px-6 pt-6 pb-10">
           <h1 className="text-3xl md:text-4xl font-extrabold text-white leading-tight">
             {data?.unit.title || "Unit"}
           </h1>
@@ -237,7 +237,7 @@ function UnitPageViewInner({
 
       {/* ── Open Studio Banner ── */}
       {openStudio.state && (openStudio.state.unlocked || openStudio.justRevoked) && (
-        <div className="max-w-4xl mx-auto px-6 pt-6">
+        <div className="max-w-5xl mx-auto px-6 pt-6">
           <OpenStudioBanner
             unitId={unitId}
             unlocked={openStudio.state.unlocked}
@@ -254,7 +254,7 @@ function UnitPageViewInner({
       )}
 
       {/* ── Main scrollable content — white background ── */}
-      <main className="max-w-4xl mx-auto px-6 py-10 pb-28">
+      <main className="max-w-5xl mx-auto px-6 py-10 pb-28">
       {!currentPage && (
         <div className="text-center py-16">
           <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
@@ -286,7 +286,7 @@ function UnitPageViewInner({
                   className="full-bleed py-10 mb-8"
                   style={{ background: `linear-gradient(135deg, #1A1A2E 0%, ${pageColor} 100%)` }}
                 >
-                  <div className="max-w-4xl mx-auto px-6">
+                  <div className="max-w-5xl mx-auto px-6">
                     <div className="flex items-center justify-between mb-3">
                       <h2 className="text-sm font-bold uppercase tracking-widest text-white/70">
                         Learning Objectives
@@ -458,7 +458,7 @@ function UnitPageViewInner({
 
         {/* ── NM Competency Pulse — above Complete & Continue ── */}
         {nmCheckpoint && !nmCompleted && (
-          <div className="max-w-4xl mx-auto px-6 mt-10 mb-2">
+          <div className="max-w-5xl mx-auto px-6 mt-10 mb-2">
             <CompetencyPulse
               pageId={pageId}
               unitId={unitId}
