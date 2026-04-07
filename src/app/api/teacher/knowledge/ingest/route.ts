@@ -1,11 +1,19 @@
+/**
+ * POST /api/teacher/knowledge/ingest
+ *
+ * Runs the Dimensions3 ingestion pipeline on uploaded text.
+ * Accepts raw text (from client-side PDF/DOCX extraction) + copyright flag.
+ * Returns full pipeline result including extracted blocks for review.
+ */
+
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { ingestUnit } from "@/lib/knowledge/ingest-unit";
-import { getPageList } from "@/lib/unit-adapter";
+import { runIngestionPipeline } from "@/lib/ingestion/pipeline";
+import type { PassConfig, CopyrightFlag } from "@/lib/ingestion/types";
 
-function createSupabaseServer(request: NextRequest) {
-  return createServerClient(
+async function getTeacherId(request: NextRequest): Promise<string | null> {
+  const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
@@ -17,68 +25,97 @@ function createSupabaseServer(request: NextRequest) {
       },
     }
   );
-}
-
-/**
- * POST /api/teacher/knowledge/ingest
- * Ingest a unit into the knowledge base (called after save).
- * Body: { unitId: string }
- */
-export async function POST(request: NextRequest) {
-  const supabase = createSupabaseServer(request);
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  return user?.id || null;
+}
 
-  if (!user) {
+export async function POST(request: NextRequest) {
+  const teacherId = await getTeacherId(request);
+  if (!teacherId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { unitId } = await request.json();
-  if (!unitId) {
-    return NextResponse.json({ error: "unitId required" }, { status: 400 });
+  let body: { rawText?: string; copyrightFlag?: CopyrightFlag; sandboxMode?: boolean };
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  // Load the unit (must belong to this teacher)
+  const { rawText, copyrightFlag, sandboxMode } = body;
+
+  if (!rawText || typeof rawText !== "string" || rawText.trim().length === 0) {
+    return NextResponse.json(
+      { error: "rawText is required and must be non-empty" },
+      { status: 400 }
+    );
+  }
+
+  if (rawText.length > 500_000) {
+    return NextResponse.json(
+      { error: "Document too large (max 500KB text)" },
+      { status: 413 }
+    );
+  }
+
   const adminClient = createAdminClient();
-  const { data: unit } = await adminClient
-    .from("units")
-    .select(
-      "id, title, topic, description, grade_level, global_context, key_concept, content_data, is_published, author_teacher_id"
-    )
-    .eq("id", unitId)
-    .single();
-
-  if (!unit || unit.author_teacher_id !== user.id) {
-    return NextResponse.json({ error: "Unit not found" }, { status: 404 });
-  }
+  const config: PassConfig = {
+    supabaseClient: adminClient,
+    teacherId,
+    apiKey: process.env.ANTHROPIC_API_KEY,
+    sandboxMode: sandboxMode === true,
+  };
 
   try {
-    // Convert page list to Record<string, PageContent> for ingest
-    const unitPages = getPageList(unit.content_data);
-    const pages: Record<string, import("@/types").PageContent> = {};
-    for (const p of unitPages) {
-      if (p.content) pages[p.id] = p.content;
-    }
-    const result = await ingestUnit(
-      unitId,
-      {
-        title: unit.title,
-        topic: unit.topic,
-        description: unit.description,
-        grade_level: unit.grade_level,
-        global_context: unit.global_context,
-        key_concept: unit.key_concept,
-        pages,
-      },
-      user.id,
-      unit.is_published || false
+    const result = await runIngestionPipeline(
+      { rawText, copyrightFlag },
+      config
     );
 
-    return NextResponse.json({ chunkCount: result.chunkCount });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Ingestion failed";
-    console.error("[knowledge/ingest] Error:", message);
-    return NextResponse.json({ error: message }, { status: 500 });
+    // If not a duplicate, store as content_item for future reference
+    if (!result.dedup.isDuplicate) {
+      try {
+        const { data: contentItem } = await adminClient
+          .from("content_items")
+          .insert({
+            teacher_id: teacherId,
+            title: result.parse.title || "Untitled",
+            content_type: result.classification.documentType,
+            subject: result.classification.detectedSubject,
+            file_hash: result.dedup.fileHash,
+            processing_status: "completed",
+            raw_extracted_text: rawText,
+            parsed_sections: result.parse.sections,
+            classification: result.classification,
+            enrichment: result.analysis,
+            blocks_extracted: result.extraction.blocks.length,
+            copyright_flag: copyrightFlag || "unknown",
+          })
+          .select("id")
+          .single();
+
+        if (contentItem) {
+          result.contentItemId = contentItem.id;
+        }
+      } catch (e) {
+        // content_items table may not exist yet — continue without storage
+        console.error("[ingest] Failed to store content_item:", e);
+      }
+    }
+
+    return NextResponse.json(result, {
+      headers: { "Cache-Control": "private, no-cache" },
+    });
+  } catch (e) {
+    console.error("[ingest] Pipeline error:", e);
+    return NextResponse.json(
+      {
+        error: "Ingestion pipeline failed",
+        message: e instanceof Error ? e.message : "Unknown error",
+      },
+      { status: 500 }
+    );
   }
 }
