@@ -104,12 +104,12 @@ Units store content in JSONB. Teachers choose which criteria to include. Emphasi
 **Source:** CLAUDE.md | **Status:** Documented
 
 ### C2. Framework-Agnostic Toolkit
-42 tools with universal phases (Discover/Define/Ideate/Prototype/Test) mapping to 8+ curricula. Any design teacher worldwide can use it. Primary free traffic engine.
-**Source:** CLAUDE.md | **Status:** Documented
+48 tools (27 interactive + 21 catalog) with universal phases (Discover/Define/Ideate/Prototype/Test) mapping to 8+ curricula. Any design teacher worldwide can use it. Primary free traffic engine.
+**Source:** CLAUDE.md | **Status:** In code
 
-### C3. Multi-Framework Vocabulary
-System adapts terminology across IB MYP, GCSE DT, ACARA, PLTW, A-Level, IGCSE. Not just labels but command verbs, assessment structures, design cycle phases.
-**Source:** CLAUDE.md | **Status:** Documented
+### C3. Neutral Criterion Taxonomy (8 Universal Categories)
+8 framework-agnostic assessment categories (researching, analysing, designing, creating, evaluating, reflecting, communicating, planning) map bidirectionally to all 8 supported frameworks (MYP, GCSE, A-Level, IGCSE, ACARA, PLTW, NESA, Victorian) + 4 non-design unit types. FrameworkAdapter maps neutral keys → framework-specific display labels at render time. Content is NEVER stored with framework vocabulary — framework is applied at render time only. Labels only in v1 (not tone/phrasing).
+**Source:** docs/specs/neutral-criterion-taxonomy.md | **Status:** Spec complete, code pending
 
 ### C4. 20 Configurable Emphasis Dials
 1-10 sliders for scaffoldingFade, critiqueCulture, safetyCulture, differentiation, etc. Admin-configurable with history. Teachers tune AI without changing code.
@@ -119,9 +119,9 @@ System adapts terminology across IB MYP, GCSE DT, ACARA, PLTW, A-Level, IGCSE. N
 Sentence starters (Tier 1), guided prompts (Tier 2), extension challenges (Tier 3). Target: 50% of activities have all three tiers.
 **Source:** CLAUDE.md | **Status:** Documented
 
-### C6. Grade-Level Timing Profiles
-Cognitive load capped by MYP year using the 1+age rule: max direct instruction = 1 + avg student age. Year 1 (age 11) = 12 min, Year 3 (age 13) = 14 min, Year 5 (age 16) = 17 min. Grade profiles include `avgStudentAge` field. Based on PBLWorks and cognitive science research.
-**Source:** timing-validation.ts, lesson-timing-research-report.md | **Status:** In code
+### C6. Grade-Level Timing Profiles (Learned Defaults, Not Hardcoded)
+Cold-start default: max direct instruction = 1 + avg student age. Year 1 (age 11) = 12 min, Year 5 (age 16) = 17 min. Dimensions3 makes this a learned default — the system observes what teachers actually do and gradually replaces the formula with real data. Any teacher can override any timing rule; overrides are learning signal.
+**Source:** timing-validation.ts, docs/projects/dimensions3.md | **Status:** In code (cold-start), learning system pending
 
 ### C7. Workshop Model (4-Phase Lesson Structure)
 Every AI-generated lesson MUST follow: Opening (5-10 min) → Mini-Lesson (max 1+age min) → Work Time (≥45%, ideally 60%+ of usable time) → Debrief (5-10 min, structured protocol). Work Time is ONE sustained block — never fragment into small activities. Enforced in `buildDesignTeachingContext()` and validated by `timing-validation.ts`. Research: universal across d.school, PBLWorks, ASCD, Cult of Pedagogy, Project Zero, GCSE, MYP.
@@ -260,3 +260,59 @@ Student login (`/api/auth/student-login`) must be rate-limited (10/min, 50/hour 
 ### G10. TypeScript Must Compile Clean Before Committing
 Run `npx tsc --noEmit` before every commit. Zero tolerance for TS errors. The codebase had 50 errors accumulating silently before the Phase 1 overhaul — each one a potential runtime crash. CI should enforce this too.
 **Source:** Engine overhaul Phase 1 (50 errors fixed) | **Status:** In code
+
+## Generation Pipeline & Content Architecture (added 7 Apr 2026 — Dimensions3)
+
+### H1. Framework-Neutral Units, Framework at Render Time
+Both Activity Blocks AND generated units are framework-neutral. No MYP/GCSE/ACARA vocabulary stored in content_data. FrameworkAdapter maps neutral criterion keys to framework-specific display text at render time. Any teacher from any framework grabs any unit and it adapts automatically. No "conversion" step.
+**Source:** docs/projects/dimensions3.md, docs/specs/neutral-criterion-taxonomy.md | **Status:** Spec complete
+
+### H2. No Hardcoded Sequences — System Learns from Usage
+ALL hardwired patterns (Workshop Model phases, skeleton templates, 1+age rule, 45% work time floor) ship as clearly-marked provisional defaults. System observes what teachers actually do (from uploads, edits, teaching patterns) and learned patterns gradually replace defaults. Any teacher can override any pattern — overrides are learning signal. Fundamental philosophical shift.
+**Source:** docs/projects/dimensions3.md §4.1 | **Status:** Spec complete
+
+### H3. Activity Blocks as First-Class Entities
+Activities are independently addressable SQL entities with full Dimensions metadata (bloom_level, udl_checkpoints, grouping, time_weight, ai_rules, phase, 14 activity categories, efficacy score). NOT embedded JSONB. The generation pipeline retrieves and assembles proven blocks, only generating new activities for gaps. Efficacy scores start at 50 (neutral), move based on teacher edits (highest signal) + student completion + time accuracy.
+**Source:** docs/projects/dimensions3.md §6, docs/specs/block-library-bootstrap-strategy.md | **Status:** Spec complete
+
+### H4. FormatProfile as Pipeline Extensibility Mechanism
+Format is a dimension, not a fork. Each unit type provides a FormatProfile that injects format-specific behaviour at each of the 6 pipeline stages: block relevance (boost/suppress categories), sequence hints, gap generation rules (persona, principles, forbidden patterns), connective tissue style, timing modifiers, Pulse scoring weights. Adding a new format = ~80 lines of FormatProfile + mapping tables. Zero pipeline code changes.
+**Source:** docs/specs/format-profile-definitions.md | **Status:** Spec complete
+
+### H5. Composite Block Ranking (Not Simple Search)
+Block Library search uses Google-style composite scoring: Relevance 30% (embedding similarity) + Efficacy 25% (proven performance) + Context match 20% (bloom, phase, grouping) + Teacher affinity 15% (used before) + Freshness 10%. Plus overuse penalty and staleness decay. Teachers don't want to learn new tools every class — familiar blocks ranked highest, fresh options as optional suggestions.
+**Source:** docs/projects/dimensions3.md §8 | **Status:** Spec complete
+
+### H6. timeWeight Over durationMinutes
+Rigid `durationMinutes: 12` doesn't work (same activity = 8 min with Year 10, 20 min with Year 7). `timeWeight: 'quick' | 'moderate' | 'extended' | 'flexible'` is the primary signal. Activities share Workshop Model phase budget proportionally. `durationMinutes` kept as optional soft suggestion. Velocity learning loop: generate → measure actual time_spent → compute class velocity → feed back.
+**Source:** docs/specs/data-architecture-v2.md | **Status:** Spec complete
+
+### H7. ai_rules on Every Activity Block
+`{ phase: "divergent"|"convergent"|"neutral", tone: string, rules: string[], forbidden_words?: string[] }` on every ActivitySection. Extends per-step AI rules from toolkit tools to ANY lesson activity. Teacher can configure custom AI behavior without code.
+**Source:** docs/projects/dimensions3.md §6.3 | **Status:** Spec complete
+
+### H8. UDL Over IEP for Inclusivity Model
+CAST Universal Design for Learning (3 principles × 9 guidelines × 31 checkpoints) is proactive design, not reactive accommodation. Student has "barriers on Language & Symbols (2.1)" not "has dyslexia." Activities tagged with `udl_checkpoints: string[]`. Coverage computed client-side per page.
+**Source:** docs/specs/data-architecture-v2.md | **Status:** In code
+
+## Journey Engine & Interactive Experiences (added 7 Apr 2026)
+
+### J1. Interaction Pattern × Content × Presentation Separation
+Journey Blocks are atomic interaction primitives that are character-neutral and scene-neutral. Content (prompts, options, scoring weights) separated from presentation (character, R3F scene, voice, animations). Presentation applied at Journey level, infinitely swappable — same journey delivered by different characters without content changes.
+**Source:** docs/specs/journey-engine-spec.md | **Status:** Spec complete
+
+### J2. Student Profile as Central Data Hub
+`learning_profile` JSONB on students table is the single data store for all journey-collected data. Every journey block writes to a namespaced path (e.g., `strengths.archetype`). Every AI system reads relevant slices via `buildProfileContext()`. Merge strategies: overwrite (scores), append (interests), merge (skill maps), max (confidence).
+**Source:** docs/specs/journey-engine-spec.md §5 | **Status:** Spec complete
+
+### J3. Conditional Branching with Mandatory Fallbacks
+Journeys support conditional routing based on profile data, block responses, or session metadata. Constrained condition language (dropdown-authorable, no code). Every conditional route MUST have a fallback path. Admin editor validates: every path reaches terminal, no cycles, no unreachable nodes.
+**Source:** docs/specs/journey-engine-spec.md §4 | **Status:** Spec complete
+
+### J4. Mentor Negotiates, Not Just Collects (Open Studio v2)
+The Planning Journey uses Sonnet-level reasoning to push back on unrealistic plans, extract concrete deliverables from vague visions, and synthesize external constraints. This is fundamentally different from Discovery (which collects profile data) — the mentor is a negotiation partner. Teacher approval workflow with 4 actions (approve / notes / return / schedule chat).
+**Source:** docs/projects/openstudio-v2.md | **Status:** Spec complete
+
+### J5. Greyscale Unit + Colourful Studio Card
+When Open Studio is unlocked, the original unit card goes greyscale and a new vibrant Studio card appears using the student's theme accent colour. Studio card shows project title, next milestone, health indicator, session count, mentor avatar. Greyscale card still clickable but visually secondary. Studio cards render first in grid.
+**Source:** docs/projects/openstudio-v2.md §11 | **Status:** Spec complete

@@ -1,5 +1,5 @@
 import type { UnitWizardInput, LessonJourneyInput, JourneyOutlineOption, TimelineOutlineOption, TimelinePhase, TimelineLessonSkeleton, TimelineSkeleton, DesignLessonType } from "@/types";
-import { getLessonStructure, getMainBlockFloor, getEffectiveInstructionCap } from "@/lib/ai/lesson-structures";
+import { getLessonStructure, getMainBlockFloor, getEffectiveInstructionCap, getStructurePhaseNames } from "@/lib/ai/lesson-structures";
 import { CRITERIA, type CriterionKey, MYP_GLOBAL_CONTEXTS, MYP_KEY_CONCEPTS, MYP_RELATED_CONCEPTS_DESIGN, EMPHASIS_PAGE_COUNT, buildPageDefinitions, getCriterion, getFrameworkCriterionKeys } from "@/lib/constants";
 import { getActivityLibrarySummary } from "@/lib/activity-library";
 import { getActivityCardSummaryEnriched } from "@/lib/activity-cards";
@@ -252,6 +252,16 @@ ${lessonType ? `Lesson type: **${lessonType}** → using **${structure.name}** s
 CRITICAL: Generate activities that sum to ${usable} minutes. Do NOT generate ${ctx.periodMinutes} minutes of content.
 ${ctx.isWorkshop ? `Include setup (${ctx.setupMinutes} min) and cleanup (${ctx.cleanupMinutes} min) as explicit lesson phases.` : ""}
 ${structureBlock}
+
+## workshopPhases Mapping
+The workshopPhases object uses 4 fixed role-based slots: \`opening\`, \`miniLesson\`, \`workTime\`, \`debrief\`.
+For the **${structure.name}** structure, map the phases as follows:
+${(() => {
+    const phaseNames = getStructurePhaseNames(lessonType);
+    const slotNames = ["opening", "miniLesson", "workTime", "debrief"];
+    return slotNames.map((slot, i) => `- \`${slot}\` → phaseName: "${phaseNames[i] || slot}"${i === 2 ? " (main block)" : ""}`).join("\n");
+  })()}
+You MUST set the \`phaseName\` field on each workshopPhases slot to match the names above. The slot keys (opening/miniLesson/workTime/debrief) are structural — \`phaseName\` is what the teacher sees.
 
 ## Age-Appropriate Pacing
 ${profile.pacingNote}
@@ -631,16 +641,24 @@ export async function buildRAGCriterionPrompt(
 
   const basePrompt = buildCriterionPrompt(criterion, input, activitySummary, framework);
 
-  // Retrieve RAG context + lesson profiles in parallel (both are optional enhancements)
+  // Retrieve RAG context + lesson profiles + activity blocks in parallel (all optional enhancements)
   const criterionDef = getCriterion(criterion, input.unitType || "design");
   const ragQuery = `${input.topic} ${input.title} Criterion ${criterion} ${criterionDef?.name || criterion} ${input.gradeLevel} ${input.globalContext}`;
   const profileQuery = `${input.topic} ${input.title} ${criterionDef?.name || criterion} ${input.gradeLevel}`;
+
+  const criterionBlocksPromise = teacherId
+    ? import("@/lib/activity-blocks").then(async (m) => {
+        const { createAdminClient } = await import("@/lib/supabase/admin");
+        const blocks = await m.retrieveActivityBlocks(createAdminClient(), { query: ragQuery, teacherId, maxBlocks: 5 });
+        return blocks.length > 0 ? m.formatBlocksAsPromptText(blocks) : "";
+      }).catch(() => "")
+    : Promise.resolve("");
 
   let ragContext = "";
   let lessonContext = "";
   let chunkIds: string[] = [];
 
-  const [chunksResult, profilesResult] = await Promise.allSettled([
+  const [chunksResult, profilesResult, criterionBlocksResult] = await Promise.allSettled([
     retrieveContext({
       query: ragQuery,
       criterion,
@@ -656,6 +674,7 @@ export async function buildRAGCriterionPrompt(
       teacherId,
       maxProfiles: 3,
     }),
+    criterionBlocksPromise,
   ]);
 
   if (chunksResult.status === "fulfilled" && chunksResult.value.length > 0) {
@@ -683,13 +702,15 @@ ${criterionPages.map(([pageId, p]) => `  - ${pageId}: "${p.title}" — ${p.summa
     }
   }
 
-  if (!ragContext && !lessonContext && !outlineSection) {
+  const criterionBlocksText = criterionBlocksResult.status === "fulfilled" ? criterionBlocksResult.value : "";
+
+  if (!ragContext && !lessonContext && !outlineSection && !criterionBlocksText) {
     return { prompt: basePrompt, chunkIds: [] };
   }
 
-  // Inject lesson profiles, RAG context, and outline before the base prompt
-  // Order: Teaching Patterns (high-level) → Reference Examples (specific) → Outline → Base Prompt
-  const enrichedPrompt = `${lessonContext ? lessonContext + "\n\n---\n\n" : ""}${ragContext ? ragContext + "\n\n---\n\n" : ""}${outlineSection ? outlineSection + "\n---\n\n" : ""}${basePrompt}`;
+  // Inject lesson profiles, RAG context, activity blocks, and outline before the base prompt
+  // Order: Teaching Patterns (high-level) → Reference Examples (specific) → Activity Blocks → Outline → Base Prompt
+  const enrichedPrompt = `${lessonContext ? lessonContext + "\n\n---\n\n" : ""}${ragContext ? ragContext + "\n\n---\n\n" : ""}${criterionBlocksText ? criterionBlocksText + "\n\n---\n\n" : ""}${outlineSection ? outlineSection + "\n---\n\n" : ""}${basePrompt}`;
 
   return { prompt: enrichedPrompt, chunkIds };
 }
@@ -1063,13 +1084,12 @@ Each lesson's introduction should reference what was achieved in the previous le
 Each lesson should end by previewing what comes next.
 The final lesson should circle back to the original goal.
 
-## Timing — Workshop Model (MANDATORY)
-Each lesson follows the 4-Phase Workshop Model. The prompt below provides usable time and age-appropriate constraints — follow them precisely.
+## Timing & Lesson Structure
+Each lesson follows a structured phase model appropriate to its type (the timing context below specifies the exact structure). Follow the provided timing constraints precisely.
 
-IMPORTANT: Include "durationMinutes" on EVERY section AND on each workshop phase. All section durations within a lesson should sum to the USABLE time (not the raw period length).
+IMPORTANT: Include "timeWeight" (quick | moderate | extended | flexible) on EVERY section. This controls proportional time allocation — quick ≈ 5 min, moderate ≈ 10-15 min, extended ≈ 20+ min. You may ALSO set "durationMinutes" when exact timing is critical (e.g. safety demo = exactly 5 min), but timeWeight is the primary signal. Phase durations should still sum to the USABLE time.
 
-The lesson structure MUST be: Opening → Mini-Lesson → Work Time → Debrief.
-Work Time is ONE sustained block (minimum 45% of usable time). Do NOT split it into small activities.
+The main work block should be ONE sustained block. Do NOT split it into small activities.
 
 ## JSON Schema (for each lesson page)
 {
@@ -1127,7 +1147,7 @@ Work Time is ONE sustained block (minimum 45% of usable time). Do NOT split it i
 ## Important Rules
 1. ALWAYS include ELL scaffolding (ell1, ell2, ell3) for EVERY section
 2. ALWAYS include criterionTags on EVERY section — at least one criterion per section
-3. ALWAYS include durationMinutes on EVERY section — realistic time estimate in minutes
+3. ALWAYS include timeWeight on EVERY section (quick | moderate | extended | flexible). Only add durationMinutes when exact timing is critical.
 4. ALWAYS include workshopPhases with realistic durations that match the timing constraints
 5. ALWAYS include 2-3 extensions per lesson matching the current design phase
 6. Include 3-5 vocab terms per lesson, relevant to the lesson's focus
@@ -1622,19 +1642,19 @@ Group activities into phases using "phaseLabel" (e.g., "Research", "Ideation", "
 ## Assessment Criteria as Tags
 Tag every CORE activity with criterionTags (e.g. ["A"], ["B","C"]). Warmup/intro/reflection activities can omit tags.
 
-## Timing — Workshop Model Awareness
+## Timing Awareness
 - Total duration of ALL activities ≈ totalLessons × lessonLengthMinutes
-- Each activity has a realistic durationMinutes
+- Each activity has a timeWeight (quick | moderate | extended | flexible). Only add durationMinutes when exact timing is critical.
 - The prompt below provides USABLE time (after transition/setup/cleanup overhead) — never generate for the raw period length
 - The prompt below provides age-appropriate timing constraints based on the students' grade level — core activity durations MUST respect the maximum for the grade
 - Place warmup+intro+reflection bookends at approximately every [lessonLength] minutes of cumulative core time
-- Within each lesson-length chunk, follow the Workshop Model: opening (5-10 min) → instruction (max 1+age min) → sustained work (≥45% of usable time) → debrief (5-10 min)
-- Work Time is ONE sustained block — do NOT fragment it into many small 5-10 minute activities. Group related tasks into one long work block
+- Within each lesson-length chunk, use a structured phase model: opening → instruction/demo → sustained work → closing/reflection
+- The main work block should be ONE sustained block — do NOT fragment it into many small 5-10 minute activities
 - ALWAYS include 2-3 extension activities per lesson-length chunk for early finishers, indexed to the current design phase
 
-## Activity Ordering (CRITICAL)
-Within each lesson-length chunk, activities MUST follow this strict sequence:
-1. **warmup** activity (vocab retrieval, engagement hook) — ALWAYS FIRST
+## Activity Ordering (PREFERRED)
+Within each lesson-length chunk, activities should generally follow this sequence (adapt if Activity Blocks or lesson type suggests a different flow):
+1. **warmup** activity (vocab retrieval, engagement hook) — typically first
 2. **intro** / **content** activities (connecting to prior learning, new concepts, teacher modelling)
 3. **core** activities (sustained student work — the bulk of the lesson)
 4. **reflection** activity (exit ticket, debrief, one-word whip, self-assessment) — ALWAYS LAST
@@ -1658,7 +1678,7 @@ Build from curious exploration → creative energy → productive struggle → c
 ## Rules
 1. Include ELL scaffolding (ell1, ell2, ell3) for EVERY core activity
 2. Tag every core activity with criterionTags
-3. Include durationMinutes on EVERY activity
+3. Include timeWeight on EVERY activity (quick | moderate | extended | flexible). Only add durationMinutes when exact timing is critical.
 4. Vary responseType across activities
 5. Set portfolioCapture: true on 1-2 core activities per ~lesson-length of time
 6. First activities should hook students with the end goal
@@ -1720,6 +1740,7 @@ export function buildTimelinePrompt(
     activitiesGeneratedSoFar?: number;
     teachingContextBlock?: string;
     teacherStyleProfile?: TeacherStyleProfile | null;
+    activityBlocks?: string;
   }
 ): string {
   const totalLessons = options?.totalLessons || input.durationWeeks * input.lessonsPerWeek;
@@ -1795,14 +1816,15 @@ ${activitySuggestions}
 ${buildTeachingContext(input.unitType || "design", options?.teacherStyleProfile)}
 
 ${buildTimingBlock(getGradeTimingProfile(input.gradeLevel), input.lessonLengthMinutes, undefined, input.unitType)}
-
+${options?.activityBlocks ? "\n" + options.activityBlocks + "\n" : ""}
 ## Generation Target
 Generate a flat list of activities. Total duration should be approximately ${totalMinutes} minutes.
 Place warmup + intro + reflection bookends roughly every ${input.lessonLengthMinutes} minutes of content.
 ${options?.activitiesGeneratedSoFar ? `Activities generated so far: ${options.activitiesGeneratedSoFar}` : ""}
 
 Remember:
-- Every activity needs: id, role, title, prompt, durationMinutes
+- Every activity needs: id, role, title, prompt, timeWeight (quick | moderate | extended | flexible)
+- Only add durationMinutes when exact timing is critical (safety demo, timed assessment)
 - Core activities need: responseType, criterionTags, scaffolding (ell1/ell2/ell3)
 - Content activities: omit responseType. Use contentStyle (info/warning/tip/context/activity/speaking/practical), media, links where helpful.
 - Warmup activities need: vocabTerms
@@ -1971,7 +1993,15 @@ export async function buildRAGTimelinePrompt(
     ? import("@/lib/teacher-style/profile-service").then(m => m.loadStyleProfile(teacherId)).catch(() => null)
     : Promise.resolve(null);
 
-  const [activityResult, chunksResult, profilesResult, teacherStyle] = await Promise.allSettled([
+  const timelineBlocksPromise = teacherId
+    ? import("@/lib/activity-blocks").then(async (m) => {
+        const { createAdminClient } = await import("@/lib/supabase/admin");
+        const blocks = await m.retrieveActivityBlocks(createAdminClient(), { query, teacherId, maxBlocks: 8 });
+        return blocks.length > 0 ? m.formatBlocksAsPromptText(blocks) : "";
+      }).catch(() => "")
+    : Promise.resolve("");
+
+  const [activityResult, chunksResult, profilesResult, teacherStyle, timelineBlocksResult] = await Promise.allSettled([
     getActivityCardSummaryEnriched(),
     retrieveContext({
       query,
@@ -1987,9 +2017,11 @@ export async function buildRAGTimelinePrompt(
       maxProfiles: 3,
     }),
     stylePromise,
+    timelineBlocksPromise,
   ]);
 
   const activitySummary = activityResult.status === "fulfilled" ? activityResult.value : undefined;
+  const timelineBlocksText = timelineBlocksResult.status === "fulfilled" ? timelineBlocksResult.value : "";
 
   let ragContext = "";
   let chunkIds: string[] = [];
@@ -2034,6 +2066,7 @@ export async function buildRAGTimelinePrompt(
     activitiesGeneratedSoFar,
     teachingContextBlock: (frameworkBlock + teachingContextBlock) || undefined,
     teacherStyleProfile: resolvedStyle || undefined,
+    activityBlocks: timelineBlocksText || undefined,
   });
 
   return { prompt, chunkIds };
@@ -2292,6 +2325,7 @@ export function buildPerLessonTimelinePrompt(
     activitySummary?: string;
     teacherStyleProfile?: TeacherStyleProfile | null;
     teachingMoves?: string;
+    activityBlocks?: string;
   }
 ): string {
   const totalLessons = skeleton.lessons.length;
@@ -2391,7 +2425,7 @@ ${continuitySection}${spacedRetrievalSection}${selfAssessmentSection}${compareCo
 ## Available Activity Cards
 Consider incorporating these where appropriate:
 ${activitySuggestions}
-${options?.teachingMoves ? "\n" + options.teachingMoves + "\n" : ""}
+
 ## Unit Context
 - End Goal: ${input.endGoal}
 - Topic: ${input.topic}
@@ -2403,20 +2437,21 @@ ${options?.teachingMoves ? "\n" + options.teachingMoves + "\n" : ""}
 ${buildTeachingContext(input.unitType || "design", options?.teacherStyleProfile)}
 
 ${buildTimingBlock(getGradeTimingProfile(input.gradeLevel), input.lessonLengthMinutes, undefined, input.unitType, lesson.lessonType)}
-
+${options?.teachingMoves ? "\n" + options.teachingMoves + "\n" : ""}${options?.activityBlocks ? "\n" + options.activityBlocks + "\n" : ""}
 ## Generation Target
-Generate 3-6 activities totalling approximately ${lesson.estimatedMinutes} minutes.
+Generate activities totalling approximately ${lesson.estimatedMinutes} minutes. Use timeWeight to proportion time — the exact number of activities should match pedagogical needs (typically 3-6).
 Activity IDs should be: L${String(lesson.lessonNumber).padStart(2, "0")}-a1, L${String(lesson.lessonNumber).padStart(2, "0")}-a2, etc.
 All activities in this lesson should have phaseLabel: "${lesson.phaseLabel}"
 
-STRICT ORDERING (do NOT violate):
+PREFERRED ORDERING (adapt if Activity Blocks suggest a different pedagogically sound flow):
 1. First activity: warmup (role="warmup") — vocab retrieval + engagement hook
 2. Middle activities: intro/content/core — the teaching and sustained work
-3. LAST activity: reflection (role="reflection") — exit ticket, debrief, or self-assessment
-NEVER place exit/debrief/reflection/closing activities in the middle of the sequence. The reflection MUST be the final activity.
+3. Last activity: reflection (role="reflection") — exit ticket, debrief, or self-assessment
+Aim to keep reflection near the end. If adapting a Proven Activity Block that has a different structure, honour the block's proven sequence.
 
 Remember:
-- Every activity needs: id, role, title, prompt, durationMinutes
+- Every activity needs: id, role, title, prompt, timeWeight (quick | moderate | extended | flexible)
+- Only add durationMinutes when exact timing is critical (safety demo, timed assessment)
 - Core activities need: responseType, criterionTags, scaffolding (ell1/ell2/ell3)
 - Content activities: omit responseType. Use contentStyle (info/warning/tip/context/activity/speaking/practical), media, links where helpful.
 - Warmup activities need: vocabTerms
@@ -2438,8 +2473,16 @@ export async function buildRAGPerLessonPrompt(
 ): Promise<{ prompt: string; chunkIds: string[] }> {
   const query = `${input.topic} ${lesson.title} ${lesson.keyQuestion} ${input.gradeLevel}`;
 
-  // Parallelize all 3 async lookups — they are independent
-  const [activityResult, chunksResult, profilesResult] = await Promise.allSettled([
+  // Parallelize all async lookups — they are independent
+  const blocksPromise = teacherId
+    ? import("@/lib/activity-blocks").then(async (m) => {
+        const { createAdminClient } = await import("@/lib/supabase/admin");
+        const blocks = await m.retrieveActivityBlocks(createAdminClient(), { query, teacherId, designPhase: lesson.phaseLabel as import("@/types").DesignPhase, maxBlocks: 5 });
+        return blocks.length > 0 ? m.formatBlocksAsPromptText(blocks) : "";
+      }).catch(() => "")
+    : Promise.resolve("");
+
+  const [activityResult, chunksResult, profilesResult, blocksResult] = await Promise.allSettled([
     getActivityCardSummaryEnriched(),
     retrieveContext({
       query,
@@ -2454,9 +2497,11 @@ export async function buildRAGPerLessonPrompt(
       teacherId,
       maxProfiles: 2,
     }),
+    blocksPromise,
   ]);
 
   const activitySummary = activityResult.status === "fulfilled" ? activityResult.value : undefined;
+  const activityBlocksText = blocksResult.status === "fulfilled" ? blocksResult.value : "";
 
   let ragContext = "";
   let chunkIds: string[] = [];
@@ -2517,6 +2562,7 @@ export async function buildRAGPerLessonPrompt(
     activitySummary,
     teacherStyleProfile,
     teachingMoves: teachingMovesStr || undefined,
+    activityBlocks: activityBlocksText || undefined,
   });
 
   return { prompt, chunkIds };

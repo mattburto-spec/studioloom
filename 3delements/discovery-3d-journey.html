@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Discovery Engine — 3D Journey Prototype</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0a0a1a; overflow: hidden; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; }
+    #root { width: 100vw; height: 100vh; }
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
+    button { font-family: inherit; }
+    button:hover { filter: brightness(1.1); }
+    textarea { font-family: inherit; }
+    textarea:focus { border-color: rgba(255,255,255,0.4) !important; }
+    input[type="range"] { height: 6px; -webkit-appearance: none; border-radius: 3px; background: rgba(255,255,255,0.15); }
+    input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useRef, useEffect, useCallback, useMemo } = React;
+
+    // ═══════════════════════════════════════════════════════════════
+    // CONSTANTS & CONTENT POOLS
+    // ═══════════════════════════════════════════════════════════════
+
+    const STATION_META = [
+      { id: 0, name: "Identity Card", subtitle: "Welcome to the studio", env: "foyer", colors: { primary: "#F59E0B", bg: "#FEF3C7", accent: "#D97706" } },
+      { id: 1, name: "The Campfire", subtitle: "How do you work?", env: "campfire", colors: { primary: "#EA580C", bg: "#431407", accent: "#FB923C" } },
+      { id: 2, name: "The Workshop", subtitle: "What's your superpower?", env: "workshop", colors: { primary: "#0D9488", bg: "#134E4A", accent: "#5EEAD4" } },
+      { id: 3, name: "Collection Wall", subtitle: "What lights you up?", env: "gallery", colors: { primary: "#6366F1", bg: "#1E1B4B", accent: "#A5B4FC" } },
+      { id: 4, name: "The Window", subtitle: "What do you see out there?", env: "window", colors: { primary: "#3B82F6", bg: "#1E3A5F", accent: "#93C5FD" } },
+      { id: 5, name: "Your Toolkit", subtitle: "What do you bring?", env: "shelves", colors: { primary: "#059669", bg: "#064E3B", accent: "#6EE7B7" } },
+      { id: 6, name: "Crossroads", subtitle: "Choose your path", env: "corridor", colors: { primary: "#7C3AED", bg: "#2E1065", accent: "#C4B5FD" } },
+      { id: 7, name: "Launchpad", subtitle: "Your grand reveal", env: "rooftop", colors: { primary: "#F472B6", bg: "#831843", accent: "#FBCFE8" } },
+    ];
+
+    const PALETTES = [
+      { id: "warm", name: "Warm", colors: ["#F59E0B", "#EF4444", "#F97316", "#FCD34D"] },
+      { id: "cool", name: "Cool", colors: ["#3B82F6", "#06B6D4", "#8B5CF6", "#93C5FD"] },
+      { id: "bold", name: "Bold", colors: ["#DC2626", "#F97316", "#EAB308", "#7C3AED"] },
+      { id: "earth", name: "Earth", colors: ["#92400E", "#A16207", "#65A30D", "#78716C"] },
+      { id: "neon", name: "Neon", colors: ["#EC4899", "#06B6D4", "#84CC16", "#F472B6"] },
+    ];
+
+    const TOOLS = [
+      { id: "hammer", label: "Hammer", icon: "\u{1F528}", archetype: "maker" },
+      { id: "magnifier", label: "Magnifying Glass", icon: "\u{1F50D}", archetype: "researcher" },
+      { id: "clipboard", label: "Clipboard", icon: "\u{1F4CB}", archetype: "leader" },
+      { id: "megaphone", label: "Megaphone", icon: "\u{1F4E3}", archetype: "communicator" },
+      { id: "paintbrush", label: "Paintbrush", icon: "\u{1F3A8}", archetype: "creative" },
+      { id: "gear", label: "Gear", icon: "\u{2699}\u{FE0F}", archetype: "systems" },
+      { id: "pencil", label: "Pencil", icon: "\u{270F}\u{FE0F}", archetype: "creative" },
+      { id: "microscope", label: "Microscope", icon: "\u{1F52C}", archetype: "researcher" },
+      { id: "camera", label: "Camera", icon: "\u{1F4F7}", archetype: "creative" },
+      { id: "laptop", label: "Laptop", icon: "\u{1F4BB}", archetype: "systems" },
+      { id: "scissors", label: "Scissors", icon: "\u{2702}\u{FE0F}", archetype: "maker" },
+      { id: "compass", label: "Compass", icon: "\u{1F4D0}", archetype: "systems" },
+    ];
+
+    const WORKSPACE_ITEMS = [
+      { id: "tidy_desk", label: "Tidy desk", icon: "\u{1F5C4}", trait: "structured" },
+      { id: "messy_desk", label: "Creative chaos", icon: "\u{1F3AA}", trait: "flexible" },
+      { id: "whiteboard", label: "Whiteboard", icon: "\u{1F4DD}", trait: "planner" },
+      { id: "sticky_notes", label: "Sticky notes", icon: "\u{1F4CC}", trait: "improviser" },
+      { id: "plants", label: "Plants", icon: "\u{1F33F}", trait: "marathoner" },
+      { id: "headphones", label: "Headphones", icon: "\u{1F3A7}", trait: "solo" },
+      { id: "two_chairs", label: "Two chairs", icon: "\u{1FA91}", trait: "collaborator" },
+      { id: "books", label: "Reference books", icon: "\u{1F4DA}", trait: "researcher" },
+      { id: "prototypes", label: "Prototypes", icon: "\u{1F3D7}", trait: "maker" },
+      { id: "mood_board", label: "Inspiration board", icon: "\u{1F5BC}", trait: "creative" },
+      { id: "tools_rack", label: "Tool organizer", icon: "\u{1F9F0}", trait: "systems" },
+      { id: "coffee", label: "Coffee setup", icon: "\u{2615}", trait: "marathoner" },
+      { id: "calendar", label: "Calendar", icon: "\u{1F4C5}", trait: "planner" },
+      { id: "sketchbook", label: "Sketchbook", icon: "\u{1F4D3}", trait: "creative" },
+      { id: "collab_board", label: "Collab board", icon: "\u{1F465}", trait: "collaborator" },
+      { id: "clock", label: "Clock", icon: "\u{23F0}", trait: "structured" },
+    ];
+
+    const BINARY_PAIRS = [
+      { id: "planning", prompt: "New project, blank page. You...", a: "Grab a pencil and start sketching", b: "Write down a plan first", dimA: "improviser", dimB: "planner" },
+      { id: "social", prompt: "Stuck on a problem. You...", a: "Find someone to talk it through", b: "Headphones on, figure it out alone", dimA: "collaborative", dimB: "independent" },
+      { id: "structure", prompt: "Your desk right now is...", a: "Organised \u2014 I know where things are", b: "A mess \u2014 but I know where everything is", dimA: "structured", dimB: "flexible" },
+      { id: "energy", prompt: "Saturday morning, no plans. You...", a: "Pick one thing and go deep for hours", b: "Do a bunch of different stuff", dimA: "deep_focus", dimB: "burst" },
+      { id: "decision", prompt: "Choosing between two project ideas...", a: "Pick the one that feels right", b: "Make a pros and cons list", dimA: "gut", dimB: "analytical" },
+      { id: "risk", prompt: "Project is 'good enough' with 2 days left...", a: "Tear it apart, try something ambitious", b: "Polish until it's really solid", dimA: "risk_taker", dimB: "reliable" },
+      { id: "pace", prompt: "First day on a new project...", a: "Research, think, plan, then start", b: "Get something made by end of day", dimA: "slow_build", dimB: "fast_start" },
+      { id: "feedback", prompt: "Teacher hands back your work...", a: "Look at specific marks and comments", b: "Check the overall grade and vibe", dimA: "specific", dimB: "big_picture" },
+      { id: "scope", prompt: "Extra week on a project, you'd...", a: "Go deeper into what you've got", b: "Add something new", dimA: "depth", dimB: "breadth" },
+      { id: "expression", prompt: "Need to explain an idea...", a: "Draw it or build it", b: "Talk or write it out", dimA: "visual", dimB: "verbal" },
+      { id: "learning", prompt: "Learning a new tool, you...", a: "Watch a video first", b: "Just start pressing buttons", dimA: "study", dimB: "experiment" },
+      { id: "source", prompt: "You 'get' something when...", a: "Someone shows a great example", b: "Someone explains the idea behind it", dimA: "example", dimB: "concept" },
+    ];
+
+    const SCENARIOS = [
+      { id: "crisis", prompt: "Group project \u2014 plan isn't working, deadline next week. You...",
+        options: [
+          { text: "Quietly build a backup plan", archetype: "maker" },
+          { text: "Call a meeting, new direction", archetype: "leader" },
+          { text: "Research what went wrong", archetype: "researcher" },
+          { text: "Sketch 3 quick alternatives", archetype: "creative" },
+        ]},
+      { id: "free_period", prompt: "Teacher absent, free period, project due in 3 days. You...",
+        options: [
+          { text: "Head to workshop, start making", archetype: "maker" },
+          { text: "Research what others have done", archetype: "researcher" },
+          { text: "Find your group, coordinate", archetype: "leader" },
+          { text: "Grab sketchbook, brainstorm wildly", archetype: "creative" },
+        ]},
+      { id: "feedback_crunch", prompt: "Teacher says design is 'fine but safe.' One day to improve...",
+        options: [
+          { text: "Rebuild one section from scratch", archetype: "maker" },
+          { text: "Study award-winning examples", archetype: "researcher" },
+          { text: "Ask 3 classmates for honest feedback", archetype: "communicator" },
+          { text: "Generate 5 radical alternatives", archetype: "creative" },
+        ]},
+    ];
+
+    const INTEREST_ICONS = [
+      { id: "tech", label: "Technology", icon: "\u{1F4BB}" }, { id: "art", label: "Art & Design", icon: "\u{1F3A8}" },
+      { id: "music", label: "Music", icon: "\u{1F3B5}" }, { id: "nature", label: "Nature", icon: "\u{1F33F}" },
+      { id: "sports", label: "Sports", icon: "\u{26BD}" }, { id: "food", label: "Food", icon: "\u{1F373}" },
+      { id: "science", label: "Science", icon: "\u{1F52C}" }, { id: "fashion", label: "Fashion", icon: "\u{1F457}" },
+      { id: "gaming", label: "Gaming", icon: "\u{1F3AE}" }, { id: "film", label: "Film", icon: "\u{1F3AC}" },
+      { id: "building", label: "Building", icon: "\u{1F3D7}" }, { id: "animals", label: "Animals", icon: "\u{1F43E}" },
+      { id: "social", label: "Social Justice", icon: "\u{270A}" }, { id: "space", label: "Space", icon: "\u{1F680}" },
+      { id: "writing", label: "Writing", icon: "\u{270D}\u{FE0F}" }, { id: "travel", label: "Travel", icon: "\u{2708}\u{FE0F}" },
+      { id: "photo", label: "Photography", icon: "\u{1F4F8}" }, { id: "math", label: "Puzzles", icon: "\u{1F9E9}" },
+      { id: "robots", label: "Robots", icon: "\u{1F916}" }, { id: "environment", label: "Environment", icon: "\u{1F30D}" },
+    ];
+
+    const VALUES_CARDS = [
+      { id: "creativity", label: "Creativity", desc: "Making something original" },
+      { id: "helping", label: "Helping Others", desc: "Making a difference" },
+      { id: "challenge", label: "Challenge", desc: "Pushing my limits" },
+      { id: "teamwork", label: "Teamwork", desc: "Working with others" },
+      { id: "independence", label: "Independence", desc: "Doing it my way" },
+      { id: "precision", label: "Precision", desc: "Getting it exactly right" },
+      { id: "speed", label: "Speed", desc: "Moving fast" },
+      { id: "beauty", label: "Beauty", desc: "Making things beautiful" },
+      { id: "logic", label: "Logic", desc: "Things that make sense" },
+      { id: "fun", label: "Fun", desc: "Enjoying the process" },
+      { id: "impact", label: "Impact", desc: "Changing something real" },
+      { id: "learning", label: "Learning", desc: "Understanding new things" },
+    ];
+
+    const COMMUNITY_HOTSPOTS = [
+      { id: "school", label: "School", color: "#3B82F6" },
+      { id: "park", label: "Park", color: "#22C55E" },
+      { id: "market", label: "Market", color: "#F59E0B" },
+      { id: "home", label: "Homes", color: "#EF4444" },
+      { id: "clinic", label: "Clinic", color: "#EC4899" },
+      { id: "workshop_area", label: "Workshop", color: "#8B5CF6" },
+    ];
+
+    const EFFICACY_DOMAINS = [
+      { id: "research", label: "Researching" },
+      { id: "ideate", label: "Coming up with ideas" },
+      { id: "plan", label: "Planning" },
+      { id: "make", label: "Making & building" },
+      { id: "present", label: "Presenting work" },
+      { id: "evaluate", label: "Evaluating" },
+      { id: "collaborate", label: "Working with others" },
+    ];
+
+    const FEAR_CARDS = [
+      { id: "fail", label: "What if I fail?", response: "Failure is iteration in disguise. Every professional designer fails their way to great work." },
+      { id: "ideas", label: "What if I run out of ideas?", response: "Ideas aren't finite. They come from looking at the world. The more you observe, the more you have." },
+      { id: "not_good", label: "What if I'm not good enough?", response: "You're comparing your chapter 1 to someone else's chapter 20. The only useful comparison is you vs. you last month." },
+      { id: "boring", label: "What if it's boring?", response: "If YOU find it boring, chase the version that excites you. Your energy is the most important material." },
+      { id: "time", label: "What if I run out of time?", response: "Time pressure is a design constraint, not an enemy. The trick is knowing what to cut, not what to add." },
+    ];
+
+    const ARCHETYPES = {
+      maker: { name: "The Maker", desc: "You learn by doing. Hands first, theory later.", color: "#EF4444", icon: "\u{1F528}" },
+      researcher: { name: "The Researcher", desc: "You dig deep before you build.", color: "#3B82F6", icon: "\u{1F50D}" },
+      leader: { name: "The Leader", desc: "You see the big picture and move people.", color: "#F59E0B", icon: "\u{1F4CB}" },
+      creative: { name: "The Creative", desc: "You see possibilities everywhere.", color: "#8B5CF6", icon: "\u{1F3A8}" },
+      communicator: { name: "The Communicator", desc: "You connect ideas and people.", color: "#EC4899", icon: "\u{1F5E3}" },
+      systems: { name: "The Systems Thinker", desc: "You see how everything connects.", color: "#059669", icon: "\u{2699}\u{FE0F}" },
+    };
+
+    const KIT_DIALOGUE = {
+      0: { entry: "Hey! Welcome to my studio. Let's set yours up.", idle: "Take your time \u2014 pick what feels right.", exit: "Nice choices. That says a lot about you." },
+      1: { entry: "Quick round \u2014 just go with your gut. Ready?", idle: "No right answers here. Just honest ones.", exit: "Interesting... I'm starting to see how you tick." },
+      2: { entry: "Let me throw some situations at you.", idle: "What would you actually do \u2014 not what sounds good.", exit: "I think I know your superpower now..." },
+      3: { entry: "Show me what lights you up.", idle: "Pick anything that catches your eye.", exit: "That's quite a collection. I see patterns." },
+      4: { entry: "Look out the window. What do you see?", idle: "Every great design starts with noticing something.", exit: "You've got eyes for the real problems." },
+      5: { entry: "What do you bring to the table?", idle: "Be honest \u2014 this isn't a job interview.", exit: "You've got more going for you than you think." },
+      6: { entry: "Three doors. Each leads somewhere different.", idle: "There's no wrong choice here. Which one excites you?", exit: "Bold choice. Let's do this." },
+      7: { entry: "We're almost there. One last thing...", idle: "This is YOUR project statement.", exit: "Look at that. Look at who you are. Let's go." },
+    };
+
+    // ═══════════════════════════════════════════════════════════════
+    // THREE.JS HELPERS
+    // ═══════════════════════════════════════════════════════════════
+
+    function mat(color, opts = {}) {
+      return new THREE.MeshStandardMaterial({ color, roughness: 0.85, metalness: 0.05, flatShading: true, ...opts });
+    }
+    function box(p, w, h, d, c, pos, rot) {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat(c));
+      m.position.set(...pos); if (rot) m.rotation.set(...rot);
+      m.castShadow = true; m.receiveShadow = true; p.add(m); return m;
+    }
+    function cyl(p, rT, rB, h, c, pos, s = 8) {
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(rT, rB, h, s), mat(c));
+      m.position.set(...pos); m.castShadow = true; p.add(m); return m;
+    }
+    function sph(p, r, c, pos) {
+      const m = new THREE.Mesh(new THREE.SphereGeometry(r, 8, 8), mat(c));
+      m.position.set(...pos); m.castShadow = true; p.add(m); return m;
+    }
+    function cone(p, r, h, c, pos, s = 6) {
+      const m = new THREE.Mesh(new THREE.ConeGeometry(r, h, s), mat(c));
+      m.position.set(...pos); m.castShadow = true; p.add(m); return m;
+    }
+    function plane(p, w, h, c, pos, rot) {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat(c, { side: THREE.DoubleSide }));
+      m.position.set(...pos); if (rot) m.rotation.set(...rot); m.receiveShadow = true; p.add(m); return m;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // 3D KIT CHARACTER
+    // ═══════════════════════════════════════════════════════════════
+
+    function buildKit() {
+      const k = new THREE.Group(); k.name = "kit";
+      // Body
+      const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.25, 0.6, 8), mat("#7C3AED"));
+      torso.position.y = 0.8; k.add(torso);
+      // Head
+      sph(k, 0.2, "#F5D6B8", [0, 1.3, 0]);
+      // Hair
+      const hair = new THREE.Mesh(new THREE.SphereGeometry(0.22, 10, 10, 0, Math.PI * 2, 0, Math.PI * 0.55), mat("#4A1D96"));
+      hair.position.y = 1.35; k.add(hair);
+      // Eyes
+      const eGeo = new THREE.SphereGeometry(0.03, 6, 6); const eMat = mat("#1E1B4B");
+      const lE = new THREE.Mesh(eGeo, eMat); lE.position.set(-0.07, 1.32, 0.17); k.add(lE);
+      const rE = new THREE.Mesh(eGeo, eMat); rE.position.set(0.07, 1.32, 0.17); k.add(rE);
+      // Smile
+      const smile = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.012, 6, 12, Math.PI), mat("#C4532A"));
+      smile.position.set(0, 1.24, 0.17); smile.rotation.x = Math.PI; smile.name = "smile"; k.add(smile);
+      // Arms
+      const aG = new THREE.CylinderGeometry(0.06, 0.05, 0.4, 6); const aM = mat("#7C3AED");
+      const lA = new THREE.Mesh(aG, aM); lA.position.set(-0.32, 0.85, 0); lA.rotation.z = 0.3; lA.name = "leftArm"; k.add(lA);
+      const rA = new THREE.Mesh(aG, aM); rA.position.set(0.32, 0.85, 0); rA.rotation.z = -0.3; rA.name = "rightArm"; k.add(rA);
+      // Hands
+      const hM = mat("#F5D6B8");
+      sph(k, 0.05, "#F5D6B8", [-0.42, 0.68, 0]); sph(k, 0.05, "#F5D6B8", [0.42, 0.68, 0]);
+      // Legs
+      const lG = new THREE.CylinderGeometry(0.07, 0.06, 0.45, 6); const lM = mat("#374151");
+      const lL = new THREE.Mesh(lG, lM); lL.position.set(-0.1, 0.3, 0); k.add(lL);
+      const rL = new THREE.Mesh(lG, lM); rL.position.set(0.1, 0.3, 0); k.add(rL);
+      // Shoes
+      const sM = mat("#92400E");
+      const lS = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.06, 0.16), sM); lS.position.set(-0.1, 0.06, 0.03); k.add(lS);
+      const rS = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.06, 0.16), sM); rS.position.set(0.1, 0.06, 0.03); k.add(rS);
+      return k;
+    }
+
+    function animKit(kit, t, expr = "idle") {
+      if (!kit) return;
+      kit.position.y = Math.sin(t * 1.5) * 0.02;
+      const lA = kit.getObjectByName("leftArm");
+      const rA = kit.getObjectByName("rightArm");
+      if (lA && rA) {
+        if (expr === "wave") { rA.rotation.z = -1.2 + Math.sin(t * 6) * 0.3; lA.rotation.z = 0.3; }
+        else if (expr === "celebrate") { lA.rotation.z = 1.0 + Math.sin(t * 4) * 0.15; rA.rotation.z = -1.0 + Math.sin(t * 4 + 1) * 0.15; }
+        else if (expr === "think") { rA.rotation.z = -0.8; rA.rotation.x = -0.4; lA.rotation.z = 0.3; }
+        else if (expr === "point") { rA.rotation.z = -1.3; rA.rotation.x = -0.2; lA.rotation.z = 0.3; }
+        else { lA.rotation.z = 0.3 + Math.sin(t * 2) * 0.05; rA.rotation.z = -0.3 - Math.sin(t * 2) * 0.05; rA.rotation.x = 0; }
+      }
+      const sm = kit.getObjectByName("smile");
+      if (sm) {
+        if (expr === "celebrate") sm.scale.set(1.3, 1.3, 1.3);
+        else if (expr === "think") { sm.scale.set(0.6, 0.6, 0.6); }
+        else sm.scale.set(1, 1, 1);
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // GLB ASSET LOADER (Kenney packs)
+    // ═══════════════════════════════════════════════════════════════
+
+    // Paths relative to THIS file (which lives inside 3delements/)
+    // Space in folder name must be URL-encoded for fetch/XHR
+    const FURN = "kenney_furniture-kit/Models/GLTF%20format/";
+    const NATR = "kenney_nature-kit/Models/GLTF%20format/";
+    const _glbCache = {};
+    const _gltfLoader = new THREE.GLTFLoader();
+
+    function loadGLB(path, parent, pos, scale = 1, rotY = 0) {
+      function place(m) {
+        m.position.set(...pos);
+        if (typeof scale === "number") m.scale.set(scale, scale, scale); else m.scale.set(...scale);
+        m.rotation.y = rotY;
+        m.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+        parent.add(m);
+        // Hide primitive fallbacks once any GLB loads for this env group
+        const fb = parent.getObjectByName("fallbacks");
+        if (fb) fb.visible = false;
+      }
+      if (_glbCache[path]) { place(_glbCache[path].clone()); return; }
+      _gltfLoader.load(path, (gltf) => {
+        _glbCache[path] = gltf.scene.clone();
+        place(gltf.scene);
+      }, undefined, (err) => { console.warn("GLB load failed:", path, err); });
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // ENVIRONMENT BUILDERS (with Kenney GLB assets)
+    // ═══════════════════════════════════════════════════════════════
+
+    function buildFoyer(sc) {
+      const g = new THREE.Group(); g.name = "env_foyer";
+      // Room shell (always visible)
+      plane(g, 12, 12, "#C4A265", [0, 0, 0], [-Math.PI / 2, 0, 0]);
+      box(g, 12, 5, 0.2, "#FEF3C7", [0, 2.5, -6]);
+      box(g, 0.2, 5, 12, "#FDF6E3", [-6, 2.5, 0]); box(g, 0.2, 5, 12, "#FDF6E3", [6, 2.5, 0]);
+      // Primitive fallbacks (hidden once GLBs load)
+      const fb = new THREE.Group(); fb.name = "fallbacks";
+      box(fb, 2.5, 0.02, 1.5, "#D97706", [0, 0.01, 3]);
+      box(fb, 3, 2, 0.4, "#92400E", [-3, 1, -5.5]);
+      box(fb, 2, 0.08, 1.2, "#A16207", [2, 0.8, -2]);
+      cyl(fb, 0.05, 0.05, 0.8, "#78716C", [1.4, 0.4, -1.6]); cyl(fb, 0.05, 0.05, 0.8, "#78716C", [2.6, 0.4, -1.6]);
+      cyl(fb, 0.05, 0.05, 0.8, "#78716C", [1.4, 0.4, -2.4]); cyl(fb, 0.05, 0.05, 0.8, "#78716C", [2.6, 0.4, -2.4]);
+      cyl(fb, 0.2, 0.15, 0.3, "#92400E", [4, 0.15, -4]); sph(fb, 0.35, "#22C55E", [4, 0.55, -4]);
+      for (let i = -2; i <= 2; i += 2) cyl(fb, 0.12, 0.12, 0.06, "#FCD34D", [i, 3.8, -2], 6);
+      g.add(fb);
+      // GLB overlays (load async — enhance the scene when ready)
+      loadGLB(FURN + "desk.glb", g, [2, 0, -2], 1.4);
+      loadGLB(FURN + "chair.glb", g, [2, 0, -0.8], 1.4, Math.PI);
+      loadGLB(FURN + "bookcaseOpen.glb", g, [-3.5, 0, -5.5], 1.6);
+      loadGLB(FURN + "bookcaseClosedWide.glb", g, [-1, 0, -5.5], 1.6);
+      loadGLB(FURN + "lampSquareCeiling.glb", g, [0, 4.2, -2], 1.5);
+      loadGLB(FURN + "pottedPlant.glb", g, [4.5, 0, -4.5], 1.8);
+      loadGLB(FURN + "rugRectangle.glb", g, [0, 0.01, 2], 2.5);
+      loadGLB(FURN + "books.glb", g, [1.6, 0.85, -2], 1.4);
+      loadGLB(FURN + "laptop.glb", g, [2.4, 0.85, -2], 1.2);
+      loadGLB(FURN + "coatRackStanding.glb", g, [5, 0, 2], 1.6);
+      loadGLB(FURN + "sideTable.glb", g, [4.5, 0, -2], 1.3);
+      loadGLB(FURN + "lampRoundTable.glb", g, [4.5, 0.65, -2], 1.2);
+      sc.add(g); return g;
+    }
+
+    function buildCampfire(sc) {
+      const g = new THREE.Group(); g.name = "env_campfire";
+      plane(g, 16, 16, "#3D2817", [0, 0, 0], [-Math.PI / 2, 0, 0]);
+      // Stars (always visible)
+      for (let i = 0; i < 30; i++) { const s = new THREE.Mesh(new THREE.SphereGeometry(0.03, 4, 4), new THREE.MeshBasicMaterial({ color: "#FEF3C7" })); s.position.set((Math.random() - 0.5) * 20, 6 + Math.random() * 4, (Math.random() - 0.5) * 20); g.add(s); }
+      // Primitive fallbacks (hidden once GLBs load)
+      const fb = new THREE.Group(); fb.name = "fallbacks";
+      for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; box(fb, 0.3, 0.2, 0.3, "#6B7280", [Math.cos(a) * 0.8, 0.1, Math.sin(a) * 0.8]); }
+      cone(fb, 0.3, 0.7, "#EF4444", [0, 0.45, 0]); cone(fb, 0.2, 0.5, "#F97316", [0.05, 0.55, 0.05]); cone(fb, 0.15, 0.4, "#FCD34D", [-0.03, 0.5, -0.03]);
+      for (let i = 0; i < 3; i++) { const a = (i / 3) * Math.PI * 2 + 0.3; cyl(fb, 0.12, 0.12, 0.8, "#92400E", [Math.cos(a) * 2, 0.12, Math.sin(a) * 2]); }
+      const cc = ["#7C3AED", "#EC4899", "#3B82F6", "#22C55E"];
+      for (let i = 0; i < 4; i++) { const a = (i / 4) * Math.PI * 2; box(fb, 0.5, 0.15, 0.5, cc[i], [Math.cos(a) * 2.2, 0.08, Math.sin(a) * 2.2]); }
+      for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; const d = 5 + Math.random() * 2; const h = 1.5 + Math.random() * 1.5; cyl(fb, 0.08, 0.1, h, "#5C3A1E", [Math.cos(a) * d, h / 2, Math.sin(a) * d]); cone(fb, 0.6, 1.2, "#1B4332", [Math.cos(a) * d, h + 0.5, Math.sin(a) * d]); }
+      g.add(fb);
+      // GLB overlays
+      loadGLB(NATR + "campfire_stones.glb", g, [0, 0, 0], 1.8);
+      loadGLB(NATR + "log_stack.glb", g, [1.8, 0, 1.2], 1.5, 0.4);
+      loadGLB(NATR + "log.glb", g, [-1.5, 0, 2], 2.0, 1.2);
+      loadGLB(NATR + "log_large.glb", g, [2.2, 0, -1], 1.3, -0.8);
+      loadGLB(NATR + "stump_round.glb", g, [-2, 0, -1.5], 1.5);
+      loadGLB(NATR + "stump_roundDetailed.glb", g, [0, 0, 2.5], 1.4);
+      loadGLB(NATR + "tree_pineDefaultA.glb", g, [5, 0, -4], 2.0);
+      loadGLB(NATR + "tree_pineRoundA.glb", g, [-5, 0, -5], 2.2);
+      loadGLB(NATR + "tree_oak.glb", g, [6, 0, 2], 2.0);
+      loadGLB(NATR + "tree_detailed.glb", g, [-6, 0, 3], 1.8);
+      loadGLB(NATR + "rock_smallA.glb", g, [3, 0, 3], 1.5);
+      loadGLB(NATR + "rock_largeA.glb", g, [5.5, 0, -1], 1.2);
+      loadGLB(NATR + "plant_bush.glb", g, [3, 0, -3], 1.8);
+      loadGLB(NATR + "plant_bushLarge.glb", g, [-4, 0, 1], 1.5);
+      loadGLB(NATR + "mushroom_redGroup.glb", g, [-3, 0, -4], 1.5);
+      sc.add(g); return g;
+    }
+
+    function buildWorkshop(sc) {
+      const g = new THREE.Group(); g.name = "env_workshop";
+      plane(g, 14, 14, "#9CA3AF", [0, 0, 0], [-Math.PI / 2, 0, 0]);
+      box(g, 14, 5, 0.2, "#D1D5DB", [0, 2.5, -7]); box(g, 0.2, 5, 14, "#E5E7EB", [-7, 2.5, 0]); box(g, 0.2, 5, 14, "#E5E7EB", [7, 2.5, 0]);
+      // Primitive fallbacks (hidden once GLBs load)
+      const fb = new THREE.Group(); fb.name = "fallbacks";
+      box(fb, 4, 0.1, 1.2, "#78716C", [0, 0.9, -4]);
+      box(fb, 0.1, 0.9, 1.2, "#78716C", [-1.9, 0.45, -4]); box(fb, 0.1, 0.9, 1.2, "#78716C", [1.9, 0.45, -4]);
+      box(fb, 3, 2, 0.05, "#D4A265", [0, 2.5, -6.8]);
+      box(fb, 0.08, 0.6, 0.05, "#374151", [-0.8, 2.8, -6.7]); box(fb, 0.25, 0.15, 0.05, "#374151", [-0.8, 3.1, -6.7]);
+      box(fb, 0.06, 0.5, 0.05, "#374151", [0, 2.7, -6.7]); box(fb, 0.4, 0.05, 0.05, "#374151", [0.8, 2.6, -6.7]);
+      box(fb, 0.3, 0.3, 0.2, "#4B5563", [-1, 1.05, -4]);
+      box(fb, 2, 3, 0.6, "#6B7280", [-5, 1.5, -4]);
+      for (let i = 0; i < 3; i++) box(fb, 0.5, 0.3, 0.4, ["#EF4444", "#3B82F6", "#22C55E"][i], [-5.3 + i * 0.7, 0.6 + i * 1, -3.8]);
+      box(fb, 1.5, 0.05, 0.3, "#E5E7EB", [0, 4.5, -3]);
+      g.add(fb);
+      // GLB overlays
+      loadGLB(FURN + "desk.glb", g, [0, 0, -4], 1.8);
+      loadGLB(FURN + "stoolBar.glb", g, [0, 0, -2.5], 1.4);
+      loadGLB(FURN + "stoolBar.glb", g, [-1.5, 0, -2.5], 1.4);
+      loadGLB(FURN + "bookcaseClosedWide.glb", g, [-5, 0, -4], 1.6);
+      loadGLB(FURN + "bookcaseOpen.glb", g, [5, 0, -5], 1.5);
+      loadGLB(FURN + "cardboardBoxClosed.glb", g, [-5.3, 0.01, -1], 1.5);
+      loadGLB(FURN + "cardboardBoxOpen.glb", g, [-4.3, 0.01, -1], 1.5);
+      loadGLB(FURN + "lampSquareCeiling.glb", g, [0, 4.5, -3], 1.8);
+      loadGLB(FURN + "lampSquareFloor.glb", g, [4.5, 0, -2], 1.5);
+      loadGLB(FURN + "trashcan.glb", g, [5.5, 0, 0], 1.4);
+      loadGLB(FURN + "computerScreen.glb", g, [-1, 0.85, -4], 1.2);
+      sc.add(g); return g;
+    }
+
+    function buildGallery(sc) {
+      const g = new THREE.Group(); g.name = "env_gallery";
+      plane(g, 14, 14, "#1E1B4B", [0, 0, 0], [-Math.PI / 2, 0, 0]);
+      box(g, 14, 5, 0.2, "#312E81", [0, 2.5, -7]); box(g, 0.2, 5, 14, "#312E81", [-7, 2.5, 0]); box(g, 0.2, 5, 14, "#312E81", [7, 2.5, 0]);
+      // Primitive fallbacks — wall art, pedestals, bench
+      const fb = new THREE.Group(); fb.name = "fallbacks";
+      ["#FCD34D", "#A5B4FC", "#F9A8D4", "#86EFAC"].forEach((c, i) => { const x = -4 + i * 2.8; box(fb, 2, 1.5, 0.05, c, [x, 2.5, -6.8]); box(fb, 1.8, 1.3, 0.03, "#FFF7ED", [x, 2.5, -6.75]); });
+      for (let i = 0; i < 3; i++) { const x = -3 + i * 3; cyl(fb, 0.3, 0.35, 0.8, "#E5E7EB", [x, 0.4, -2]); sph(fb, 0.2, ["#EF4444", "#8B5CF6", "#06B6D4"][i], [x, 1, -2]); }
+      box(fb, 3, 0.1, 0.6, "#92400E", [0, 0.45, 2]); box(fb, 0.1, 0.45, 0.6, "#78716C", [-1.4, 0.22, 2]); box(fb, 0.1, 0.45, 0.6, "#78716C", [1.4, 0.22, 2]);
+      g.add(fb);
+      // GLB overlays
+      loadGLB(FURN + "sideTable.glb", g, [-3, 0, -2], 1.5);
+      loadGLB(FURN + "sideTable.glb", g, [0, 0, -2], 1.5);
+      loadGLB(FURN + "sideTable.glb", g, [3, 0, -2], 1.5);
+      loadGLB(FURN + "bench.glb", g, [0, 0, 2], 1.6);
+      loadGLB(FURN + "lampWall.glb", g, [-5.8, 2.2, -4], 1.5, Math.PI / 2);
+      loadGLB(FURN + "lampWall.glb", g, [5.8, 2.2, -4], 1.5, -Math.PI / 2);
+      loadGLB(FURN + "plantSmall2.glb", g, [-6, 0, -6], 1.8);
+      loadGLB(FURN + "plantSmall3.glb", g, [6, 0, -6], 1.8);
+      sc.add(g); return g;
+    }
+
+    function buildWindow(sc) {
+      const g = new THREE.Group(); g.name = "env_window";
+      plane(g, 8, 8, "#D4A265", [0, 0, 0], [-Math.PI / 2, 0, 0]);
+      // Primitive fallbacks — window frame, outside buildings, trees
+      const fb = new THREE.Group(); fb.name = "fallbacks";
+      box(fb, 6, 0.2, 0.2, "#78716C", [0, 2, -3.9]); box(fb, 6, 0.2, 0.2, "#78716C", [0, 0.5, -3.9]);
+      box(fb, 0.2, 1.7, 0.2, "#78716C", [-3, 1.25, -3.9]); box(fb, 0.2, 1.7, 0.2, "#78716C", [3, 1.25, -3.9]); box(fb, 0.2, 1.7, 0.2, "#78716C", [0, 1.25, -3.9]);
+      box(fb, 5.5, 0.2, 1, "#6366F1", [0, 0.6, -3.2]); // window seat
+      plane(fb, 20, 20, "#86EFAC", [0, 0, -14], [-Math.PI / 2, 0, 0]);
+      box(fb, 2, 1.5, 1.5, "#3B82F6", [-3, 0.75, -8]); box(fb, 1.2, 0.8, 1.2, "#22C55E", [2, 0.4, -10]);
+      box(fb, 1.8, 1.2, 1.5, "#F59E0B", [-1, 0.6, -11]); box(fb, 1.5, 1, 1.2, "#EF4444", [3, 0.5, -8]); box(fb, 1.2, 1, 1, "#EC4899", [0, 0.5, -7]);
+      for (let i = 0; i < 5; i++) { cyl(fb, 0.06, 0.08, 0.8, "#5C3A1E", [-4 + i * 2, 0.4, -12]); cone(fb, 0.4, 0.8, "#166534", [-4 + i * 2, 1, -12]); }
+      box(fb, 0.3, 3, 1.5, "#92400E", [-3.8, 1.5, -1]); // bookshelf
+      g.add(fb);
+      // GLB overlays
+      loadGLB(FURN + "wallWindow.glb", g, [-1.5, 0, -3.8], 2.0);
+      loadGLB(FURN + "wallWindow.glb", g, [1.5, 0, -3.8], 2.0);
+      loadGLB(FURN + "loungeChair.glb", g, [2, 0, -1.5], 1.5, -0.3);
+      loadGLB(FURN + "bookcaseOpen.glb", g, [-3.5, 0, -2], 1.4);
+      loadGLB(FURN + "sideTableDrawers.glb", g, [3.5, 0, -1], 1.3);
+      loadGLB(FURN + "lampRoundFloor.glb", g, [3.5, 0, 0.5], 1.5);
+      loadGLB(FURN + "rugRound.glb", g, [1, 0.01, -0.5], 2.5);
+      loadGLB(NATR + "tree_default.glb", g, [-3, 0, -8], 2.5);
+      loadGLB(NATR + "tree_oak.glb", g, [3, 0, -10], 2.2);
+      loadGLB(NATR + "tree_detailed.glb", g, [0, 0, -12], 2.0);
+      loadGLB(NATR + "fence_simple.glb", g, [-2, 0, -6], 2.0);
+      loadGLB(NATR + "fence_simple.glb", g, [1, 0, -6], 2.0);
+      loadGLB(NATR + "flower_redA.glb", g, [-2, 0, -7], 2.5);
+      loadGLB(NATR + "plant_bushLarge.glb", g, [-5, 0, -7.5], 2.0);
+      sc.add(g); return g;
+    }
+
+    function buildShelves(sc) {
+      const g = new THREE.Group(); g.name = "env_shelves";
+      plane(g, 12, 12, "#064E3B", [0, 0, 0], [-Math.PI / 2, 0, 0]);
+      box(g, 12, 5, 0.2, "#065F46", [0, 2.5, -6]); box(g, 0.2, 5, 12, "#065F46", [-6, 2.5, 0]); box(g, 0.2, 5, 12, "#065F46", [6, 2.5, 0]);
+      // Primitive fallbacks — shelving, desk, chair, lamp
+      const fb = new THREE.Group(); fb.name = "fallbacks";
+      const ic = ["#EF4444", "#3B82F6", "#F59E0B", "#8B5CF6", "#EC4899"];
+      for (let r = 0; r < 4; r++) { box(fb, 10, 0.08, 0.8, "#92400E", [0, 0.5 + r * 1.0, -5.5]); for (let c = 0; c < 5; c++) { if (Math.random() > 0.3) box(fb, 0.4, 0.35, 0.3, ic[c], [-3.5 + c * 1.8, 0.7 + r * 1.0, -5.5]); } }
+      box(fb, 0.1, 4.5, 0.8, "#78716C", [-5, 2.25, -5.5]); box(fb, 0.1, 4.5, 0.8, "#78716C", [5, 2.25, -5.5]);
+      box(fb, 2, 0.08, 1, "#A16207", [3, 0.75, 0]); // desk
+      box(fb, 0.6, 0.6, 0.5, "#92400E", [3, 0.55, 1.5]); box(fb, 0.6, 0.5, 0.05, "#78350F", [3, 0.95, 1.25]); // chair
+      cyl(fb, 0.08, 0.12, 0.5, "#B45309", [3.8, 1.1, 0]); cone(fb, 0.2, 0.15, "#FCD34D", [3.8, 1.45, 0]); // lamp
+      g.add(fb);
+      // GLB overlays
+      loadGLB(FURN + "bookcaseOpen.glb", g, [-4, 0, -5.5], 1.6);
+      loadGLB(FURN + "bookcaseOpen.glb", g, [-1.5, 0, -5.5], 1.6);
+      loadGLB(FURN + "bookcaseClosedWide.glb", g, [1.5, 0, -5.5], 1.6);
+      loadGLB(FURN + "bookcaseOpen.glb", g, [4, 0, -5.5], 1.6);
+      loadGLB(FURN + "books.glb", g, [-3.5, 1.2, -5.3], 1.2);
+      loadGLB(FURN + "books.glb", g, [2, 2.2, -5.3], 1.2, -0.3);
+      loadGLB(FURN + "desk.glb", g, [3, 0, 0], 1.4);
+      loadGLB(FURN + "chairDesk.glb", g, [3, 0, 1.5], 1.3, Math.PI);
+      loadGLB(FURN + "lampRoundTable.glb", g, [3.8, 0.85, 0], 1.2);
+      loadGLB(FURN + "cardboardBoxClosed.glb", g, [-5, 0, 2], 1.4);
+      loadGLB(FURN + "plantSmall1.glb", g, [5, 0, -2], 1.5);
+      loadGLB(FURN + "pottedPlant.glb", g, [-5, 0, -3], 1.5);
+      sc.add(g); return g;
+    }
+
+    function buildCorridor(sc) {
+      const g = new THREE.Group(); g.name = "env_corridor";
+      plane(g, 10, 16, "#374151", [0, 0, 0], [-Math.PI / 2, 0, 0]);
+      box(g, 0.2, 5, 16, "#4C1D95", [-5, 2.5, 0]); box(g, 0.2, 5, 16, "#4C1D95", [5, 2.5, 0]);
+      plane(g, 10, 16, "#2E1065", [0, 5, 0], [Math.PI / 2, 0, 0]);
+      // Primitive fallbacks — doors, torches, carpet
+      const fb = new THREE.Group(); fb.name = "fallbacks";
+      const dc = ["#EF4444", "#3B82F6", "#22C55E"];
+      for (let i = 0; i < 3; i++) { const x = -3 + i * 3; box(fb, 1.5, 2.5, 0.1, "#78716C", [x, 1.25, -7]); box(fb, 1.3, 2.3, 0.08, dc[i], [x, 1.25, -6.95]); sph(fb, 0.06, "#FCD34D", [x + 0.5, 1.2, -6.85]); box(fb, 1.7, 0.2, 0.15, "#78716C", [x, 2.6, -7]); }
+      for (let z = -4; z <= 4; z += 4) { box(fb, 0.1, 0.3, 0.1, "#78716C", [-4.8, 2.5, z]); cone(fb, 0.08, 0.15, "#FCD34D", [-4.8, 2.8, z]); box(fb, 0.1, 0.3, 0.1, "#78716C", [4.8, 2.5, z]); cone(fb, 0.08, 0.15, "#FCD34D", [4.8, 2.8, z]); }
+      box(fb, 2, 0.02, 14, "#7C3AED", [0, 0.01, 0]); // carpet runner
+      g.add(fb);
+      // GLB overlays
+      loadGLB(FURN + "doorway.glb", g, [-3, 0, -6.5], 1.6);
+      loadGLB(FURN + "doorway.glb", g, [0, 0, -6.5], 1.6);
+      loadGLB(FURN + "doorway.glb", g, [3, 0, -6.5], 1.6);
+      loadGLB(FURN + "lampWall.glb", g, [-4.8, 2.2, -4], 1.3, Math.PI / 2);
+      loadGLB(FURN + "lampWall.glb", g, [4.8, 2.2, -4], 1.3, -Math.PI / 2);
+      loadGLB(FURN + "lampWall.glb", g, [-4.8, 2.2, 0], 1.3, Math.PI / 2);
+      loadGLB(FURN + "lampWall.glb", g, [4.8, 2.2, 0], 1.3, -Math.PI / 2);
+      loadGLB(FURN + "rugRectangle.glb", g, [0, 0.01, 0], [3.5, 1, 6]);
+      loadGLB(FURN + "sideTable.glb", g, [-4, 0, 2], 1.2);
+      loadGLB(FURN + "plantSmall2.glb", g, [-4, 0.65, 2], 1.0);
+      loadGLB(FURN + "sideTable.glb", g, [4, 0, 2], 1.2);
+      loadGLB(FURN + "plantSmall3.glb", g, [4, 0.65, 2], 1.0);
+      sc.add(g); return g;
+    }
+
+    function buildRooftop(sc) {
+      const g = new THREE.Group(); g.name = "env_rooftop";
+      plane(g, 14, 14, "#9CA3AF", [0, 0, 0], [-Math.PI / 2, 0, 0]);
+      box(g, 14, 0.8, 0.3, "#6B7280", [0, 0.4, -7]); box(g, 14, 0.8, 0.3, "#6B7280", [0, 0.4, 7]);
+      box(g, 0.3, 0.8, 14, "#6B7280", [-7, 0.4, 0]); box(g, 0.3, 0.8, 14, "#6B7280", [7, 0.4, 0]);
+      // Always-visible environment — skyline, sky shader
+      const sc2 = ["#374151", "#4B5563", "#6B7280", "#374151", "#4B5563"];
+      const sx = [-8, -4, 0, 4, 8]; const sh = [3, 5, 4, 6, 3.5];
+      for (let i = 0; i < 5; i++) {
+        box(g, 2, sh[i], 2, sc2[i], [sx[i], sh[i] / 2, -14]);
+        for (let wy = 0; wy < sh[i] - 1; wy++) { for (let wx = -0.4; wx <= 0.4; wx += 0.8) { const w = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.05), new THREE.MeshBasicMaterial({ color: Math.random() > 0.3 ? "#FCD34D" : "#1F2937" })); w.position.set(sx[i] + wx, wy + 1, -12.9); g.add(w); } }
+      }
+      const skyGeo = new THREE.PlaneGeometry(40, 15);
+      const skyMat = new THREE.ShaderMaterial({ uniforms: { topColor: { value: new THREE.Color("#1E3A5F") }, bottomColor: { value: new THREE.Color("#F97316") } },
+        vertexShader: `varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+        fragmentShader: `uniform vec3 topColor; uniform vec3 bottomColor; varying vec2 vUv; void main() { gl_FragColor = vec4(mix(bottomColor, topColor, vUv.y), 1.0); }`,
+        side: THREE.DoubleSide });
+      const sky = new THREE.Mesh(skyGeo, skyMat); sky.position.set(0, 5, -20); g.add(sky);
+      // Primitive fallbacks — table, water tower, string lights
+      const fb = new THREE.Group(); fb.name = "fallbacks";
+      cyl(fb, 0.5, 0.5, 0.8, "#78716C", [5, 1.2, -4]); cone(fb, 0.55, 0.3, "#6B7280", [5, 1.75, -4]);
+      cyl(fb, 0.4, 0.4, 0.06, "#92400E", [0, 0.65, 0]); cyl(fb, 0.06, 0.06, 0.6, "#78716C", [0, 0.32, 0]);
+      for (let i = -5; i <= 5; i += 1.5) { const l = new THREE.Mesh(new THREE.SphereGeometry(0.06, 6, 6), new THREE.MeshBasicMaterial({ color: ["#FCD34D", "#F9A8D4", "#93C5FD", "#86EFAC"][Math.abs(Math.round(i)) % 4] })); l.position.set(i, 2.8, -3 + Math.sin(i) * 0.3); fb.add(l); }
+      g.add(fb);
+      // GLB overlays
+      loadGLB(FURN + "tableCoffee.glb", g, [0, 0, 0], 1.6);
+      loadGLB(FURN + "chairCushion.glb", g, [-1.2, 0, 0.8], 1.4, 0.3);
+      loadGLB(FURN + "chairCushion.glb", g, [1.2, 0, 0.8], 1.4, -0.3);
+      loadGLB(FURN + "chairCushion.glb", g, [0, 0, -1.2], 1.4, Math.PI);
+      loadGLB(FURN + "plantSmall1.glb", g, [-5, 0.8, -6.5], 1.5);
+      loadGLB(FURN + "plantSmall2.glb", g, [-3, 0.8, -6.5], 1.5);
+      loadGLB(FURN + "plantSmall3.glb", g, [3, 0.8, -6.5], 1.5);
+      loadGLB(FURN + "pottedPlant.glb", g, [5, 0.8, -6.5], 1.5);
+      loadGLB(NATR + "pot_large.glb", g, [-5.5, 0, 5], 2.0);
+      loadGLB(NATR + "fence_simple.glb", g, [-2, 0.8, -6.8], 1.5);
+      loadGLB(NATR + "fence_simple.glb", g, [0, 0.8, -6.8], 1.5);
+      loadGLB(NATR + "fence_simple.glb", g, [2, 0.8, -6.8], 1.5);
+      sc.add(g); return g;
+    }
+
+    const ENV_BUILDERS = { foyer: buildFoyer, campfire: buildCampfire, workshop: buildWorkshop, gallery: buildGallery, window: buildWindow, shelves: buildShelves, corridor: buildCorridor, rooftop: buildRooftop };
+    const CAM_POS = { foyer: { p: [0, 2, 5], l: [0, 1.2, -2] }, campfire: { p: [0, 2.5, 5], l: [0, 0.5, 0] }, workshop: { p: [0, 2, 4], l: [0, 1.5, -3] }, gallery: { p: [0, 2, 5], l: [0, 2, -4] }, window: { p: [0, 1.5, 3], l: [0, 1.2, -5] }, shelves: { p: [0, 2, 5], l: [0, 1.5, -3] }, corridor: { p: [0, 1.8, 6], l: [0, 1.5, -5] }, rooftop: { p: [0, 2, 6], l: [0, 1.5, -5] } };
+    const KIT_POS = { foyer: [-2, 0, 2], campfire: [-1.5, 0, 1.5], workshop: [-3, 0, 0], gallery: [-3, 0, 1], window: [-2, 0, 1], shelves: [-3, 0, 1], corridor: [-2, 0, 3], rooftop: [-2, 0, 2] };
+
+    // ═══════════════════════════════════════════════════════════════
+    // MAIN APP
+    // ═══════════════════════════════════════════════════════════════
+
+    function App() {
+      const [station, setStation] = useState(0);
+      const [transitioning, setTransitioning] = useState(false);
+      const [kitExpr, setKitExpr] = useState("wave");
+      const [kitDlg, setKitDlg] = useState(KIT_DIALOGUE[0].entry);
+      const [showDlg, setShowDlg] = useState(true);
+
+      // Station state
+      const [selPalette, setSelPalette] = useState(null);
+      const [selTools, setSelTools] = useState([]);
+      const [selWorkspace, setSelWorkspace] = useState([]);
+      const [binAnswers, setBinAnswers] = useState({});
+      const [binIdx, setBinIdx] = useState(0);
+      const [scnAnswers, setScnAnswers] = useState({});
+      const [scnIdx, setScnIdx] = useState(0);
+      const [selInterests, setSelInterests] = useState([]);
+      const [irritation, setIrritation] = useState("");
+      const [topVals, setTopVals] = useState([]);
+      const [selHotspots, setSelHotspots] = useState([]);
+      const [probText, setProbText] = useState("");
+      const [efficacy, setEfficacy] = useState({});
+      const [selDoor, setSelDoor] = useState(null);
+      const [selFear, setSelFear] = useState(null);
+      const [projStmt, setProjStmt] = useState("");
+      const [revealed, setRevealed] = useState(false);
+
+      const archetype = useMemo(() => {
+        const s = { maker: 0, researcher: 0, leader: 0, creative: 0, communicator: 0, systems: 0 };
+        selTools.forEach(t => { const tool = TOOLS.find(x => x.id === t); if (tool) s[tool.archetype] += 2; });
+        Object.values(scnAnswers).forEach(a => { if (a) s[a] += 3; });
+        const mx = Math.max(...Object.values(s));
+        return Object.entries(s).find(([, v]) => v === mx)?.[0] || "creative";
+      }, [selTools, scnAnswers]);
+
+      // Three.js
+      const mountRef = useRef(null);
+      const rendRef = useRef(null);
+      const sceneRef = useRef(null);
+      const camRef = useRef(null);
+      const kitRef = useRef(null);
+      const envRef = useRef(null);
+      const frameRef = useRef(null);
+      const clockRef = useRef(new THREE.Clock());
+      const tCamP = useRef(new THREE.Vector3());
+      const tCamL = useRef(new THREE.Vector3());
+      const exprRef = useRef("wave");
+
+      useEffect(() => { exprRef.current = kitExpr; }, [kitExpr]);
+
+      useEffect(() => {
+        if (!mountRef.current) return;
+        const el = mountRef.current;
+        const w = el.clientWidth, h = el.clientHeight;
+        const r = new THREE.WebGLRenderer({ antialias: true }); r.setSize(w, h); r.setPixelRatio(Math.min(devicePixelRatio, 2));
+        r.shadowMap.enabled = true; r.shadowMap.type = THREE.PCFSoftShadowMap;
+        r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.2;
+        el.appendChild(r.domElement); rendRef.current = r;
+        const sc = new THREE.Scene(); sc.background = new THREE.Color("#1a1a2e"); sc.fog = new THREE.FogExp2("#1a1a2e", 0.025); sceneRef.current = sc;
+        const cam = new THREE.PerspectiveCamera(55, w / h, 0.1, 100); cam.position.set(0, 2, 5); camRef.current = cam;
+        sc.add(new THREE.AmbientLight("#FFF7ED", 0.5));
+        const dl = new THREE.DirectionalLight("#FCD34D", 1.0); dl.position.set(3, 8, 5); dl.castShadow = true; dl.shadow.mapSize.set(1024, 1024); dl.shadow.camera.near = 0.5; dl.shadow.camera.far = 30; dl.shadow.camera.left = -10; dl.shadow.camera.right = 10; dl.shadow.camera.top = 10; dl.shadow.camera.bottom = -10; sc.add(dl);
+        sc.add(new THREE.PointLight("#F472B6", 0.3, 15).position.set(-3, 3, 2) || sc.children[sc.children.length - 1]);
+        const pl = new THREE.PointLight("#F472B6", 0.3, 15); pl.position.set(-3, 3, 2); sc.add(pl);
+        const kit = buildKit(); kit.scale.set(1.8, 1.8, 1.8); kit.position.set(...KIT_POS.foyer); kit.rotation.y = 0.3; sc.add(kit); kitRef.current = kit;
+        envRef.current = buildFoyer(sc);
+        const cp = CAM_POS.foyer; cam.position.set(...cp.p); tCamP.current.set(...cp.p); tCamL.current.set(...cp.l); cam.lookAt(...cp.l);
+
+        function loop() {
+          frameRef.current = requestAnimationFrame(loop);
+          const t = clockRef.current.getElapsedTime();
+          cam.position.lerp(tCamP.current, 0.03);
+          cam.lookAt(tCamL.current);
+          animKit(kit, t, exprRef.current);
+          // Fire flicker
+          const fire = sc.getObjectByName("env_campfire");
+          if (fire) fire.children.forEach(c => { if (c.geometry && c.geometry.parameters && c.geometry.parameters.radiusTop !== undefined && c.position.y > 0.3) { c.scale.y = 0.9 + Math.sin(t * 8 + c.position.x * 5) * 0.15; c.scale.x = 0.9 + Math.cos(t * 6) * 0.1; } });
+          r.render(sc, cam);
+        }
+        loop();
+        const onR = () => { const nw = el.clientWidth, nh = el.clientHeight; cam.aspect = nw / nh; cam.updateProjectionMatrix(); r.setSize(nw, nh); };
+        window.addEventListener("resize", onR);
+        return () => { cancelAnimationFrame(frameRef.current); window.removeEventListener("resize", onR); r.dispose(); if (el.contains(r.domElement)) el.removeChild(r.domElement); };
+      }, []);
+
+      const goTo = useCallback((ns) => {
+        if (transitioning || ns < 0 || ns > 7) return;
+        setTransitioning(true); setShowDlg(false); setKitExpr("wave");
+        setTimeout(() => {
+          const sc = sceneRef.current; if (!sc) return;
+          if (envRef.current) { sc.remove(envRef.current); envRef.current.traverse(c => { if (c.geometry) c.geometry.dispose(); if (c.material) { if (Array.isArray(c.material)) c.material.forEach(m => m.dispose()); else c.material.dispose(); } }); }
+          const m = STATION_META[ns]; envRef.current = ENV_BUILDERS[m.env](sc);
+          sc.background = new THREE.Color(m.colors.bg); sc.fog = new THREE.FogExp2(m.colors.bg, 0.02);
+          if (kitRef.current) { kitRef.current.position.set(...KIT_POS[m.env]); kitRef.current.rotation.y = 0.3; }
+          const cp = CAM_POS[m.env]; tCamP.current.set(...cp.p); tCamL.current.set(...cp.l);
+          setStation(ns);
+          setTimeout(() => { setKitDlg(KIT_DIALOGUE[ns].entry); setShowDlg(true); setKitExpr("idle"); setTransitioning(false); }, 600);
+        }, 400);
+      }, [transitioning]);
+
+      const canGo = useMemo(() => {
+        switch (station) {
+          case 0: return selPalette && selTools.length >= 3 && selWorkspace.length >= 4;
+          case 1: return binIdx >= BINARY_PAIRS.length;
+          case 2: return scnIdx >= SCENARIOS.length;
+          case 3: return selInterests.length >= 3 && topVals.length >= 3;
+          case 4: return selHotspots.length >= 1 && probText.length > 10;
+          case 5: return Object.keys(efficacy).length >= EFFICACY_DOMAINS.length;
+          case 6: return selDoor !== null && selFear !== null;
+          case 7: return projStmt.length > 10;
+          default: return false;
+        }
+      }, [station, selPalette, selTools, selWorkspace, binIdx, scnIdx, selInterests, topVals, selHotspots, probText, efficacy, selDoor, selFear, projStmt]);
+
+      const meta = STATION_META[station];
+
+      // ── Station renderers (inline) ──
+
+      function S0() {
+        return React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 16 } },
+          React.createElement("div", null,
+            React.createElement("div", { style: { fontSize: 14, fontWeight: 600, color: "#FCD34D", marginBottom: 8 } }, "Choose your colour palette"),
+            React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap" } },
+              PALETTES.map(p => React.createElement("button", { key: p.id, onClick: () => { setSelPalette(p.id); setKitExpr("celebrate"); setTimeout(() => setKitExpr("idle"), 1500); },
+                style: { padding: "8px 12px", borderRadius: 8, border: selPalette === p.id ? "2px solid #FCD34D" : "2px solid rgba(255,255,255,0.15)", background: selPalette === p.id ? "rgba(252,211,77,0.2)" : "rgba(255,255,255,0.05)", cursor: "pointer", display: "flex", gap: 4, alignItems: "center" } },
+                p.colors.map((c, i) => React.createElement("span", { key: i, style: { width: 14, height: 14, borderRadius: "50%", background: c, display: "inline-block" } })),
+                React.createElement("span", { style: { color: "#FFF", fontSize: 12, marginLeft: 4 } }, p.name)
+              ))
+            )
+          ),
+          React.createElement("div", null,
+            React.createElement("div", { style: { fontSize: 14, fontWeight: 600, color: "#FCD34D", marginBottom: 8 } }, `Pick 3 tools (${selTools.length}/3)`),
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6 } },
+              TOOLS.map(t => { const sel = selTools.includes(t.id); return React.createElement("button", { key: t.id, onClick: () => { if (sel) setSelTools(selTools.filter(x => x !== t.id)); else if (selTools.length < 3) setSelTools([...selTools, t.id]); },
+                style: { padding: 8, borderRadius: 8, border: sel ? "2px solid #FCD34D" : "2px solid rgba(255,255,255,0.1)", background: sel ? "rgba(252,211,77,0.2)" : "rgba(255,255,255,0.05)", cursor: "pointer", textAlign: "center", opacity: !sel && selTools.length >= 3 ? 0.4 : 1 } },
+                React.createElement("div", { style: { fontSize: 20 } }, t.icon), React.createElement("div", { style: { fontSize: 10, color: "#E5E7EB", marginTop: 2 } }, t.label)); })
+            )
+          ),
+          React.createElement("div", null,
+            React.createElement("div", { style: { fontSize: 14, fontWeight: 600, color: "#FCD34D", marginBottom: 8 } }, `Decorate workspace (${selWorkspace.length}/4)`),
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, maxHeight: 160, overflowY: "auto" } },
+              WORKSPACE_ITEMS.map(item => { const sel = selWorkspace.includes(item.id); return React.createElement("button", { key: item.id, onClick: () => { if (sel) setSelWorkspace(selWorkspace.filter(x => x !== item.id)); else if (selWorkspace.length < 4) setSelWorkspace([...selWorkspace, item.id]); },
+                style: { padding: 6, borderRadius: 8, border: sel ? "2px solid #FCD34D" : "2px solid rgba(255,255,255,0.1)", background: sel ? "rgba(252,211,77,0.15)" : "rgba(255,255,255,0.05)", cursor: "pointer", textAlign: "center", opacity: !sel && selWorkspace.length >= 4 ? 0.35 : 1 } },
+                React.createElement("div", { style: { fontSize: 18 } }, item.icon), React.createElement("div", { style: { fontSize: 9, color: "#D1D5DB" } }, item.label)); })
+            )
+          )
+        );
+      }
+
+      function S1() {
+        if (binIdx >= BINARY_PAIRS.length) {
+          return React.createElement("div", { style: { textAlign: "center" } },
+            React.createElement("div", { style: { fontSize: 16, fontWeight: 700, color: "#FB923C", marginBottom: 12 } }, "Your working style"),
+            React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "center" } },
+              Object.entries(binAnswers).map(([k, v]) => { const p = BINARY_PAIRS.find(x => x.id === k); return React.createElement("span", { key: k, style: { padding: "4px 10px", borderRadius: 16, background: "rgba(251,146,60,0.2)", color: "#FCD34D", fontSize: 11, border: "1px solid rgba(251,146,60,0.3)" } }, (v === "a" ? p?.dimA : p?.dimB)?.replace("_", " ")); })
+            )
+          );
+        }
+        const p = BINARY_PAIRS[binIdx];
+        return React.createElement("div", { style: { textAlign: "center" } },
+          React.createElement("div", { style: { fontSize: 12, color: "#9CA3AF", marginBottom: 4 } }, `${binIdx + 1} / ${BINARY_PAIRS.length}`),
+          React.createElement("div", { style: { fontSize: 16, fontWeight: 600, color: "#FFF", marginBottom: 16 } }, p.prompt),
+          React.createElement("div", { style: { display: "flex", gap: 12, justifyContent: "center" } },
+            ["a", "b"].map(c => React.createElement("button", { key: c, onClick: () => { setBinAnswers({ ...binAnswers, [p.id]: c }); setBinIdx(binIdx + 1); setKitExpr("think"); setTimeout(() => setKitExpr(binIdx + 1 >= BINARY_PAIRS.length ? "celebrate" : "idle"), 800); setKitDlg(binIdx + 1 >= BINARY_PAIRS.length ? KIT_DIALOGUE[1].exit : KIT_DIALOGUE[1].idle); },
+              style: { flex: 1, padding: "12px 16px", borderRadius: 12, border: "2px solid rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.05)", color: "#FFF", cursor: "pointer", fontSize: 13, lineHeight: 1.4 } },
+              c === "a" ? p.a : p.b))
+          )
+        );
+      }
+
+      function S2() {
+        if (scnIdx >= SCENARIOS.length) {
+          const a = ARCHETYPES[archetype] || ARCHETYPES.creative;
+          return React.createElement("div", { style: { textAlign: "center" } },
+            React.createElement("div", { style: { fontSize: 16, fontWeight: 700, color: "#5EEAD4", marginBottom: 8 } }, "Your archetype:"),
+            React.createElement("div", { style: { fontSize: 32, marginBottom: 4 } }, a.icon),
+            React.createElement("div", { style: { fontSize: 18, fontWeight: 700, color: a.color } }, a.name),
+            React.createElement("div", { style: { fontSize: 13, color: "#D1D5DB", marginTop: 4 } }, a.desc)
+          );
+        }
+        const s = SCENARIOS[scnIdx];
+        return React.createElement("div", null,
+          React.createElement("div", { style: { fontSize: 12, color: "#9CA3AF", marginBottom: 4 } }, `${scnIdx + 1} / ${SCENARIOS.length}`),
+          React.createElement("div", { style: { fontSize: 14, fontWeight: 600, color: "#FFF", marginBottom: 12 } }, s.prompt),
+          React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 8 } },
+            s.options.map((o, i) => React.createElement("button", { key: i, onClick: () => { setScnAnswers({ ...scnAnswers, [s.id]: o.archetype }); setScnIdx(scnIdx + 1); setKitExpr("think"); setKitDlg(scnIdx + 1 >= SCENARIOS.length ? KIT_DIALOGUE[2].exit : "Interesting..."); setTimeout(() => setKitExpr(scnIdx + 1 >= SCENARIOS.length ? "celebrate" : "idle"), 1000); },
+              style: { padding: "10px 14px", borderRadius: 10, border: "2px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.05)", color: "#FFF", cursor: "pointer", fontSize: 13, textAlign: "left" } }, o.text))
+          )
+        );
+      }
+
+      function S3() {
+        return React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 14 } },
+          React.createElement("div", null,
+            React.createElement("div", { style: { fontSize: 14, fontWeight: 600, color: "#A5B4FC", marginBottom: 6 } }, `Interests (${selInterests.length}/5)`),
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 4 } },
+              INTEREST_ICONS.map(it => { const sel = selInterests.includes(it.id); return React.createElement("button", { key: it.id, onClick: () => { if (sel) setSelInterests(selInterests.filter(x => x !== it.id)); else if (selInterests.length < 5) setSelInterests([...selInterests, it.id]); },
+                style: { padding: 4, borderRadius: 8, border: sel ? "2px solid #A5B4FC" : "1px solid rgba(255,255,255,0.1)", background: sel ? "rgba(165,180,252,0.2)" : "transparent", cursor: "pointer", textAlign: "center", opacity: !sel && selInterests.length >= 5 ? 0.3 : 1 } },
+                React.createElement("div", { style: { fontSize: 16 } }, it.icon), React.createElement("div", { style: { fontSize: 8, color: "#D1D5DB" } }, it.label)); })
+            )
+          ),
+          React.createElement("div", null,
+            React.createElement("div", { style: { fontSize: 14, fontWeight: 600, color: "#A5B4FC", marginBottom: 6 } }, "What annoys you?"),
+            React.createElement("textarea", { value: irritation, onChange: e => setIrritation(e.target.value), placeholder: "Something that bugs you...", style: { width: "100%", padding: 8, borderRadius: 8, border: "1px solid rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.05)", color: "#FFF", fontSize: 13, resize: "none", height: 50, outline: "none" } })
+          ),
+          React.createElement("div", null,
+            React.createElement("div", { style: { fontSize: 14, fontWeight: 600, color: "#A5B4FC", marginBottom: 6 } }, `Top 3 values (${topVals.length}/3)`),
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 4 } },
+              VALUES_CARDS.map(v => { const sel = topVals.includes(v.id); return React.createElement("button", { key: v.id, onClick: () => { if (sel) setTopVals(topVals.filter(x => x !== v.id)); else if (topVals.length < 3) setTopVals([...topVals, v.id]); },
+                style: { padding: "6px 4px", borderRadius: 8, border: sel ? "2px solid #A5B4FC" : "1px solid rgba(255,255,255,0.1)", background: sel ? "rgba(165,180,252,0.2)" : "transparent", cursor: "pointer", textAlign: "center" } },
+                React.createElement("div", { style: { fontSize: 12, fontWeight: 600, color: "#FFF" } }, v.label), React.createElement("div", { style: { fontSize: 9, color: "#9CA3AF" } }, v.desc)); })
+            )
+          )
+        );
+      }
+
+      function S4() {
+        return React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 14 } },
+          React.createElement("div", null,
+            React.createElement("div", { style: { fontSize: 14, fontWeight: 600, color: "#93C5FD", marginBottom: 8 } }, "What catches your eye?"),
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 } },
+              COMMUNITY_HOTSPOTS.map(hs => { const sel = selHotspots.includes(hs.id); return React.createElement("button", { key: hs.id, onClick: () => { if (sel) setSelHotspots(selHotspots.filter(x => x !== hs.id)); else { setSelHotspots([...selHotspots, hs.id]); setKitDlg("Tell me more about what you see there."); setKitExpr("point"); setTimeout(() => setKitExpr("idle"), 1500); } },
+                style: { padding: "8px 6px", borderRadius: 8, border: sel ? `2px solid ${hs.color}` : "1px solid rgba(255,255,255,0.1)", background: sel ? `${hs.color}22` : "rgba(255,255,255,0.05)", cursor: "pointer", textAlign: "center" } },
+                React.createElement("div", { style: { fontSize: 13, fontWeight: 600, color: hs.color } }, hs.label)); })
+            )
+          ),
+          React.createElement("div", null,
+            React.createElement("div", { style: { fontSize: 14, fontWeight: 600, color: "#93C5FD", marginBottom: 6 } }, "What problem do you see?"),
+            React.createElement("textarea", { value: probText, onChange: e => setProbText(e.target.value), placeholder: "Describe a problem you'd want to solve...", style: { width: "100%", padding: 8, borderRadius: 8, border: "1px solid rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.05)", color: "#FFF", fontSize: 13, resize: "none", height: 60, outline: "none" } })
+          )
+        );
+      }
+
+      function S5() {
+        return React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 12 } },
+          React.createElement("div", { style: { fontSize: 14, fontWeight: 600, color: "#6EE7B7", marginBottom: 4 } }, "How confident are you?"),
+          ...EFFICACY_DOMAINS.map(d => React.createElement("div", { key: d.id, style: { display: "flex", alignItems: "center", gap: 8 } },
+            React.createElement("div", { style: { width: 110, fontSize: 11, color: "#D1D5DB" } }, d.label),
+            React.createElement("input", { type: "range", min: 1, max: 5, value: efficacy[d.id] || 3, onChange: e => setEfficacy({ ...efficacy, [d.id]: parseInt(e.target.value) }), style: { flex: 1, accentColor: "#6EE7B7" } }),
+            React.createElement("div", { style: { width: 20, fontSize: 12, color: "#6EE7B7", textAlign: "center" } }, efficacy[d.id] || 3)
+          )),
+          React.createElement("div", { style: { fontSize: 11, color: "#9CA3AF", marginTop: 4 } }, "1 = still learning   5 = I've got this")
+        );
+      }
+
+      function S6() {
+        if (selDoor !== null && selFear !== null) {
+          return React.createElement("div", { style: { textAlign: "center" } },
+            React.createElement("div", { style: { fontSize: 16, fontWeight: 700, color: "#C4B5FD", marginBottom: 8 } }, `You chose the ${["Bold", "Deep", "Wide"][selDoor]} path`),
+            React.createElement("div", { style: { fontSize: 13, color: "#D1D5DB" } }, ["Fast, ambitious, high risk.", "Thorough, researched, methodical.", "Collaborative, many perspectives."][selDoor])
+          );
+        }
+        if (selDoor !== null) {
+          return React.createElement("div", null,
+            React.createElement("div", { style: { fontSize: 14, fontWeight: 600, color: "#C4B5FD", marginBottom: 8 } }, "Before you go \u2014 pick the fear that resonates:"),
+            React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } },
+              FEAR_CARDS.map(c => React.createElement("button", { key: c.id, onClick: () => { setSelFear(c.id); setKitDlg(c.response); setKitExpr("think"); setTimeout(() => setKitExpr("idle"), 3000); },
+                style: { padding: "8px 12px", borderRadius: 8, border: "1px solid rgba(196,181,253,0.3)", background: "rgba(196,181,253,0.1)", color: "#FFF", cursor: "pointer", fontSize: 12, textAlign: "left" } }, c.label))
+            )
+          );
+        }
+        return React.createElement("div", null,
+          React.createElement("div", { style: { fontSize: 14, fontWeight: 600, color: "#C4B5FD", marginBottom: 12 } }, "Three doors. Three paths. Choose one."),
+          React.createElement("div", { style: { display: "flex", gap: 10 } },
+            [{ l: "Bold", c: "#EF4444", d: "Fast, ambitious" }, { l: "Deep", c: "#3B82F6", d: "Thorough, researched" }, { l: "Wide", c: "#22C55E", d: "Collaborative, broad" }].map((dr, i) =>
+              React.createElement("button", { key: i, onClick: () => { setSelDoor(i); setKitDlg("But first, let's talk about something..."); setKitExpr("think"); },
+                style: { flex: 1, padding: "16px 8px", borderRadius: 12, border: `2px solid ${dr.c}`, background: `${dr.c}22`, cursor: "pointer", textAlign: "center" } },
+                React.createElement("div", { style: { fontSize: 24, marginBottom: 4 } }, "\u{1F6AA}"),
+                React.createElement("div", { style: { fontSize: 14, fontWeight: 700, color: dr.c } }, dr.l),
+                React.createElement("div", { style: { fontSize: 10, color: "#D1D5DB", marginTop: 4 } }, dr.d)))
+          )
+        );
+      }
+
+      function S7() {
+        if (revealed) {
+          const a = ARCHETYPES[archetype] || ARCHETYPES.creative;
+          return React.createElement("div", { style: { textAlign: "center" } },
+            React.createElement("div", { style: { fontSize: 12, color: "#F9A8D4", letterSpacing: 2, textTransform: "uppercase", marginBottom: 8 } }, "Grand Reveal"),
+            React.createElement("div", { style: { fontSize: 40, marginBottom: 8 } }, a.icon),
+            React.createElement("div", { style: { fontSize: 22, fontWeight: 800, color: a.color, marginBottom: 4 } }, a.name),
+            React.createElement("div", { style: { fontSize: 14, color: "#E5E7EB", marginBottom: 16 } }, a.desc),
+            React.createElement("div", { style: { padding: 12, borderRadius: 12, background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" } },
+              React.createElement("div", { style: { fontSize: 11, color: "#9CA3AF", marginBottom: 4 } }, "Your project statement"),
+              React.createElement("div", { style: { fontSize: 14, color: "#FFF", fontStyle: "italic" } }, `"${projStmt}"`)
+            ),
+            React.createElement("div", { style: { marginTop: 12, display: "flex", gap: 6, justifyContent: "center", flexWrap: "wrap" } },
+              selInterests.slice(0, 3).map(id => { const it = INTEREST_ICONS.find(x => x.id === id); return React.createElement("span", { key: id, style: { padding: "3px 8px", borderRadius: 12, background: "rgba(165,180,252,0.2)", color: "#A5B4FC", fontSize: 11 } }, `${it?.icon} ${it?.label}`); }),
+              topVals.slice(0, 3).map(id => { const v = VALUES_CARDS.find(x => x.id === id); return React.createElement("span", { key: id, style: { padding: "3px 8px", borderRadius: 12, background: "rgba(252,211,77,0.2)", color: "#FCD34D", fontSize: 11 } }, v?.label); })
+            )
+          );
+        }
+        return React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 14 } },
+          React.createElement("div", null,
+            React.createElement("div", { style: { fontSize: 14, fontWeight: 600, color: "#FBCFE8", marginBottom: 8 } }, "Write your project statement"),
+            React.createElement("textarea", { value: projStmt, onChange: e => setProjStmt(e.target.value), placeholder: "I want to design...", style: { width: "100%", padding: 10, borderRadius: 8, border: "1px solid rgba(255,255,255,0.2)", background: "rgba(255,255,255,0.05)", color: "#FFF", fontSize: 14, resize: "none", height: 70, outline: "none" } })
+          ),
+          projStmt.length > 10 ? React.createElement("button", { onClick: () => { setRevealed(true); setKitDlg(KIT_DIALOGUE[7].exit); setKitExpr("celebrate"); },
+            style: { padding: "12px 24px", borderRadius: 12, background: "linear-gradient(135deg, #EC4899, #8B5CF6)", color: "#FFF", border: "none", cursor: "pointer", fontSize: 16, fontWeight: 700, letterSpacing: 1 } }, "Reveal Who I Am \u2728") : null
+        );
+      }
+
+      const RENDERS = [S0, S1, S2, S3, S4, S5, S6, S7];
+
+      return React.createElement("div", { style: { width: "100%", height: "100vh", position: "relative", overflow: "hidden", fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif" } },
+        React.createElement("div", { ref: mountRef, style: { position: "absolute", inset: 0, zIndex: 0 } }),
+        transitioning ? React.createElement("div", { style: { position: "absolute", inset: 0, zIndex: 50, background: "black", opacity: 0.7, transition: "opacity 0.4s" } }) : null,
+        // Top bar
+        React.createElement("div", { style: { position: "absolute", top: 0, left: 0, right: 0, zIndex: 10, display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 24px" } },
+          React.createElement("div", null,
+            React.createElement("div", { style: { fontSize: 11, color: meta.colors.accent, textTransform: "uppercase", letterSpacing: 2, fontWeight: 700 } }, `Station ${station}`),
+            React.createElement("div", { style: { fontSize: 22, fontWeight: 800, color: "#FFF" } }, meta.name),
+            React.createElement("div", { style: { fontSize: 12, color: "rgba(255,255,255,0.6)" } }, meta.subtitle)
+          ),
+          React.createElement("div", { style: { display: "flex", gap: 6 } },
+            STATION_META.map((s, i) => React.createElement("div", { key: i, style: { width: i === station ? 24 : 8, height: 8, borderRadius: 4, background: i < station ? meta.colors.accent : i === station ? meta.colors.primary : "rgba(255,255,255,0.2)", transition: "all 0.3s" } }))
+          )
+        ),
+        // Kit dialogue
+        showDlg && kitDlg ? React.createElement("div", { style: { position: "absolute", bottom: 260, left: 24, zIndex: 10, maxWidth: 280, background: "rgba(0,0,0,0.75)", backdropFilter: "blur(8px)", borderRadius: 16, padding: "12px 16px", border: "1px solid rgba(124,58,237,0.4)" } },
+          React.createElement("div", { style: { fontSize: 10, fontWeight: 700, color: "#C4B5FD", marginBottom: 4 } }, "Kit"),
+          React.createElement("div", { style: { fontSize: 13, color: "#FFF", lineHeight: 1.5 } }, kitDlg)
+        ) : null,
+        // Interaction panel
+        React.createElement("div", { style: { position: "absolute", bottom: 0, right: 0, width: "min(420px, 100%)", maxHeight: "60vh", zIndex: 10, background: "rgba(0,0,0,0.8)", backdropFilter: "blur(12px)", borderTopLeftRadius: 20, padding: "20px", overflowY: "auto", borderTop: `2px solid ${meta.colors.primary}40`, display: "flex", flexDirection: "column" } },
+          React.createElement("div", { style: { flex: 1, overflowY: "auto", marginBottom: 12 } }, React.createElement(RENDERS[station])),
+          // Nav buttons inside panel
+          React.createElement("div", { style: { display: "flex", gap: 8, justifyContent: "flex-end", paddingTop: 12, borderTop: "1px solid rgba(255,255,255,0.1)", flexShrink: 0 } },
+            station > 0 ? React.createElement("button", { onClick: () => goTo(station - 1), disabled: transitioning, style: { padding: "10px 16px", borderRadius: 10, background: "rgba(255,255,255,0.1)", color: "#FFF", border: "1px solid rgba(255,255,255,0.2)", cursor: "pointer", fontSize: 13 } }, "\u2190 Back") : null,
+            station < 7 ? React.createElement("button", { onClick: () => goTo(station + 1), disabled: !canGo || transitioning, style: { padding: "10px 20px", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: canGo ? "pointer" : "not-allowed", background: canGo ? `linear-gradient(135deg, ${meta.colors.primary}, ${meta.colors.accent})` : "rgba(255,255,255,0.1)", color: "#FFF", border: "none", opacity: canGo ? 1 : 0.4, transition: "all 0.3s" } }, "Continue \u2192") : null,
+            station === 7 && revealed ? React.createElement("button", { style: { padding: "10px 20px", borderRadius: 10, fontSize: 13, fontWeight: 700, background: "linear-gradient(135deg, #EC4899, #8B5CF6)", color: "#FFF", border: "none", cursor: "pointer" } }, "Start My Journey \u{1F680}") : null
+          )
+        )
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+  </script>
+</body>
+</html>

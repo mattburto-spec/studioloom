@@ -5,6 +5,8 @@ import {
   buildQuickModifyPrompt,
 } from "@/lib/knowledge/analysis-prompts";
 
+const QUARANTINE_RESPONSE = NextResponse.json({ error: "Knowledge pipeline quarantined — pending architecture rebuild. See docs/quarantine.md" }, { status: 410 });
+
 async function getTeacherId(request: NextRequest): Promise<string | null> {
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -42,6 +44,7 @@ async function getTeacherId(request: NextRequest): Promise<string | null> {
  * }
  */
 export async function POST(request: NextRequest) {
+  return QUARANTINE_RESPONSE;
   const teacherId = await getTeacherId(request);
   if (!teacherId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

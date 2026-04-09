@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StudioLoom — Unit Generation Pipeline Audit</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', -apple-system, sans-serif; background: #0f0f14; color: #e0e0e8; line-height: 1.5; }
+
+  .header { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 32px 40px; border-bottom: 2px solid #2a2a4a; }
+  .header h1 { font-size: 28px; font-weight: 700; margin-bottom: 8px; }
+  .header p { color: #8888aa; font-size: 14px; }
+  .header .date { color: #6c6c8a; font-size: 12px; margin-top: 4px; }
+
+  .legend { display: flex; gap: 24px; padding: 16px 40px; background: #13131d; border-bottom: 1px solid #222238; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+  .legend-dot { width: 14px; height: 14px; border-radius: 3px; }
+  .dot-red { background: #ff4444; }
+  .dot-amber { background: #ffaa33; }
+  .dot-green { background: #44cc88; }
+  .dot-blue { background: #4488ff; }
+  .dot-purple { background: #aa66ff; }
+  .dot-gray { background: #555566; }
+
+  .container { max-width: 1400px; margin: 0 auto; padding: 32px 40px; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 4px; margin-bottom: 24px; border-bottom: 2px solid #222238; padding-bottom: 0; }
+  .tab { padding: 10px 20px; cursor: pointer; border-radius: 8px 8px 0 0; font-size: 14px; font-weight: 500; color: #8888aa; background: transparent; border: none; transition: all 0.2s; }
+  .tab:hover { color: #bbbbdd; background: #1a1a2e; }
+  .tab.active { color: #fff; background: #1a1a2e; border-bottom: 2px solid #7c5cff; margin-bottom: -2px; }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* Flow diagram */
+  .flow { display: flex; flex-direction: column; gap: 16px; }
+  .flow-row { display: flex; gap: 16px; align-items: stretch; }
+  .flow-col { flex: 1; }
+
+  .node { border-radius: 12px; padding: 16px 20px; position: relative; }
+  .node h3 { font-size: 15px; font-weight: 600; margin-bottom: 8px; }
+  .node p, .node li { font-size: 13px; color: #aaaabb; }
+  .node ul { padding-left: 18px; }
+  .node li { margin-bottom: 4px; }
+
+  .node-input { background: #1a2235; border: 1px solid #2a3a55; }
+  .node-process { background: #1a1a2e; border: 1px solid #2a2a4a; }
+  .node-forced { background: #2a1515; border: 2px solid #ff4444; }
+  .node-forced h3 { color: #ff6666; }
+  .node-advisory { background: #2a2515; border: 1px dashed #ffaa33; }
+  .node-advisory h3 { color: #ffcc66; }
+  .node-good { background: #152a1a; border: 1px solid #44cc88; }
+  .node-good h3 { color: #66eebb; }
+  .node-gap { background: #1a1528; border: 2px dashed #aa66ff; }
+  .node-gap h3 { color: #cc88ff; }
+  .node-neutral { background: #1a1a22; border: 1px solid #333344; }
+
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; margin-right: 4px; }
+  .badge-red { background: #441111; color: #ff6666; border: 1px solid #662222; }
+  .badge-amber { background: #332211; color: #ffcc66; border: 1px solid #554422; }
+  .badge-green { background: #113322; color: #66eebb; border: 1px solid #225544; }
+  .badge-blue { background: #112244; color: #6699ff; border: 1px solid #223366; }
+  .badge-purple { background: #221133; color: #cc88ff; border: 1px solid #332244; }
+  .badge-gray { background: #222233; color: #8888aa; border: 1px solid #333344; }
+
+  .arrow { text-align: center; color: #444466; font-size: 20px; padding: 4px 0; }
+  .arrow-label { font-size: 11px; color: #6666aa; }
+
+  .section-title { font-size: 20px; font-weight: 700; margin: 32px 0 16px; padding-bottom: 8px; border-bottom: 1px solid #222238; }
+  .section-subtitle { font-size: 14px; color: #8888aa; margin-bottom: 16px; }
+
+  /* Schema table */
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+  th { background: #1a1a2e; padding: 10px 14px; text-align: left; font-size: 13px; font-weight: 600; border-bottom: 2px solid #2a2a4a; }
+  td { padding: 10px 14px; border-bottom: 1px solid #1a1a2e; font-size: 13px; }
+  tr:hover td { background: #16162a; }
+
+  .highlight { background: #2a1515 !important; }
+  .highlight td { color: #ff8888; }
+
+  /* Findings */
+  .finding { border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+  .finding h4 { font-size: 15px; margin-bottom: 8px; }
+  .finding p { font-size: 13px; color: #aaaabb; }
+  .finding-critical { background: #2a1515; border-left: 4px solid #ff4444; }
+  .finding-critical h4 { color: #ff6666; }
+  .finding-warning { background: #2a2515; border-left: 4px solid #ffaa33; }
+  .finding-warning h4 { color: #ffcc66; }
+  .finding-info { background: #152a1a; border-left: 4px solid #44cc88; }
+  .finding-info h4 { color: #66eebb; }
+  .finding-gap { background: #1a1528; border-left: 4px solid #aa66ff; }
+  .finding-gap h4 { color: #cc88ff; }
+
+  /* Pipeline diagram */
+  .pipeline { display: grid; grid-template-columns: 200px 1fr; gap: 0; margin: 24px 0; }
+  .pipe-label { padding: 16px; font-size: 13px; font-weight: 600; border-right: 2px solid #2a2a4a; display: flex; align-items: center; }
+  .pipe-content { padding: 12px 16px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; border-bottom: 1px solid #1a1a2e; }
+  .pipe-box { padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 500; white-space: nowrap; }
+  .pipe-arrow { color: #444466; font-size: 16px; }
+
+  .pipe-forced { background: #2a1515; color: #ff8888; border: 1px solid #662222; }
+  .pipe-prompt { background: #2a2515; color: #ffcc66; border: 1px solid #554422; }
+  .pipe-schema { background: #112244; color: #6699ff; border: 1px solid #223366; }
+  .pipe-optional { background: #1a1a2e; color: #8888aa; border: 1px solid #333344; }
+  .pipe-good { background: #152a1a; color: #66eebb; border: 1px solid #225544; }
+  .pipe-gap { background: #221133; color: #cc88ff; border: 1px solid #442255; }
+
+  .w-full { width: 100%; }
+  .mt-2 { margin-top: 8px; }
+  .mt-4 { margin-top: 16px; }
+  .mb-2 { margin-bottom: 8px; }
+  .text-sm { font-size: 13px; }
+  .text-xs { font-size: 11px; }
+  .text-muted { color: #6666aa; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+
+  @media (max-width: 900px) {
+    .grid-2, .grid-3, .flow-row { display: flex; flex-direction: column; }
+    .pipeline { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Unit Generation Pipeline Audit</h1>
+  <p>Visual map of every constraint, forced item, and data flow in StudioLoom's AI generation system</p>
+  <div class="date">Generated 2 April 2026 — based on full codebase audit</div>
+</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot dot-red"></div> FORCED — Auto-repaired or schema-required</div>
+  <div class="legend-item"><div class="legend-dot dot-amber"></div> PROMPT GUIDANCE — Told but not enforced</div>
+  <div class="legend-item"><div class="legend-dot dot-green"></div> WORKING — Correct and functional</div>
+  <div class="legend-item"><div class="legend-dot dot-blue"></div> SCHEMA — Data field exists (optional)</div>
+  <div class="legend-item"><div class="legend-dot dot-purple"></div> GAP — Missing connection or logic</div>
+  <div class="legend-item"><div class="legend-dot dot-gray"></div> ADVISORY — Flagged, not repaired</div>
+</div>
+
+<div class="container">
+
+  <div class="tabs">
+    <button class="tab active" onclick="showTab('overview')">Overview Flow</button>
+    <button class="tab" onclick="showTab('skeleton')">Skeleton</button>
+    <button class="tab" onclick="showTab('generation')">Per-Lesson Generation</button>
+    <button class="tab" onclick="showTab('schema')">Activity Schema</button>
+    <button class="tab" onclick="showTab('validation')">Validation & Pulse</button>
+    <button class="tab" onclick="showTab('findings')">Key Findings</button>
+  </div>
+
+  <!-- ===== OVERVIEW TAB ===== -->
+  <div id="overview" class="tab-content active">
+    <h2 class="section-title">Generation Pipeline — 3 Paths</h2>
+    <p class="section-subtitle">Each path has different levels of timing/structure control. Red = forced, amber = suggested, purple = gap.</p>
+
+    <div class="grid-3 mt-4">
+      <!-- Path 1: Criterion -->
+      <div>
+        <div class="node node-input mb-2">
+          <h3>Path 1: Criterion-Based</h3>
+          <p><code>generate-unit/route.ts</code></p>
+          <p class="mt-2">Teacher picks criteria (A, B, C, D). Generates pages per criterion in <strong>parallel</strong>.</p>
+        </div>
+        <div class="arrow">↓</div>
+        <div class="node node-process mb-2">
+          <h3>System Prompt</h3>
+          <ul>
+            <li>Design Teaching Corpus ✅</li>
+            <li>buildTimingBlock() ✅</li>
+            <li>Framework vocabulary ✅</li>
+            <li>RAG (activity cards + profiles) ✅</li>
+            <li>Teaching Moves ✅</li>
+          </ul>
+        </div>
+        <div class="arrow">↓</div>
+        <div class="node node-forced mb-2">
+          <h3>Schema Forces</h3>
+          <p>workshopPhases <span class="badge badge-red">REQUIRED</span></p>
+          <p>4 phases always: Opening, Mini-Lesson, Work Time, Debrief</p>
+        </div>
+        <div class="arrow">↓</div>
+        <div class="node node-forced mb-2">
+          <h3>Post-Validation</h3>
+          <p>validateLessonTiming() <span class="badge badge-red">AUTO-REPAIR</span></p>
+          <p>Lesson Pulse scoring <span class="badge badge-green">MEASURE</span></p>
+        </div>
+        <div class="arrow">↓</div>
+        <div class="node node-gap">
+          <h3>⚠ No lessonType Available</h3>
+          <p>Criterion path has no skeleton → no lesson types → always validates as Workshop Model</p>
+        </div>
+      </div>
+
+      <!-- Path 2: Journey -->
+      <div>
+        <div class="node node-input mb-2">
+          <h3>Path 2: Journey Batch</h3>
+          <p><code>generate-journey/route.ts</code></p>
+          <p class="mt-2">Generates all lessons at once from outline. Uses skeleton's lessonType.</p>
+        </div>
+        <div class="arrow">↓</div>
+        <div class="node node-process mb-2">
+          <h3>System Prompt</h3>
+          <ul>
+            <li>JOURNEY_SYSTEM_PROMPT ✅</li>
+            <li>buildTimingBlock() ✅</li>
+            <li>Per-lesson: getLessonTypeGuidance() ✅</li>
+            <li>RAG ✅</li>
+            <li>Teaching Moves ✅</li>
+          </ul>
+        </div>
+        <div class="arrow">↓</div>
+        <div class="node node-forced mb-2">
+          <h3>Schema Forces</h3>
+          <p>workshopPhases <span class="badge badge-red">REQUIRED</span></p>
+          <p>Same 4-phase schema for ALL lesson types</p>
+        </div>
+        <div class="arrow">↓</div>
+        <div class="node node-good mb-2">
+          <h3>Post-Validation</h3>
+          <p>validateLessonTiming(…, lessonType) <span class="badge badge-green">TYPE-AWARE</span></p>
+          <p>Lesson Pulse scoring <span class="badge badge-green">MEASURE</span></p>
+        </div>
+        <div class="arrow">↓</div>
+        <div class="node node-gap">
+          <h3>⚠ Schema ≠ Validation</h3>
+          <p>AI generates Workshop Model phases (schema forces it), then validation checks against Research/Ideation/etc. structure. <strong>Mismatch.</strong></p>
+        </div>
+      </div>
+
+      <!-- Path 3: Timeline -->
+      <div>
+        <div class="node node-input mb-2">
+          <h3>Path 3: Timeline / Express</h3>
+          <p><code>generate-timeline/route.ts</code></p>
+          <p class="mt-2">Flat activity list per lesson. No Workshop phases. Most flexible.</p>
+        </div>
+        <div class="arrow">↓</div>
+        <div class="node node-process mb-2">
+          <h3>System Prompt</h3>
+          <ul>
+            <li>TIMELINE_SYSTEM_PROMPT ✅</li>
+            <li>buildTimingBlock() ✅</li>
+            <li>Per-lesson: lessonType from skeleton ✅</li>
+            <li>RAG ✅</li>
+            <li>Teaching Moves ✅</li>
+          </ul>
+        </div>
+        <div class="arrow">↓</div>
+        <div class="node node-good mb-2">
+          <h3>Schema: Flexible</h3>
+          <p>Flat activities with <code>role</code> enum <span class="badge badge-green">NOT FORCED</span></p>
+          <p>No workshopPhases required</p>
+          <p>durationMinutes per activity</p>
+        </div>
+        <div class="arrow">↓</div>
+        <div class="node node-gap mb-2">
+          <h3>⚠ No Timing Validation</h3>
+          <p>validateLessonTiming() <span class="badge badge-purple">NOT CALLED</span></p>
+          <p>Only structural validation (fields exist)</p>
+          <p>No Lesson Pulse scoring</p>
+        </div>
+        <div class="arrow">↓</div>
+        <div class="node node-gap">
+          <h3>⚠ No Post-Gen Quality Check</h3>
+          <p>Timeline lessons go straight to client with zero timing/structure/quality validation</p>
+        </div>
+      </div>
+    </div>
+
+    <h2 class="section-title">The Core Contradiction</h2>
+    <div class="finding finding-critical">
+      <h4>workshopPhases is REQUIRED in the schema — but lesson-structures.ts defines 8 different structures</h4>
+      <p>The schema (<code>buildPageContentSchema</code>) always requires <code>workshopPhases</code> with exactly 4 fields: <code>opening</code>, <code>miniLesson</code>, <code>workTime</code>, <code>debrief</code>. These field names are hardcoded. Even if the AI prompt says "use Research structure: Mini-Lesson → Guided Investigation → Independent Analysis → Share", the schema forces the AI to output <code>opening/miniLesson/workTime/debrief</code>. The validation then maps these to the type-specific structure — but the AI never had the chance to generate type-specific phases.</p>
+    </div>
+
+    <div class="finding finding-critical">
+      <h4>Activity blocks have BOTH durationMinutes AND timeWeight — unclear which the AI should use</h4>
+      <p><code>durationMinutes</code> (number, optional) and <code>timeWeight</code> (quick/moderate/extended/flexible, optional) both exist on every activity section. The prompt says to use <code>timeWeight</code> as the primary signal, but <code>durationMinutes</code> is also described ("Estimated minutes for this activity"). The AI frequently outputs both. The validation only checks <code>workshopPhases</code> duration totals, not individual activity durations. Neither field is enforced or validated. The intent was: <strong>timeWeight replaces durationMinutes</strong>, but the schema still has both.</p>
+    </div>
+  </div>
+
+  <!-- ===== SKELETON TAB ===== -->
+  <div id="skeleton" class="tab-content">
+    <h2 class="section-title">Skeleton Generation</h2>
+    <p class="section-subtitle">The skeleton is the initial outline — lesson titles, types, and rough timing. Generated first, before individual lessons.</p>
+
+    <div class="grid-2">
+      <div class="node node-process">
+        <h3>What the Skeleton Contains</h3>
+        <ul>
+          <li><code>title</code> — lesson title</li>
+          <li><code>description</code> — 1-sentence summary</li>
+          <li><code>designPhase</code> — MYP phase (Inquiring, Developing, Creating, Evaluating)</li>
+          <li><code>lessonType</code> — <span class="badge badge-green">KEY FIELD</span> workshop, research, ideation, skills-demo, making, testing, critique, presentation, assessment</li>
+          <li><code>suggestedActivities</code> — activity outlines</li>
+          <li><code>estimatedDuration</code> — "1 period", "2 periods"</li>
+        </ul>
+      </div>
+
+      <div class="node node-input">
+        <h3>Skeleton Constraints</h3>
+        <ul>
+          <li>max_tokens: 8192 → 16384 (auto-retry) <span class="badge badge-amber">HARDCODED</span></li>
+          <li>Activity count: ~1 per 10 min of usable time <span class="badge badge-amber">PROMPT</span></li>
+          <li>Model: always Sonnet 4 <span class="badge badge-red">HARDCODED</span></li>
+          <li>lessonType inferred by AI from pedagogical context <span class="badge badge-green">FLEXIBLE</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="arrow">↓ skeleton feeds into...</div>
+
+    <div class="grid-3 mt-2">
+      <div class="node node-good">
+        <h3>Journey Path ✅</h3>
+        <p>Receives skeleton. Per-lesson prompt includes <code>lessonType</code> via <code>getLessonTypeGuidance()</code>. Validation uses <code>lessonTypeMap</code>.</p>
+      </div>
+      <div class="node node-good">
+        <h3>Timeline Path ✅</h3>
+        <p>Receives skeleton directly. <code>lessonType</code> flows to per-lesson prompt. But no post-gen validation.</p>
+      </div>
+      <div class="node node-gap">
+        <h3>Criterion Path ⚠</h3>
+        <p>No skeleton used. No <code>lessonType</code> available. Always Workshop Model.</p>
+      </div>
+    </div>
+
+    <h2 class="section-title">Where Time Enters the Skeleton</h2>
+    <div class="pipeline">
+      <div class="pipe-label">Teacher Input</div>
+      <div class="pipe-content">
+        <span class="pipe-box pipe-good">periodMinutes (from timetable)</span>
+        <span class="pipe-arrow">→</span>
+        <span class="pipe-box pipe-good">numLessons (from wizard)</span>
+        <span class="pipe-arrow">→</span>
+        <span class="pipe-box pipe-good">grade level → age → timing profile</span>
+      </div>
+
+      <div class="pipe-label">Calculated</div>
+      <div class="pipe-content">
+        <span class="pipe-box pipe-forced">usableMinutes = period − transition − setup</span>
+        <span class="pipe-arrow">→</span>
+        <span class="pipe-box pipe-forced">instructionCap = 1 + age</span>
+        <span class="pipe-arrow">→</span>
+        <span class="pipe-box pipe-prompt">activityCount ≈ usable / 10</span>
+      </div>
+
+      <div class="pipe-label">Skeleton Output</div>
+      <div class="pipe-content">
+        <span class="pipe-box pipe-schema">estimatedDuration: "1 period"</span>
+        <span class="pipe-arrow">→</span>
+        <span class="pipe-box pipe-good">lessonType per lesson</span>
+        <span class="pipe-arrow">→</span>
+        <span class="pipe-box pipe-optional">suggestedActivities (rough outlines)</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== GENERATION TAB ===== -->
+  <div id="generation" class="tab-content">
+    <h2 class="section-title">Per-Lesson Generation — What the AI Receives</h2>
+
+    <div class="pipeline">
+      <div class="pipe-label" style="background:#1a1a2e;">System Prompt Layers</div>
+      <div class="pipe-content" style="background:#13131d;">
+        <span class="pipe-box pipe-good">Design Teaching Corpus (Layer 1)</span>
+        <span class="pipe-box pipe-good">Framework Vocabulary</span>
+        <span class="pipe-box pipe-good">Unit Type Context</span>
+        <span class="pipe-box pipe-prompt">Teacher Style Profile</span>
+      </div>
+
+      <div class="pipe-label" style="background:#1a1a2e;">Timing Block</div>
+      <div class="pipe-content" style="background:#13131d;">
+        <span class="pipe-box pipe-forced">usableMinutes (calculated)</span>
+        <span class="pipe-box pipe-forced">instructionCap = 1+age</span>
+        <span class="pipe-box pipe-prompt">Energy sequencing rules</span>
+        <span class="pipe-box pipe-prompt">Duration limits per activity type</span>
+      </div>
+
+      <div class="pipe-label" style="background:#1a1a2e;">Structure (NEW)</div>
+      <div class="pipe-content" style="background:#13131d;">
+        <span class="pipe-box pipe-good">lesson-structures.ts promptBlock()</span>
+        <span class="pipe-arrow">→</span>
+        <span class="pipe-box pipe-gap">But schema still forces workshopPhases names</span>
+      </div>
+
+      <div class="pipe-label" style="background:#1a1a2e;">RAG Retrieval</div>
+      <div class="pipe-content" style="background:#13131d;">
+        <span class="pipe-box pipe-good">Activity Cards (DB)</span>
+        <span class="pipe-box pipe-good">Lesson Profiles (hybrid search)</span>
+        <span class="pipe-box pipe-good">Teaching Moves (~65, scored)</span>
+        <span class="pipe-box pipe-optional">Teacher Uploads (vector + BM25)</span>
+      </div>
+
+      <div class="pipe-label" style="background:#1a1a2e;">Per-Lesson Context</div>
+      <div class="pipe-content" style="background:#13131d;">
+        <span class="pipe-box pipe-good">getLessonTypeGuidance()</span>
+        <span class="pipe-box pipe-good">Context Injection (3 fields)</span>
+        <span class="pipe-box pipe-good">Cross-lesson Pulse balancing</span>
+        <span class="pipe-box pipe-optional">Pulse repair prompt (if weak)</span>
+      </div>
+    </div>
+
+    <h2 class="section-title">What the AI Outputs (Tool Schema)</h2>
+    <p class="section-subtitle">The schema is the hard constraint — the AI MUST match this shape exactly.</p>
+
+    <div class="grid-2">
+      <div class="node node-forced">
+        <h3>Page-Level Fields <span class="badge badge-red">REQUIRED</span></h3>
+        <ul>
+          <li><code>title</code> — page title</li>
+          <li><code>learningGoal</code> — learning objective</li>
+          <li><code>workshopPhases</code> — <span class="badge badge-red">ALWAYS 4 FIXED NAMES</span>
+            <ul>
+              <li><code>opening</code> { durationMinutes, hook }</li>
+              <li><code>miniLesson</code> { durationMinutes, focus }</li>
+              <li><code>workTime</code> { durationMinutes, focus, checkpoints[] }</li>
+              <li><code>debrief</code> { durationMinutes, protocol, prompt }</li>
+            </ul>
+          </li>
+          <li><code>extensions</code> — 2-3 extension activities</li>
+          <li><code>sections</code> — activity blocks array</li>
+        </ul>
+      </div>
+
+      <div class="node node-neutral">
+        <h3>Page-Level Fields <span class="badge badge-blue">OPTIONAL</span></h3>
+        <ul>
+          <li><code>grouping_strategy</code></li>
+          <li><code>success_criteria</code> — "I can..." statements</li>
+          <li><code>success_look_fors</code> — teacher observation indicators</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== SCHEMA TAB ===== -->
+  <div id="schema" class="tab-content">
+    <h2 class="section-title">Activity Block Schema — Every Field on Every Activity</h2>
+    <p class="section-subtitle">This is what the AI can output per activity section. Red rows = concerning constraints. Purple = gaps.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Field</th>
+          <th>Type</th>
+          <th>Required?</th>
+          <th>Used By</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>prompt</code></td>
+          <td>string</td>
+          <td><span class="badge badge-red">YES</span></td>
+          <td>Student lesson page</td>
+          <td><span class="badge badge-green">OK</span></td>
+        </tr>
+        <tr>
+          <td><code>responseType</code></td>
+          <td>enum (text|upload|voice|...)</td>
+          <td><span class="badge badge-red">YES</span></td>
+          <td>Student response input</td>
+          <td><span class="badge badge-green">OK</span></td>
+        </tr>
+        <tr class="highlight">
+          <td><code>durationMinutes</code></td>
+          <td>number</td>
+          <td><span class="badge badge-blue">optional</span></td>
+          <td><strong>Nothing validates this</strong></td>
+          <td><span class="badge badge-purple">OVERLAP with timeWeight</span> — Both exist. AI outputs both. Neither enforced at activity level.</td>
+        </tr>
+        <tr>
+          <td><code>bloom_level</code></td>
+          <td>enum (remember|understand|apply|analyze|evaluate|create)</td>
+          <td><span class="badge badge-blue">optional</span></td>
+          <td>Pulse scoring (CR dimension), editor UI</td>
+          <td><span class="badge badge-green">CORRECT</span> — Bloom's IS on activities, used for scoring, not forced</td>
+        </tr>
+        <tr>
+          <td><code>timeWeight</code></td>
+          <td>enum (quick|moderate|extended|flexible)</td>
+          <td><span class="badge badge-blue">optional</span></td>
+          <td><strong>Nothing yet</strong> — designed for velocity learning (future)</td>
+          <td><span class="badge badge-amber">FUTURE</span> — Schema exists, prompt guides it, but no consumer reads it</td>
+        </tr>
+        <tr>
+          <td><code>grouping</code></td>
+          <td>enum (individual|pair|small_group|whole_class|flexible)</td>
+          <td><span class="badge badge-blue">optional</span></td>
+          <td>Pulse scoring (TC dimension), editor UI</td>
+          <td><span class="badge badge-green">OK</span></td>
+        </tr>
+        <tr>
+          <td><code>ai_rules</code></td>
+          <td>{ phase, tone, rules[] }</td>
+          <td><span class="badge badge-blue">optional</span></td>
+          <td>Design Assistant at inference time, Pulse scoring (TC)</td>
+          <td><span class="badge badge-green">OK</span></td>
+        </tr>
+        <tr>
+          <td><code>udl_checkpoints</code></td>
+          <td>string[] (CAST IDs)</td>
+          <td><span class="badge badge-blue">optional</span></td>
+          <td>Pulse scoring (TC), editor UI, advisory validation</td>
+          <td><span class="badge badge-green">OK</span></td>
+        </tr>
+        <tr>
+          <td><code>exampleResponse</code></td>
+          <td>string</td>
+          <td><span class="badge badge-blue">optional</span></td>
+          <td>Student lesson page (collapsible)</td>
+          <td><span class="badge badge-green">OK</span></td>
+        </tr>
+        <tr>
+          <td><code>portfolioCapture</code></td>
+          <td>boolean</td>
+          <td><span class="badge badge-blue">optional</span></td>
+          <td>Portfolio auto-pipeline</td>
+          <td><span class="badge badge-green">OK</span></td>
+        </tr>
+        <tr>
+          <td><code>scaffolding.ell1</code></td>
+          <td>{ sentenceStarters[], hints[] }</td>
+          <td><span class="badge badge-blue">optional</span></td>
+          <td>Student page ELL support</td>
+          <td><span class="badge badge-amber">AI often omits</span></td>
+        </tr>
+        <tr>
+          <td><code>scaffolding.ell2</code></td>
+          <td>{ sentenceStarters[] }</td>
+          <td><span class="badge badge-blue">optional</span></td>
+          <td>Student page ELL support</td>
+          <td><span class="badge badge-amber">AI often omits</span></td>
+        </tr>
+        <tr>
+          <td><code>scaffolding.ell3</code></td>
+          <td>{ extensionPrompts[] }</td>
+          <td><span class="badge badge-blue">optional</span></td>
+          <td>Student page extension challenges</td>
+          <td><span class="badge badge-amber">AI often omits</span></td>
+        </tr>
+        <tr>
+          <td><code>success_look_fors</code></td>
+          <td>string[]</td>
+          <td><span class="badge badge-blue">optional</span></td>
+          <td>Teaching Mode teacher notes</td>
+          <td><span class="badge badge-green">OK</span></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 class="section-title">Timeline Activity Schema (Different Shape)</h2>
+    <p class="section-subtitle">The Timeline/Express path uses a flat activity list instead of Workshop phases.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Field</th>
+          <th>Type</th>
+          <th>Required?</th>
+          <th>Note</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>role</code></td>
+          <td>enum (warmup|intro|core|reflection|content)</td>
+          <td><span class="badge badge-red">YES</span></td>
+          <td>Flexible roles, not forced 4-phase</td>
+        </tr>
+        <tr class="highlight">
+          <td><code>durationMinutes</code></td>
+          <td>number</td>
+          <td><span class="badge badge-red">YES</span></td>
+          <td>REQUIRED here — each activity has explicit duration. No timeWeight alternative.</td>
+        </tr>
+        <tr>
+          <td><code>phaseLabel</code></td>
+          <td>string</td>
+          <td><span class="badge badge-blue">optional</span></td>
+          <td>Grouping label (e.g., "Research", "Making")</td>
+        </tr>
+        <tr>
+          <td><code>bloom_level</code></td>
+          <td>enum (same as above)</td>
+          <td><span class="badge badge-blue">optional</span></td>
+          <td>Dimensions v2 — same field, same status</td>
+        </tr>
+        <tr>
+          <td><code>timeWeight</code></td>
+          <td>enum (same)</td>
+          <td><span class="badge badge-blue">optional</span></td>
+          <td>Present but redundant with required durationMinutes</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ===== VALIDATION TAB ===== -->
+  <div id="validation" class="tab-content">
+    <h2 class="section-title">Post-Generation: What Gets Checked & Changed</h2>
+
+    <div class="pipeline">
+      <div class="pipe-label" style="color:#ff6666;">ENFORCED<br>(auto-repair)</div>
+      <div class="pipe-content">
+        <span class="pipe-box pipe-forced">4 workshop phases present</span>
+        <span class="pipe-box pipe-forced">Instruction ≤ 1+age min</span>
+        <span class="pipe-box pipe-forced">Work time ≥ 45% usable</span>
+        <span class="pipe-box pipe-forced">Total phases = usable time</span>
+        <span class="pipe-box pipe-forced">Debrief exists (3+ min)</span>
+        <span class="pipe-box pipe-forced">Checkpoints for long work</span>
+      </div>
+
+      <div class="pipe-label" style="color:#ffcc66;">ADVISORY<br>(flagged only)</div>
+      <div class="pipe-content">
+        <span class="pipe-box pipe-prompt">Passive phase >20 min</span>
+        <span class="pipe-box pipe-prompt">Extensions <2</span>
+        <span class="pipe-box pipe-prompt">UDL <3 principles</span>
+        <span class="pipe-box pipe-prompt">Active content <66%</span>
+      </div>
+
+      <div class="pipe-label" style="color:#66eebb;">MEASURED<br>(Pulse scoring)</div>
+      <div class="pipe-content">
+        <span class="pipe-box pipe-good">Cognitive Rigour (bloom avg)</span>
+        <span class="pipe-box pipe-good">Student Agency (choice + collab)</span>
+        <span class="pipe-box pipe-good">Teacher Craft (UDL + scaffold + group)</span>
+        <span class="pipe-box pipe-good">Overall (mean − unevenness)</span>
+      </div>
+
+      <div class="pipe-label" style="color:#cc88ff;">NOT CHECKED<br>(gaps)</div>
+      <div class="pipe-content">
+        <span class="pipe-box pipe-gap">Individual activity durations</span>
+        <span class="pipe-box pipe-gap">timeWeight validity</span>
+        <span class="pipe-box pipe-gap">bloom_level distribution</span>
+        <span class="pipe-box pipe-gap">Energy sequencing</span>
+        <span class="pipe-box pipe-gap">Timeline path (zero validation)</span>
+      </div>
+    </div>
+
+    <h2 class="section-title">Pulse Repair Flow</h2>
+    <p class="section-subtitle">When Pulse score is low, a repair prompt is injected into the NEXT lesson's generation.</p>
+
+    <div class="flow">
+      <div class="flow-row">
+        <div class="node node-process flow-col">
+          <h3>Step 1: Score Lesson</h3>
+          <p>Cognitive Rigour, Student Agency, Teacher Craft → each 0-10</p>
+          <p>Overall = mean − unevenness penalty</p>
+        </div>
+        <div class="node node-advisory flow-col">
+          <h3>Step 2: Trigger Check</h3>
+          <p>Overall < 5.0? → Repair</p>
+          <p>Any dimension < 4.0? → Repair that dimension</p>
+          <p>All good? → No repair needed</p>
+        </div>
+        <div class="node node-process flow-col">
+          <h3>Step 3: Repair Prompt</h3>
+          <p>Targets weakest dimension</p>
+          <p>Injects 2-3 Teaching Moves</p>
+          <p>"Replace or enhance one Work Time activity"</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="finding finding-warning mt-4">
+      <h4>Repair only affects NEXT lesson, not current lesson</h4>
+      <p>If the first lesson scores 3.0/10, the repair prompt is injected into lesson 2's generation. Lesson 1 ships as-is. This means the user sees a bad lesson if they don't regenerate it. The repair system is forward-looking only.</p>
+    </div>
+  </div>
+
+  <!-- ===== FINDINGS TAB ===== -->
+  <div id="findings" class="tab-content">
+    <h2 class="section-title">Key Findings & Recommended Actions</h2>
+
+    <div class="finding finding-critical">
+      <h4>Finding 1: Schema forces Workshop Model phase names even for non-Workshop lessons</h4>
+      <p><code>workshopPhases</code> in <code>buildPageContentSchema()</code> always requires <code>opening</code>, <code>miniLesson</code>, <code>workTime</code>, <code>debrief</code>. When the prompt says "use Research structure: Mini-Lesson → Guided Investigation → Independent Analysis → Share", the AI still outputs under the Workshop field names. The validator then checks against type-specific rules but the AI never generated type-specific content — it generated Workshop content with the wrong names.</p>
+      <p class="mt-2"><strong>Fix:</strong> Either (a) make <code>workshopPhases</code> a dynamic schema keyed by <code>lessonType</code> (complex — Anthropic tool schemas are static), or (b) use generic phase names (<code>phase1</code>, <code>phase2</code>, <code>phase3</code>, <code>phase4</code>) with a <code>phaseName</code> field the AI fills in, or (c) switch to the Timeline schema for all paths (flat activities with <code>role</code> enum — already more flexible).</p>
+    </div>
+
+    <div class="finding finding-critical">
+      <h4>Finding 2: durationMinutes and timeWeight coexist with no resolution</h4>
+      <p>Both fields exist on activity blocks. <code>durationMinutes</code> is a hard number ("15 minutes"), <code>timeWeight</code> is relative ("moderate"). The AI outputs both. Neither is validated. The intent was <code>timeWeight</code> replaces <code>durationMinutes</code>, but the migration never happened. The Timeline path actually REQUIRES <code>durationMinutes</code> (it's the only way to sum lesson time).</p>
+      <p class="mt-2"><strong>Fix:</strong> Pick one. If <code>timeWeight</code> is the future, remove <code>durationMinutes</code> from page/journey schemas and compute actual minutes from weight ratios during validation. If <code>durationMinutes</code> stays, remove <code>timeWeight</code> guidance from prompts. Don't have both.</p>
+    </div>
+
+    <div class="finding finding-critical">
+      <h4>Finding 3: Timeline path has ZERO post-generation quality checks</h4>
+      <p>The Express/Timeline path (<code>generate-timeline/route.ts</code>) is the most popular path — it's what teachers get when they click Express mode. It generates flat activity lists with <code>durationMinutes</code> per activity. But it calls neither <code>validateLessonTiming()</code> nor <code>computeLessonPulse()</code>. Activities go straight to the client with no timing validation, no structure checking, no Pulse scoring, and no repair.</p>
+      <p class="mt-2"><strong>Fix:</strong> Add validation after timeline generation. This requires adapting <code>validateLessonTiming()</code> to work with flat activity arrays (currently expects <code>workshopPhases</code>), OR creating a new <code>validateTimelineLesson()</code> function.</p>
+    </div>
+
+    <div class="finding finding-warning">
+      <h4>Finding 4: Individual activity durations are never validated</h4>
+      <p>The timing validation only checks <strong>phase-level totals</strong> (Workshop phases sum to usable time). Individual activities within Work Time can be any duration — a 45-minute lecture inside Work Time wouldn't be caught. The energy sequencing rules ("never two high-cognitive back-to-back") are prompt guidance only; nothing validates them.</p>
+      <p class="mt-2"><strong>Fix:</strong> Add per-activity validation rules: max duration per activity type, Bloom's level vs duration coherence (remember activities shouldn't be 30 min), energy sequencing check.</p>
+    </div>
+
+    <div class="finding finding-warning">
+      <h4>Finding 5: Bloom's taxonomy is correctly placed (on activities, not on time frames)</h4>
+      <p>Good news: <code>bloom_level</code> IS on individual activity blocks as an optional enum. It's NOT on workshopPhases or time frames. The Pulse scoring reads bloom_level per activity and computes a weighted average for Cognitive Rigour. This matches your intent. The concern in your question ("I thought activity blocks were coded by Bloom's, not time frames") — <strong>this IS how it works</strong>. Activities have both bloom_level (cognitive demand) and optional durationMinutes (time). They're separate dimensions.</p>
+    </div>
+
+    <div class="finding finding-gap">
+      <h4>Finding 6: 60-min period length hardcoded in criterion path fallback</h4>
+      <p><code>generate-unit/route.ts</code> line ~115: <code>const periodMinutes = 60;</code> when no timing profile exists. The journey path uses 50 min. This inconsistency means criterion-generated lessons may be 10 min longer than journey-generated ones for the same class.</p>
+    </div>
+
+    <div class="finding finding-gap">
+      <h4>Finding 7: Criterion path cannot access skeleton lesson types</h4>
+      <p>When a teacher uses the criterion-based generation path (rare — mainly for individual criterion regeneration), there's no skeleton and no lesson type. Every lesson validates as Workshop Model. If lesson-type-aware generation is the goal, this path needs a way to infer or accept lesson type.</p>
+    </div>
+
+    <div class="finding finding-info">
+      <h4>Finding 8: The system architecture is sound but has accidental complexity</h4>
+      <p>The 3-layer approach (prompt guidance → schema enforcement → post-validation) is correct. The problem is that the layers were built at different times and don't agree on structure. The schema says "Workshop Model always", the prompts say "use lesson-type structures", and the validation now checks lesson types. A clean rebuild would: (1) unify on a flexible schema (probably Timeline-style flat activities), (2) use lesson type to guide the AI, and (3) validate against the type-specific structure. The data fields (bloom_level, timeWeight, grouping, ai_rules, udl_checkpoints) are all correctly designed — the issue is only in the phase structure layer.</p>
+    </div>
+  </div>
+
+</div>
+
+<script>
+function showTab(id) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  event.target.classList.add('active');
+}
+</script>
+
+</body>
+</html>

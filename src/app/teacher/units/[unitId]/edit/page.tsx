@@ -149,12 +149,9 @@ export default function EditUnitPage({
     } else {
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
-      // Auto-ingest updated content into knowledge base (fire-and-forget)
-      fetch("/api/teacher/knowledge/ingest", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ unitId }),
-      }).catch(() => {});
+      // QUARANTINED (3 Apr 2026) — Knowledge pipeline disabled pending architecture rebuild.
+      // See docs/quarantine.md for full rationale.
+      // fetch("/api/teacher/knowledge/ingest", { ... }).catch(() => {});
     }
     setSaving(false);
   }

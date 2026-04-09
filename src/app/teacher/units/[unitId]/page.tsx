@@ -3,7 +3,8 @@
 import { useState, useEffect, use } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import TeacherFeedbackForm from "@/components/teacher/knowledge/TeacherFeedbackForm";
+// QUARANTINED (3 Apr 2026) — Knowledge pipeline disabled pending architecture rebuild.
+// import TeacherFeedbackForm from "@/components/teacher/knowledge/TeacherFeedbackForm";
 import UnitThumbnailPicker from "@/components/teacher/UnitThumbnailPicker";
 import {
   getPageList,
@@ -66,7 +67,8 @@ export default function UnitDetailPage({
   const [unit, setUnit] = useState<Unit | null>(null);
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showFeedback, setShowFeedback] = useState(false);
+  // QUARANTINED (3 Apr 2026) — Knowledge feedback disabled
+  // const [showFeedback, setShowFeedback] = useState(false);
   const [showLessons, setShowLessons] = useState(false);
   const [showMeta, setShowMeta] = useState(false);
   const [allClasses, setAllClasses] = useState<Array<{
@@ -524,32 +526,8 @@ export default function UnitDetailPage({
         >
           Generate Worksheets
         </button>
-        <button
-          onClick={() => setShowFeedback(!showFeedback)}
-          className={`px-4 py-2 rounded-xl border font-medium text-sm transition-colors flex items-center gap-2 ${
-            showFeedback
-              ? "border-accent-orange bg-accent-orange/5 text-accent-orange"
-              : "border-border text-text-primary hover:bg-surface-alt"
-          }`}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
-          </svg>
-          {showFeedback ? "Hide Feedback" : "Give Feedback"}
-        </button>
+        {/* QUARANTINED (3 Apr 2026) — Knowledge feedback button + form removed */}
       </div>
-
-      {/* Teacher feedback form (expandable) */}
-      {showFeedback && (
-        <div className="mb-6 p-5 rounded-xl border border-accent-orange/20 bg-accent-orange/5">
-          <TeacherFeedbackForm
-            unitId={unitId}
-            lessonTitle={unit.title}
-            onSubmit={() => setShowFeedback(false)}
-            onClose={() => setShowFeedback(false)}
-          />
-        </div>
-      )}
 
       {/* ----------------------------------------------------------------- */}
       {/* Unit Metadata — collapsible                                        */}

@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StudioLoom Platform Architecture — Data Flow</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; overflow-x: hidden; }
+
+  .header { padding: 24px 32px; border-bottom: 1px solid #1e2130; display: flex; align-items: center; gap: 16px; }
+  .header h1 { font-size: 20px; font-weight: 600; color: #f1f5f9; }
+  .header .badge { background: #7c3aed22; color: #a78bfa; font-size: 11px; padding: 4px 10px; border-radius: 20px; border: 1px solid #7c3aed44; }
+
+  .controls { padding: 16px 32px; display: flex; gap: 12px; flex-wrap: wrap; }
+  .ctrl-btn { background: #1a1d2e; border: 1px solid #2a2d3e; color: #94a3b8; padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; transition: all 0.2s; }
+  .ctrl-btn:hover { border-color: #7c3aed; color: #e2e8f0; }
+  .ctrl-btn.active { background: #7c3aed22; border-color: #7c3aed; color: #a78bfa; }
+
+  .canvas-wrap { padding: 16px 32px 32px; }
+
+  svg { width: 100%; height: auto; }
+
+  /* System boxes */
+  .sys-box { cursor: pointer; transition: opacity 0.3s; }
+  .sys-box:hover .sys-bg { filter: brightness(1.15); }
+  .sys-bg { rx: 16; ry: 16; stroke-width: 2; }
+  .sys-label { font-size: 14px; font-weight: 700; fill: #f1f5f9; }
+  .sys-sublabel { font-size: 11px; fill: #94a3b8; }
+  .sys-detail { font-size: 10px; fill: #64748b; }
+
+  /* Flow arrows */
+  .flow-path { fill: none; stroke-width: 2.5; stroke-linecap: round; opacity: 0.5; transition: opacity 0.3s, stroke-width 0.3s; }
+  .flow-path.highlight { opacity: 1; stroke-width: 3.5; }
+  .flow-path.dim { opacity: 0.12; }
+
+  .flow-label { font-size: 9.5px; fill: #94a3b8; transition: opacity 0.3s; }
+  .flow-label.highlight { fill: #e2e8f0; font-weight: 600; }
+  .flow-label.dim { opacity: 0.15; }
+
+  /* Event badges */
+  .event-badge { font-size: 8.5px; fill: #0f1117; font-weight: 600; }
+  .event-bg { rx: 4; ry: 4; }
+
+  /* Internal steps */
+  .step-box { rx: 8; ry: 8; fill: #ffffff08; stroke: #ffffff15; stroke-width: 1; }
+  .step-label { font-size: 9px; fill: #cbd5e1; }
+
+  /* Legend */
+  .legend { padding: 0 32px 32px; }
+  .legend-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+  .legend-item { display: flex; align-items: center; gap: 10px; font-size: 12px; color: #94a3b8; }
+  .legend-swatch { width: 24px; height: 4px; border-radius: 2px; flex-shrink: 0; }
+
+  /* Detail panel */
+  .detail-panel { position: fixed; right: -420px; top: 0; width: 400px; height: 100vh; background: #161825; border-left: 1px solid #2a2d3e; padding: 24px; overflow-y: auto; transition: right 0.3s ease; z-index: 100; }
+  .detail-panel.open { right: 0; }
+  .detail-close { position: absolute; top: 16px; right: 16px; background: none; border: none; color: #64748b; cursor: pointer; font-size: 20px; }
+  .detail-close:hover { color: #e2e8f0; }
+  .detail-panel h2 { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+  .detail-panel h3 { font-size: 13px; font-weight: 600; color: #a78bfa; margin: 16px 0 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .detail-panel p { font-size: 13px; line-height: 1.6; color: #94a3b8; margin-bottom: 8px; }
+  .detail-panel .tag { display: inline-block; background: #7c3aed22; color: #a78bfa; font-size: 11px; padding: 2px 8px; border-radius: 4px; margin: 2px 4px 2px 0; }
+  .detail-panel ul { padding-left: 16px; margin-bottom: 8px; }
+  .detail-panel li { font-size: 12px; color: #94a3b8; line-height: 1.6; margin-bottom: 4px; }
+  .detail-panel .phase1 { background: #1a2e1a; border: 1px solid #22c55e33; border-radius: 8px; padding: 12px; margin: 8px 0; }
+  .detail-panel .phase1 .label { font-size: 10px; color: #22c55e; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .detail-panel .phase1 p { font-size: 12px; color: #86efac; margin: 0; }
+
+  .overlay { position: fixed; inset: 0; background: #0005; z-index: 99; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+  .overlay.open { opacity: 1; pointer-events: auto; }
+
+  /* Walked example highlight */
+  .walked .flow-path { opacity: 0.08; }
+  .walked .flow-path.walk-step { opacity: 1; stroke-width: 3.5; }
+  .walked .flow-label { opacity: 0.1; }
+  .walked .flow-label.walk-step { opacity: 1; fill: #e2e8f0; font-weight: 600; }
+
+  .walk-controls { padding: 0 32px 16px; display: none; }
+  .walk-controls.visible { display: flex; align-items: center; gap: 12px; }
+  .walk-step-label { font-size: 13px; color: #e2e8f0; flex: 1; }
+  .walk-step-label .num { color: #a78bfa; font-weight: 700; }
+  .walk-btn { background: #7c3aed; border: none; color: white; padding: 8px 20px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; }
+  .walk-btn:hover { background: #6d28d9; }
+  .walk-btn:disabled { background: #3b3b5c; color: #64748b; cursor: default; }
+
+  @media (max-width: 768px) {
+    .detail-panel { width: 100%; right: -100%; }
+    svg { min-height: 600px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>StudioLoom Platform Architecture</h1>
+  <span class="badge">4-Pillar Data Flow</span>
+</div>
+
+<div class="controls">
+  <button class="ctrl-btn active" data-view="all" onclick="setView('all')">All Flows</button>
+  <button class="ctrl-btn" data-view="happy" onclick="setView('happy')">Happy Path</button>
+  <button class="ctrl-btn" data-view="feedback" onclick="setView('feedback')">Feedback Loop</button>
+  <button class="ctrl-btn" data-view="bootstrap" onclick="setView('bootstrap')">Bootstrap Flow</button>
+  <button class="ctrl-btn" data-view="walk" onclick="startWalk()">▶ Walk Through</button>
+</div>
+
+<div class="walk-controls" id="walkControls">
+  <button class="walk-btn" id="walkPrev" onclick="walkPrev()">← Back</button>
+  <div class="walk-step-label" id="walkLabel"><span class="num">1/7</span> Teacher uploads a PDF lesson plan</div>
+  <button class="walk-btn" id="walkNext" onclick="walkNext()">Next →</button>
+  <button class="ctrl-btn" onclick="endWalk()">✕ Exit</button>
+</div>
+
+<div class="canvas-wrap">
+<svg id="diagram" viewBox="0 0 1100 700" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Arrowheads -->
+    <marker id="arr-purple" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M1,1 L7,4 L1,7" fill="none" stroke="#a78bfa" stroke-width="1.5"/></marker>
+    <marker id="arr-blue" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M1,1 L7,4 L1,7" fill="none" stroke="#60a5fa" stroke-width="1.5"/></marker>
+    <marker id="arr-green" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M1,1 L7,4 L1,7" fill="none" stroke="#4ade80" stroke-width="1.5"/></marker>
+    <marker id="arr-amber" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M1,1 L7,4 L1,7" fill="none" stroke="#fbbf24" stroke-width="1.5"/></marker>
+    <marker id="arr-rose" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M1,1 L7,4 L1,7" fill="none" stroke="#fb7185" stroke-width="1.5"/></marker>
+    <marker id="arr-cyan" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M1,1 L7,4 L1,7" fill="none" stroke="#22d3ee" stroke-width="1.5"/></marker>
+
+    <!-- Glows -->
+    <filter id="glow-purple"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <filter id="glow-blue"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+
+  <!-- ==================== TEACHER (top-left actor) ==================== -->
+  <g transform="translate(80, 60)">
+    <circle cx="0" cy="0" r="22" fill="#7c3aed33" stroke="#7c3aed" stroke-width="1.5"/>
+    <text x="0" y="-4" text-anchor="middle" font-size="16">👩‍🏫</text>
+    <text x="0" y="14" text-anchor="middle" font-size="8" fill="#a78bfa" font-weight="600">TEACHER</text>
+  </g>
+
+  <!-- ==================== STUDENT (bottom-right actor) ==================== -->
+  <g transform="translate(1020, 580)">
+    <circle cx="0" cy="0" r="22" fill="#3b82f633" stroke="#3b82f6" stroke-width="1.5"/>
+    <text x="0" y="-4" text-anchor="middle" font-size="16">🧑‍🎓</text>
+    <text x="0" y="14" text-anchor="middle" font-size="8" fill="#60a5fa" font-weight="600">STUDENT</text>
+  </g>
+
+  <!-- ==================== SYSTEM 1: LIBRARY ==================== -->
+  <g class="sys-box" onclick="showDetail('sys1')">
+    <rect class="sys-bg" x="40" y="130" width="260" height="220" fill="#1a1040" stroke="#7c3aed55"/>
+    <text class="sys-label" x="60" y="158">System 1: The Library</text>
+    <text class="sys-sublabel" x="60" y="175">Ingestion & Block Extraction</text>
+
+    <!-- Internal pipeline -->
+    <rect class="step-box" x="60" y="190" width="80" height="32"/>
+    <text class="step-label" x="100" y="210" text-anchor="middle">Dedup + Parse</text>
+
+    <rect class="step-box" x="155" y="190" width="80" height="32"/>
+    <text class="step-label" x="195" y="210" text-anchor="middle">Block Extract</text>
+
+    <rect class="step-box" x="60" y="235" width="80" height="32"/>
+    <text class="step-label" x="100" y="255" text-anchor="middle">6-Tag Metadata</text>
+
+    <rect class="step-box" x="155" y="235" width="80" height="32"/>
+    <text class="step-label" x="195" y="255" text-anchor="middle">Embed + Store</text>
+
+    <!-- DB icon -->
+    <g transform="translate(265, 295)">
+      <ellipse cx="0" cy="0" rx="16" ry="6" fill="none" stroke="#7c3aed88" stroke-width="1"/>
+      <rect x="-16" y="0" width="32" height="16" fill="#1a1040" stroke="#7c3aed88" stroke-width="1"/>
+      <ellipse cx="0" cy="16" rx="16" ry="6" fill="none" stroke="#7c3aed88" stroke-width="1"/>
+      <text x="0" y="32" text-anchor="middle" font-size="8" fill="#a78bfa">activity_blocks</text>
+    </g>
+  </g>
+
+  <!-- ==================== SYSTEM 2: ENGINE ==================== -->
+  <g class="sys-box" onclick="showDetail('sys2')">
+    <rect class="sys-bg" x="380" y="100" width="340" height="260" fill="#0f1a30" stroke="#3b82f655"/>
+    <text class="sys-label" x="400" y="128">System 2: The Engine</text>
+    <text class="sys-sublabel" x="400" y="145">Assembly & Generation</text>
+
+    <!-- Wizard steps -->
+    <rect class="step-box" x="400" y="162" width="95" height="28"/>
+    <text class="step-label" x="447" y="180" text-anchor="middle">1. Skeleton</text>
+
+    <rect class="step-box" x="505" y="162" width="95" height="28"/>
+    <text class="step-label" x="552" y="180" text-anchor="middle">2. Constraints</text>
+
+    <rect class="step-box" x="610" y="162" width="95" height="28"/>
+    <text class="step-label" x="657" y="180" text-anchor="middle">3. Assessment</text>
+
+    <rect class="step-box" x="400" y="200" width="95" height="28"/>
+    <text class="step-label" x="447" y="218" text-anchor="middle">4. Timing</text>
+
+    <!-- Assembly algorithm (the big one) -->
+    <rect x="505" y="200" width="200" height="60" rx="8" ry="8" fill="#3b82f611" stroke="#3b82f644" stroke-width="1.5" stroke-dasharray="4 2"/>
+    <text x="605" y="218" text-anchor="middle" font-size="10" fill="#60a5fa" font-weight="600">5. BLOCK ASSEMBLY</text>
+    <text x="605" y="232" text-anchor="middle" font-size="8" fill="#94a3b8">Retrieve → Gap Fill → Validate</text>
+    <text x="605" y="244" text-anchor="middle" font-size="8" fill="#94a3b8">→ Polish → Teacher Review</text>
+
+    <rect class="step-box" x="400" y="240" width="95" height="28"/>
+    <text class="step-label" x="447" y="258" text-anchor="middle">6. Fork & Save</text>
+
+    <!-- 80/20 badge -->
+    <rect x="400" y="290" width="110" height="24" rx="6" fill="#fbbf2418" stroke="#fbbf2444"/>
+    <text x="455" y="306" text-anchor="middle" font-size="9" fill="#fbbf24">80% Proven / 20% New</text>
+
+    <!-- Backward design badge -->
+    <rect x="530" y="290" width="120" height="24" rx="6" fill="#3b82f618" stroke="#3b82f644"/>
+    <text x="590" y="306" text-anchor="middle" font-size="9" fill="#60a5fa">Backward Design</text>
+  </g>
+
+  <!-- ==================== SYSTEM 3: CLASSROOM ==================== -->
+  <g class="sys-box" onclick="showDetail('sys3')">
+    <rect class="sys-bg" x="380" y="420" width="340" height="200" fill="#0f2a1a" stroke="#22c55e55"/>
+    <text class="sys-label" x="400" y="448">System 3: The Classroom</text>
+    <text class="sys-sublabel" x="400" y="465">Delivery & Teaching</text>
+
+    <rect class="step-box" x="400" y="480" width="90" height="28"/>
+    <text class="step-label" x="445" y="498" text-anchor="middle">UDL Tiering</text>
+
+    <rect class="step-box" x="500" y="480" width="100" height="28"/>
+    <text class="step-label" x="550" y="498" text-anchor="middle">Teaching Mode</text>
+
+    <rect class="step-box" x="610" y="480" width="95" height="28"/>
+    <text class="step-label" x="657" y="498" text-anchor="middle">AI Mentor</text>
+
+    <rect class="step-box" x="400" y="520" width="90" height="28"/>
+    <text class="step-label" x="445" y="538" text-anchor="middle">Projector View</text>
+
+    <rect class="step-box" x="500" y="520" width="100" height="28"/>
+    <text class="step-label" x="550" y="538" text-anchor="middle">Student Work</text>
+
+    <rect class="step-box" x="610" y="520" width="95" height="28"/>
+    <text class="step-label" x="657" y="538" text-anchor="middle">Vocab Layer</text>
+
+    <!-- Phase structure badge -->
+    <rect x="400" y="566" width="140" height="24" rx="6" fill="#22c55e18" stroke="#22c55e44"/>
+    <text x="470" y="582" text-anchor="middle" font-size="9" fill="#4ade80">Lesson Phase Structure</text>
+
+    <rect x="555" y="566" width="100" height="24" rx="6" fill="#22c55e18" stroke="#22c55e44"/>
+    <text x="605" y="582" text-anchor="middle" font-size="9" fill="#4ade80">Integrity Monitor</text>
+  </g>
+
+  <!-- ==================== SYSTEM 4: THE LOOP ==================== -->
+  <g class="sys-box" onclick="showDetail('sys4')">
+    <rect class="sys-bg" x="800" y="220" width="260" height="240" fill="#2a1a0a" stroke="#f59e0b55"/>
+    <text class="sys-label" x="820" y="248">System 4: The Loop</text>
+    <text class="sys-sublabel" x="820" y="265">Telemetry & Efficacy</text>
+
+    <rect class="step-box" x="820" y="282" width="110" height="28"/>
+    <text class="step-label" x="875" y="300" text-anchor="middle">Signal Collection</text>
+
+    <rect class="step-box" x="940" y="282" width="100" height="28"/>
+    <text class="step-label" x="990" y="300" text-anchor="middle">4 Signal Types</text>
+
+    <rect class="step-box" x="820" y="322" width="110" height="28"/>
+    <text class="step-label" x="875" y="340" text-anchor="middle">Efficacy Score</text>
+
+    <rect class="step-box" x="940" y="322" width="100" height="28"/>
+    <text class="step-label" x="990" y="340" text-anchor="middle">Niche Scoring</text>
+
+    <rect class="step-box" x="820" y="362" width="220" height="28"/>
+    <text class="step-label" x="930" y="380" text-anchor="middle">Self-Healing Metadata Correction</text>
+
+    <!-- Weight badges -->
+    <g transform="translate(820, 405)">
+      <rect width="50" height="18" rx="4" fill="#ef444433"/><text x="25" y="13" text-anchor="middle" font-size="8" fill="#fca5a5">40% Edit</text>
+      <rect x="55" width="50" height="18" rx="4" fill="#3b82f633"/><text x="80" y="13" text-anchor="middle" font-size="8" fill="#93c5fd">25% Time</text>
+      <rect x="110" width="50" height="18" rx="4" fill="#fbbf2433"/><text x="135" y="13" text-anchor="middle" font-size="8" fill="#fde68a">20% Emoji</text>
+      <rect x="165" width="55" height="18" rx="4" fill="#22c55e33"/><text x="192" y="13" text-anchor="middle" font-size="8" fill="#86efac">15% Done</text>
+    </g>
+  </g>
+
+  <!-- ==================== SHARED TAXONOMY ==================== -->
+  <g transform="translate(170, 400)">
+    <rect x="0" y="0" width="150" height="50" rx="10" fill="#ffffff08" stroke="#ffffff20" stroke-width="1" stroke-dasharray="6 3"/>
+    <text x="75" y="20" text-anchor="middle" font-size="10" fill="#cbd5e1" font-weight="600">Central Taxonomy</text>
+    <text x="75" y="34" text-anchor="middle" font-size="8" fill="#64748b">Bloom · Phase · Resource</text>
+    <text x="75" y="44" text-anchor="middle" font-size="8" fill="#64748b">Social · Output · Types</text>
+  </g>
+
+  <!-- ==================== FLOW ARROWS ==================== -->
+
+  <!-- F1: Teacher → System 1 (upload) -->
+  <path class="flow-path" data-flow="happy bootstrap" d="M102,72 L120,130" stroke="#a78bfa" marker-end="url(#arr-purple)"/>
+  <text class="flow-label" data-flow="happy bootstrap" x="125" y="100" transform="rotate(-65, 125, 100)">Upload PDF/DOCX</text>
+
+  <!-- F2: System 1 → System 2 (blocks available) -->
+  <path class="flow-path" data-flow="happy" d="M300,230 Q340,220 380,210" stroke="#a78bfa" marker-end="url(#arr-purple)"/>
+  <text class="flow-label" data-flow="happy" x="330" y="205">Tagged Blocks</text>
+
+  <!-- F3: Teacher → System 2 (wizard) -->
+  <path class="flow-path" data-flow="happy bootstrap" d="M102,60 Q240,40 400,120" stroke="#60a5fa" marker-end="url(#arr-blue)"/>
+  <text class="flow-label" data-flow="happy bootstrap" x="240" y="60">Wizard Input (topic, constraints, skeleton)</text>
+
+  <!-- F4: System 2 → System 3 (fork delivery) -->
+  <path class="flow-path" data-flow="happy bootstrap" d="M550,360 L550,420" stroke="#4ade80" marker-end="url(#arr-green)"/>
+  <text class="flow-label" data-flow="happy bootstrap" x="560" y="395">Forked Unit</text>
+
+  <!-- F5: System 3 → Student (lesson content) -->
+  <path class="flow-path" data-flow="happy bootstrap" d="M720,530 Q870,560 1000,580" stroke="#4ade80" marker-end="url(#arr-green)"/>
+  <text class="flow-label" data-flow="happy bootstrap" x="830" y="548">Lesson + UDL + AI Mentor</text>
+
+  <!-- F6: Student → System 4 (telemetry) -->
+  <path class="flow-path" data-flow="happy feedback" d="M1020,558 Q1040,440 1000,340" stroke="#fbbf24" marker-end="url(#arr-amber)"/>
+  <text class="flow-label" data-flow="happy feedback" x="1032" y="460" transform="rotate(-80, 1032, 460)">Time + Emoji + Completion</text>
+
+  <!-- F7: Teacher → System 4 (edit signals) -->
+  <path class="flow-path" data-flow="feedback" d="M102,75 Q500,10 850,220" stroke="#fb7185" marker-end="url(#arr-rose)"/>
+  <text class="flow-label" data-flow="feedback" x="470" y="25">Deletions, Rewrites, Reorders (highest signal)</text>
+
+  <!-- F8: System 4 → System 2 (efficacy scores for retrieval) — THE LOOP -->
+  <path class="flow-path" data-flow="feedback" d="M800,320 Q730,290 720,260" stroke="#fbbf24" marker-end="url(#arr-amber)" filter="url(#glow-blue)"/>
+  <text class="flow-label" data-flow="feedback" x="740" y="278">Efficacy Scores → Retrieval Ranking</text>
+
+  <!-- F9: System 4 → System 1 (self-healing metadata) -->
+  <path class="flow-path" data-flow="feedback" d="M800,390 Q500,440 300,340" stroke="#fb7185" marker-end="url(#arr-rose)"/>
+  <text class="flow-label" data-flow="feedback" x="520" y="395">Self-Heal: auto-correct time_weight, bloom_level</text>
+
+  <!-- F10: System 2 → System 1 (bootstrap: generated blocks inserted) -->
+  <path class="flow-path" data-flow="bootstrap" d="M400,280 Q340,310 300,290" stroke="#22d3ee" marker-end="url(#arr-cyan)" stroke-dasharray="6 3"/>
+  <text class="flow-label" data-flow="bootstrap" x="310" y="310" font-style="italic">Bootstrap: new blocks → library</text>
+
+  <!-- F11: Taxonomy → System 1 -->
+  <path class="flow-path" data-flow="all" d="M245,400 Q265,370 260,350" stroke="#ffffff33" marker-end="url(#arr-purple)" stroke-dasharray="4 4" opacity="0.25"/>
+
+  <!-- F12: Taxonomy → System 2 -->
+  <path class="flow-path" data-flow="all" d="M320,410 Q350,380 400,330" stroke="#ffffff33" marker-end="url(#arr-blue)" stroke-dasharray="4 4" opacity="0.25"/>
+
+  <!-- F13: Teacher → System 3 (teach) -->
+  <path class="flow-path" data-flow="happy" d="M80,82 Q60,350 380,480" stroke="#4ade80" marker-end="url(#arr-green)" stroke-dasharray="4 2" opacity="0.35"/>
+  <text class="flow-label" data-flow="happy" x="140" y="340" font-size="8" opacity="0.6">Live Teaching</text>
+
+</svg>
+</div>
+
+<div class="legend">
+  <div class="legend-grid">
+    <div class="legend-item"><div class="legend-swatch" style="background:#a78bfa"></div>System 1 flows (Ingestion)</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:#60a5fa"></div>System 2 flows (Engine)</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:#4ade80"></div>System 3 flows (Delivery)</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:#fbbf24"></div>System 4 flows (Telemetry)</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:#fb7185"></div>Feedback signals</div>
+    <div class="legend-item"><div class="legend-swatch" style="background:#22d3ee; border: 1px dashed #22d3ee"></div>Bootstrap (generated → library)</div>
+  </div>
+</div>
+
+<!-- Detail panel -->
+<div class="overlay" id="overlay" onclick="closeDetail()"></div>
+<div class="detail-panel" id="detailPanel">
+  <button class="detail-close" onclick="closeDetail()">✕</button>
+  <div id="detailContent"></div>
+</div>
+
+<script>
+const DETAILS = {
+  sys1: {
+    title: 'System 1: The Library',
+    subtitle: 'Ingestion & Block Extraction',
+    color: '#a78bfa',
+    sections: [
+      { heading: 'Core Function', text: 'Ingest raw educational materials, extract discrete Activity Blocks, tag with 6 metadata dimensions, embed for vector search, store as first-class reusable entities.' },
+      { heading: 'Pipeline', items: ['SHA-256 dedup (zero cost)', 'Deterministic parsing (no AI)', 'Block extraction via Haiku', '6-tag metadata classification', 'Voyage AI embedding (1024-dim)', 'Store block + assets'] },
+      { heading: '6 Required Tags', items: ['bloom_level — cognitive difficulty', 'time_weight — quick / moderate / extended / flexible', 'design_phase — empathize / define / ideate / prototype / test / reflect', 'resource_tier — zero_tech / low_fi / digital / high_fi', 'social_dynamic — individual / pairs / small_group / whole_class', 'output_artifact — discussion / written / physical / digital / presentation / peer_feedback'] },
+      { heading: 'Inputs', items: ['Teacher uploads (PDF, DOCX, PPTX)', 'Generated blocks from System 2 (bootstrap)', 'Self-healing corrections from System 4'] },
+      { heading: 'Outputs', items: ['Tagged Activity Blocks in activity_blocks table', '7 asset types (content, video, image, URL, embed, template, rubric)', 'Embeddings for hybrid search'] },
+      { heading: 'Phase 1 Reality', phase1: 'Supabase PostgreSQL + pgvector. Uploads via Next.js API routes. Haiku for tagging with Sonnet fallback. File storage in Supabase Storage. No separate vector DB needed.' }
+    ]
+  },
+  sys2: {
+    title: 'System 2: The Engine',
+    subtitle: 'Assembly & Generation',
+    color: '#60a5fa',
+    sections: [
+      { heading: 'Core Function', text: 'Assemble unit plans from proven Activity Blocks via metadata-filtered vector search. Fill gaps with AI generation. Apply Pedagogical Skeletons for sequencing. Produce teacher-editable forks.' },
+      { heading: 'Assembly Algorithm (5 Steps)', items: ['5a. Filtered Retrieval — hard filters (resource_tier, design_phase, prerequisites) + soft scoring (efficacy 40%, semantic 30%, bloom 15%, variety 15%)', '5b. Gap Detection — <3 candidates triggers fresh generation. Generated blocks auto-inserted into library.', '5c. Sequence Validation — prerequisite chains, social dynamic variety, cognitive load curve, logistics blocks', '5d. Polish Pass — fast LLM rewrites transitions only (not instructions)', '5e. Teacher Review — accept, swap, reorder, edit, delete. All changes are fork-level.'] },
+      { heading: '6 Pedagogical Skeletons', items: ['Agile/Iterative — rapid Make→Test loops', 'Linear Waterfall — step-by-step, one pass', 'Bootcamp/Skills-First — front-loaded instruction + safety', 'Human-Centered — deep empathy research first', 'Reverse Engineering — analyze → map → improve → rebuild', 'Open Inquiry/PBL — student-driven, capstone focus'] },
+      { heading: 'Key Principles', items: ['Backward Design: assessment defined first, lessons built backward', '80/20 Explore vs. Exploit: proven blocks + untested ones', 'Master/Fork: edits never touch master blocks', 'Niche Winners: per-tag efficacy_by_tag scoring'] },
+      { heading: 'Phase 1 Reality', phase1: 'Next.js API routes calling Anthropic Claude. Block retrieval via Supabase pgvector with metadata filters. Wizard UI in React. Fork storage as JSONB on class_units table.' }
+    ]
+  },
+  sys3: {
+    title: 'System 3: The Classroom',
+    subtitle: 'Delivery & Teaching',
+    color: '#4ade80',
+    sections: [
+      { heading: 'Core Function', text: 'Deliver forked units to students with profile-driven UDL adaptations. Support live teaching with real-time student status. Provide AI mentoring with per-step scaffolding.' },
+      { heading: 'UDL Tiering', items: ['Level 1 (Standard) — grade-level text, Tier 3 mouseover only', 'Level 2 (Supported) — simplified syntax, full Tier 2+3 translations, TTS, sentence starters', 'Level 3 (Foundational) — bulleted text, visual flashcards, sentence frames, bilingual toggle'] },
+      { heading: 'Live Teaching', items: ['Teaching Cockpit — 3-column layout (navigator, timer + student grid, notes)', 'Phase Timer — countdown with play/pause/skip, 60s warning', 'Projector View — dark-themed, phase-aware content display', 'Student Polling — 30s status (online, stuck, needs help)'] },
+      { heading: 'Lesson Phase Structure', text: 'Lessons follow a configurable phase model. The specific phase structure (number of phases, timing rules, constraints) is defined at the curriculum/school level and enforced during generation in System 2. System 3 delivers and times whatever phase model was configured.' },
+      { heading: 'Vocabulary Layer', items: ['Tier 2 (academic verbs): "evaluate", "analyze", "justify" — the real ELL blocker', 'Tier 3 (domain jargon): "prototype", "CNC router" — learned physically', 'Dotted underline → hover: definition + translation + icon'] },
+      { heading: 'Phase 1 Reality', phase1: 'Next.js pages with SSR. Student profiles in Supabase. UDL variations pre-generated at unit finalize (no LLM at login). Teaching Mode polls every 30s. Haiku for student AI mentor.' }
+    ]
+  },
+  sys4: {
+    title: 'System 4: The Loop',
+    subtitle: 'Telemetry & Efficacy',
+    color: '#fbbf24',
+    sections: [
+      { heading: 'Core Function', text: 'Collect teacher and student signals. Compute per-block Efficacy Scores. Feed scores back into System 2 retrieval ranking. Auto-correct metadata when real-world data contradicts tags.' },
+      { heading: '4 Signal Types (by reliability)', items: ['1. Teacher Behavior (40%) — deletions, heavy rewrites, reorders. Highest signal.', '2. Time-on-Task Accuracy (25%) — actual vs. expected duration. Objective, passive.', '3. Student Emoji Reaction (20%) — difficulty calibration. Low per-student, meaningful in aggregate.', '4. Completion Rate (15%) — blocks most students don\'t finish are miscalibrated.'] },
+      { heading: 'Niche Scoring', text: 'Same algorithm runs per tag combination. efficacy_by_tag stores scores like { "grade_12": 45, "iterative+cardboard": 91 }. System 2 uses the most specific matching score.' },
+      { heading: 'Self-Healing', items: ['Trigger: persistent anomaly across 10+ uses (e.g., "quick" block consistently takes 30+ min)', 'Action: auto-correct master metadata tag (time_weight: quick → extended)', 'Phase 1: daily Supabase Edge Function checks for 2x time discrepancies'] },
+      { heading: 'The Feedback Loop', text: 'This is the compounding advantage. Every teacher edit and every student session improves block scoring. System 2 retrieves better blocks next time. The platform gets smarter with every use — a data flywheel competitors cannot replicate without the same classroom telemetry.' },
+      { heading: 'Phase 1 Reality', phase1: 'Supabase tables for telemetry. Daily Edge Function computes scores. No message broker — System 2 reads scores directly from activity_blocks at query time.' }
+    ]
+  }
+};
+
+const WALK_STEPS = [
+  { label: 'Teacher uploads a PDF lesson plan', flows: ['f-upload'] },
+  { label: 'System 1 extracts Activity Blocks, tags with 6 metadata dimensions, embeds for search', flows: ['f-blocks'] },
+  { label: 'Teacher opens wizard — enters topic, constraints, selects skeleton', flows: ['f-wizard'] },
+  { label: 'System 2 retrieves proven blocks (80%) + new blocks (20%), fills gaps, validates sequence', flows: ['f-blocks', 'f-wizard'] },
+  { label: 'Forked unit delivered to System 3 — UDL tiering applied, Teaching Mode ready', flows: ['f-fork'] },
+  { label: 'Students receive lessons with AI mentor, vocab layer, integrity monitoring', flows: ['f-student'] },
+  { label: 'System 4 collects signals → computes Efficacy Scores → feeds back into System 2 retrieval', flows: ['f-telemetry', 'f-edits', 'f-efficacy', 'f-heal'] },
+];
+
+// Tag flows for walk-through
+document.querySelectorAll('.flow-path').forEach((el, i) => {
+  const flowNames = ['f-upload','f-blocks','f-wizard','f-fork','f-student','f-telemetry','f-edits','f-efficacy','f-heal','f-bootstrap','f-tax1','f-tax2','f-teach'];
+  if (flowNames[i]) el.dataset.walkId = flowNames[i];
+});
+document.querySelectorAll('.flow-label').forEach((el, i) => {
+  const flowNames = ['f-upload','f-blocks','f-wizard','f-fork','f-student','f-telemetry','f-edits','f-efficacy','f-heal','f-bootstrap','','','f-teach'];
+  if (flowNames[i]) el.dataset.walkId = flowNames[i];
+});
+
+let currentView = 'all';
+let walkStep = 0;
+let isWalking = false;
+
+function setView(view) {
+  if (isWalking) endWalk();
+  currentView = view;
+  document.querySelectorAll('.ctrl-btn').forEach(b => b.classList.toggle('active', b.dataset.view === view));
+
+  document.querySelectorAll('.flow-path, .flow-label').forEach(el => {
+    const flows = (el.dataset.flow || '').split(' ');
+    if (view === 'all') {
+      el.classList.remove('highlight', 'dim');
+    } else if (flows.includes(view) || flows.includes('all')) {
+      el.classList.add('highlight');
+      el.classList.remove('dim');
+    } else {
+      el.classList.remove('highlight');
+      el.classList.add('dim');
+    }
+  });
+}
+
+function startWalk() {
+  isWalking = true;
+  walkStep = 0;
+  document.getElementById('walkControls').classList.add('visible');
+  document.querySelectorAll('.ctrl-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector('[data-view="walk"]').classList.add('active');
+  document.getElementById('diagram').classList.add('walked');
+  renderWalkStep();
+}
+
+function endWalk() {
+  isWalking = false;
+  document.getElementById('walkControls').classList.remove('visible');
+  document.getElementById('diagram').classList.remove('walked');
+  document.querySelectorAll('.flow-path, .flow-label').forEach(el => el.classList.remove('walk-step'));
+  setView('all');
+}
+
+function renderWalkStep() {
+  const step = WALK_STEPS[walkStep];
+  document.getElementById('walkLabel').innerHTML = `<span class="num">${walkStep + 1}/${WALK_STEPS.length}</span> ${step.label}`;
+  document.getElementById('walkPrev').disabled = walkStep === 0;
+  document.getElementById('walkNext').textContent = walkStep === WALK_STEPS.length - 1 ? 'Done ✓' : 'Next →';
+
+  document.querySelectorAll('.flow-path, .flow-label').forEach(el => {
+    el.classList.toggle('walk-step', step.flows.includes(el.dataset.walkId));
+  });
+}
+
+function walkNext() {
+  if (walkStep >= WALK_STEPS.length - 1) { endWalk(); return; }
+  walkStep++;
+  renderWalkStep();
+}
+
+function walkPrev() {
+  if (walkStep <= 0) return;
+  walkStep--;
+  renderWalkStep();
+}
+
+function showDetail(sysId) {
+  const d = DETAILS[sysId];
+  if (!d) return;
+  let html = `<h2 style="color:${d.color}">${d.title}</h2><p style="color:#64748b">${d.subtitle}</p>`;
+  d.sections.forEach(s => {
+    html += `<h3>${s.heading}</h3>`;
+    if (s.text) html += `<p>${s.text}</p>`;
+    if (s.items) { html += '<ul>'; s.items.forEach(i => html += `<li>${i}</li>`); html += '</ul>'; }
+    if (s.phase1) html += `<div class="phase1"><div class="label">Phase 1 Reality</div><p>${s.phase1}</p></div>`;
+  });
+  document.getElementById('detailContent').innerHTML = html;
+  document.getElementById('detailPanel').classList.add('open');
+  document.getElementById('overlay').classList.add('open');
+}
+
+function closeDetail() {
+  document.getElementById('detailPanel').classList.remove('open');
+  document.getElementById('overlay').classList.remove('open');
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeDetail(); if (isWalking) endWalk(); }
+  if (isWalking && e.key === 'ArrowRight') walkNext();
+  if (isWalking && e.key === 'ArrowLeft') walkPrev();
+});
+</script>
+</body>
+</html>

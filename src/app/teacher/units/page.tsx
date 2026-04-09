@@ -514,13 +514,14 @@ export default function TeacherUnitsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Link
-            href="/teacher/units/import"
-            className="inline-flex items-center gap-1.5 px-4 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-50 transition"
+          {/* QUARANTINED (3 Apr 2026) — Import uses knowledge pipeline */}
+          <span
+            className="inline-flex items-center gap-1.5 px-4 py-2 border border-gray-200 text-gray-400 rounded-xl text-sm font-medium cursor-not-allowed"
+            title="Lesson import is being rebuilt — coming back soon"
           >
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-            Import
-          </Link>
+            Import (Coming Soon)
+          </span>
           <button
             onClick={() => setShowCreate(true)}
             className="inline-flex items-center gap-1.5 px-4 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-50 transition"
@@ -528,15 +529,16 @@ export default function TeacherUnitsPage() {
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v8"/><path d="M8 12h8"/></svg>
             Manual
           </button>
-          <Link
-            href="/teacher/units/create"
-            className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white rounded-xl shadow-md hover:shadow-lg hover:opacity-90 transition-all"
-            style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)" }}
+          {/* QUARANTINED (3 Apr 2026) — Generation pipeline disabled pending Dimensions2 rebuild */}
+          <span
+            className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white/60 rounded-xl cursor-not-allowed"
+            style={{ background: "linear-gradient(135deg, #7B2F7240, #5C16C540)" }}
+            title="Unit generation is being rebuilt — coming back soon"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 5v14" /><path d="M5 12h14" />
             </svg>
-            Build with AI
+            Build with AI (Coming Soon)
           </Link>
         </div>
       </div>
@@ -690,19 +692,21 @@ export default function TeacherUnitsPage() {
               </p>
               {units.length === 0 && (
                 <div className="flex items-center justify-center gap-3 mt-5">
-                  <Link
-                    href="/teacher/units/create"
-                    className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white rounded-xl"
-                    style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)" }}
+                  {/* QUARANTINED (3 Apr 2026) — Generation pipeline disabled */}
+                  <span
+                    className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white/60 rounded-xl cursor-not-allowed"
+                    style={{ background: "linear-gradient(135deg, #7B2F7240, #5C16C540)" }}
+                    title="Unit generation is being rebuilt — coming back soon"
                   >
-                    Build with AI
-                  </Link>
-                  <Link
-                    href="/teacher/units/import"
-                    className="px-5 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50"
+                    Build with AI (Coming Soon)
+                  </span>
+                  {/* QUARANTINED (3 Apr 2026) — Import uses knowledge pipeline */}
+                  <span
+                    className="px-5 py-2.5 text-sm font-medium text-gray-400 border border-gray-200 rounded-xl cursor-not-allowed"
+                    title="Lesson import is being rebuilt — coming back soon"
                   >
-                    Import Plan
-                  </Link>
+                    Import Plan (Coming Soon)
+                  </span>
                 </div>
               )}
             </div>

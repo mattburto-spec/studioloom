@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StudioLoom — Project Dashboard</title>
+<style>
+  :root {
+    --bg: #0f0f13;
+    --surface: #1a1a24;
+    --surface2: #22222e;
+    --border: #2a2a3a;
+    --text: #e0e0e8;
+    --text-dim: #8888a0;
+    --accent: #8b5cf6;
+    --accent-glow: rgba(139, 92, 246, 0.15);
+    --active: #ef4444;
+    --ready: #22c55e;
+    --planned: #3b82f6;
+    --idea: #f59e0b;
+    --complete: #6b7280;
+    --superseded: #374151;
+    --research: #a855f7;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+  .header {
+    padding: 24px 32px 16px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(135deg, var(--surface) 0%, var(--bg) 100%);
+  }
+  .header h1 {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+  }
+  .header h1 span { color: var(--accent); }
+  .header p { color: var(--text-dim); font-size: 13px; margin-top: 4px; }
+  .stats-bar {
+    display: flex;
+    gap: 16px;
+    padding: 12px 32px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    flex-wrap: wrap;
+  }
+  .stat {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+  .stat .num {
+    font-weight: 700;
+    font-size: 18px;
+    color: var(--text);
+  }
+  .stat .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+  .controls {
+    padding: 16px 32px;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .search-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 14px;
+    color: var(--text);
+    font-size: 14px;
+    width: 260px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .search-box:focus { border-color: var(--accent); }
+  .search-box::placeholder { color: var(--text-dim); }
+  .filter-pills {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .pill {
+    padding: 5px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-dim);
+    transition: all 0.15s;
+    user-select: none;
+  }
+  .pill:hover { border-color: var(--accent); color: var(--text); }
+  .pill.active { background: var(--accent); border-color: var(--accent); color: white; }
+  .pill .count {
+    display: inline-block;
+    margin-left: 4px;
+    opacity: 0.7;
+    font-weight: 400;
+  }
+  .category-pills .pill.active { background: var(--surface2); border-color: var(--accent); color: var(--accent); }
+  .main { padding: 0 32px 48px; }
+  .section-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--text-dim);
+    margin: 24px 0 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .section-label .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 12px;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+    transition: all 0.15s;
+    cursor: default;
+    position: relative;
+  }
+  .card:hover { border-color: var(--accent); box-shadow: 0 0 20px var(--accent-glow); }
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .card-title {
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.3;
+  }
+  .badge {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .badge-active { background: rgba(239,68,68,0.15); color: #f87171; }
+  .badge-ready { background: rgba(34,197,94,0.15); color: #4ade80; }
+  .badge-planned { background: rgba(59,130,246,0.15); color: #60a5fa; }
+  .badge-idea { background: rgba(245,158,11,0.15); color: #fbbf24; }
+  .badge-complete { background: rgba(107,114,128,0.15); color: #9ca3af; }
+  .badge-superseded { background: rgba(55,65,81,0.15); color: #6b7280; }
+  .badge-research { background: rgba(168,85,247,0.15); color: #c084fc; }
+  .card-desc {
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.5;
+    margin-bottom: 10px;
+  }
+  .card-meta {
+    display: flex;
+    gap: 12px;
+    font-size: 11px;
+    color: var(--text-dim);
+    flex-wrap: wrap;
+  }
+  .card-meta span {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .card-meta .tag {
+    background: var(--surface2);
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 10px;
+  }
+  a.doc-link {
+    color: var(--accent);
+    text-decoration: none;
+    font-size: 11px;
+    opacity: 0.8;
+  }
+  a.doc-link:hover { opacity: 1; text-decoration: underline; }
+  .empty-state {
+    text-align: center;
+    padding: 48px;
+    color: var(--text-dim);
+    font-size: 14px;
+  }
+  .complete-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-dim);
+    cursor: pointer;
+    margin: 16px 0 8px;
+    user-select: none;
+  }
+  .complete-toggle:hover { color: var(--text); }
+  .complete-grid { display: none; }
+  .complete-grid.visible { display: grid; }
+  @media (max-width: 768px) {
+    .header, .stats-bar, .controls, .main { padding-left: 16px; padding-right: 16px; }
+    .grid { grid-template-columns: 1fr; }
+    .search-box { width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Studio<span>Loom</span> — Project Dashboard</h1>
+  <p>Single source of truth · <span id="lastUpdated">5 April 2026</span> · <a href="ALL-PROJECTS.md" style="color:var(--accent)">Markdown source</a></p>
+</div>
+
+<div class="stats-bar" id="statsBar"></div>
+
+<div class="controls">
+  <input type="text" class="search-box" id="search" placeholder="Search projects..." />
+  <div class="filter-pills" id="statusFilters"></div>
+  <div class="filter-pills category-pills" id="categoryFilters"></div>
+</div>
+
+<div class="main" id="main"></div>
+
+<script>
+const PROJECTS = [
+  // === ACTIVE ===
+  { name: "Dimensions3 — Generation Pipeline Rebuild", status: "active", category: "AI/Generation", priority: "TIER 0", est: "17d", doc: "dimensions3.md", desc: "Phases A-D COMPLETE (9 Apr 2026). Foundation + ingestion + 6-stage generation pipeline + feedback system (edit tracker, efficacy scoring, approval queue with guardrails, self-healing proposals). 480+ tests passing. Phase E (Admin Dashboard + Polish) next." },
+  { name: "Lesson Pulse Phase 2", status: "active", category: "AI/Generation", priority: "P0", est: "4-5d", doc: "lesson-pulse.md", desc: "Voice/Personality Layer + Sequencing Intuition. Phase 1 COMPLETE (47 tests). Teaching Moves Library COMPLETE (65 moves). Generation wiring quarantined." },
+  { name: "MYPflex — Framework-Flexible Assessment", status: "active", category: "Core Platform", priority: "P0", est: "2d left", doc: "mypflex.md", desc: "Phases 1-3 done. Phase 4 (future-proofing) pending. Unblocks non-MYP teacher adoption." },
+  { name: "MonitoredTextarea Pipeline", status: "active", category: "Core Platform", priority: "P0", est: "<1d", doc: "monitored-textarea.md", desc: "Pipeline + UI WIRED. Migrations 054+059 APPLIED. Needs fresh student session verification." },
+  { name: "Student Work Pipeline", status: "active", category: "Student XP", priority: "P1", est: "19d", doc: "studentwork.md", desc: "OS Pipeline 2: 5-stage pipeline for student submissions. Sharp + Claude Vision. Depends on Dimensions3." },
+  { name: "Work Capture Pipeline — AI Mentor Feedback on Student Work", status: "active", category: "Student XP", priority: "P1", doc: "studioloom-work-capture-spec.md", desc: "Composable <WorkCapture /> component. Students photograph work, get context-aware AI feedback. Dual-lens assessment (concept vs presentation). Image Readability Score. 6 embedding points. Spec v1.5 Final." },
+  { name: "Designer Mentor System — Personalised AI Mentoring via Real Designers", status: "active", category: "Student XP", priority: "P1", doc: "studioloom-designer-mentor-spec.md", desc: "20 real designers as AI mentors. Visual onboarding ('Design DNA'), cosine similarity matching, per-mentor AI persona (voice/beliefs/blind spots), 20 dashboard themes, Critique Table, Speed Crit, 3D characters (Another World style). Full spec v1.0." },
+  { name: "Journey Engine — Modular Interactive Experiences", status: "active", category: "Student XP", priority: "P1", est: "17-22d", doc: "../specs/journey-engine-spec.md", desc: "Reusable Journey Blocks (binary choice, card sort, sliders, scene explore, etc.) composed into named Journeys. Character/scene-neutral — presentation applied at journey level. Conditional branching. Student profile as central data hub. 4 rendering modes (fullscreen, embedded, window, modal). R3F animated. Discovery Engine becomes reference journey." },
+  { name: "3D Elements / Designville", status: "research", category: "Student XP", priority: "P2", est: "32d", doc: "3delements.md", desc: "7 capability layers (R3F, assets, tutorials, quests, multiplayer, gamification, sound). Augmentation-first. 10 open questions. Room templates prototyped (4 types). Render architecture: 5 presets (Showcase/Designville/Workshop/Tutorial/Print) × 5 containers (Fullscreen/Embedded/Floating/Modal/PiP). One .glb pipeline." },
+
+  // === READY ===
+  { name: "School Readiness — Enterprise Requirements", status: "ready", category: "Core Platform", priority: "P0", est: "37-50d", doc: "school-readiness.md", desc: "17 items: SSO, RBAC, Multi-Tenancy, Analytics, Export, Privacy, Accessibility, Moderation, Notifications, Audit." },
+  { name: "Toolkit Redesign v5", status: "ready", category: "Student XP", priority: "P1", est: "3-4d", doc: "toolkit.md", desc: "Phase pills, structural SVG thumbnails, AI search, neon tab line, INTERACTIVE badge. Design APPROVED." },
+  { name: "How-To Video System", status: "ready", category: "Marketing", priority: "P2", doc: "howtovideos.md", desc: "Video tutorials for teacher onboarding and feature walkthroughs." },
+
+  // === PLANNED ===
+  { name: "Year Planner & Curriculum Connection", status: "planned", category: "Teacher XP", priority: "P1", est: "5-7d", desc: "Week-based grid (classes × units). Drag-to-move. Lesson count from cycle engine. Curriculum overlay." },
+  { name: "Planning Tools / Student PM", status: "planned", category: "Student XP", priority: "P1", est: "5d", desc: "Student kanban with MYP Design Cycle phases. Keyboard-first, mobile-first. AI suggestions." },
+  { name: "Gamification / Student Levels", status: "planned", category: "Student XP", priority: "P1", est: "8-10d", desc: "Quality-weighted Designer Level system. No public leaderboard. Depends on grading + all subsystems." },
+  { name: "Intelligence Profiles (Teacher & Student)", status: "planned", category: "AI/Generation", priority: "P1", est: "8-10d", desc: "Teacher style learning + Student 4-phase profile. Cached summary for AI. Identity-safe." },
+  { name: "Lesson Plan Converter", status: "planned", category: "AI/Generation", priority: "P1", est: "5-7d", desc: "Dual output: editable unit + activity blocks. Convert-to-Unit button on knowledge cards." },
+  { name: "Unified Upload Architecture", status: "planned", category: "AI/Generation", priority: "P1", est: "3.5d", desc: "Every upload → knowledge pipeline first. Convert-on-demand. Option 2 APPROVED." },
+  { name: "Student Choice Units", status: "planned", category: "Student XP", priority: "P2", est: "4-5d", doc: "studentchoice.md", desc: "Students pick from teacher-curated list. AI generates personalized unit." },
+  { name: "NM Rocket Report", status: "planned", category: "Teacher XP", priority: "P1", est: "2-3d", desc: "Visual Melbourne Metrics report. Awaiting materials from Matt." },
+  { name: "API Deduplication", status: "planned", category: "Infrastructure", priority: "P1", est: "2d", desc: "17× copied callHaiku() = ~2,890 wasted lines. Consolidate into single AI service helper. OS Service #12." },
+  { name: "Auth / ServiceContext Seam", status: "planned", category: "Infrastructure", priority: "P2", est: "1-2d", desc: "requireAuth(role) helper + tenant-aware ServiceContext pattern. OS seam for Makloom extraction. Not SSO/RBAC — clean interfaces over current dual auth. ADR-001, OS Service #3." },
+  { name: "AI Safety & Content Guardrails", status: "planned", category: "Core Platform", priority: "P1", est: "10-14d", doc: "ai-safety.md", desc: "Comprehensive AI safety for all 5 student-AI touchpoints. Content filter (800+ words, l33t/unicode evasion), PII scanner (name protection from roster), topic guardrails, distress detection + teacher alerts, AI conversation logger, output screening, Teacher Safety Dashboard (convo viewer, flagged queue, policy config). Toddle parity + StudioLoom advantages." },
+
+  // === IDEAS ===
+  { name: "Open Studio v2 — Mentor-Guided Project Planning", status: "planned", category: "Student XP", priority: "P1", est: "15-17d", doc: "openstudio-v2.md", desc: "AI mentor negotiates project plans with students: deliverables, milestones, knowledge gaps, resources. Sonnet reasoning for pushback. Teacher approval workflow. Plan-aware check-ins during Working phase. First complex Journey Engine consumer." },
+  { name: "StudentDash — Student Dashboard Reimagination", status: "idea", category: "Student XP", priority: "High", doc: "studentdash.md", desc: "Less busy, customisable student dashboard. 7 design directions (Studio Desk, Map/Trail, Portfolio-First, Focus/Zen, Mood-Responsive, Peer Glimpses, Messy Desk). Draggable/resizable widgets, 3 preset layouts, reflection + wayfinder + stones rethink. Needs student testing." },
+  { name: "Real Client Journey", status: "idea", category: "Student XP", priority: "High", est: "5-7d", doc: "realclient.md", desc: "AI-simulated client meetings (4 per unit). Cross-meeting memory. Teacher preview persona." },
+  { name: "MiniSkills", status: "idea", category: "Student XP", priority: "High", est: "3-4d", doc: "miniskills.md", desc: "Bite-sized 1-3 lesson micro-units. Badge on completion. Framework-neutral." },
+  { name: "Monetisation & Tiers", status: "idea", category: "Business", priority: "High", est: "7-10d", doc: "monetisation.md", desc: "Stripe integration. 4 tiers (Free/Starter/Pro/Enterprise). Feature gating." },
+  { name: "Bug Report Button", status: "idea", category: "Core Platform", priority: "Med", est: "3-4d", doc: "bug-button.md", desc: "Floating button, per-class toggle, admin workflow (New → Investigating → Fixed → Closed)." },
+  { name: "Kahoot-Style Quizzes", status: "idea", category: "Student XP", priority: "Med", est: "3-5d", desc: "Live quiz activity type. Start self-paced with class results, add live mode later." },
+  { name: "Peer Feedback Stations", status: "idea", category: "Student XP", priority: "Med", est: "3-4d", desc: "Device as feedback collection point via QR code. Great for design classrooms." },
+  { name: "Student Self-Help Library", status: "idea", category: "Student XP", priority: "Med", est: "6-8d", doc: "self-help-library.md", desc: "Searchable micro-lessons (2-5 min). Floating '?' help button with smart suggestions." },
+  { name: "Processing Queue / Async Jobs", status: "idea", category: "Infrastructure", priority: "High", est: "3-4d", desc: "Job queue for AI calls (generation blocks HTTP ~45s). Retry logic, status tracking. OS Service #8." },
+  { name: "Better Stack Uptime Monitoring", status: "idea", category: "Infrastructure", priority: "High", est: "10 min", desc: "Free tier. 2 monitors: site (HTTP 200) + /api/health (keyword ok:true). 3-min interval. Push notifications. Quiet hours 11pm-6am Nanjing." },
+  { name: "Lesson Export (PPT/PDF/Worksheet)", status: "idea", category: "Teacher XP", priority: "Med", desc: "Export pipeline from unit content. Design question: what does a 'worksheet' look like per page type?" },
+  { name: "Teacher Projector/Present Mode", status: "idea", category: "Teacher XP", priority: "Med", desc: "Clean high-contrast view for projection. Keyboard nav. Simpler than generating PPTs." },
+  { name: "Feature Flag System", status: "idea", category: "Core Platform", priority: "Med", est: "1d", desc: "Simple isEnabled(flag) + DB table. Scope: global → class → user. Replaces hardcoded quarantine. OS Service #3." },
+  { name: "Event Bus (In-Process)", status: "idea", category: "Infrastructure", priority: "Med", est: "2-3d", desc: "Typed publish/subscribe. Events table + polling. Smart Insights subscribes instead of re-querying. OS Service #9." },
+  { name: "Unified Search", status: "idea", category: "Core Platform", priority: "Med", est: "3-4d", desc: "Search across units, activities, student work. Supabase FTS + pgvector. Permission-aware. OS Service #6." },
+  { name: "AI Context Protocol", status: "idea", category: "AI/Generation", priority: "Med", est: "2d", desc: "Formalize prompt context envelope. Versioned prompt templates. Standardize model selection. OS Service #13." },
+  { name: "Competitive Free Activities", status: "idea", category: "Marketing", priority: "Med", desc: "Design challenges, timed sprints, design battles with peer voting." },
+  { name: "Fun AI Thinking Messages", status: "idea", category: "UX Polish", priority: "Low", desc: "Educational puns during generation wait. Low effort, high charm." },
+  { name: "Textbook Source Flagging", status: "idea", category: "AI/Generation", priority: "Low", desc: "source_restriction field: unrestricted / reference_only / excluded. IP protection." },
+  { name: "AI-Generated Diagrams", status: "idea", category: "AI/Generation", priority: "Low", desc: "Generate SVGs from concept descriptions. Pre-built templates more reliable." },
+  { name: "More Wizard Variation", status: "idea", category: "AI/Generation", priority: "Low", desc: "3 contextual regenerate buttons instead of one generic Regenerate." },
+  { name: "Core Cards Spanning Lessons", status: "idea", category: "Core Platform", priority: "Low", desc: "Activities that span multiple lessons. span property on activities." },
+  { name: "Parent Weekly Updates", status: "idea", category: "Stakeholder", priority: "Low", est: "5-7d", doc: "parent-updates.md", desc: "AI-generated weekly summaries. Email delivery. Privacy controls. Phase 5.5+." },
+  { name: "Multi-Language / i18n", status: "idea", category: "Core Platform", priority: "Low", est: "10-15d", doc: "i18n.md", desc: "Next.js i18n. Per-class language settings. Post-revenue." },
+  { name: "VEX Robotics / Engineering Layer", status: "idea", category: "Expansion", priority: "Low", desc: "CurriculumProfile for engineering. Toggle on/off per class." },
+  { name: "Makloom (Consumer Version)", status: "idea", category: "Expansion", priority: "Low", desc: "Sister project. 60-70% code reusable. Self-directed learning, no teacher/class." },
+  { name: "Teacher↔Student Messaging", status: "idea", category: "Communication", priority: "Low", est: "5-7d", desc: "1:1 + class group messaging. Thread on work items. Moderation hooks for minors. OS Service #20." },
+
+  // === COMPLETE ===
+  { name: "Unit Forking / Unit-as-Template", status: "complete", category: "Core Platform", desc: "Copy-on-write per-class editing. Resolution chain. Version history. Migration 040." },
+  { name: "Phase 0.5 Lesson Editor", status: "complete", category: "Core Platform", doc: "uniteditor.md", desc: "12 components (~3,962 lines). Drag-to-reorder, Undo/Redo, auto-save, Workshop Model phases." },
+  { name: "Unit Type Framework Architecture", status: "complete", category: "Core Platform", desc: "4-dimension model. DESIGN/SERVICE/PP/INQUIRY. Dynamic criteria. Migration 051." },
+  { name: "Lesson Timing Engine", status: "complete", category: "Core Platform", desc: "Workshop Model. 4-phase structure. 1+age cap. PhaseTimelineBar. 8 validation rules + auto-repair." },
+  { name: "Project Dimensions v2", status: "complete", category: "Core Platform", doc: "dimensions.md", desc: "UDL 3×3 (31 checkpoints). timeWeight. bloom_level. ai_rules. Activity tracking. Migrations 057/058." },
+  { name: "Timetable & Scheduling", status: "complete", category: "Core Platform", desc: "Rotating cycle engine (5-10 day). iCal import. LessonSchedule. TimetableGrid. Migration 038." },
+  { name: "School Calendar / Terms", status: "complete", category: "Core Platform", desc: "Per-teacher calendar. 4 templates. Migration 037." },
+  { name: "Performance Optimizations", status: "complete", category: "Core Platform", desc: "Parallelized generation (3 min → 45s). Tree-shaking. Code-splitting. Polling optimization." },
+  { name: "Student-Class Junction", status: "complete", category: "Core Platform", desc: "Multi-class enrollment. Migration 041. Junction-first + legacy-fallback pattern." },
+  { name: "Admin AI Controls Redesign", status: "complete", category: "AI/Generation", desc: "Macro dials + presets + macro/micro toggle. Config history." },
+  { name: "Lesson Editor AI Assist", status: "complete", category: "AI/Generation", desc: "AITextField with purple # button. Context-aware suggestions." },
+  { name: "Cross-Container DnD", status: "complete", category: "Core Platform", desc: "DndContext + DropZone + HTML5 DnD + Framer Motion Reorder." },
+  { name: "Unit Generation Phases 0-3", status: "complete", category: "AI/Generation", desc: "Multi-type wizard. 3-lane selector. Parallelized (~4x speedup). QUARANTINED." },
+  { name: "Lesson Pulse Phase 1", status: "complete", category: "AI/Generation", doc: "lesson-pulse.md", desc: "3-dimension scoring (CR/SA/TC). 47 tests. Teaching Moves Library (65 moves). Context Injection." },
+  { name: "Dimensions3 Spec Finalization", status: "complete", category: "AI/Generation", desc: "v1.2 finalized. 25 issues fixed. Testing plan. Printable doc." },
+  { name: "Discovery Engine (8 Stations)", status: "complete", category: "Student XP", desc: "~9,500 lines. Kit mentor. Archetype scoring. Two modes. Migration 047." },
+  { name: "Student Onboarding / Studio Setup", status: "complete", category: "Student XP", desc: "4-screen character creation. 3 mentors. 4 themes. Migration 050." },
+  { name: "Student Dashboard Redesign", status: "complete", category: "Student XP", desc: "Framework-colored cards. Smart subject detection. Multi-class support." },
+  { name: "Open Studio v1", status: "complete", category: "Student XP", desc: "Self-directed mode. AI studio critic. 5 interaction types. Drift escalation. Migration 029." },
+  { name: "Student Learning Profile", status: "complete", category: "Student XP", desc: "7-system profiling. Wired into Open Studio AI. Migration 048." },
+  { name: "Safety Badges", status: "complete", category: "Student XP", doc: "badges.md", desc: "Workshop safety certification. 5 question types. Unit access gating. Migration 035." },
+  { name: "Academic Integrity Monitoring", status: "complete", category: "Core Platform", desc: "MonitoredTextarea. 6-rule scoring. IntegrityReport with writing playback. Migrations 054/059." },
+  { name: "Toolkit (27 Interactive Tools)", status: "complete", category: "Student XP", doc: "toolkit.md", desc: "SCAMPER, Six Hats, PMI, Decision Matrix + 23 more. All wired with useToolSession." },
+  { name: "Teaching Mode (Live Cockpit)", status: "complete", category: "Teacher XP", desc: "3-column layout. Phase timer. Live student grid. Projector view. Needs Help detection." },
+  { name: "Class Gallery & Peer Review", status: "complete", category: "Teacher XP", desc: "Pin-up crit system. 3 review formats. Effort-gated feedback. Migration 049." },
+  { name: "Smart Insights Panel", status: "complete", category: "Teacher XP", desc: "Priority-sorted feed. 6 insight types. Server-side computation." },
+  { name: "Unit Thumbnails", status: "complete", category: "Teacher XP", desc: "Gallery picker (30 Unsplash) + upload. Migration 052." },
+  { name: "Grading System", status: "complete", category: "Teacher XP", doc: "grading.md", desc: "Criterion scoring (MYP/GCSE/A-Level). Comments, tags, targets. IntegrityReport panel." },
+  { name: "NM / Melbourne Metrics Phase 1", status: "complete", category: "Teacher XP", doc: "new-metrics.md", desc: "CompetencyPulse + ObservationSnap. Pop art identity. Migrations 030/032/056." },
+  { name: "Landing Page", status: "complete", category: "Marketing", desc: "Story-driven 5-phase journey. CSS mock visuals. Framework trust bar." },
+  { name: "Design Thinking Toolkit (Public)", status: "complete", category: "Marketing", desc: "48 tools at /toolkit. Dark theme. Phase pills. SVG thumbnails. AI search." },
+  { name: "Report Writer (Free Tool)", status: "complete", category: "Marketing", desc: "Bulk report comments at /tools/report-writer. Multi-framework." },
+  { name: "Competitive Analysis", status: "complete", category: "Marketing", desc: "StudioLoom vs 5 competitors. 35 features. 3-sheet spreadsheet." },
+  { name: "QA Testing Dashboard", status: "complete", category: "Core Platform", desc: "65 test cases. Status buttons. localStorage persistence." },
+  { name: "CI/CD & Monitoring (Sprints 1-2)", status: "complete", category: "Infrastructure", doc: "../automation/automation-build-plan.md", desc: "GitHub Actions CI (lint+typecheck+build+tests+dashboard sync), nightly audit (2am Nanjing, +doc freshness+WIRING health), /api/health, Sentry fully configured, Vercel env vars, GitHub Secrets." },
+  { name: "Documentation Infrastructure", status: "complete", category: "Infrastructure", desc: "CLAUDE.md slimmed, decisions-log, lessons-learned, doc-manifest (217 files, all verified), changelog, WIRING.yaml (92 systems, validated), wiring-dashboard, system-architecture-map, saveme 10-step, session change detector." },
+  { name: "Test Infrastructure", status: "complete", category: "Infrastructure", desc: "Vitest 4, 17 test files, ~390 tests. Dimensions3 pipeline contracts, AI output validation, Lesson Pulse (47), Teaching Moves, timing, cycle engine, integrity, framework vocab, design assistant, error handler, toolkit. Coverage map." },
+
+  // === SUPERSEDED ===
+  { name: "Dimensions2", status: "superseded", category: "AI/Generation", doc: "dimensions2.md", desc: "Replaced by Dimensions3. Kept for historical reference." },
+  { name: "Old Own Time system", status: "superseded", category: "Student XP", desc: "Replaced by Open Studio v1 (Migration 029 drops old tables)." },
+  { name: "Comic Strip Discovery", status: "superseded", category: "Student XP", desc: "Replaced by 8-station Discovery Engine." },
+];
+
+// ---- Render logic ----
+const STATUS_ORDER = ['active','research','ready','planned','idea','complete','superseded'];
+const STATUS_LABELS = {
+  active: 'Active', research: 'Research', ready: 'Ready', planned: 'Planned',
+  idea: 'Idea', complete: 'Complete', superseded: 'Superseded'
+};
+const STATUS_COLORS = {
+  active: 'var(--active)', research: 'var(--research)', ready: 'var(--ready)',
+  planned: 'var(--planned)', idea: 'var(--idea)', complete: 'var(--complete)',
+  superseded: 'var(--superseded)'
+};
+
+const categories = [...new Set(PROJECTS.map(p => p.category))].sort();
+let activeStatuses = new Set(['active','research','ready','planned','idea']);
+let activeCategories = new Set();
+let searchQuery = '';
+
+function countByStatus(status) {
+  return PROJECTS.filter(p => p.status === status).length;
+}
+
+function renderStats() {
+  const bar = document.getElementById('statsBar');
+  bar.innerHTML = STATUS_ORDER.filter(s => s !== 'superseded').map(s => `
+    <div class="stat">
+      <span class="dot" style="background:${STATUS_COLORS[s]}"></span>
+      <span class="num">${countByStatus(s)}</span>
+      ${STATUS_LABELS[s]}
+    </div>
+  `).join('') + `<div class="stat" style="margin-left:auto"><span class="num">${PROJECTS.length}</span> Total</div>`;
+}
+
+function renderFilters() {
+  const sf = document.getElementById('statusFilters');
+  sf.innerHTML = STATUS_ORDER.map(s => `
+    <span class="pill ${activeStatuses.has(s) ? 'active' : ''}" data-status="${s}" style="${activeStatuses.has(s) ? `background:${STATUS_COLORS[s]};border-color:${STATUS_COLORS[s]};color:white` : ''}">
+      ${STATUS_LABELS[s]}<span class="count">${countByStatus(s)}</span>
+    </span>
+  `).join('');
+  sf.querySelectorAll('.pill').forEach(pill => {
+    pill.addEventListener('click', () => {
+      const s = pill.dataset.status;
+      if (activeStatuses.has(s)) activeStatuses.delete(s);
+      else activeStatuses.add(s);
+      render();
+    });
+  });
+
+  const cf = document.getElementById('categoryFilters');
+  cf.innerHTML = categories.map(c => `
+    <span class="pill ${activeCategories.has(c) ? 'active' : ''}" data-cat="${c}">${c}</span>
+  `).join('');
+  cf.querySelectorAll('.pill').forEach(pill => {
+    pill.addEventListener('click', () => {
+      const c = pill.dataset.cat;
+      if (activeCategories.has(c)) activeCategories.delete(c);
+      else activeCategories.add(c);
+      render();
+    });
+  });
+}
+
+function matchesSearch(p) {
+  if (!searchQuery) return true;
+  const q = searchQuery.toLowerCase();
+  return p.name.toLowerCase().includes(q) || (p.desc||'').toLowerCase().includes(q) || (p.category||'').toLowerCase().includes(q);
+}
+
+function renderCards() {
+  const main = document.getElementById('main');
+  const filtered = PROJECTS.filter(p => {
+    if (!activeStatuses.has(p.status)) return false;
+    if (activeCategories.size > 0 && !activeCategories.has(p.category)) return false;
+    return matchesSearch(p);
+  });
+
+  if (filtered.length === 0) {
+    main.innerHTML = '<div class="empty-state">No projects match your filters</div>';
+    return;
+  }
+
+  const groups = {};
+  STATUS_ORDER.forEach(s => { groups[s] = []; });
+  filtered.forEach(p => groups[p.status].push(p));
+
+  let html = '';
+  STATUS_ORDER.forEach(s => {
+    const items = groups[s];
+    if (items.length === 0) return;
+    html += `<div class="section-label"><span class="dot" style="background:${STATUS_COLORS[s]}"></span>${STATUS_LABELS[s]} (${items.length})</div>`;
+    html += '<div class="grid">';
+    items.forEach(p => {
+      const metaParts = [];
+      if (p.priority) metaParts.push(`<span class="tag">${p.priority}</span>`);
+      if (p.est) metaParts.push(`<span>⏱ ${p.est}</span>`);
+      if (p.category) metaParts.push(`<span>${p.category}</span>`);
+      if (p.doc) metaParts.push(`<a class="doc-link" href="${p.doc}" target="_blank">📄 ${p.doc}</a>`);
+      html += `
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">${p.name}</div>
+            <span class="badge badge-${p.status}">${STATUS_LABELS[p.status]}</span>
+          </div>
+          <div class="card-desc">${p.desc || ''}</div>
+          <div class="card-meta">${metaParts.join('')}</div>
+        </div>
+      `;
+    });
+    html += '</div>';
+  });
+  main.innerHTML = html;
+}
+
+function render() {
+  renderStats();
+  renderFilters();
+  renderCards();
+}
+
+document.getElementById('search').addEventListener('input', (e) => {
+  searchQuery = e.target.value;
+  renderCards();
+});
+
+render();
+</script>
+</body>
+</html>

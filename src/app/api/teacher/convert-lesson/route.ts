@@ -53,7 +53,12 @@ const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
 // Allow up to 5 minutes for 12-lesson generation (each AI call ~30-45s)
 export const maxDuration = 300;
 
+// QUARANTINED (3 Apr 2026) — Generation + knowledge pipeline disabled pending Dimensions2 rebuild.
+// See docs/quarantine.md for full rationale.
+const QUARANTINE_RESPONSE = NextResponse.json({ error: "Lesson converter quarantined — pending architecture rebuild. See docs/quarantine.md" }, { status: 410 });
+
 export const POST = withErrorHandler("teacher/convert-lesson:POST", async (request: NextRequest) => {
+  return QUARANTINE_RESPONSE;
   const supabase = createSupabaseServer(request);
   const { data: { user } } = await supabase.auth.getUser();
 

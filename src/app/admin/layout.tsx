@@ -1,10 +1,32 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+
+const TABS = [
+  { label: "Dashboard", href: "/admin" },
+  { label: "Pipeline", href: "/admin/pipeline" },
+  { label: "Library", href: "/admin/library" },
+  { label: "Sandbox", href: "/admin/sandbox" },
+  { label: "Feedback", href: "/admin/feedback" },
+  { label: "Costs", href: "/admin/costs" },
+  { label: "Settings", href: "/admin/settings" },
+  { label: "Controls", href: "/admin/controls" },
+  { label: "AI Model", href: "/admin/ai-model" },
+];
 
 export default function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const pathname = usePathname();
+
+  function isActive(href: string) {
+    if (href === "/admin") return pathname === "/admin";
+    return pathname.startsWith(href);
+  }
+
   return (
     <div className="min-h-screen bg-surface-alt">
       {/* Admin header */}
@@ -44,6 +66,25 @@ export default function AdminLayout({
           >
             Back to Dashboard
           </Link>
+        </div>
+
+        {/* Tab navigation */}
+        <div className="max-w-7xl mx-auto px-6">
+          <nav className="flex gap-1 overflow-x-auto pb-px -mb-px">
+            {TABS.map((tab) => (
+              <Link
+                key={tab.href}
+                href={tab.href}
+                className={`px-3 py-2 text-xs font-medium rounded-t-lg whitespace-nowrap transition-colors ${
+                  isActive(tab.href)
+                    ? "text-purple-700 bg-purple-50 border-b-2 border-purple-600"
+                    : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                }`}
+              >
+                {tab.label}
+              </Link>
+            ))}
+          </nav>
         </div>
       </header>
       {children}

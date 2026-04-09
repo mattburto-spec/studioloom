@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { recordGenerationUsage } from "@/lib/knowledge/feedback";
 
+const QUARANTINE_RESPONSE = NextResponse.json({ error: "Knowledge pipeline quarantined — pending architecture rebuild. See docs/quarantine.md" }, { status: 410 });
+
 async function getUser(request: NextRequest) {
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -29,6 +31,7 @@ async function getUser(request: NextRequest) {
  * Body: { chunkIds: string[] }
  */
 export async function POST(request: NextRequest) {
+  return QUARANTINE_RESPONSE;
   const user = await getUser(request);
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Discovery Rooms v2 — Grounded Locations</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body, #root { width: 100%; height: 100%; overflow: hidden; background: #000; }
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/examples/jsm/loaders/GLTFLoader": "https://unpkg.com/three@0.160.0/examples/jsm/loaders/GLTFLoader.js"
+    }
+  }
+  </script>
+
+  <script type="module">
+    import * as THREE from "three";
+    import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
+
+    // ═══════════════════════════════════════════════════════════
+    // STATION DEFINITIONS
+    // ═══════════════════════════════════════════════════════════
+
+    const STATIONS = [
+      { id: 0, name: "Identity Card", subtitle: "Welcome to the studio", env: "foyer",
+        template: "indoor",
+        room: { width: 12, depth: 10, height: 4.5, hasCeiling: true, doorways: ["back"] },
+        colors: { primary: "#F59E0B", bg: "#1A1408", accent: "#FCD34D", fog: "#1A1408",
+          ambient: "#FEF3C7", floor: "#8B7355", walls: "#D4C5A0", ceiling: "#C4B28A",
+          emissive: "#F59E0B", light: "#FFE4B5" },
+        cameraPos: [0, 3, 7], cameraTarget: [0, 1.2, -1] },
+
+      { id: 1, name: "The Campfire", subtitle: "How do you work?", env: "campfire",
+        template: "clearing",
+        room: { radius: 8, treeRingRadius: 7, treeCount: 10, hasStars: true },
+        colors: { primary: "#EA580C", bg: "#060402", accent: "#FB923C", fog: "#0A0604",
+          ambient: "#1A0E08", floor: "#2A1F14", walls: "#1A0F08",
+          emissive: "#EF4444", light: "#FF8C42" },
+        cameraPos: [0, 3, 7], cameraTarget: [0, 0.5, 0] },
+
+      { id: 2, name: "The Workshop", subtitle: "What's your superpower?", env: "workshop",
+        template: "indoor",
+        room: { width: 14, depth: 12, height: 4.5, hasCeiling: true, doorways: [] },
+        colors: { primary: "#0D9488", bg: "#080F0E", accent: "#5EEAD4", fog: "#080F0E",
+          ambient: "#134E4A", floor: "#808080", walls: "#B0B0B0", ceiling: "#999999",
+          emissive: "#14B8A6", light: "#B0E0D8" },
+        cameraPos: [0, 3.5, 8], cameraTarget: [0, 1.2, -1] },
+
+      { id: 3, name: "Collection Wall", subtitle: "What lights you up?", env: "gallery",
+        template: "indoor",
+        room: { width: 14, depth: 10, height: 5, hasCeiling: true, doorways: [] },
+        colors: { primary: "#6366F1", bg: "#08081A", accent: "#A5B4FC", fog: "#08081A",
+          ambient: "#1E1B4B", floor: "#1A1A2E", walls: "#252547", ceiling: "#1E1E3A",
+          emissive: "#818CF8", light: "#C4B5FD" },
+        cameraPos: [0, 3, 7.5], cameraTarget: [0, 1.5, -1] },
+
+      { id: 4, name: "The Window", subtitle: "What do you see out there?", env: "window",
+        template: "overlook",
+        room: { width: 12, depth: 8, height: 4, openSide: "back", railHeight: 1.2 },
+        colors: { primary: "#3B82F6", bg: "#060D18", accent: "#93C5FD", fog: "#0A1525",
+          ambient: "#1E3A5F", floor: "#4A4A5A", walls: "#3A3A4A", ceiling: "#2A2A3A",
+          emissive: "#60A5FA", light: "#93C5FD", sky: "#0C1B30" },
+        cameraPos: [0, 3, 6], cameraTarget: [0, 1.5, -2] },
+
+      { id: 5, name: "Your Toolkit", subtitle: "What do you bring?", env: "shelves",
+        template: "indoor",
+        room: { width: 12, depth: 10, height: 4.5, hasCeiling: true, doorways: [] },
+        colors: { primary: "#059669", bg: "#040E09", accent: "#6EE7B7", fog: "#040E09",
+          ambient: "#064E3B", floor: "#5A4A3A", walls: "#3A5A4A", ceiling: "#2A4A3A",
+          emissive: "#34D399", light: "#A7F3D0" },
+        cameraPos: [0, 3, 7], cameraTarget: [0, 1.2, -1] },
+
+      { id: 6, name: "Crossroads", subtitle: "Choose your path", env: "corridor",
+        template: "passage",
+        room: { width: 6, depth: 18, height: 5, archCount: 4 },
+        colors: { primary: "#7C3AED", bg: "#080414", accent: "#C4B5FD", fog: "#080414",
+          ambient: "#2E1065", floor: "#2A2040", walls: "#1A1030", ceiling: "#150C28",
+          emissive: "#A78BFA", light: "#C4B5FD" },
+        cameraPos: [0, 3, 8], cameraTarget: [0, 1.5, -3] },
+
+      { id: 7, name: "Launchpad", subtitle: "Your grand reveal", env: "rooftop",
+        template: "overlook",
+        room: { width: 10, depth: 8, height: 0, openSide: "all", railHeight: 0.8 },
+        colors: { primary: "#F472B6", bg: "#120610", accent: "#FBCFE8", fog: "#120610",
+          ambient: "#831843", floor: "#4A3040", walls: "#3A2030", ceiling: "#2A1020",
+          emissive: "#F9A8D4", light: "#FBCFE8", sky: "#1A0815" },
+        cameraPos: [0, 4, 9], cameraTarget: [0, 1.5, -1] },
+    ];
+
+    // ═══════════════════════════════════════════════════════════
+    // ASSET PATHS & PROP LAYOUTS
+    // ═══════════════════════════════════════════════════════════
+
+    const FURN = "kenney_furniture-kit/Models/GLTF format/";
+    const NATR = "kenney_nature-kit/Models/GLTF format/";
+
+    const STATION_PROPS = {
+      foyer: [
+        { path: FURN+"desk.glb", pos: [0, 0, -2], scale: 1.4 },
+        { path: FURN+"chairDesk.glb", pos: [0, 0, -0.3], scale: 1.4, rotY: Math.PI },
+        { path: FURN+"bookcaseOpen.glb", pos: [-4.5, 0, -4.2], scale: 1.6 },
+        { path: FURN+"bookcaseClosedWide.glb", pos: [-2.5, 0, -4.2], scale: 1.6 },
+        { path: FURN+"laptop.glb", pos: [0.3, 0.85, -2], scale: 1.2 },
+        { path: FURN+"books.glb", pos: [-0.5, 0.85, -2], scale: 1.2, rotY: 0.3 },
+        { path: FURN+"pottedPlant.glb", pos: [4.5, 0, -3.5], scale: 1.8 },
+        { path: FURN+"rugRound.glb", pos: [0, 0.02, 1.5], scale: 2.5 },
+        { path: FURN+"coatRackStanding.glb", pos: [5, 0, 3], scale: 1.5 },
+        { path: FURN+"lampRoundFloor.glb", pos: [-4.5, 0, 0], scale: 1.5 },
+        { path: FURN+"sideTable.glb", pos: [4, 0, 0], scale: 1.3 },
+        { path: FURN+"lampRoundTable.glb", pos: [4, 0.6, 0], scale: 1.1 },
+        { path: FURN+"loungeChairRelax.glb", pos: [3, 0, 2], scale: 1.3, rotY: -0.6 },
+        { path: FURN+"plantSmall2.glb", pos: [-5, 0, 3], scale: 1.5 },
+        { path: FURN+"wallWindow.glb", pos: [5.9, 0, -1], scale: 1.8, rotY: -Math.PI/2 },
+      ],
+      campfire: [
+        { path: NATR+"campfire_stones.glb", pos: [0, 0, 0], scale: 2.0 },
+        { path: NATR+"log_stack.glb", pos: [2.2, 0, 1.8], scale: 1.5, rotY: 0.4 },
+        { path: NATR+"log_large.glb", pos: [-2.5, 0, 2], scale: 1.8, rotY: 1.2 },
+        { path: NATR+"stump_round.glb", pos: [-3, 0, -1.5], scale: 1.6 },
+        { path: NATR+"stump_roundDetailed.glb", pos: [1.5, 0, 3], scale: 1.5 },
+        { path: NATR+"stump_old.glb", pos: [3, 0, -0.5], scale: 1.5 },
+        { path: NATR+"rock_smallA.glb", pos: [3.5, 0, 2.5], scale: 1.6 },
+        { path: NATR+"rock_smallC.glb", pos: [-4, 0, 3], scale: 1.5 },
+        { path: NATR+"rock_largeA.glb", pos: [-5, 0, -3], scale: 1.2 },
+        { path: NATR+"mushroom_redGroup.glb", pos: [-3.5, 0, -3.5], scale: 1.6 },
+        { path: NATR+"plant_bush.glb", pos: [3, 0, -3], scale: 1.8 },
+        { path: NATR+"grass_large.glb", pos: [-1.5, 0, -4], scale: 2.2 },
+        { path: NATR+"grass.glb", pos: [4, 0, -2], scale: 2.0 },
+        { path: NATR+"plant_bushLarge.glb", pos: [-4.5, 0, 1], scale: 1.5 },
+        { path: NATR+"tent_detailedOpen.glb", pos: [5, 0, -4], scale: 1.6, rotY: -1 },
+      ],
+      workshop: [
+        { path: FURN+"desk.glb", pos: [0, 0, -4], scale: 1.8 },
+        { path: FURN+"stoolBar.glb", pos: [0, 0, -2.5], scale: 1.4 },
+        { path: FURN+"stoolBar.glb", pos: [-1.8, 0, -2.5], scale: 1.4 },
+        { path: FURN+"bookcaseClosedWide.glb", pos: [-5.5, 0, -5], scale: 1.6 },
+        { path: FURN+"bookcaseOpen.glb", pos: [5.5, 0, -5], scale: 1.6 },
+        { path: FURN+"cardboardBoxOpen.glb", pos: [-5, 0, -1], scale: 1.6 },
+        { path: FURN+"cardboardBoxClosed.glb", pos: [-5, 0.6, -1], scale: 1.6, rotY: 0.5 },
+        { path: FURN+"cardboardBoxClosed.glb", pos: [-4, 0, -1.5], scale: 1.4 },
+        { path: FURN+"computerScreen.glb", pos: [-1, 0.85, -4], scale: 1.2 },
+        { path: FURN+"computerKeyboard.glb", pos: [-1, 0.85, -3.3], scale: 1.2 },
+        { path: FURN+"lampSquareFloor.glb", pos: [5, 0, -2], scale: 1.5 },
+        { path: FURN+"lampSquareCeiling.glb", pos: [0, 4.2, -3], scale: 1.8 },
+        { path: FURN+"lampSquareCeiling.glb", pos: [-3, 4.2, -2], scale: 1.5 },
+        { path: FURN+"trashcan.glb", pos: [5.5, 0, 1], scale: 1.4 },
+        { path: FURN+"books.glb", pos: [0.8, 0.85, -4], scale: 1.2, rotY: 0.8 },
+        { path: FURN+"desk.glb", pos: [4, 0, 0], scale: 1.4, rotY: Math.PI/2 },
+      ],
+      gallery: [
+        { path: FURN+"loungeDesignSofa.glb", pos: [0, 0, 2], scale: 1.5, rotY: Math.PI },
+        { path: FURN+"tableCoffeeGlass.glb", pos: [0, 0, 0.5], scale: 1.4 },
+        { path: FURN+"plantSmall1.glb", pos: [5.5, 0, -3], scale: 1.8 },
+        { path: FURN+"plantSmall2.glb", pos: [-5.5, 0, -3], scale: 1.8 },
+        { path: FURN+"lampRoundFloor.glb", pos: [-5.5, 0, 1], scale: 1.6 },
+        { path: FURN+"lampRoundFloor.glb", pos: [5.5, 0, 1], scale: 1.6 },
+        { path: FURN+"rugRounded.glb", pos: [0, 0.02, 1], scale: 3 },
+        { path: FURN+"loungeChairRelax.glb", pos: [-3.5, 0, 0.5], scale: 1.3, rotY: 0.5 },
+        { path: FURN+"loungeChairRelax.glb", pos: [3.5, 0, 0.5], scale: 1.3, rotY: -0.5 },
+        { path: FURN+"bench.glb", pos: [0, 0, -3.5], scale: 1.3 },
+      ],
+      window: [
+        { path: FURN+"benchCushion.glb", pos: [0, 0, -2], scale: 1.5 },
+        { path: FURN+"tableCoffee.glb", pos: [0, 0, 0], scale: 1.4 },
+        { path: FURN+"pillowBlueLong.glb", pos: [0.3, 0.45, -2], scale: 1.3, rotY: 0.2 },
+        { path: FURN+"plantSmall3.glb", pos: [4.5, 0, 1], scale: 1.6 },
+        { path: FURN+"lampRoundFloor.glb", pos: [-4.5, 0, 1], scale: 1.5 },
+        { path: FURN+"pottedPlant.glb", pos: [-4.5, 0, -2], scale: 1.6 },
+        { path: FURN+"rugRound.glb", pos: [0, 0.02, 0], scale: 2.2 },
+        { path: NATR+"flower_purpleA.glb", pos: [-2.5, 0, 2], scale: 2.2 },
+        { path: NATR+"flower_yellowA.glb", pos: [2.5, 0, 2], scale: 2.2 },
+      ],
+      shelves: [
+        { path: FURN+"bookcaseOpen.glb", pos: [-4, 0, -4.2], scale: 1.6 },
+        { path: FURN+"bookcaseClosed.glb", pos: [-2, 0, -4.2], scale: 1.6 },
+        { path: FURN+"bookcaseOpen.glb", pos: [0, 0, -4.2], scale: 1.6 },
+        { path: FURN+"bookcaseClosedWide.glb", pos: [2.5, 0, -4.2], scale: 1.6 },
+        { path: FURN+"desk.glb", pos: [0, 0, -1], scale: 1.4 },
+        { path: FURN+"chairDesk.glb", pos: [0, 0, 0.5], scale: 1.3, rotY: Math.PI },
+        { path: FURN+"books.glb", pos: [-0.4, 0.85, -1], scale: 1.2 },
+        { path: FURN+"books.glb", pos: [0.5, 0.85, -1], scale: 1.2, rotY: 1.5 },
+        { path: FURN+"cardboardBoxOpen.glb", pos: [4.5, 0, 0], scale: 1.5 },
+        { path: FURN+"pottedPlant.glb", pos: [-4.5, 0, 1], scale: 1.6 },
+        { path: FURN+"lampSquareFloor.glb", pos: [4.5, 0, -2.5], scale: 1.4 },
+        { path: FURN+"rugRectangle.glb", pos: [0, 0.02, 1.5], scale: 2.2 },
+        { path: FURN+"lampSquareCeiling.glb", pos: [0, 4.2, -1], scale: 1.6 },
+      ],
+      corridor: [
+        { path: NATR+"statue_obelisk.glb", pos: [-2, 0, -6], scale: 1.8 },
+        { path: NATR+"statue_obelisk.glb", pos: [2, 0, -6], scale: 1.8 },
+        { path: NATR+"statue_column.glb", pos: [-2, 0, -2], scale: 1.6 },
+        { path: NATR+"statue_column.glb", pos: [2, 0, -2], scale: 1.6 },
+        { path: NATR+"statue_column.glb", pos: [-2, 0, 2], scale: 1.6 },
+        { path: NATR+"statue_column.glb", pos: [2, 0, 2], scale: 1.6 },
+        { path: NATR+"stone_tallA.glb", pos: [-2, 0, -8], scale: 1.5 },
+        { path: NATR+"stone_tallB.glb", pos: [2, 0, -8], scale: 1.5 },
+        { path: NATR+"path_stone.glb", pos: [0, 0.02, -4], scale: 2.2 },
+        { path: NATR+"path_stone.glb", pos: [0, 0.02, -1], scale: 2.2 },
+        { path: NATR+"path_stone.glb", pos: [0, 0.02, 2], scale: 2.2 },
+        { path: NATR+"mushroom_tanTall.glb", pos: [-2.2, 0, 5], scale: 2.0 },
+        { path: NATR+"mushroom_redTall.glb", pos: [2.2, 0, 5], scale: 2.0 },
+        { path: NATR+"hanging_moss.glb", pos: [-1.5, 4, -5], scale: 2.5 },
+        { path: NATR+"hanging_moss.glb", pos: [1, 4.2, -3], scale: 2.0, rotY: 1 },
+        { path: NATR+"hanging_moss.glb", pos: [-0.5, 4.5, 0], scale: 2.2 },
+      ],
+      rooftop: [
+        { path: NATR+"statue_ring.glb", pos: [0, 0, -2], scale: 2.2 },
+        { path: NATR+"statue_column.glb", pos: [-3.5, 0, -2.5], scale: 1.5 },
+        { path: NATR+"statue_column.glb", pos: [3.5, 0, -2.5], scale: 1.5 },
+        { path: NATR+"flower_redA.glb", pos: [-2, 0, 1.5], scale: 2.5 },
+        { path: NATR+"flower_purpleB.glb", pos: [2, 0, 2], scale: 2.5 },
+        { path: NATR+"flower_yellowB.glb", pos: [-1, 0, 3], scale: 2.5 },
+        { path: NATR+"flower_yellowC.glb", pos: [3, 0, 1], scale: 2.0 },
+        { path: NATR+"plant_bushSmall.glb", pos: [4, 0, 2], scale: 2.0 },
+        { path: NATR+"plant_bushSmall.glb", pos: [-4, 0, 0.5], scale: 1.8 },
+        { path: NATR+"lily_large.glb", pos: [0, 0, 2.5], scale: 3.0 },
+        { path: NATR+"platform_stone.glb", pos: [0, -0.05, 0], scale: 3.0 },
+      ],
+    };
+
+    // ═══════════════════════════════════════════════════════════
+    // ROOM TEMPLATE BUILDERS
+    // ═══════════════════════════════════════════════════════════
+
+    /**
+     * INDOOR ROOM — enclosed box room with walls, floor, ceiling.
+     * Config: { width, depth, height, hasCeiling, doorways[] }
+     */
+    function buildIndoorRoom(group, config, colors) {
+      const { width, depth, height, hasCeiling } = config;
+      const hw = width / 2;
+      const hd = depth / 2;
+      const wallThickness = 0.15;
+
+      // Floor
+      const floor = new THREE.Mesh(
+        new THREE.PlaneGeometry(width, depth),
+        new THREE.MeshStandardMaterial({ color: colors.floor, roughness: 0.7, metalness: 0.05 })
+      );
+      floor.rotation.x = -Math.PI / 2;
+      floor.receiveShadow = true;
+      group.add(floor);
+
+      // Back wall
+      const backWall = new THREE.Mesh(
+        new THREE.BoxGeometry(width, height, wallThickness),
+        new THREE.MeshStandardMaterial({ color: colors.walls, roughness: 0.85 })
+      );
+      backWall.position.set(0, height / 2, -hd);
+      backWall.receiveShadow = true;
+      group.add(backWall);
+
+      // Left wall
+      const leftWall = new THREE.Mesh(
+        new THREE.BoxGeometry(wallThickness, height, depth),
+        new THREE.MeshStandardMaterial({ color: colors.walls, roughness: 0.85 })
+      );
+      leftWall.position.set(-hw, height / 2, 0);
+      leftWall.receiveShadow = true;
+      group.add(leftWall);
+
+      // Right wall
+      const rightWall = leftWall.clone();
+      rightWall.position.set(hw, height / 2, 0);
+      group.add(rightWall);
+
+      // Ceiling
+      if (hasCeiling) {
+        const ceiling = new THREE.Mesh(
+          new THREE.PlaneGeometry(width, depth),
+          new THREE.MeshStandardMaterial({ color: colors.ceiling || colors.walls, roughness: 0.9 })
+        );
+        ceiling.rotation.x = Math.PI / 2;
+        ceiling.position.y = height;
+        group.add(ceiling);
+      }
+
+      // Baseboard trim (subtle detail)
+      const trimMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(colors.walls).multiplyScalar(0.7), roughness: 0.6 });
+      [[-hw + 0.05, 0.05, 0, wallThickness, 0.1, depth],
+       [hw - 0.05, 0.05, 0, wallThickness, 0.1, depth],
+       [0, 0.05, -hd + 0.05, width, 0.1, wallThickness]
+      ].forEach(([x, y, z, w, h, d]) => {
+        const trim = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), trimMat);
+        trim.position.set(x, y, z);
+        group.add(trim);
+      });
+
+      // Lighting: ceiling-mounted warm lights
+      const ceilingLight1 = new THREE.PointLight(colors.light || "#FFF5E1", 0.6, height * 3);
+      ceilingLight1.position.set(-hw * 0.4, height - 0.3, -hd * 0.3);
+      ceilingLight1.castShadow = true;
+      ceilingLight1.shadow.mapSize.set(512, 512);
+      group.add(ceilingLight1);
+
+      const ceilingLight2 = new THREE.PointLight(colors.light || "#FFF5E1", 0.4, height * 3);
+      ceilingLight2.position.set(hw * 0.4, height - 0.3, hd * 0.2);
+      group.add(ceilingLight2);
+    }
+
+    /**
+     * CLEARING — outdoor circular space bounded by a ring of trees.
+     * Config: { radius, treeRingRadius, treeCount, hasStars }
+     */
+    function buildClearing(group, config, colors) {
+      const { radius, treeRingRadius, treeCount, hasStars } = config;
+
+      // Ground — slightly uneven looking via a circular plane
+      const ground = new THREE.Mesh(
+        new THREE.CircleGeometry(radius, 48),
+        new THREE.MeshStandardMaterial({ color: colors.floor, roughness: 0.9 })
+      );
+      ground.rotation.x = -Math.PI / 2;
+      ground.receiveShadow = true;
+      group.add(ground);
+
+      // Outer ground ring (darker, fading into fog)
+      const outerGround = new THREE.Mesh(
+        new THREE.RingGeometry(radius, radius + 5, 48),
+        new THREE.MeshStandardMaterial({ color: new THREE.Color(colors.floor).multiplyScalar(0.5), roughness: 1.0 })
+      );
+      outerGround.rotation.x = -Math.PI / 2;
+      outerGround.position.y = -0.01;
+      group.add(outerGround);
+
+      // Tree ring
+      const treeTypes = [
+        NATR+"tree_pineDefaultA.glb", NATR+"tree_pineRoundA.glb",
+        NATR+"tree_pineTallA.glb", NATR+"tree_detailed.glb",
+        NATR+"tree_oak.glb", NATR+"tree_pineTallB.glb",
+      ];
+      for (let i = 0; i < treeCount; i++) {
+        const angle = (i / treeCount) * Math.PI * 2;
+        const jitter = (Math.random() - 0.5) * 1.5;
+        const r = treeRingRadius + jitter;
+        const x = Math.cos(angle) * r;
+        const z = Math.sin(angle) * r;
+        const treePath = treeTypes[i % treeTypes.length];
+        const treeScale = 1.5 + Math.random() * 1.0;
+        loadGLB(treePath, group, [x, 0, z], treeScale, Math.random() * Math.PI * 2);
+      }
+
+      // Stars above
+      if (hasStars) {
+        const starGeo = new THREE.BufferGeometry();
+        const starPos = new Float32Array(300 * 3);
+        for (let i = 0; i < 300; i++) {
+          starPos[i*3] = (Math.random() - 0.5) * 40;
+          starPos[i*3+1] = 8 + Math.random() * 15;
+          starPos[i*3+2] = (Math.random() - 0.5) * 40;
+        }
+        starGeo.setAttribute("position", new THREE.BufferAttribute(starPos, 3));
+        const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({
+          color: "#FEF3C7", size: 0.06, transparent: true, opacity: 0.6,
+          blending: THREE.AdditiveBlending, depthWrite: false
+        }));
+        stars.name = "stars";
+        group.add(stars);
+      }
+
+      // Moonlight from above
+      const moonLight = new THREE.DirectionalLight("#8899BB", 0.25);
+      moonLight.position.set(5, 12, -5);
+      group.add(moonLight);
+    }
+
+    /**
+     * OVERLOOK — room with one or more open sides revealing a vista.
+     * Config: { width, depth, height, openSide, railHeight }
+     */
+    function buildOverlook(group, config, colors) {
+      const { width, depth, height, openSide, railHeight } = config;
+      const hw = width / 2;
+      const hd = depth / 2;
+      const wallThickness = 0.15;
+
+      // Floor
+      const floor = new THREE.Mesh(
+        new THREE.PlaneGeometry(width, depth),
+        new THREE.MeshStandardMaterial({ color: colors.floor, roughness: 0.5, metalness: 0.1 })
+      );
+      floor.rotation.x = -Math.PI / 2;
+      floor.receiveShadow = true;
+      group.add(floor);
+
+      const wallMat = new THREE.MeshStandardMaterial({ color: colors.walls, roughness: 0.85 });
+
+      if (openSide !== "all") {
+        // Side walls
+        const leftWall = new THREE.Mesh(new THREE.BoxGeometry(wallThickness, height || 4, depth), wallMat);
+        leftWall.position.set(-hw, (height || 4) / 2, 0);
+        group.add(leftWall);
+
+        const rightWall = leftWall.clone();
+        rightWall.position.set(hw, (height || 4) / 2, 0);
+        group.add(rightWall);
+
+        // Front wall (behind camera)
+        const frontWall = new THREE.Mesh(new THREE.BoxGeometry(width, height || 4, wallThickness), wallMat);
+        frontWall.position.set(0, (height || 4) / 2, hd);
+        group.add(frontWall);
+      }
+
+      // Railing on open side(s)
+      const railMat = new THREE.MeshStandardMaterial({ color: "#555555", roughness: 0.4, metalness: 0.6 });
+      if (openSide === "back" || openSide === "all") {
+        // Horizontal rail
+        const rail = new THREE.Mesh(new THREE.BoxGeometry(width, 0.06, 0.06), railMat);
+        rail.position.set(0, railHeight, -hd);
+        group.add(rail);
+        // Posts
+        for (let x = -hw; x <= hw; x += 2) {
+          const post = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, railHeight, 8), railMat);
+          post.position.set(x, railHeight / 2, -hd);
+          group.add(post);
+        }
+      }
+      if (openSide === "all") {
+        // Rails on all sides
+        [[-hw, 0], [hw, 0], [0, hd]].forEach(([rx, rz]) => {
+          const isZ = rx !== 0;
+          const rLen = isZ ? depth : width;
+          const rail = new THREE.Mesh(new THREE.BoxGeometry(isZ ? 0.06 : rLen, 0.06, isZ ? rLen : 0.06), railMat);
+          rail.position.set(rx, railHeight, rz);
+          group.add(rail);
+        });
+      }
+
+      // Vista: gradient sky backdrop far behind the railing
+      const skyColor = colors.sky || colors.bg;
+      const skyGeo = new THREE.PlaneGeometry(60, 20);
+      const skyMat = new THREE.MeshBasicMaterial({ color: skyColor, fog: true });
+      const skyPlane = new THREE.Mesh(skyGeo, skyMat);
+      skyPlane.position.set(0, 5, -20);
+      group.add(skyPlane);
+
+      // Distant floating light (like a moon or glow)
+      const vistaLight = new THREE.PointLight(colors.emissive, 0.3, 40);
+      vistaLight.position.set(5, 8, -15);
+      group.add(vistaLight);
+
+      // Distant stars/particles in the vista
+      const vistaParticles = createParticles(80, 30, colors.accent, [2, 12], [0, 0, -15]);
+      vistaParticles.name = "vistaParticles";
+      group.add(vistaParticles);
+    }
+
+    /**
+     * PASSAGE — long narrow corridor with arches.
+     * Config: { width, depth, height, archCount }
+     */
+    function buildPassage(group, config, colors) {
+      const { width, depth, height, archCount } = config;
+      const hw = width / 2;
+      const hd = depth / 2;
+
+      // Floor
+      const floor = new THREE.Mesh(
+        new THREE.PlaneGeometry(width, depth),
+        new THREE.MeshStandardMaterial({ color: colors.floor, roughness: 0.6 })
+      );
+      floor.rotation.x = -Math.PI / 2;
+      floor.receiveShadow = true;
+      group.add(floor);
+
+      // Walls
+      const wallMat = new THREE.MeshStandardMaterial({ color: colors.walls, roughness: 0.9 });
+      const leftWall = new THREE.Mesh(new THREE.BoxGeometry(0.2, height, depth), wallMat);
+      leftWall.position.set(-hw, height / 2, 0);
+      group.add(leftWall);
+
+      const rightWall = leftWall.clone();
+      rightWall.position.set(hw, height / 2, 0);
+      group.add(rightWall);
+
+      // Ceiling
+      const ceiling = new THREE.Mesh(
+        new THREE.PlaneGeometry(width, depth),
+        new THREE.MeshStandardMaterial({ color: colors.ceiling || colors.walls, roughness: 1.0 })
+      );
+      ceiling.rotation.x = Math.PI / 2;
+      ceiling.position.y = height;
+      group.add(ceiling);
+
+      // Arches along the corridor
+      const archSpacing = depth / (archCount + 1);
+      const archMat = new THREE.MeshStandardMaterial({ color: new THREE.Color(colors.walls).multiplyScalar(0.7), roughness: 0.7 });
+      for (let i = 1; i <= archCount; i++) {
+        const z = -hd + i * archSpacing;
+
+        // Arch posts (left and right)
+        const postGeo = new THREE.BoxGeometry(0.3, height, 0.3);
+        const leftPost = new THREE.Mesh(postGeo, archMat);
+        leftPost.position.set(-hw + 0.25, height / 2, z);
+        group.add(leftPost);
+
+        const rightPost = leftPost.clone();
+        rightPost.position.set(hw - 0.25, height / 2, z);
+        group.add(rightPost);
+
+        // Arch beam across top
+        const beam = new THREE.Mesh(
+          new THREE.BoxGeometry(width - 0.2, 0.3, 0.3),
+          archMat
+        );
+        beam.position.set(0, height - 0.15, z);
+        group.add(beam);
+
+        // Emissive strip under each arch
+        const strip = new THREE.Mesh(
+          new THREE.BoxGeometry(width - 1, 0.04, 0.08),
+          new THREE.MeshBasicMaterial({ color: colors.emissive, transparent: true, opacity: 0.4 })
+        );
+        strip.position.set(0, 0.02, z);
+        strip.name = "archStrip";
+        group.add(strip);
+      }
+
+      // End glow — light at the far end of the passage
+      const endLight = new THREE.PointLight(colors.emissive, 0.8, depth * 0.8);
+      endLight.position.set(0, height * 0.6, -hd + 1);
+      endLight.name = "endLight";
+      group.add(endLight);
+
+      // Secondary light from near end
+      const nearLight = new THREE.PointLight(colors.light || "#FFF5E1", 0.3, depth * 0.5);
+      nearLight.position.set(0, height * 0.6, hd - 2);
+      group.add(nearLight);
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // SHARED SYSTEMS: particles, emissive accents, GLB loader
+    // ═══════════════════════════════════════════════════════════
+
+    function createParticles(count, spread, color, yRange, offset = [0, 0, 0]) {
+      const geo = new THREE.BufferGeometry();
+      const positions = new Float32Array(count * 3);
+      for (let i = 0; i < count; i++) {
+        positions[i*3] = (Math.random() - 0.5) * spread + offset[0];
+        positions[i*3+1] = yRange[0] + Math.random() * (yRange[1] - yRange[0]) + offset[1];
+        positions[i*3+2] = (Math.random() - 0.5) * spread + offset[2];
+      }
+      geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+      return new THREE.Points(geo, new THREE.PointsMaterial({
+        color, size: 0.05, transparent: true, opacity: 0.5,
+        blending: THREE.AdditiveBlending, depthWrite: false,
+      }));
+    }
+
+    function createEmissiveAccent(type, color, pos, scale) {
+      let geo;
+      if (type === "crystal") geo = new THREE.OctahedronGeometry(0.2 * scale, 0);
+      else if (type === "orb") geo = new THREE.SphereGeometry(0.15 * scale, 16, 16);
+      else geo = new THREE.IcosahedronGeometry(0.18 * scale, 0);
+      const mat = new THREE.MeshStandardMaterial({
+        color, emissive: color, emissiveIntensity: 0.8,
+        roughness: 0.2, metalness: 0.3, transparent: true, opacity: 0.9,
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(...pos);
+      mesh.name = "emissive_accent";
+      return mesh;
+    }
+
+    const _glbCache = {};
+    const _gltfLoader = new GLTFLoader();
+    function loadGLB(path, parent, pos, scale, rotY = 0) {
+      function place(m) {
+        m.position.set(...pos);
+        if (typeof scale === "number") m.scale.set(scale, scale, scale);
+        else m.scale.set(...scale);
+        m.rotation.y = rotY;
+        m.traverse(c => { if (c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+        parent.add(m);
+      }
+      if (_glbCache[path]) { place(_glbCache[path].clone()); return; }
+      _gltfLoader.load(path, (gltf) => {
+        _glbCache[path] = gltf.scene.clone();
+        place(gltf.scene);
+      }, undefined, () => {});
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // STATION BUILDER (orchestrates template + props + specials)
+    // ═══════════════════════════════════════════════════════════
+
+    function buildStation(scene, station) {
+      const group = new THREE.Group();
+      group.name = `station_${station.id}`;
+      const c = station.colors;
+
+      // 1. Build room from template
+      switch (station.template) {
+        case "indoor":   buildIndoorRoom(group, station.room, c); break;
+        case "clearing":  buildClearing(group, station.room, c); break;
+        case "overlook":  buildOverlook(group, station.room, c); break;
+        case "passage":   buildPassage(group, station.room, c); break;
+      }
+
+      // 2. Shared lighting
+      group.add(new THREE.AmbientLight(c.ambient, 0.25));
+
+      const keyLight = new THREE.DirectionalLight("#FFF5E1", 0.5);
+      keyLight.position.set(3, 8, 5);
+      keyLight.castShadow = true;
+      keyLight.shadow.mapSize.set(1024, 1024);
+      keyLight.shadow.camera.near = 0.5;
+      keyLight.shadow.camera.far = 25;
+      keyLight.shadow.camera.left = -10;
+      keyLight.shadow.camera.right = 10;
+      keyLight.shadow.camera.top = 10;
+      keyLight.shadow.camera.bottom = -10;
+      keyLight.shadow.bias = -0.002;
+      group.add(keyLight);
+
+      // 3. Floating emissive accents (2-3 per room, subtle)
+      const accents = [
+        createEmissiveAccent("crystal", c.emissive, [-3, 0.2, 2], 0.7),
+        createEmissiveAccent("orb", c.accent, [3.5, 1.2, -0.5], 0.5),
+      ];
+      if (station.template !== "passage") {
+        accents.push(createEmissiveAccent("crystal", c.emissive, [0, 0.15, 3.5], 0.4));
+      }
+      accents.forEach(a => group.add(a));
+
+      // 4. Ambient particles
+      const particles = createParticles(40, 10, c.accent, [0.3, 4]);
+      particles.name = "particles";
+      group.add(particles);
+
+      // 5. Props from Kenney
+      (STATION_PROPS[station.env] || []).forEach(p =>
+        loadGLB(p.path, group, p.pos, p.scale, p.rotY || 0)
+      );
+
+      // 6. Station-specific specials
+      if (station.env === "campfire") {
+        // Fire glow
+        const fireLight = new THREE.PointLight("#FF6B00", 1.5, 10);
+        fireLight.position.set(0, 1, 0);
+        fireLight.castShadow = true;
+        fireLight.name = "fireLight";
+        group.add(fireLight);
+
+        // Flame cones
+        [["#EF4444", 0.35, 0.9], ["#F97316", 0.25, 0.7], ["#FCD34D", 0.15, 0.5]].forEach(([col, r, h], i) => {
+          const cone = new THREE.Mesh(
+            new THREE.ConeGeometry(r, h, 8),
+            new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.85 - i * 0.1 })
+          );
+          cone.position.set((Math.random()-0.5)*0.06, 0.15 + h/2, (Math.random()-0.5)*0.06);
+          cone.name = "flame_" + i;
+          group.add(cone);
+        });
+
+        // Embers
+        const embers = createParticles(25, 3, "#FF6B00", [0.2, 3]);
+        embers.name = "embers";
+        group.add(embers);
+      }
+
+      if (station.env === "gallery") {
+        // Paintings on back wall
+        const frameColors = ["#FCD34D", "#A5B4FC", "#F9A8D4", "#86EFAC", "#FCA5A5"];
+        const roomW = station.room.width;
+        frameColors.forEach((fc, i) => {
+          const x = -roomW/2 + 1.5 + i * ((roomW - 3) / (frameColors.length - 1));
+          const fg = new THREE.Group();
+          fg.add(new THREE.Mesh(
+            new THREE.BoxGeometry(1.8, 1.4, 0.06),
+            new THREE.MeshStandardMaterial({ color: "#FFF7ED", roughness: 0.9 })
+          ));
+          const canvas = new THREE.Mesh(
+            new THREE.BoxGeometry(1.6, 1.2, 0.04),
+            new THREE.MeshStandardMaterial({ color: fc, emissive: fc, emissiveIntensity: 0.12 })
+          );
+          canvas.position.z = 0.025;
+          fg.add(canvas);
+          fg.position.set(x, 2.8, -station.room.depth / 2 + 0.2);
+          group.add(fg);
+
+          // Picture light
+          const pLight = new THREE.SpotLight(fc, 0.3, 3, Math.PI / 6, 0.5);
+          pLight.position.set(x, 4.2, -station.room.depth / 2 + 0.8);
+          pLight.target = fg;
+          group.add(pLight);
+        });
+      }
+
+      if (station.env === "corridor") {
+        // Glowing floor lines
+        for (let z = -8; z <= 6; z += 2) {
+          const line = new THREE.Mesh(
+            new THREE.BoxGeometry(station.room.width * 0.6, 0.02, 0.08),
+            new THREE.MeshBasicMaterial({ color: c.emissive, transparent: true, opacity: 0.25 })
+          );
+          line.position.set(0, 0.02, z);
+          group.add(line);
+        }
+      }
+
+      if (station.env === "rooftop") {
+        // Extra particles
+        group.add(createParticles(120, 20, "#FBCFE8", [0.5, 10]));
+
+        // Light beam
+        const beam = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.4, 0.8, 10, 16, 1, true),
+          new THREE.MeshBasicMaterial({ color: c.emissive, transparent: true, opacity: 0.06, side: THREE.DoubleSide, blending: THREE.AdditiveBlending })
+        );
+        beam.position.set(0, 5, -2);
+        beam.name = "launchBeam";
+        group.add(beam);
+
+        // Stars (no ceiling, open air)
+        const starGeo = new THREE.BufferGeometry();
+        const starPos = new Float32Array(400 * 3);
+        for (let i = 0; i < 400; i++) {
+          starPos[i*3] = (Math.random() - 0.5) * 50;
+          starPos[i*3+1] = 5 + Math.random() * 20;
+          starPos[i*3+2] = (Math.random() - 0.5) * 50;
+        }
+        starGeo.setAttribute("position", new THREE.BufferAttribute(starPos, 3));
+        group.add(new THREE.Points(starGeo, new THREE.PointsMaterial({
+          color: "#FEF3C7", size: 0.06, transparent: true, opacity: 0.5,
+          blending: THREE.AdditiveBlending, depthWrite: false,
+        })));
+      }
+
+      scene.add(group);
+      return group;
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // ANIMATION
+    // ═══════════════════════════════════════════════════════════
+
+    function animateStation(group, clock) {
+      const t = clock.getElapsedTime();
+
+      // Particles rise
+      ["particles", "embers", "vistaParticles"].forEach(name => {
+        const p = group.getObjectByName(name);
+        if (!p) return;
+        const pos = p.geometry.attributes.position;
+        for (let i = 0; i < pos.count; i++) {
+          pos.array[i*3+1] += Math.sin(t * 0.5 + i * 0.7) * 0.001;
+          if (name === "embers") pos.array[i*3+1] += 0.003;
+          if (pos.array[i*3+1] > 5) pos.array[i*3+1] = 0.2;
+        }
+        pos.needsUpdate = true;
+        if (name !== "vistaParticles") p.rotation.y = t * 0.015;
+      });
+
+      // Bob emissive accents
+      group.children.forEach(child => {
+        if (child.name === "emissive_accent") {
+          child.position.y += Math.sin(t * 0.8 + child.position.x * 2) * 0.0006;
+          child.rotation.y = t * 0.3;
+          child.rotation.z = Math.sin(t * 0.5) * 0.08;
+        }
+      });
+
+      // Fire
+      const fireLight = group.getObjectByName("fireLight");
+      if (fireLight) {
+        fireLight.intensity = 1.3 + Math.sin(t * 8) * 0.4 + Math.sin(t * 12.5) * 0.2;
+        fireLight.position.x = Math.sin(t * 3) * 0.05;
+      }
+      for (let i = 0; i < 3; i++) {
+        const flame = group.getObjectByName("flame_" + i);
+        if (flame) {
+          flame.position.x = Math.sin(t * (4 + i * 2)) * 0.05;
+          flame.position.z = Math.cos(t * (3 + i * 1.5)) * 0.05;
+          flame.scale.y = 1 + Math.sin(t * (6 + i * 3)) * 0.2;
+        }
+      }
+
+      // Corridor end light pulse
+      const endLight = group.getObjectByName("endLight");
+      if (endLight) endLight.intensity = 0.7 + Math.sin(t * 0.8) * 0.2;
+
+      // Arch strips pulse
+      group.children.forEach(child => {
+        if (child.name === "archStrip") {
+          child.material.opacity = 0.3 + Math.sin(t * 1.2 + child.position.z) * 0.15;
+        }
+      });
+
+      // Launch beam
+      const beam = group.getObjectByName("launchBeam");
+      if (beam) { beam.material.opacity = 0.04 + Math.sin(t * 0.8) * 0.03; beam.rotation.y = t * 0.15; }
+
+      // Stars twinkle
+      const stars = group.getObjectByName("stars");
+      if (stars) stars.material.opacity = 0.5 + Math.sin(t * 0.3) * 0.15;
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // MAIN APP
+    // ═══════════════════════════════════════════════════════════
+
+    const root = document.getElementById("root");
+    let currentStation = -1;
+    let stationGroup = null;
+    const clock = new THREE.Clock();
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.1;
+    if (renderer.outputColorSpace !== undefined) renderer.outputColorSpace = THREE.SRGBColorSpace;
+    else renderer.outputEncoding = THREE.sRGBEncoding;
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+
+    root.innerHTML = "";
+    root.appendChild(renderer.domElement);
+
+    // UI
+    const ui = document.createElement("div");
+    ui.style.cssText = "position:absolute;inset:0;pointer-events:none;font-family:'Inter',system-ui,sans-serif;";
+    root.appendChild(ui);
+
+    function renderUI() {
+      const s = STATIONS[currentStation];
+      ui.innerHTML = `
+        <div style="position:absolute;top:24px;left:24px;color:#fff;pointer-events:none">
+          <div style="font-size:11px;font-weight:600;letter-spacing:2px;color:${s.colors.accent};text-transform:uppercase;margin-bottom:4px">Station ${s.id+1} of ${STATIONS.length}</div>
+          <div style="font-size:28px;font-weight:700;margin-bottom:2px">${s.name}</div>
+          <div style="font-size:14px;opacity:0.6">${s.subtitle}</div>
+        </div>
+        <div style="position:absolute;bottom:24px;left:50%;transform:translateX(-50%);display:flex;gap:6px;background:rgba(0,0,0,0.5);border-radius:20px;padding:8px 16px;backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.1);pointer-events:auto">
+          ${STATIONS.map((st,i) => `<button onclick="window._goStation(${i})" style="width:${i===currentStation?36:12}px;height:12px;border-radius:6px;border:none;cursor:pointer;background:${i===currentStation?st.colors.primary:'rgba(255,255,255,0.2)'};transition:all 0.3s" title="${st.name}"></button>`).join("")}
+        </div>
+        <div style="position:absolute;top:24px;right:24px;display:flex;flex-direction:column;gap:4px;align-items:flex-end;pointer-events:auto">
+          ${STATIONS.map((st,i) => `<button onclick="window._goStation(${i})" style="padding:4px 12px;border-radius:12px;border:${i===currentStation?`1px solid ${st.colors.accent}`:'1px solid rgba(255,255,255,0.08)'};background:${i===currentStation?st.colors.primary+'30':'rgba(0,0,0,0.3)'};color:${i===currentStation?st.colors.accent:'rgba(255,255,255,0.35)'};cursor:pointer;font-size:11px;font-weight:500;font-family:'Inter',system-ui,sans-serif;backdrop-filter:blur(8px)">${st.name}</button>`).join("")}
+        </div>
+        <div style="position:absolute;bottom:24px;right:24px;display:flex;gap:8px;pointer-events:auto">
+          <button onclick="window._goStation(${Math.max(0,currentStation-1)})" style="width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,0.2);background:rgba(0,0,0,0.4);color:${currentStation===0?'rgba(255,255,255,0.2)':'#fff'};cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(10px)">&#8592;</button>
+          <button onclick="window._goStation(${Math.min(STATIONS.length-1,currentStation+1)})" style="width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,0.2);background:rgba(0,0,0,0.4);color:${currentStation===STATIONS.length-1?'rgba(255,255,255,0.2)':'#fff'};cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(10px)">&#8594;</button>
+        </div>
+      `;
+    }
+
+    function switchStation(idx) {
+      if (idx === currentStation || idx < 0 || idx >= STATIONS.length) return;
+      currentStation = idx;
+      const s = STATIONS[idx];
+
+      if (stationGroup) {
+        scene.remove(stationGroup);
+        stationGroup.traverse(child => {
+          if (child.geometry) child.geometry.dispose();
+          if (child.material) {
+            if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+            else child.material.dispose();
+          }
+        });
+      }
+
+      scene.fog = new THREE.FogExp2(s.colors.fog, 0.04);
+      scene.background = new THREE.Color(s.colors.bg);
+      stationGroup = buildStation(scene, s);
+      camera.position.set(...s.cameraPos);
+      camera.lookAt(...s.cameraTarget);
+      renderUI();
+    }
+
+    window._goStation = switchStation;
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowRight" || e.key === "d") switchStation(currentStation + 1);
+      if (e.key === "ArrowLeft" || e.key === "a") switchStation(currentStation - 1);
+    });
+
+    switchStation(0);
+
+    window.addEventListener("resize", () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    function animate() {
+      requestAnimationFrame(animate);
+      if (stationGroup) animateStation(stationGroup, clock);
+      renderer.render(scene, camera);
+    }
+    animate();
+  </script>
+</body>
+</html>

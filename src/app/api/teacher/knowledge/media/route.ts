@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createServerClient } from "@supabase/ssr";
 
+const QUARANTINE_RESPONSE = NextResponse.json({ error: "Knowledge pipeline quarantined — pending architecture rebuild. See docs/quarantine.md" }, { status: 410 });
+
 async function getTeacherId(request: NextRequest): Promise<string | null> {
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -45,6 +47,7 @@ const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
  * Returns: { url: string }
  */
 export async function POST(request: NextRequest) {
+  return QUARANTINE_RESPONSE;
   const teacherId = await getTeacherId(request);
   if (!teacherId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

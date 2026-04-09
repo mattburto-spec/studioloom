@@ -1,0 +1,124 @@
+# Lessons Learned — CRITICAL
+
+> Extracted from CLAUDE.md on 7 Apr 2026. Read before any batch operations or major code changes. CLAUDE.md now points here.
+
+> **CRITICAL — read before batch operations**
+
+### 1. NEVER batch-modify JSX structure with regex/sed/perl
+The Framer Motion disaster (18-19 Mar 2026) destroyed 23 tool components. What happened:
+- Batch agent added `<motion.div>` by replacing `<div>` in opening tags
+- Closing `</motion.div>` was placed on INNER divs instead of outermost containers
+- Attempting to fix with `sed`/`perl` regex deleted opening `<div>` lines that contained animation attributes
+- This cascaded into orphaned `</div>` tags, breaking JSX nesting across ALL files
+- TypeScript's basic parser (`createSourceFile`) said "OK" but Next.js SWC/Webpack caught real JSX errors
+- **LESSON:** Never use regex to modify JSX tag structure. Either rewrite the full component or use the Edit tool for surgical, verified changes.
+
+### 2. Always use `tsc --noEmit` not just `createSourceFile` for JSX validation
+`ts.createSourceFile()` only checks syntax — it misses:
+- Unclosed JSX elements
+- Mismatched opening/closing tags
+- Invalid attributes on HTML elements (e.g., `hover` in inline styles)
+Run `npx tsc --noEmit --jsx react-jsx --skipLibCheck <file>` to catch real JSX errors.
+
+### 3. Client components cannot import server-only modules
+`createAdminClient()` (which reads `SUPABASE_SERVICE_ROLE_KEY`) must NEVER be imported in `"use client"` components. The `onUnitCreated` signal was originally imported in a client page — moved to server-side API route.
+
+### 4. Student auth uses token sessions, not Supabase Auth
+Students authenticate via `SESSION_COOKIE_NAME` cookie → `student_sessions` table → `student_id`. NOT via `supabase.auth.getUser()`. The Design Assistant route had this bug — was using teacher auth pattern for students.
+
+### 5. Framer Motion must be installed in the project directory, not home
+`npm install framer-motion` in `~` instead of `~/CWORK/questerra` created a conflicting `package-lock.json` that made Next.js infer the wrong workspace root.
+
+### 6. Duplicate tool names in tools-data.ts cause React key warnings
+When adding interactive versions of existing template tools, either remove the template entry or rename it with "(Template)" suffix. React keys must be unique.
+
+### 7. School profile belongs in Teacher Settings, not AI controls
+School facts (period length, workshop access, doubles) are set once and rarely change. They belong in the teacher settings page, not alongside the AI tuning dials. The AI reads them from the teacher profile at generation time.
+
+### 8. Timing model must be a learning system, not fixed values
+Hard-coded timing limits ("max 15 min for direct instruction") are the wrong approach. The system should learn from teacher uploads, edits, and feedback. Cold-start defaults exist only for day-one teachers with no data.
+
+### 9. Student-facing components must use student auth routes
+The pace feedback pulse was mounted on a student page but called a teacher auth endpoint (`requireTeacherAuth`), causing 401s. Any API call from a student-rendered component MUST use `/api/student/*` routes with `requireStudentAuth`. Student auth = cookie token session (`SESSION_COOKIE_NAME`), NOT Supabase Auth. This is the same bug that hit the Design Assistant (Lesson Learned #4) — it keeps recurring because it's easy to copy teacher route patterns.
+
+### 10. Admin AI controls need macro/micro hierarchy
+50+ individual sliders are engineer-facing, not teacher-facing. Teachers think in terms of "more workshop, less theory" — not "set scaffoldingFade to 7." The macro dials (5 big concepts) → micro sliders (50+ detailed controls) hierarchy serves both audiences.
+
+### 11. Vercel CDN strips Set-Cookie from Cache-Control: public responses
+Next.js Route Handlers default to `Cache-Control: public, max-age=0, must-revalidate`. Vercel CDN sees "public" and strips the `Set-Cookie` header from the response — the cookie never reaches the browser. **Any route that sets cookies (login, session, auth) MUST explicitly set `Cache-Control: private, no-cache, no-store, must-revalidate`.** We also added a belt-and-suspenders rule in `next.config.ts` headers for `/api/auth/:path*`. This is Vercel-specific — doesn't happen in local dev, so you won't catch it until production.
+
+### 13. Default vs named exports cause React #130 on Vercel
+If a component uses `export default function Foo`, it MUST be imported as `import Foo from "./Foo"` (default import). Using `import { Foo } from "./Foo"` (named import) resolves to `undefined`, causing React error #130 ("Element type is invalid: expected a string or class/function but got undefined"). This works in dev sometimes due to HMR but fails on Vercel production builds. **Rule:** Always check whether a component uses `export default` or `export { Foo }` before writing the import. The barrel file (`index.ts`) re-exports tell you: `export { default as Foo } from "./Foo"` = default export, `export { Foo } from "./Foo"` = named export.
+
+### 14. Always normalize content data before accessing .pages
+StudioLoom has 4 content versions: v1 (Record<PageId, PageContent>), v2 (pages array), v3 (journey-based), v4 (timeline). Direct `.pages` access fails silently for v1 (object, not array) and v4 (uses `.timeline`). **Always call `normalizeContentData()` from `@/lib/unit-adapter` before extracting pages.** This converts all versions to a consistent v2-style format with a `.pages` array. The useLessonEditor hook was initially broken because it skipped normalization — content loaded fine but `pages` was undefined for non-v2 units.
+
+### 15. npx tsx can't find project node_modules
+`npx tsx scripts/foo.ts` creates an isolated execution environment that can't resolve packages from the project's `node_modules`. **Fix:** Use `./node_modules/.bin/tsx` (requires node_modules to exist) or rewrite as `.mjs` with manual env loading and native Node.js imports. The `.mjs` approach is more portable for scripts that need to run in different environments.
+
+### 16. Project does NOT use lucide-react — all icons must be inline SVGs
+lucide-react is not installed in the project. Importing from it causes Vercel build failures (`Module not found: Can't resolve 'lucide-react'`). **Fix:** Create inline SVG components at the top of each file: `const XIcon = ({ size = 24 }: { size?: number }) => (<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">...</svg>);`. This bit us when gallery components were built by agents that assumed lucide-react was available. Check package.json before importing icon libraries.
+
+### 17. Retry insert without new columns for migration-gapped deployments
+When adding a new column via migration (e.g., `unit_type` in migration 051) and immediately using it in an insert payload, the insert will 400 on production if the migration hasn't been applied yet. **Fix:** Wrap the insert in a retry that strips the new column(s) from the payload on failure: `if (error && (error.message.includes("unit_type") || error.code === "PGRST204")) { delete payload.unit_type; retry... }`. This gives graceful degradation during the gap between code deploy and migration apply. Applied in `create/page.tsx` `saveUnit()` for `unit_type`.
+
+### 18. Always show save/generation errors to the user
+The StickyBuildBar component originally had no error display during the review phase. When `saveUnit()` failed (400 from missing column), the error was dispatched via `SET_ERROR` to state but never rendered — the Save Unit button just did nothing. **Fix:** Pass `error={state.error}` to StickyBuildBar and render a red banner above the action buttons. General rule: any component with an action button must have a visible error state.
+
+### 12. PostgREST PGRST201 ambiguous relationships after adding junction tables
+When you add a junction table that creates a second FK path between two existing tables (e.g., `class_students` between `students` and `classes`, alongside the existing `students.class_id` FK), PostgREST can't auto-resolve nested selects like `.select("students(... classes(...))")`. It returns HTTP 300 with a PGRST201 error listing both relationship paths. **Fix options:** (a) use PostgREST `!fk_name` hint syntax to disambiguate (e.g., `.select("classes!class_students(id, name)")`), or (b) query tables separately with no nested joins (what we did — simpler, no Supabase SDK version dependency). This will happen every time a junction table duplicates an existing direct FK relationship. Plan for it when writing migration 041-style additive junction tables.
+
+### 19. Never add new/optional columns to PostgREST nested selects
+Adding a column like `unit_type` to `units!inner(id, title, content_data, nm_config, unit_type)` in a Supabase query can cause PostgREST to fail **silently** — the entire query returns empty data, not an error. This broke the teacher dashboard (showed "No units assigned" for all teachers). **Fix:** Fetch new/optional columns in a **separate query** wrapped in try/catch. Build a lookup map, then merge the data in the response loop. This is the same resilient pattern used for `unit_type` in the dashboard API: separate `supabase.from("units").select("id, unit_type").in("id", uniqueUnitIds)` with try/catch that silently ignores if the column doesn't exist.
+
+### 21. useEffect infinite loops from loading state in dependency array
+If a useEffect includes a loading state variable (e.g., `gradeLoading`) in BOTH its dependency array AND its guard condition, AND the effect calls a function that toggles that state, the effect will re-fire endlessly: effect runs → sets loading=true → loading=false on complete → effect re-fires. **Fix:** Use a `useRef` as a "loaded" guard instead of the loading state. Set the ref to `true` before calling the loader, reset to `false` when the tab/context changes. Remove the loading state and loader callback from the dependency array. Add `// eslint-disable-next-line react-hooks/exhaustive-deps` with explicit comment explaining why. This pattern hit the Class Hub Grade tab (28 Mar 2026) — content flashed white for a split second then disappeared back to grey because it was rendering during the brief `gradeLoading = false` window between infinite loop iterations.
+
+### 20. Verify Supabase helper import names match exports
+`@/lib/supabase/server.ts` exports `createServerSupabaseClient`, NOT `createServerClient`. The raw `createServerClient` from `@supabase/ssr` has a different function signature (no cookie handling). Importing the wrong one compiles fine but fails at runtime with auth errors. The class-profiles route had this bug — 500 error on every request. **Rule:** When importing from project Supabase wrappers, always check the exact export name.
+
+### 22. Always use junction-first + legacy-fallback for student lookups in teacher APIs
+After migration 041 added the `class_students` junction table, every teacher API route that lists students in a class must query `class_students` first, then fall back to `students.class_id` if the junction returns empty. Pattern: `try { junction query } catch {} → if empty, legacy fallback`. Routes that were fixed: teach/live-status, nm-observation, nm-results, badges/class-status, class-profiles, open-studio/status (GET+POST), badges/[id]/results. **Rule:** Any new teacher API route that lists "students in class X" must use this pattern. Grep for `.eq("class_id", classId)` on the `students` table to find violations.
+
+### 23. Edit buttons must always route to Phase 0.5 editor, not old basic editor
+The old edit page at `/teacher/units/[unitId]/edit` is the basic purple-squares editor. The Phase 0.5 editor at `/teacher/units/[unitId]/class/[classId]/edit` is the full drag-and-drop editor. Any "Edit" button should link to the Phase 0.5 editor when the unit has at least 1 assigned class (use the first class). The old edit page also auto-redirects to Phase 0.5 if any class is found. Only units with zero assigned classes see the old editor.
+
+### 24. Never assume column names exist in production — use select("*") or independent try/catches
+Replacing `select("*")` with explicit column lists (e.g., `select("id, title, description, topic, tags, ...")`) on the `units` table caused 400 errors because many columns (`description`, `topic`, `tags`, `grade_level`, `duration_weeks`, `author_name`, `school_name`, `fork_count`, `is_published`) don't actually exist in the production schema. PostgREST returns 400 (not empty data) for non-existent columns. **Rules:** (1) Use `select("*")` for client-side queries where you're OK fetching everything. (2) If you MUST use explicit columns, only list columns you've verified exist via migration history. (3) For optional columns (migration may/may not be applied), always use separate try/catch queries — never combine with required columns. (4) When merging two independent optional-column queries into one try/catch, if EITHER fails, BOTH results are lost. Always keep independent try/catches for independent data.
+
+### 25. Orphaned class_meetings entries cause "Unknown" class in schedule
+When a class is deleted, its entries in `class_meetings` remain (no cascade delete). The schedule API at `/api/teacher/schedule/today` tries to resolve class names via `classNameMap.get(m.class_id) || "Unknown"`. If the class_id points to a deleted class, it shows "Unknown" in the Coming Up section. **Fix:** Teachers must manually remove stale timetable entries after deleting a class, or we need a cascade delete / cleanup trigger on class deletion.
+
+### 26. AI JSON schema field ordering matters — put required fields before verbose arrays
+When an AI prompt returns a large JSON schema, the model generates fields in schema order. If `max_tokens` is reached, the auto-repair logic closes braces to produce valid JSON — silently dropping any fields not yet output. **Rule:** Put compact, high-value fields (enums, numbers, short objects) BEFORE verbose arrays (phase_analysis, criteria_analysis) in the schema. Also add explicit "REQUIRED" instructions for critical fields. This bit us with Dimensions v2 fields (udl_coverage, bloom_distribution, grouping_analysis) being dropped because they were at the bottom of Pass 2's schema after two large arrays. Fixed by reordering + bumping max_tokens.
+
+### 27. Empty forks shadow master content — always check for actual pages, not just truthiness
+`resolveClassUnitContent()` used `classUnitContent ?? masterContent` — the nullish coalescing only falls back on `null`/`undefined`. An empty object `{}` is truthy but has no pages. If a fork is accidentally created (e.g., auto-save triggers `ensureForked()` before content is loaded), `class_units.content_data` gets set to `{}` which shadows the master forever. **Fix:** Added `hasContent(data)` helper that checks all 4 content versions (v1 object pages, v2 pages array, v3 journey, v4 timeline) for actual content. Used in `resolveClassUnitContent()`, `getResolvedContent()`, `ensureForked()`, and the content API GET route. **Rule:** Never use truthiness (`!!data` or `data ??`) to check for valid content_data — always use `hasContent()`.
+
+### 28. Per-keystroke tracking causes absurd metrics — always debounce response change handlers
+`useActivityTracking.recordResponseChange()` was called on every keystroke via React's `onChange`. Each keystroke created a new string different from previous, so `attemptNumber` incremented to 121 for a single text field. **Fix:** 2-second debounce commit pattern. Keystrokes queue a `pendingValue`; only after 2s of inactivity does the value get "committed" and compared. First meaningful response = attempt 1, revision after pause = attempt 2. **Rule:** Any tracking hook that measures "attempts" or "revisions" must debounce input — React `onChange` fires on every keystroke, not on meaningful edits.
+
+### 29. RLS policies must be updated when adding junction tables — they silently filter rows
+After migration 041 added `class_students`, the `student_progress` RLS policy still only checked `students.class_id → classes`. Junction-enrolled students have `class_id = NULL`, so RLS silently returned 0 rows — no error, no warning, just empty data. The teacher progress grid showed all dashes despite data existing in Supabase. **Fix:** Migration 059 rewrites RLS with `UNION` of junction + legacy paths: `SELECT cs.student_id FROM class_students cs JOIN classes c ON cs.class_id = c.id WHERE c.teacher_id = auth.uid() UNION SELECT s.id FROM students s JOIN classes c ON s.class_id = c.id WHERE c.teacher_id = auth.uid()`. **Rule:** When adding a junction table that provides an alternative FK path, audit ALL RLS policies on related tables. RLS failures are silent — the query succeeds but returns 0 rows. This is different from Lesson Learned #22 (API routes using junction-first queries) — RLS operates at the database level, so even correct API code gets filtered if the policy is wrong.
+
+### 30. Auto-save timing gaps require bridging with debounced notification
+`usePageResponses` auto-saves 2s after a response change. If a monitoring callback (like MonitoredTextarea's `onIntegrityUpdate`) only fires on specific events (paste, blur, 30s tick), the ref may be null when auto-save runs mid-typing. **Fix:** Add a debounced notification in the input handler (1.5s after last keystroke) that calls the callback with current metrics. This ensures the parent ref is populated before the 2s auto-save fires. The 1.5s < 2s ordering is critical. **Rule:** When piggybacking metadata onto an existing auto-save mechanism, the metadata producer must fire BEFORE the auto-save consumer runs.
+
+### 31. Filter _tracking_ and non-string keys before rendering student_progress.responses
+`student_progress.responses` JSONB contains mixed value types: strings (student text answers), objects (`_tracking_*` from `useActivityTracking` — time_spent, attempt_number, effort_signals), and JSON (toolkit tool state). Rendering these directly in JSX crashes React with "Objects are not valid as a React child." **Rule:** Any component displaying `responses` entries must: (1) filter out `_tracking_` prefixed keys, (2) safely convert non-string values (`typeof value === "object" ? JSON.stringify(value).slice(0, 200) : String(value)`). This applies to evidence panels, detail modals, and any future response viewer. The grading page evidence panel had this crash (30 Mar 2026).
+
+### 32. getTeachingMoves maxResults counts as a filter key — zero-score exclusion trap
+`getTeachingMoves({ maxResults: 100 })` returns 0 results, not 100. The function checks `Object.values(filter).some(v => v !== undefined)` to determine if scoring criteria exist — `maxResults` is a defined key, so `hasFilters` is true, but no scoring criteria exist, so every move scores 0 and gets filtered out. **Fix:** Always provide at least one real scoring criterion (phase, category, boosts) alongside maxResults. Tests that need "all moves" should aggregate across categories rather than relying on a bare maxResults call.
+
+### 33. WIRING.yaml values with colons must be quoted — silent YAML parse failures
+YAML values containing unquoted colons (e.g., `summary: Kit/Sage/Spark: three AI characters`) cause parse failures. The Python yaml parser chokes silently on certain patterns. This affected 20 entries in WIRING.yaml. **Fix:** Auto-quote values on `summary:`, `change_impacts:`, and `future_needs:` lines. **Rule:** Any time you add a WIRING.yaml entry with descriptive text, wrap the value in double quotes.
+
+### 34. Test assumptions drift silently — run tests before any refactor session
+11 pre-existing test failures went unnoticed because tests weren't being run regularly. Failures included: assertion boundaries that no longer matched code behavior (debrief min 5→3), prompt format changes not reflected in tests (activity titles vs descriptions), snapshot staleness, and scoring logic misunderstandings. **Rule:** Run the full test suite at the START of any session that will touch code. Don't assume green from last time — code and tests can drift independently between sessions.
+
+### 35. Health check scripts must be dependency-free for CI reliability
+The initial WIRING health checker was written in TypeScript requiring `npm install yaml`. This adds a dependency that may not be installed in CI environments. Rewrote as Python using the built-in `yaml` package (available in all GitHub Actions runners). **Rule:** Automation scripts that run in CI should use only built-in language features or already-installed packages. If a TypeScript script needs a non-standard npm package, consider Python or bash instead.
+
+---
+
+*Last updated: 7 Apr 2026*

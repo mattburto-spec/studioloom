@@ -14,6 +14,10 @@ import { onUnitCreated } from "@/lib/teacher-style/profile-service";
 import { computeLessonPulse } from "@/lib/layers/lesson-pulse";
 import type { PulseActivity, LessonPulseScore } from "@/lib/layers/lesson-pulse";
 
+// QUARANTINED (3 Apr 2026) — Generation pipeline disabled pending architecture rebuild (Dimensions2).
+// See docs/quarantine.md for full rationale.
+const QUARANTINE_RESPONSE = NextResponse.json({ error: "Generation pipeline quarantined — pending architecture rebuild. See docs/quarantine.md" }, { status: 410 });
+
 function createSupabaseServer(request: NextRequest) {
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -39,6 +43,7 @@ function createSupabaseServer(request: NextRequest) {
  * When `stream=false` (default), returns the full JSON response.
  */
 export const POST = withErrorHandler("teacher/generate-unit:POST", async (request: NextRequest) => {
+  return QUARANTINE_RESPONSE;
   const supabase = createSupabaseServer(request);
   const {
     data: { user },
@@ -241,6 +246,17 @@ export const POST = withErrorHandler("teacher/generate-unit:POST", async (reques
 
     // Signal teacher style profile: unit generated
     onUnitCreated(user.id).catch(() => {}); // non-fatal
+
+    // ── Activity Block usage tracking (Dimensions2) ──
+    try {
+      const { recordBlockUsageFromPages } = await import("@/lib/activity-blocks");
+      const { createAdminClient } = await import("@/lib/supabase/admin");
+      const pagesArray = Object.values(validation.pages).filter(Boolean) as Array<{ sections?: Array<{ source_block_id?: string | null }> }>;
+      const usedBlockCount = await recordBlockUsageFromPages(createAdminClient(), pagesArray);
+      if (usedBlockCount > 0) console.log(`[generate-unit] ${usedBlockCount} activity blocks used`);
+    } catch {
+      // Block usage tracking is enhancement, not requirement
+    }
 
     return NextResponse.json({
       pages: validation.pages,

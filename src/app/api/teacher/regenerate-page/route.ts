@@ -18,6 +18,10 @@ import {
   incrementProfileReferences,
 } from "@/lib/knowledge/retrieve-lesson-profiles";
 
+// QUARANTINED (3 Apr 2026) — Generation pipeline disabled pending architecture rebuild (Dimensions2).
+// See docs/quarantine.md for full rationale.
+const QUARANTINE_RESPONSE = NextResponse.json({ error: "Generation pipeline quarantined — pending architecture rebuild. See docs/quarantine.md" }, { status: 410 });
+
 function createSupabaseServer(request: NextRequest) {
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -39,6 +43,7 @@ function createSupabaseServer(request: NextRequest) {
  * Body: { unitId, pageId, instruction? }
  */
 export async function POST(request: NextRequest) {
+  return QUARANTINE_RESPONSE;
   const supabase = createSupabaseServer(request);
   const {
     data: { user },
@@ -230,6 +235,15 @@ Remember to include ELL scaffolding (ell1, ell2, ell3) for every section.`;
       }
     } catch {
       // Pulse scoring is enhancement, not requirement
+    }
+
+    // ── Activity Block usage tracking (Dimensions2) ──
+    try {
+      const { recordBlockUsageFromPages } = await import("@/lib/activity-blocks");
+      const { createAdminClient } = await import("@/lib/supabase/admin");
+      await recordBlockUsageFromPages(createAdminClient(), [page as { sections?: Array<{ source_block_id?: string | null }> }]);
+    } catch {
+      // Block usage tracking is enhancement, not requirement
     }
 
     return NextResponse.json({

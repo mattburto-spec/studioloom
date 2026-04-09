@@ -1,0 +1,1394 @@
+# StudioLoom Documentation Manifest
+# Auto-maintained: `saveme` updates last_verified date and syncs with CLAUDE.md
+# Last full scan: 7 Apr 2026
+#
+# This is the canonical index of ALL documentation files in the project.
+# Categories: brain (AI intelligence), specs (feature specs), projects (project plans),
+#             research (research & data), testing (QA & testing), ideas (brainstorm),
+#             open-studio (Open Studio features), components (component docs),
+#             design (design patterns), automation (automation & handoff), audits (audits),
+#             prototypes (UI prototypes), archive (old/superseded), marketing (marketing),
+#             safety (safety-specific), root (root level docs)
+
+docs:
+  # --- ROOT LEVEL DOCS ---
+  - path: docs/README.md
+    title: "Questerra / StudioLoom — Documentation Index"
+    purpose: "Directory structure and overview of all documentation folders"
+    category: root
+    last_verified: "2026-04-05"
+
+  - path: CLAUDE.md
+    title: "Project: Questerra (StudioLoom) — Instructions for Claude"
+    purpose: "Master instructions for Claude, project tracking, key decisions, lessons learned, AI Brain reference table"
+    category: root
+    last_verified: "2026-04-07"
+    referenced_from: ["Master reference document"]
+
+  - path: docs/changelog.md
+    title: "Session Changelog"
+    purpose: "Rolling log of changes across sessions for cross-session context"
+    category: root
+    last_verified: "2026-04-07"
+
+  - path: docs/decisions-log.md
+    title: "Key Decisions Log"
+    purpose: "182 architectural and design decisions from 17 Mar – 6 Apr 2026"
+    category: root
+    last_verified: "2026-04-07"
+
+  - path: docs/lessons-learned.md
+    title: "Lessons Learned"
+    purpose: "31 hard-won lessons from production bugs, build disasters, Supabase/Vercel gotchas"
+    category: root
+    last_verified: "2026-04-07"
+
+  - path: docs/quarantine.md
+    title: "Quarantine Status"
+    purpose: "Registry of quarantined systems and pipelines under rebuild"
+    category: root
+    last_verified: "2026-04-02"
+
+  - path: docs/roadmap.md
+    title: "Roadmap"
+    purpose: "Strategic 5-phase feature plan with phase specs, feature details, UX philosophy. ~950 lines."
+    category: root
+    last_verified: "2026-04-06"
+
+  - path: docs/idea-tracker.md
+    title: "Idea Tracker"
+    purpose: "Backlog of feature ideas (points to ALL-PROJECTS.md for canonical tracking)"
+    category: root
+    last_verified: "2026-04-05"
+
+  - path: docs/resolved-issues-archive.md
+    title: "Resolved Issues Archive"
+    purpose: "Historical record of fixed bugs and migration status log"
+    category: root
+    last_verified: "2026-04-07"
+
+  - path: docs/typescript-and-auth-audit.md
+    title: "TypeScript and Auth Audit"
+    purpose: "Audit of TypeScript types and authentication patterns"
+    category: root
+    last_verified: "2026-03-20"
+
+  - path: docs/timing-reference.md
+    title: "StudioLoom Timing Reference"
+    purpose: "Learning-based timing model — cold-start defaults replaced by real data. Usable time formula, activity ranges, cognitive load curves."
+    category: root
+    last_verified: "2026-04-07"
+    referenced_from: ["CLAUDE.md AI Brain table"]
+
+  - path: docs/design-guidelines.md
+    title: "StudioLoom Design Guidelines"
+    purpose: "36 design principles across 5 categories. Auto-maintained reference. Feeds dashboard Guidelines tab."
+    category: root
+    last_verified: "2026-04-07"
+    referenced_from: ["CLAUDE.md AI Brain table"]
+
+  - path: docs/design-teaching-corpus.md
+    title: "Design Teaching Corpus — Layer 1"
+    purpose: "AI training material for great design teaching. 10 sections: non-linear design, lesson phases, gradual release, workshop, whole game, assessment, culture, critique, differentiation, technology."
+    category: root
+    last_verified: "2026-04-07"
+    referenced_from: ["CLAUDE.md AI Brain table"]
+
+  - path: docs/education-ai-patterns.md
+    title: "Education AI Patterns — Questerra Toolkit Standard"
+    purpose: "5 core patterns for student-facing AI: effort-gating, Socratic feedback, staged cognitive load, micro-feedback loops, soft gating. SCAMPER is reference implementation."
+    category: root
+    last_verified: "2026-04-07"
+    referenced_from: ["CLAUDE.md AI Brain table"]
+
+  - path: docs/lesson-timing-research-report.md
+    title: "Lesson Timing Research & Architecture"
+    purpose: "Workshop Model (4-phase), 1+age rule, period templates, cognitive load boundaries, extension generation, teacher UI design, gap analysis, implementation plan"
+    category: root
+    last_verified: "2026-04-07"
+    referenced_from: ["CLAUDE.md AI Brain table"]
+
+  - path: docs/admin-controls-redesign.md
+    title: "Admin Controls Redesign"
+    purpose: "Admin interface architecture for macro/micro AI tuning"
+    category: root
+    last_verified: "2026-03-19"
+
+  - path: docs/ai-competitive-analysis.md
+    title: "StudioLoom AI Model — Competitive Analysis vs World's Best Practice"
+    purpose: "Feature comparison vs MagicSchool, Eduaide, Almanack, Diffit, Shiksha Copilot, AIA-PAL"
+    category: root
+    last_verified: "2026-03-14"
+
+  - path: docs/architecture.md
+    title: "Architecture"
+    purpose: "System architecture overview"
+    category: root
+    last_verified: "2026-03-11"
+
+  - path: docs/TOOLKIT-TOOL-SUGGESTIONS-GUIDE.md
+    title: "Toolkit Tool Suggestions Guide"
+    purpose: "Guide for suggesting toolkit tools to students"
+    category: root
+    last_verified: "2026-03-18"
+
+  - path: docs/optimization-plan.md
+    title: "Optimization Plan"
+    purpose: "Performance optimization strategies"
+    category: root
+    last_verified: "2026-03-28"
+
+  - path: docs/planning-tools-ux-spec.md
+    title: "Planning Tools UX Spec"
+    purpose: "UX specification for planning tools"
+    category: root
+    last_verified: "2026-03-18"
+
+  - path: docs/full-site-audit-2026-03-24.md
+    title: "Full Site Audit — 24 March 2026"
+    purpose: "Comprehensive site-wide audit"
+    category: root
+    last_verified: "2026-03-24"
+
+  - path: docs/studioloom-feature-audit-2026-03-20.md
+    title: "StudioLoom Feature Audit — 20 March 2026"
+    purpose: "Feature-by-feature audit"
+    category: root
+    last_verified: "2026-03-19"
+
+  - path: docs/studioloom-ib-project-companion-roadmap.md
+    title: "StudioLoom IB Project Companion Roadmap"
+    purpose: "Roadmap for IB Personal Project companion feature"
+    category: root
+    last_verified: "2026-03-24"
+
+  - path: docs/safety-badge-path-integration.md
+    title: "Safety Badge Path Integration"
+    purpose: "Integration of safety badge system into lesson paths"
+    category: root
+    last_verified: "2026-03-23"
+
+  - path: docs/safety-badge-path-spec.md
+    title: "Safety Badge Path Spec"
+    purpose: "Specification for safety badge paths in lessons"
+    category: root
+    last_verified: "2026-03-23"
+
+  - path: docs/safety-badge-tree-visual-reference.md
+    title: "Safety Badge Tree Visual Reference"
+    purpose: "Visual reference for safety badge tree structure"
+    category: root
+    last_verified: "2026-03-23"
+
+  # --- BRAIN (AI Intelligence Layer) ---
+  - path: docs/brain/ai-intelligence-architecture.md
+    title: "StudioLoom AI Intelligence Architecture"
+    purpose: "Master AI architecture — source-aware ingestion (Pass 0), timing model, 4-layer knowledge system, per-teacher style learning, presentation style, unified intelligence pool"
+    category: brain
+    last_verified: "2026-04-07"
+    referenced_from: ["CLAUDE.md AI Brain table"]
+
+  - path: docs/brain/ai-systems-audit-2026-03.md
+    title: "Expert AI-in-Education Systems Audit"
+    purpose: "File-by-file audit of all AI systems, touchpoints, integration points, quality gaps"
+    category: brain
+    last_verified: "2026-04-07"
+
+  - path: docs/brain/ai-touchpoints-summary.md
+    title: "StudioLoom AI Reasoning Model — Touchpoint Summary"
+    purpose: "Document ingestion, analysis, generation, student delivery, teaching dashboard AI touchpoints"
+    category: brain
+    last_verified: "2026-04-05"
+
+  - path: docs/brain/design-guidelines.md
+    title: "StudioLoom Design Guidelines"
+    purpose: "Design principles reference (duplicate of root copy)"
+    category: brain
+    last_verified: "2026-04-07"
+
+  - path: docs/brain/design-teaching-corpus.md
+    title: "Design Teaching Corpus — Layer 1 (Universal)"
+    purpose: "AI training material for great design teaching (duplicate of root copy)"
+    category: brain
+    last_verified: "2026-04-07"
+
+  - path: docs/brain/education-ai-patterns.md
+    title: "Education AI Patterns — Questerra Toolkit Standard"
+    purpose: "5 core patterns for student-facing AI (duplicate of root copy)"
+    category: brain
+    last_verified: "2026-04-07"
+
+  - path: docs/brain/lesson-timing-research-report.md
+    title: "Lesson Timing Research & Architecture"
+    purpose: "Workshop Model and timing research (duplicate of root copy)"
+    category: brain
+    last_verified: "2026-04-07"
+
+  - path: docs/brain/student-learning-intelligence.md
+    title: "Student Learning Intelligence Architecture"
+    purpose: "How AI builds per-student learning profile over time from conversations, assessments, tool work, portfolio. 4-phase roadmap."
+    category: brain
+    last_verified: "2026-04-07"
+    referenced_from: ["CLAUDE.md AI Brain table"]
+
+  - path: docs/brain/timing-reference.md
+    title: "StudioLoom Timing Reference"
+    purpose: "Learning-based timing model (duplicate of root copy)"
+    category: brain
+    last_verified: "2026-04-07"
+
+  # --- PROJECTS ---
+  - path: docs/projects/ALL-PROJECTS.md
+    title: "StudioLoom — Master Project Index"
+    purpose: "CANONICAL project tracker. ALL project status, new projects, completions. Single source of truth."
+    category: projects
+    last_verified: "2026-04-07"
+    referenced_from: ["CLAUDE.md project tracking section"]
+
+  - path: docs/projects/README.md
+    title: "StudioLoom Projects"
+    purpose: "Projects directory overview"
+    category: projects
+    last_verified: "2026-03-28"
+
+  - path: docs/projects/WIRING.yaml
+    title: "WIRING — Machine-Readable System Registry"
+    purpose: "82+ systems with dependencies, affects relationships, data fields, docs, change impacts. CRITICAL: check before making changes."
+    category: projects
+    last_verified: "2026-04-07"
+    referenced_from: ["CLAUDE.md impact analysis section"]
+
+  - path: docs/projects/dashboard.html
+    title: "Project Dashboard"
+    purpose: "Interactive dashboard with PROJECTS array in sync with ALL-PROJECTS.md"
+    category: projects
+    last_verified: "2026-04-07"
+    referenced_from: ["CLAUDE.md project tracking section"]
+
+  - path: docs/projects/wiring-dashboard.html
+    title: "Wiring Dashboard"
+    purpose: "Interactive visual view of system dependencies. Click system to see upstream/downstream."
+    category: projects
+    last_verified: "2026-04-07"
+    referenced_from: ["CLAUDE.md impact analysis section"]
+
+  - path: docs/projects/system-architecture-map.html
+    title: "System Architecture Map"
+    purpose: "Tracks v1-v5 maturity evolution per system. Update currentVersion/status when systems level up."
+    category: projects
+    last_verified: "2026-04-07"
+    referenced_from: ["CLAUDE.md impact analysis section"]
+
+  - path: docs/projects/dimensions3.md
+    title: "Project Dimensions3 — Generation Pipeline Rebuild"
+    purpose: "6-stage compartmentalized generation pipeline with typed contracts, 2-pass ingestion, Activity Block Library, sandbox debugger, feedback loop with approval queue + guardrails, PII/copyright scanning, library health. No hardcoded sequences — system learns from usage. 43 decisions logged. Phases A-D COMPLETE (9 Apr 2026). Phase E next."
+    category: projects
+    last_verified: "2026-04-09"
+    referenced_from: ["CLAUDE.md AI Brain table"]
+
+  - path: docs/projects/dimensions2.md
+    title: "Project Dimensions2 — Platform Architecture Reset"
+    purpose: "SUPERSEDED by Dimensions3. Kept for historical reference. Gap analysis, 5-pillar build plan."
+    category: projects
+    last_verified: "2026-04-02"
+    referenced_from: ["CLAUDE.md AI Brain table (deprecated)"]
+
+  - path: docs/projects/dimensions.md
+    title: "Project Dimensions — Data Architecture Future-Proofing"
+    purpose: "Early data architecture planning"
+    category: projects
+    last_verified: "2026-03-31"
+
+  - path: docs/projects/dimensions3-matt-questions.md
+    title: "Matt's Spec Review Questions — Dimensions3"
+    purpose: "Matt's questions and clarifications on Dimensions3 spec"
+    category: projects
+    last_verified: "2026-04-03"
+
+  - path: docs/projects/dimensions3-review-notes.md
+    title: "Dimensions3 Spec Review — Matt's Notes + Responses"
+    purpose: "Review notes with responses to clarifications"
+    category: projects
+    last_verified: "2026-04-03"
+
+  - path: docs/projects/dimensions3-testing-plan.md
+    title: "Dimensions3 — Testing Plan"
+    purpose: "Testing strategy for Dimensions3 pipeline rebuild"
+    category: projects
+    last_verified: "2026-04-03"
+
+  - path: docs/projects/PIPELINE-AUDIT-2026-04-02.md
+    title: "Unit Generation Pipeline Audit — 2 April 2026"
+    purpose: "Detailed audit of generation pipeline gaps and recommendations"
+    category: projects
+    last_verified: "2026-04-01"
+
+  - path: docs/projects/Studioloom Platform Architecture.docx
+    title: "StudioLoom Platform Architecture v1"
+    purpose: "Matt's 4-Pillar master blueprint — System 1 Library/Ingestion, System 2 Engine/Generation, System 3 Classroom/Delivery, System 4 Loop/Telemetry. Enterprise-scale vision."
+    category: projects
+    last_verified: "2026-04-07"
+    referenced_from: ["CLAUDE.md AI Brain table"]
+
+  - path: docs/projects/Studioloom Platform Architecture v2.docx
+    title: "StudioLoom Platform Architecture v2"
+    purpose: "Updated platform architecture blueprint"
+    category: projects
+    last_verified: "2026-04-02"
+
+  - path: docs/projects/lesson-pulse.md
+    title: "Project: Lesson Pulse — Composite Quality Scoring"
+    purpose: "Lesson quality scoring algorithm, test run results, generation quality gaps, 5 quality-gap features, build estimate"
+    category: projects
+    last_verified: "2026-04-07"
+    referenced_from: ["CLAUDE.md AI Brain table"]
+
+  - path: docs/projects/lesson-pulse-test-run.md
+    title: "Lesson Pulse Test Run — TeachEngineering MIS-2926"
+    purpose: "Test run results for lesson pulse algorithm"
+    category: projects
+    last_verified: "2026-04-01"
+
+  - path: docs/projects/lesson-pulse-validation-report.md
+    title: "Lesson Pulse Validation Report"
+    purpose: "Validation results for lesson pulse scoring"
+    category: projects
+    last_verified: "2026-04-01"
+
+  - path: docs/projects/openstudio-v2.md
+    title: "Project: Open Studio v2 — Mentor-Guided Project Planning"
+    purpose: "7-station Planning Journey (Sonnet reasoning), teacher parameter system, plan health score, milestone-aware check-ins, greyscale+colorful UI, 5 build phases. First complex Journey Engine consumer."
+    category: projects
+    last_verified: "2026-04-07"
+    referenced_from: ["CLAUDE.md AI Brain table"]
+
+  - path: docs/projects/openstudio.md
+    title: "Project: Open Studio v2 — Journey-Based Self-Directed Learning"
+    purpose: "Open Studio v2 feature specification"
+    category: projects
+    last_verified: "2026-04-03"
+
+  - path: docs/projects/3delements.md
+    title: "Project 3D Elements — Visual & Gamification Layer"
+    purpose: "7 capability layers (R3F scenes, asset library, tutorial, narrative/quests, gallery/multiplayer, gamification, sound), Dimensions3 integration, asset library schema, 10 open questions. Rendering: 5 presets × 5 containers, shared .glb pipeline."
+    category: projects
+    last_verified: "2026-04-07"
+    referenced_from: ["CLAUDE.md AI Brain table"]
+
+  - path: docs/StudioLoom-3D-Render-Modes-Plan.docx
+    title: "StudioLoom 3D Render Modes Plan"
+    purpose: "5 render presets (Showcase/Designville/Workshop/Tutorial/Print) with stack details, asset needs, camera behaviour. Architecture insight: one .glb library, five presets on top. Suggested build order."
+    category: projects
+    last_verified: "2026-04-07"
+    referenced_from: ["docs/projects/3delements.md Section 7A"]
+
+  - path: 3delements/discovery-rooms-prototype.html
+    title: "Discovery Rooms Prototype v1 — Floating Platforms (rejected)"
+    purpose: "Raw Three.js prototype with floating platform approach. Rejected — felt like space not real locations. Kept as lighting/particle code reference."
+    category: prototypes
+    last_verified: "2026-04-07"
+
+  - path: 3delements/discovery-rooms-v2.html
+    title: "Discovery Rooms v2 — Grounded Room Templates (approved direction)"
+    purpose: "4 room templates (IndoorRoom, Clearing, Overlook, Passage) with Kenney GLB props, 3-point lighting, fog, emissive accents, particles. Approved design direction."
+    category: prototypes
+    last_verified: "2026-04-07"
+
+  - path: 3delements/discovery-rooms-prototype.jsx
+    title: "Discovery Rooms React Component (v1)"
+    purpose: "React component version of v1 prototype. For production R3F integration reference."
+    category: prototypes
+    last_verified: "2026-04-07"
+
+  - path: docs/projects/studentwork.md
+    title: "Student Work Pipeline (OS Pipeline 2)"
+    purpose: "5-stage pipeline (intake → processing → enrichment → versioning → routing) for photo/video/audio/sketch submissions. Claude Vision + Sharp hybrid. OS-aligned schema (work_items/work_versions/work_assets). ~19 days, depends on Dimensions3."
+    category: projects
+    last_verified: "2026-04-07"
+    referenced_from: ["CLAUDE.md AI Brain table"]
+
+  - path: docs/specs/journey-engine-spec.md
+    title: "Journey Engine — Architecture Specification"
+    purpose: "Modular interactive experiences — Journey Blocks (14 types), composed Journeys with conditional branching, character/scene neutrality, learning_profile as data hub, 4 rendering modes, R3F scenes, admin node-graph editor, 5 build phases (~17-22 days)"
+    category: projects
+    last_verified: "2026-04-07"
+    referenced_from: ["CLAUDE.md AI Brain table"]
+
+  - path: docs/projects/new-metrics.md
+    title: "Project: New Metrics (Melbourne Metrics)"
+    purpose: "Melbourne Metrics competency assessment system with pop art visual identity"
+    category: projects
+    last_verified: "2026-03-29"
+
+  - path: docs/projects/badges.md
+    title: "Project: Badges — Safety Test Improvements & Skills Badges"
+    purpose: "Safety and Skills badge system"
+    category: projects
+    last_verified: "2026-03-29"
+
+  - path: docs/projects/toolkit.md
+    title: "Project: Toolkit"
+    purpose: "Design Thinking Toolkit (27 interactive + 21 catalog tools)"
+    category: projects
+    last_verified: "2026-03-29"
+
+  - path: docs/projects/grading.md
+    title: "Project: Grading System Overhaul"
+    purpose: "Grading and assessment system redesign"
+    category: projects
+    last_verified: "2026-03-31"
+
+  - path: docs/projects/lessons.md
+    title: "Project: Student Lesson Content UX"
+    purpose: "Student lesson experience design"
+    category: projects
+    last_verified: "2026-03-31"
+
+  - path: docs/projects/uniteditor.md
+    title: "Project: Unit Editor"
+    purpose: "Unit content editor (Phase 0.5 lesson editor)"
+    category: projects
+    last_verified: "2026-03-29"
+
+  - path: docs/projects/pm-tools.md
+    title: "Project: PM Tools"
+    purpose: "Project management and planning tools"
+    category: projects
+    last_verified: "2026-03-31"
+
+  - path: docs/projects/miniskills.md
+    title: "Project: MiniSkills"
+    purpose: "Bite-sized skill units (1-3 lessons) with completion badges. Natural extension of Safety Badge + unit architecture. Post-Dimensions3 build."
+    category: projects
+    last_verified: "2026-04-03"
+
+  - path: docs/projects/mypflex.md
+    title: "Project: MYPflex — Framework-Flexible Assessment & Grading"
+    purpose: "Framework-flexible assessment system"
+    category: projects
+    last_verified: "2026-03-29"
+
+  - path: docs/projects/studioloom-designer-mentor-spec.md
+    title: "StudioLoom Designer Mentor Spec"
+    purpose: "Designer Mentor System Spec — 20 real designers as AI mentors with matching, personas, themes, 3D characters"
+    category: projects
+    last_verified: "2026-04-06"
+
+  - path: docs/projects/studioloom-mentor-model-prompts.md
+    title: "Designer Mentor System Prompts"
+    purpose: "3D model and personality prompts for 20 designer mentors"
+    category: projects
+    last_verified: "2026-04-06"
+
+  - path: docs/projects/studioloom-work-capture-spec.md
+    title: "Work Capture Pipeline Spec"
+    purpose: "Composable WorkCapture component for AI mentor feedback on student photos"
+    category: projects
+    last_verified: "2026-04-06"
+
+  - path: docs/projects/ai-safety.md
+    title: "AI Safety & Content Guardrails"
+    purpose: "AI safety and content filtering system"
+    category: projects
+    last_verified: "2026-04-07"
+
+  - path: docs/projects/bug-button.md
+    title: "Bug Button — In-App Issue Reporting"
+    purpose: "Bug reporting button and workflow"
+    category: projects
+    last_verified: "2026-04-04"
+
+  - path: docs/projects/graphics.md
+    title: "Graphics — Another World-Style Discovery Engine Animations"
+    purpose: "Animated graphics for Discovery Engine using Another World-style visuals"
+    category: projects
+    last_verified: "2026-03-30"
+
+  - path: docs/projects/howtovideos.md
+    title: "Project: How-To Videos & Teaching Resources"
+    purpose: "Video tutorial and teaching resource library"
+    category: projects
+    last_verified: "2026-04-04"
+
+  - path: docs/projects/i18n.md
+    title: "Multi-Language Support (i18n)"
+    purpose: "Internationalization and multi-language support strategy"
+    category: projects
+    last_verified: "2026-04-04"
+
+  - path: docs/projects/inclusive.md
+    title: "Project: Inclusive"
+    purpose: "Inclusivity and accessibility features"
+    category: projects
+    last_verified: "2026-03-29"
+
+  - path: docs/projects/monetisation.md
+    title: "Project: Monetisation & Tier Management"
+    purpose: "Pricing tiers and monetization strategy"
+    category: projects
+    last_verified: "2026-04-03"
+
+  - path: docs/projects/monitored-textarea.md
+    title: "Project: MonitoredTextarea Pipeline"
+    purpose: "Academic integrity monitoring through textarea tracking"
+    category: projects
+    last_verified: "2026-03-30"
+
+  - path: docs/projects/parent-updates.md
+    title: "Parent Weekly Updates"
+    purpose: "Parent communication and weekly update system"
+    category: projects
+    last_verified: "2026-04-04"
+
+  - path: docs/projects/realclient.md
+    title: "Project: Real Client"
+    purpose: "Real-world client deployment and feedback"
+    category: projects
+    last_verified: "2026-04-03"
+
+  - path: docs/projects/school-readiness.md
+    title: "Project: School Readiness"
+    purpose: "School deployment and readiness checklist"
+    category: projects
+    last_verified: "2026-04-04"
+
+  - path: docs/projects/self-help-library.md
+    title: "Project: Self-Help Library"
+    purpose: "Teacher self-help and knowledge base system"
+    category: projects
+    last_verified: "2026-04-04"
+
+  - path: docs/projects/studentchoice.md
+    title: "Project: Student Choice"
+    purpose: "Student agency and choice in learning pathways"
+    category: projects
+    last_verified: "2026-04-01"
+
+  - path: docs/projects/qualitycode.md
+    title: "Project: Quality Code"
+    purpose: "Code quality, testing, and refactoring initiatives"
+    category: projects
+    last_verified: "2026-03-28"
+
+  - path: docs/projects/platform-architecture-dataflow.html
+    title: "Platform Architecture — Dataflow Visualization"
+    purpose: "Interactive dataflow diagram of platform architecture"
+    category: projects
+    last_verified: "2026-04-02"
+
+  # --- SPECS (Feature Specifications) ---
+  - path: docs/specs/discovery-engine-build-plan.md
+    title: "Discovery Engine — Build Plan & Content Bible"
+    purpose: "MASTER BUILD PLAN (2,441 lines). 12 parts: build order, content bible (all pools), image strategy, state machine, routes, gap fills, group work spec, dead-end audit (19 specs), Mode 1 vs 2 template doors (36 total), people icon scoring, teacher control panel, station weights. Contains ALL Kit dialogue, ALL interaction content, ALL scoring algorithms."
+    category: specs
+    last_verified: "2026-04-07"
+    referenced_from: ["CLAUDE.md AI Brain table"]
+
+  - path: docs/specs/discovery-engine-spec.md
+    title: "Discovery Engine — Design Specification"
+    purpose: "Data model: DiscoveryProfile interface, 6 knowledge domains, station types, database schema"
+    category: specs
+    last_verified: "2026-04-07"
+    referenced_from: ["CLAUDE.md AI Brain table"]
+
+  - path: docs/specs/discovery-engine-ai-integration.md
+    title: "Discovery Engine — AI Integration Touchpoint Map"
+    purpose: "AI touchpoint map: which stations call which models, prompt templates, fallback chains, async pre-generation, cost budget"
+    category: specs
+    last_verified: "2026-04-07"
+    referenced_from: ["CLAUDE.md AI Brain table"]
+
+  - path: docs/specs/discovery-engine-ux-design.md
+    title: "Discovery Engine — UX & Visual Design Specification"
+    purpose: "Visual design: backgrounds, Kit expressions/animations, transitions, color palettes, interaction patterns, responsive"
+    category: specs
+    last_verified: "2026-04-07"
+    referenced_from: ["CLAUDE.md AI Brain table"]
+
+  - path: docs/specs/discovery-engine-image-prompts.md
+    title: "Discovery Engine — Image Generation Prompts"
+    purpose: "DALL-E and other image generation prompts for Discovery Engine assets"
+    category: specs
+    last_verified: "2026-03-26"
+
+  - path: docs/specs/discovery-engine-research-audit.md
+    title: "Discovery Engine — Research Audit & Recommendations"
+    purpose: "Research findings and recommendations for Discovery Engine design"
+    category: specs
+    last_verified: "2026-03-25"
+
+  - path: docs/specs/discovery-engine-v2.md
+    title: "Discovery Engine v2 — Framework Mapping, Stealth Layer, Visualizations & Ongoing Journey"
+    purpose: "Version 2 enhancement with framework mapping and stealth student profiling"
+    category: specs
+    last_verified: "2026-03-25"
+
+  - path: docs/specs/discovery-engine-v3-intelligence.md
+    title: "Discovery Engine v3 — The AI Intelligence Layer"
+    purpose: "Version 3 with advanced AI profiling and adaptive flow"
+    category: specs
+    last_verified: "2026-03-26"
+
+  - path: docs/specs/discovery-intelligence-layer-spec.md
+    title: "Discovery Intelligence Layer — Architecture Spec"
+    purpose: "Architecture for Discovery as student profiling backbone"
+    category: specs
+    last_verified: "2026-03-26"
+
+  - path: docs/specs/neutral-criterion-taxonomy.md
+    title: "Neutral Criterion Taxonomy"
+    purpose: "8 universal assessment categories (researching, analysing, designing, creating, evaluating, reflecting, communicating, planning) with bidirectional mapping for 8 frameworks (MYP, GCSE, A-Level, IGCSE, ACARA, PLTW, NESA, Victorian) + 4 non-design types. FrameworkAdapter API contract."
+    category: specs
+    last_verified: "2026-04-07"
+    referenced_from: ["CLAUDE.md AI Brain table"]
+
+  - path: docs/specs/format-profile-definitions.md
+    title: "FormatProfile Definitions"
+    purpose: "Concrete FormatProfile objects for Design, Service, PP, Inquiry with all pipeline extension points. Migration from UnitTypeDefinition → FormatProfile. Validation rules."
+    category: specs
+    last_verified: "2026-04-07"
+    referenced_from: ["CLAUDE.md AI Brain table"]
+
+  - path: docs/specs/block-library-bootstrap-strategy.md
+    title: "Block Library Bootstrap Strategy"
+    purpose: "Selective backfill (~200-400 blocks), Teaching Moves → seed blocks (52 at 65%), initial efficacy tiers, 0.92 cosine dedup, knowledge_uploads → content_items migration, success criteria"
+    category: specs
+    last_verified: "2026-04-07"
+    referenced_from: ["CLAUDE.md AI Brain table"]
+
+  - path: docs/specs/lesson-layer-architecture.md
+    title: "Lesson Layer Architecture"
+    purpose: "Layer registry, Lesson Pulse algorithm (§13), 3-dimension scoring (CR/SA/TC), surgical repair, cross-lesson balancing, display plan, co-pilot integration"
+    category: specs
+    last_verified: "2026-04-07"
+    referenced_from: ["CLAUDE.md AI Brain table"]
+
+  - path: docs/specs/lesson-editor-phase-0.5.md
+    title: "Phase 0.5: Lesson Editor — Best Lesson Planning Experience in the World"
+    purpose: "Drag-and-drop lesson editor with 12 modular components, undo/redo, auto-save, activity reordering, AI field assistance"
+    category: specs
+    last_verified: "2026-03-25"
+
+  - path: docs/specs/unit-editing-navigation-spec.md
+    title: "Unit Editing, Versioning & Navigation — Feature Spec"
+    purpose: "Edit Mode Toggle (All Classes vs This Class Only), version history, Apply to All Classes button"
+    category: specs
+    last_verified: "2026-03-25"
+
+  - path: docs/specs/class-gallery-peer-review.md
+    title: "Class Gallery & Peer Review — Feature Spec"
+    purpose: "Gallery rounds, structured peer review (comment/PMI/Two Stars), portfolio snapshots, effort-gated feedback"
+    category: specs
+    last_verified: "2026-03-21"
+
+  - path: docs/specs/class-hub-spec.md
+    title: "Class Hub + Student Drawer — Spec"
+    purpose: "Tabbed class management: Overview, Progress, Grade, Safety, NM, Students, Open Studio tabs"
+    category: specs
+    last_verified: "2026-03-25"
+
+  - path: docs/specs/teaching-mode-quick-access.md
+    title: "Teaching Mode Quick-Access Toolbar — Feature Spec"
+    purpose: "Quick-edit slide-out panel, classroom tools (picker, timer, groups, noise meter)"
+    category: specs
+    last_verified: "2026-03-25"
+
+  - path: docs/specs/student-dashboard-spec.md
+    title: "Student Dashboard Redesign — My Design Journey"
+    purpose: "Multi-class card grid with subject detection, unit type icons, Open Studio cards, floating toolkit launcher"
+    category: specs
+    last_verified: "2026-03-20"
+
+  - path: docs/specs/timetable-scheduling-spec.md
+    title: "Timetable & Scheduling System"
+    purpose: "Cycle day engine, term assignment, schedule overrides, iCal import, lesson scheduling"
+    category: specs
+    last_verified: "2026-03-21"
+
+  - path: docs/specs/student-toolkit-access.md
+    title: "Student Toolkit Access — Feature Spec"
+    purpose: "Embedded vs Standalone modes, session persistence, version history, response storage"
+    category: specs
+    last_verified: "2026-03-18"
+
+  - path: docs/specs/student-gallery-api.md
+    title: "Student Gallery API Specification"
+    purpose: "Gallery submission and peer review API"
+    category: specs
+    last_verified: "2026-03-26"
+
+  - path: docs/specs/grading-assessment-ecosystem.md
+    title: "StudioLoom Grading & Assessment Ecosystem"
+    purpose: "Grading rubrics, evidence panels, integrity reports, criterion-based assessment"
+    category: specs
+    last_verified: "2026-03-24"
+
+  - path: docs/specs/new-metrics-integration.md
+    title: "New Metrics (Melbourne Metrics) Integration Spec"
+    purpose: "Melbourne Metrics competency assessment integration into lesson checkpoints"
+    category: specs
+    last_verified: "2026-03-20"
+
+  - path: docs/specs/nm-reporting-synthesis.md
+    title: "New Metrics Reporting — Full Synthesis & Build Plan"
+    purpose: "Melbourne Metrics reporting dashboard, competency progress tracking, visualizations"
+    category: specs
+    last_verified: "2026-03-28"
+
+  - path: docs/specs/unit-type-framework-architecture.md
+    title: "Unit Type Framework Architecture"
+    purpose: "4-dimension model (Unit Type × Programme × Curriculum × Standards) with framework-agnostic content"
+    category: specs
+    last_verified: "2026-03-27"
+
+  - path: docs/specs/wizard-lanes-spec.md
+    title: "Unit Builder Wizard — 3-Lane Spec"
+    purpose: "3-lane wizard (Express 3 clicks / Guided 5-7 steps / Architect 1 form) with data carry-forward"
+    category: specs
+    last_verified: "2026-03-27"
+
+  - path: docs/specs/unit-forking-spec.md
+    title: "Unit Forking Spec"
+    purpose: "Copy-on-write per-class content editing with inheritance chain resolution"
+    category: specs
+    last_verified: "2026-03-22"
+
+  - path: docs/specs/data-architecture-v2.md
+    title: "StudioLoom Data Architecture v2 — Full Entity Hierarchy"
+    purpose: "Complete data model with UDL checkpoints, activity categories, time weights, Dimensions metadata"
+    category: specs
+    last_verified: "2026-04-01"
+
+  - path: docs/specs/design-hardcoding-deep-audit.md
+    title: "Design-Specific Hardcoding — Deep Audit Report"
+    purpose: "Identifies all design-specific hardcoded values that need framework neutralization"
+    category: specs
+    last_verified: "2026-03-27"
+
+  - path: docs/specs/fan-menu-design-brief.md
+    title: "Fan Menu Design Brief — QuickToolFAB"
+    purpose: "Floating action button with phase pill stack and tool slide-out menu"
+    category: specs
+    last_verified: "2026-03-18"
+
+  - path: docs/specs/quest-journey-architecture.md
+    title: "Quest Journey System — Complete Technical Architecture"
+    purpose: "Technical architecture for quest-based student journey system"
+    category: specs
+    last_verified: "2026-03-25"
+
+  - path: docs/specs/quest-journey-vision.md
+    title: "Quest Journey System — Vision & Architecture"
+    purpose: "Vision and high-level design for quest journey system"
+    category: specs
+    last_verified: "2026-03-25"
+
+  - path: docs/specs/phase-d-ai-tool-suggestions-implementation.md
+    title: "Phase D: AI Design Assistant Tool Suggestions — Implementation Guide"
+    purpose: "Implementation of contextual AI tool suggestions in Design Assistant"
+    category: specs
+    last_verified: "2026-03-18"
+
+  - path: docs/specs/scamper-v2-spec.md
+    title: "SCAMPER v2 — Make the Thinking Visible"
+    purpose: "SCAMPER tool reference implementation for effort-gating patterns"
+    category: specs
+    last_verified: "2026-03-20"
+
+  - path: docs/specs/safety-and-skill-badges.md
+    title: "Safety & Skill Badges — Feature Spec"
+    purpose: "Safety test badges and skill progression badges"
+    category: specs
+    last_verified: "2026-03-21"
+
+  - path: docs/specs/safety-skills-upgrade-plan.md
+    title: "Safety & Skills System — World-Class Upgrade Plan"
+    purpose: "Comprehensive upgrade plan for safety and skills systems"
+    category: specs
+    last_verified: "2026-03-23"
+
+  - path: docs/specs/safety-training-materials.md
+    title: "Safety Training Materials — PRD"
+    purpose: "Product spec for safety training content and delivery"
+    category: specs
+    last_verified: "2026-03-22"
+
+  - path: docs/specs/service-learning-framework.md
+    title: "Service Learning Framework — StudioLoom Extension"
+    purpose: "Framework for Service learning unit type support"
+    category: specs
+    last_verified: "2026-03-25"
+
+  - path: docs/specs/unified-upload-architecture.md
+    title: "Unified Upload Architecture — Feature Spec"
+    purpose: "Architecture for document upload, analysis, and content extraction"
+    category: specs
+    last_verified: "2026-03-30"
+
+  - path: docs/specs/lesson-plan-converter.md
+    title: "Lesson Plan Converter — Feature Spec"
+    purpose: "Convert uploaded lesson plans into StudioLoom units and activity blocks"
+    category: specs
+    last_verified: "2026-03-25"
+
+  - path: docs/specs/unit-generation-phase1-plan.md
+    title: "Unit Generation Phase 1 Plan"
+    purpose: "Initial unit generation feature roadmap"
+    category: specs
+    last_verified: "2026-03-27"
+
+  - path: docs/specs/year-planner-spec.md
+    title: "Year Planner Spec"
+    purpose: "Teacher year planning calendar interface"
+    category: specs
+    last_verified: "2026-03-24"
+
+  - path: docs/specs/system-architecture.md
+    title: "LoomOS — StudioLoom System Architecture"
+    purpose: "System architecture overview"
+    category: specs
+    last_verified: "2026-04-05"
+
+  - path: docs/specs/StudioLoom-Project-Direction.docx
+    title: "StudioLoom Project Direction"
+    purpose: "Strategic project direction document"
+    category: specs
+    last_verified: "2026-03-30"
+
+  # --- RESEARCH (Research Papers & Data) ---
+  - path: docs/research/student-influence-factors.md
+    title: "Student Learning Influence Factors: A Hattie-Style Effect Size Synthesis"
+    purpose: "24 cultural, linguistic, psychological, environmental factors with effect sizes. Top 10 measurable factors, interaction effects, measurement blueprint, implementation roadmap. Foundation for Student Learning Profile and Discovery Engine profiling."
+    category: research
+    last_verified: "2026-04-07"
+    referenced_from: ["CLAUDE.md AI Brain table"]
+
+  - path: docs/research/design-thinking-tools-research.md
+    title: "Design Thinking Tools: World's Best Examples & UX Research"
+    purpose: "Research on design thinking tools from IDEO, d.school, and global examples"
+    category: research
+    last_verified: "2026-03-29"
+
+  - path: docs/research/research-synthesis-lesson-timing.md
+    title: "Real-World Design & Technology Lesson Timing Research"
+    purpose: "Research synthesis from 25+ sources on lesson timing in design education"
+    category: research
+    last_verified: "2026-03-19"
+
+  - path: docs/research/lesson-timing-data-tables.md
+    title: "Lesson Timing Data Tables"
+    purpose: "Data tables from lesson timing research with activity durations, phase times"
+    category: research
+    last_verified: "2026-03-19"
+
+  - path: docs/research/QUICK-REFERENCE-TIMING-CARD.md
+    title: "Design Lesson Timing: Quick Reference Card"
+    purpose: "Quick reference for lesson timing norms and formulas"
+    category: research
+    last_verified: "2026-03-19"
+
+  - path: docs/research/timing-research-to-questerra-integration.md
+    title: "Timing Research → Questerra Integration Roadmap"
+    purpose: "Roadmap for integrating timing research into Questerra"
+    category: research
+    last_verified: "2026-03-19"
+
+  - path: docs/research/toolkit-expansion-research.md
+    title: "Toolkit Expansion Categories: Research & UX Patterns"
+    purpose: "Research on design toolkit categories and UX patterns"
+    category: research
+    last_verified: "2026-03-29"
+
+  # --- TESTING (QA & Test Checklists) ---
+  - path: docs/testing/testing-checklist-19-mar-2026.md
+    title: "Testing Checklist — 19 March 2026 Session"
+    purpose: "QA checklist for toolkit extraction and safety badges"
+    category: testing
+    last_verified: "2026-04-05"
+
+  - path: docs/testing/testing-checklist-21-mar-2026-session2.md
+    title: "Testing Checklist — 21 March 2026 (Session 2)"
+    purpose: "QA checklist for Open Studio and timing validation"
+    category: testing
+    last_verified: "2026-04-05"
+
+  - path: docs/testing/timing-engine-test-checklist.md
+    title: "Lesson Timing Engine — Test Checklist"
+    purpose: "QA checklist for lesson timing engine and validation"
+    category: testing
+    last_verified: "2026-04-05"
+
+  - path: docs/testing/nm-test-checklist.md
+    title: "New Metrics (Melbourne Metrics) — Test Checklist"
+    purpose: "QA checklist for Melbourne Metrics system"
+    category: testing
+    last_verified: "2026-04-05"
+
+  - path: docs/testing/open-studio-test-checklist.md
+    title: "Open Studio — Test Checklist"
+    purpose: "QA checklist for Open Studio feature"
+    category: testing
+    last_verified: "2026-04-05"
+
+  - path: docs/testing/toolkit-testing-quick-start.md
+    title: "Toolkit Tools Testing — Quick Start Guide"
+    purpose: "Quick guide for testing toolkit interactive tools"
+    category: testing
+    last_verified: "2026-04-05"
+
+  - path: docs/testing/testing-dashboard.html
+    title: "Testing Dashboard"
+    purpose: "Interactive dashboard for test tracking"
+    category: testing
+    last_verified: "2026-04-05"
+
+  - path: docs/testing/test-coverage-map.md
+    title: "Test Coverage Map"
+    purpose: "Maps all 17 test files with assertion counts, Dimensions3 criticality ratings, and critical gap inventory"
+    category: testing
+    last_verified: "2026-04-07"
+
+  # --- OPEN STUDIO (Open Studio Feature Docs) ---
+  - path: "docs/open studio/open-studio-spec.md"
+    title: "Open Studio — Feature Spec for StudioLoom"
+    purpose: "Open Studio feature spec: unlock criteria, AI mentor behaviour (guided vs studio critic), drift detection, teacher dashboard, implementation notes"
+    category: open-studio
+    last_verified: "2026-04-07"
+    referenced_from: ["CLAUDE.md AI Brain table"]
+
+  - path: "docs/open studio/open-studio-experience-design.md"
+    title: "Open Studio — Experience Design"
+    purpose: "4-phase arc (Discovery → Planning → Working → Sharing), AI-guided discovery, backward planning, evidence collection, health score, resource library, archetypes, quest UX. CANONICAL guideline for Open Studio feel."
+    category: open-studio
+    last_verified: "2026-04-07"
+    referenced_from: ["CLAUDE.md AI Brain table"]
+
+  - path: "docs/open studio/open-studio-feature-spec.md"
+    title: "Open Studio — Feature Spec for StudioLoom"
+    purpose: "Feature specification for Open Studio (duplicate of open-studio-spec.md)"
+    category: open-studio
+    last_verified: "2026-03-19"
+
+  - path: "docs/open studio/open-studio-design.md"
+    title: "Open Studio — Design Spec"
+    purpose: "Design specification for Open Studio UI"
+    category: open-studio
+    last_verified: "2026-03-19"
+
+  - path: "docs/open studio/open-studio-implementation-plan.md"
+    title: "Open Studio — Implementation Plan"
+    purpose: "Implementation roadmap for Open Studio"
+    category: open-studio
+    last_verified: "2026-03-19"
+
+  - path: "docs/open studio/discovery-comic-strip-spec.md"
+    title: "Open Studio Discovery — Comic Strip Narrative Spec"
+    purpose: "Comic strip narrative specification for Discovery Engine"
+    category: open-studio
+    last_verified: "2026-03-19"
+
+  - path: "docs/open studio/discovery-mentor-system.md"
+    title: "Open Studio Discovery — Choose Your Mentor"
+    purpose: "Mentor selection system for Discovery Engine (Kit, Sage, Spark)"
+    category: open-studio
+    last_verified: "2026-03-19"
+
+  - path: "docs/open studio/discovery-voiceover-script.md"
+    title: "Open Studio Discovery — Voiceover Script"
+    purpose: "Voiceover and narration script for Discovery Engine panels"
+    category: open-studio
+    last_verified: "2026-03-19"
+
+  # --- COMPONENTS (Component Documentation) ---
+  - path: docs/components/TEACHING-DNA.md
+    title: "TeachingDNA Component"
+    purpose: "TeachingDNA system for modeling teacher personality and style in AI"
+    category: components
+    last_verified: "2026-03-19"
+
+  - path: docs/components/TEACHING-DNA-QUICK-REF.md
+    title: "TeachingDNA — Quick Reference Card"
+    purpose: "Quick reference for TeachingDNA components and usage"
+    category: components
+    last_verified: "2026-03-19"
+
+  - path: docs/components/teaching-dna-integration.md
+    title: "TeachingDNA Integration Guide"
+    purpose: "Guide for integrating TeachingDNA into AI systems"
+    category: components
+    last_verified: "2026-03-19"
+
+  # --- DESIGN (Design Patterns & Guidelines) ---
+  - path: docs/design/ai-lesson-analysis.md
+    title: "AI-Powered Lesson Intelligence System"
+    purpose: "System for analyzing lessons and extracting pedagogical intelligence"
+    category: design
+    last_verified: "2026-03-10"
+
+  - path: docs/design/hits-gap-analysis.md
+    title: "High Impact Teaching Strategies — Gap Analysis for Design"
+    purpose: "Gap analysis mapping HITS to design education context"
+    category: design
+    last_verified: "2026-03-13"
+
+  # --- AUTOMATION (Automation & Handoff) ---
+  - path: docs/automation/automation-build-plan.md
+    title: "StudioLoom Automation Build Plan"
+    purpose: "Plan for building automation — Sprints 1-2 COMPLETE (CI, nightly, health, Sentry). Sprints 3-4 pending."
+    category: automation
+    last_verified: "2026-04-07"
+
+  - path: .github/workflows/ci.yml
+    title: "CI Workflow"
+    purpose: "GitHub Actions: lint + typecheck + build + test + dashboard sync check on push/PR to main"
+    category: automation
+    last_verified: "2026-04-07"
+
+  - path: .github/workflows/nightly.yml
+    title: "Nightly Audit Workflow"
+    purpose: "GitHub Actions: dep audit + typecheck + build + test + dashboard sync + doc freshness + WIRING health at 2am Nanjing"
+    category: automation
+    last_verified: "2026-04-07"
+
+  - path: src/app/api/health/route.ts
+    title: "Health Endpoint"
+    purpose: "Public /api/health endpoint — pings Supabase, returns ok/db/responseTime for uptime monitoring"
+    category: automation
+    last_verified: "2026-04-07"
+
+  - path: docs/automation/studioloom-automation-handoff.md
+    title: "StudioLoom Automation & Bug Squash — Handoff Doc"
+    purpose: "Handoff document for automation and bug fix work"
+    category: automation
+    last_verified: "2026-04-07"
+
+  - path: scripts/check-dashboard-sync.ts
+    title: "Dashboard Sync Checker"
+    purpose: "Validates ALL-PROJECTS.md and dashboard.html PROJECTS array are in sync. Fuzzy name matching, exit code 1 on drift."
+    category: automation
+    last_verified: "2026-04-07"
+
+  - path: scripts/check-doc-freshness.ts
+    title: "Doc Freshness Checker"
+    purpose: "Validates doc-manifest.yaml — reports broken paths, unknown dates, stale (>30d). --fix sets unknown dates from file mtime."
+    category: automation
+    last_verified: "2026-04-07"
+
+  - path: scripts/check-wiring-health.py
+    title: "WIRING Health Checker"
+    purpose: "Validates WIRING.yaml — parseable YAML, no dangling refs, no orphans. --trace shows full impact cascade for a system."
+    category: automation
+    last_verified: "2026-04-07"
+
+  - path: scripts/check-session-changes.sh
+    title: "Session Changes Checker"
+    purpose: "Counts modified/staged/untracked files via git. Outputs SAVEME RECOMMENDED if thresholds met."
+    category: automation
+    last_verified: "2026-04-07"
+
+  # --- AUDITS (Audit Reports) ---
+  - path: docs/audits/safety-pace-timetable-e2e-audit-2026-03-24.md
+    title: "StudioLoom E2E Audit Report — Safety Badges, Pace Feedback, Timetable"
+    purpose: "End-to-end audit of safety badges, pace feedback, and timetabling features"
+    category: audits
+    last_verified: "2026-03-24"
+
+  - path: docs/generation-pipeline-audit.html
+    title: "Generation Pipeline Audit"
+    purpose: "Interactive audit of generation pipeline"
+    category: audits
+    last_verified: "2026-04-01"
+
+  # --- IDEAS (Brainstorm & Backlog) ---
+  - path: docs/ideas/README.md
+    title: "Matt's Idea Tracker"
+    purpose: "Index of idea tracking documents"
+    category: ideas
+    last_verified: "2026-03-17"
+
+  - path: docs/ideas/ranked-ideas.md
+    title: "Matt's Ranked Idea Tracker"
+    purpose: "Ideas ranked by priority and impact"
+    category: ideas
+    last_verified: "2026-03-17"
+
+  - path: docs/ideas/toolkit-interactive-tools-plan.md
+    title: "Interactive Toolkit Tools — Master Build Plan"
+    purpose: "Master plan for 27 interactive toolkit tools with interaction shapes and component reuse"
+    category: ideas
+    last_verified: "2026-03-17"
+
+  - path: docs/ideas/toolkit-design-spec.md
+    title: "Design Thinking Toolkit — Design Spec"
+    purpose: "Comprehensive design spec for the Design Thinking Toolkit"
+    category: ideas
+    last_verified: "2026-03-17"
+
+  - path: docs/ideas/design-toolkit-browser.html
+    title: "Design Toolkit Browser"
+    purpose: "Interactive HTML browser of all toolkit tools"
+    category: ideas
+    last_verified: "2026-03-17"
+
+  - path: docs/ideas/toolkit-v2.html
+    title: "Toolkit v2 Prototype"
+    purpose: "HTML prototype for toolkit v2 redesign"
+    category: ideas
+    last_verified: "2026-03-17"
+
+  - path: docs/ideas/unit-card-redesign-mockup.html
+    title: "Unit Card Redesign Mockup"
+    purpose: "HTML mockup of unit card redesign"
+    category: ideas
+    last_verified: "2026-03-27"
+
+  - path: docs/ideas/trade-intelligence-map.html
+    title: "Trade Intelligence Map"
+    purpose: "Interactive map of design trade skills and knowledge"
+    category: ideas
+    last_verified: "2026-03-17"
+
+  # --- PROTOTYPES (UI Prototypes) ---
+  - path: docs/prototypes/toolkit-redesign-v3.html
+    title: "Toolkit Redesign v3"
+    purpose: "HTML prototype of toolkit redesign iteration 3"
+    category: prototypes
+    last_verified: "2026-03-28"
+
+  - path: docs/prototypes/toolkit-redesign-v4.html
+    title: "Toolkit Redesign v4"
+    purpose: "HTML prototype of toolkit redesign iteration 4"
+    category: prototypes
+    last_verified: "2026-03-29"
+
+  - path: docs/prototypes/toolkit-redesign-v5.html
+    title: "Toolkit Redesign v5"
+    purpose: "HTML prototype of toolkit redesign iteration 5"
+    category: prototypes
+    last_verified: "2026-03-29"
+
+  - path: docs/prototypes/toolkit-filter-option-a.html
+    title: "Toolkit Filter Option A"
+    purpose: "HTML prototype of toolkit filter UI option A"
+    category: prototypes
+    last_verified: "2026-03-29"
+
+  - path: docs/prototypes/toolkit-filter-option-b.html
+    title: "Toolkit Filter Option B"
+    purpose: "HTML prototype of toolkit filter UI option B"
+    category: prototypes
+    last_verified: "2026-03-29"
+
+  - path: docs/prototypes/toolkit-filter-option-c.html
+    title: "Toolkit Filter Option C"
+    purpose: "HTML prototype of toolkit filter UI option C"
+    category: prototypes
+    last_verified: "2026-03-29"
+
+  - path: docs/prototypes/toolkit-filter-option-d.html
+    title: "Toolkit Filter Option D"
+    purpose: "HTML prototype of toolkit filter UI option D"
+    category: prototypes
+    last_verified: "2026-03-29"
+
+  - path: docs/prototypes/own-time-prototype.html
+    title: "Own Time Prototype"
+    purpose: "HTML prototype of Own Time feature (superseded by Open Studio)"
+    category: prototypes
+    last_verified: "2026-03-19"
+
+  - path: docs/prototypes/own-time-live.html
+    title: "Own Time Live Prototype"
+    purpose: "Live version of Own Time prototype"
+    category: prototypes
+    last_verified: "2026-03-19"
+
+  - path: docs/prototypes/nm-results-mockups.html
+    title: "New Metrics Results Mockups"
+    purpose: "HTML mockups of New Metrics reporting interface"
+    category: prototypes
+    last_verified: "2026-03-31"
+
+  - path: docs/prototypes/another-world-transitions.html
+    title: "Another World-Style Transitions"
+    purpose: "HTML prototype of Another World-style animation transitions for Discovery"
+    category: prototypes
+    last_verified: "2026-03-28"
+
+  - path: docs/prototypes/OPTION-A-NOTES.md
+    title: "Option A Design Notes"
+    purpose: "Design notes and analysis for Option A UI"
+    category: prototypes
+    last_verified: "2026-03-29"
+
+  # --- SHOWCASE (Showcase & Interactive Demos) ---
+  - path: docs/showcase/discovery-intelligence-showcase.html
+    title: "Discovery Intelligence Showcase"
+    purpose: "Interactive showcase of Discovery Intelligence system"
+    category: prototypes
+    last_verified: "2026-03-26"
+
+  # --- MARKETING (Marketing & Communications) ---
+  - path: docs/marketing/landing-page-ideas.md
+    title: "Landing Page Ideas"
+    purpose: "Brainstorm and concepts for marketing landing page"
+    category: marketing
+    last_verified: "2026-03-10"
+
+  # --- SAFETY (Safety-Specific Documentation) ---
+  - path: "docs/safety/TAS Workshop Safety Contract.docx"
+    title: "TAS Workshop Safety Contract"
+    purpose: "Workshop safety contract template from TAS"
+    category: safety
+    last_verified: "2026-03-19"
+
+  # --- ARCHIVE (Old/Superseded Documentation) ---
+  - path: docs/archive/idea-tracker-2026-03.md
+    title: "Idea Tracker — March 2026"
+    purpose: "Archived idea tracker from March 2026"
+    category: archive
+    last_verified: "2026-04-05"
+
+  - path: docs/archive/superseded/own-time-concept.md
+    title: "Own Time Concept"
+    purpose: "SUPERSEDED by Open Studio. Original concept document."
+    category: archive
+    last_verified: "2026-04-05"
+
+  - path: docs/archive/superseded/engine-overhaul-plan.md
+    title: "Engine Overhaul Plan"
+    purpose: "SUPERSEDED. Old generation engine redesign plan."
+    category: archive
+    last_verified: "2026-04-05"
+
+  - path: docs/archive/superseded/ai-reasoning-status.md
+    title: "AI Reasoning Status"
+    purpose: "SUPERSEDED. Old AI reasoning system status."
+    category: archive
+    last_verified: "2026-04-05"
+
+  - path: docs/archive/superseded/ai-reasoning-summary.md
+    title: "AI Reasoning Summary"
+    purpose: "SUPERSEDED. Old AI reasoning system summary."
+    category: archive
+    last_verified: "2026-04-05"
+
+  - path: docs/archive/superseded/phase-c-quick-reference.md
+    title: "Phase C Quick Reference"
+    purpose: "SUPERSEDED. Old Phase C quick reference."
+    category: archive
+    last_verified: "2026-04-05"
+
+  - path: docs/archive/superseded/priority-todo.md
+    title: "Priority Todo"
+    purpose: "SUPERSEDED. Old priority todo list."
+    category: archive
+    last_verified: "2026-04-05"
+
+  - path: docs/archive/superseded/gemini-activity-cards-prompt.md
+    title: "Gemini Activity Cards Prompt"
+    purpose: "SUPERSEDED. Old Gemini integration prompt."
+    category: archive
+    last_verified: "2026-04-05"
+
+  - path: docs/archive/toolkit-audit-19mar.md
+    title: "Toolkit Audit — 19 March 2026"
+    purpose: "Archived audit of toolkit from 19 March"
+    category: archive
+    last_verified: "2026-04-05"
+
+  - path: docs/archive/session-reports/PHASE-A-BUILD-SUMMARY.md
+    title: "Phase A Build Summary"
+    purpose: "Summary of Phase A build work"
+    category: archive
+    last_verified: "2026-04-05"
+
+  - path: docs/archive/session-reports/LESSON-EDITOR-BUILD-NOTES.md
+    title: "Lesson Editor Build Notes"
+    purpose: "Build notes for Phase 0.5 lesson editor"
+    category: archive
+    last_verified: "2026-04-05"
+
+  - path: docs/archive/session-reports/current-status-27-mar-2026.md
+    title: "Current Status — 27 March 2026"
+    purpose: "Project status snapshot from 27 March"
+    category: archive
+    last_verified: "2026-04-05"
+
+  - path: docs/archive/session-reports/safety-badge-path-deployment.md
+    title: "Safety Badge Path Deployment"
+    purpose: "Deployment report for safety badge path feature"
+    category: archive
+    last_verified: "2026-04-05"
+
+  - path: docs/archive/session-reports/test-report-19-mar-2026.md
+    title: "Test Report — 19 March 2026"
+    purpose: "QA test report from 19 March"
+    category: archive
+    last_verified: "2026-04-05"
+
+  - path: docs/archive/session-reports/toolkit-extraction-batch2-completion.md
+    title: "Toolkit Extraction Batch 2 Completion"
+    purpose: "Completion report for toolkit extraction batch 2"
+    category: archive
+    last_verified: "2026-04-05"
+
+  - path: docs/archive/session-reports/toolkit-extraction-completion.md
+    title: "Toolkit Extraction Completion"
+    purpose: "Completion report for toolkit extraction"
+    category: archive
+    last_verified: "2026-04-05"
+
+  - path: docs/archive/session-reports/toolkit-phase-c-completion.md
+    title: "Toolkit Phase C Completion"
+    purpose: "Completion report for toolkit Phase C"
+    category: archive
+    last_verified: "2026-04-05"
+
+  - path: docs/archive/session-reports/toolkit-phase-c-testing.md
+    title: "Toolkit Phase C Testing"
+    purpose: "Test report for toolkit Phase C"
+    category: archive
+    last_verified: "2026-04-05"
+
+  - path: docs/archive/session-reports/toolkit-session-layer-completion.md
+    title: "Toolkit Session Layer Completion"
+    purpose: "Completion report for toolkit session layer"
+    category: archive
+    last_verified: "2026-04-05"
+
+  # --- LESSON PLANS (Example Lesson Documents) ---
+  - path: "docs/lesson plans/Product Design_Unit Plan_Biomimicry[95].docx"
+    title: "Product Design Unit Plan — Biomimicry"
+    purpose: "Example lesson plan for biomimicry product design unit"
+    category: root
+    last_verified: "2026-03-19"
+
+  - path: "docs/lesson plans/mburton packaging redesign unit.docx"
+    title: "Packaging Redesign Unit Plan"
+    purpose: "Example lesson plan for packaging redesign unit"
+    category: root
+    last_verified: "2026-03-19"
+
+# --- SUMMARY STATISTICS ---
+summary:
+  total_documents: 222
+  by_category:
+    root: 19
+    brain: 8
+    projects: 60
+    specs: 49
+    research: 7
+    testing: 7
+    ideas: 7
+    open-studio: 8
+    components: 3
+    design: 2
+    automation: 2
+    audits: 2
+    prototypes: 14
+    archive: 20
+    marketing: 1
+    safety: 1
+  last_updated: "2026-04-07"
+  referenced_in_claude_md: 17

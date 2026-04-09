@@ -1,5 +1,8 @@
 # StudioLoom Product Roadmap
 
+
+> **📋 Project tracking has moved to [`docs/projects/ALL-PROJECTS.md`](projects/ALL-PROJECTS.md).** This roadmap contains strategic design content — UX philosophy, phase specs, and feature details. For current status, priorities, and the ideas backlog, see ALL-PROJECTS.md or the [interactive dashboard](projects/dashboard.html).
+
 ## UX Philosophy (applies to everything we build)
 
 These principles come from competitive analysis of 14 best-in-class education and design platforms (Brilliant, Duolingo, Khan Academy, Scratch, Codecademy, Behance, Domestika, Skillshare, Canva Design School, IxDF, Dribbble, Notion, Google CS First). They are non-negotiable design constraints.
@@ -31,73 +34,9 @@ For 11-16 year olds: seeing peer work (inspiration), getting teacher/peer feedba
 
 ---
 
-## Current Sprint — March 2026
+## Current Sprint
 
-Based on the [full site audit](full-site-audit-2026-03-24.md): ~25% of code is built but untested end-to-end, ~15% is unwired. Priority: verify foundation before building new features.
-
-### TIER 0 — Unblock Everything (done or trivial)
-- ✅ Migration 037 APPLIED (school calendar + schedule_overrides)
-- ✅ Migration 025 APPLIED (ai_usage_log — usage tracking live)
-- ✅ Migration 050 APPLIED (studio preferences — mentor_id + theme_id)
-- ⬜ **Push 13+ pending commits** — blocked by school network proxy (HTTP 403). Includes: toolkit wiring, Discovery Engine (~9,500 lines), Class Gallery, student onboarding, playability fixes. Push when on non-proxied network.
-- ✅ Grading page partially tested (25 Mar) — exists at 1,311 lines. Class Hub inline grading works. Architecture finding: grades scoped to (student_id, unit_id, class_id).
-- ⬜ **Update this roadmap** — mark completed features, fix stale sections (this consolidation).
-
-### TIER 1 — Close the Gaps (~3-5 days, before building anything new)
-- ⬜ **Wire MonitoredTextarea into ResponseInput** (~2 hours) — prop `enableIntegrityMonitoring` exists but unused. Every submission after this has integrity data.
-- ✅ Wire useToolSession into all 24 toolkit tools — COMPLETE (26 Mar).
-- ⬜ **Content forking e2e test** (~half day) — 7-point checklist in CLAUDE.md.
-- ⬜ **NM e2e test** (~half day) — checklist at `docs/nm-test-checklist.md`.
-- ⬜ **Open Studio e2e test** (~half day) — checklist at `docs/open-studio-test-checklist.md`.
-- ⬜ **Safety badge e2e test** (~half day) — create → assign → student takes test → passes → accesses unit → teacher sees results.
-- ⬜ **Pace feedback test** — student completes lesson → taps pulse → saves → teacher sees aggregation.
-- ⬜ **Timetable/scheduling test** (~half day) — full checklist in CLAUDE.md.
-- ⬜ **Run backfill-activity-ids script** — required before drag-to-reorder is safe in production.
-
-### TIER 2 — Foundation for Content (~8-10 days)
-- ✅ Phase 0.5 inline editor COMPLETE (24 Mar) — 12 components, ~3,962 lines.
-- ⬜ **Phase 0.5 remaining:** debrief protocol library, prompt enrichment for generation quality, student preview mode.
-- ⬜ **Fix grading page if testing reveals issues** (forked content resolution, class_students junction).
-
-### TIER 3 — New Features (only after Tiers 0-2)
-- ✅ Class Gallery & Peer Review BUILT (26 Mar) — 24 files, ~4,200 lines.
-- ✅ Discovery Engine BUILT (26 Mar) — ~9,500 lines, 8 stations, all content.
-- ✅ Student Onboarding ("Studio Setup") BUILT (27 Mar) — 4-screen character creation, 3 mentors, 4 themes.
-- ✅ Landing Page Rebuild (27 Mar) — complete rewrite showcasing all features.
-- ✅ **Lesson Pulse Phase 1 + Teaching Moves Library COMPLETE (1-2 Apr)** — Algorithm (~550 lines, 47 tests), generation wiring (4 routes with try/catch), review UI (PulseGauges on JourneyLessonCard), Context Injection (3 wizard fields in all lanes), Teaching Moves Library (~65 curated moves, scored retrieval, wired into generation prompts + Pulse repair + cross-lesson balancing, 29 tests). Validated against 3 real lesson plans (Under Pressure 4.4, Packaging Redesign 4.8, Biomimicry 4.6). **Remaining:** Voice/Personality Layer, Sequencing Intuition, editor UI (gauge arcs), unit detail (per-lesson dots), dashboard (unit averages), Teaching Mode (flagged-student hints). Spec: `docs/specs/lesson-layer-architecture.md` §13. Plan: `docs/projects/lesson-pulse.md`.
-- ⬜ Lesson Plan Converter — spec at `docs/specs/lesson-plan-converter.md`.
-- ⬜ Year Planner & Curriculum Connection — spec at `docs/specs/year-planner-spec.md`.
-- ⬜ **Student Choice Units** — students pick their own unit from teacher-curated list. Depends on content library (Unified Upload Architecture first). Project doc: `docs/projects/studentchoice.md`. Phase 4+ feature.
-- ⬜ **Feedback Loop Closure (2 Apr analysis)** — 4 items to close 6/10→8/10 gap: (1) closed-loop activity tracking (Dimensions Phase 5), (2) cold-start velocity learning (Dimensions Phase 5), (3) real-time difficulty routing (Intelligence Profile Phase 3), (4) adaptive Discovery shortening (Discovery Intelligence Layer Phase B). All need real student data first — infrastructure collecting, loops don't exist yet.
-- ✅ **Project Dimensions Phases 0-4b COMPLETE (31 Mar)** — Migrations 057+058 APPLIED. RAG pipeline enrichment (Pass 2b fallback), generation schemas wired, knowledge card UI, client tracking hook, lesson editor UI (bloom/grouping/ai_rules/UDL tabs). Phase 5 (reports + velocity loop) remaining. Spec: `docs/specs/data-architecture-v2.md`. Plan: `docs/projects/dimensions.md`.
-
-### Tech Debt
-- ⬜ **Wizard refactor (refactor on contact)** — 10,900 LOC, 73 actions, 28 state fields. Split useWizardState into 4 focused hooks, unify input sources, add GenerationMode enum (~2-3 days). Do when next touching wizard state — not as standalone task. Decision: 2 Apr 2026.
-- ⬜ API deduplication (~2,890 wasted lines from 17× copied `callHaiku()`)
-
-### Wiring Sprint (from site audit — ~2-3 days)
-- ⬜ Wire MonitoredTextarea into submissions (see Tier 1)
-- ⬜ Add integrity column to teacher grading view
-- ⬜ Connect Discovery Engine profiles to Design Assistant system prompt (~2-3 days)
-
-### E2E Testing Sprint (from site audit — ~2-3 days)
-- Run all existing test checklists: forking, NM, Open Studio, safety badges, pace feedback, timetable, grading.
-
-### API Deduplication (from site audit — ~2 days)
-- Extract shared `callHaiku()` utility (copied 17 times across toolkit API routes)
-- Extract shared effort-assessment logic
-- Extract shared tool API pattern
-- Cuts ~2,890 wasted lines
-
-### Key Dependency Warnings
-| If you build this... | Before this... | You'll have to redo... |
-|---------------------|----------------|----------------------|
-| New unit content | Phase 0.5 lesson editing remaining | Manually fixing every lesson's JSONB |
-| AI-assisted grading | Testing existing grading page | Potentially rebuilding UI that already works |
-| Peer review enhancements | Grading works | Nothing meaningful to compare feedback against |
-| NM Phase 2 (progression) | NM Phase 1 e2e testing | Fixing data integrity issues |
-| Monetisation gates | Usage tracking analysis | No data to base tier limits on |
-| Parent portal | Grading + progress working | Nothing meaningful to show parents |
+See [`docs/projects/ALL-PROJECTS.md`](projects/ALL-PROJECTS.md) for current active projects, ready-to-build queue, and full priority ordering.
 
 ---
 
@@ -428,7 +367,9 @@ All tools below should match the Design Thinking Toolkit quality bar — world-c
 
 ---
 
-## Phase 2: AI-Powered Unit Builder (Partially Complete)
+## Phase 2: AI-Powered Unit Builder (QUARANTINED — 3 Apr 2026)
+> **⚠️ QUARANTINED:** All generation routes return 410 Gone. Wizard create page shows rebuild message. Being replaced by Dimensions2 Pillar 2 (Block-Aware Generation). See `docs/quarantine.md`.
+
 The teacher superpower — guided unit creation with AI.
 
 ### Guided Flow ✅
@@ -472,7 +413,9 @@ Research-backed timing system enforcing the Workshop Model across all AI-generat
 3. **Wire TimingFeedbackPrompt into post-lesson flow** — needs trigger (after lesson date or "I taught this" button), storage, and feedback → profile pipeline.
 4. **Multi-lesson pacing intelligence** — Milestone markers, flex points, progress gates for multi-week units. Research done, not yet built.
 
-### Lesson Intelligence System (NEW — In Progress)
+### Lesson Intelligence System (QUARANTINED — 3 Apr 2026)
+> **⚠️ QUARANTINED:** Upload and analysis routes return 410 Gone. Being replaced by Dimensions2 Pillar 1B (block extraction from uploads). See `docs/quarantine.md`.
+
 Deep AI analysis of uploaded lesson plans to build structured pedagogical blueprints that inform future generation. This is the key unlock for lesson quality — the AI learns *how good teachers teach*, not just what they teach.
 
 **Built:**
@@ -505,7 +448,9 @@ Deep AI analysis of uploaded lesson plans to build structured pedagogical bluepr
 - **Pending**: Generate and import more activity card batches via Gemini prompt — target 50+ cards. Current: 21 cards (16 original + 5 Gemini batch 1).
 - **Future**: Community card sharing, teacher-submitted cards for review, card forking/variants
 
-### Knowledge Library ✅
+### Knowledge Library ✅ (QUARANTINED — 3 Apr 2026)
+> **⚠️ QUARANTINED:** Nav link removed, all 15 API route files return 410 Gone. Being replaced by Dimensions2 Pillar 1 (Activity Block Library). See `docs/quarantine.md`.
+
 - 3 tables: knowledge_items, knowledge_item_curricula, knowledge_item_links (migration 017, applied)
 - Hybrid search RPC, full CRUD API, teacher management UI at `/teacher/knowledge`
 - Components: KnowledgeItemCard, KnowledgeItemForm, CurriculumMapper, TagAutocomplete, MediaUploader
@@ -722,9 +667,66 @@ Architecture: Claude orchestrates, specialized APIs discover. Not a search featu
 
 **Why this matters:** Every other edtech platform treats students as blank slates in every interaction. StudioLoom would be the first to carry a rich, student-built personality profile through every AI touchpoint. The student CHOSE to share this about themselves (not scraped from behavior data) — that's ethically cleaner and pedagogically stronger.
 
+### Journey Engine (NEW — 6 Apr 2026)
+**Master spec:** `docs/specs/journey-engine-spec.md`
+
+**What:** The Discovery Engine's proven interaction grammar (8 interaction types, character-driven narrative, profile output) extracted into a reusable system for composing interactive guided experiences of any length and purpose throughout StudioLoom. Journey Blocks are atomic interaction primitives (binary choice, card sort, slider scale, scene explore, text prompt, dialogue choice, visual select, reveal, + 6 new types). Journeys are composed sequences of blocks with conditional branching, a character assignment, and R3F scene definitions.
+
+**Three separations that make it work:**
+1. **Interaction pattern** (what the student does) — separated from content
+2. **Content** (prompts, options, scoring weights) — separated from presentation
+3. **Presentation** (character, R3F scene, voice, animations) — applied at journey level, infinitely swappable
+
+This means the same journey can be delivered by Kit in a campfire, Rosa in her bakery, or a student's chosen K-pop idol on a rooftop — zero content changes.
+
+**Key architecture decisions:**
+- **Journey Blocks are character-neutral and scene-neutral** — `{character}` placeholder tokens in all dialogue. Character definitions are separate entities. Ultimate flexibility for future character systems.
+- **Conditional branching** with a constrained condition language (profile data, block responses, session metadata). Admin UI presents conditions as dropdowns, not code. Mandatory fallbacks. Path validation ensures every route satisfies the journey's data contract.
+- **Student profile as central data hub** — `learning_profile` JSONB on students table. Every journey block writes to a namespaced path. Every AI system reads relevant slices via `buildProfileContext()`. Merge strategies: overwrite, append, merge, max. The mentor saying "I know you prefer working solo" is powered by a journey block that wrote `strengths.working_style.solo_collaborative` weeks ago.
+- **4 rendering modes:** Fullscreen (Discovery, project scoping), Embedded in lessons (challenge intros, reflections), Floating window (companion check-ins during making time), Modal overlay (post-submission reflection, drift detection). Smooth transitions between modes.
+- **Lesson editor shows saved journeys, not individual blocks** — teachers pick "Meet Your Challenge (3 min)" from the sidebar and drop it in. Block-level composition is admin-only (node-graph editor). Teacher journey authoring (fork-and-customize) comes later.
+- **R3F animated scenes** — Blender → .glb pipeline, Another World art style (flat colour, strong rim lighting, atmospheric depth). Scene stays mounted across blocks (camera lerps, character walks, lighting shifts). 3-level fallback for low-end devices (flat-shaded → 2D parallax → solid gradient).
+- **Discovery Engine becomes "Journey: Student Discovery"** — the 8 stations decompose into ~25 journey blocks. Same student experience, now built on the generic engine. Conditional branches added (skip stations when profile data exists from prior journeys).
+
+**Example journeys showing the range:**
+- Student Discovery (45-60 min, fullscreen, profiling) — the existing Discovery Engine
+- Meet Your Challenge (3 min, embedded, challenge-introduction) — scene reveal + binary choice + text prompt
+- Mid-Unit Pulse (2 min, window, check-in) — energy/clarity sliders + support options
+- Service Project Finder (30 min, fullscreen, project-scoping) — branching by need type
+- Safety Checkpoint (5 min, modal, skill-check) — 3D hazard identification + classification
+- Reflection Journey (3 min, embedded, reflection) — replaces static textareas with profile-aware prompts
+
+**5 build phases:**
+- Phase A: Foundations (~3-4d) — type system, state machine, 4 core interaction renderers, profile read/write, migration, basic admin
+- Phase B: Interaction Types + R3F (~4-5d) — remaining renderers, R3F scene host, character system, transitions, fallbacks
+- Phase C: Admin Journey Editor (~4-5d) — node graph canvas, block palette, condition builder, path validator, walk-through mode
+- Phase D: Discovery Migration (~3-4d) — extract Discovery into journey blocks, build as composed journey, feature flag cutover
+- Phase E: Lesson Editor Integration (~3-4d) — journey sidebar category, embedded rendering, window mode, example journeys, AI profile context wiring
+
+**Estimated total: ~17-22 days.** Depends on Dimensions3 (Activity Block schema) and 3D Elements (R3F renderer, asset library).
+
+**Relationship to Discovery Intelligence Layer:** The Journey Engine subsumes Phases A-B of the Discovery Intelligence Layer. Profile-aware AI (Phase A) becomes a natural property of the system — `buildProfileContext()` reads from `learning_profile` which all journeys write to. Adaptive Discovery (Phase B) becomes conditional branching in the "Student Discovery" journey. Cross-platform intelligence (Phase C) remains a separate effort but benefits from the unified profile hub.
+
 ### Teacher Resources (later layer)
 - Generate PPTs from unit content
 - Generate printable worksheets/handouts
+
+---
+
+### Open Studio v2 — Mentor-Guided Project Planning (NEW — 6 Apr 2026)
+**Full spec:** `docs/projects/openstudio-v2.md`
+
+**What:** The Journey Engine's first complex consumer. Replaces the gap between "teacher unlocks Open Studio" and "student is productively working" with a structured AI-mentor Planning Journey. The mentor negotiates a real project plan with each student — not just collecting data (that's Discovery's job) but actively pushing back on unrealistic timelines, challenging vague goals, recommending MiniSkills for knowledge gaps, and producing a plan the teacher reviews before work begins.
+
+**Why it's a separate project from Journey Engine:** The Planning Journey requires Sonnet-level reasoning at multiple points (deliverables extraction, milestone scheduling against real session counts, timeline realism evaluation), external data injection (teacher-set parameters: semester end, capability tier, minimum check-ins, custom constraints), a teacher approval workflow (approve / notes / return for revision), and ongoing plan integration during the Working phase (milestone-aware check-ins, health scores, adaptive frequency). These are all systems that sit on top of the Journey Engine, not inside it.
+
+**7-station Planning Journey:** The Anchor (time reality + profile recall) → Vision of Done (imagine presentation, extract deliverables, success criteria) → Backward Planning (milestone scaffolding with pushback, first step, risk check) → Resources & People (material audit, people map) → Knowledge Gaps (skills self-check, MiniSkill recommendations) → The Contract (plan assembly, commitment gate) → Teacher Handoff (submit for approval).
+
+**Teacher capability tiers:** `autonomous` (light scaffolding, quick approval), `supported` (moderate scaffolding), `scaffolded` (structured prompts, shorter segments, more concrete suggestions, frequent check-ins). Tier determines mentor pushback intensity, planning journey pacing, and default check-in frequency during Working phase.
+
+**Working phase integration:** Plan milestones drive check-in content (micro-journeys in window mode). Health score (momentum, engagement, quality, self-awareness) determines check-in frequency. Red health for 2+ sessions triggers teacher alert. Students can revise plans mid-project — minor revisions auto-approved, major revisions need teacher sign-off.
+
+**5 build phases (~15-17 days):** Phase A: teacher parameter system (~2d). Phase B: Planning Journey (~5-6d, requires Journey Engine Phases A-B). Phase C: teacher approval workflow (~3d). Phase D: working phase integration (~3-4d). Phase E: polish + edge cases (~2d).
 
 ---
 
@@ -1358,7 +1360,16 @@ Complete digital pin-up crit system. 24 files, ~4,161 lines. Migration 049 APPLI
 
 ---
 
-## Phase 5.5: Parent Portal & Stakeholder Access (NEW)
+## Phase 5.5: Parent Portal & Stakeholder Access
+
+### Parent Weekly Updates (NEW — 4 Apr 2026)
+AI-generated weekly email digests of student progress for parents. **Precursor to full Parent Portal** — delivers value immediately without requiring a login system.
+
+**What parents receive:** compact email digest summarizing their child's week — pages completed, criteria demonstrated, badges earned, teacher observations, portfolio highlights. Generated via Haiku from existing progress data (no new data collection). Configurable format: compact (3-line summary) or detailed (per-lesson breakdown).
+
+**Privacy controls:** parents only see what teacher enables. Integrity scores, SEN provisions, pastoral notes, peer comparisons NEVER included. FERPA/GDPR consent flow before first email.
+
+**Build:** ~5-7 days. Spec: `docs/projects/parent-updates.md`. Phase 5.5.
 
 ### Parent Portal (Read-Only)
 - Parents see their child's portfolio, progress, grades — read-only, no editing
@@ -1366,7 +1377,7 @@ Complete digital pin-up crit system. 24 files, ~4,161 lines. Migration 049 APPLI
 - What parents see: portfolio timeline, criterion scores, teacher comments, due dates, attendance at a glance
 - What parents DON'T see: SEN provisions, pastoral notes, peer comparisons, raw integrity scores
 - Privacy-first: parent access respects `DataPrivacySettings` — some regimes require explicit consent before granting parent access
-- Notifications: optional email digest of weekly progress ("This week, [student] completed 3 pages and received feedback on their research")
+- **Parent Weekly Updates (above) is the Phase 1 precursor** — delivers the notification value without a full portal
 
 ### School Admin Dashboard
 - For school administrators (head of department, principal)
@@ -1636,6 +1647,33 @@ Matt is providing Melbourne Metrics Rocket Report materials + question formats. 
 
 ---
 
+## School Readiness — Enterprise Requirements (NEW — 4 Apr 2026)
+
+Full checklist with current status and estimates: `docs/projects/school-readiness.md`
+
+**Pre-Pilot (hard gates for IT approval):** SSO with Google (~1d) + Microsoft (~1d), RBAC audit + parent role (~2-3d), `school_id` multi-tenancy on every table (~5-7d), class management polish (CSV import, invite links ~2-3d). **~12-17 days total.**
+
+**Pre-Launch (stops a purchase order):** Data export/portability (~4-5d), privacy policy + DPA + data deletion (~3-4d), WCAG 2.1 AA accessibility audit (~3-5d), notification system (~3-4d), audit logging (~2-3d). **~15-21 days total.**
+
+**Pre-Scale:** Microsoft SSO, Google Classroom sync, admin analytics, offline resilience, backup docs. **~10-12 days total.**
+
+### Framework Versioning & Evolution (NEW — 4 Apr 2026)
+
+MYP criteria change. GCSE specifications get rewritten. A-Level content updates. Every curriculum framework StudioLoom supports WILL be revised at some point. The platform must handle this gracefully:
+
+- Framework definitions (criteria names, scales, phases, command verbs) must be **data-driven, not hardcoded TypeScript constants** — updatable without code deploy
+- `framework_versions` table or versioned JSONB so old units keep working under their original framework version
+- FrameworkAdapter (Dimensions3 §7) already maps neutral → framework at render time — this is the right architecture, just needs multi-version support
+- `activity_blocks` are already framework-neutral (Dimensions3 decision) — correct
+- Block efficacy scores should be framework-version-aware
+- Curriculum context dropdown in wizard needs to be data-driven
+
+**Timeline:** Not urgent for pilot (current versions stable). Must solve before scaling to multiple schools on different framework versions. ~2-3 days to make definitions data-driven. Include as consideration in Dimensions3 Phase A.
+
+Full details: `docs/projects/school-readiness.md` → Framework Versioning & Evolution section.
+
+---
+
 ## Cross-Cutting Concerns (address progressively across all phases)
 
 ### Third-Party Service Costs
@@ -1836,56 +1874,11 @@ International schools in mainland China can't reach `api.anthropic.com` or `api.
 
 ---
 
-## Priority Summary (What to Tackle Next)
 
-**See "Current Sprint — March 2026" at the top for the active work plan.**
+## Priority Summary
 
-### Immediate (This Week)
-1. Push pending commits (blocked by school proxy)
-2. Run backfill-activity-ids script
-3. Wire MonitoredTextarea into submissions
-
-### Next Sprint (~1-2 weeks)
-4. E2E testing sprint (forking, NM, Open Studio, safety badges, pace, timetable, grading)
-5. Phase 0.5 remaining (debrief library, prompt enrichment, student preview)
-6. API deduplication (~2,890 wasted lines)
-
-### After Foundation Verified
-7. **Project Dimensions** (spec ready — `docs/specs/data-architecture-v2.md`, ~5 days Phases 1-4)
-8. Lesson Plan Converter (spec ready — must output Dimensions v2 schema)
-9. Year Planner & Curriculum Connection (spec ready — uses timeWeight velocity data for time confidence)
-10. Intelligence Profile System (Student, Teacher, Class Climate — see Phase 3.5)
-11. Teaching Mode Quick-Access Toolbar (spec ready, ~11-13 days)
-
-### Trust Builders (Required for School Sales)
-12. Data Privacy/Compliance UI
-13. Report Generation for parent conferences
-14. Parent Portal (read-only)
-15. Product Analytics (Plausible/PostHog)
+See [`docs/projects/ALL-PROJECTS.md`](projects/ALL-PROJECTS.md) for the full priority-ordered project list.
 
 ---
 
-## Someday / Maybe
-
-Ideas parked for future consideration. Not prioritised, not committed — just captured so they don't get lost.
-
-### UX Polish Items (from legacy todo list)
-- **Skeleton → approaches flicker bug in wizard** — Skeletons appear, then disappear (blank gap), then real approaches render. Keep skeletons visible until crossfade.
-- **Keyword chip selection UX in wizard** — Make chips clearly clickable with selection affordance. Helper text. Optionally require 2-3 selections.
-- **Fun thinking messages during AI generation** — ~20 rotating messages during wizard waits: "Consulting with Bloom about taxonomy levels...", "Asking Hattie what works best..."
-- **Feature flag system** — PostHog feature flags or custom `feature_flags` table. Super admin toggle page.
-- **Feedback Station activity type** — Student device as feedback collection point. QR code access. Structured prompts. Data flows back to original student.
-- **Source restriction flags for knowledge base** — `unrestricted | reference_only | excluded` on knowledge_items. Filter in RAG retrieval.
-- **Kahoot-style quiz activity cards** — Self-paced quiz cards with class results view. Live/synchronous mode later.
-- **"Generate one with..." variation buttons** — Replace single Regenerate with 3 contextual buttons: "more hands-on", "stronger scaffolding", "real-world connections".
-- **VEX/Robotics curriculum profile** — Specialized CurriculumProfile for robotics/engineering. Engineering notebook format.
-- **Clickable hotspot annotations on images** — Teacher places interactive hotspots on diagrams. Students click to reveal info.
-- **Free competitive design challenges** — Timed ideation sprints, design battles, constraint challenges with peer voting.
-- **Teacher-editable unit thumbnail** — Dashboard unit cards currently use Unsplash stock photos (deterministic hash from title). Let teachers upload or pick a custom thumbnail image per unit. Store as URL on `units` table (`thumbnail_url TEXT`). Upload to Supabase Storage or accept external URL. Fallback to current Unsplash system when no custom thumbnail set.
-
-### Student Screen Skins / Themes
-Let students choose a visual skin for their entire student experience — different color palettes, card styles, gradients, and vibes. Inspired by [Scape student living](https://www.scape.com.au/) (bold pops of color, quirky/playful aesthetic, exposed textures contrasted with vibrant graphics). Implementation would involve a ThemeProvider context wrapping the student layout, 5-6 curated skins (e.g. Default purple, Bold/Scape-style neon pops, Dark Mode, Pastel/Soft, Ocean, Retro), CSS variable swapping for colors + gradients + card border-radius + font weight, skin selector on student dashboard or profile area, preference stored in `students` table or localStorage. Medium effort (~2-3 days). Nice personalization touch for the 11-16 age group — teens love customizing their space. Not urgent because it's cosmetic, but could boost engagement and "this is MY space" ownership feeling.
-
----
-
-*Last updated: 2026-03-27 (consolidated from priority-todo.md + site audit + CLAUDE.md)*
+*Last updated: 2026-04-05 (trimmed: Current Sprint, Priority Summary, New Projects, and Someday/Maybe sections moved to ALL-PROJECTS.md)*

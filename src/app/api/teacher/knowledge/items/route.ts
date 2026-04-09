@@ -12,6 +12,8 @@ import type {
   KnowledgeItemType,
 } from "@/types/knowledge-library";
 
+const QUARANTINE_RESPONSE = NextResponse.json({ error: "Knowledge pipeline quarantined — pending architecture rebuild. See docs/quarantine.md" }, { status: 410 });
+
 /**
  * Profile summary for knowledge item cards + detail panel.
  * Extracted from lesson_profiles.profile_data JSONB.
@@ -34,6 +36,7 @@ interface ProfileSummary {
  * Query params: search, type, tags (comma-separated), framework, archived
  */
 export async function GET(request: NextRequest) {
+  return QUARANTINE_RESPONSE;
   const auth = await requireTeacherAuth(request);
   if (auth.error) return auth.error;
   const teacherId = auth.teacherId;
@@ -115,6 +118,7 @@ export async function GET(request: NextRequest) {
  * Create a new knowledge item. Generates RAG chunks in the background.
  */
 export async function POST(request: NextRequest) {
+  return QUARANTINE_RESPONSE;
   const auth = await requireTeacherAuth(request);
   if (auth.error) return auth.error;
   const teacherId = auth.teacherId;

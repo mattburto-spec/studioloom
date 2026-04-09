@@ -1,0 +1,215 @@
+================================================================================
+QUEST JOURNEY SYSTEM — API ROUTES BUILD SUMMARY (25 Mar 2026)
+================================================================================
+
+COMPLETED: Core API routes for student quest journeys (646 lines)
+
+FILES CREATED:
+  ✓ /src/app/api/student/quest/route.ts           (153 lines) - Journey CRUD
+  ✓ /src/app/api/student/quest/phase/route.ts     (92 lines)  - Phase transitions
+  ✓ /src/app/api/student/quest/mentor/route.ts    (211 lines) - Mentor + AI
+  ✓ /src/app/api/student/quest/evidence/route.ts  (190 lines) - Evidence CRUD
+  ✓ /src/app/api/student/quest/API-DOCS.md                    - Full API docs
+  ✓ QUEST_INTEGRATION_GUIDE.md                                - Integration plan
+  ✓ QUEST_BUILD_SUMMARY.txt                                   - This file
+
+================================================================================
+ENDPOINTS CREATED (4 routes with 8 total operations)
+================================================================================
+
+POST   /api/student/quest                 — Create journey
+GET    /api/student/quest?unitId=...      — Fetch journey + milestones + evidence
+
+POST   /api/student/quest/phase           — Advance phase (with validation)
+
+PATCH  /api/student/quest/mentor          — Select mentor (one-time)
+POST   /api/student/quest/mentor          — Send message to mentor (AI)
+
+GET    /api/student/quest/evidence?...    — List evidence
+POST   /api/student/quest/evidence        — Submit evidence
+
+================================================================================
+FEATURES IMPLEMENTED
+================================================================================
+
+Auth:
+  ✓ Student token session auth (requireStudentAuth)
+  ✓ Journey ownership verification
+  ✓ 401 Unauthorized on invalid/expired tokens
+
+Rate Limiting:
+  ✓ Journey creation: 5/min, 50/hour
+  ✓ Phase transitions: 10/min
+  ✓ Mentor interactions: 15/min, 100/hour
+  ✓ Evidence submissions: 20/min
+
+AI Integration:
+  ✓ Claude Haiku (claude-haiku-4-5-20251001)
+  ✓ Max 400 tokens per response
+  ✓ buildQuestPrompt() for phase-aware system prompts
+  ✓ Mentor interaction logging to quest_mentor_interactions
+
+Data Validation:
+  ✓ Phase machine validation (linear progression only)
+  ✓ Mentor selection one-time only
+  ✓ Evidence approval defaults false (teacher approval required)
+  ✓ Journey ownership checks on all operations
+
+Error Handling:
+  ✓ Comprehensive try-catch blocks
+  ✓ Appropriate HTTP status codes (400/401/404/409/500)
+  ✓ Detailed console logging for debugging
+  ✓ User-friendly error messages
+
+================================================================================
+DEPENDENCIES (Already Exists)
+================================================================================
+
+Library Files (No changes needed):
+  • /src/lib/quest/types.ts           — 160 lines, all 8 interfaces
+  • /src/lib/quest/mentors.ts         — 5 mentors + getMentor() helper
+  • /src/lib/quest/phase-machine.ts   — canTransition() validation
+  • /src/lib/quest/build-quest-prompt.ts — system prompt builder
+  • /src/lib/auth/student.ts          — requireStudentAuth() helper
+  • /src/lib/rate-limit.ts            — rateLimit() utility
+
+Auth Infrastructure:
+  • SESSION_COOKIE_NAME cookie → student_sessions table lookup
+  • student_sessions table exists (backfilled from Supabase Auth)
+  • createAdminClient() for RLS bypass
+
+================================================================================
+BLOCKER: SUPABASE SCHEMA NOT YET CREATED
+================================================================================
+
+These API routes assume 5 tables that DON'T EXIST YET:
+
+  Required Tables:
+  • quest_journeys              — main journey records
+  • quest_milestones            — milestones within journey
+  • quest_evidence              — evidence submissions
+  • quest_mentor_interactions   — AI interaction logs
+  • student_sessions            — auth tokens (EXISTS)
+
+NEXT ACTION: Create migration file with schema definition
+  Location: supabase/migrations/042_quest_system.sql
+  Source: Copy column names/types from /src/lib/quest/types.ts interfaces
+  Time estimate: 1-2 hours
+  BLOCKER: Routes cannot be tested without this migration applied
+
+================================================================================
+NEXT STEPS (Tier 0 = BLOCKER)
+================================================================================
+
+TIER 0 — Unblock functionality
+  1. CREATE SUPABASE MIGRATION (1-2h) [BLOCKER FOR TESTING]
+     - 5 tables with RLS policies
+     - Indexes on common query patterns
+  
+  2. TEST ROUTES END-TO-END (1-2h) [BLOCKER FOR DEPLOYMENT]
+     - Manual curl tests or Postman collection
+     - Verify GET/POST/PATCH all work
+     - Check rate limiting
+     - Verify error responses
+
+TIER 1 — Wire into UI (6-8 hours)
+  3. CREATE REACT HOOK useQuestJourney.ts (1.5h)
+  4. CREATE STUDENT QUEST PAGES (3-4h)
+  5. WIRE INTO STUDENT UNIT PAGE (1-2h)
+
+TIER 2 — Teacher dashboard (3-4h)
+  6. CREATE TEACHER QUEST PROGRESS VIEW
+
+TIER 3 — Polish (4-5h)
+  7. QUEST VISUALIZATIONS (2-3h)
+  8. EDGE CASES + ERROR RECOVERY (1-2h)
+
+Total to production: 15-25 hours across 3 weeks
+
+================================================================================
+CODE QUALITY CHECKLIST
+================================================================================
+
+  [✓] Auth pattern matches project conventions
+  [✓] Rate limiting on all user-input routes
+  [✓] Error responses follow project pattern
+  [✓] TypeScript types imported from @/lib/quest/types
+  [✓] Supabase queries use .maybeSingle()/.single() correctly
+  [✓] AI integration uses Haiku (not Sonnet) for cost
+  [✓] PATCH/POST routes validate ownership
+  [✓] Console logging for debugging
+  [✓] Comments explain non-obvious logic
+  [✓] Routes are independent (no hidden dependencies)
+
+================================================================================
+KNOWN LIMITATIONS (MVP)
+================================================================================
+
+  • No teacher routes yet (view progress, approve evidence, intervene)
+  • No milestone auto-creation (teacher/student creates manually)
+  • No evidence analysis AI (placeholder for future)
+  • No health score computation (static on creation)
+  • No session expiry (need cleanup job)
+  • No conflict resolution (could double-increment counters)
+
+These are all acceptable for MVP. Can be added in subsequent phases.
+
+================================================================================
+DEPLOYMENT NOTES
+================================================================================
+
+No special deployment steps. Routes follow Next.js App Router conventions.
+Will be automatically bundled by Vercel.
+
+Pre-deployment checklist:
+  ☐ Supabase migration 042 applied to production DB
+  ☐ Routes tested end-to-end in staging
+  ☐ ANTHROPIC_API_KEY env var set in Vercel
+  ☐ Student auth token system working
+  ☐ Rate limiting keys don't conflict with other routes
+
+================================================================================
+FILES AND LINE COUNTS
+================================================================================
+
+Routes:
+  route.ts           153 lines   GET/POST journey CRUD
+  phase/route.ts      92 lines   POST phase transition
+  mentor/route.ts    211 lines   PATCH/POST mentor select + AI
+  evidence/route.ts  190 lines   GET/POST evidence
+  ─────────────────────────────
+  Total:             646 lines
+
+Documentation:
+  API-DOCS.md                        — Endpoint reference + usage examples
+  QUEST_INTEGRATION_GUIDE.md         — Phased implementation plan
+  QUEST_BUILD_SUMMARY.txt            — This file
+
+================================================================================
+QUICK REFERENCE
+================================================================================
+
+To start using these routes:
+
+1. Apply Supabase migration (create 5 tables)
+2. Test GET /api/student/quest?unitId=abc → should return empty journey
+3. Test POST /api/student/quest → create new journey
+4. Test POST /api/student/quest/phase → advance phase
+5. Test PATCH /api/student/quest/mentor → select mentor
+6. Test POST /api/student/quest/mentor → send AI message
+7. Test POST /api/student/quest/evidence → submit evidence
+
+Full API docs: /src/app/api/student/quest/API-DOCS.md
+
+================================================================================
+QUESTIONS BEFORE PROCEEDING
+================================================================================
+
+  • Should quest journeys auto-delete after unit completion?
+  • Should students see OTHER students' quests? (No)
+  • Should teachers auto-become mentors in Open Studio mode?
+  • Should health scores update on-demand or via background job?
+
+================================================================================
+END OF SUMMARY
+================================================================================

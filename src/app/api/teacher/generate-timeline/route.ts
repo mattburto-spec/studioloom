@@ -6,7 +6,78 @@ import { TIMELINE_SYSTEM_PROMPT, buildRAGTimelinePrompt, buildRAGPerLessonPrompt
 import { validateTimelineActivities } from "@/lib/ai/validation";
 import { evaluateTimelineQuality } from "@/lib/ai/quality-evaluator";
 import { getTeachingContext } from "@/lib/ai/teacher-context";
-import type { LessonJourneyInput, TimelineOutlineOption, TimelinePhase, TimelineLessonSkeleton, TimelineSkeleton } from "@/types";
+import { approximateDuration } from "@/lib/ai/timing-validation";
+import type { LessonJourneyInput, TimelineOutlineOption, TimelinePhase, TimelineLessonSkeleton, TimelineSkeleton, TimelineActivity, TimeWeight } from "@/types";
+
+/**
+ * Lightweight timing sanity check for timeline activities.
+ * Timeline mode uses flat activities with durationMinutes (not workshopPhases),
+ * so we can't call validateLessonTiming(). Instead, check:
+ * 1. Total duration roughly matches expected lesson length
+ * 2. Activities have warmup/reflection bookends
+ * 3. No single activity exceeds reasonable duration
+ */
+// QUARANTINED (3 Apr 2026) — Generation pipeline disabled pending architecture rebuild (Dimensions2).
+// See docs/quarantine.md for full rationale.
+const QUARANTINE_RESPONSE = NextResponse.json({ error: "Generation pipeline quarantined — pending architecture rebuild. See docs/quarantine.md" }, { status: 410 });
+
+function validateTimelineTiming(
+  activities: TimelineActivity[],
+  lessonLengthMinutes: number,
+  lessonSkeleton?: TimelineLessonSkeleton
+): { warnings: string[]; repaired: TimelineActivity[] } {
+  const warnings: string[] = [];
+  const repaired = [...activities];
+
+  if (repaired.length === 0) return { warnings, repaired };
+
+  // Resolve timeWeight → durationMinutes for activities that only have timeWeight
+  const target = lessonSkeleton?.estimatedMinutes || lessonLengthMinutes;
+  for (const a of repaired) {
+    if ((!a.durationMinutes || a.durationMinutes <= 0) && (a as unknown as Record<string, unknown>).timeWeight) {
+      a.durationMinutes = approximateDuration(
+        (a as unknown as Record<string, unknown>).timeWeight as TimeWeight,
+        target
+      );
+      warnings.push(`Timeline timing: resolved timeWeight "${(a as unknown as Record<string, unknown>).timeWeight}" → ${a.durationMinutes} min for "${a.title}"`);
+    }
+  }
+
+  const totalDuration = repaired.reduce((sum, a) => sum + (a.durationMinutes || 0), 0);
+  const tolerance = target * 0.25; // 25% tolerance
+
+  // 1. Total duration check — scale if way off
+  if (totalDuration > 0 && Math.abs(totalDuration - target) > tolerance) {
+    warnings.push(`Timeline timing: total ${totalDuration} min vs target ${target} min (${Math.abs(totalDuration - target)} min off). Auto-scaling.`);
+    const scale = target / totalDuration;
+    for (const a of repaired) {
+      a.durationMinutes = Math.max(2, Math.round((a.durationMinutes || 10) * scale));
+    }
+  }
+
+  // 2. Bookend check — ensure warmup at start and reflection at end
+  const hasWarmup = repaired[0]?.role === "warmup" || repaired[0]?.role === "intro";
+  const lastActivity = repaired[repaired.length - 1];
+  const hasReflection = lastActivity?.role === "reflection";
+
+  if (!hasWarmup && repaired.length > 0) {
+    warnings.push("Timeline timing: no warmup/intro activity at start");
+  }
+  if (!hasReflection && repaired.length > 0) {
+    warnings.push("Timeline timing: no reflection activity at end");
+  }
+
+  // 3. Max single activity duration (no activity should exceed 60% of lesson)
+  const maxSingleDuration = Math.round(target * 0.60);
+  for (const a of repaired) {
+    if (a.durationMinutes > maxSingleDuration) {
+      warnings.push(`Timeline timing: "${a.title}" (${a.durationMinutes} min) exceeds 60% of lesson (${maxSingleDuration} min). Capped.`);
+      a.durationMinutes = maxSingleDuration;
+    }
+  }
+
+  return { warnings, repaired };
+}
 
 function createSupabaseServer(request: NextRequest) {
   return createServerClient(
@@ -38,6 +109,7 @@ function createSupabaseServer(request: NextRequest) {
  * }
  */
 export async function POST(request: NextRequest) {
+  return QUARANTINE_RESPONSE;
   const supabase = createSupabaseServer(request);
   const {
     data: { user },
@@ -179,12 +251,19 @@ export async function POST(request: NextRequest) {
                 );
               } else if (event.type === "complete") {
                 const validation = validateTimelineActivities(event.activities);
+                // Post-validation timing check
+                const timingCheck = validateTimelineTiming(
+                  validation.activities,
+                  journeyInput.lessonLengthMinutes,
+                  lessonSkeleton
+                );
+                const allWarnings = [...validation.errors, ...timingCheck.warnings];
                 controller.enqueue(
                   encoder.encode(
                     `data: ${JSON.stringify({
                       type: "complete",
-                      activities: validation.activities,
-                      warnings: validation.errors,
+                      activities: timingCheck.repaired,
+                      warnings: allWarnings,
                       ragChunkIds: chunkIds,
                     })}\n\n`
                   )
@@ -261,12 +340,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Post-validation timing check
+    const timingCheck = validateTimelineTiming(
+      validation.activities,
+      journeyInput.lessonLengthMinutes,
+      lessonSkeleton
+    );
+    const finalActivities = timingCheck.repaired;
+    const allWarnings = [...validation.errors, ...timingCheck.warnings];
+
     // Quality evaluation (non-blocking — runs in parallel with response prep)
     let qualityReport = undefined;
     try {
       const isPerLesson = !!(lessonSkeleton && fullSkeleton);
       qualityReport = await evaluateTimelineQuality(
-        validation.activities,
+        finalActivities,
         {
           topic: journeyInput.topic,
           gradeLevel: journeyInput.gradeLevel,
@@ -281,9 +369,28 @@ export async function POST(request: NextRequest) {
       // Quality evaluation is enhancement — never block generation
     }
 
+    // ── Activity Block usage tracking (Dimensions2) ──
+    try {
+      const { recordBlockUsage } = await import("@/lib/activity-blocks");
+      const { createAdminClient } = await import("@/lib/supabase/admin");
+      const db = createAdminClient();
+      const blockIds = new Set<string>();
+      for (const act of finalActivities) {
+        if ((act as unknown as Record<string, unknown>).source_block_id) {
+          blockIds.add((act as unknown as Record<string, unknown>).source_block_id as string);
+        }
+      }
+      if (blockIds.size > 0) {
+        await Promise.allSettled(Array.from(blockIds).map(id => recordBlockUsage(db, id)));
+        console.log(`[generate-timeline] ${blockIds.size} activity blocks used`);
+      }
+    } catch {
+      // Block usage tracking is enhancement, not requirement
+    }
+
     return NextResponse.json({
-      activities: validation.activities,
-      warnings: validation.errors,
+      activities: finalActivities,
+      warnings: allWarnings,
       ragChunkIds: chunkIds,
       qualityReport,
     });

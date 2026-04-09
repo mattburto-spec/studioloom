@@ -3,6 +3,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireTeacherAuth } from "@/lib/auth/verify-teacher-unit";
 import { updateQualityFromFeedback } from "@/lib/knowledge/feedback";
 
+const QUARANTINE_RESPONSE = NextResponse.json({ error: "Knowledge pipeline quarantined — pending architecture rebuild. See docs/quarantine.md" }, { status: 410 });
+
 /**
  * POST: Submit post-lesson feedback.
  *
@@ -20,6 +22,7 @@ import { updateQualityFromFeedback } from "@/lib/knowledge/feedback";
  * }
  */
 export async function POST(request: NextRequest) {
+  return QUARANTINE_RESPONSE;
   const auth = await requireTeacherAuth(request);
   if (auth.error) return auth.error;
   const teacherId = auth.teacherId;
@@ -117,6 +120,7 @@ export async function POST(request: NextRequest) {
  * - feedback_type (optional: "teacher" | "student")
  */
 export async function GET(request: NextRequest) {
+  return QUARANTINE_RESPONSE;
   const auth = await requireTeacherAuth(request);
   if (auth.error) return auth.error;
 

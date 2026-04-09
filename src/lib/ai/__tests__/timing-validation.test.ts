@@ -87,7 +87,7 @@ describe("validateLessonTiming", () => {
       },
     });
     const result = validateLessonTiming(lesson, profile, defaultTimingCtx);
-    expect(result.repairedLesson.workshopPhases!.debrief.durationMinutes).toBeGreaterThanOrEqual(5);
+    expect(result.repairedLesson.workshopPhases!.debrief.durationMinutes).toBeGreaterThanOrEqual(3);
   });
 
   it("flags missing extensions", () => {

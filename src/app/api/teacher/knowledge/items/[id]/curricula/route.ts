@@ -6,6 +6,9 @@ import {
 } from "@/lib/knowledge-library";
 import type { KnowledgeItemCurriculum } from "@/types/knowledge-library";
 
+// QUARANTINED (3 Apr 2026) — Knowledge pipeline disabled pending architecture rebuild.
+const QUARANTINE_RESPONSE = NextResponse.json({ error: "Knowledge pipeline quarantined — pending architecture rebuild. See docs/quarantine.md" }, { status: 410 });
+
 async function getTeacherId(request: NextRequest): Promise<string | null> {
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -35,6 +38,7 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  return QUARANTINE_RESPONSE;
   const teacherId = await getTeacherId(request);
   if (!teacherId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

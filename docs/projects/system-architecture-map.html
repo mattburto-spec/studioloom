@@ -1,0 +1,1481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StudioLoom — System Architecture Map</title>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --surface2: #1a1a25;
+    --border: #2a2a3a;
+    --text: #e0e0e8;
+    --text-dim: #888898;
+    --accent: #7c5cfc;
+    --accent-glow: rgba(124,92,252,0.3);
+    --green: #22c55e;
+    --green-dim: rgba(34,197,94,0.15);
+    --blue: #3b82f6;
+    --blue-dim: rgba(59,130,246,0.15);
+    --amber: #f59e0b;
+    --amber-dim: rgba(245,158,11,0.15);
+    --pink: #ec4899;
+    --pink-dim: rgba(236,72,153,0.15);
+    --cyan: #06b6d4;
+    --cyan-dim: rgba(6,182,212,0.15);
+    --red: #ef4444;
+    --purple: #a855f7;
+    --purple-dim: rgba(168,85,247,0.15);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; }
+
+  .header {
+    padding: 32px 40px 24px;
+    border-bottom: 1px solid var(--border);
+    background: linear-gradient(180deg, #12121a 0%, #0a0a0f 100%);
+  }
+  .header h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
+  .header h1 span { color: var(--accent); }
+  .header p { color: var(--text-dim); margin-top: 4px; font-size: 14px; }
+
+  .stats-bar {
+    display: flex; gap: 24px; padding: 16px 40px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    flex-wrap: wrap;
+  }
+  .stat { text-align: center; min-width: 80px; }
+  .stat .num { font-size: 24px; font-weight: 700; }
+  .stat .label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
+  .stat.complete .num { color: var(--green); }
+  .stat.active .num { color: var(--blue); }
+  .stat.planned .num { color: var(--amber); }
+  .stat.idea .num { color: var(--purple); }
+  .stat.future .num { color: var(--text-dim); }
+
+  .controls {
+    display: flex; gap: 12px; padding: 16px 40px;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap; align-items: center;
+  }
+  .search-box {
+    flex: 1; min-width: 200px; padding: 8px 14px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; color: var(--text); font-size: 14px; outline: none;
+  }
+  .search-box:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-glow); }
+  .search-box::placeholder { color: var(--text-dim); }
+
+  .filter-group { display: flex; gap: 4px; flex-wrap: wrap; }
+  .filter-btn {
+    padding: 5px 12px; font-size: 12px; border-radius: 6px;
+    border: 1px solid var(--border); background: transparent;
+    color: var(--text-dim); cursor: pointer; transition: all 0.15s;
+    font-family: inherit;
+  }
+  .filter-btn:hover { border-color: var(--text-dim); color: var(--text); }
+  .filter-btn.active { background: var(--accent); border-color: var(--accent); color: white; }
+  .filter-btn.active-green { background: var(--green); border-color: var(--green); color: white; }
+  .filter-btn.active-blue { background: var(--blue); border-color: var(--blue); color: white; }
+  .filter-btn.active-amber { background: var(--amber); border-color: var(--amber); color: #000; }
+  .filter-btn.active-purple { background: var(--purple); border-color: var(--purple); color: white; }
+
+  .view-tabs {
+    display: flex; gap: 4px; margin-left: auto;
+  }
+  .view-tab {
+    padding: 5px 14px; font-size: 12px; border-radius: 6px;
+    border: 1px solid var(--border); background: transparent;
+    color: var(--text-dim); cursor: pointer; font-family: inherit;
+  }
+  .view-tab.active { background: var(--surface2); color: var(--text); border-color: var(--accent); }
+
+  .main { padding: 24px 40px; }
+
+  /* MATURITY VIEW */
+  .category-section { margin-bottom: 32px; }
+  .category-header {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 0; margin-bottom: 12px;
+    border-bottom: 2px solid var(--border);
+    cursor: pointer; user-select: none;
+  }
+  .category-header h2 { font-size: 16px; font-weight: 600; }
+  .category-header .count {
+    font-size: 12px; color: var(--text-dim);
+    background: var(--surface2); padding: 2px 8px; border-radius: 10px;
+  }
+  .category-header .chevron { color: var(--text-dim); transition: transform 0.2s; font-size: 14px; }
+  .category-header.collapsed .chevron { transform: rotate(-90deg); }
+
+  .system-grid { display: flex; flex-direction: column; gap: 6px; }
+
+  .system-row {
+    display: grid;
+    grid-template-columns: 220px repeat(5, 1fr) 100px 80px;
+    gap: 4px; align-items: stretch;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    transition: all 0.15s;
+    cursor: pointer;
+  }
+  .system-row:hover { border-color: var(--accent); background: var(--surface2); }
+  .system-row.expanded { border-color: var(--accent); background: var(--surface2); border-radius: 8px 8px 0 0; }
+
+  .sys-name {
+    display: flex; flex-direction: column; justify-content: center;
+    padding-right: 8px;
+  }
+  .sys-name .name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sys-name .sub { font-size: 10px; color: var(--text-dim); }
+
+  .version-cell {
+    font-size: 11px; padding: 6px 8px; border-radius: 4px;
+    line-height: 1.35; overflow: hidden;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+  }
+  .version-cell.empty { background: transparent; }
+  .version-cell.filled { background: var(--surface2); color: var(--text-dim); }
+  .version-cell.current { background: var(--green-dim); border: 1px solid rgba(34,197,94,0.3); color: var(--green); }
+  .version-cell.next { background: var(--blue-dim); border: 1px dashed rgba(59,130,246,0.3); color: var(--blue); }
+
+  .status-badge {
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.5px; border-radius: 4px; padding: 2px 6px;
+    height: fit-content; align-self: center;
+  }
+  .status-badge.complete { background: var(--green-dim); color: var(--green); }
+  .status-badge.active { background: var(--blue-dim); color: var(--blue); }
+  .status-badge.planned { background: var(--amber-dim); color: var(--amber); }
+  .status-badge.idea { background: var(--purple-dim); color: var(--purple); }
+  .status-badge.future { background: rgba(255,255,255,0.05); color: var(--text-dim); }
+  .status-badge.quarantined { background: rgba(239,68,68,0.15); color: var(--red); }
+
+  .os-badge {
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; border-radius: 4px; padding: 2px 6px;
+    height: fit-content; align-self: center;
+  }
+  .os-badge.ready { background: var(--cyan-dim); color: var(--cyan); }
+  .os-badge.partial { background: var(--amber-dim); color: var(--amber); }
+  .os-badge.designed { background: var(--purple-dim); color: var(--purple); }
+  .os-badge.none { color: var(--text-dim); font-size: 9px; }
+
+  .system-detail {
+    background: var(--surface2);
+    border: 1px solid var(--accent);
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    padding: 16px;
+    margin-bottom: 6px;
+    display: none;
+  }
+  .system-detail.visible { display: block; }
+  .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .detail-section h4 { font-size: 12px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+  .detail-section p, .detail-section li { font-size: 13px; color: var(--text-dim); }
+  .detail-section ul { list-style: none; padding: 0; }
+  .detail-section li { padding: 2px 0; }
+  .detail-section li::before { content: "→ "; color: var(--accent); }
+  .dep-tag {
+    display: inline-block; font-size: 11px; padding: 1px 8px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 4px; margin: 2px 4px 2px 0; color: var(--text-dim);
+  }
+
+  .version-headers {
+    display: grid;
+    grid-template-columns: 220px repeat(5, 1fr) 100px 80px;
+    gap: 4px; padding: 0 10px 8px;
+    font-size: 11px; font-weight: 600; color: var(--text-dim);
+    text-transform: uppercase; letter-spacing: 0.5px;
+    position: sticky; top: 0; background: var(--bg); z-index: 10;
+    padding-top: 8px;
+  }
+  .vh-center { text-align: center; }
+
+  /* DEPENDENCY VIEW */
+  .dep-view { display: none; }
+  .dep-view.active { display: block; }
+  .dep-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px; margin-bottom: 12px;
+  }
+  .dep-card h3 { font-size: 14px; margin-bottom: 8px; }
+  .dep-chain { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 8px 0; }
+  .dep-node {
+    padding: 4px 12px; border-radius: 6px; font-size: 12px;
+    border: 1px solid var(--border); background: var(--surface2);
+  }
+  .dep-arrow { color: var(--accent); font-size: 16px; }
+  .dep-node.complete { border-color: var(--green); color: var(--green); }
+  .dep-node.active { border-color: var(--blue); color: var(--blue); }
+  .dep-node.planned { border-color: var(--amber); color: var(--amber); }
+
+  /* OS SEAMS VIEW */
+  .os-view { display: none; }
+  .os-view.active { display: block; }
+  .os-tier { margin-bottom: 24px; }
+  .os-tier h3 { font-size: 16px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  .os-tier h3 span { font-size: 12px; color: var(--text-dim); font-weight: 400; margin-left: 8px; }
+  .os-items { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 8px; }
+  .os-item {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px;
+  }
+  .os-item .name { font-weight: 600; font-size: 13px; }
+  .os-item .note { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
+
+  .hidden { display: none !important; }
+
+  @media (max-width: 1200px) {
+    .system-row, .version-headers {
+      grid-template-columns: 180px repeat(5, 1fr) 80px 60px;
+    }
+  }
+  @media (max-width: 900px) {
+    .controls, .stats-bar, .main { padding-left: 16px; padding-right: 16px; }
+    .header { padding: 20px 16px; }
+    .system-row, .version-headers {
+      grid-template-columns: 150px repeat(5, 1fr) 70px 50px;
+    }
+    .version-cell { font-size: 10px; padding: 4px 6px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>StudioLoom <span>System Architecture Map</span></h1>
+  <p>Capability maturity matrix — every system tracked across 5 evolutionary versions with dependencies and Loominary OS seam readiness</p>
+</div>
+
+<div class="stats-bar" id="statsBar"></div>
+
+<div class="controls">
+  <input type="text" class="search-box" id="searchBox" placeholder="Search systems...">
+  <div class="filter-group" id="statusFilters">
+    <button class="filter-btn active" data-filter="all">All</button>
+    <button class="filter-btn" data-filter="complete" data-active-class="active-green">Built</button>
+    <button class="filter-btn" data-filter="active" data-active-class="active-blue">Active</button>
+    <button class="filter-btn" data-filter="planned" data-active-class="active-amber">Planned</button>
+    <button class="filter-btn" data-filter="idea" data-active-class="active-purple">Idea</button>
+    <button class="filter-btn" data-filter="future">Future</button>
+  </div>
+  <div class="view-tabs">
+    <button class="view-tab active" data-view="maturity">Maturity</button>
+    <button class="view-tab" data-view="deps">Dependencies</button>
+    <button class="view-tab" data-view="os">OS Seams</button>
+  </div>
+</div>
+
+<div class="main">
+  <div id="maturityView" class="dep-view active"></div>
+  <div id="depsView" class="dep-view"></div>
+  <div id="osView" class="dep-view"></div>
+</div>
+
+<script>
+const SYSTEMS = [
+  // ═══════════════════════════════════════════════════
+  // STUDENT EXPERIENCE
+  // ═══════════════════════════════════════════════════
+  {
+    id: "lesson-view", name: "Lesson View", category: "Student Experience",
+    v1: "Lesson screen with sidebar nav, basic interactive features, autosave, embedded videos, sound, click-to-play text reading for ELL",
+    v2: "Rich activity blocks with per-step AI rules, inline toolkit tools, journey blocks embedded in lessons",
+    v3: "3D scene panels inline, R3F tutorials embedded in lesson flow, spatial audio",
+    v4: "Fully adaptive — layout, pacing, scaffolding all respond to student profile in real time",
+    v5: "Multiplayer collaborative lessons, shared workspaces, live co-editing",
+    currentVersion: 1, status: "complete",
+    deps: ["activity-blocks", "journey-engine", "framework-adapter"],
+    osSeam: "ready", osNotes: "Core lesson renderer is product-agnostic. Activity Block schema is shared."
+  },
+  {
+    id: "student-dashboard", name: "Student Dashboard", category: "Student Experience",
+    v1: "Basic dashboard showing units, framework-colored cards, badges, smart subject detection, multi-class support",
+    v2: "3D representations of student submissions, project health indicators, mentor presence",
+    v3: "Personalised dashboard layout based on learning profile, AI-surfaced priorities",
+    v4: "Full studio workspace metaphor — rooms, shelves, workbenches",
+    v5: null,
+    currentVersion: 1, status: "complete",
+    deps: ["student-onboarding", "safety-badges", "intelligence-profiles"],
+    osSeam: "partial", osNotes: "Dashboard shell reusable, card types are product-specific."
+  },
+  {
+    id: "student-onboarding", name: "Student Onboarding", category: "Student Experience",
+    v1: "4-screen character creation flow — mentor choice (Kit/Sage/Spark), theme selection (Clean/Bold/Warm/Dark), guided questions, studio reveal",
+    v2: "Discovery Engine integration — onboarding feeds directly into 8-station profiling journey",
+    v3: "3D studio setup — student customises their virtual workspace as part of onboarding",
+    v4: null, v5: null,
+    currentVersion: 1, status: "complete",
+    deps: ["discovery-engine", "student-profile"],
+    osSeam: "designed", osNotes: "Mentor/theme pattern reusable. Content (mentors, themes) is product-specific."
+  },
+  {
+    id: "student-signin", name: "Student Sign-in", category: "Student Experience",
+    v1: "Class code + display name, nanoid(48) token sessions with 7-day TTL, anonymous by default (PIPL safe)",
+    v2: "Google, Apple, LMS SSO options alongside class code",
+    v3: "Passwordless magic link for returning students",
+    v4: null, v5: null,
+    currentVersion: 1, status: "complete",
+    deps: ["auth-system"],
+    osSeam: "ready", osNotes: "Token session pattern is product-agnostic. Student auth module extracts cleanly."
+  },
+  {
+    id: "gallery", name: "Class Gallery", category: "Student Experience",
+    v1: "Digital pin-up crit like Padlet — teacher-created rounds, portfolio snapshots, 3 review formats (comment/PMI/two-stars-wish), effort-gated feedback, anonymous option",
+    v2: "Public gallery access with code requirement, curated exhibitions",
+    v3: "3D gallery rooms — customisable spaces, student walks around viewing works with avatar",
+    v4: "Students customise their part of the gallery, personal exhibition curation",
+    v5: null,
+    currentVersion: 1, status: "complete",
+    deps: ["peer-review", "student-work-pipeline", "3d-scenes"],
+    osSeam: "ready", osNotes: "Gallery/review engine is fully product-agnostic. Content types pluggable."
+  },
+  {
+    id: "peer-review", name: "Peer Review", category: "Student Experience",
+    v1: "3 structured review formats with sentence starters, effort-gated (must review N peers before seeing own feedback)",
+    v2: "Rubric-based custom review formats, review quality scoring",
+    v3: "AI-assisted review coaching — nudges students toward more specific feedback",
+    v4: null, v5: null,
+    currentVersion: 1, status: "complete",
+    deps: ["gallery"],
+    osSeam: "ready", osNotes: "Review engine with format system is fully reusable."
+  },
+  {
+    id: "portfolio", name: "Portfolio", category: "Student Experience",
+    v1: "Floating button, auto-capture from activities, Quick Capture (photo/note/link), export options",
+    v2: "2D portfolio gallery with public access (code required), timeline view",
+    v3: "Full 3D gallery for students to create their exhibition space",
+    v4: null, v5: null,
+    currentVersion: 1, status: "complete",
+    deps: ["student-work-pipeline", "3d-scenes"],
+    osSeam: "partial", osNotes: "Portfolio shell reusable. Evidence types are product-specific."
+  },
+  {
+    id: "toolkit", name: "Design Thinking Toolkit", category: "Student Experience",
+    v1: "27 interactive + 21 catalog tools, 4 interaction shapes (Step Sequence, Canvas, Comparison Engine, Guided Composition), per-step AI rules, phase pills filter, SVG thumbnails, session persistence",
+    v2: "Advanced tool functions — eg SCAMPER generates 3D version of student's idea, upload drawing for AI analysis",
+    v3: "Tools embedded in lesson flow as activity blocks, toolkit results feed portfolio automatically",
+    v4: null, v5: null,
+    currentVersion: 1, status: "complete",
+    deps: ["toolkit-persistence", "activity-blocks"],
+    osSeam: "designed", osNotes: "Toolkit engine is reusable. Tool definitions are domain-specific (design vs service vs maker)."
+  },
+  {
+    id: "toolkit-persistence", name: "Toolkit Session Persistence", category: "Student Experience",
+    v1: "useToolSession hook — lazy session creation, debounced auto-save (500ms), resume, state tracking for all 27 tools",
+    v2: "Version history on sessions — students can branch from previous state",
+    v3: null, v4: null, v5: null,
+    currentVersion: 1, status: "complete",
+    deps: [],
+    osSeam: "ready", osNotes: "Generic session state persistence. Fully product-agnostic."
+  },
+  {
+    id: "discovery-engine", name: "Discovery Engine", category: "Student Experience",
+    v1: "8-station interactive journey with Kit mentor (~9,500 lines). Binary choices, card sorts, sliders, scene clicks, text prompts. Builds archetype profile (Maker/Analyst/Visionary/Synthesizer). Two modes: Design + Service/PP/PYPx.",
+    v2: "Adaptive flow for returning students — skip known stations, only problem-finding + door selection on subsequent units (45min → 20min → 10min)",
+    v3: "Full Journey Engine integration — Discovery becomes a composed Journey with conditional branching",
+    v4: "Multi-mentor support (currently Kit only), character-neutral presentation layer",
+    v5: null,
+    currentVersion: 1, status: "complete",
+    deps: ["journey-engine", "student-profile", "intelligence-profiles"],
+    osSeam: "designed", osNotes: "Discovery as a Journey is fully reusable. Station content is product-specific."
+  },
+  {
+    id: "student-pm", name: "Student PM Tools", category: "Student Experience",
+    v1: "Basic PM tools — Gantt chart, Kanban board with design cycle phases, keyboard/mobile-first",
+    v2: "AI task suggestions from unit content, due dates tied to timetable",
+    v3: "Collaborative PM — shared boards for group projects",
+    v4: null, v5: null,
+    currentVersion: 0, status: "planned",
+    deps: ["scheduling"],
+    osSeam: "ready", osNotes: "PM tools are domain-agnostic."
+  },
+  {
+    id: "student-open-studio", name: "Open Studio (Student)", category: "Student Experience",
+    v1: "Self-directed working mode — AI studio critic, 5 interaction types, check-in rotation, drift detection with 3-level escalation, per-unit scoping",
+    v2: "Journey-guided project planning — 7-station planning journey (Sonnet reasoning), mentor negotiates realistic plans, milestone-aware check-ins, greyscale unit card + colourful Studio card",
+    v3: "Full creative workspace with embedded tools, version control on work, community resource library",
+    v4: null, v5: null,
+    currentVersion: 1, status: "complete",
+    deps: ["journey-engine", "intelligence-profiles", "student-work-pipeline"],
+    osSeam: "partial", osNotes: "Self-directed mode pattern is reusable. Drift detection, check-in system portable."
+  },
+  {
+    id: "integrity-monitor-student", name: "Integrity Monitor (Student)", category: "Student Experience",
+    v1: "MonitoredTextarea with zero visible indicators — captures writing behaviour silently. 6-rule Human Confidence Score (paste ratio, bulk entry, typing speed, editing rate, focus loss, minimal time). Deterministic, no AI.",
+    v2: "Cross-session pattern detection, writing style fingerprinting",
+    v3: null, v4: null, v5: null,
+    currentVersion: 1, status: "complete",
+    deps: [],
+    osSeam: "ready", osNotes: "MonitoredTextarea + scoring engine fully product-agnostic."
+  },
+  {
+    id: "student-grade-view", name: "Student Grade View", category: "Student Experience",
+    v1: "Basic grading view — criterion scores, teacher comments, targets",
+    v2: "Visual progress over time, growth trajectory charts",
+    v3: "AI-powered grade explanation — what each score means in context of their work",
+    v4: null, v5: null,
+    currentVersion: 1, status: "complete",
+    deps: ["grading", "framework-adapter"],
+    osSeam: "partial", osNotes: "Grade display reusable. Criterion definitions are framework-specific."
+  },
+  {
+    id: "student-data", name: "Student Data Collection", category: "Student Experience",
+    v1: "Basic data collection for teacher — pace feedback (concrete 1-tap), activity tracking with debounced commits",
+    v2: "Rich behavioral signals — time per activity, revision patterns, tool usage depth",
+    v3: null, v4: null, v5: null,
+    currentVersion: 1, status: "complete",
+    deps: ["intelligence-profiles"],
+    osSeam: "ready", osNotes: "Activity tracking hooks are fully product-agnostic."
+  },
+  {
+    id: "student-work-pipeline", name: "Student Work Submission", category: "Student Experience",
+    v1: "Basic text responses with auto-save, photo upload via Quick Capture",
+    v2: "Full 5-stage pipeline — intake → processing (Sharp + Claude Vision) → enrichment (AI comparison vs expectations) → versioning → routing. Photo/video/audio/sketch.",
+    v3: "Version comparison, before/after overlays, progress documentation",
+    v4: null, v5: null,
+    currentVersion: 1, status: "active",
+    deps: ["activity-blocks", "ai-provider"],
+    osSeam: "ready", osNotes: "Work submission pipeline is fully product-agnostic. OS Pipeline 2 spec."
+  },
+  {
+    id: "student-nm", name: "Student NM View", category: "Student Experience",
+    v1: "Melbourne Metrics — CompetencyPulse (3-point student self-assessment), pop art visual identity",
+    v2: "Student-facing competency growth dashboard, goal setting",
+    v3: null, v4: null, v5: null,
+    currentVersion: 1, status: "complete",
+    deps: ["nm-system"],
+    osSeam: "partial", osNotes: "Competency framework engine reusable. Melbourne-specific content is not."
+  },
+  {
+    id: "safety-badges", name: "Safety Badges", category: "Student Experience",
+    v1: "Workshop safety tests with ~10 badges, 5 question types, unit access gating, custom badge builder",
+    v2: "Expanded badge library, peer badge nomination",
+    v3: null, v4: null, v5: null,
+    currentVersion: 1, status: "complete",
+    deps: [],
+    osSeam: "ready", osNotes: "Badge engine is product-agnostic. Badge content is domain-specific."
+  },
+  {
+    id: "student-profile", name: "Student Profile & Preferences", category: "Student Experience",
+    v1: "ELL level, UDL needs, learning needs, country, home language, grade level, mentor choice, theme preference",
+    v2: "AI-enriched profile from Discovery + toolkit + pace data. Adaptive scaffolding based on profile.",
+    v3: "Full intelligence profile — cross-session learning patterns, strength maps",
+    v4: null, v5: null,
+    currentVersion: 1, status: "complete",
+    deps: ["discovery-engine", "intelligence-profiles"],
+    osSeam: "ready", osNotes: "Profile schema is extensible and product-agnostic."
+  },
+  {
+    id: "student-learning-support", name: "Learning Support", category: "Student Experience",
+    v1: "Tier 2/3 word translation, UDL support (3 principles × 9 guidelines × 31 checkpoints), ADHD accommodations",
+    v2: "Profile-driven automatic scaffolding — system detects needs and adapts",
+    v3: null, v4: null, v5: null,
+    currentVersion: 1, status: "complete",
+    deps: ["student-profile", "udl-layer"],
+    osSeam: "ready", osNotes: "UDL framework and accommodation engine fully reusable."
+  },
+  {
+    id: "mentor-choice", name: "Designer Mentor System", category: "Student Experience",
+    v1: "3 mentors (Kit/Sage/Spark) with distinct AI personalities via aiPromptModifier, accent colors, reaction sets",
+    v2: "20 real-world designers as AI mentors (Pei, Hadid, etc.), 5-dimension trait taxonomy, weighted cosine similarity matching, 3D characters",
+    v3: "Mentor learns student over time — adapts tone, references past conversations",
+    v4: null, v5: null,
+    currentVersion: 1, status: "complete",
+    deps: ["ai-mentor", "3d-assets"],
+    osSeam: "designed", osNotes: "Mentor engine reusable. Character definitions are product-specific."
+  },
+  {
+    id: "student-graphics", name: "Student Graphics & Visuals", category: "Student Experience",
+    v1: "Basic R3F models for key components defined. 2D graphics generated.",
+    v2: "Cutscenes, more animations, mentor expressions",
+    v3: "Full scene rendering with spatial audio",
+    v4: null, v5: null,
+    currentVersion: 1, status: "active",
+    deps: ["3d-scenes", "3d-assets"],
+    osSeam: "partial", osNotes: "R3F renderer reusable. Assets are product-specific."
+  },
+  {
+    id: "daily-challenge", name: "Daily Challenge", category: "Student Experience",
+    v1: null,
+    v2: "Auto-generated 5-minute design task from one of 20 designers",
+    v3: "Streak system, difficulty progression, social sharing of solutions",
+    v4: null, v5: null,
+    currentVersion: 0, status: "idea",
+    deps: ["mentor-choice", "gamification"],
+    osSeam: "designed", osNotes: "Challenge engine reusable. Prompts are domain-specific."
+  },
+  {
+    id: "embedded-design-tools", name: "Embedded Design Tools", category: "Student Experience",
+    v1: null, v2: null,
+    v3: "Possible basic Inkscape-like vector editor embedded in platform",
+    v4: "Full design tool suite integration",
+    v5: null,
+    currentVersion: 0, status: "future",
+    deps: [],
+    osSeam: "none", osNotes: ""
+  },
+  {
+    id: "full-journey-game", name: "Full Journey Game", category: "Student Experience",
+    v1: null, v2: null, v3: null, v4: null,
+    v5: "Full Zelda-style world with NPCs, other players, currency, running a design studio to solve problems, empathise, upgrade studio",
+    currentVersion: 0, status: "future",
+    deps: ["3d-scenes", "3d-assets", "narrative-quests", "gamification", "journey-engine"],
+    osSeam: "designed", osNotes: "Game engine layer on top of Journey Engine. Engine is reusable, world is product-specific."
+  },
+  {
+    id: "real-client-mode", name: "Real Client Mode", category: "Student Experience",
+    v1: null, v2: null, v3: null,
+    v4: "Journey blocks support meeting with simulated 'real' client — AI-simulated client meetings (4 per unit), cross-meeting memory",
+    v5: "Real-world problems collected, submitted by community, solved by students with solutions uploaded",
+    currentVersion: 0, status: "idea",
+    deps: ["journey-engine", "ai-mentor"],
+    osSeam: "designed", osNotes: "Client simulation as Journey type is reusable."
+  },
+  {
+    id: "marketplace", name: "Student Marketplace", category: "Student Experience",
+    v1: null, v2: null, v3: null, v4: null,
+    v5: "Students can sell/trade design ideas and solutions",
+    currentVersion: 0, status: "future",
+    deps: ["gallery", "gamification"],
+    osSeam: "none", osNotes: ""
+  },
+  {
+    id: "gamification", name: "Gamification & Student Levels", category: "Student Experience",
+    v1: null,
+    v2: "Designer Level system — quality-weighted (not volume). Composite from criterion scores + toolkit depth + badges + reflections + Open Studio + NM + portfolio. No public leaderboard (ages 11-16).",
+    v3: "Quest system, achievements, studio upgrades tied to progress",
+    v4: "Full RPG-style progression with skill trees",
+    v5: null,
+    currentVersion: 0, status: "planned",
+    deps: ["grading", "toolkit-persistence", "safety-badges", "nm-system"],
+    osSeam: "designed", osNotes: "Leveling/achievement engine reusable. Criteria and thresholds are product-specific."
+  },
+  {
+    id: "mini-units", name: "MiniSkills / Mini Units", category: "Student Experience",
+    v1: "A few test mini units — bite-sized 1-3 lesson modules",
+    v2: "Large developed library of mini units, completion badges, knowledge gap filling",
+    v3: "AI-recommended based on gaps detected in student profile",
+    v4: null, v5: null,
+    currentVersion: 0, status: "idea",
+    deps: ["activity-blocks", "intelligence-profiles"],
+    osSeam: "ready", osNotes: "MiniSkill is just a short unit. Same architecture."
+  },
+
+  // ═══════════════════════════════════════════════════
+  // AI & INTELLIGENCE
+  // ═══════════════════════════════════════════════════
+  {
+    id: "ai-mentor", name: "AI Design Assistant / Mentor", category: "AI & Intelligence",
+    v1: "Socratic mentor — Haiku for student-facing, 300-token cap, context-aware, doesn't give answers. Guided mode + Open Studio critic mode.",
+    v2: "Fully developed mentor influenced by student profile — adapts tone, depth, references, scaffolding level",
+    v3: "Multi-modal — responds to uploaded images, sketches, photos of physical work",
+    v4: "Mentor personality persistence across sessions, remembers past conversations",
+    v5: null,
+    currentVersion: 1, status: "complete",
+    deps: ["ai-provider", "intelligence-profiles", "student-profile"],
+    osSeam: "ready", osNotes: "Mentor engine with system prompt injection is product-agnostic. Prompt content is specific."
+  },
+  {
+    id: "generation-pipeline", name: "Generation Pipeline (Dimensions3)", category: "AI & Intelligence",
+    v1: "6-stage pipeline BUILT (Phase C) + Feedback system BUILT (Phase D, 9 Apr): Pipeline: retrieval → assembly → gap-fill → polish → timing → scoring. Feedback: edit tracker, efficacy scoring (6-signal formula), approval queue with hard guardrails, self-healing proposals. 480+ tests.",
+    v2: "Learned patterns replace all defaults — system observes teacher uploads, edits, teaching patterns. Per-teacher style learning. Homogeneity prevention.",
+    v3: "Cross-teacher pattern sharing — opt-in anonymous pattern pooling within school/region",
+    v4: "Real-time generation co-pilot — teacher and AI collaborate on lesson design live",
+    v5: null,
+    currentVersion: 2, status: "active",
+    deps: ["activity-blocks", "knowledge-pipeline", "timing-engine", "framework-adapter", "intelligence-profiles"],
+    osSeam: "ready", osNotes: "Pipeline architecture is product-agnostic. FormatProfile injection makes it multi-product."
+  },
+  {
+    id: "knowledge-pipeline", name: "Knowledge Library & Ingestion", category: "AI & Intelligence",
+    v1: "Upload textbooks, lesson plans, images. 2-pass ingestion with expandable pass registry (Pass A classify + Pass B enrich). Block extraction + PII scan + copyright flags. content_items + content_assets tables. Review queue UI. REBUILT Phase B (7 Apr 2026).",
+    v2: "Uploads produce BOTH analytical data AND reusable activity blocks. Lesson Plan Converter creates editable units.",
+    v3: "Cross-teacher knowledge sharing within school, curated public library",
+    v4: null, v5: null,
+    currentVersion: 1, status: "active",
+    deps: ["activity-blocks", "embedding-search", "ai-provider"],
+    osSeam: "ready", osNotes: "Ingestion pipeline is OS Pipeline 1. Fully product-agnostic."
+  },
+  {
+    id: "activity-blocks", name: "Activity Block Library", category: "AI & Intelligence",
+    v1: "First-class SQL entities (not embedded JSONB). Full Dimensions metadata: bloom_level, udl_checkpoints, grouping, time_weight, ai_rules, phase, 14 activity categories. Composite ranking (relevance 30% + efficacy 25% + context 20% + teacher affinity 15% + freshness 10%). Efficacy scoring from teacher edits + student completion + time accuracy. Migration applied Phase A (7 Apr).",
+    v2: "Block versioning, A/B testing, collaborative block editing",
+    v3: "Cross-school block sharing, community-curated collections",
+    v4: null, v5: null,
+    currentVersion: 1, status: "active",
+    deps: ["knowledge-pipeline"],
+    osSeam: "ready", osNotes: "Activity Blocks are THE core shared entity across all Loominary products."
+  },
+  {
+    id: "intelligence-profiles", name: "Intelligence Profiles", category: "AI & Intelligence",
+    v1: "3 JSONB columns: Student Intelligence Profile (on students), Teacher Intelligence Profile (on teachers), Class Climate Profile (on classes). Updated at write time via exponential moving average (α=0.3). AI reads 200-300 token natural language summary.",
+    v2: "Cross-session learning patterns, predictive modelling for at-risk students",
+    v3: "Unified StudentLearningProfile merging passive signals with Discovery data",
+    v4: null, v5: null,
+    currentVersion: 0, status: "planned",
+    deps: ["discovery-engine", "student-data", "toolkit-persistence"],
+    osSeam: "ready", osNotes: "Profile schema and update engine fully product-agnostic."
+  },
+  {
+    id: "ai-provider", name: "AI Provider Abstraction", category: "AI & Intelligence",
+    v1: "Anthropic → Groq → Gemini fallback chain, factory pattern. Haiku for student-facing, Sonnet for generation. Admin model picker per pipeline tier.",
+    v2: "DeepSeek V3, Qwen 2.5, Moonshot as cheap alternatives for ingestion tiers. Side-by-side output comparison.",
+    v3: "Auto-routing — system picks cheapest model that meets quality threshold per task",
+    v4: null, v5: null,
+    currentVersion: 1, status: "complete",
+    deps: [],
+    osSeam: "ready", osNotes: "AI provider abstraction is the #1 OS service candidate."
+  },
+  {
+    id: "embedding-search", name: "Embedding & Vector Search", category: "AI & Intelligence",
+    v1: "Voyage AI voyage-3.5 (1024-dim), pgvector in Supabase. Hybrid search: 70% vector / 20% BM25 / 10% quality weighting.",
+    v2: "Multi-modal embeddings — images, diagrams, not just text",
+    v3: null, v4: null, v5: null,
+    currentVersion: 1, status: "complete",
+    deps: [],
+    osSeam: "ready", osNotes: "Vector search infrastructure is fully shared."
+  },
+  {
+    id: "lesson-pulse", name: "Lesson Pulse (Quality Scoring)", category: "AI & Intelligence",
+    v1: "Composite scoring: Curriculum Relevance + Student Appropriateness + Teaching Craft. 47 tests. Teaching Moves Library (~65 curated patterns). Context Injection.",
+    v2: "Voice/Personality Layer, Sequencing Intuition, Exemplar Contrast",
+    v3: "Real-time quality feedback during generation — co-pilot style",
+    v4: null, v5: null,
+    currentVersion: 1, status: "active",
+    deps: ["generation-pipeline", "activity-blocks"],
+    osSeam: "partial", osNotes: "Scoring engine reusable. Teaching Moves are domain-specific."
+  },
+  {
+    id: "timing-engine", name: "Timing Engine", category: "AI & Intelligence",
+    v1: "Workshop Model (4-phase: Opening/Mini-Lesson/Work Time/Debrief). 1+age instruction cap. 8 validation rules with auto-repair. Mandatory extensions. PhaseTimelineBar drag UI. Presets (Balanced/Hands-On/Instruction/Critique).",
+    v2: "Learned timing from teacher uploads/edits/feedback. Class velocity tracking. Cold-start defaults replaced by real data.",
+    v3: "Predictive timing — system suggests optimal time distribution based on class history",
+    v4: null, v5: null,
+    currentVersion: 1, status: "complete",
+    deps: ["scheduling"],
+    osSeam: "partial", osNotes: "Timing validation engine reusable. Workshop Model phases are design-teaching specific — FormatProfile makes it adaptable."
+  },
+  {
+    id: "content-safety", name: "Content Safety & Moderation", category: "AI & Intelligence",
+    v1: "Centralised appropriate content filter for all AI inputs/outputs, PII scanning, notifications, log of flagged content, school-configurable policies",
+    v2: "ML-based content classification, moderation queue with teacher review",
+    v3: null, v4: null, v5: null,
+    currentVersion: 0, status: "planned",
+    deps: ["ai-provider"],
+    osSeam: "ready", osNotes: "Content moderation is a top-priority OS service."
+  },
+  {
+    id: "teacher-style", name: "Teacher Style Learning", category: "AI & Intelligence",
+    v1: "TeacherStyleProfile — passive signal collection from uploads, edits, pacing decisions. Confidence computation. Stored as JSONB on teacher profile.",
+    v2: "Active style preferences — teacher explicitly tunes generation voice, favourite patterns, avoid list",
+    v3: "Style transfer between teachers — opt-in sharing of proven patterns",
+    v4: null, v5: null,
+    currentVersion: 1, status: "complete",
+    deps: ["generation-pipeline"],
+    osSeam: "ready", osNotes: "Style learning engine is product-agnostic."
+  },
+
+  // ═══════════════════════════════════════════════════
+  // TEACHER EXPERIENCE
+  // ═══════════════════════════════════════════════════
+  {
+    id: "teacher-dashboard", name: "Teacher Dashboard", category: "Teacher Experience",
+    v1: "Today's classes, tomorrow's schedule, current units with photo thumbnails + type badges, Teach + Edit buttons, critical notifications panel",
+    v2: "Insights feed, class health indicators, AI-suggested actions",
+    v3: "Customisable layout, widgets, pinned items",
+    v4: null, v5: null,
+    currentVersion: 1, status: "complete",
+    deps: ["scheduling", "unit-management"],
+    osSeam: "partial", osNotes: "Dashboard shell reusable. Widget types product-specific."
+  },
+  {
+    id: "teach-mode", name: "Teaching Mode (Live Cockpit)", category: "Teacher Experience",
+    v1: "3-column layout, phase timer, live student grid (8s polling), 'Needs Help' detection, dark projector view (separate window via postMessage), classroom tools (picker/timer/groups/noise meter), slide-out quick-edit panel reusing editor components",
+    v2: "Real-time via Supabase Realtime (upgrade from polling), AI teaching suggestions mid-lesson",
+    v3: "Multi-screen — cockpit on laptop, projector on screen, student view on student devices all synced",
+    v4: null, v5: null,
+    currentVersion: 1, status: "complete",
+    deps: ["lesson-view", "scheduling"],
+    osSeam: "designed", osNotes: "Live cockpit pattern reusable. Projector tools portable."
+  },
+  {
+    id: "unit-editor", name: "Lesson Editor (Phase 0.5)", category: "Teacher Experience",
+    v1: "12-component modular editor — drag-to-reorder activities, split-pane preview, undo/redo (UndoManager), auto-save, AI assist (# button), cross-container DnD (HTML5 + Framer Motion), 6 category quick-add templates + 'Import from...' search",
+    v2: "Edit Mode toggle ('All classes' vs 'This class only'), version timeline, promote fork to master",
+    v3: "Real-time collaborative editing (multiple teachers)",
+    v4: null, v5: null,
+    currentVersion: 1, status: "complete",
+    deps: ["content-forking", "activity-blocks", "framework-adapter"],
+    osSeam: "ready", osNotes: "Lesson editor is product-agnostic. Activity Block types pluggable via registry."
+  },
+  {
+    id: "unit-generation", name: "AI Unit Generation Wizard", category: "Teacher Experience",
+    v1: "3-lane selector (Express/Guided/Architect). 4 unit types (Design/Service/PP/Inquiry). Parallel criterion generation. RAG-enhanced prompts. Dimmed progressive disclosure UI.",
+    v2: "Generation from activity block library — assembly over generation. Teacher reviews/swaps blocks.",
+    v3: "Conversational unit design — teacher describes intent, AI proposes, teacher refines",
+    v4: null, v5: null,
+    currentVersion: 1, status: "complete",
+    deps: ["generation-pipeline", "knowledge-pipeline", "activity-blocks", "framework-adapter"],
+    osSeam: "ready", osNotes: "Wizard shell reusable. Lane definitions + FormatProfile make it multi-product."
+  },
+  {
+    id: "unit-conversion", name: "Existing Unit Conversion", category: "Teacher Experience",
+    v1: "Upload lesson plan (PDF/DOCX) → convert to editable unit + extract activity blocks for library",
+    v2: "Batch upload of scheme of work → full unit sequence generation",
+    v3: null, v4: null, v5: null,
+    currentVersion: 0, status: "planned",
+    deps: ["knowledge-pipeline", "activity-blocks"],
+    osSeam: "ready", osNotes: "Document conversion pipeline is product-agnostic."
+  },
+  {
+    id: "teacher-grading", name: "Teacher Grading", category: "Teacher Experience",
+    v1: "MYP (1-8) and GCSE (0-100%) criterion scoring, comments, tags, targets, IntegrityReport panel, evidence viewer",
+    v2: "UI for student submissions of created work — photo/video assessment with AI-assisted rubric application",
+    v3: "Comparative grading — view student A vs B side by side, cohort analytics",
+    v4: null, v5: null,
+    currentVersion: 1, status: "complete",
+    deps: ["framework-adapter", "integrity-monitor-student"],
+    osSeam: "partial", osNotes: "Grading engine reusable. Criterion definitions framework-specific via adapter."
+  },
+  {
+    id: "timetable", name: "Timetable & Scheduling", category: "Teacher Experience",
+    v1: "Visual timetable grid (Day×Period), rotating cycle engine (5/6/8/10-day), iCal import, school calendar with quick templates (4 Terms/2 Semesters/3 Trimesters/Custom), lesson schedule computation",
+    v2: "LMS auto-sync (ManageBac, PowerSchool)",
+    v3: null, v4: null, v5: null,
+    currentVersion: 1, status: "complete",
+    deps: ["scheduling"],
+    osSeam: "ready", osNotes: "Timetable/cycle engine is fully product-agnostic."
+  },
+  {
+    id: "teacher-school-settings", name: "Teacher School Settings", category: "Teacher Experience",
+    v1: "Period length, workshop access, doubles, number of days in cycle, school calendar/terms",
+    v2: "Workshop spaces, tools & machines, software — referenced by generation pipeline + Open Studio",
+    v3: null, v4: null, v5: null,
+    currentVersion: 1, status: "complete",
+    deps: [],
+    osSeam: "partial", osNotes: "School config schema extensible. Workshop-specific fields are domain-specific."
+  },
+  {
+    id: "nm-system", name: "New Metrics (Melbourne Metrics)", category: "Teacher Experience",
+    v1: "NM config wizard, ObservationSnap (4-point teacher), CompetencyPulse (3-point student), pop art visual identity, per-unit config on class_units JSONB, observation from Teaching Mode",
+    v2: "Rocket Report export, full 7 competency support, trend analytics",
+    v3: null, v4: null, v5: null,
+    currentVersion: 1, status: "complete",
+    deps: [],
+    osSeam: "partial", osNotes: "Competency assessment engine reusable. Melbourne framework content is specific."
+  },
+  {
+    id: "teacher-class-mgmt", name: "Class & Student Management", category: "Teacher Experience",
+    v1: "Class creation, student enrollment via class_students junction, multi-class support, class codes, student profiles",
+    v2: "Same-school teacher connection, shared class visibility",
+    v3: null, v4: null, v5: null,
+    currentVersion: 1, status: "complete",
+    deps: ["student-signin"],
+    osSeam: "ready", osNotes: "Class/enrollment model is fully product-agnostic."
+  },
+  {
+    id: "teacher-open-studio", name: "Open Studio (Teacher Controls)", category: "Teacher Experience",
+    v1: "Per-unit unlock toggle, check-in interval config (5-30 min), session log with drift flags, auto-revocation after 2 drift sessions",
+    v2: "Teacher parameter system — capability tiers, min check-ins, semester constraints. Plan approval workflow (approve/notes/return/schedule chat).",
+    v3: null, v4: null, v5: null,
+    currentVersion: 1, status: "complete",
+    deps: ["student-open-studio"],
+    osSeam: "partial", osNotes: "Teacher control panel pattern reusable."
+  },
+  {
+    id: "unit-management", name: "Unit Framework & Management", category: "Teacher Experience",
+    v1: "Unit-as-template architecture (Canvas Blueprint pattern). 4-dimension model: Type × Programme × Curriculum × Standards. Assigned classes view. Unit detail page.",
+    v2: "Year planner — week-based grid, curriculum coverage overlay, drag-to-schedule",
+    v3: null, v4: null, v5: null,
+    currentVersion: 1, status: "complete",
+    deps: ["content-forking", "framework-adapter"],
+    osSeam: "ready", osNotes: "Unit management architecture is product-agnostic."
+  },
+  {
+    id: "teacher-integrity", name: "Integrity Monitoring (Teacher)", category: "Teacher Experience",
+    v1: "IntegrityReport dashboard with Human Confidence Scores, writing playback, edit history, evidence panels. Filter by flags.",
+    v2: "Cross-unit pattern analysis, cohort anomaly detection",
+    v3: null, v4: null, v5: null,
+    currentVersion: 1, status: "complete",
+    deps: ["integrity-monitor-student"],
+    osSeam: "ready", osNotes: "Integrity reporting is product-agnostic."
+  },
+  {
+    id: "teacher-notifications", name: "Critical Notifications", category: "Teacher Experience",
+    v1: "Urgent items panel on teacher dashboard — integrity flags, drift alerts, missing work, overdue items",
+    v2: "Push notifications, email digest options",
+    v3: null, v4: null, v5: null,
+    currentVersion: 1, status: "complete",
+    deps: [],
+    osSeam: "ready", osNotes: "Notification engine is product-agnostic."
+  },
+  {
+    id: "teacher-journey-builder", name: "Teacher Journey Builder", category: "Teacher Experience",
+    v1: null,
+    v2: "Basic journey builder — select from pre-built journey blocks, arrange sequence, set conditions",
+    v3: "Advanced — custom block creation, branching logic editor, preview mode",
+    v4: null, v5: null,
+    currentVersion: 0, status: "planned",
+    deps: ["journey-engine"],
+    osSeam: "ready", osNotes: "Journey builder UI is product-agnostic."
+  },
+  {
+    id: "teacher-profile", name: "Teacher Profile", category: "Teacher Experience",
+    v1: "Language, default framework, country, school, experience, subject area, access to rooms/equipment/software. Workshop & Equipment tab.",
+    v2: "Professional development tracking, skill self-assessment",
+    v3: null, v4: null, v5: null,
+    currentVersion: 1, status: "complete",
+    deps: [],
+    osSeam: "partial", osNotes: "Profile schema extensible. Workshop fields are design-specific."
+  },
+  {
+    id: "teacher-settings", name: "Teacher Settings", category: "Teacher Experience",
+    v1: "School settings, workshop & equipment, AI controls (macro dials + micro sliders), calendar setup",
+    v2: null, v3: null, v4: null, v5: null,
+    currentVersion: 1, status: "complete",
+    deps: [],
+    osSeam: "partial", osNotes: "Settings framework reusable. Section content varies by product."
+  },
+  {
+    id: "school-resource-mapping", name: "School Resource Mapping", category: "Teacher Experience",
+    v1: null,
+    v2: "Teacher can add people, spaces, tools, and materials that other functions reference — eg Open Studio can direct students to specific resources",
+    v3: "Resource booking/scheduling integration",
+    v4: null, v5: null,
+    currentVersion: 0, status: "idea",
+    deps: ["teacher-school-settings"],
+    osSeam: "ready", osNotes: "Resource registry is fully product-agnostic."
+  },
+  {
+    id: "year-planner", name: "Year Planner & Curriculum", category: "Teacher Experience",
+    v1: null,
+    v2: "Week-based grid for all classes × units, lesson count from cycle engine, planned_start_date + planned_lesson_count on class_units, curriculum coverage as overlay",
+    v3: "Collaborative planning — department-wide view, shared units across teachers",
+    v4: null, v5: null,
+    currentVersion: 0, status: "planned",
+    deps: ["timetable", "scheduling", "framework-adapter"],
+    osSeam: "ready", osNotes: "Year planner grid is product-agnostic."
+  },
+  {
+    id: "smart-insights", name: "Smart Insights Panel", category: "Teacher Experience",
+    v1: "Priority-sorted feed, 6 insight types, server-side computation (no AI calls)",
+    v2: "AI-generated insights, trend analysis, predictive alerts",
+    v3: null, v4: null, v5: null,
+    currentVersion: 1, status: "complete",
+    deps: [],
+    osSeam: "ready", osNotes: "Insights engine with pluggable insight types is product-agnostic."
+  },
+
+  // ═══════════════════════════════════════════════════
+  // PLATFORM CORE
+  // ═══════════════════════════════════════════════════
+  {
+    id: "framework-adapter", name: "Framework Adapter", category: "Platform Core",
+    v1: "8 neutral criterion categories (researching/analysing/designing/creating/evaluating/reflecting/communicating/planning). Maps bidirectionally to MYP, GCSE, A-Level, IGCSE, ACARA, PLTW + non-design types. Labels only (not tone).",
+    v2: "Tone/phrasing adaptation per framework. Custom framework creation.",
+    v3: "Auto-detection of framework from uploaded content",
+    v4: null, v5: null,
+    currentVersion: 1, status: "complete",
+    deps: [],
+    osSeam: "ready", osNotes: "THE key OS abstraction. Every Loominary product uses this."
+  },
+  {
+    id: "content-forking", name: "Content Forking (Copy-on-Write)", category: "Platform Core",
+    v1: "class_units.content_data with ensureForked() deep copy. Resolution chain: classContent ?? masterContent (with hasContent() guard). forked_at timestamp, forked_from_version. Page ID preservation invariant.",
+    v2: "Promote fork to master. Selective merge (pull specific pages from updated master into fork).",
+    v3: null, v4: null, v5: null,
+    currentVersion: 1, status: "complete",
+    deps: [],
+    osSeam: "ready", osNotes: "Copy-on-write content pattern is fully product-agnostic."
+  },
+  {
+    id: "scheduling", name: "Cycle Engine & Scheduling", category: "Platform Core",
+    v1: "Anchor-based modular arithmetic for rotating cycles (5/6/8/10-day). Weekday-only counting. Excluded dates. Per-term reset. Schedule overrides as JSONB on class_units.",
+    v2: "Holiday auto-detection from iCal, grace periods, schedule conflict detection",
+    v3: null, v4: null, v5: null,
+    currentVersion: 1, status: "complete",
+    deps: [],
+    osSeam: "ready", osNotes: "Scheduling engine is fully product-agnostic."
+  },
+  {
+    id: "auth-system", name: "Auth System", category: "Platform Core",
+    v1: "Dual auth: Supabase Auth for teachers + nanoid(48) token sessions for students. requireTeacherAuth / requireStudentAuth helpers. Cache-Control: private on all auth routes (Vercel). 3-level student login fallback.",
+    v2: "SSO (Google, Apple, LMS), RBAC roles, ServiceContext pattern",
+    v3: "Multi-tenant school accounts, admin hierarchy",
+    v4: null, v5: null,
+    currentVersion: 1, status: "complete",
+    deps: [],
+    osSeam: "ready", osNotes: "Auth + ServiceContext is THE first OS service to extract."
+  },
+  {
+    id: "journey-engine", name: "Journey Engine", category: "Platform Core",
+    v1: "Modular interactive experiences. 14+ Journey Block types (binary choice, card sort, slider, scene explore, text prompt, reveal, dialogue choice, etc.). Composed into named Journeys with conditional branching. Character-neutral, scene-neutral. Student profile (learning_profile JSONB) as data hub. 4 rendering modes. Path validation (no cycles, no unreachable nodes).",
+    v2: "R3F animated scenes per block, spatial audio, character expression system",
+    v3: "Teacher-authorable journeys via node-graph editor",
+    v4: "AI-generated journeys from learning objectives",
+    v5: null,
+    currentVersion: 0, status: "planned",
+    deps: ["3d-scenes", "student-profile"],
+    osSeam: "ready", osNotes: "Journey Engine is THE core OS primitive. Every product uses interactive journeys."
+  },
+  {
+    id: "format-profiles", name: "Format Profiles", category: "Platform Core",
+    v1: "FormatProfile per unit type — block relevance boosts, sequence hints, gap generation rules, connective tissue style, timing modifiers, Pulse scoring weights. Built-in: Design, Service, PP, Inquiry. Custom via JSONB in format_profiles table.",
+    v2: "Custom format creation from admin UI (10-step Format Builder), max 20 custom formats",
+    v3: "Community-shared format profiles",
+    v4: null, v5: null,
+    currentVersion: 0, status: "active",
+    deps: ["framework-adapter", "generation-pipeline"],
+    osSeam: "ready", osNotes: "FormatProfile system enables multi-product. Each Loominary app adds its own formats."
+  },
+  {
+    id: "layer-registry", name: "Lesson Layer Registry", category: "Platform Core",
+    v1: "Central registry of pedagogical metadata layers. Built layers: Bloom's, UDL (31 checkpoints), Grouping, Time Weight, AI Rules, Scaffolding. Planned: Assessment Checkpoints, Thinking Routines, Scaffolding Fade, ATL Skills, Inquiry Phase, Collaboration Quality, Differentiation Pathways, Self-Regulation.",
+    v2: "Custom layer definitions from admin UI",
+    v3: null, v4: null, v5: null,
+    currentVersion: 1, status: "complete",
+    deps: [],
+    osSeam: "ready", osNotes: "Layer registry pattern is product-agnostic. Layer definitions are domain-specific."
+  },
+  {
+    id: "udl-layer", name: "UDL Framework Layer", category: "Platform Core",
+    v1: "CAST UDL — 3 principles × 9 guidelines × 31 checkpoints. Activities tagged with udl_checkpoints[]. Coverage computed per page.",
+    v2: "Auto-tagging from AI analysis of activity content",
+    v3: null, v4: null, v5: null,
+    currentVersion: 1, status: "complete",
+    deps: ["layer-registry"],
+    osSeam: "ready", osNotes: "UDL framework applies to all education products."
+  },
+  {
+    id: "unit-adapter", name: "Content Normalisation", category: "Platform Core",
+    v1: "normalizeContentData() handles 4 content versions (v1 Record, v2 pages array, v3 journey, v4 timeline). Mandatory for any code reading pages.",
+    v2: null, v3: null, v4: null, v5: null,
+    currentVersion: 1, status: "complete",
+    deps: [],
+    osSeam: "ready", osNotes: "Content normalisation layer is product-agnostic."
+  },
+
+  // ═══════════════════════════════════════════════════
+  // 3D & VISUAL LAYER
+  // ═══════════════════════════════════════════════════
+  {
+    id: "3d-scenes", name: "3D Scene Renderer (R3F)", category: "3D & Visual Layer",
+    v1: "5 rendering modes (fullscreen, embedded, floating, modal, PiP). JSON scene config. WebGL fallback. 50K triangle budget per scene.",
+    v2: "Dynamic lighting, weather systems, spatial audio integration",
+    v3: "Multi-user scenes (Supabase Realtime Presence), avatar system",
+    v4: null, v5: null,
+    currentVersion: 0, status: "planned",
+    deps: [],
+    osSeam: "ready", osNotes: "R3F renderer is product-agnostic. Scene configs are product-specific."
+  },
+  {
+    id: "3d-assets", name: "Asset Library", category: "3D & Visual Layer",
+    v1: "9 categories (characters, environments, props, lighting, weather, UI3D, audio). SQL schema for asset management. LOD support.",
+    v2: "Asset marketplace — community-contributed models",
+    v3: null, v4: null, v5: null,
+    currentVersion: 0, status: "planned",
+    deps: ["3d-scenes"],
+    osSeam: "ready", osNotes: "Asset management system is product-agnostic."
+  },
+  {
+    id: "audio-system", name: "Audio System", category: "3D & Visual Layer",
+    v1: "Ambience + mood-transition music + spatial audio + SFX (Tone.js) + TTS (ElevenLabs + fallback)",
+    v2: "Student-created audio, recording/playback",
+    v3: null, v4: null, v5: null,
+    currentVersion: 0, status: "planned",
+    deps: ["3d-scenes"],
+    osSeam: "ready", osNotes: "Audio engine is product-agnostic."
+  },
+  {
+    id: "tutorial-engine-3d", name: "3D Tutorial Engine", category: "3D & Visual Layer",
+    v1: "3 modes: Guided Skill (validation), Safety Scene (hazard ID), Visual Diagram (static). Scripted camera, highlight system, step manager.",
+    v2: "AI-narrated tutorials, adaptive difficulty",
+    v3: null, v4: null, v5: null,
+    currentVersion: 0, status: "planned",
+    deps: ["3d-scenes", "3d-assets"],
+    osSeam: "ready", osNotes: "Tutorial engine is product-agnostic."
+  },
+  {
+    id: "narrative-quests", name: "Narrative & Quest System", category: "3D & Visual Layer",
+    v1: "NPCs with personalities, dialogue trees, quests tied to Design Cycle phases, AI-powered voice NPCs (Claude + ElevenLabs), cutscene system",
+    v2: "Branching narratives, student choices affect world state",
+    v3: null, v4: null, v5: null,
+    currentVersion: 0, status: "idea",
+    deps: ["3d-scenes", "3d-assets", "journey-engine"],
+    osSeam: "designed", osNotes: "Quest engine reusable. NPC personalities/quests are product-specific."
+  },
+  {
+    id: "gallery-3d", name: "3D Gallery & Multiplayer", category: "3D & Visual Layer",
+    v1: "Virtual exhibition spaces, emoji reactions, guestbooks, chat. Supabase Realtime (Presence + Broadcast).",
+    v2: "Student-designed gallery spaces, virtual openings/events",
+    v3: null, v4: null, v5: null,
+    currentVersion: 0, status: "idea",
+    deps: ["3d-scenes", "gallery", "student-work-pipeline"],
+    osSeam: "ready", osNotes: "3D gallery engine is product-agnostic."
+  },
+
+  // ═══════════════════════════════════════════════════
+  // PARENT & COMMUNITY
+  // ═══════════════════════════════════════════════════
+  {
+    id: "parent-view", name: "Parent View", category: "Parent & Community",
+    v1: null,
+    v2: "Gallery access — parents can view student's public portfolio with access code",
+    v3: "Progress dashboard, upcoming deadlines, achievement timeline",
+    v4: null, v5: null,
+    currentVersion: 0, status: "idea",
+    deps: ["gallery", "portfolio"],
+    osSeam: "ready", osNotes: "Parent portal pattern is product-agnostic."
+  },
+  {
+    id: "parent-updates", name: "Parent Updates", category: "Parent & Community",
+    v1: null,
+    v2: "Teacher can send email or notification of student's recent activity. AI-generated weekly summaries.",
+    v3: null, v4: null, v5: null,
+    currentVersion: 0, status: "idea",
+    deps: ["parent-view", "student-data"],
+    osSeam: "ready", osNotes: "Notification/update engine is product-agnostic."
+  },
+  {
+    id: "same-school", name: "Same-School Connection", category: "Parent & Community",
+    v1: null,
+    v2: "Way to connect teachers and students at the same school — shared visibility, cross-class features",
+    v3: "School-wide analytics, department coordination",
+    v4: null, v5: null,
+    currentVersion: 0, status: "idea",
+    deps: ["auth-system", "teacher-class-mgmt"],
+    osSeam: "ready", osNotes: "Multi-tenant school model is an OS service."
+  },
+
+  // ═══════════════════════════════════════════════════
+  // ADMIN & OPERATIONS
+  // ═══════════════════════════════════════════════════
+  {
+    id: "admin-dashboard", name: "Admin Dashboard", category: "Admin & Operations",
+    v1: "Superuser account with health overview. 7 tabs: Pipeline Health, Block Library, Sandbox, Cost & Usage, Quality, Wiring, Settings. Per-teacher profitability tracking.",
+    v2: "Automated alerting, cost anomaly detection, quality drift monitoring",
+    v3: null, v4: null, v5: null,
+    currentVersion: 0, status: "planned",
+    deps: ["generation-pipeline", "activity-blocks"],
+    osSeam: "partial", osNotes: "Admin shell reusable. Pipeline-specific tabs are product-specific."
+  },
+  {
+    id: "admin-journey-builder", name: "Admin Journey Builder", category: "Admin & Operations",
+    v1: "Power user node-graph journey editor — full conditional branching, block composition, preview, publish",
+    v2: "Journey analytics, A/B testing, version control",
+    v3: null, v4: null, v5: null,
+    currentVersion: 0, status: "planned",
+    deps: ["journey-engine"],
+    osSeam: "ready", osNotes: "Journey builder is product-agnostic."
+  },
+  {
+    id: "testing-sandbox", name: "Testing Sandbox", category: "Admin & Operations",
+    v1: "Sandbox for testing generation, framework selector, single lesson generation, step-through debugger for 6-stage pipeline",
+    v2: "Per-format sandbox tabs, side-by-side output comparison, regression testing",
+    v3: null, v4: null, v5: null,
+    currentVersion: 1, status: "active",
+    deps: ["generation-pipeline"],
+    osSeam: "partial", osNotes: "Sandbox UI pattern reusable. Test fixtures are product-specific."
+  },
+  {
+    id: "admin-login", name: "Admin Login & Auth", category: "Admin & Operations",
+    v1: "Superuser account via is_admin flag on teacher profile",
+    v2: "Role-based admin access (super, school-admin, support)",
+    v3: null, v4: null, v5: null,
+    currentVersion: 1, status: "complete",
+    deps: ["auth-system"],
+    osSeam: "ready", osNotes: "Admin RBAC is product-agnostic."
+  },
+  {
+    id: "monetisation", name: "Monetisation", category: "Admin & Operations",
+    v1: "None active, but all coding done to enable feature tiers",
+    v2: "Free level, tiered pricing. Stripe integration. Dashboard to control tiers/features.",
+    v3: "Usage-based pricing, school volume licensing",
+    v4: null, v5: null,
+    currentVersion: 0, status: "planned",
+    deps: ["auth-system"],
+    osSeam: "ready", osNotes: "Billing/tier engine is an OS service."
+  },
+  {
+    id: "user-management", name: "User Management", category: "Admin & Operations",
+    v1: "Full viewing of who is using — teacher list, student counts, usage stats",
+    v2: "Impersonation for support, activity audit log",
+    v3: null, v4: null, v5: null,
+    currentVersion: 0, status: "planned",
+    deps: ["admin-dashboard"],
+    osSeam: "ready", osNotes: "User management is an OS service."
+  },
+  {
+    id: "ai-controls", name: "AI Controls (Admin)", category: "Admin & Operations",
+    v1: "Macro dials (5 big concepts) + micro sliders (50+ detailed). Config history. Per-stage influence sliders (0-100%). Model picker per pipeline tier.",
+    v2: "A/B testing of AI configs, rollback support",
+    v3: null, v4: null, v5: null,
+    currentVersion: 1, status: "complete",
+    deps: ["ai-provider", "generation-pipeline"],
+    osSeam: "partial", osNotes: "AI config UI reusable. Pipeline-specific controls are product-specific."
+  },
+  {
+    id: "compliance", name: "Compliance & Privacy", category: "Admin & Operations",
+    v1: "PIPL, GDPR, COPPA awareness. Ability to remove students from system. Anonymous-by-default student auth. No GA4 (Plausible/PostHog instead).",
+    v2: "Data export (GDPR Article 20), retention policies, audit trails",
+    v3: null, v4: null, v5: null,
+    currentVersion: 1, status: "active",
+    deps: [],
+    osSeam: "ready", osNotes: "Compliance engine is an OS service."
+  },
+  {
+    id: "automation", name: "Automation & CI/CD", category: "Admin & Operations",
+    v1: "GitHub Actions, pg_cron potential, Sentry potential. Vercel auto-deploy.",
+    v2: "CI (lint+typecheck+build), nightly audit, /api/health endpoint, Sentry fully configured (server+edge+browser+14 routes), GitHub Secrets, Vercel env vars.",
+    v3: "Bug report widget, pg_cron nightly automation, Better Stack uptime monitoring", v4: null, v5: null,
+    currentVersion: 2, status: "complete",
+    deps: [],
+    osSeam: "partial", osNotes: "CI/CD patterns reusable across Loominary products."
+  },
+  {
+    id: "bug-reporting", name: "Bug Reporting", category: "Admin & Operations",
+    v1: "Bug squash button with basic reporting — per-class toggle, captures URL + browser info + class context + console errors",
+    v2: "Bug squash with advanced data capture — session replay, network logs, reproduction steps",
+    v3: null, v4: null, v5: null,
+    currentVersion: 0, status: "idea",
+    deps: [],
+    osSeam: "ready", osNotes: "Bug reporting widget is product-agnostic."
+  },
+  {
+    id: "format-support", name: "Format / Unit Type Support", category: "Admin & Operations",
+    v1: "Design (primary)",
+    v2: "Service, PYPx",
+    v3: "Personal Project",
+    v4: "Other / Custom (Art, STEM Challenge, etc.)",
+    v5: null,
+    currentVersion: 1, status: "active",
+    deps: ["framework-adapter", "format-profiles"],
+    osSeam: "ready", osNotes: "Format system is the OS extensibility mechanism."
+  },
+
+  // ═══════════════════════════════════════════════════
+  // MARKETING & PUBLIC
+  // ═══════════════════════════════════════════════════
+  {
+    id: "landing-page", name: "Landing Page", category: "Marketing & Public",
+    v1: "Story-driven 5-phase journey, CSS mock visuals, framework trust bar, responsive",
+    v2: "Interactive demos, teacher testimonials, comparison tools",
+    v3: null, v4: null, v5: null,
+    currentVersion: 1, status: "complete",
+    deps: [],
+    osSeam: "none", osNotes: "Product-specific."
+  },
+  {
+    id: "public-toolkit", name: "Public Toolkit (Lead Gen)", category: "Marketing & Public",
+    v1: "48 tools at /toolkit — free, unauthenticated, dark theme. Same components as student toolkit but no persistence.",
+    v2: "Email capture for full results, teacher workshop mode",
+    v3: null, v4: null, v5: null,
+    currentVersion: 1, status: "complete",
+    deps: ["toolkit"],
+    osSeam: "none", osNotes: "Product-specific marketing tool."
+  },
+  {
+    id: "report-writer", name: "Report Writer (Free Tool)", category: "Marketing & Public",
+    v1: "Bulk report comment generation, multi-framework, email template export",
+    v2: "More frameworks, student-specific comments from grade data",
+    v3: null, v4: null, v5: null,
+    currentVersion: 1, status: "complete",
+    deps: ["framework-adapter"],
+    osSeam: "partial", osNotes: "Report engine reusable. Comment templates are framework-specific."
+  },
+];
+
+// ═══════════════════════════════════════════════════
+// DEPENDENCY CHAINS (key build sequences)
+// ═══════════════════════════════════════════════════
+const DEP_CHAINS = [
+  {
+    name: "Generation Pipeline Rebuild",
+    description: "The critical path for Dimensions3 — every stage depends on Activity Blocks being first-class entities",
+    chain: ["activity-blocks", "knowledge-pipeline", "generation-pipeline", "lesson-pulse", "timing-engine"]
+  },
+  {
+    name: "Journey Engine → Everything Interactive",
+    description: "Journey Engine unlocks Discovery v2, Open Studio v2, 3D tutorials, and eventually the full game",
+    chain: ["journey-engine", "discovery-engine", "student-open-studio", "tutorial-engine-3d", "narrative-quests", "full-journey-game"]
+  },
+  {
+    name: "3D Visual Layer",
+    description: "R3F scenes → assets → all 3D features (gallery, tutorials, game world)",
+    chain: ["3d-scenes", "3d-assets", "audio-system", "gallery-3d", "tutorial-engine-3d", "narrative-quests"]
+  },
+  {
+    name: "Student Intelligence",
+    description: "Data collection → profiles → adaptive everything",
+    chain: ["student-data", "discovery-engine", "intelligence-profiles", "ai-mentor", "gamification"]
+  },
+  {
+    name: "Content Architecture",
+    description: "Framework adapter enables all content to be framework-neutral",
+    chain: ["framework-adapter", "format-profiles", "activity-blocks", "unit-editor", "content-forking"]
+  },
+  {
+    name: "Student Work Pipeline",
+    description: "Work submission → gallery → portfolio → 3D exhibition",
+    chain: ["student-work-pipeline", "gallery", "portfolio", "gallery-3d"]
+  },
+  {
+    name: "Auth & Multi-Tenancy",
+    description: "Auth system → school connections → enterprise readiness",
+    chain: ["auth-system", "student-signin", "teacher-class-mgmt", "same-school", "monetisation"]
+  }
+];
+
+// ═══════════════════════════════════════════════════
+// RENDER ENGINE
+// ═══════════════════════════════════════════════════
+const categories = [...new Set(SYSTEMS.map(s => s.category))];
+let expandedSystem = null;
+let activeStatusFilter = 'all';
+let searchQuery = '';
+let activeView = 'maturity';
+
+function getStatusClass(status) {
+  return status === 'quarantined' ? 'quarantined' : status;
+}
+
+function renderStats() {
+  const counts = { complete: 0, active: 0, planned: 0, idea: 0, future: 0, quarantined: 0 };
+  SYSTEMS.forEach(s => { counts[s.status] = (counts[s.status] || 0) + 1; });
+  const total = SYSTEMS.length;
+  const osReady = SYSTEMS.filter(s => s.osSeam === 'ready').length;
+
+  document.getElementById('statsBar').innerHTML = `
+    <div class="stat"><div class="num">${total}</div><div class="label">Total Systems</div></div>
+    <div class="stat complete"><div class="num">${counts.complete}</div><div class="label">Built</div></div>
+    <div class="stat active"><div class="num">${counts.active + counts.quarantined}</div><div class="label">Active/WIP</div></div>
+    <div class="stat planned"><div class="num">${counts.planned}</div><div class="label">Planned</div></div>
+    <div class="stat idea"><div class="num">${counts.idea}</div><div class="label">Idea</div></div>
+    <div class="stat future"><div class="num">${counts.future}</div><div class="label">Future</div></div>
+    <div class="stat" style="border-left: 1px solid var(--border); padding-left: 24px;">
+      <div class="num" style="color: var(--cyan);">${osReady}</div>
+      <div class="label">OS-Ready</div>
+    </div>
+  `;
+}
+
+function matchesFilter(sys) {
+  if (activeStatusFilter !== 'all' && sys.status !== activeStatusFilter) return false;
+  if (searchQuery) {
+    const q = searchQuery.toLowerCase();
+    const haystack = [sys.name, sys.v1, sys.v2, sys.v3, sys.v4, sys.v5, sys.category, sys.osNotes]
+      .filter(Boolean).join(' ').toLowerCase();
+    return haystack.includes(q);
+  }
+  return true;
+}
+
+function renderMaturityView() {
+  let html = '';
+  categories.forEach(cat => {
+    const systems = SYSTEMS.filter(s => s.category === cat && matchesFilter(s));
+    if (systems.length === 0) return;
+
+    html += `<div class="category-section">
+      <div class="category-header" onclick="this.classList.toggle('collapsed'); this.nextElementSibling.classList.toggle('hidden');">
+        <span class="chevron">▼</span>
+        <h2>${cat}</h2>
+        <span class="count">${systems.length}</span>
+      </div>
+      <div>
+        <div class="version-headers">
+          <div>System</div>
+          <div class="vh-center">v1</div>
+          <div class="vh-center">v2</div>
+          <div class="vh-center">v3</div>
+          <div class="vh-center">v4</div>
+          <div class="vh-center">v5</div>
+          <div class="vh-center">Status</div>
+          <div class="vh-center">OS</div>
+        </div>
+        <div class="system-grid">`;
+
+    systems.forEach(sys => {
+      const isExpanded = expandedSystem === sys.id;
+      html += `<div class="system-row ${isExpanded ? 'expanded' : ''}" onclick="toggleExpand('${sys.id}')">
+        <div class="sys-name">
+          <div class="name" title="${sys.name}">${sys.name}</div>
+          <div class="sub">${sys.category}</div>
+        </div>`;
+
+      for (let v = 1; v <= 5; v++) {
+        const text = sys[`v${v}`];
+        let cls = 'empty';
+        if (text) {
+          if (v <= sys.currentVersion) cls = 'current';
+          else if (v === sys.currentVersion + 1) cls = 'next';
+          else cls = 'filled';
+        }
+        html += `<div class="version-cell ${cls}" title="${text || 'Not planned yet'}">${text || ''}</div>`;
+      }
+
+      html += `<div><span class="status-badge ${getStatusClass(sys.status)}">${sys.status}</span></div>`;
+      html += `<div><span class="os-badge ${sys.osSeam}">${sys.osSeam === 'none' ? '—' : sys.osSeam}</span></div>`;
+      html += `</div>`;
+
+      // Detail panel
+      const depNames = (sys.deps || []).map(d => {
+        const dep = SYSTEMS.find(s => s.id === d);
+        return dep ? `<span class="dep-tag">${dep.name}</span>` : `<span class="dep-tag">${d}</span>`;
+      }).join('');
+
+      const dependents = SYSTEMS.filter(s => (s.deps || []).includes(sys.id))
+        .map(s => `<span class="dep-tag">${s.name}</span>`).join('');
+
+      html += `<div class="system-detail ${isExpanded ? 'visible' : ''}" id="detail-${sys.id}">
+        <div class="detail-grid">
+          <div class="detail-section">
+            <h4>Dependencies (needs)</h4>
+            <p>${depNames || 'None'}</p>
+          </div>
+          <div class="detail-section">
+            <h4>Dependents (unlocks)</h4>
+            <p>${dependents || 'None'}</p>
+          </div>
+          <div class="detail-section">
+            <h4>Loominary OS</h4>
+            <p><strong>${sys.osSeam}</strong>: ${sys.osNotes || 'No notes'}</p>
+          </div>
+          <div class="detail-section">
+            <h4>Current Version</h4>
+            <p>v${sys.currentVersion} of 5 ${sys.currentVersion === 0 ? '(not started)' : ''}</p>
+          </div>
+        </div>
+      </div>`;
+    });
+
+    html += `</div></div></div>`;
+  });
+
+  document.getElementById('maturityView').innerHTML = html;
+}
+
+function renderDepsView() {
+  let html = '<h2 style="margin-bottom: 20px; font-size: 20px;">Key Build Sequences</h2>';
+
+  DEP_CHAINS.forEach(chain => {
+    html += `<div class="dep-card">
+      <h3>${chain.name}</h3>
+      <p style="font-size: 13px; color: var(--text-dim); margin-bottom: 12px;">${chain.description}</p>
+      <div class="dep-chain">`;
+
+    chain.chain.forEach((id, i) => {
+      const sys = SYSTEMS.find(s => s.id === id);
+      if (!sys) return;
+      if (i > 0) html += `<span class="dep-arrow">→</span>`;
+      html += `<span class="dep-node ${getStatusClass(sys.status)}">${sys.name} <small>(v${sys.currentVersion})</small></span>`;
+    });
+
+    html += `</div></div>`;
+  });
+
+  // Also show orphan systems (no deps and no dependents)
+  const allDeps = new Set();
+  const allDependents = new Set();
+  SYSTEMS.forEach(s => {
+    (s.deps || []).forEach(d => allDeps.add(d));
+    if ((s.deps || []).length > 0) allDependents.add(s.id);
+  });
+  const orphans = SYSTEMS.filter(s => !allDeps.has(s.id) && (s.deps || []).length === 0);
+
+  if (orphans.length > 0) {
+    html += `<div class="dep-card">
+      <h3>Independent Systems <small style="font-weight: 400; color: var(--text-dim);">(no dependencies)</small></h3>
+      <div class="dep-chain" style="flex-wrap: wrap;">`;
+    orphans.forEach(sys => {
+      html += `<span class="dep-node ${getStatusClass(sys.status)}">${sys.name}</span>`;
+    });
+    html += `</div></div>`;
+  }
+
+  document.getElementById('depsView').innerHTML = html;
+}
+
+function renderOsView() {
+  const tiers = [
+    { key: 'ready', title: 'OS-Ready', desc: 'Can be extracted as shared services with minimal changes' },
+    { key: 'designed', title: 'OS-Designed', desc: 'Architecture supports sharing but needs abstraction work' },
+    { key: 'partial', title: 'Partially Portable', desc: 'Some product-specific coupling to resolve' },
+    { key: 'none', title: 'Product-Specific', desc: 'Intentionally not shared — unique to StudioLoom' }
+  ];
+
+  let html = '<h2 style="margin-bottom: 20px; font-size: 20px;">Loominary OS Seam Readiness</h2>';
+
+  tiers.forEach(tier => {
+    const systems = SYSTEMS.filter(s => s.osSeam === tier.key && matchesFilter(s));
+    if (systems.length === 0) return;
+
+    html += `<div class="os-tier">
+      <h3>${tier.title} <span>${tier.desc} (${systems.length})</span></h3>
+      <div class="os-items">`;
+
+    systems.forEach(sys => {
+      html += `<div class="os-item">
+        <div class="name">${sys.name} <span class="status-badge ${getStatusClass(sys.status)}" style="font-size: 9px; padding: 1px 5px;">${sys.status}</span></div>
+        <div class="note">${sys.osNotes || sys.category}</div>
+      </div>`;
+    });
+
+    html += `</div></div>`;
+  });
+
+  document.getElementById('osView').innerHTML = html;
+}
+
+function toggleExpand(id) {
+  expandedSystem = expandedSystem === id ? null : id;
+  renderMaturityView();
+}
+
+function render() {
+  renderStats();
+  renderMaturityView();
+  renderDepsView();
+  renderOsView();
+}
+
+// Event listeners
+document.getElementById('searchBox').addEventListener('input', e => {
+  searchQuery = e.target.value;
+  render();
+});
+
+document.getElementById('statusFilters').addEventListener('click', e => {
+  if (!e.target.classList.contains('filter-btn')) return;
+  document.querySelectorAll('#statusFilters .filter-btn').forEach(b => {
+    b.classList.remove('active', 'active-green', 'active-blue', 'active-amber', 'active-purple');
+  });
+  const activeClass = e.target.dataset.activeClass || 'active';
+  e.target.classList.add(activeClass);
+  activeStatusFilter = e.target.dataset.filter;
+  render();
+});
+
+document.querySelectorAll('.view-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.view-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    activeView = tab.dataset.view;
+    document.querySelectorAll('.dep-view').forEach(v => v.classList.remove('active'));
+    document.getElementById(activeView + 'View').classList.add('active');
+  });
+});
+
+render();
+</script>
+</body>
+</html>

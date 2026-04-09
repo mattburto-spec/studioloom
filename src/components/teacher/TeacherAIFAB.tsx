@@ -43,7 +43,9 @@ export default function TeacherAIFAB({ onAction }: TeacherAIFABProps) {
     if (action === "browse-toolkit") {
       window.location.href = "/teacher/toolkit";
     } else if (action === "build-unit") {
-      window.location.href = "/teacher/units/create";
+      // QUARANTINED (3 Apr 2026) — Generation pipeline disabled pending Dimensions2 rebuild
+      // window.location.href = "/teacher/units/create";
+      return; // silently no-op
     } else if (onAction) {
       onAction(action);
     }

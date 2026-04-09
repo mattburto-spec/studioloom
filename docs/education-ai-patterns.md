@@ -1,8 +1,8 @@
 # Education AI Patterns — Questerra Toolkit Standard
 
-> Reference doc for all interactive toolkit tools and student-facing AI interactions.
+> Reference doc for all interactive toolkit tools, Journey Engine blocks, and student-facing AI interactions.
 > Based on research into Khanmigo, Duolingo, ITS (Intelligent Tutoring Systems), and cognitive science.
-> Established with SCAMPER tool (Mar 2026). Apply to ALL future interactive tools.
+> Established with SCAMPER tool (Mar 2026). Applied across all 27 interactive toolkit tools. Extends to Journey Engine blocks and any future student-facing AI interaction.
 
 ## Core Philosophy
 
@@ -193,31 +193,32 @@ When building a new interactive toolkit tool, follow this checklist:
 
 ### By interaction shape (see `docs/ideas/toolkit-interactive-tools-plan.md` for full plan):
 
-**Step Sequence (ALL five patterns):**
-- SCAMPER ✅ (done — reference implementation)
-- Six Thinking Hats (6 perspectives, each hat changes AI feedback rules)
-- PMI Chart (3 steps, evaluation-phase tone)
-- Five Whys (5 steps, AI detects sideways vs deeper)
-- Empathy Map (4 quadrants as steps, research-phase tone)
-- Reverse Brainstorming (3 steps, tone shifts from divergent to convergent)
-- Before & After (2 steps, reflective tone)
+**Step Sequence (ALL five patterns) — 10 tools, ALL COMPLETE ✅:**
+- SCAMPER ✅ (reference implementation)
+- Six Thinking Hats ✅ (6 perspectives, hatRules + hatTone per hat)
+- PMI Chart ✅ (3 columns, colRules + colTone, evaluation-phase tone)
+- Five Whys ✅ (5 steps, depth-detection: sideways vs deeper)
+- Empathy Map ✅ (4 quadrants, quadRules + quadTone, Feels pushes contradictions)
+- Reverse Brainstorming ✅ (3 steps, tone shifts divergent → convergent)
+- Before & After ✅ (2 steps, reflective tone)
+- Attribute Listing ✅, Random Input ✅, Role Play ✅
 
-**Canvas (effort-gating, Socratic nudge, micro-feedback per region + cross-region AI insights):**
-- SWOT Analysis, Fishbone Diagram, Stakeholder Map, Impact/Effort Matrix
-- Lotus Diagram, Affinity Diagram, Feedback Capture Grid, Systems Map
-- Journey Map, User Persona Card
+**Canvas (effort-gating, Socratic nudge, micro-feedback per region + cross-region AI insights) — ALL COMPLETE ✅:**
+- SWOT Analysis ✅, Fishbone Diagram ✅, Stakeholder Map ✅, Impact/Effort Matrix ✅
+- Lotus Diagram ✅, Affinity Diagram ✅, Feedback Capture Grid ✅, Systems Map ✅
+- Journey Map ✅, User Persona Card ✅
 
-**Comparison Engine (effort-gating on REASONING, not scores; AI challenges inconsistencies):**
-- Decision Matrix, Pairwise Comparison, Trade-off Sliders, Dot Voting
+**Comparison Engine (effort-gating on REASONING, not scores; AI challenges inconsistencies) — ALL COMPLETE ✅:**
+- Decision Matrix ✅, Pairwise Comparison ✅, Trade-off Sliders ✅, Dot Voting ✅
 
-**Guided Composition (opt-in "Coach Me" nudges per section, depth indicator per section):**
-- Design Brief, Point of View Statement, How Might We, Testing Protocol
-- Observation Sheet, Design Journal, Peer Review Protocol, Design Specification
+**Guided Composition (opt-in "Coach Me" nudges per section, depth indicator per section) — ALL COMPLETE ✅:**
+- Design Brief ✅, Point of View Statement ✅, How Might We ✅
 
-**Template-only (no full interactivity — value is in constraints/physicality):**
+**Template-only (21 catalog entries — no full interactivity, value is in constraints/physicality):**
 - Crazy 8s (timer only), Mind Map, Brainstorm Web, Morphological Chart
 - Round Robin, Gallery Walk, Mood Board, Storyboard, Wireframe Template
-- Annotation Template, Gantt Planner, Resource Planner
+- Annotation Template, Gantt Planner, Resource Planner, and 9 others
+- Future: TemplateToolResponse (guided worksheet) when built
 
 ---
 
@@ -237,11 +238,38 @@ When building a new interactive toolkit tool, follow this checklist:
 
 - **SCAMPER frontend:** `src/app/toolkit/scamper/page.tsx` (~1900 lines)
 - **SCAMPER API:** `src/app/api/tools/scamper/route.ts` (~300 lines)
-- **Tool registry:** `src/app/toolkit/tools-data.ts` (42 tools, `slug` field enables interactivity)
+- **Tool registry:** `src/app/toolkit/tools-data.ts` (48 tools — 27 interactive + 21 catalog, `slug` field enables interactivity)
 - **Toolkit layout:** `src/app/toolkit/layout.tsx` (dark theme wrapper)
+- **Shared toolkit helpers:** `src/lib/toolkit/shared-api.ts` (callHaiku, validateToolkitRequest, parseToolkitJSON, logToolkitUsage)
 
 ---
 
-*Last updated: 17 Mar 2026*
-*Patterns established during SCAMPER build. Interaction shapes designed 17 Mar 2026. Apply to all future interactive tools.*
+## Future Directions
+
+### Dimensions3: `ai_rules` on Activity Blocks (Apr 2026)
+Per-step AI rules are currently hardcoded in each toolkit tool's API route (hatRules, colRules, quadRules, etc.). Dimensions3 adds an `ai_rules` JSONB field on every `activity_block`:
+```typescript
+ai_rules: {
+  phase: "divergent" | "convergent" | "neutral",
+  tone: string,
+  rules: string[],
+  forbidden_words?: string[]
+}
+```
+This unlocks custom AI behavior on ANY lesson activity — a teacher can set "be encouraging, push for wilder ideas, never evaluate" on a brainstorming activity without needing a dedicated toolkit tool. The 5 patterns in this document still apply — `ai_rules` is the mechanism for configuring them per-block rather than per-tool. See `docs/projects/dimensions3.md` §6.3.
+
+### Journey Engine: Interactive Blocks Follow the Same Patterns
+Journey Blocks (binary choice, card sort, slider, text prompt, etc.) are student-facing AI interactions and MUST follow the same 5 patterns. Key differences from toolkit tools:
+- **Effort-gating:** Applied to free-text Journey Blocks (text prompt, dialogue choice). Binary/slider blocks are inherently effort-constrained by design.
+- **Socratic feedback:** Kit (or other mentor character) responds via the Journey's dialogue system, not a separate nudge bubble. Same acknowledge → question structure.
+- **Staged cognitive load:** Journey's conditional branching handles difficulty progression — the journey author sets branch conditions based on prior responses.
+- **Micro-feedback loops:** Character reactions (expressions, animations) replace depth dots. Same principle: instant acknowledgment of input quality.
+- **Soft gating:** Journey blocks can require minimum input length before advancing, but the mentor nudges rather than hard-blocks.
+
+See `docs/specs/journey-engine-spec.md` for full Journey Block type definitions.
+
+---
+
+*Last updated: 7 Apr 2026*
+*Patterns established during SCAMPER build (17 Mar 2026). All 27 interactive tools complete (26 Mar 2026). Extended to Dimensions3 ai_rules and Journey Engine (Apr 2026).*
 *Full build plan: `docs/ideas/toolkit-interactive-tools-plan.md`*

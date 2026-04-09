@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { getItemTags } from "@/lib/knowledge-library";
 
+const QUARANTINE_RESPONSE = NextResponse.json({ error: "Knowledge pipeline quarantined — pending architecture rebuild. See docs/quarantine.md" }, { status: 410 });
+
 async function getTeacherId(request: NextRequest): Promise<string | null> {
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -28,6 +30,7 @@ async function getTeacherId(request: NextRequest): Promise<string | null> {
  * Used for tag autocomplete in the library UI.
  */
 export async function GET(request: NextRequest) {
+  return QUARANTINE_RESPONSE;
   const teacherId = await getTeacherId(request);
   if (!teacherId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

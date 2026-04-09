@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StudioLoom Wiring Diagram</title>
+    <style>
+        :root {
+            --bg: #0a0a0f;
+            --surface: #12121a;
+            --surface2: #1a1a25;
+            --border: #2a2a3a;
+            --text: #e0e0e8;
+            --text-muted: #9a9aa8;
+            --accent: #7c5cfc;
+            --accent-light: #9d7dff;
+
+            --status-complete: #10b981;
+            --status-active: #3b82f6;
+            --status-planned: #f59e0b;
+            --status-idea: #8b5cf6;
+            --status-future: #6b7280;
+            --status-quarantined: #ef4444;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        header {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border-bottom: 1px solid var(--border);
+            padding: 2rem;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, var(--accent) 0%, var(--accent-light) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        header p {
+            color: var(--text-muted);
+            font-size: 1rem;
+        }
+
+        .stats-bar {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            padding: 2rem;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        .stat-label {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .controls {
+            padding: 1.5rem;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .search-box {
+            flex: 1;
+            min-width: 200px;
+            padding: 0.75rem 1rem;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text);
+            font-size: 0.95rem;
+        }
+
+        .search-box::placeholder {
+            color: var(--text-muted);
+        }
+
+        .search-box:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(124, 92, 252, 0.1);
+        }
+
+        .filter-group {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .filter-label {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            font-weight: 600;
+        }
+
+        .filter-pill {
+            padding: 0.5rem 1rem;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 0.875rem;
+            transition: all 0.2s;
+        }
+
+        .filter-pill:hover {
+            border-color: var(--accent);
+        }
+
+        .filter-pill.active {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 0;
+            height: calc(100vh - 500px);
+            min-height: 500px;
+        }
+
+        .systems-panel {
+            background: var(--surface);
+            border-right: 1px solid var(--border);
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .systems-list {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .category-group {
+            border-bottom: 1px solid var(--border);
+        }
+
+        .category-header {
+            padding: 0.75rem 1rem;
+            background: var(--surface2);
+            font-weight: 600;
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            position: sticky;
+            top: 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .system-item {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+            transition: background 0.2s;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 0.5rem;
+        }
+
+        .system-item:hover {
+            background: var(--surface2);
+        }
+
+        .system-item.active {
+            background: rgba(124, 92, 252, 0.1);
+            border-left: 3px solid var(--accent);
+            padding-left: calc(1rem - 3px);
+        }
+
+        .system-name {
+            font-weight: 500;
+            font-size: 0.95rem;
+        }
+
+        .system-meta {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.25rem;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .dep-count {
+            background: var(--surface2);
+            padding: 0.125rem 0.375rem;
+            border-radius: 3px;
+            font-size: 0.75rem;
+        }
+
+        .status-badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 3px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            white-space: nowrap;
+        }
+
+        .status-complete { background: rgba(16, 185, 129, 0.15); color: var(--status-complete); }
+        .status-active { background: rgba(59, 130, 246, 0.15); color: var(--status-active); }
+        .status-planned { background: rgba(245, 158, 11, 0.15); color: var(--status-planned); }
+        .status-idea { background: rgba(139, 92, 246, 0.15); color: var(--status-idea); }
+        .status-future { background: rgba(107, 114, 128, 0.15); color: var(--status-future); }
+        .status-quarantined { background: rgba(239, 68, 68, 0.15); color: var(--status-quarantined); }
+
+        .details-panel {
+            background: var(--surface2);
+            overflow-y: auto;
+            padding: 2rem;
+        }
+
+        .no-selection {
+            text-align: center;
+            color: var(--text-muted);
+            padding: 3rem 2rem;
+        }
+
+        .detail-header {
+            margin-bottom: 2rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .detail-title {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 0.75rem;
+        }
+
+        .detail-meta {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            font-size: 0.875rem;
+        }
+
+        .detail-meta-item {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .detail-section {
+            margin-bottom: 2rem;
+        }
+
+        .detail-section-title {
+            font-weight: 600;
+            font-size: 0.95rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--accent);
+            margin-bottom: 0.75rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .detail-summary {
+            line-height: 1.6;
+            color: var(--text);
+            margin-bottom: 1.5rem;
+        }
+
+        .system-link {
+            color: var(--accent);
+            cursor: pointer;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .system-link:hover {
+            text-decoration: underline;
+        }
+
+        .link-list {
+            list-style: none;
+            padding: 0;
+        }
+
+        .link-list li {
+            padding: 0.5rem 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .link-list li:last-child {
+            border-bottom: none;
+        }
+
+        .mini-graph {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 1rem;
+            margin: 1rem 0;
+            min-height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            overflow-x: auto;
+        }
+
+        .graph-content {
+            display: flex;
+            gap: 2rem;
+            align-items: center;
+            justify-content: center;
+            min-width: 100%;
+        }
+
+        .graph-column {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .graph-node {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            max-width: 120px;
+            text-align: center;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .graph-node.center {
+            background: rgba(124, 92, 252, 0.1);
+            border-color: var(--accent);
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        .arrow {
+            font-size: 1.5rem;
+            color: var(--text-muted);
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+        }
+
+        .data-table th,
+        .data-table td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .data-table th {
+            background: var(--surface);
+            font-weight: 600;
+            color: var(--accent);
+        }
+
+        .data-table tr:hover {
+            background: var(--surface);
+        }
+
+        .impact-text {
+            background: rgba(245, 158, 11, 0.1);
+            border-left: 3px solid var(--status-planned);
+            padding: 1rem;
+            border-radius: 4px;
+            color: var(--text);
+            margin: 1rem 0;
+        }
+
+        .future-text {
+            background: rgba(139, 92, 246, 0.1);
+            border-left: 3px solid var(--status-idea);
+            padding: 1rem;
+            border-radius: 4px;
+            color: var(--text);
+            margin: 1rem 0;
+        }
+
+        .dep-chains {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 1.5rem;
+            margin: 2rem 0;
+        }
+
+        .dep-chains summary {
+            cursor: pointer;
+            font-weight: 600;
+            color: var(--accent);
+            font-size: 0.95rem;
+            user-select: none;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .dep-chains summary:hover {
+            color: var(--accent-light);
+        }
+
+        .dep-chains ul {
+            list-style: none;
+            padding: 0;
+            margin-top: 1rem;
+        }
+
+        .dep-chains li {
+            padding: 0.5rem 0 0.5rem 1.5rem;
+            position: relative;
+            font-size: 0.875rem;
+            line-height: 1.6;
+        }
+
+        .dep-chains li:before {
+            content: "→";
+            position: absolute;
+            left: 0;
+            color: var(--accent);
+        }
+
+        @media (max-width: 768px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .systems-panel {
+                max-height: 300px;
+            }
+
+            header h1 {
+                font-size: 1.75rem;
+            }
+
+            .stat-value {
+                font-size: 1.25rem;
+            }
+
+            .controls {
+                flex-direction: column;
+            }
+
+            .search-box {
+                width: 100%;
+            }
+
+            .detail-header {
+                font-size: 0.9rem;
+            }
+
+            .graph-content {
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>StudioLoom — Wiring Diagram</h1>
+        <p>Interactive system dependency explorer</p>
+    </header>
+
+    <div class="stats-bar">
+        <div class="stat">
+            <div class="stat-value" id="total-systems">82</div>
+            <div class="stat-label">Total Systems</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value" id="total-deps">0</div>
+            <div class="stat-label">Connections</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value" id="status-complete">0</div>
+            <div class="stat-label">Complete</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value" id="status-active">0</div>
+            <div class="stat-label">Active</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value" id="status-planned">0</div>
+            <div class="stat-label">Planned</div>
+        </div>
+        <div class="stat">
+            <div class="stat-value" id="status-quarantined">0</div>
+            <div class="stat-label">Quarantined</div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <input type="text" id="search" class="search-box" placeholder="Search systems...">
+
+        <div class="filter-group">
+            <span class="filter-label">Categories:</span>
+            <div id="category-filters"></div>
+        </div>
+
+        <div class="filter-group">
+            <span class="filter-label">Status:</span>
+            <div id="status-filters"></div>
+        </div>
+    </div>
+
+    <div class="main-grid">
+        <div class="systems-panel">
+            <div class="systems-list" id="systems-list"></div>
+        </div>
+
+        <div class="details-panel">
+            <div id="details-content" class="no-selection">
+                Select a system to see details
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // System data
+        const SYSTEMS = [
+            // Student Experience
+            {id:"lesson-view", name:"Lesson View", cat:"Student Experience", status:"complete", v:1, deps:["activity-blocks","journey-engine","framework-adapter"], os:"ready", summary:"Lesson screen with sidebar nav, interactive features, autosave, embedded videos", future:"Rich activity blocks with per-step AI rules, inline toolkit tools, journey blocks", impacts:"Changes affect student learning flow. Check activity block rendering, framework label display."},
+            {id:"student-dashboard", name:"Student Dashboard", cat:"Student Experience", status:"complete", v:1, deps:["student-onboarding","safety-badges","intelligence-profiles"], os:"partial", summary:"Framework-colored cards, badges, smart subject detection, multi-class support", future:"3D representations, project health indicators, mentor presence", impacts:"Changes affect all students. Check subject detection fallback, card rendering, badge display."},
+            {id:"student-onboarding", name:"Student Onboarding", cat:"Student Experience", status:"complete", v:1, deps:["discovery-engine","student-profile"], os:"designed", summary:"4-screen character creation — mentor choice, theme selection, guided questions, studio reveal", future:"Discovery Engine integration for direct profiling journey", impacts:"Changes affect new student first experience. Check mentor_id null trigger, theme CSS vars."},
+            {id:"student-signin", name:"Student Sign-in", cat:"Student Experience", status:"complete", v:1, deps:["auth-system"], os:"ready", summary:"Class code + display name, nanoid(48) token sessions, 7-day TTL, anonymous", future:"Google, Apple, LMS SSO options", impacts:"Changes affect all student auth. Check 3-level login fallback, cookie persistence on Vercel."},
+            {id:"gallery", name:"Class Gallery", cat:"Student Experience", status:"complete", v:1, deps:["peer-review","student-work-pipeline","3d-scenes"], os:"ready", summary:"Digital pin-up crit — teacher rounds, portfolio snapshots, 3 review formats, effort-gated", future:"Public gallery with code, curated exhibitions", impacts:"Changes affect peer critique flow. Check effort-gating, review format rendering, submission snapshots."},
+            {id:"peer-review", name:"Peer Review", cat:"Student Experience", status:"complete", v:1, deps:["gallery"], os:"ready", summary:"3 structured review formats with sentence starters, effort-gated feedback", future:"Rubric-based custom formats, review quality scoring", impacts:"Changes affect gallery feedback. Check sentence starters, minimum review enforcement."},
+            {id:"portfolio", name:"Portfolio", cat:"Student Experience", status:"complete", v:1, deps:["student-work-pipeline","3d-scenes"], os:"partial", summary:"Floating button, auto-capture from activities, Quick Capture, export", future:"2D gallery with public access, timeline view", impacts:"Changes affect student evidence collection. Check auto-capture triggers, export formats."},
+            {id:"toolkit", name:"Design Thinking Toolkit", cat:"Student Experience", status:"complete", v:1, deps:["toolkit-persistence","activity-blocks"], os:"designed", summary:"27 interactive + 21 catalog tools, 4 interaction shapes, per-step AI rules, SVG thumbnails", future:"3D versions, upload drawing for AI analysis", impacts:"Changes affect all 48 tools. Check per-step AI rules, effort-gating, session persistence."},
+            {id:"toolkit-persistence", name:"Toolkit Session Persistence", cat:"Student Experience", status:"complete", v:1, deps:[], os:"ready", summary:"useToolSession hook — lazy session creation, debounced auto-save (500ms)", future:"Version history, branching from previous state", impacts:"Changes affect all tool data saving. Check debounce timing, lazy creation trigger."},
+            {id:"discovery-engine", name:"Discovery Engine", cat:"Student Experience", status:"complete", v:1, deps:["journey-engine","student-profile","intelligence-profiles"], os:"designed", summary:"8-station interactive journey with Kit mentor (~9,500 lines), builds archetype profile", future:"Adaptive flow for returning students (45→20→10 min)", impacts:"Changes affect student profiling. Check scoring weights, Kit responses, profile data writes."},
+            {id:"student-pm", name:"Student PM Tools", cat:"Student Experience", status:"planned", v:0, deps:["scheduling"], os:"ready", summary:"Planned: Gantt chart, Kanban board with design cycle phases", future:"AI task suggestions, timetable-tied due dates", impacts:"Not yet built. Will depend on scheduling engine."},
+            {id:"student-open-studio", name:"Open Studio (Student)", cat:"Student Experience", status:"complete", v:1, deps:["journey-engine","intelligence-profiles","student-work-pipeline"], os:"partial", summary:"Self-directed working mode — AI studio critic, 5 interaction types, drift detection", future:"Journey-guided project planning, mentor negotiation, milestone check-ins", impacts:"Changes affect self-directed learning. Check drift escalation, check-in rotation, AI mode switching."},
+            {id:"integrity-monitor-student", name:"Integrity Monitor (Student)", cat:"Student Experience", status:"complete", v:1, deps:[], os:"ready", summary:"MonitoredTextarea — silent writing behaviour capture, 6-rule Human Confidence Score", future:"Cross-session pattern detection, writing style fingerprinting", impacts:"Changes affect integrity data. Check paste ratio, typing speed thresholds, debounce timing."},
+            {id:"student-grade-view", name:"Student Grade View", cat:"Student Experience", status:"complete", v:1, deps:["teacher-grading","framework-adapter"], os:"partial", summary:"Criterion scores, teacher comments, targets", future:"Visual progress over time, growth trajectories", impacts:"Changes affect student grade display. Check framework-specific label rendering."},
+            {id:"student-data", name:"Student Data Collection", cat:"Student Experience", status:"complete", v:1, deps:["intelligence-profiles"], os:"ready", summary:"Pace feedback (1-tap), activity tracking with debounced commits", future:"Rich behavioral signals — time per activity, revision patterns", impacts:"Changes affect all student metrics. Check debounce commit pattern, tracking key format."},
+            {id:"student-work-pipeline", name:"Student Work Submission", cat:"Student Experience", status:"active", v:1, deps:["activity-blocks","ai-provider"], os:"ready", summary:"Text responses with auto-save, photo upload via Quick Capture", future:"5-stage pipeline: intake → processing → enrichment → versioning → routing", impacts:"Changes affect all student submissions. Check auto-save timing, response key format."},
+            {id:"student-nm", name:"Student NM View", cat:"Student Experience", status:"complete", v:1, deps:["nm-system"], os:"partial", summary:"CompetencyPulse (3-point self-assessment), pop art visual identity", future:"Student-facing growth dashboard, goal setting", impacts:"Changes affect NM student experience. Check pop art CSS, competency mapping."},
+            {id:"safety-badges", name:"Safety Badges", cat:"Student Experience", status:"complete", v:1, deps:[], os:"ready", summary:"Workshop safety tests, ~10 badges, 5 question types, unit access gating", future:"Expanded library, peer badge nomination", impacts:"Changes affect workshop access. Check badge gating logic, custom badge builder."},
+            {id:"student-profile", name:"Student Profile", cat:"Student Experience", status:"complete", v:1, deps:["discovery-engine","intelligence-profiles"], os:"ready", summary:"ELL level, UDL needs, learning needs, country, mentor, theme preferences", future:"AI-enriched profile from Discovery + toolkit + pace data", impacts:"Changes affect AI personalization. Check learning_profile JSONB writes, profile context building."},
+            {id:"student-learning-support", name:"Learning Support", cat:"Student Experience", status:"complete", v:1, deps:["student-profile","udl-layer"], os:"ready", summary:"Tier 2/3 word translation, UDL support, ADHD accommodations", future:"Profile-driven automatic scaffolding", impacts:"Changes affect accessibility. Check UDL checkpoint coverage, translation triggers."},
+            {id:"mentor-choice", name:"Designer Mentor System", cat:"Student Experience", status:"complete", v:1, deps:["ai-mentor","3d-assets"], os:"designed", summary:"3 mentors (Kit/Sage/Spark) with AI personalities, accent colors, reactions", future:"20 real-world designers with 5-dimension trait taxonomy, 3D characters", impacts:"Changes affect AI mentor personality. Check aiPromptModifier injection, mentor-specific reactions."},
+            {id:"student-graphics", name:"Student Graphics", cat:"Student Experience", status:"active", v:1, deps:["3d-scenes","3d-assets"], os:"partial", summary:"Basic R3F models, 2D graphics", future:"Cutscenes, animations, mentor expressions", impacts:"Changes affect visual layer. Check R3F rendering, asset loading."},
+            {id:"daily-challenge", name:"Daily Challenge", cat:"Student Experience", status:"idea", v:0, deps:["mentor-choice","gamification"], os:"designed", summary:"Idea: auto-generated 5-minute design tasks from designers", future:"Streak system, difficulty progression, social sharing", impacts:"Not yet built."},
+            {id:"embedded-design-tools", name:"Embedded Design Tools", cat:"Student Experience", status:"future", v:0, deps:[], os:"none", summary:"Future: possible vector editor embedded in platform", future:"Full design tool suite integration", impacts:"Not yet built."},
+            {id:"full-journey-game", name:"Full Journey Game", cat:"Student Experience", status:"future", v:0, deps:["3d-scenes","3d-assets","narrative-quests","gamification","journey-engine"], os:"designed", summary:"Future: Zelda-style world with NPCs, currency, design studio", future:"Full open-world education game", impacts:"Not yet built."},
+            {id:"real-client-mode", name:"Real Client Mode", cat:"Student Experience", status:"idea", v:0, deps:["journey-engine","ai-mentor"], os:"designed", summary:"Idea: AI-simulated client meetings, cross-meeting memory", future:"Real-world problems from community", impacts:"Not yet built."},
+            {id:"marketplace", name:"Student Marketplace", cat:"Student Experience", status:"future", v:0, deps:["gallery","gamification"], os:"none", summary:"Future: students sell/trade design ideas", future:"Design economy within platform", impacts:"Not yet built."},
+            {id:"gamification", name:"Gamification & Levels", cat:"Student Experience", status:"planned", v:0, deps:["teacher-grading","toolkit-persistence","safety-badges","nm-system"], os:"designed", summary:"Planned: Designer Level — quality-weighted composite from multiple signals", future:"Quest system, achievements, studio upgrades", impacts:"Not yet built. Will read from grading, toolkit, badges, NM."},
+            {id:"mini-units", name:"MiniSkills", cat:"Student Experience", status:"idea", v:0, deps:["activity-blocks","intelligence-profiles"], os:"ready", summary:"Idea: bite-sized 1-3 lesson modules with completion badges", future:"AI-recommended based on student profile gaps", impacts:"Not yet built."},
+
+            // AI & Intelligence
+            {id:"ai-mentor", name:"AI Design Assistant", cat:"AI & Intelligence", status:"complete", v:1, deps:["ai-provider","intelligence-profiles","student-profile"], os:"ready", summary:"Socratic mentor — Haiku, 300-token cap, guided + Open Studio modes", future:"Profile-adapted tone/depth/scaffolding, multi-modal (images)", impacts:"Changes affect all student AI interactions. Check system prompt building, mode switching, token limits."},
+            {id:"generation-pipeline", name:"Generation Pipeline", cat:"AI & Intelligence", status:"active", v:2, deps:["activity-blocks","knowledge-pipeline","timing-engine","framework-adapter","intelligence-profiles"], os:"ready", summary:"Dimensions3: 6-stage pipeline BUILT (Phases A-C) + Feedback system BUILT (Phase D, 9 Apr). Edit tracker, efficacy scoring, approval queue with guardrails, self-healing proposals. 480+ tests.", future:"Learned patterns replace defaults, per-teacher style, homogeneity prevention", impacts:"CRITICAL — changes affect all unit generation. Check all 6 stage contracts, FormatProfile injection, guardrail limits."},
+            {id:"knowledge-pipeline", name:"Knowledge Library", cat:"AI & Intelligence", status:"active", v:1, deps:["activity-blocks","embedding-search","ai-provider"], os:"ready", summary:"REBUILT Phase B (7 Apr). Expandable pass registry: Pass A (classify) → Pass B (enrich) → Block Extraction + PII scan. content_items table. Review queue UI.", future:"Pass C (deep UDL), cross-teacher knowledge sharing", impacts:"Changes to pass registry affect all ingestion. Changes to block extraction affect library quality."},
+            {id:"activity-blocks", name:"Activity Block Library", cat:"AI & Intelligence", status:"active", v:1, deps:["knowledge-pipeline"], os:"ready", summary:"First-class SQL entities, Dimensions metadata, composite ranking, efficacy scoring. Migration applied Phase A (7 Apr).", future:"Block versioning, A/B testing, collaborative editing", impacts:"CRITICAL — foundation of Dimensions3. Changes affect generation, lesson editor, toolkit. Check all 14 category types, efficacy calculation."},
+            {id:"intelligence-profiles", name:"Intelligence Profiles", cat:"AI & Intelligence", status:"planned", v:0, deps:["discovery-engine","student-data","toolkit-persistence"], os:"ready", summary:"Planned: 3 JSONB profiles (student/teacher/class), EMA updates (α=0.3)", future:"Cross-session learning, predictive modelling", impacts:"Not yet built. Will affect AI personalization across entire platform."},
+            {id:"ai-provider", name:"AI Provider Abstraction", cat:"AI & Intelligence", status:"complete", v:1, deps:[], os:"ready", summary:"Anthropic → Groq → Gemini fallback chain, factory pattern, admin model picker", future:"DeepSeek, Qwen, Moonshot alternatives; auto-routing by quality threshold", impacts:"Changes affect ALL AI calls. Check fallback chain, model IDs, rate limiting."},
+            {id:"embedding-search", name:"Embedding & Vector Search", cat:"AI & Intelligence", status:"complete", v:1, deps:[], os:"ready", summary:"Voyage AI voyage-3.5 (1024-dim), pgvector, hybrid 70/20/10 search", future:"Multi-modal embeddings (images, diagrams)", impacts:"Changes affect all RAG retrieval. Check embedding dimensions, search weights."},
+            {id:"lesson-pulse", name:"Lesson Pulse", cat:"AI & Intelligence", status:"active", v:1, deps:["generation-pipeline","activity-blocks"], os:"partial", summary:"Composite scoring: CR + SA + TC. 47 tests. Teaching Moves Library (65 moves)", future:"Voice/Personality Layer, Sequencing Intuition", impacts:"Changes affect generation quality. Check 3-dimension scoring, Teaching Moves injection."},
+            {id:"timing-engine", name:"Timing Engine", cat:"AI & Intelligence", status:"complete", v:1, deps:["scheduling"], os:"partial", summary:"Workshop Model (4-phase), 1+age rule, 8 validation rules, auto-repair, presets", future:"Learned timing from uploads/edits, class velocity tracking", impacts:"Changes affect all lesson timing. Check validation rules, PhaseTimelineBar, usable time formula."},
+            {id:"content-safety", name:"Content Safety", cat:"AI & Intelligence", status:"planned", v:0, deps:["ai-provider"], os:"ready", summary:"Planned: content filter, PII scanning, school-configurable policies", future:"ML-based classification, moderation queue", impacts:"Not yet built. Will wrap all AI inputs/outputs."},
+            {id:"teacher-style", name:"Teacher Style Learning", cat:"AI & Intelligence", status:"complete", v:1, deps:["generation-pipeline"], os:"ready", summary:"TeacherStyleProfile — passive signals from uploads, edits, pacing. Confidence computation.", future:"Active style preferences, avoid list, style transfer between teachers", impacts:"Changes affect generation personality. Check profile JSONB structure, confidence decay."},
+
+            // Teacher Experience
+            {id:"teacher-dashboard", name:"Teacher Dashboard", cat:"Teacher Experience", status:"complete", v:1, deps:["scheduling","unit-management"], os:"partial", summary:"Today's classes, units with photo thumbnails, Teach + Edit buttons, notifications", future:"Insights feed, class health indicators, AI-suggested actions", impacts:"Changes affect teacher daily view. Check unit card rendering, button routing, notification panel."},
+            {id:"teach-mode", name:"Teaching Mode", cat:"Teacher Experience", status:"complete", v:1, deps:["lesson-view","scheduling"], os:"designed", summary:"3-column live cockpit, 8s polling, projector view, classroom tools, quick-edit panel", future:"Supabase Realtime upgrade, AI teaching suggestions", impacts:"Changes affect live teaching. Check student grid refresh, projector sync, postMessage."},
+            {id:"unit-editor", name:"Lesson Editor", cat:"Teacher Experience", status:"complete", v:1, deps:["content-forking","activity-blocks","framework-adapter"], os:"ready", summary:"Phase 0.5: 12 components, drag-to-reorder, auto-save, AI assist (#), cross-container DnD", future:"Edit Mode toggle (All classes vs This class only), version timeline", impacts:"Changes affect all content editing. Check normalizeContentData(), fork detection, auto-save."},
+            {id:"unit-generation", name:"Unit Generation Wizard", cat:"Teacher Experience", status:"complete", v:1, deps:["generation-pipeline","knowledge-pipeline","activity-blocks","framework-adapter"], os:"ready", summary:"3-lane (Express/Guided/Architect), 4 unit types, parallel criterion generation", future:"Assembly from block library instead of from-scratch generation", impacts:"Changes affect unit creation. Check lane routing, RAG integration, streaming UI."},
+            {id:"unit-conversion", name:"Unit Conversion", cat:"Teacher Experience", status:"planned", v:0, deps:["knowledge-pipeline","activity-blocks"], os:"ready", summary:"Planned: upload lesson plan → editable unit + activity blocks", future:"Batch upload of scheme of work", impacts:"Not yet built. Depends on knowledge pipeline rebuild."},
+            {id:"teacher-grading", name:"Teacher Grading", cat:"Teacher Experience", status:"complete", v:1, deps:["framework-adapter","integrity-monitor-student"], os:"partial", summary:"MYP/GCSE criterion scoring, comments, tags, targets, IntegrityReport, evidence", future:"Photo/video assessment with AI rubric application", impacts:"Changes affect all grading. Check framework-specific score ranges, response filtering (Lesson Learned #31)."},
+            {id:"timetable", name:"Timetable & Scheduling", cat:"Teacher Experience", status:"complete", v:1, deps:["scheduling"], os:"ready", summary:"Visual grid (Day×Period), cycle engine, iCal import, school calendar, lesson schedule", future:"LMS auto-sync (ManageBac, PowerSchool)", impacts:"Changes affect all scheduling. Check cycle engine, excluded dates, timetable grid rendering."},
+            {id:"teacher-school-settings", name:"School Settings", cat:"Teacher Experience", status:"complete", v:1, deps:[], os:"partial", summary:"Period length, workshop access, doubles, cycle days, calendar/terms", future:"Workshop spaces, tools & machines, software referenced by generation", impacts:"Changes affect timing calculations. Check period length propagation to timing engine."},
+            {id:"nm-system", name:"Melbourne Metrics", cat:"Teacher Experience", status:"complete", v:1, deps:[], os:"partial", summary:"NM config wizard, ObservationSnap (4-point), CompetencyPulse, pop art, JSONB config", future:"Rocket Report export, full 7 competencies, trend analytics", impacts:"Changes affect competency tracking. Check JSONB config inheritance chain, page_id TEXT type."},
+            {id:"teacher-class-mgmt", name:"Class Management", cat:"Teacher Experience", status:"complete", v:1, deps:["student-signin"], os:"ready", summary:"Class creation, class_students junction, multi-class, class codes", future:"Same-school teacher connection, shared visibility", impacts:"Changes affect enrollment. Check junction + legacy fallback pattern (Lesson Learned #22)."},
+            {id:"teacher-open-studio", name:"Open Studio (Teacher)", cat:"Teacher Experience", status:"complete", v:1, deps:["student-open-studio"], os:"partial", summary:"Per-unit unlock, check-in interval config, session log, drift flags, auto-revocation", future:"Teacher parameter system, plan approval workflow", impacts:"Changes affect Open Studio controls. Check unlock toggle, auto-revocation threshold."},
+            {id:"unit-management", name:"Unit Management", cat:"Teacher Experience", status:"complete", v:1, deps:["content-forking","framework-adapter"], os:"ready", summary:"Unit-as-template (Canvas Blueprint), 4-dimension model, assigned classes view", future:"Year planner, curriculum coverage overlay", impacts:"Changes affect unit architecture. Check content_data resolution, class assignment display."},
+            {id:"teacher-integrity", name:"Integrity (Teacher)", cat:"Teacher Experience", status:"complete", v:1, deps:["integrity-monitor-student"], os:"ready", summary:"IntegrityReport dashboard, Human Confidence Scores, evidence panels", future:"Cross-unit pattern analysis, cohort anomaly detection", impacts:"Changes affect integrity review. Check score thresholds, response filtering."},
+            {id:"teacher-notifications", name:"Notifications", cat:"Teacher Experience", status:"complete", v:1, deps:[], os:"ready", summary:"Urgent items panel — integrity flags, drift alerts, missing work", future:"Push notifications, email digest", impacts:"Changes affect teacher alerts. Check notification types, priority sorting."},
+            {id:"teacher-journey-builder", name:"Journey Builder (Teacher)", cat:"Teacher Experience", status:"planned", v:0, deps:["journey-engine"], os:"ready", summary:"Planned: basic journey builder from pre-built blocks", future:"Custom block creation, branching logic editor", impacts:"Not yet built. Depends on Journey Engine."},
+            {id:"teacher-profile", name:"Teacher Profile", cat:"Teacher Experience", status:"complete", v:1, deps:[], os:"partial", summary:"Language, framework, country, school, experience, subject, workshop access", future:"Professional development tracking", impacts:"Changes affect generation context. Check profile fields used in AI prompts."},
+            {id:"teacher-settings", name:"Teacher Settings", cat:"Teacher Experience", status:"complete", v:1, deps:[], os:"partial", summary:"School settings, workshop, AI controls, calendar setup", future:"More granular AI tuning", impacts:"Changes affect teacher configuration. Check settings propagation to generation."},
+            {id:"school-resource-mapping", name:"School Resources", cat:"Teacher Experience", status:"idea", v:0, deps:["teacher-school-settings"], os:"ready", summary:"Idea: people, spaces, tools, materials registry for Open Studio", future:"Resource booking/scheduling integration", impacts:"Not yet built."},
+            {id:"year-planner", name:"Year Planner", cat:"Teacher Experience", status:"planned", v:0, deps:["timetable","scheduling","framework-adapter"], os:"ready", summary:"Planned: week-based grid for all classes × units", future:"Collaborative department-wide planning", impacts:"Not yet built. Will use cycle engine for date computation."},
+            {id:"smart-insights", name:"Smart Insights", cat:"Teacher Experience", status:"complete", v:1, deps:[], os:"ready", summary:"Priority-sorted feed, 6 insight types, server-side computation", future:"AI-generated insights, predictive alerts", impacts:"Changes affect teacher dashboard. Check insight type definitions, priority sorting."},
+
+            // Platform Core
+            {id:"framework-adapter", name:"Framework Adapter", cat:"Platform Core", status:"complete", v:1, deps:[], os:"ready", summary:"8 neutral criteria, bidirectional mapping to MYP/GCSE/A-Level/IGCSE/ACARA/PLTW + non-design", future:"Tone/phrasing adaptation, custom framework creation", impacts:"CRITICAL — changes affect ALL framework display. Check all 8 mapping tables, neutral→specific direction."},
+            {id:"content-forking", name:"Content Forking", cat:"Platform Core", status:"complete", v:1, deps:[], os:"ready", summary:"Copy-on-write: ensureForked(), hasContent() guard, page ID preservation", future:"Promote fork to master, selective merge", impacts:"Changes affect all per-class content. Check hasContent() guard (Lesson Learned #27), page ID invariant."},
+            {id:"scheduling", name:"Cycle Engine", cat:"Platform Core", status:"complete", v:1, deps:[], os:"ready", summary:"Anchor-based modular arithmetic, weekday-only, excluded dates, per-term reset", future:"Holiday auto-detection, conflict detection", impacts:"Changes affect all date calculations. Check modular arithmetic, excluded date filtering."},
+            {id:"auth-system", name:"Auth System", cat:"Platform Core", status:"complete", v:1, deps:[], os:"ready", summary:"Dual auth: Supabase Auth (teachers) + nanoid tokens (students). 3-level fallback.", future:"SSO, RBAC, ServiceContext pattern, multi-tenant", impacts:"CRITICAL — changes affect all authentication. Check Cache-Control: private (Lesson Learned #11)."},
+            {id:"journey-engine", name:"Journey Engine", cat:"Platform Core", status:"planned", v:0, deps:["3d-scenes","student-profile"], os:"ready", summary:"Planned: 14+ block types, conditional branching, 4 rendering modes", future:"R3F scenes, spatial audio, teacher-authorable journeys", impacts:"Not yet built. Will be foundational — Discovery, Open Studio v2, tutorials all depend on it."},
+            {id:"format-profiles", name:"Format Profiles", cat:"Platform Core", status:"active", v:0, deps:["framework-adapter","generation-pipeline"], os:"ready", summary:"FormatProfile per unit type — Design, Service, PP, Inquiry. Pipeline extension points.", future:"Custom format creation from admin UI, max 20", impacts:"Changes affect generation behavior per unit type. Check all pipeline extension points."},
+            {id:"layer-registry", name:"Layer Registry", cat:"Platform Core", status:"complete", v:1, deps:[], os:"ready", summary:"Central registry of pedagogical metadata layers (Bloom, UDL, Grouping, etc.)", future:"Custom layer definitions from admin UI", impacts:"Changes affect metadata tagging. Check layer field definitions on activity blocks."},
+            {id:"udl-layer", name:"UDL Framework", cat:"Platform Core", status:"complete", v:1, deps:["layer-registry"], os:"ready", summary:"CAST UDL — 3 principles × 9 guidelines × 31 checkpoints. Coverage per page.", future:"Auto-tagging from AI analysis", impacts:"Changes affect accessibility tracking. Check checkpoint IDs, coverage computation."},
+            {id:"unit-adapter", name:"Content Normalisation", cat:"Platform Core", status:"complete", v:1, deps:[], os:"ready", summary:"normalizeContentData() for 4 content versions (v1-v4)", future:"None planned", impacts:"CRITICAL — changes affect ALL content reading. Must handle all 4 versions (Lesson Learned #14)."},
+
+            // 3D & Visual Layer
+            {id:"3d-scenes", name:"3D Scene Renderer", cat:"3D & Visual Layer", status:"planned", v:0, deps:[], os:"ready", summary:"Planned: R3F renderer, 5 modes, JSON scene config, 50K triangle budget", future:"Dynamic lighting, weather, spatial audio, multi-user", impacts:"Not yet built. Will be foundation for all 3D features."},
+            {id:"3d-assets", name:"Asset Library", cat:"3D & Visual Layer", status:"planned", v:0, deps:["3d-scenes"], os:"ready", summary:"Planned: 9 categories, SQL schema, LOD support", future:"Community asset marketplace", impacts:"Not yet built. Depends on 3D renderer."},
+            {id:"audio-system", name:"Audio System", cat:"3D & Visual Layer", status:"planned", v:0, deps:["3d-scenes"], os:"ready", summary:"Planned: Tone.js ambience/SFX + ElevenLabs TTS", future:"Student-created audio, recording/playback", impacts:"Not yet built."},
+            {id:"tutorial-engine-3d", name:"3D Tutorial Engine", cat:"3D & Visual Layer", status:"planned", v:0, deps:["3d-scenes","3d-assets"], os:"ready", summary:"Planned: Guided Skill, Safety Scene, Visual Diagram modes", future:"AI-narrated tutorials, adaptive difficulty", impacts:"Not yet built."},
+            {id:"narrative-quests", name:"Narrative & Quests", cat:"3D & Visual Layer", status:"idea", v:0, deps:["3d-scenes","3d-assets","journey-engine"], os:"designed", summary:"Idea: NPCs, dialogue trees, design cycle quests", future:"Branching narratives, world state changes", impacts:"Not yet built."},
+            {id:"gallery-3d", name:"3D Gallery", cat:"3D & Visual Layer", status:"idea", v:0, deps:["3d-scenes","gallery","student-work-pipeline"], os:"ready", summary:"Idea: virtual exhibition spaces, emoji reactions, chat", future:"Student-designed spaces, virtual events", impacts:"Not yet built."},
+
+            // Parent & Community
+            {id:"parent-view", name:"Parent View", cat:"Parent & Community", status:"idea", v:0, deps:["gallery","portfolio"], os:"ready", summary:"Idea: parents view student portfolio with access code", future:"Progress dashboard, deadlines, achievements", impacts:"Not yet built."},
+            {id:"parent-updates", name:"Parent Updates", cat:"Parent & Community", status:"idea", v:0, deps:["parent-view","student-data"], os:"ready", summary:"Idea: teacher notifications to parents, AI weekly summaries", future:"Email/notification delivery", impacts:"Not yet built."},
+            {id:"same-school", name:"Same-School Connection", cat:"Parent & Community", status:"idea", v:0, deps:["auth-system","teacher-class-mgmt"], os:"ready", summary:"Idea: connect teachers/students at same school", future:"School-wide analytics, department coordination", impacts:"Not yet built."},
+
+            // Admin & Operations
+            {id:"admin-dashboard", name:"Admin Dashboard", cat:"Admin & Operations", status:"planned", v:0, deps:["generation-pipeline","activity-blocks"], os:"partial", summary:"Planned: superuser with 7 tabs, per-teacher profitability", future:"Automated alerting, cost anomaly detection", impacts:"Not yet built. Will be central operations hub."},
+            {id:"admin-journey-builder", name:"Admin Journey Builder", cat:"Admin & Operations", status:"planned", v:0, deps:["journey-engine"], os:"ready", summary:"Planned: node-graph editor, full conditional branching", future:"Journey analytics, A/B testing", impacts:"Not yet built."},
+            {id:"testing-sandbox", name:"Testing Sandbox", cat:"Admin & Operations", status:"active", v:1, deps:["generation-pipeline"], os:"partial", summary:"Sandbox for testing generation, framework selector, step-through debugger", future:"Per-format tabs, side-by-side comparison", impacts:"Changes affect testing workflow. Check pipeline stage mocking."},
+            {id:"admin-login", name:"Admin Auth", cat:"Admin & Operations", status:"complete", v:1, deps:["auth-system"], os:"ready", summary:"Superuser via is_admin flag on teacher profile", future:"Role-based admin (super, school-admin, support)", impacts:"Changes affect admin access. Check is_admin flag on teacher profile."},
+            {id:"monetisation", name:"Monetisation", cat:"Admin & Operations", status:"planned", v:0, deps:["auth-system"], os:"ready", summary:"Planned: feature tiers, Stripe integration", future:"Usage-based pricing, school volume licensing", impacts:"Not yet built."},
+            {id:"user-management", name:"User Management", cat:"Admin & Operations", status:"planned", v:0, deps:["admin-dashboard"], os:"ready", summary:"Planned: teacher list, student counts, usage stats", future:"Impersonation, activity audit log", impacts:"Not yet built."},
+            {id:"ai-controls", name:"AI Controls", cat:"Admin & Operations", status:"complete", v:1, deps:["ai-provider","generation-pipeline"], os:"partial", summary:"Macro dials + micro sliders, per-stage influence, model picker per tier", future:"A/B testing of configs, rollback", impacts:"Changes affect generation behavior. Check macro→micro hierarchy, per-stage influence."},
+            {id:"compliance", name:"Compliance & Privacy", cat:"Admin & Operations", status:"active", v:1, deps:[], os:"ready", summary:"PIPL, GDPR, COPPA awareness, anonymous-by-default, no GA4", future:"Data export, retention policies, audit trails", impacts:"Changes affect data handling. Check student anonymity, cookie policies."},
+            {id:"automation", name:"Automation & CI/CD", cat:"Admin & Operations", status:"active", v:1, deps:[], os:"partial", summary:"GitHub Actions, Vercel auto-deploy", future:"Automated testing, migration validation", impacts:"Changes affect deployment. Check Vercel config, build pipeline."},
+            {id:"bug-reporting", name:"Bug Reporting", cat:"Admin & Operations", status:"idea", v:0, deps:[], os:"ready", summary:"Idea: bug squash button, per-class toggle, context capture", future:"Session replay, reproduction steps", impacts:"Not yet built."},
+            {id:"format-support", name:"Format Support", cat:"Admin & Operations", status:"active", v:1, deps:["framework-adapter","format-profiles"], os:"ready", summary:"Design (primary), Service, PP support. Custom formats planned.", future:"Art, STEM Challenge, PYP Exhibition", impacts:"Changes affect unit type support. Check FormatProfile registry, detection fallbacks."},
+
+            // Marketing & Public
+            {id:"landing-page", name:"Landing Page", cat:"Marketing & Public", status:"complete", v:1, deps:[], os:"none", summary:"Story-driven 5-phase journey, CSS mock visuals, framework trust bar", future:"Interactive demos, testimonials", impacts:"Changes affect public face. Isolated from platform code."},
+            {id:"public-toolkit", name:"Public Toolkit", cat:"Marketing & Public", status:"complete", v:1, deps:["toolkit"], os:"none", summary:"48 tools at /toolkit — free, unauthenticated, dark theme", future:"Email capture, teacher workshop mode", impacts:"Changes affect lead generation. Shares components with student toolkit."},
+            {id:"report-writer", name:"Report Writer", cat:"Marketing & Public", status:"complete", v:1, deps:["framework-adapter"], os:"partial", summary:"Bulk report comments, multi-framework, email export", future:"Student-specific comments from grade data", impacts:"Changes affect report generation. Check framework-specific comment templates."}
+        ];
+
+        // Compute affects (reverse dependencies)
+        SYSTEMS.forEach(system => {
+            system.affects = [];
+        });
+
+        SYSTEMS.forEach(system => {
+            system.deps.forEach(depId => {
+                const depSystem = SYSTEMS.find(s => s.id === depId);
+                if (depSystem && !depSystem.affects.includes(system.id)) {
+                    depSystem.affects.push(system.id);
+                }
+            });
+        });
+
+        // DEP CHAINS
+        const DEP_CHAINS = [
+            "Discovery Engine → Student Profile → Intelligence Profiles → AI Mentor",
+            "Unit Generation Wizard → Generation Pipeline → Activity Block Library → Knowledge Library",
+            "Teaching Mode → Lesson View → Activity Blocks → Framework Adapter",
+            "Lesson Editor → Content Forking → Unit Adapter → Activity Blocks",
+            "Open Studio (Teacher) → Open Studio (Student) → Journey Engine → 3D Scenes",
+            "NM System → Student NM View → Competency Scoring → Teacher Grading",
+            "Timetable → Cycle Engine → Scheduling → Timing Engine"
+        ];
+
+        // State
+        let selectedSystem = null;
+        let searchTerm = '';
+        let categoryFilter = new Set();
+        let statusFilter = new Set();
+
+        // Get unique categories and statuses
+        const categories = [...new Set(SYSTEMS.map(s => s.cat))].sort();
+        const statuses = ['complete', 'active', 'planned', 'idea', 'future', 'quarantined'];
+
+        // Initialize filters
+        function initializeFilters() {
+            const categoryContainer = document.getElementById('category-filters');
+            categories.forEach(cat => {
+                const pill = document.createElement('button');
+                pill.className = 'filter-pill';
+                pill.textContent = cat.split(' ').pop();
+                pill.title = cat;
+                pill.onclick = () => {
+                    if (categoryFilter.has(cat)) {
+                        categoryFilter.delete(cat);
+                        pill.classList.remove('active');
+                    } else {
+                        categoryFilter.add(cat);
+                        pill.classList.add('active');
+                    }
+                    renderList();
+                };
+                categoryContainer.appendChild(pill);
+            });
+
+            const statusContainer = document.getElementById('status-filters');
+            statuses.forEach(status => {
+                const pill = document.createElement('button');
+                pill.className = 'filter-pill';
+                pill.textContent = status;
+                pill.onclick = () => {
+                    if (statusFilter.has(status)) {
+                        statusFilter.delete(status);
+                        pill.classList.remove('active');
+                    } else {
+                        statusFilter.add(status);
+                        pill.classList.add('active');
+                    }
+                    renderList();
+                };
+                statusContainer.appendChild(pill);
+            });
+        }
+
+        // Update stats
+        function updateStats() {
+            let totalDeps = 0;
+            SYSTEMS.forEach(s => totalDeps += s.deps.length);
+
+            document.getElementById('total-deps').textContent = totalDeps;
+
+            statuses.forEach(status => {
+                const count = SYSTEMS.filter(s => s.status === status).length;
+                document.getElementById(`status-${status}`).textContent = count;
+            });
+        }
+
+        // Filter systems
+        function getFilteredSystems() {
+            return SYSTEMS.filter(system => {
+                const matchesSearch = system.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                     system.id.toLowerCase().includes(searchTerm.toLowerCase());
+                const matchesCategory = categoryFilter.size === 0 || categoryFilter.has(system.cat);
+                const matchesStatus = statusFilter.size === 0 || statusFilter.has(system.status);
+
+                return matchesSearch && matchesCategory && matchesStatus;
+            });
+        }
+
+        // Render system list
+        function renderList() {
+            const filtered = getFilteredSystems();
+            const grouped = {};
+
+            filtered.forEach(system => {
+                if (!grouped[system.cat]) {
+                    grouped[system.cat] = [];
+                }
+                grouped[system.cat].push(system);
+            });
+
+            const list = document.getElementById('systems-list');
+            list.innerHTML = '';
+
+            categories.forEach(cat => {
+                if (grouped[cat]) {
+                    const group = document.createElement('div');
+                    group.className = 'category-group';
+
+                    const header = document.createElement('div');
+                    header.className = 'category-header';
+                    header.textContent = cat;
+                    group.appendChild(header);
+
+                    grouped[cat].forEach(system => {
+                        const item = document.createElement('div');
+                        item.className = 'system-item';
+                        if (selectedSystem?.id === system.id) {
+                            item.classList.add('active');
+                        }
+
+                        item.innerHTML = `
+                            <div>
+                                <div class="system-name">${system.name}</div>
+                                <div class="system-meta">
+                                    <span class="status-badge status-${system.status}">${system.status}</span>
+                                    <span class="dep-count">${system.deps.length} deps</span>
+                                </div>
+                            </div>
+                        `;
+
+                        item.onclick = () => selectSystem(system);
+                        group.appendChild(item);
+                    });
+
+                    list.appendChild(group);
+                }
+            });
+        }
+
+        // Select system
+        function selectSystem(system) {
+            selectedSystem = system;
+            renderDetails();
+            renderList();
+        }
+
+        // Render details
+        function renderDetails() {
+            const container = document.getElementById('details-content');
+
+            if (!selectedSystem) {
+                container.innerHTML = '<div class="no-selection">Select a system to see details</div>';
+                return;
+            }
+
+            const affectedSystems = selectedSystem.affects.map(id => SYSTEMS.find(s => s.id === id)).filter(Boolean);
+
+            let html = `
+                <div class="detail-header">
+                    <div class="detail-title">${selectedSystem.name}</div>
+                    <div class="detail-meta">
+                        <div class="detail-meta-item">
+                            <strong>Status:</strong>
+                            <span class="status-badge status-${selectedSystem.status}">${selectedSystem.status}</span>
+                        </div>
+                        <div class="detail-meta-item">
+                            <strong>Category:</strong> ${selectedSystem.cat}
+                        </div>
+                        <div class="detail-meta-item">
+                            <strong>Version:</strong> ${selectedSystem.v}
+                        </div>
+                        <div class="detail-meta-item">
+                            <strong>OS Seam:</strong> <span style="color: var(--accent)">${selectedSystem.os}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="detail-section">
+                    <div class="detail-summary">${selectedSystem.summary}</div>
+                </div>
+
+                <div class="detail-section">
+                    <div class="detail-section-title">Dependency Graph</div>
+                    <div class="mini-graph">
+                        <div class="graph-content">
+                            ${selectedSystem.deps.length > 0 ? `
+                                <div class="graph-column">
+                                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.5rem;">Depends On</div>
+                                    ${selectedSystem.deps.slice(0, 3).map(depId => {
+                                        const dep = SYSTEMS.find(s => s.id === depId);
+                                        return `<div class="graph-node" onclick="selectSystemById('${depId}')">${dep?.name.substring(0, 15)}...</div>`;
+                                    }).join('')}
+                                    ${selectedSystem.deps.length > 3 ? `<div class="graph-node" style="opacity: 0.5;">+${selectedSystem.deps.length - 3} more</div>` : ''}
+                                </div>
+                                <div class="arrow">→</div>
+                            ` : ''}
+                            <div class="graph-column">
+                                <div class="graph-node center">${selectedSystem.name.substring(0, 18)}...</div>
+                            </div>
+                            ${affectedSystems.length > 0 ? `
+                                <div class="arrow">→</div>
+                                <div class="graph-column">
+                                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.5rem;">Affects</div>
+                                    ${affectedSystems.slice(0, 3).map(sys => `<div class="graph-node" onclick="selectSystemById('${sys.id}')">${sys.name.substring(0, 15)}...</div>`).join('')}
+                                    ${affectedSystems.length > 3 ? `<div class="graph-node" style="opacity: 0.5;">+${affectedSystems.length - 3} more</div>` : ''}
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            if (selectedSystem.deps.length > 0) {
+                html += `
+                    <div class="detail-section">
+                        <div class="detail-section-title">Depends On (${selectedSystem.deps.length})</div>
+                        <ul class="link-list">
+                            ${selectedSystem.deps.map(depId => {
+                                const dep = SYSTEMS.find(s => s.id === depId);
+                                return `<li><span class="system-link" onclick="selectSystemById('${depId}')">${dep?.name}</span></li>`;
+                            }).join('')}
+                        </ul>
+                    </div>
+                `;
+            }
+
+            if (affectedSystems.length > 0) {
+                html += `
+                    <div class="detail-section">
+                        <div class="detail-section-title">Affects (${affectedSystems.length})</div>
+                        <ul class="link-list">
+                            ${affectedSystems.map(sys => `<li><span class="system-link" onclick="selectSystemById('${sys.id}')">${sys.name}</span></li>`).join('')}
+                        </ul>
+                    </div>
+                `;
+            }
+
+            if (selectedSystem.impacts) {
+                html += `
+                    <div class="detail-section">
+                        <div class="detail-section-title">Change Impacts</div>
+                        <div class="impact-text">${selectedSystem.impacts}</div>
+                    </div>
+                `;
+            }
+
+            if (selectedSystem.future) {
+                html += `
+                    <div class="detail-section">
+                        <div class="detail-section-title">Future Roadmap</div>
+                        <div class="future-text">${selectedSystem.future}</div>
+                    </div>
+                `;
+            }
+
+            html += `
+                <div class="dep-chains">
+                    <details>
+                        <summary>Critical Dependency Chains</summary>
+                        <ul>
+                            ${DEP_CHAINS.map(chain => `<li>${chain}</li>`).join('')}
+                        </ul>
+                    </details>
+                </div>
+            `;
+
+            container.innerHTML = html;
+        }
+
+        // Global function for onclick
+        window.selectSystemById = function(id) {
+            const sys = SYSTEMS.find(s => s.id === id);
+            if (sys) selectSystem(sys);
+        };
+
+        // Event listeners
+        document.getElementById('search').addEventListener('input', (e) => {
+            searchTerm = e.target.value;
+            renderList();
+        });
+
+        // Initialize
+        initializeFilters();
+        updateStats();
+        renderList();
+    </script>
+</body>
+</html>

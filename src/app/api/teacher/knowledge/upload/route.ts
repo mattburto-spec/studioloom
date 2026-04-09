@@ -14,6 +14,8 @@ import type { LessonProfile, PartialTeachingContext, SchoolContext, TeacherPrefe
 import type { TextbookSectionContent, LessonResourceContent } from "@/types/knowledge-library";
 import { UPLOAD_STAGE_CONFIG, type UploadSSEEvent, type UploadStage } from "@/types/upload-progress";
 
+const QUARANTINE_RESPONSE = NextResponse.json({ error: "Knowledge pipeline quarantined — pending architecture rebuild. See docs/quarantine.md" }, { status: 410 });
+
 // Vercel Hobby plan: 4.5MB body limit, 60s max duration
 // Vercel Pro plan: 4.5MB default (configurable), 300s max duration
 // For large files, client should upload directly to Supabase Storage first (future)
@@ -59,6 +61,7 @@ function buildProfileEmbeddingText(profile: LessonProfile): string {
  * a rich review screen immediately after upload.
  */
 export const POST = withErrorHandler("teacher/knowledge/upload:POST", async (request: NextRequest) => {
+  return QUARANTINE_RESPONSE;
   const auth = await requireTeacherAuth(request);
   if (auth.error) return auth.error;
   const teacherId = auth.teacherId;
@@ -104,6 +107,29 @@ export const POST = withErrorHandler("teacher/knowledge/upload:POST", async (req
 
   const supabaseAdmin = createAdminClient();
 
+  // ─── Step 0: SHA-256 dedup check ───
+  // Read file buffer early so we can hash before creating upload record
+  const fileArrayBuffer = await file.arrayBuffer();
+  let fileHash: string | null = null;
+  try {
+    const { computeFileHash, checkFileHash } = await import("@/lib/activity-blocks");
+    fileHash = await computeFileHash(fileArrayBuffer);
+
+    const existingUploadId = await checkFileHash(supabaseAdmin, teacherId, fileHash);
+    if (existingUploadId) {
+      return NextResponse.json(
+        {
+          duplicate: true,
+          existingUploadId,
+          message: "This file has already been uploaded and processed.",
+        },
+        { status: 409 }
+      );
+    }
+  } catch (hashErr) {
+    console.warn("[upload] File hash check failed, proceeding without dedup:", hashErr);
+  }
+
   // Create upload tracking record
   // Try with source_category first (requires migration 020), fallback without
   const baseInsert = {
@@ -114,6 +140,7 @@ export const POST = withErrorHandler("teacher/knowledge/upload:POST", async (req
     status: "processing",
     analysis_stage: "extracting",
     ...(collection && { collection }),
+    ...(fileHash && { file_hash: fileHash }),
   };
 
   let upload: { id: string } | null = null;
@@ -132,8 +159,21 @@ export const POST = withErrorHandler("teacher/knowledge/upload:POST", async (req
       .insert(baseInsert)
       .select("id")
       .single();
-    upload = result2.data;
-    uploadError = result2.error;
+
+    if (result2.error && fileHash) {
+      // Retry without file_hash too (migration 060 not applied yet)
+      const { file_hash: _fh, ...baseWithoutHash } = baseInsert as Record<string, unknown>;
+      const result3 = await supabaseAdmin
+        .from("knowledge_uploads")
+        .insert(baseWithoutHash)
+        .select("id")
+        .single();
+      upload = result3.data;
+      uploadError = result3.error;
+    } else {
+      upload = result2.data;
+      uploadError = result2.error;
+    }
   } else {
     upload = result1.data;
   }
@@ -148,8 +188,8 @@ export const POST = withErrorHandler("teacher/knowledge/upload:POST", async (req
 
   const uploadId = upload.id;
 
-  // ─── Read file buffer before streaming (Next.js requires body consumed first) ───
-  const buffer = Buffer.from(await file.arrayBuffer());
+  // ─── Use file buffer already read for hash (Next.js requires body consumed first) ───
+  const buffer = Buffer.from(fileArrayBuffer);
 
   // Read thumbnail + page image buffers eagerly
   let thumbnailBuffer: ArrayBuffer | null = null;
@@ -410,6 +450,26 @@ export const POST = withErrorHandler("teacher/knowledge/upload:POST", async (req
                 onLessonUploaded(teacherId, analysisResult.pass1).catch(() => {
                   // Non-fatal — style profile update failure shouldn't block upload
                 });
+              }
+
+              // ─── Activity Block extraction (Dimensions2 Phase 1B) ───
+              // Extract reusable blocks from lesson_flow phases
+              if (profile.lesson_flow?.length) {
+                try {
+                  const { extractBlocksFromUpload, insertActivityBlocks } = await import("@/lib/activity-blocks");
+                  const blockParams = extractBlocksFromUpload({
+                    teacherId,
+                    uploadId,
+                    lessonFlowPhases: profile.lesson_flow,
+                  });
+
+                  if (blockParams.length > 0) {
+                    const blockIds = await insertActivityBlocks(supabaseAdmin, teacherId, blockParams);
+                    console.log(`[upload] Extracted ${blockIds.length} activity blocks from ${profile.lesson_flow.length} lesson phases`);
+                  }
+                } catch (blockErr) {
+                  console.warn("[upload] Activity block extraction failed (non-critical):", blockErr);
+                }
               }
             }
           } catch (analysisErr) {
@@ -695,6 +755,7 @@ export const POST = withErrorHandler("teacher/knowledge/upload:POST", async (req
  * GET: List teacher's uploads (with linked profile IDs)
  */
 export const GET = withErrorHandler("teacher/knowledge/upload:GET", async (request: NextRequest) => {
+  return QUARANTINE_RESPONSE;
   const auth = await requireTeacherAuth(request);
   if (auth.error) return auth.error;
   const teacherId = auth.teacherId;
@@ -750,6 +811,7 @@ export const GET = withErrorHandler("teacher/knowledge/upload:GET", async (reque
  * DELETE: Remove an upload, its chunks, and its lesson profile
  */
 export const DELETE = withErrorHandler("teacher/knowledge/upload:DELETE", async (request: NextRequest) => {
+  return QUARANTINE_RESPONSE;
   const auth = await requireTeacherAuth(request);
   if (auth.error) return auth.error;
   const teacherId = auth.teacherId;
@@ -762,6 +824,17 @@ export const DELETE = withErrorHandler("teacher/knowledge/upload:DELETE", async 
   }
 
   const supabaseAdmin = createAdminClient();
+
+  // Delete activity blocks extracted from this upload
+  try {
+    const { deleteBlocksByUpload } = await import("@/lib/activity-blocks");
+    const deletedCount = await deleteBlocksByUpload(supabaseAdmin, uploadId);
+    if (deletedCount > 0) {
+      console.log(`[upload] Deleted ${deletedCount} activity blocks for upload ${uploadId}`);
+    }
+  } catch {
+    // Non-fatal — migration 060 may not be applied
+  }
 
   // Delete chunks for this upload
   await supabaseAdmin

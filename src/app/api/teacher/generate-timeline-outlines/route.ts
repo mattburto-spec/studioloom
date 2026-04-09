@@ -18,6 +18,10 @@ import {
 } from "@/lib/knowledge/retrieve-lesson-profiles";
 import type { LessonJourneyInput, TimelineOutlineOption } from "@/types";
 
+// QUARANTINED (3 Apr 2026) — Generation pipeline disabled pending architecture rebuild (Dimensions2).
+// See docs/quarantine.md for full rationale.
+const QUARANTINE_RESPONSE = NextResponse.json({ error: "Generation pipeline quarantined — pending architecture rebuild. See docs/quarantine.md" }, { status: 410 });
+
 function createSupabaseServer(request: NextRequest) {
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -40,6 +44,7 @@ function createSupabaseServer(request: NextRequest) {
  * Body: { journeyInput: LessonJourneyInput }
  */
 export async function POST(request: NextRequest) {
+  return QUARANTINE_RESPONSE;
   const supabase = createSupabaseServer(request);
   const {
     data: { user },

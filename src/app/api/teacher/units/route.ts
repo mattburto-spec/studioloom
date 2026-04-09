@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { ingestUnit } from "@/lib/knowledge/ingest-unit";
-import { recordFork } from "@/lib/knowledge/feedback";
+// QUARANTINED (3 Apr 2026) — Knowledge pipeline disabled
+// import { ingestUnit } from "@/lib/knowledge/ingest-unit";
+// import { recordFork } from "@/lib/knowledge/feedback";
 import { getPageList } from "@/lib/unit-adapter";
 import type { PageContent } from "@/types";
 
@@ -202,29 +203,10 @@ export async function POST(request: NextRequest) {
         .update({ fork_count: (source.fork_count || 0) + 1 })
         .eq("id", unitId);
 
-      // Ingest forked unit & boost source quality (non-critical)
-      if (newUnit?.id) {
-        const unitPages = getPageList(source.content_data);
-        const pages: Record<string, PageContent> = {};
-        for (const p of unitPages) {
-          if (p.content) pages[p.id] = p.content;
-        }
-        ingestUnit(
-          newUnit.id,
-          {
-            title: source.title,
-            topic: source.topic,
-            description: source.description,
-            grade_level: source.grade_level,
-            global_context: source.global_context,
-            key_concept: source.key_concept,
-            pages,
-          },
-          user.id,
-          false
-        ).catch(() => {});
-        recordFork(unitId).catch(() => {});
-      }
+      // QUARANTINED (3 Apr 2026) — Knowledge pipeline disabled pending architecture rebuild.
+      // See docs/quarantine.md for full rationale.
+      // ingestUnit(...).catch(() => {});
+      // recordFork(unitId).catch(() => {});
 
       return NextResponse.json({ success: true, unitId: newUnit?.id });
     }

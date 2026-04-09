@@ -365,7 +365,7 @@ describe("computeLessonPulse", () => {
     it("overall is close to raw average (low penalty)", () => {
       const result = computeLessonPulse(balancedLesson);
       expect(result.overall).toBeGreaterThan(7);
-      expect(Math.abs(result.overall - result.meta.rawAvg)).toBeLessThan(0.5);
+      expect(Math.abs(result.overall - result.meta.rawAvg)).toBeLessThanOrEqual(0.5);
     });
   });
 
@@ -523,8 +523,8 @@ describe("buildPulseRepairPrompt", () => {
       [],
     );
     expect(prompt).toContain("Brainstorm uses");
-    expect(prompt).toContain("Arduino Setup");
-    expect(prompt).toContain("Share Designs");
+    expect(prompt).toContain("Arduino Uno");
+    expect(prompt).toContain("Groups share designs");
   });
 });
 

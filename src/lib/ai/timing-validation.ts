@@ -26,6 +26,7 @@
  */
 
 import type { GradeTimingProfile } from "./prompts";
+import type { TimeWeight } from "@/types";
 import { maxInstructionMinutes, MIN_WORK_TIME_PERCENT, calculateUsableTime, type TimingContext } from "./prompts";
 import { getLessonStructure, getMainBlockFloor, getEffectiveInstructionCap, structureHasInstructionCap } from "./lesson-structures";
 
@@ -34,10 +35,10 @@ import { getLessonStructure, getMainBlockFloor, getEffectiveInstructionCap, stru
 // =========================================================================
 
 export interface WorkshopPhases {
-  opening: { durationMinutes: number; hook?: string };
-  miniLesson: { durationMinutes: number; focus?: string };
-  workTime: { durationMinutes: number; focus?: string; checkpoints?: string[] };
-  debrief: { durationMinutes: number; protocol?: string; prompt?: string };
+  opening: { durationMinutes: number; hook?: string; phaseName?: string };
+  miniLesson: { durationMinutes: number; focus?: string; phaseName?: string };
+  workTime: { durationMinutes: number; focus?: string; checkpoints?: string[]; phaseName?: string };
+  debrief: { durationMinutes: number; protocol?: string; prompt?: string; phaseName?: string };
 }
 
 export interface LessonExtension {
@@ -49,7 +50,8 @@ export interface LessonExtension {
 
 export interface LessonSection {
   prompt?: string;
-  durationMinutes: number;
+  durationMinutes?: number;
+  timeWeight?: TimeWeight;
   criterionTags?: string[];
   responseType?: string;
   [key: string]: unknown;
@@ -119,6 +121,105 @@ const DEBRIEF_PROTOCOLS: Record<string, { protocol: string; prompt: string }> = 
 };
 
 // =========================================================================
+// TimeWeight → Minutes Resolution
+// =========================================================================
+
+/** Multiplier for each timeWeight value. quick=1x, moderate=2x, extended=4x */
+const TIME_WEIGHT_MULTIPLIER: Record<TimeWeight, number> = {
+  quick: 1,
+  moderate: 2,
+  extended: 4,
+  flexible: 0, // flexible activities absorb remaining time
+};
+
+/**
+ * Resolve timeWeight values into concrete durationMinutes for a set of sections
+ * within a given available time budget.
+ *
+ * Algorithm:
+ * 1. Sections that already have durationMinutes keep them (pinned).
+ * 2. Remaining time is distributed proportionally by timeWeight multiplier.
+ * 3. "flexible" sections split whatever time remains after weighted + pinned.
+ * 4. Sections with neither timeWeight nor durationMinutes get "moderate" default.
+ *
+ * Mutates the sections in place and returns the total minutes assigned.
+ */
+export function resolveTimeWeights(
+  sections: LessonSection[],
+  availableMinutes: number
+): number {
+  if (sections.length === 0) return 0;
+
+  // Separate pinned (has durationMinutes) from weighted (needs resolution)
+  let pinnedTotal = 0;
+  const weighted: { section: LessonSection; multiplier: number }[] = [];
+  const flexible: LessonSection[] = [];
+
+  for (const s of sections) {
+    if (s.durationMinutes && s.durationMinutes > 0) {
+      pinnedTotal += s.durationMinutes;
+    } else {
+      const tw: TimeWeight = s.timeWeight || "moderate";
+      if (tw === "flexible") {
+        flexible.push(s);
+      } else {
+        weighted.push({ section: s, multiplier: TIME_WEIGHT_MULTIPLIER[tw] || 2 });
+      }
+    }
+  }
+
+  const remainingAfterPinned = Math.max(0, availableMinutes - pinnedTotal);
+
+  // Allocate weighted sections proportionally
+  const totalWeight = weighted.reduce((sum, w) => sum + w.multiplier, 0);
+  // Reserve some time for flexible sections
+  const flexReserve = flexible.length > 0
+    ? Math.max(flexible.length * 3, Math.round(remainingAfterPinned * 0.15))
+    : 0;
+  const weightedBudget = remainingAfterPinned - flexReserve;
+
+  let weightedTotal = 0;
+  if (totalWeight > 0 && weightedBudget > 0) {
+    for (const w of weighted) {
+      const minutes = Math.max(2, Math.round((w.multiplier / totalWeight) * weightedBudget));
+      w.section.durationMinutes = minutes;
+      weightedTotal += minutes;
+    }
+  } else {
+    // Edge case: no weighted sections or no budget — give minimums
+    for (const w of weighted) {
+      w.section.durationMinutes = 2;
+      weightedTotal += 2;
+    }
+  }
+
+  // Distribute remaining to flexible sections
+  const flexBudget = Math.max(0, availableMinutes - pinnedTotal - weightedTotal);
+  if (flexible.length > 0) {
+    const perFlex = Math.max(3, Math.round(flexBudget / flexible.length));
+    for (const s of flexible) {
+      s.durationMinutes = perFlex;
+    }
+  }
+
+  return sections.reduce((sum, s) => sum + (s.durationMinutes || 0), 0);
+}
+
+/**
+ * Get an approximate duration for a single timeWeight value within a lesson context.
+ * Used as a fallback when we need a single section's duration without full resolution.
+ */
+export function approximateDuration(tw: TimeWeight | undefined, lessonMinutes: number): number {
+  if (!tw) return Math.round(lessonMinutes * 0.2); // default ~20% of lesson
+  switch (tw) {
+    case "quick": return Math.min(5, Math.round(lessonMinutes * 0.1));
+    case "moderate": return Math.round(lessonMinutes * 0.2);
+    case "extended": return Math.round(lessonMinutes * 0.4);
+    case "flexible": return Math.round(lessonMinutes * 0.25);
+  }
+}
+
+// =========================================================================
 // Validation Logic
 // =========================================================================
 
@@ -146,6 +247,24 @@ export function validateLessonTiming(
   const structure = getLessonStructure(lessonType);
   const mainBlockFloor = getMainBlockFloor(undefined, lessonType);
   const hasInstructionPhase = structureHasInstructionCap(lessonType);
+
+  // ---- 0. Resolve timeWeights → durationMinutes if needed ----
+  // Activities may have timeWeight instead of (or in addition to) durationMinutes.
+  // Resolve so downstream validation always has concrete minutes.
+  if (repaired.sections && repaired.sections.length > 0) {
+    const hasMissingDurations = repaired.sections.some(
+      (s) => (!s.durationMinutes || s.durationMinutes <= 0) && s.timeWeight
+    );
+    if (hasMissingDurations) {
+      resolveTimeWeights(repaired.sections, usable);
+      issues.push({
+        code: "TIMEWEIGHT_RESOLVED",
+        severity: "info",
+        message: "Resolved timeWeight values to concrete durationMinutes.",
+        autoFixed: true,
+      });
+    }
+  }
 
   // ---- 1. Workshop phases present? ----
   // workshopPhases is the legacy 4-phase structure. For typed lessons, we still
@@ -261,7 +380,7 @@ export function validateLessonTiming(
   const maxPassive = profile.mypYear <= 3 ? 20 : 30;
   if (repaired.sections) {
     for (const section of repaired.sections) {
-      if (section.durationMinutes > maxPassive && !isHandsOnSection(section)) {
+      if ((section.durationMinutes || 0) > maxPassive && !isHandsOnSection(section)) {
         issues.push({
           code: "PASSIVE_PHASE_TOO_LONG",
           severity: "warning",
@@ -320,6 +439,11 @@ export function validateLessonTiming(
       severity: "info",
       message: `UDL gap: no activities address ${missingUdl.join(", ")}. Consider adding activities for ${missingUdl.map((p) => p === "engagement" ? "recruiting interest/self-regulation" : p === "representation" ? "multiple media/language support" : "flexible expression/executive function").join(", ")}.`,
     });
+  }
+
+  // Stamp structure-specific phase names onto the repaired workshopPhases
+  if (repaired.workshopPhases) {
+    repaired.workshopPhases = stampPhaseNames(repaired.workshopPhases, lessonType);
   }
 
   // Compute final stats
@@ -469,6 +593,13 @@ function classifyUnitActivityBalance(
  */
 function inferWorkshopPhases(lesson: GeneratedLesson, usableMinutes: number, instructionCap: number): WorkshopPhases {
   const sections = lesson.sections || [];
+  // Resolve any timeWeight-only sections first so we have concrete minutes
+  const hasMissingDurations = sections.some(
+    (s) => (!s.durationMinutes || s.durationMinutes <= 0) && s.timeWeight
+  );
+  if (hasMissingDurations) {
+    resolveTimeWeights(sections, usableMinutes);
+  }
   const sectionTotal = sections.reduce((sum, s) => sum + (s.durationMinutes || 0), 0);
 
   // Calculate phase durations from proportions
@@ -496,6 +627,42 @@ function inferWorkshopPhases(lesson: GeneratedLesson, usableMinutes: number, ins
       ...DEBRIEF_PROTOCOLS["quick-share"],
     },
   };
+}
+
+/**
+ * Stamp structure-specific phase names onto workshopPhases slots.
+ * If the AI didn't provide phaseName, we derive it from the lesson structure template.
+ * This ensures UI components can display "Extended Making" instead of "Work Time"
+ * for a making lesson, while keeping the backward-compatible slot keys.
+ */
+export function stampPhaseNames(
+  phases: WorkshopPhases,
+  lessonType?: string
+): WorkshopPhases {
+  const structure = getLessonStructure(lessonType);
+  const templatePhases = structure.phases;
+
+  // Map template phases to the 4 role slots
+  // Template phases are ordered: the structure defines them in sequence.
+  // Slot mapping: opening=0, miniLesson=1, workTime=mainBlock, debrief=last
+  const stamped = JSON.parse(JSON.stringify(phases)) as WorkshopPhases;
+
+  if (templatePhases.length >= 4) {
+    stamped.opening.phaseName = stamped.opening.phaseName || templatePhases[0].name;
+    stamped.miniLesson.phaseName = stamped.miniLesson.phaseName || templatePhases[1].name;
+    // Find the main block phase (or default to index 2)
+    const mainIdx = templatePhases.findIndex((p) => p.isMainBlock);
+    stamped.workTime.phaseName = stamped.workTime.phaseName || templatePhases[mainIdx >= 0 ? mainIdx : 2].name;
+    stamped.debrief.phaseName = stamped.debrief.phaseName || templatePhases[templatePhases.length - 1].name;
+  } else {
+    // Fallback: Workshop Model names
+    stamped.opening.phaseName = stamped.opening.phaseName || "Opening";
+    stamped.miniLesson.phaseName = stamped.miniLesson.phaseName || "Mini-Lesson";
+    stamped.workTime.phaseName = stamped.workTime.phaseName || "Work Time";
+    stamped.debrief.phaseName = stamped.debrief.phaseName || "Debrief";
+  }
+
+  return stamped;
 }
 
 /**

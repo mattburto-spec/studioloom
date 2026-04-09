@@ -1,0 +1,48 @@
+name: Nightly
+
+on:
+  schedule:
+    # 2am Nanjing time (UTC+8) = 6pm UTC
+    - cron: "0 18 * * *"
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - run: npm ci
+
+      - name: Dependency audit
+        run: npm audit --audit-level=high
+        continue-on-error: true
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Tests
+        run: npm test
+
+      - name: Dashboard sync check
+        run: npx tsx scripts/check-dashboard-sync.ts
+
+      - name: Doc freshness check
+        run: npx tsx scripts/check-doc-freshness.ts
+
+      - name: WIRING.yaml health check
+        run: python3 scripts/check-wiring-health.py
+
+      - name: Full build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_SENTRY_DSN: ${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}

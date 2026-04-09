@@ -27,7 +27,7 @@ const dimensionsActivityProperties = {
   },
   grouping: {
     type: "string" as const,
-    enum: ["individual", "pair", "small_group", "whole_class", "flexible"],
+    enum: ["individual", "pair", "small_group", "whole_class", "mixed"],
     description: "Student grouping strategy for this activity",
   },
   ai_rules: {
@@ -56,6 +56,10 @@ const dimensionsActivityProperties = {
     type: "array" as const,
     items: { type: "string" as const },
     description: "1-3 observable indicators of success that a teacher can look for during this activity",
+  },
+  source_block_id: {
+    type: "string" as const,
+    description: "If this activity is adapted from a Proven Activity Block, set this to the block's ID (e.g. 'blk_abc123'). Leave empty if the activity is original.",
   },
 } as const;
 
@@ -191,12 +195,12 @@ function buildPageContentSchema(unitType: UnitType = "design") {
               enum: ["text", "upload", "voice", "link", "multi", "decision-matrix", "pmi", "pairwise", "trade-off-sliders"],
             },
             exampleResponse: { type: "string" as const, description: "Model response showing what good work looks like" },
-            durationMinutes: { type: "number" as const, description: "Estimated minutes for this activity (e.g. 5, 10, 15, 20)" },
+            durationMinutes: { type: "number" as const, description: "DEPRECATED — prefer timeWeight. Only set if exact minutes are critical (e.g. safety demo must be exactly 5 min)." },
             portfolioCapture: {
               type: "boolean" as const,
               description: "Set true for substantive design work (analysis, ideation, creation evidence, evaluation). Omit or false for scaffolding, warm-ups, and practice tasks.",
             },
-            // --- Dimensions v2 fields ---
+            // --- Dimensions v2 fields (includes timeWeight which replaces durationMinutes) ---
             ...dimensionsActivityProperties,
             scaffolding: {
               type: "object" as const,
@@ -237,44 +241,48 @@ function buildPageContentSchema(unitType: UnitType = "design") {
       ...dimensionsPageProperties,
       workshopPhases: {
         type: "object" as const,
-        description: "Workshop Model timing: 4-phase structure for every lesson. Opening (5-10 min), Mini-Lesson (max 1+age min), Work Time (≥45% of usable time), Debrief (5-10 min).",
+        description: "Lesson phase timing — 4 role-based slots mapped to the lesson structure described in the prompt. Each slot has a phaseName matching the structure (e.g. 'Extended Making' for a making lesson, 'Divergent Thinking' for ideation). Durations must sum to usable time.",
         properties: {
           opening: {
             type: "object" as const,
-            required: ["durationMinutes"],
+            required: ["durationMinutes", "phaseName"],
             properties: {
-              durationMinutes: { type: "number" as const, description: "5-10 minutes" },
-              hook: { type: "string" as const, description: "Engaging opening activity or question" },
+              durationMinutes: { type: "number" as const, description: "Setup/opening phase duration (typically 3-10 min)" },
+              phaseName: { type: "string" as const, description: "Structure-specific phase name (e.g. 'Opening', 'Safety Check', 'Stimulus', 'Review & Predict')" },
+              hook: { type: "string" as const, description: "Opening activity, question, or context-setter" },
             },
           },
           miniLesson: {
             type: "object" as const,
-            required: ["durationMinutes"],
+            required: ["durationMinutes", "phaseName"],
             properties: {
-              durationMinutes: { type: "number" as const, description: "Max 1+avg student age minutes of direct instruction" },
-              focus: { type: "string" as const, description: "Key concept or skill being taught" },
+              durationMinutes: { type: "number" as const, description: "Instruction/guided phase duration. Max 1+age min. Set to 0 if lesson structure has no instruction phase." },
+              phaseName: { type: "string" as const, description: "Structure-specific phase name (e.g. 'Mini-Lesson', 'Safety & Demo', 'Guided Investigation', 'Convergent Thinking')" },
+              focus: { type: "string" as const, description: "Key concept, skill, or technique being taught/guided" },
             },
           },
           workTime: {
             type: "object" as const,
-            required: ["durationMinutes"],
+            required: ["durationMinutes", "phaseName"],
             properties: {
-              durationMinutes: { type: "number" as const, description: "≥45% of usable time — ONE sustained block" },
-              focus: { type: "string" as const, description: "What students are doing during work time" },
+              durationMinutes: { type: "number" as const, description: "Main block — the sustained student work phase. Must meet the minimum floor % for the lesson structure." },
+              phaseName: { type: "string" as const, description: "Structure-specific phase name (e.g. 'Work Time', 'Extended Making', 'Divergent Thinking', 'Test & Gather Data', 'Independent Practice')" },
+              focus: { type: "string" as const, description: "What students are doing during this phase" },
               checkpoints: {
                 type: "array" as const,
                 items: { type: "string" as const },
-                description: "1-2 brief teacher check-in points during work time",
+                description: "1-2 brief teacher check-in points for long main blocks (>25 min)",
               },
             },
           },
           debrief: {
             type: "object" as const,
-            required: ["durationMinutes"],
+            required: ["durationMinutes", "phaseName"],
             properties: {
-              durationMinutes: { type: "number" as const, description: "5-10 minutes — never skip" },
-              protocol: { type: "string" as const, description: "e.g. quick-share, i-like-i-wish, exit-ticket, two-stars-a-wish" },
-              prompt: { type: "string" as const, description: "The debrief question or activity instructions" },
+              durationMinutes: { type: "number" as const, description: "Closing phase duration (3-10 min). Reflection, sharing, clean-up, or goal-setting." },
+              phaseName: { type: "string" as const, description: "Structure-specific phase name (e.g. 'Debrief', 'Quick Reflection', 'Share Findings', 'Select & Refine', 'Plan Iteration')" },
+              protocol: { type: "string" as const, description: "Structured closing protocol (e.g. quick-share, i-like-i-wish, exit-ticket, two-stars-a-wish)" },
+              prompt: { type: "string" as const, description: "The closing question or activity instructions" },
             },
           },
         },
@@ -371,12 +379,12 @@ function buildJourneyActivitySectionSchema() {
         enum: ["text", "upload", "voice", "link", "multi", "decision-matrix", "pmi", "pairwise", "trade-off-sliders"],
       },
       exampleResponse: { type: "string" as const, description: "Model response showing what good work looks like" },
-      durationMinutes: { type: "number" as const, description: "Estimated minutes for this activity (e.g. 5, 10, 15, 20)" },
+      durationMinutes: { type: "number" as const, description: "DEPRECATED — prefer timeWeight. Only set if exact minutes are critical." },
       portfolioCapture: {
         type: "boolean" as const,
         description: "Set true for substantive design work. Omit or false for scaffolding, warm-ups, and practice tasks.",
       },
-      // --- Dimensions v2 fields ---
+      // --- Dimensions v2 fields (includes timeWeight which replaces durationMinutes) ---
       ...dimensionsActivityProperties,
       scaffolding: {
         type: "object" as const,
@@ -525,7 +533,7 @@ export const SINGLE_JOURNEY_OUTLINE_TOOL: Tool = {
 /** Schema for a single timeline activity. */
 const timelineActivitySchema = {
   type: "object" as const,
-  required: ["id", "role", "title", "prompt", "durationMinutes"],
+  required: ["id", "role", "title", "prompt"],
   properties: {
     id: { type: "string" as const, description: "Short unique ID for this activity (e.g. 'a1', 'a2', 'a3')" },
     role: {
@@ -535,7 +543,7 @@ const timelineActivitySchema = {
     },
     title: { type: "string" as const, description: "Short activity title (3-8 words)" },
     prompt: { type: "string" as const, description: "Full activity instructions/content for the student. Supports basic markdown: **bold**, *italic*, [links](url)." },
-    durationMinutes: { type: "number" as const, description: "Estimated minutes for this activity" },
+    durationMinutes: { type: "number" as const, description: "Optional fallback — only set if exact minutes are critical (e.g. safety demo must be exactly 5 min). Otherwise use timeWeight." },
     responseType: {
       type: "string" as const,
       enum: ["text", "upload", "voice", "link", "multi", "decision-matrix", "pmi", "pairwise", "trade-off-sliders"],

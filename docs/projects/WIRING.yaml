@@ -1,0 +1,2020 @@
+# StudioLoom System Registry & Dependency Map
+# Machine-readable system registry for impact analysis
+# Last updated: 2026-04-07
+# When a change is made to any system, trace affected systems via depends_on/affects
+
+systems:
+  # STUDENT EXPERIENCE SYSTEMS (30 systems)
+
+  - id: lesson-view
+    name: Lesson View & Navigation
+    category: Student Experience
+    status: complete
+    currentVersion: 1
+    summary: Interactive lesson display with sidebar navigation, content sections, and autosave response handling. Students navigate between pages and respond to activities.
+    depends_on: [activity-blocks, journey-engine, framework-adapter, student-profile, student-data]
+    affects: [student-dashboard, portfolio, toolkit, gallery]
+    docs:
+      - path: docs/specs/lesson-layer-architecture.md
+        purpose: Layer architecture for lesson content
+      - path: docs/education-ai-patterns.md
+        purpose: Effort-gating patterns for student interactions
+    data_fields:
+      - table: student_progress
+        columns: [student_id, unit_id, page_id, responses, integrity_metadata, planning_tasks]
+        notes: Primary response storage with autosave via usePageResponses hook
+      - table: units
+        columns: [id, content_data, nm_config, thumbnail_url]
+        notes: Content templates
+      - table: class_units
+        columns: [id, content_data, nm_config]
+        notes: Per-class content forks
+    key_files:
+      - src/app/student/unit/[unitId]/[pageId]/page.tsx
+      - src/components/student/lesson/LessonPageRenderer.tsx
+      - src/lib/hooks/usePageResponses.ts
+    future_needs: Lesson preview mode for teachers, multi-modal response capture (sketch, voice).
+    adrs: ["008", "009"]
+    os_seam: ready
+    change_impacts: Changes to response autosave affect all student-facing components. Changes to page rendering affect Teaching Mode display and portfolio capture.
+
+  - id: student-dashboard
+    name: Student Dashboard
+    category: Student Experience
+    status: complete
+    currentVersion: 1
+    summary: Framework-colored unit cards with badges, subject detection, multi-class enrollment support, and smart filtering.
+    depends_on: [student-onboarding, safety-badges, intelligence-profiles, framework-adapter]
+    affects: [lesson-view, student-open-studio, toolkit]
+    docs:
+      - path: docs/specs/neutral-criterion-taxonomy.md
+        purpose: Framework-neutral subject detection
+      - path: docs/roadmap.md
+        purpose: Dashboard feature roadmap
+    data_fields:
+      - table: students
+        columns: [id, mentor_id, theme_id, learning_profile, author_teacher_id]
+        notes: Student identity and preferences
+      - table: class_students
+        columns: [student_id, class_id]
+        notes: Multi-class enrollment
+      - table: units
+        columns: [id, unit_type, curriculum_context, thumbnail_url]
+        notes: Unit metadata for card display
+    key_files:
+      - src/app/student/dashboard/page.tsx
+      - src/components/student/dashboard/StudentUnitCard.tsx
+      - src/lib/unit-adapter.ts
+    future_needs: Adaptive dashboard based on learning profile, intelligent unit ordering.
+    adrs: ["010"]
+    os_seam: ready
+    change_impacts: Changes to student profile fields affect dashboard personalization. Changes to unit metadata affect card display and subject detection.
+
+  - id: student-onboarding
+    name: Student Onboarding & Studio Setup
+    category: Student Experience
+    status: complete
+    currentVersion: 1
+    summary: 4-screen character creation flow (mentor choice, theme selection, guided questions, profile reveal). Triggered by null mentor_id on first login.
+    depends_on: [discovery-engine, student-profile]
+    affects: [student-dashboard, ai-mentor, student-open-studio]
+    docs:
+      - path: docs/specs/discovery-engine-build-plan.md
+        purpose: Kit dialogue and interaction design
+    data_fields:
+      - table: students
+        columns: [id, mentor_id, theme_id, learning_profile, author_teacher_id]
+        notes: Mentor and theme set during onboarding
+    key_files:
+      - src/app/student/onboarding/page.tsx
+      - src/components/student/onboarding/StudioSetup.tsx
+      - src/lib/studio-preferences.ts
+    future_needs: Redo onboarding flow accessible from student settings, expand mentor library from 3 to 20.
+    adrs: ["008"]
+    os_seam: partial
+    change_impacts: Changes to mentor system require updating mentor choice UI. Changes to student profile fields require updating question prompts.
+
+  - id: student-signin
+    name: Student Sign-In
+    category: Student Experience
+    status: complete
+    currentVersion: 1
+    summary: Class code + student display name authentication. Creates nanoid(48) token sessions with 7-day TTL in student_sessions table.
+    depends_on: [auth-system]
+    affects: [student-dashboard, lesson-view, ai-mentor]
+    docs:
+      - path: docs/projects/school-readiness.md
+        purpose: Auth architecture and compliance
+    data_fields:
+      - table: student_sessions
+        columns: [id, student_id, token, class_id, created_at, expires_at]
+        notes: Token-based session storage
+      - table: students
+        columns: [id, display_name, class_id, author_teacher_id]
+        notes: Student identity and class linkage
+    key_files:
+      - src/app/api/auth/student-login/route.ts
+      - src/app/api/student/session/route.ts
+      - src/lib/auth/student-session.ts
+    future_needs: QR code login, single sign-on via LMS integrations.
+    adrs: ["003"]
+    os_seam: ready
+    change_impacts: Changes to token TTL affect session duration. Changes to student_sessions schema require migration. Multi-class enrollment uses class_students junction with login 3-level fallback.
+
+  - id: gallery
+    name: Class Gallery & Peer Review Platform
+    category: Student Experience
+    status: complete
+    currentVersion: 1
+    summary: Teacher-created gallery rounds with portfolio snapshot submissions, 3 structured review formats (comment, PMI, Two Stars & Wish), effort-gated feedback.
+    depends_on: [peer-review, student-work-pipeline, student-profile]
+    affects: [portfolio, student-data, gamification]
+    docs:
+      - path: docs/specs/discovery-engine-build-plan.md
+        purpose: Gallery integration with Discovery Engine
+    data_fields:
+      - table: gallery_rounds
+        columns: [id, class_id, unit_id, name, review_format, starts_at, ends_at, anonymous, min_reviews]
+        notes: Gallery event configuration
+      - table: gallery_submissions
+        columns: [id, gallery_round_id, student_id, portfolio_snapshot, submitted_at]
+        notes: Student submissions
+      - table: gallery_reviews
+        columns: [id, submission_id, reviewer_id, review_data, submitted_at]
+        notes: Peer feedback
+    key_files:
+      - src/app/student/gallery/[roundId]/page.tsx
+      - src/components/student/gallery/GalleryRound.tsx
+      - src/lib/gallery-service.ts
+    future_needs: Virtual exhibition spaces (v3D Elements integration), multiplayer modes, gallery archival.
+    adrs: ["008"]
+    os_seam: partial
+    change_impacts: Changes to gallery workflow affect student-work-pipeline integration. Changes to review formats require migration. Changes to effort-gating logic affect peer review submission flow.
+
+  - id: peer-review
+    name: Peer Review System
+    category: Student Experience
+    status: complete
+    currentVersion: 1
+    summary: 3 structured review formats (comment with starters, PMI, Two Stars & Wish) with sentence scaffolding and effort-gating (students can't see feedback until min reviews completed).
+    depends_on: [gallery]
+    affects: [gallery, student-data]
+    docs:
+      - path: docs/education-ai-patterns.md
+        purpose: Effort-gating pattern foundation
+    data_fields:
+      - table: gallery_reviews
+        columns: [id, submission_id, reviewer_id, review_data, submitted_at]
+        notes: Stores all review formats in JSON
+    key_files:
+      - src/components/student/gallery/ReviewForm.tsx
+      - src/lib/review-formats.ts
+    future_needs: Custom rubric-based review formats, reviewer matching by similarity.
+    adrs: ["008"]
+    os_seam: none
+    change_impacts: Changes to sentence starters affect review quality. Changes to effort-gating threshold affect student experience.
+
+  - id: portfolio
+    name: Student Portfolio & Work Collection
+    category: Student Experience
+    status: complete
+    currentVersion: 1
+    summary: Auto-capture of lesson responses, Quick Capture for in-class photos, floating launcher, portfolio snapshot export for gallery submissions.
+    depends_on: [student-work-pipeline, student-profile, lesson-view]
+    affects: [gallery, student-data, student-learning-support]
+    docs:
+      - path: docs/projects/studentwork.md
+        purpose: Student work 5-stage pipeline
+      - path: docs/projects/studioloom-work-capture-spec.md
+        purpose: Work capture component details
+    data_fields:
+      - table: student_progress
+        columns: [student_id, unit_id, responses, portfolio_metadata]
+        notes: Auto-captured responses
+      - table: work_items
+        columns: [id, student_id, unit_id, type, content, created_at]
+        notes: v2 work pipeline entity
+    key_files:
+      - src/components/student/portfolio/PortfolioButton.tsx
+      - src/components/student/portfolio/QuickCapture.tsx
+    future_needs: Multi-media portfolio (video, audio, sketches), portfolio analytics dashboard.
+    adrs: ["010"]
+    os_seam: partial
+    change_impacts: Changes to response schema affect portfolio data structure. Changes to Quick Capture UI affect mobile experience.
+
+  - id: toolkit
+    name: Design Thinking Toolkit
+    category: Student Experience
+    status: complete
+    currentVersion: 1
+    summary: 27 interactive tools + 21 catalog templates organized by design phase (Discover/Define/Ideate/Prototype/Test). Features per-step AI rules, effort-gating, phase pills, SVG thumbnails.
+    depends_on: [toolkit-persistence, activity-blocks, ai-mentor]
+    affects: [toolkit-persistence, student-data, portfolio, gamification]
+    docs:
+      - path: docs/projects/toolkit.md
+        purpose: Toolkit redesign and interaction patterns
+      - path: docs/education-ai-patterns.md
+        purpose: Core patterns (effort-gating, Socratic feedback, staged load, micro-loops, soft gating)
+      - path: docs/specs/discovery-engine-build-plan.md
+        purpose: Tool-specific integration details
+    data_fields:
+      - table: student_tool_sessions
+        columns: [id, student_id, tool_slug, session_data, created_at, updated_at]
+        notes: Tool state and session tracking
+    key_files:
+      - src/app/toolkit/page.tsx
+      - src/components/toolkit/ToolkitGrid.tsx
+      - src/components/toolkit/interactive/SCAMPER.tsx
+    future_needs: 42+ tools (expand from 27), custom tool builder, toolkit grading rubrics.
+    adrs: ["008", "009"]
+    os_seam: designed
+    change_impacts: Changes to phase structure affect all 48 tools. Changes to per-step AI rules affect nudge system. Changes to effort-gating affect feedback strategy.
+
+  - id: toolkit-persistence
+    name: Toolkit Session Persistence
+    category: Student Experience
+    status: complete
+    currentVersion: 1
+    summary: useToolSession hook with lazy session creation (on first updateState call), 500ms debounced auto-save, version history support.
+    depends_on: []
+    affects: [toolkit, student-data, portfolio]
+    docs:
+      - path: docs/education-ai-patterns.md
+        purpose: Session lifecycle patterns
+    data_fields:
+      - table: student_tool_sessions
+        columns: [id, student_id, tool_slug, session_data, version, created_at, updated_at]
+        notes: Tool session storage
+    key_files:
+      - src/lib/hooks/useToolSession.ts
+      - src/lib/tool-session-service.ts
+    future_needs: Cloud sync for multi-device sessions, session sharing via public links.
+    adrs: ["008"]
+    os_seam: ready
+    change_impacts: Changes to debounce timing affect data integrity. Changes to auto-save logic require testing across all 27 tools.
+
+  - id: discovery-engine
+    name: Discovery Engine & Student Profiling
+    category: Student Experience
+    status: complete
+    currentVersion: 1
+    summary: 8-station interactive journey with Kit mentor. Students complete binary choices, sorts, text prompts, sliders. Profiles archetype, working style, interests, fears, self-efficacy, values. ~9,500 lines.
+    depends_on: [journey-engine, student-profile, ai-mentor, intelligence-profiles]
+    affects: [student-dashboard, student-open-studio, ai-mentor, gamification]
+    docs:
+      - path: docs/specs/discovery-engine-build-plan.md
+        purpose: Master build plan with all dialogue, content pools, state machine, dead-ends, scoring
+      - path: docs/specs/discovery-engine-spec.md
+        purpose: Data model and DiscoveryProfile interface
+      - path: docs/specs/discovery-engine-ai-integration.md
+        purpose: AI touchpoints and prompt templates
+      - path: docs/specs/discovery-engine-ux-design.md
+        purpose: Visual design and interaction patterns
+    data_fields:
+      - table: discovery_sessions
+        columns: [id, student_id, mode, profile_data, completed_at]
+        notes: Journey state and profile results
+      - table: students
+        columns: [id, learning_profile]
+        notes: Cached profile JSONB from latest session
+    key_files:
+      - src/app/student/discovery/page.tsx
+      - src/components/student/discovery/DiscoveryFlow.tsx
+      - src/lib/discovery-service.ts
+    future_needs: Adaptive 2nd/3rd completions (skip known stations), parallel mode for Service/PP/Inquiry, Phase B+C intelligence merging.
+    adrs: ["008"]
+    os_seam: designed
+    change_impacts: Changes to station content or scoring require updating discovery-service. Changes to DiscoveryProfile schema require migration. Mentor system expansion (3→20) requires new dialogue generation.
+
+  - id: student-pm
+    name: Student Project Management Tools
+    category: Student Experience
+    status: planned
+    currentVersion: 0
+    summary: Lightweight PM tools (Gantt timeline, Kanban board) for self-directed project work. Phase 2 feature.
+    depends_on: [scheduling, student-open-studio]
+    affects: [student-dashboard, student-data]
+    docs:
+      - path: docs/specs/planning-tools-ux-spec.md
+        purpose: Student PM design
+    future_needs: Milestone-aware check-ins, AI-suggested adjustments, peer collaboration.
+    adrs: ["008"]
+    os_seam: none
+    change_impacts: Will require new student_planning_sessions table and scheduling integration.
+
+  - id: student-open-studio
+    name: Open Studio (Self-Directed Mode)
+    category: Student Experience
+    status: complete
+    currentVersion: 1
+    summary: Unlock per-unit self-directed mode with AI studio critic mentor (convergent tone vs. guided mode). Drift detection (3-level escalation), check-in rotation, documentation nudges.
+    depends_on: [journey-engine, intelligence-profiles, student-work-pipeline, ai-mentor]
+    affects: [student-dashboard, student-data, gallery, intelligence-profiles]
+    docs:
+      - path: docs/open studio/open-studio-spec.md
+        purpose: v1 spec with unlock criteria, AI modes, drift detection
+      - path: docs/open studio/open-studio-experience-design.md
+        purpose: Experience journey and UI design
+      - path: docs/projects/openstudio-v2.md
+        purpose: v2 mentor-guided planning
+    data_fields:
+      - table: open_studio_status
+        columns: [class_unit_id, status, unlocked_at, check_in_interval_minutes]
+        notes: Per-unit unlock state
+    key_files:
+      - src/app/student/open-studio/[unitId]/page.tsx
+      - src/components/student/open-studio/StudioChat.tsx
+      - src/lib/open-studio-service.ts
+    future_needs: v2 with mentor-guided planning journeys, multi-week projects, peer collab.
+    adrs: ["008"]
+    os_seam: ready
+    change_impacts: Changes to drift detection thresholds affect student experience. Changes to mentor system affect studio critic prompts.
+
+  - id: integrity-monitor-student
+    name: Academic Integrity Monitoring (Student-Facing)
+    category: Student Experience
+    status: complete
+    currentVersion: 1
+    summary: MonitoredTextarea component with silent, zero-visible-indicator tracking. 6-rule Human Confidence Score (paste ratio, bulk entry, typing speed, edit rate, focus loss, minimal time). Teachers see IntegrityReport on grading dashboard.
+    depends_on: []
+    affects: [lesson-view, student-data, teacher-grading]
+    docs:
+      - path: docs/projects/monitored-textarea.md
+        purpose: Integrity monitoring architecture and scoring
+    data_fields:
+      - table: student_progress
+        columns: [student_id, unit_id, page_id, integrity_metadata]
+        notes: JSONB with paste_ratio, bulk_entry, typing_speed, edit_rate, focus_loss, time_spent
+    key_files:
+      - src/components/student/common/MonitoredTextarea.tsx
+      - src/lib/integrity-scoring.ts
+    future_needs: AI-based classification (v2), parent/admin transparency UI, threshold tuning.
+    adrs: ["007"]
+    os_seam: ready
+    change_impacts: Changes to scoring rules affect all text responses. Changes to metadata structure require UI updates in grading dashboard.
+
+  - id: student-grade-view
+    name: Student Grade View
+    category: Student Experience
+    status: complete
+    currentVersion: 1
+    summary: Student-facing view of criterion scores, teacher comments, learning targets. Framework-aware display (MYP Criteria A-D, GCSE AO1-5, etc.).
+    depends_on: [teacher-grading, framework-adapter]
+    affects: [student-dashboard, lesson-view]
+    docs:
+      - path: docs/specs/neutral-criterion-taxonomy.md
+        purpose: Framework mapping logic
+    data_fields:
+      - table: grades
+        columns: [student_id, unit_id, class_id, criterion_key, score, comment]
+        notes: Criterion scores and feedback
+    key_files:
+      - src/app/student/grades/page.tsx
+      - src/components/student/grades/GradeCard.tsx
+    future_needs: Grade trend visualization, peer benchmarking, goal tracking.
+    adrs: ["010"]
+    os_seam: ready
+    change_impacts: Changes to framework mapping affect display. Changes to grading schema require UI updates.
+
+  - id: student-data
+    name: Student Data & Activity Tracking
+    category: Student Experience
+    status: complete
+    currentVersion: 1
+    summary: Collects pace feedback, activity tracking (time_spent, attempt_number, effort_signals). Debounced response change handlers (2s commit pattern) prevent keystroke inflation.
+    depends_on: [intelligence-profiles]
+    affects: [lesson-view, toolkit-persistence, gallery, intelligence-profiles]
+    docs:
+      - path: docs/research/student-influence-factors.md
+        purpose: Measurable learning factors
+    data_fields:
+      - table: student_progress
+        columns: [student_id, unit_id, page_id, responses, integrity_metadata, _tracking_time_spent, _tracking_attempt_number, _tracking_effort_signals]
+        notes: Response and tracking data
+    key_files:
+      - src/lib/hooks/useActivityTracking.ts
+      - src/lib/tracking-service.ts
+    future_needs: Real-time learning dashboards, predictive intervention alerts.
+    adrs: ["008"]
+    os_seam: ready
+    change_impacts: Changes to tracking debounce timing affect data quality. Changes to effort signal definition affect learning profiles.
+
+  - id: student-work-pipeline
+    name: Student Work & Response Pipeline
+    category: Student Experience
+    status: active
+    currentVersion: 1
+    summary: v1 handles text responses with 2s autosave, photo uploads. v2 is 5-stage pipeline (intake→processing→enrichment→versioning→routing) with Sharp + Claude Vision.
+    depends_on: [activity-blocks, ai-provider, student-profile]
+    affects: [lesson-view, portfolio, gallery, student-data]
+    docs:
+      - path: docs/projects/studentwork.md
+        purpose: Student work 5-stage pipeline spec (v2)
+      - path: docs/projects/studioloom-work-capture-spec.md
+        purpose: Work capture component details
+    data_fields:
+      - table: student_progress
+        columns: [student_id, unit_id, page_id, responses]
+        notes: v1 response storage
+      - table: work_items
+        columns: [id, student_id, unit_id, type, content, created_at]
+        notes: v2 work pipeline entity (planned)
+    key_files:
+      - src/lib/hooks/usePageResponses.ts
+      - src/components/student/common/PhotoCapture.tsx
+    future_needs: Multi-modal capture (video, audio, sketches), AI enrichment with Claude Vision.
+    adrs: ["004"]
+    os_seam: partial
+    change_impacts: v1→v2 migration affects all student responses. Changes to photo upload affect mobile experience.
+
+  - id: student-nm
+    name: Melbourne Metrics (Student Self-Assessment)
+    category: Student Experience
+    status: complete
+    currentVersion: 1
+    summary: CompetencyPulse component with 3-point self-assessment on NM competencies at unit checkpoints. Pop art visual identity (hot pink, cyan, yellow, halftone).
+    depends_on: [nm-system]
+    affects: [student-data, student-dashboard, nm-system]
+    docs:
+      - path: docs/specs/discovery-engine-build-plan.md
+        purpose: NM integration points
+    data_fields:
+      - table: competency_assessments
+        columns: [student_id, unit_id, page_id, competency_key, level, recorded_at]
+        notes: Self-assessment scores
+    key_files:
+      - src/components/student/nm/CompetencyPulse.tsx
+      - src/lib/nm-service.ts
+    future_needs: Auto-generated competency targets, peer comparison (aggregated anonymized data).
+    adrs: ["009"]
+    os_seam: ready
+    change_impacts: Changes to NM competencies require ComponentConfig updates. Changes to pop art theme affect all NM components.
+
+  - id: safety-badges
+    name: Safety Badge System
+    category: Student Experience
+    status: complete
+    currentVersion: 1
+    summary: ~10 workshop safety badges with 5 question types. Gating on unit pages — students can't start until badges earned. Auto-revoked if refresher test fails.
+    depends_on: []
+    affects: [student-dashboard, lesson-view, gamification]
+    docs:
+      - path: docs/roadmap.md
+        purpose: Safety badge roadmap
+    data_fields:
+      - table: safety_badges
+        columns: [id, student_id, badge_key, earned_at, expires_at]
+        notes: Badge tracking
+    key_files:
+      - src/components/student/safety/SafetyBadgeTest.tsx
+      - src/lib/safety-badges-service.ts
+    future_needs: Gamified badge progression, shared badge display in gallery.
+    adrs: ["008"]
+    os_seam: ready
+    change_impacts: Changes to badge questions affect test quality. Changes to gating logic affect lesson accessibility.
+
+  - id: student-profile
+    name: Student Profile & Preferences
+    category: Student Experience
+    status: complete
+    currentVersion: 1
+    summary: ELL level, UDL accessibility needs, learning preferences (solo/group/hands-on), country, mentor choice, theme. Populated during onboarding.
+    depends_on: [discovery-engine, intelligence-profiles]
+    affects: [student-learning-support, lesson-view, ai-mentor, discovery-engine]
+    docs:
+      - path: docs/research/student-influence-factors.md
+        purpose: 24 influence factors for student identity
+    data_fields:
+      - table: students
+        columns: [id, mentor_id, theme_id, learning_profile, author_teacher_id]
+        notes: Profile JSONB with ELL, UDL, preferences
+    key_files:
+      - src/lib/student-profile-service.ts
+      - src/components/student/onboarding/StudioSetup.tsx
+    future_needs: Continuous profile refinement from journey engine, parent-supplied needs.
+    adrs: ["008"]
+    os_seam: ready
+    change_impacts: Changes to profile schema affect onboarding flow. Changes to preference options affect AI mentor prompts.
+
+  - id: student-learning-support
+    name: Student Learning Support (Accessibility & Language)
+    category: Student Experience
+    status: complete
+    currentVersion: 1
+    summary: Tier 2/3 translation via Claude (ELL level configurable), UDL scaffolding (checkpoints 1-31), ADHD visual focus helpers, dyslexia-friendly fonts.
+    depends_on: [student-profile, udl-layer, ai-provider]
+    affects: [lesson-view, student-data, ai-mentor]
+    docs:
+      - path: docs/research/student-influence-factors.md
+        purpose: Cultural and linguistic influence factors
+    future_needs: Parent-configured accommodations, teacher UDL tagging.
+    adrs: ["008"]
+    os_seam: ready
+    change_impacts: Changes to UDL checkpoint definitions affect all activities. Changes to translation logic affect content delivery.
+
+  - id: mentor-choice
+    name: Mentor System (Studio Mentors)
+    category: Student Experience
+    status: complete
+    currentVersion: 1
+    summary: "3 selectable mentors (Kit/Sage/Spark) with distinct personalities, voices, visual designs, AI system prompt modifiers. v2 roadmap: 20 real designers."
+    depends_on: [ai-mentor, student-profile]
+    affects: [student-onboarding, discovery-engine, ai-mentor, student-open-studio]
+    docs:
+      - path: docs/projects/studioloom-designer-mentor-spec.md
+        purpose: v2 designer mentor system (20 real designers)
+    data_fields:
+      - table: students
+        columns: [id, mentor_id]
+        notes: Mentor choice per student
+    key_files:
+      - src/components/student/onboarding/MentorChoice.tsx
+      - src/lib/mentor-system.ts
+    future_needs: 20 real designer mentors with 3D character models, voice actors, personality profiles.
+    adrs: ["008"]
+    os_seam: designed
+    change_impacts: Changes to mentor personalities affect all AI interactions. Changes to visual design require new asset generation.
+
+  - id: student-graphics
+    name: Student Graphics & Visualization
+    category: Student Experience
+    status: active
+    currentVersion: 1
+    summary: Basic R3F scene rendering, 2D infographics for toolkit outputs. Builds on 3D scenes infrastructure.
+    depends_on: [3d-scenes, 3d-assets]
+    affects: [lesson-view, portfolio]
+    docs:
+      - path: docs/projects/3delements.md
+        purpose: 3D elements and visual layer
+    future_needs: Vector editor integration, 3D model customization.
+    adrs: []
+    os_seam: none
+    change_impacts: Changes to R3F rendering affect all 3D content. Changes to asset library affect available graphics.
+
+  - id: daily-challenge
+    name: Daily Design Challenge
+    category: Student Experience
+    status: idea
+    currentVersion: 0
+    summary: Auto-generated 5-minute design tasks (sketching, ideation, critique) visible on student dashboard. Phase 2 gamification feature.
+    depends_on: [mentor-choice, gamification, ai-provider]
+    affects: [student-dashboard, gamification]
+    docs: []
+    future_needs: Challenge history, leaderboards, shared challenge gallery.
+    adrs: []
+    os_seam: none
+    change_impacts: Will require new challenges table and daily trigger job.
+
+  - id: embedded-design-tools
+    name: Embedded Design Tools (Vector Editor)
+    category: Student Experience
+    status: future
+    currentVersion: 0
+    summary: In-app vector editor for design sketching. Phase 3 feature.
+    depends_on: []
+    affects: [student-work-pipeline, portfolio]
+    docs: []
+    future_needs: Asset library integration, design file export.
+    adrs: []
+    os_seam: none
+    change_impacts: Will require new work_items.type support and canvas rendering infrastructure.
+
+  - id: full-journey-game
+    name: Full Journey Game (Zelda-Style World)
+    category: Student Experience
+    status: future
+    currentVersion: 0
+    summary: Gamified design learning as Zelda-style narrative world. Phase 5 vision.
+    depends_on: [3d-scenes, 3d-assets, narrative-quests, gamification, journey-engine]
+    affects: [student-dashboard, student-learning-support]
+    docs:
+      - path: docs/projects/3delements.md
+        purpose: 3D world architecture
+    future_needs: Quest system, NPC dialogues, dungeon progression.
+    adrs: []
+    os_seam: none
+    change_impacts: Will require complete reimagining of student UX.
+
+  - id: real-client-mode
+    name: Real Client Mode (AI-Simulated Clients)
+    category: Student Experience
+    status: idea
+    currentVersion: 0
+    summary: AI-powered simulated client meetings for design pitches. Students practice communicating design decisions to stakeholders.
+    depends_on: [journey-engine, ai-mentor]
+    affects: [lesson-view, student-data]
+    docs: []
+    future_needs: Scenario branching, client personality variations.
+    adrs: []
+    os_seam: none
+    change_impacts: Will require new journey block types and role-play AI prompts.
+
+  - id: marketplace
+    name: Design Marketplace (Trading & Collaboration)
+    category: Student Experience
+    status: future
+    currentVersion: 0
+    summary: Student peer trading of design files, materials, components. Phase 5 vision.
+    depends_on: [gallery, gamification]
+    affects: [student-dashboard, portfolio]
+    docs: []
+    future_needs: Reputation system, transaction moderation.
+    adrs: []
+    os_seam: none
+    change_impacts: Will require new marketplace tables and permissions.
+
+  - id: gamification
+    name: Gamification & Designer Levels
+    category: Student Experience
+    status: planned
+    currentVersion: 0
+    summary: Designer Level system (quality-weighted, not volume-based). Composites from criterion scores, toolkit depth, safety badges, reflection quality, Open Studio productivity, NM ratings, portfolio richness.
+    depends_on: [teacher-grading, toolkit-persistence, safety-badges, nm-system, student-data]
+    affects: [student-dashboard, student-data, intelligence-profiles]
+    docs:
+      - path: docs/roadmap.md
+        purpose: Gamification roadmap section
+    data_fields:
+      - table: students
+        columns: [id, designer_level, level_progress]
+        notes: Level tracking
+    future_needs: Public leaderboards (age 16+), achievement badges, level cosmetics.
+    adrs: ["008"]
+    os_seam: none
+    change_impacts: Changes to level formula affect all students. Changes to grade schema affect level calculation.
+
+  - id: mini-units
+    name: MiniSkills (Micro-Units)
+    category: Student Experience
+    status: idea
+    currentVersion: 0
+    summary: Bite-sized 1-3 lesson skill modules (time management, empathy, finance). Assignable to individual students with completion badge. Natural extension of unit architecture.
+    depends_on: [activity-blocks, intelligence-profiles]
+    affects: [student-dashboard, safety-badges, gamification]
+    docs:
+      - path: docs/projects/miniskills.md
+        purpose: MiniSkills project spec
+    future_needs: Competency-targeted skill suggestions, micro-credentials.
+    adrs: []
+    os_seam: none
+    change_impacts: Will require new miniskills table and unit type.
+
+  # AI & INTELLIGENCE SYSTEMS (11 systems)
+
+  - id: ai-mentor
+    name: AI Mentor (Socratic Tutor)
+    category: AI & Intelligence
+    status: complete
+    currentVersion: 1
+    summary: Haiku-based Socratic mentor with 300-token cap per response. Guided mode (encouraging, scaffolding) or Open Studio mode (critical, questioning). Reads student profile and Design Teaching Intelligence.
+    depends_on: [ai-provider, intelligence-profiles, student-profile]
+    affects: [lesson-view, student-open-studio, toolkit, discovery-engine]
+    docs:
+      - path: docs/ai-intelligence-architecture.md
+        purpose: Master AI architecture and source-aware ingestion
+      - path: docs/design-teaching-corpus.md
+        purpose: What great design teaching looks like
+      - path: docs/education-ai-patterns.md
+        purpose: Socratic feedback pattern
+      - path: docs/ai-systems-audit-2026-03.md
+        purpose: File-by-file audit of AI systems
+    data_fields:
+      - table: ai_usage_log
+        columns: [id, teacher_id, student_id, type, model, input_tokens, output_tokens, cost, created_at]
+        notes: Usage tracking for cost analysis
+    key_files:
+      - src/lib/ai/design-assistant-prompt.ts
+      - src/lib/ai/open-studio-prompt.ts
+      - src/lib/conversation.ts
+    future_needs: Mentor personality expansion (3→20 designers), multi-turn memory, integrated video feedback.
+    adrs: ["008", "009"]
+    os_seam: ready
+    change_impacts: Changes to prompt templates affect all student interactions. Changes to student profile fields affect context building. Changes to Haiku model version require testing.
+
+  - id: generation-pipeline
+    name: Generation Pipeline (Dimensions3)
+    category: AI & Intelligence
+    status: active
+    currentVersion: 2
+    summary: "Dimensions3 6-stage pipeline BUILT (Phases A-C) + Feedback system BUILT (Phase D, 9 Apr 2026). Pipeline: retrieval → assembly → gap-fill → polish → timing → scoring. Feedback: teacher edit tracking, efficacy scoring (6-signal formula), approval queue with hard guardrails, self-healing proposals. 480+ tests."
+    depends_on: [activity-blocks, knowledge-pipeline, timing-engine, framework-adapter, intelligence-profiles]
+    affects: [unit-generation, unit-editor, lesson-pulse, activity-blocks, feedback-system]
+    docs:
+      - path: docs/projects/dimensions3.md
+        purpose: Master spec for Dimensions3 rebuild (quarantine spec)
+      - path: docs/projects/lesson-pulse.md
+        purpose: Lesson quality scoring
+      - path: docs/specs/block-library-bootstrap-strategy.md
+        purpose: Initial library seeding
+    data_fields:
+      - table: units
+        columns: [id, content_data, created_via_pipeline, pipeline_metadata]
+        notes: Generated unit storage
+      - table: activity_blocks
+        columns: [id, content, bloom_level, phase, category, efficacy_score, source, created_at]
+        notes: Reusable block library
+      - table: generation_feedback
+        columns: [id, generation_run_id, source_block_id, edit_type, before_snapshot, after_snapshot, diff_percentage]
+        notes: Teacher edit tracking per activity
+      - table: feedback_proposals
+        columns: [id, block_id, proposal_type, current_value, proposed_value, evidence_count, status]
+        notes: Pending efficacy adjustments and self-healing proposals
+      - table: feedback_audit_log
+        columns: [id, proposal_id, action, approved_by, created_at]
+        notes: Immutable audit trail for all feedback changes
+    key_files:
+      - src/lib/pipeline/stages/
+      - src/lib/pipeline/orchestrator.ts
+      - src/lib/feedback/edit-tracker.ts
+      - src/lib/feedback/efficacy.ts
+      - src/lib/feedback/signals.ts
+      - src/lib/feedback/guardrails.ts
+      - src/lib/feedback/self-healing.ts
+      - src/app/admin/feedback/page.tsx
+      - src/app/api/admin/feedback/route.ts
+    future_needs: Learned sequence patterns replacing hardcoded skeletons, cross-teacher pattern sharing, real-time generation co-pilot.
+    adrs: ["004", "005", "006", "009"]
+    os_seam: designed
+    change_impacts: Changes to block library affect generation quality. Changes to timing rules require validation updates. Changes to framework adapter affect output formatting. Changes to guardrails affect all feedback processing.
+
+  - id: knowledge-pipeline
+    name: Knowledge Pipeline & Ingestion
+    category: AI & Intelligence
+    status: active
+    currentVersion: 1
+    summary: "Dimensions3 ingestion pipeline REBUILT (Phase B, 7 Apr 2026). Expandable pass registry: Pass A (classify+tag, Haiku) → Pass B (analyse+enrich, Sonnet) → Block Extraction + PII scan + copyright flags. content_items + content_assets tables (OS Seam 3+4). Review queue UI. Old pipeline quarantined code still present but unused."
+    depends_on: [activity-blocks, embedding-search, ai-provider]
+    affects: [generation-pipeline, activity-blocks, unit-generation]
+    docs:
+      - path: docs/projects/dimensions3.md
+        purpose: Ingestion pipeline v2 spec (quarantine details, rebuild plan)
+      - path: docs/projects/studioloom-work-capture-spec.md
+        purpose: Knowledge from student work integration
+    data_fields:
+      - table: knowledge_uploads
+        columns: [id, teacher_id, file_name, analysis_data, status, created_at]
+        notes: Upload metadata
+      - table: knowledge_chunks
+        columns: [id, upload_id, content, embedding, bloom_level, grouping, udl_checkpoints]
+        notes: Extracted chunks with metadata
+    key_files:
+      - src/lib/ingestion/pipeline.ts
+      - src/lib/ingestion/pass-a.ts
+      - src/lib/ingestion/pass-b.ts
+      - src/lib/ingestion/extract.ts
+      - src/lib/ingestion/pii-scan.ts
+      - src/lib/ingestion/registry.ts
+      - src/lib/knowledge/analyse.ts
+      - src/lib/knowledge/analysis-prompts.ts
+      - src/lib/knowledge/search.ts
+    future_needs: Pass C (deep UDL), Pass D (cognitive load curves), cross-teacher knowledge sharing.
+    adrs: ["004"]
+    os_seam: designed
+    change_impacts: Ingestion pipeline rebuilt (Phase B). Changes to pass registry affect all ingestion. Changes to block extraction affect library quality. Old quarantined code (src/lib/knowledge/) still present but unused.
+
+  - id: activity-blocks
+    name: Activity Blocks (Reusable Component Library)
+    category: AI & Intelligence
+    status: active
+    currentVersion: 1
+    summary: "First-class SQL entities replacing inline JSONB. Migration applied (Phase A). Extracted from uploads (knowledge pipeline) and generated units (generation pipeline). Composite ranking: relevance 30% + efficacy 25% + context match 20% + teacher affinity 15% + freshness 10%."
+    depends_on: [knowledge-pipeline]
+    affects: [generation-pipeline, unit-editor, lesson-pulse, unit-generation]
+    docs:
+      - path: docs/specs/block-library-bootstrap-strategy.md
+        purpose: Bootstrap strategy with 200-400 blocks and Teaching Moves conversion
+      - path: docs/projects/dimensions3.md
+        purpose: Block library architecture in pipeline
+    data_fields:
+      - table: activity_blocks
+        columns: [id, content, bloom_level, phase, category, efficacy_score, source, tags, created_at, updated_at]
+        notes: First-class block entity
+      - table: block_usage
+        columns: [block_id, unit_id, teacher_id, used_count, last_used, performance]
+        notes: Usage tracking for efficacy
+    key_files:
+      - src/lib/blocks/block-service.ts
+      - src/lib/blocks/block-ranking.ts
+    future_needs: 1000+ block library, teacher custom blocks, block version history.
+    adrs: ["004"]
+    os_seam: designed
+    change_impacts: Changes to block schema affect retrieval. Changes to ranking formula affect generation quality. Activity Block migration requires backfill.
+
+  - id: intelligence-profiles
+    name: Intelligence Profiles (Student/Teacher/Class)
+    category: AI & Intelligence
+    status: planned
+    currentVersion: 0
+    summary: 3 JSONB columns (students.learning_profile, teachers.style_profile, classes.climate_profile). Incrementally updated via exponential moving average (α=0.3). Read by AI systems to personalize responses.
+    depends_on: [discovery-engine, student-data, toolkit-persistence]
+    affects: [ai-mentor, generation-pipeline, lesson-pulse, gamification]
+    docs:
+      - path: docs/student-learning-intelligence.md
+        purpose: Student learning profile roadmap
+      - path: docs/ai-intelligence-architecture.md
+        purpose: Intelligence system architecture
+    data_fields:
+      - table: students
+        columns: [id, learning_profile]
+        notes: Archetype, working style, interests, fears, self-efficacy, values
+      - table: teachers
+        columns: [id, style_profile]
+        notes: Pedagogical style (e.g., scaffolding preference, assessment style)
+      - table: classes
+        columns: [id, climate_profile]
+        notes: Class dynamics (energy level, collaboration patterns, pace)
+    future_needs: Phase 3-4 merging with passive signals (behavioral, grade, timing), cross-platform intelligence layer.
+    adrs: ["008"]
+    os_seam: designed
+    change_impacts: Changes to profile schema affect AI prompt context. Changes to EMA formula affect profile accuracy.
+
+  - id: ai-provider
+    name: AI Provider Abstraction & Fallback Chain
+    category: AI & Intelligence
+    status: complete
+    currentVersion: 1
+    summary: "Factory pattern: Anthropic (primary) → Groq (fallback) → Gemini (fallback). Model selection per tier via admin settings. Single provider interface across all systems."
+    depends_on: []
+    affects: [ai-mentor, generation-pipeline, knowledge-pipeline, content-safety]
+    docs:
+      - path: docs/ai-intelligence-architecture.md
+        purpose: Provider architecture
+    data_fields:
+      - table: ai_usage_log
+        columns: [id, provider, model, input_tokens, output_tokens, cost, created_at]
+        notes: Cost tracking per provider
+    key_files:
+      - src/lib/ai/providers.ts
+      - src/lib/ai/provider-factory.ts
+    future_needs: DeepSeek, Qwen, Moonshot support, model benchmarking.
+    adrs: []
+    os_seam: ready
+    change_impacts: Changes to fallback chain affect availability. Changes to cost tracking affect billing.
+
+  - id: embedding-search
+    name: Embedding Search (Voyage AI + pgvector)
+    category: AI & Intelligence
+    status: complete
+    currentVersion: 1
+    summary: "Voyage AI voyage-3.5 (1024-dim embeddings). PostgreSQL pgvector with hybrid search: 70% vector + 20% BM25 + 10% quality ranking."
+    depends_on: []
+    affects: [knowledge-pipeline, generation-pipeline, activity-blocks]
+    docs: []
+    data_fields:
+      - table: knowledge_chunks
+        columns: [id, embedding]
+        notes: Vector embeddings for similarity search
+    key_files:
+      - src/lib/knowledge/search.ts
+      - src/lib/embedding-service.ts
+    future_needs: Reranking with cross-encoder, embedding caching, semantic similarity visualization.
+    adrs: []
+    os_seam: ready
+    change_impacts: Changes to embedding model affect search quality. Changes to hybrid weights affect retrieval balance.
+
+  - id: lesson-pulse
+    name: Lesson Pulse (Quality Scoring)
+    category: AI & Intelligence
+    status: active
+    currentVersion: 1
+    summary: "Composite scoring of generated lessons: Criterion Relevance (CR) + Student Agency (SA) + Teaching Craft (TC). 47 test cases. Auto-repair for timing violations. Feeds generation feedback loop."
+    depends_on: [generation-pipeline, activity-blocks]
+    affects: [generation-pipeline, unit-generation, teacher-grading]
+    docs:
+      - path: docs/projects/lesson-pulse.md
+        purpose: Master Pulse architecture and test results
+      - path: docs/specs/lesson-layer-architecture.md
+        purpose: Layer architecture and Pulse algorithm
+    data_fields:
+      - table: units
+        columns: [id, pulse_score, pulse_breakdown]
+        notes: Quality scores per lesson
+    key_files:
+      - src/lib/lesson-pulse/pulse-engine.ts
+      - src/lib/lesson-pulse/scoring-rules.ts
+    future_needs: Teacher feedback integration, dynamic weighting per class climate.
+    adrs: ["005", "006"]
+    os_seam: ready
+    change_impacts: Changes to scoring rules affect which lessons are generated. Changes to Pulse formula affect unit quality.
+
+  - id: timing-engine
+    name: Timing Engine (Workshop Model)
+    category: AI & Intelligence
+    status: complete
+    currentVersion: 1
+    summary: Validates & enforces Workshop Model (Opening 5-10min → Mini-Lesson ≤1+age min → Work Time ≥45% → Debrief 5-10min). 8 validation rules, 6 auto-repairs. PhaseTimelineBar for teacher modification.
+    depends_on: [scheduling]
+    affects: [generation-pipeline, unit-generation, teach-mode, lesson-pulse]
+    docs:
+      - path: docs/timing-reference.md
+        purpose: Timing model with cold-start defaults and learning loop
+      - path: docs/lesson-timing-research-report.md
+        purpose: Timing research and implementation
+    data_fields:
+      - table: units
+        columns: [id, workshopPhases, extensions]
+        notes: Phase timing and extension storage
+    key_files:
+      - src/lib/ai/timing-validation.ts
+      - src/components/lesson-timing/PhaseTimelineBar.tsx
+    future_needs: Learned timing patterns from teacher edits, velocity-based activity duration.
+    adrs: ["005", "006"]
+    os_seam: ready
+    change_impacts: Changes to timing rules affect generation. Changes to 1+age rule affect mini-lesson constraints.
+
+  - id: content-safety
+    name: Content Safety (PII & Copyright Scanning)
+    category: AI & Intelligence
+    status: planned
+    currentVersion: 0
+    summary: Pipeline stage that scans generated content for PII, copyright concerns, and offensive language. Flags for review before publication. Planned in Dimensions3 Phase B.
+    depends_on: [ai-provider]
+    affects: [generation-pipeline, knowledge-pipeline]
+    docs:
+      - path: docs/projects/dimensions3.md
+        purpose: Content safety stage spec
+    future_needs: Teacher override workflow, corpus learning from flagged items.
+    adrs: ["007"]
+    os_seam: none
+    change_impacts: Will require new content_safety_flags table and admin review queue.
+
+  - id: teacher-style
+    name: Teacher Style Profile (Pedagogical Learning)
+    category: AI & Intelligence
+    status: complete
+    currentVersion: 1
+    summary: "Collects passive signals from teacher uploads, unit edits, teaching patterns. Builds style profile: scaffolding preference, assessment style, pacing tendency, activity selection patterns."
+    depends_on: [generation-pipeline]
+    affects: [generation-pipeline, ai-mentor, lesson-pulse]
+    docs:
+      - path: docs/ai-intelligence-architecture.md
+        purpose: Teacher style learning architecture
+    data_fields:
+      - table: teachers
+        columns: [id, style_profile]
+        notes: Confidence scores for 5 style dimensions
+    key_files:
+      - src/lib/teacher-style/profile-service.ts
+      - src/lib/teacher-style/signal-collection.ts
+    future_needs: Teacher-facing style dashboard, style-based generation personalization.
+    adrs: []
+    os_seam: ready
+    change_impacts: Changes to signal collection affect profile accuracy. Changes to style dimensions affect generation inputs.
+
+  # TEACHER EXPERIENCE SYSTEMS (20 systems)
+
+  - id: teacher-dashboard
+    name: Teacher Dashboard
+    category: Teacher Experience
+    status: complete
+    currentVersion: 1
+    summary: Displays today's classes with student progress rings, units with 3-button layout (Teach / Manage / Edit), smart subject detection from class name/unit type, archived class filtering.
+    depends_on: [scheduling, unit-management]
+    affects: [teach-mode, unit-generation, unit-editor]
+    docs:
+      - path: docs/roadmap.md
+        purpose: Dashboard design and feature roadmap
+    data_fields:
+      - table: classes
+        columns: [id, teacher_id, class_name, subject, framework]
+        notes: Class metadata for display
+      - table: class_units
+        columns: [id, class_id, unit_id, is_archived, nm_config]
+        notes: Class-unit assignments
+    key_files:
+      - src/app/teacher/dashboard/page.tsx
+      - src/components/teacher/dashboard/DashboardCard.tsx
+    future_needs: Adaptive dashboard based on teacher style, priority scoring for at-risk students.
+    adrs: ["010"]
+    os_seam: ready
+    change_impacts: Changes to unit display affect teacher workflow. Changes to subject detection affect card colors.
+
+  - id: teach-mode
+    name: Teaching Mode (Live Classroom Cockpit)
+    category: Teacher Experience
+    status: complete
+    currentVersion: 1
+    summary: Live student progress grid with individual student cards, real-time check-ins, quick-edit slide-out panel for lesson modifications, projector view window, classroom tools (timer, picker, groups, noise).
+    depends_on: [lesson-view, scheduling]
+    affects: [lesson-view, student-dashboard, testing-sandbox]
+    docs:
+      - path: docs/roadmap.md
+        purpose: Teaching Mode roadmap
+    data_fields:
+      - table: class_meetings
+        columns: [class_id, date, period, lesson_number]
+        notes: Class timetable lookup
+    key_files:
+      - src/app/teacher/teach/[unitId]/page.tsx
+      - src/components/teacher/teach-mode/LiveStudentGrid.tsx
+      - src/components/teacher/teach-mode/QuickEditPanel.tsx
+    future_needs: Voice commands, gesture recognition, adaptive pacing adjustments mid-lesson.
+    adrs: ["006"]
+    os_seam: ready
+    change_impacts: Changes to student_progress schema affect live data fetch. Changes to lesson-view affect projector display.
+
+  - id: unit-editor
+    name: Unit Editor (Phase 0.5 Lesson Editor)
+    category: Teacher Experience
+    status: complete
+    currentVersion: 1
+    summary: "12-component modular editor: LessonEditor orchestrator, useLessonEditor state, useAutoSave, UndoManager, LessonSidebar, ActivityBlock, PhaseSection, etc. Drag-to-reorder, AI assist, fork-on-write."
+    depends_on: [content-forking, activity-blocks, framework-adapter]
+    affects: [content-forking, unit-generation, teach-mode]
+    docs:
+      - path: docs/specs/lesson-editor-phase-0.5.md
+        purpose: Full editor specification
+      - path: docs/specs/unit-editing-navigation-spec.md
+        purpose: Navigation and edit mode toggle
+    data_fields:
+      - table: class_units
+        columns: [id, content_data, forked_at, forked_from_version]
+        notes: Class-specific content forks
+    key_files:
+      - src/app/teacher/units/[unitId]/class/[classId]/edit/page.tsx
+      - src/components/teacher/lesson-editor/LessonEditor.tsx
+      - src/lib/hooks/useLessonEditor.ts
+    future_needs: Rich media editing (video embeds, interactive widgets), version history view.
+    adrs: ["010"]
+    os_seam: ready
+    change_impacts: Changes to content_data schema require migration. Changes to ActivityBlock structure affect editor rendering.
+
+  - id: unit-generation
+    name: Unit Generation Wizard
+    category: Teacher Experience
+    status: complete
+    currentVersion: 1
+    summary: 3-lane wizard (Express 3 clicks / Guided 5-7 steps / Architect all fields visible). 4 unit types (Design/Service/Personal Project/Inquiry). Auto-generation via generation-pipeline.
+    depends_on: [generation-pipeline, knowledge-pipeline, activity-blocks, framework-adapter]
+    affects: [unit-editor, unit-management, teacher-grading]
+    docs:
+      - path: docs/specs/wizard-lanes-spec.md
+        purpose: 3-lane wizard architecture
+      - path: docs/specs/unit-type-framework-architecture.md
+        purpose: 4-dimension model (unit type, programme, curriculum, standards)
+    data_fields:
+      - table: units
+        columns: [id, unit_type, curriculum_context, content_data, created_via_pipeline]
+        notes: Generated unit storage
+    key_files:
+      - src/app/teacher/units/create/page.tsx
+      - src/components/teacher/unit-generation/UnitWizard.tsx
+    future_needs: Custom lane creation, template library, batch unit generation.
+    adrs: ["004", "005", "009"]
+    os_seam: designed
+    change_impacts: Changes to generation-pipeline affect wizard output. Changes to unit_type affect display options.
+
+  - id: unit-conversion
+    name: Unit Conversion (Upload → Editable Unit)
+    category: Teacher Experience
+    status: planned
+    currentVersion: 0
+    summary: Teachers upload lesson plans, textbooks, or schemes of work. Pipeline extracts both analytical data (for RAG) and editable unit content. Produces BOTH knowledge chunks AND a scaffolded unit.
+    depends_on: [knowledge-pipeline, activity-blocks]
+    affects: [unit-editor, unit-generation, knowledge-pipeline]
+    docs:
+      - path: docs/projects/dimensions3.md
+        purpose: Ingestion to unit conversion
+    future_needs: Batch conversion, format autodetection (PDF/DOC/PPT).
+    adrs: ["004"]
+    os_seam: designed
+    change_impacts: Will require new extraction pipeline stage and content validation.
+
+  - id: teacher-grading
+    name: Teacher Grading Dashboard
+    category: Teacher Experience
+    status: complete
+    currentVersion: 1
+    summary: Criterion-by-criterion scoring (MYP A-D, GCSE AO1-5, etc.), teacher comments, evidence panel with response viewer, IntegrityReport sidebar, bulk operations.
+    depends_on: [framework-adapter, integrity-monitor-student]
+    affects: [student-grade-view, lesson-pulse, gamification]
+    docs:
+      - path: docs/specs/neutral-criterion-taxonomy.md
+        purpose: Criterion mapping across frameworks
+    data_fields:
+      - table: grades
+        columns: [student_id, unit_id, class_id, criterion_key, score, comment, graded_at]
+        notes: Criterion-level grades
+      - table: student_progress
+        columns: [student_id, unit_id, page_id, integrity_metadata]
+        notes: Evidence for grading
+    key_files:
+      - src/app/teacher/grading/[unitId]/[classId]/page.tsx
+      - src/components/teacher/grading/GradingPanel.tsx
+    future_needs: Auto-generated grade comments via AI, progress tracking, target setting.
+    adrs: ["007", "010"]
+    os_seam: ready
+    change_impacts: Changes to grades schema affect grading UI. Changes to IntegrityReport affect evidence display.
+
+  - id: timetable
+    name: Timetable & Scheduling
+    category: Teacher Experience
+    status: complete
+    currentVersion: 1
+    summary: Visual timetable grid (Day × Period), cycle engine support (5/6/8/10-day cycles), excluded dates, iCal import, anchor-based modular arithmetic, term assignment.
+    depends_on: [scheduling]
+    affects: [scheduling, teach-mode, year-planner]
+    docs:
+      - path: docs/timing-reference.md
+        purpose: Scheduling and cycle engine
+    data_fields:
+      - table: class_meetings
+        columns: [class_id, date, period, lesson_number, cycle_day]
+        notes: Timetable entries
+      - table: school_calendar_terms
+        columns: [id, teacher_id, name, start_date, end_date]
+        notes: Term definitions
+    key_files:
+      - src/app/teacher/settings/timetable/page.tsx
+      - src/components/teacher/timetable/TimetableGrid.tsx
+      - src/lib/cycle-engine.ts
+    future_needs: Holiday import from Google Calendar, automatic timetable sync.
+    adrs: []
+    os_seam: ready
+    change_impacts: Changes to cycle engine affect lesson scheduling. Changes to class_meetings affect Teaching Mode timing.
+
+  - id: teacher-school-settings
+    name: Teacher School Settings
+    category: Teacher Experience
+    status: complete
+    currentVersion: 1
+    summary: Period length, workshop spaces + equipment, calendar/terms structure (4 Terms/2 Semesters/3 Trimesters/Custom quick templates).
+    depends_on: []
+    affects: [timing-engine, timetable, unit-generation]
+    docs: []
+    data_fields:
+      - table: teachers
+        columns: [id, school_profile]
+        notes: Period length, workshop config
+    key_files:
+      - src/app/teacher/settings/school/page.tsx
+      - src/components/teacher/settings/SchoolSettings.tsx
+    future_needs: School-admin level settings that cascade to all teachers.
+    adrs: []
+    os_seam: ready
+    change_impacts: Changes to period length affect timing calculations. Changes to term structure affect year planning.
+
+  - id: nm-system
+    name: Melbourne Metrics (NM) Configuration
+    category: Teacher Experience
+    status: complete
+    currentVersion: 1
+    summary: 3-step NM config wizard (agency only for v1), element assignment to checkpoint pages, observation snapshots, CompetencyPulse UI. Pop art visual identity.
+    depends_on: []
+    affects: [student-nm, student-data, student-grade-view]
+    docs:
+      - path: docs/specs/discovery-engine-build-plan.md
+        purpose: NM integration architecture
+    data_fields:
+      - table: units
+        columns: [id, nm_config]
+        notes: Unit-level NM configuration
+      - table: class_units
+        columns: [id, nm_config]
+        notes: Class-level NM overrides
+      - table: competency_assessments
+        columns: [student_id, unit_id, page_id, competency_key, level]
+        notes: Student self-assessments
+    key_files:
+      - src/app/teacher/units/[unitId]/class/[classId]/settings/page.tsx
+      - src/components/teacher/nm/NMConfigWizard.tsx
+    future_needs: All 7 Melbourne competencies, teacher observation entry, skill-level mapping.
+    adrs: ["009"]
+    os_seam: ready
+    change_impacts: Changes to NM elements affect checkpoint pages. Changes to assessment schema require UI updates.
+
+  - id: teacher-class-mgmt
+    name: Teacher Class Management
+    category: Teacher Experience
+    status: complete
+    currentVersion: 1
+    summary: Create classes, assign students, multi-class enrollment via class_students junction, enroll via class code + display name, archive classes.
+    depends_on: [student-signin]
+    affects: [teacher-dashboard, teach-mode, student-dashboard]
+    docs: []
+    data_fields:
+      - table: classes
+        columns: [id, teacher_id, class_name, class_code, framework, subject]
+        notes: Class metadata
+      - table: class_students
+        columns: [student_id, class_id]
+        notes: Multi-class enrollment junction
+    key_files:
+      - src/app/teacher/classes/page.tsx
+      - src/components/teacher/class-mgmt/ClassCard.tsx
+    future_needs: Bulk student import, roster sync from LMS.
+    adrs: ["003"]
+    os_seam: ready
+    change_impacts: Changes to class_students junction require auth updates. Changes to student lookup affect teaching mode.
+
+  - id: teacher-open-studio
+    name: Teacher Open Studio Management
+    category: Teacher Experience
+    status: complete
+    currentVersion: 1
+    summary: "Per-unit unlock controls, configurable check-in interval (5-30 min), session log with drift flags, capability tier settings, future: mentor-guided planning parameter system."
+    depends_on: [student-open-studio]
+    affects: [student-open-studio, student-data, intelligence-profiles]
+    docs:
+      - path: docs/open studio/open-studio-spec.md
+        purpose: v1 spec with unlock and AI modes
+      - path: docs/projects/openstudio-v2.md
+        purpose: v2 mentor-guided planning
+    data_fields:
+      - table: open_studio_status
+        columns: [class_unit_id, status, unlocked_at, check_in_interval_minutes, capability_tier]
+        notes: Per-unit unlock state
+    key_files:
+      - src/app/teacher/units/[unitId]/class/[classId]/open-studio/page.tsx
+      - src/components/teacher/open-studio/OpenStudioConfig.tsx
+    future_needs: v2 planning journey builder, teacher approval workflow, template doors per capability tier.
+    adrs: ["008"]
+    os_seam: ready
+    change_impacts: Changes to unlock criteria affect student access. Changes to AI mentor modes affect studio critic prompts.
+
+  - id: unit-management
+    name: Unit Management & Configuration
+    category: Teacher Experience
+    status: complete
+    currentVersion: 1
+    summary: "Unit-as-template architecture with copy-on-write forks. 4-dimension model: unit type, programme, curriculum, standards. Assigned Classes view with class count, class code, NM badge, archive status."
+    depends_on: [content-forking, framework-adapter]
+    affects: [teacher-dashboard, unit-editor, lesson-pulse]
+    docs:
+      - path: docs/specs/unit-type-framework-architecture.md
+        purpose: 4-dimension model design
+    data_fields:
+      - table: units
+        columns: [id, unit_type, curriculum_context, content_data, nm_config]
+        notes: Master unit template
+      - table: class_units
+        columns: [id, class_id, unit_id, content_data, nm_config, forked_at]
+        notes: Per-class configuration and forks
+    key_files:
+      - src/app/teacher/units/[unitId]/page.tsx
+      - src/components/teacher/unit-management/AssignedClassesSection.tsx
+    future_needs: Unit versioning, collaborative unit authoring.
+    adrs: ["010"]
+    os_seam: ready
+    change_impacts: Changes to unit_type affect display. Changes to forking logic affect content consistency.
+
+  - id: teacher-integrity
+    name: Teacher Integrity Dashboard
+    category: Teacher Experience
+    status: complete
+    currentVersion: 1
+    summary: IntegrityReport component showing Human Confidence Scores per student per page. Visual flagging of low-confidence responses (40-69 = review recommended, <40 = flagged). Deterministic 6-rule scoring (paste ratio, bulk entry, typing speed, edit rate, focus loss, minimal time).
+    depends_on: [integrity-monitor-student]
+    affects: [teacher-grading, student-data]
+    docs:
+      - path: docs/projects/monitored-textarea.md
+        purpose: Integrity monitoring and scoring
+    data_fields:
+      - table: student_progress
+        columns: [student_id, unit_id, page_id, integrity_metadata]
+        notes: Tracking data (paste ratio, typing speed, etc.)
+    key_files:
+      - src/components/teacher/grading/IntegrityReport.tsx
+      - src/lib/integrity-scoring.ts
+    future_needs: Transparency UI showing students how confidence was calculated, parent communication templates.
+    adrs: ["007"]
+    os_seam: ready
+    change_impacts: Changes to integrity_metadata schema affect report display. Changes to scoring rules affect flagging sensitivity.
+
+  - id: teacher-notifications
+    name: Teacher Notifications & Urgent Items
+    category: Teacher Experience
+    status: complete
+    currentVersion: 1
+    summary: "Floating panel with urgent items: student integrity flags, drift alerts from Open Studio, milestone missed warnings. Priority-sorted, dismissable, persistent."
+    depends_on: []
+    affects: [teach-mode, teacher-open-studio]
+    docs: []
+    future_needs: SMS/email escalation, batch notification preferences.
+    adrs: []
+    os_seam: ready
+    change_impacts: Changes to alert types affect notification variety. Changes to priority scoring affect sort order.
+
+  - id: teacher-journey-builder
+    name: Teacher Journey Builder
+    category: Teacher Experience
+    status: planned
+    currentVersion: 0
+    summary: v2 feature — visual node-graph editor for building custom journeys (interactive sequences). Conditional branching, block selection, preview.
+    depends_on: [journey-engine]
+    affects: [journey-engine, student-open-studio]
+    docs:
+      - path: docs/specs/journey-engine-spec.md
+        purpose: Journey block types and composition
+    future_needs: Drag-and-drop block composition, preset journey templates, sharing.
+    adrs: []
+    os_seam: none
+    change_impacts: Will require new journeys table and composition API.
+
+  - id: teacher-profile
+    name: Teacher Profile & Information
+    category: Teacher Experience
+    status: complete
+    currentVersion: 1
+    summary: Language, curriculum framework(s), country, school name, years experience. Used for AI context and analytics.
+    depends_on: []
+    affects: [unit-generation, ai-mentor, teacher-style]
+    docs: []
+    data_fields:
+      - table: teachers
+        columns: [id, language, frameworks, country, school_name, years_experience]
+        notes: Teacher identity
+    key_files:
+      - src/app/teacher/settings/profile/page.tsx
+    future_needs: Teacher portfolio, certification tracking.
+    adrs: []
+    os_seam: ready
+    change_impacts: Changes to teacher profile affect AI prompts. Changes to frameworks affect unit generation options.
+
+  - id: teacher-settings
+    name: Teacher Settings
+    category: Teacher Experience
+    status: complete
+    currentVersion: 1
+    summary: "Consolidated settings: school (period, calendar), workshop (spaces, tools, software), AI controls (macro/micro dials), timetable, profile."
+    depends_on: []
+    affects: [teacher-profile, teacher-school-settings, ai-mentor]
+    docs: []
+    key_files:
+      - src/app/teacher/settings/page.tsx
+      - src/components/teacher/settings/SettingsLayout.tsx
+    future_needs: Settings profiles (presets), export/import settings.
+    adrs: []
+    os_seam: ready
+    change_impacts: Changes to settings schema affect UI layout.
+
+  - id: school-resource-mapping
+    name: School Resource Mapping
+    category: Teacher Experience
+    status: idea
+    currentVersion: 0
+    summary: v2 feature — map people (staff expertise), spaces (workshop areas), tools (machines available). AI uses for activity suggestions matching school resources.
+    depends_on: [teacher-school-settings]
+    affects: [unit-generation, lesson-pulse]
+    docs: []
+    future_needs: Photo upload for spaces, tool inventory tracking.
+    adrs: []
+    os_seam: none
+    change_impacts: Will require new resource tables and generation context.
+
+  - id: year-planner
+    name: Year Planner
+    category: Teacher Experience
+    status: planned
+    currentVersion: 0
+    summary: v2 feature — week-based grid view of entire year. Lessons derived from cycle engine (start_date + lesson_count). Curriculum coverage overlay (optional). Drag-to-reschedule.
+    depends_on: [timetable, scheduling, framework-adapter]
+    affects: [teacher-dashboard, scheduling]
+    docs:
+      - path: docs/specs/year-planner-spec.md
+        purpose: Year planner architecture
+    future_needs: Curriculum progress tracking, collaborative planning with co-teachers.
+    adrs: []
+    os_seam: none
+    change_impacts: Will require planned_start_date and planned_lesson_count columns on class_units.
+
+  - id: smart-insights
+    name: Smart Insights Feed
+    category: Teacher Experience
+    status: complete
+    currentVersion: 1
+    summary: "Priority-sorted feed of 6 insight types: integrity flags, drift alerts, milestone missed, peer performance gaps, curriculum coverage gaps, pace anomalies."
+    depends_on: []
+    affects: [teacher-dashboard, teach-mode]
+    docs:
+      - path: docs/roadmap.md
+        purpose: Smart insights roadmap
+    future_needs: Actionable recommendations, AI-generated teaching moves.
+    adrs: []
+    os_seam: ready
+    change_impacts: Changes to insight types affect feed display. Changes to priority scoring affect ranking.
+
+  # PLATFORM CORE SYSTEMS (9 systems)
+
+  - id: framework-adapter
+    name: Framework Adapter (Criterion Mapping)
+    category: Platform Core
+    status: complete
+    currentVersion: 1
+    summary: 8 neutral criterion categories (researching, analysing, designing, creating, evaluating, reflecting, communicating, planning) map bidirectionally to 8 frameworks (MYP, GCSE, A-Level, IGCSE, ACARA, PLTW, NESA, Victorian) + 4 non-design unit types.
+    depends_on: []
+    affects: [unit-editor, unit-generation, teacher-grading, student-grade-view, lesson-pulse]
+    docs:
+      - path: docs/specs/neutral-criterion-taxonomy.md
+        purpose: Master taxonomy with all mapping tables
+    data_fields:
+      - table: activity_blocks
+        columns: [id, criterion_keys]
+        notes: Neutral criteria tags
+      - table: grades
+        columns: [student_id, unit_id, criterion_key, score]
+        notes: Neutral criterion scoring
+    key_files:
+      - src/lib/frameworks/adapter.ts
+      - src/lib/frameworks/mappings.ts
+    future_needs: Teacher-customizable mapping, new framework support.
+    adrs: []
+    os_seam: ready
+    change_impacts: Changes to neutral taxonomy affect all frameworks. Changes to mapping tables affect grade display.
+
+  - id: content-forking
+    name: Content Forking (Copy-On-Write)
+    category: Platform Core
+    status: complete
+    currentVersion: 1
+    summary: "Unit-as-template with class-specific forks. ensureForked() deep-copies content only on first edit. hasContent() guard prevents empty forks from shadowing master. Inheritance chain: class fork → master template → defaults."
+    depends_on: []
+    affects: [unit-editor, lesson-view, teach-mode]
+    docs:
+      - path: docs/specs/unit-editing-navigation-spec.md
+        purpose: Edit mode UI and fork behavior
+    data_fields:
+      - table: class_units
+        columns: [id, class_id, unit_id, content_data, forked_at, forked_from_version]
+        notes: Fork state tracking
+    key_files:
+      - src/lib/content-forking.ts
+      - src/lib/unit-adapter.ts
+    future_needs: Deep-link sharing of forks, rollback to master.
+    adrs: ["010"]
+    os_seam: ready
+    change_impacts: Changes to content_data schema require migration. Changes to fork logic affect multi-class consistency.
+
+  - id: scheduling
+    name: Scheduling Engine (Cycle Calendar)
+    category: Platform Core
+    status: complete
+    currentVersion: 1
+    summary: Anchor-based modular arithmetic for rotating cycles (5/6/8/10-day). Weekday-only (Mon-Fri). Excluded dates array. Optional per-term re-anchor. Lesson date computation from cycle engine.
+    depends_on: []
+    affects: [timetable, teach-mode, student-dashboard]
+    docs:
+      - path: docs/timing-reference.md
+        purpose: Scheduling and cycle engine
+    data_fields:
+      - table: school_calendar_terms
+        columns: [id, teacher_id, name, start_date, end_date, cycle_length, anchor_cycle_day]
+        notes: Term structure
+      - table: class_meetings
+        columns: [class_id, date, period, lesson_number, cycle_day]
+        notes: Computed timetable
+    key_files:
+      - src/lib/cycle-engine.ts
+      - src/lib/schedule-service.ts
+    future_needs: Holiday auto-detection, timetable sync from LMS.
+    adrs: []
+    os_seam: ready
+    change_impacts: Changes to cycle logic affect lesson scheduling. Changes to excluded_dates affect availability.
+
+  - id: auth-system
+    name: Authentication System
+    category: Platform Core
+    status: complete
+    currentVersion: 1
+    summary: "Dual auth: Supabase Auth for teachers + custom token sessions for students. Student login via class code + display name → nanoid(48) token with 7-day TTL. 3-level fallback for multi-class enrollment (junction → legacy class_id → name+teacher match)."
+    depends_on: []
+    affects: [student-signin, teacher-dashboard, teach-mode]
+    docs:
+      - path: docs/projects/school-readiness.md
+        purpose: Auth architecture and compliance
+    data_fields:
+      - table: student_sessions
+        columns: [id, student_id, token, class_id, created_at, expires_at]
+        notes: Token-based sessions
+    key_files:
+      - src/lib/auth/student-session.ts
+      - src/lib/auth/verify-teacher-unit.ts
+      - src/middleware.ts
+    future_needs: LMS SSO integration, QR code login, passwordless teacher auth.
+    adrs: ["003"]
+    os_seam: ready
+    change_impacts: Changes to token TTL affect session duration. Changes to student_sessions schema require migration.
+
+  - id: journey-engine
+    name: Journey Engine (Interactive Sequences)
+    category: Platform Core
+    status: planned
+    currentVersion: 0
+    summary: Modular interactive experiences with 14+ block types (binary choice, card sort, slider, scene explore, text prompt, etc.). Conditional branching, 4 rendering modes (fullscreen/embedded/window/modal). R3F scenes, student profile as central data hub.
+    depends_on: [3d-scenes, student-profile]
+    affects: [discovery-engine, student-open-studio, toolkit]
+    docs:
+      - path: docs/specs/journey-engine-spec.md
+        purpose: Master spec with all block types, branching, rendering modes
+    data_fields:
+      - table: journeys
+        columns: [id, name, blocks, conditional_routing]
+        notes: Journey composition (planned)
+    future_needs: Teacher journey builder, journey versioning, state persistence.
+    adrs: ["009"]
+    os_seam: designed
+    change_impacts: Will require new journeys table and block_instances tracking. Changes to student_profile schema affect journey responses.
+
+  - id: format-profiles
+    name: Format Profiles (Unit Type Configuration)
+    category: Platform Core
+    status: active
+    currentVersion: 0
+    summary: FormatProfile per unit type (Design, Service, PP, Inquiry) injects format-specific behaviour into all 6 generation pipeline stages. Block relevance (boost/suppress), sequence hints, gap generation, connective tissue, timing, pulse weights.
+    depends_on: [framework-adapter, generation-pipeline]
+    affects: [generation-pipeline, unit-generation, lesson-pulse]
+    docs:
+      - path: docs/specs/format-profile-definitions.md
+        purpose: Concrete FormatProfile objects for all formats
+      - path: docs/projects/dimensions3.md
+        purpose: Format profiles in pipeline architecture
+    data_fields:
+      - table: format_profiles
+        columns: [id, format_key, pipeline_config]
+        notes: Custom format definitions (planned)
+    key_files:
+      - src/lib/formats/format-profiles.ts
+      - src/lib/formats/format-service.ts
+    future_needs: Teacher-creatable custom formats, dynamic format registry.
+    adrs: ["005", "009"]
+    os_seam: designed
+    change_impacts: Changes to format definitions affect generation. Changes to pipeline stages require all formats to adapt.
+
+  - id: layer-registry
+    name: Layer Registry (Pedagogical Metadata)
+    category: Platform Core
+    status: complete
+    currentVersion: 1
+    summary: "Central registry of pedagogical metadata layers: Bloom (cognitive demand), UDL (accessibility), NM (competencies), Grouping (solo/pair/group), Assessment (formative/summative), Time (flexible/quick/extended)."
+    depends_on: []
+    affects: [activity-blocks, unit-editor, lesson-pulse]
+    docs:
+      - path: docs/specs/lesson-layer-architecture.md
+        purpose: Layer registry and Pulse scoring
+    data_fields:
+      - table: activity_blocks
+        columns: [id, bloom_level, udl_checkpoints, assessment_type, grouping, time_weight]
+        notes: Layer metadata on blocks
+    key_files:
+      - src/lib/layers/layer-registry.ts
+    future_needs: Teacher-visible layer breakdown per lesson, layer-based filtering.
+    adrs: []
+    os_seam: ready
+    change_impacts: Changes to layer definitions affect all activity blocks. Changes to scoring affect Pulse results.
+
+  - id: udl-layer
+    name: UDL Layer (Universal Design for Learning)
+    category: Platform Core
+    status: complete
+    currentVersion: 1
+    summary: CAST UDL — 3 principles (representation, action/expression, engagement) × 9 guidelines × 31 checkpoints. Activities tagged with checkpoint coverage. Page-level coverage computed client-side.
+    depends_on: [layer-registry]
+    affects: [unit-editor, lesson-view, student-learning-support]
+    docs:
+      - path: docs/research/student-influence-factors.md
+        purpose: UDL as proactive design framework
+    data_fields:
+      - table: activity_blocks
+        columns: [id, udl_checkpoints]
+        notes: Array of checkpoint IDs (e.g., ["1.1", "3.2"])
+    key_files:
+      - src/lib/udl/udl-definitions.ts
+      - src/lib/udl/coverage-service.ts
+    future_needs: Teacher UDL tagging UI, coverage dashboard.
+    adrs: []
+    os_seam: ready
+    change_impacts: Changes to checkpoint definitions affect activity tagging. Changes to coverage logic affect reporting.
+
+  - id: unit-adapter
+    name: Unit Adapter (Content Normalization)
+    category: Platform Core
+    status: complete
+    currentVersion: 1
+    summary: normalizeContentData() converts 4 content versions (v1 object pages, v2 array, v3 journey, v4 timeline) to consistent v2 format. hasContent() guard detects empty forks. resolveClassUnitContent() merges master + class-fork with inheritance.
+    depends_on: []
+    affects: [lesson-view, unit-editor, teach-mode]
+    docs: []
+    key_files:
+      - src/lib/unit-adapter.ts
+    future_needs: Bi-directional conversion, version upgrade utilities.
+    adrs: ["010"]
+    os_seam: ready
+    change_impacts: Changes to content versions require adapter updates. Changes to normalization logic affect all content reading.
+
+  # 3D & VISUAL LAYER SYSTEMS (6 systems)
+
+  - id: 3d-scenes
+    name: 3D Scenes & R3F Rendering
+    category: 3D & Visual Layer
+    status: planned
+    currentVersion: 0
+    summary: React Three Fiber (R3F) renderer for 3D environments. 5 rendering modes (fullscreen story, embedded scene, background, floating panel, modal). JSON scene configuration, asset library integration.
+    depends_on: []
+    affects: [discovery-engine, journey-engine, student-graphics, tutorial-engine-3d]
+    docs:
+      - path: docs/projects/3delements.md
+        purpose: 3D elements architecture and implementation plan
+    future_needs: Scene editor, animation timeline, physics simulation.
+    adrs: []
+    os_seam: none
+    change_impacts: Will require new scenes table and asset_library tables. Changes to rendering modes affect all 3D content.
+
+  - id: 3d-assets
+    name: 3D Asset Library
+    category: 3D & Visual Layer
+    status: planned
+    currentVersion: 0
+    summary: Curated 3D models, textures, animations in 9 categories. Level-of-detail (LOD) support for performance. Asset metadata (tags, bounds, animations).
+    depends_on: [3d-scenes]
+    affects: [3d-scenes, tutorial-engine-3d, narrative-quests]
+    docs:
+      - path: docs/projects/3delements.md
+        purpose: Asset library schema and management
+    future_needs: Teacher asset upload, procedural asset generation.
+    adrs: []
+    os_seam: none
+    change_impacts: Will require asset_library and asset_versions tables.
+
+  - id: audio-system
+    name: Audio System (Ambience, Music, SFX, TTS)
+    category: 3D & Visual Layer
+    status: planned
+    currentVersion: 0
+    summary: Ambient soundscapes, background music (format-adaptive), SFX library. TTS via ElevenLabs (character voices for mentors). Audio mixing and spatial audio support.
+    depends_on: [3d-scenes]
+    affects: [discovery-engine, narrative-quests]
+    docs:
+      - path: docs/projects/3delements.md
+        purpose: Audio system spec
+    future_needs: Teacher audio upload, voice customization.
+    adrs: []
+    os_seam: none
+    change_impacts: Will require audio asset management and TTS caching.
+
+  - id: tutorial-engine-3d
+    name: Tutorial Engine (3D Guided Experiences)
+    category: 3D & Visual Layer
+    status: planned
+    currentVersion: 0
+    summary: "3 modes: Guided Skill (hand-over-hand video + arrows), Safety Scene (immersive workshop scenario), Visual Diagram (interactive 3D explainer). Replayable, auto-captions, mentor voiceover."
+    depends_on: [3d-scenes, 3d-assets]
+    affects: [safety-badges, lesson-view]
+    docs:
+      - path: docs/projects/3delements.md
+        purpose: Tutorial engine architecture
+    future_needs: Custom scenario builder, branching tutorials.
+    adrs: []
+    os_seam: none
+    change_impacts: Will require new tutorial_scenes table.
+
+  - id: narrative-quests
+    name: Narrative Quests (NPCs & Dialogue)
+    category: 3D & Visual Layer
+    status: idea
+    currentVersion: 0
+    summary: NPCs with dialogue trees, quest chains. Character progression through story arcs. Branching based on student choices and profile.
+    depends_on: [3d-scenes, 3d-assets, journey-engine]
+    affects: [full-journey-game, discovery-engine]
+    docs:
+      - path: docs/projects/3delements.md
+        purpose: Narrative system spec
+    future_needs: Dialogue editor, quest branching logic.
+    adrs: []
+    os_seam: none
+    change_impacts: Will require npc_characters, dialogue_trees, quest_chains tables.
+
+  - id: gallery-3d
+    name: Virtual Exhibition Spaces (3D Gallery)
+    category: 3D & Visual Layer
+    status: idea
+    currentVersion: 0
+    summary: Virtual gallery spaces where student work is displayed in 3D. Peer navigation, avatar presence, spatial audio chat. Phase 5 feature.
+    depends_on: [3d-scenes, gallery, student-work-pipeline]
+    affects: [gallery, student-dashboard]
+    docs:
+      - path: docs/projects/3delements.md
+        purpose: Gallery 3D architecture
+    future_needs: Avatar customization, real-time collaboration.
+    adrs: []
+    os_seam: none
+    change_impacts: Will require gallery_3d_spaces and avatar_config tables.
+
+  # PARENT & COMMUNITY SYSTEMS (3 systems)
+
+  - id: parent-view
+    name: Parent Gallery Access
+    category: Parent & Community
+    status: idea
+    currentVersion: 0
+    summary: v2 feature — parents view student portfolio and gallery submissions (read-only). Opt-in per class. Report cards accessible.
+    depends_on: [gallery, portfolio]
+    affects: [gallery, student-dashboard]
+    docs: []
+    future_needs: Email digests, progress reports, teacher messaging.
+    adrs: []
+    os_seam: none
+    change_impacts: Will require new parent_users table and permission model.
+
+  - id: parent-updates
+    name: Parent Progress Updates
+    category: Parent & Community
+    status: idea
+    currentVersion: 0
+    summary: v2 feature — teachers send structured progress updates to parents. Unit milestones, grades, highlights.
+    depends_on: [parent-view, student-data]
+    affects: [teacher-dashboard, student-data]
+    docs: []
+    future_needs: Email/SMS delivery, template customization.
+    adrs: []
+    os_seam: none
+    change_impacts: Will require parent_messages and delivery_logs tables.
+
+  - id: same-school
+    name: Same-School Teacher Network
+    category: Parent & Community
+    status: idea
+    currentVersion: 0
+    summary: v2 feature — discover other teachers at same school, share units, collaborate on curriculum planning.
+    depends_on: [auth-system, teacher-class-mgmt]
+    affects: [unit-management, teacher-dashboard]
+    docs: []
+    future_needs: Shared workspace, version control for collaborative units.
+    adrs: []
+    os_seam: none
+    change_impacts: Will require school_affiliations and team_units tables.
+
+  # ADMIN & OPERATIONS SYSTEMS (11 systems)
+
+  - id: admin-dashboard
+    name: Admin Dashboard (Superuser Ops)
+    category: Admin & Operations
+    status: planned
+    currentVersion: 0
+    summary: "Superuser landing with health overview. 7 tabs: Pipeline Health, Block Library, Sandbox, Cost & Usage, Quality, Wiring, Settings. Real-time alerts in red."
+    depends_on: [generation-pipeline, activity-blocks]
+    affects: [generation-pipeline, ai-controls, testing-sandbox]
+    docs:
+      - path: docs/projects/dimensions3.md
+        purpose: Admin dashboard spec
+    future_needs: Automated alerts, performance tuning recommendations.
+    adrs: []
+    os_seam: none
+    change_impacts: Will require admin_metrics and alert_config tables.
+
+  - id: admin-journey-builder
+    name: Admin Journey Builder (Node-Graph Editor)
+    category: Admin & Operations
+    status: planned
+    currentVersion: 0
+    summary: Visual node-graph editor for building and testing journeys. Drag blocks, configure branching, preview rendering.
+    depends_on: [journey-engine]
+    affects: [journey-engine, testing-sandbox]
+    docs:
+      - path: docs/specs/journey-engine-spec.md
+        purpose: Journey block types and composition
+    future_needs: Undo/redo, template presets, version history.
+    adrs: []
+    os_seam: none
+    change_impacts: Will require journey composition API.
+
+  - id: testing-sandbox
+    name: Testing Sandbox (Generation Step-Through)
+    category: Admin & Operations
+    status: active
+    currentVersion: 1
+    summary: Interactive sandbox for generation testing. Step through 6 pipeline stages with live output. Model/parameter config, side-by-side comparison, logging of reasoning.
+    depends_on: [generation-pipeline]
+    affects: [generation-pipeline, unit-generation]
+    docs:
+      - path: docs/projects/dimensions3.md
+        purpose: Sandbox step-through debugger spec
+    key_files:
+      - src/app/admin/sandbox/page.tsx
+      - src/components/admin/sandbox/PipelineDebugger.tsx
+    future_needs: Stage recording/playback, diffing tools, performance profiling.
+    adrs: []
+    os_seam: ready
+    change_impacts: Changes to pipeline stages require sandbox stage updates.
+
+  - id: admin-login
+    name: Admin Login (Superuser Auth)
+    category: Admin & Operations
+    status: complete
+    currentVersion: 1
+    summary: Teacher login with is_admin flag grants access to /admin routes. Separate from regular teacher auth.
+    depends_on: [auth-system]
+    affects: [admin-dashboard, testing-sandbox]
+    docs: []
+    data_fields:
+      - table: teachers
+        columns: [id, is_admin]
+        notes: Admin flag
+    key_files:
+      - src/middleware.ts
+    future_needs: Rate limiting, audit logging.
+    adrs: ["003"]
+    os_seam: ready
+    change_impacts: Changes to is_admin logic affect access control.
+
+  - id: monetisation
+    name: Monetisation & Billing
+    category: Admin & Operations
+    status: planned
+    currentVersion: 0
+    summary: Feature tiers, Stripe integration, subscription management, usage billing.
+    depends_on: [auth-system]
+    affects: [teacher-dashboard, ai-controls]
+    docs: []
+    future_needs: Free tier limits, enterprise contracts.
+    adrs: []
+    os_seam: none
+    change_impacts: Will require pricing_tiers and subscription tables.
+
+  - id: user-management
+    name: User Management (Admin Tools)
+    category: Admin & Operations
+    status: planned
+    currentVersion: 0
+    summary: Admin view of all teachers + student counts, usage trends, account status.
+    depends_on: [admin-dashboard]
+    affects: [admin-dashboard]
+    docs: []
+    future_needs: Bulk operations, account suspension.
+    adrs: []
+    os_seam: none
+    change_impacts: Will require usage aggregation views.
+
+  - id: ai-controls
+    name: AI Controls (Model & Prompt Configuration)
+    category: Admin & Operations
+    status: complete
+    currentVersion: 1
+    summary: "Macro dials (5 big concepts: scaffolding, assessment style, pacing, activity selection, voice) + micro sliders (50+ detailed controls). Model picker per pipeline tier. \"Test with this model\" side-by-side comparison."
+    depends_on: [ai-provider, generation-pipeline]
+    affects: [generation-pipeline, ai-mentor, lesson-pulse]
+    docs: []
+    key_files:
+      - src/app/admin/ai-controls/page.tsx
+      - src/components/admin/ai-controls/MacroDials.tsx
+    future_needs: A/B testing framework, auto-tuning via feedback loop.
+    adrs: []
+    os_seam: ready
+    change_impacts: Changes to dials affect all generation. Changes to model config require testing.
+
+  - id: compliance
+    name: Compliance (PIPL, GDPR, COPPA)
+    category: Admin & Operations
+    status: active
+    currentVersion: 1
+    summary: PIPL compliance for China (anonymous student IDs, no real names stored). GDPR for EU (data export, deletion). COPPA for US (ages 11-16, no tracking analytics).
+    depends_on: []
+    affects: [student-signin, student-data]  # analytics: add when built
+    docs:
+      - path: docs/projects/school-readiness.md
+        purpose: Compliance architecture
+    future_needs: Consent management UI, audit logging.
+    adrs: ["007"]
+    os_seam: ready
+    change_impacts: Changes to data collection require compliance review.
+
+  - id: automation
+    name: Automation (CI/CD & Monitoring)
+    category: Admin & Operations
+    status: complete
+    currentVersion: 2
+    summary: "GitHub Actions CI (lint+typecheck+build+tests+dashboard sync on push/PR), nightly audit (2am Nanjing/6pm UTC, +tests+doc freshness+WIRING health), /api/health endpoint, Sentry fully configured. 4 health check scripts (dashboard sync, doc freshness, WIRING health, session change detector)."
+    depends_on: []
+    affects: []  # development-workflow: add when system exists
+    docs:
+      - path: docs/automation/automation-build-plan.md
+        purpose: "Automation build plan — Sprints 1-2 complete, 3-4 pending (bug widget, pg_cron)"
+      - path: docs/testing/test-coverage-map.md
+        purpose: "Test coverage map — 17 files, ~390 tests, gap analysis"
+    key_files:
+      - .github/workflows/ci.yml
+      - .github/workflows/nightly.yml
+      - src/app/api/health/route.ts
+      - scripts/check-dashboard-sync.ts
+      - scripts/check-doc-freshness.ts
+      - scripts/check-wiring-health.py
+      - scripts/check-session-changes.sh
+      - sentry.client.config.ts
+      - sentry.server.config.ts
+      - sentry.edge.config.ts
+      - src/lib/error-handler.ts
+    future_needs: "Bug report widget (Sprint 3), nightly pg_cron automation (Sprint 4), Better Stack uptime monitoring, Sentry alert rules, automated performance testing."
+    adrs: []
+    os_seam: none
+    change_impacts: Changes to CI workflows affect all PRs and nightly checks. Changes to health endpoint affect uptime monitoring. Sentry config changes affect error tracking across all routes.
+
+  - id: bug-reporting
+    name: Bug Reporting (Issue Tracking)
+    category: Admin & Operations
+    status: idea
+    currentVersion: 0
+    summary: "Per-class toggle for bug report button. Captures screenshot, console errors, class context. Admin workflow: New → Investigating → Fixed → Closed."
+    depends_on: []
+    affects: [teacher-dashboard]
+    docs: []
+    future_needs: Automatic duplicate detection, priority classification.
+    adrs: []
+    os_seam: none
+    change_impacts: Will require bug_reports and admin_workflow tables.
+
+  - id: format-support
+    name: Format Support (Unit Type Registry)
+    category: Admin & Operations
+    status: active
+    currentVersion: 1
+    summary: Registry of supported unit types (Design primary, Service, Personal Project, Inquiry supported; Art/STEM/PYP future). Format-specific generation rules via FormatProfile.
+    depends_on: [framework-adapter, format-profiles]
+    affects: [unit-generation, generation-pipeline]
+    docs:
+      - path: docs/specs/format-profile-definitions.md
+        purpose: Format definitions
+    key_files:
+      - src/lib/formats/format-profiles.ts
+    future_needs: Teacher-creatable custom formats, format versioning.
+    adrs: ["005"]
+    os_seam: ready
+    change_impacts: Changes to supported formats require generation updates.
+
+  # MARKETING & PUBLIC SYSTEMS (3 systems)
+
+  - id: landing-page
+    name: Landing Page
+    category: Marketing & Public
+    status: complete
+    currentVersion: 1
+    summary: Story-driven 5-phase journey describing StudioLoom. Hero section, feature cards, testimonials, CTA to sign up.
+    depends_on: []
+    affects: [public-toolkit, student-signin]
+    docs: []
+    key_files:
+      - src/app/page.tsx
+    future_needs: Localization (Chinese, Spanish), video demos.
+    adrs: []
+    os_seam: ready
+    change_impacts: Changes to messaging affect brand perception.
+
+  - id: public-toolkit
+    name: Public Toolkit (Free Access)
+    category: Marketing & Public
+    status: complete
+    currentVersion: 1
+    summary: 48 tools at /toolkit — free, unauthenticated access. Lead generation for teachers. Same components as student toolkit, no persistence.
+    depends_on: [toolkit]
+    affects: [toolkit, landing-page]
+    docs:
+      - path: docs/projects/toolkit.md
+        purpose: Toolkit feature spec
+    key_files:
+      - src/app/toolkit/page.tsx
+    future_needs: Tool scheduling, email capture.
+    adrs: ["008"]
+    os_seam: ready
+    change_impacts: Changes to toolkit affect public version.
+
+  - id: report-writer
+    name: Report Writer
+    category: Marketing & Public
+    status: complete
+    currentVersion: 1
+    summary: Bulk report comment generation. Multi-framework support. Teachers input grades/evidence, AI generates natural-language comments.
+    depends_on: [framework-adapter]
+    affects: []
+    docs: []
+    key_files:
+      - src/app/report-writer/page.tsx
+      - src/lib/ai/report-generation.ts
+    future_needs: Template customization, batch export (PDF).
+    adrs: []
+    os_seam: ready
+    change_impacts: Changes to framework mapping affect comment generation.
+
+# Summary Statistics
+meta:
+  total_systems: 92
+  complete_systems: 35
+  active_systems: 11
+  planned_systems: 8
+  idea_systems: 19
+  future_systems: 6
+  quarantined_systems: 1
+  last_updated: 2026-04-07
+  notes: |
+    This registry maps 92 systems across 8 categories.
+    CRITICAL LINKS:
+    - Both knowledge and generation pipelines QUARANTINED per Dimensions3 (3 Apr 2026)
+    - Activity Blocks are a first-class entity enabling Dimensions3 (planned Phase A)
+    - Framework Adapter enables framework-neutral unit content (ready)
+    - 3-level student auth fallback handles multi-class enrollment (complete)
+    - Lesson Pulse gives generation feedback loop (active)
+    - Discovery Engine is ~9,500 lines, fully interactive (complete)
+
+    KEY DEPENDENCIES:
+    - generation-pipeline depends on knowledge-pipeline (both quarantined)
+    - All AI systems depend on ai-provider (Anthropic → Groq → Gemini)
+    - Student experience systems depend on activity-blocks (planned Phase A)
+    - Teaching Mode depends on timing-engine + framework-adapter
+    - All classroom systems depend on auth-system

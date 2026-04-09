@@ -404,6 +404,8 @@ export interface ActivitySection {
   differentiation?: ActivityDifferentiation;
   /** Searchable tags for activity block library — e.g. "interview", "research", "hands-on" */
   tags?: string[];
+  /** Dimensions2: ID of the Activity Block this was generated from (if any). Enables efficacy tracking. */
+  source_block_id?: string;
 }
 
 export interface Reflection {
@@ -411,13 +413,29 @@ export interface Reflection {
   items: string[];
 }
 
-/** Workshop Model phase durations for a lesson */
+/**
+ * Lesson phase timing — 4 role-based slots that map to any lesson structure.
+ *
+ * The 4 keys are ROLE SLOTS, not literal Workshop Model phases:
+ * - opening   → setup/opening role (hook, safety check, stimulus, review)
+ * - miniLesson → instruction/guided role (demo, mini-lesson, guided investigation). Set durationMinutes=0 for structures without instruction.
+ * - workTime  → main block role (the sustained student work phase)
+ * - debrief   → closing role (debrief, reflection, share findings, clean-up + reflect)
+ *
+ * Each slot carries a `phaseName` field with the structure-specific label
+ * (e.g., "Extended Making" instead of "Work Time" for a making lesson).
+ *
+ * Legacy code that accesses `.opening.durationMinutes` etc. still works unchanged.
+ */
 export interface WorkshopPhases {
-  opening: { durationMinutes: number; hook?: string };
-  miniLesson: { durationMinutes: number; focus?: string };
-  workTime: { durationMinutes: number; focus?: string; checkpoints?: string[] };
-  debrief: { durationMinutes: number; protocol?: string; prompt?: string };
+  opening: { durationMinutes: number; hook?: string; phaseName?: string };
+  miniLesson: { durationMinutes: number; focus?: string; phaseName?: string };
+  workTime: { durationMinutes: number; focus?: string; checkpoints?: string[]; phaseName?: string };
+  debrief: { durationMinutes: number; protocol?: string; prompt?: string; phaseName?: string };
 }
+
+/** The 4 structural roles in any lesson — maps to workshopPhases keys */
+export type LessonPhaseRole = "opening" | "miniLesson" | "workTime" | "debrief";
 
 /** Extension activity for early finishers */
 export interface LessonExtension {
@@ -438,7 +456,7 @@ export interface PageContent {
   };
   sections: ActivitySection[];
   reflection?: Reflection;
-  /** Workshop Model phase durations (Opening → Mini-Lesson → Work Time → Debrief) */
+  /** Lesson phase timing — 4 role-based slots. phaseName on each slot gives the structure-specific label. */
   workshopPhases?: WorkshopPhases;
   /** Early finisher extensions, indexed by design phase */
   extensions?: LessonExtension[];
@@ -501,7 +519,8 @@ export interface TimelineActivity {
   role: TimelineActivityRole;
   title: string;
   prompt: string;
-  durationMinutes: number;       // REQUIRED — drives lesson boundary computation
+  durationMinutes: number;       // Resolved at runtime from timeWeight if not set by AI
+  timeWeight?: TimeWeight;       // Primary signal: quick | moderate | extended | flexible
   responseType?: ResponseType;   // optional — content-role activities have no response
   scaffolding?: EllScaffolding;
   exampleResponse?: string;
@@ -992,6 +1011,119 @@ export interface GalleryRoundWithStats extends GalleryRound {
     review_count: number;
     is_complete: boolean;
   }>;
+}
+
+// --- Dimensions2: Activity Block Library (2 Apr 2026) ---
+
+/** Source type for an Activity Block — where it came from */
+export type ActivityBlockSource = "extracted" | "generated" | "manual" | "community";
+
+/** Design thinking phase for categorization */
+export type DesignPhase = "discover" | "define" | "ideate" | "prototype" | "test";
+
+/** Role of a block within a lesson structure */
+export type LessonStructureRole = "opening" | "instruction" | "core" | "reflection";
+
+/** A reusable activity block — first-class entity in the Activity Block Library.
+ *  Extracted from uploads (Pass 2 lesson_flow), generated units, or manually created.
+ *  Carries Dimensions v1 metadata + efficacy scoring from System 4 feedback loop. */
+export interface ActivityBlock {
+  id: string;
+  teacher_id: string;
+
+  // Identity
+  title: string;
+  description: string | null;
+  prompt: string;
+
+  // Source tracking
+  source_type: ActivityBlockSource;
+  source_upload_id: string | null;
+  source_unit_id: string | null;
+  source_page_id: string | null;
+  source_activity_index: number | null;
+
+  // Dimensions metadata (mirrors ActivitySection)
+  bloom_level: BloomLevel | null;
+  time_weight: TimeWeight | null;
+  grouping: GroupingStrategy | null;
+  ai_rules: ActivityAIRules | null;
+  udl_checkpoints: string[] | null;
+  success_look_fors: string[] | null;
+
+  // Pedagogical metadata
+  design_phase: DesignPhase | null;
+  lesson_structure_role: LessonStructureRole | null;
+  response_type: ResponseType | null;
+  toolkit_tool_id: string | null;
+  criterion_tags: string[] | null;
+
+  // Resources
+  materials_needed: string[] | null;
+  scaffolding: EllScaffolding | null;
+  example_response: string | null;
+
+  // Quality signals (System 4)
+  efficacy_score: number;
+  times_used: number;
+  times_skipped: number;
+  times_edited: number;
+  avg_time_spent: number | null;
+  avg_completion_rate: number | null;
+
+  // Search
+  tags: string[] | null;
+
+  // Lifecycle
+  is_public: boolean;
+  is_archived: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Params for creating a new Activity Block */
+export interface CreateActivityBlockParams {
+  title: string;
+  description?: string;
+  prompt: string;
+  source_type: ActivityBlockSource;
+  source_upload_id?: string;
+  source_unit_id?: string;
+  source_page_id?: string;
+  source_activity_index?: number;
+  bloom_level?: BloomLevel;
+  time_weight?: TimeWeight;
+  grouping?: GroupingStrategy;
+  ai_rules?: ActivityAIRules;
+  udl_checkpoints?: string[];
+  success_look_fors?: string[];
+  design_phase?: DesignPhase;
+  lesson_structure_role?: LessonStructureRole;
+  response_type?: ResponseType;
+  toolkit_tool_id?: string;
+  criterion_tags?: string[];
+  materials_needed?: string[];
+  scaffolding?: EllScaffolding;
+  example_response?: string;
+  tags?: string[];
+  is_public?: boolean;
+}
+
+/** Teacher edit tracking — what changed after AI generation */
+export type GenerationFeedbackType = "kept" | "deleted" | "rewritten" | "reordered" | "scaffolding_changed" | "time_changed";
+
+export interface GenerationFeedback {
+  id: string;
+  teacher_id: string;
+  unit_id: string;
+  class_id: string | null;
+  page_id: string;
+  activity_index: number | null;
+  source_block_id: string | null;
+  feedback_type: GenerationFeedbackType;
+  original_content: Record<string, unknown> | null;
+  modified_content: Record<string, unknown> | null;
+  created_at: string;
 }
 
 // --- Dimensions v2: Activity Response Tracking (29 Mar 2026) ---
