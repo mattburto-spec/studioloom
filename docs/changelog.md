@@ -195,6 +195,31 @@
 
 ---
 
+## 9 Apr 2026 — Dimensions3 Wiring Complete (Pipeline → Wizard Routes)
+
+**What changed:**
+- Wired Dimensions3 pipeline to existing wizard UI — teachers can generate units again
+- W1: Input adapter (`wizardInputToGenerationRequest`) — maps UnitWizardInput → GenerationRequest. Topic, unitType, lessonCount (from durationWeeks), gradeLevel, framework (default IB_MYP), constraints, context, preferences
+- W2: Output adapter (`timedUnitToContentData`) — maps TimedUnit → UnitContentDataV2/UnitPage format that lesson editor, Teaching Mode, and student experience expect
+- W3: Un-quarantined `/api/teacher/generate-unit/route.ts` — removed 410 early return, now calls `runPipeline()` orchestrator, returns single JSON response (no streaming for v1)
+- W4: Un-quarantined wizard page (`/teacher/units/create/page.tsx`) — removed "Being Rebuilt" early return, `generateAll()` now makes single POST instead of per-criterion streaming
+- W5: Fixed JSX tag mismatch on units page (quarantine changed `<Link>` → `<span>` but missed closing tag)
+- W8: 34 adapter tests (17 input + 17 output) covering minimal/full input, all unit types, edge cases
+- Supabase migrations 060-064 applied to production (activity_blocks, generation_runs, teacher_tier, content_items, feedback_proposals)
+- Note: W5 (re-enable UI buttons), W6 (remaining quarantined routes), W7 (edit tracking integration) deferred — pipeline works via direct wizard flow
+
+**Files created:** `src/lib/pipeline/adapters/input-adapter.ts`, `src/lib/pipeline/adapters/output-adapter.ts`, `src/lib/pipeline/adapters/__tests__/adapters.test.ts`, `docs/projects/dimensions3-wiring-instructions.md`
+
+**Files modified:** `src/app/api/teacher/generate-unit/route.ts` (un-quarantined), `src/app/teacher/units/create/page.tsx` (un-quarantined), `src/app/teacher/units/page.tsx` (tag fix)
+
+**Systems affected:** Generation Pipeline (wired to wizard), Unit Generation Wizard (un-quarantined), Quarantine (partially lifted)
+
+**Commits:** `2ffe92e` (wiring, 5 files, 817 insertions), `3a43514` (tag fix)
+
+**Files synced:** ALL-PROJECTS.md, dashboard.html, WIRING.yaml, wiring-dashboard.html, system-architecture-map.html, doc-manifest.yaml, changelog.md
+
+---
+
 ## 9 Apr 2026 — Dimensions3 Phase E Complete (Admin Dashboard + Polish) — ALL PHASES DONE
 
 **What changed:**

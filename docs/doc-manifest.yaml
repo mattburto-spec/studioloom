@@ -29,7 +29,7 @@ docs:
     title: "Session Changelog"
     purpose: "Rolling log of changes across sessions for cross-session context"
     category: root
-    last_verified: "2026-04-07"
+    last_verified: "2026-04-09"
 
   - path: docs/decisions-log.md
     title: "Key Decisions Log"
@@ -281,7 +281,7 @@ docs:
 
   - path: docs/projects/dimensions3.md
     title: "Project Dimensions3 — Generation Pipeline Rebuild"
-    purpose: "6-stage compartmentalized generation pipeline with typed contracts, 2-pass ingestion, Activity Block Library, sandbox debugger, feedback loop with approval queue + guardrails, admin dashboard with operational monitors, unit import, smoke tests. No hardcoded sequences — system learns from usage. 43 decisions logged. ALL 5 PHASES COMPLETE (9 Apr 2026). Not yet wired to wizard routes."
+    purpose: "6-stage compartmentalized generation pipeline with typed contracts, 2-pass ingestion, Activity Block Library, sandbox debugger, feedback loop with approval queue + guardrails, admin dashboard with operational monitors, unit import, smoke tests. No hardcoded sequences — system learns from usage. 43 decisions logged. ALL 5 PHASES + WIRING COMPLETE (9 Apr 2026). Pipeline connected to wizard UI."
     category: projects
     last_verified: "2026-04-09"
     referenced_from: ["CLAUDE.md AI Brain table"]
@@ -316,6 +316,12 @@ docs:
     purpose: "Testing strategy for Dimensions3 pipeline rebuild"
     category: projects
     last_verified: "2026-04-03"
+
+  - path: docs/projects/dimensions3-wiring-instructions.md
+    title: "Dimensions3 — Wire Pipeline to Wizard Routes"
+    purpose: "Instructions for connecting Dimensions3 pipeline to wizard UI — 8 tasks (W1-W8): input/output adapters, route un-quarantine, button re-enable, edit tracking, tests"
+    category: projects
+    last_verified: "2026-04-09"
 
   - path: docs/projects/PIPELINE-AUDIT-2026-04-02.md
     title: "Unit Generation Pipeline Audit — 2 April 2026"

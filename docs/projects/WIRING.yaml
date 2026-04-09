@@ -696,7 +696,7 @@ systems:
     category: AI & Intelligence
     status: active
     currentVersion: 2
-    summary: "Dimensions3 ALL PHASES COMPLETE (9 Apr 2026). 6-stage pipeline + feedback system + admin dashboard + operational monitors + smoke tests + unit import. Not yet wired to wizard routes. 480+ tests."
+    summary: "Dimensions3 ALL PHASES + WIRING COMPLETE (9 Apr 2026). 6-stage pipeline + feedback system + admin dashboard + wizard route integration. Input/output adapters bridge wizard UI ↔ pipeline. generate-unit route un-quarantined. 510+ tests. Migrations 060-064 applied."
     depends_on: [activity-blocks, knowledge-pipeline, timing-engine, framework-adapter, intelligence-profiles]
     affects: [unit-generation, unit-editor, lesson-pulse, activity-blocks, feedback-system]
     docs:
@@ -730,6 +730,9 @@ systems:
       - src/lib/feedback/signals.ts
       - src/lib/feedback/guardrails.ts
       - src/lib/feedback/self-healing.ts
+      - src/lib/pipeline/adapters/input-adapter.ts
+      - src/lib/pipeline/adapters/output-adapter.ts
+      - src/app/api/teacher/generate-unit/route.ts
       - src/app/admin/feedback/page.tsx
       - src/app/api/admin/feedback/route.ts
     future_needs: Learned sequence patterns replacing hardcoded skeletons, cross-teacher pattern sharing, real-time generation co-pilot.
