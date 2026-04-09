@@ -696,7 +696,7 @@ systems:
     category: AI & Intelligence
     status: active
     currentVersion: 2
-    summary: "Dimensions3 6-stage pipeline BUILT (Phases A-C) + Feedback system BUILT (Phase D, 9 Apr 2026). Pipeline: retrieval → assembly → gap-fill → polish → timing → scoring. Feedback: teacher edit tracking, efficacy scoring (6-signal formula), approval queue with hard guardrails, self-healing proposals. 480+ tests."
+    summary: "Dimensions3 ALL PHASES COMPLETE (9 Apr 2026). 6-stage pipeline + feedback system + admin dashboard + operational monitors + smoke tests + unit import. Not yet wired to wizard routes. 480+ tests."
     depends_on: [activity-blocks, knowledge-pipeline, timing-engine, framework-adapter, intelligence-profiles]
     affects: [unit-generation, unit-editor, lesson-pulse, activity-blocks, feedback-system]
     docs:
@@ -1748,18 +1748,27 @@ systems:
   - id: admin-dashboard
     name: Admin Dashboard (Superuser Ops)
     category: Admin & Operations
-    status: planned
-    currentVersion: 0
-    summary: "Superuser landing with health overview. 7 tabs: Pipeline Health, Block Library, Sandbox, Cost & Usage, Quality, Wiring, Settings. Real-time alerts in red."
-    depends_on: [generation-pipeline, activity-blocks]
+    status: active
+    currentVersion: 1
+    summary: "BUILT Phase E (9 Apr 2026). Health strip (5 traffic lights), quick stats with sparklines, alerts feed. Tab navigation: Pipeline Health, Block Library, Sandbox, Cost & Usage, Settings (+ stub tabs for Quality, Wiring, Teachers, Students, Schools, Bugs, Audit). 6 operational monitors wired. Unit import flow."
+    depends_on: [generation-pipeline, activity-blocks, feedback-system]
     affects: [generation-pipeline, ai-controls, testing-sandbox]
     docs:
       - path: docs/projects/dimensions3.md
-        purpose: Admin dashboard spec
-    future_needs: Automated alerts, performance tuning recommendations.
+        purpose: Admin dashboard spec (Section 14.7)
+    key_files:
+      - src/app/admin/page.tsx
+      - src/app/admin/layout.tsx
+      - src/lib/admin/health-checks.ts
+      - src/lib/admin/monitors/
+      - src/app/admin/pipeline/page.tsx
+      - src/app/admin/library/page.tsx
+      - src/app/admin/costs/page.tsx
+      - src/app/admin/settings/page.tsx
+    future_needs: Remaining stub tabs (Quality, Wiring, Teachers, Students, Schools, Bugs, Audit). Automated alerting. Per-teacher profitability.
     adrs: []
-    os_seam: none
-    change_impacts: Will require admin_metrics and alert_config tables.
+    os_seam: partial
+    change_impacts: Changes to monitors affect health strip. Changes to pipeline stages affect Pipeline Health tab. Changes to activity_blocks schema affect Library browser.
 
   - id: admin-journey-builder
     name: Admin Journey Builder (Node-Graph Editor)

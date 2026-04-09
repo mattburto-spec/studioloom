@@ -2,7 +2,7 @@
 
 > **Single source of truth for all projects, features, and ideas.**
 > Visual dashboard: [projects/dashboard.html](dashboard.html)
-> Last updated: 9 April 2026 (Phase D complete)
+> Last updated: 9 April 2026 (Phase E complete — Dimensions3 DONE)
 
 ---
 
@@ -26,7 +26,7 @@
 
 **Still working:** Manual unit creation, lesson editor, Teaching Mode, Design Assistant, Open Studio, toolkit, student experience, safety badges, gallery, pace feedback, Smart Insights.
 
-**Current build:** Dimensions3 — **Phase A COMPLETE**, **Phase B COMPLETE**, **Phase C COMPLETE**, **Phase D COMPLETE** (9 Apr 2026). Phase E (Admin Dashboard + Polish) next. Then: verify MonitoredTextarea with fresh student data, NM Rocket Report.
+**Current build:** Dimensions3 — **ALL 5 PHASES COMPLETE** (9 Apr 2026). Full pipeline built: foundation, ingestion, generation, feedback, admin dashboard + monitoring. 480+ tests. Not yet wired to wizard routes. **Next:** verify MonitoredTextarea with fresh student data, NM Rocket Report, wire pipeline to wizard routes.
 
 ---
 
@@ -34,7 +34,7 @@
 
 ### Dimensions3 — Generation Pipeline Rebuild
 - **Priority:** TIER 0 P0 | **Est:** 17 days | **Doc:** [dimensions3.md](dimensions3.md)
-- 6-stage compartmentalized pipeline, Activity Block Library (first-class SQL), 2-pass ingestion, sandbox debugger, feedback loop with approval queue. No hardcoded sequences — system learns from usage. All 9 open questions RESOLVED. Testing plan ready ([dimensions3-testing-plan.md](dimensions3-testing-plan.md)). **Phase A COMPLETE:** migrations, types, pipeline simulator, backend infra (92 tests). **Phase B COMPLETE:** ingestion pipeline, pass registry, block extraction, PII scan, review queue UI (34 tests). **Phase C COMPLETE:** 6-stage generation pipeline — retrieval, assembly, gap-fill, polish, timing, scoring. Orchestrator with sandbox/live modes. FormatProfile-aware. 420+ tests. **Phase D COMPLETE (9 Apr 2026):** Feedback system — teacher edit tracker (diff detection per activity), efficacy score computation (6-signal weighted formula), approval queue UI with hard guardrails (bloom/phase/category changes require manual approval, efficacy capped 10-95), self-healing proposals (time_weight/completion/deletion pattern detection), migration 064 (generation_feedback + feedback_proposals + audit_log tables). 60 new tests, 480+ total passing. **Phase E (Admin Dashboard + Polish) next.**
+- 6-stage compartmentalized pipeline, Activity Block Library (first-class SQL), 2-pass ingestion, sandbox debugger, feedback loop with approval queue. No hardcoded sequences — system learns from usage. All 9 open questions RESOLVED. Testing plan ready ([dimensions3-testing-plan.md](dimensions3-testing-plan.md)). **Phase A COMPLETE:** migrations, types, pipeline simulator, backend infra (92 tests). **Phase B COMPLETE:** ingestion pipeline, pass registry, block extraction, PII scan, review queue UI (34 tests). **Phase C COMPLETE:** 6-stage generation pipeline — retrieval, assembly, gap-fill, polish, timing, scoring. Orchestrator with sandbox/live modes. FormatProfile-aware. 420+ tests. **Phase D COMPLETE:** Feedback system — edit tracker, efficacy scoring, approval queue with guardrails, self-healing proposals. 60 new tests. **Phase E COMPLETE (9 Apr 2026):** Admin dashboard (health strip with traffic lights, quick stats with sparklines, alerts feed), tab navigation + 4 key tabs (Pipeline Health, Block Library, Cost & Usage, Settings), unit import flow (upload → reconstruct → match report), 13 smoke tests across 6 E2E flows, 6 operational monitors (pipeline health, cost alerts, quality drift, edit tracker summary, stale watchdog, usage analytics). 30 files, 2440 lines. **ALL PHASES COMPLETE.** Not yet wired to wizard routes — pipeline + feedback + admin built, needs route integration.
 
 ### Lesson Pulse Phase 2
 - **Priority:** P0 | **Est:** 4-5 days | **Doc:** [lesson-pulse.md](lesson-pulse.md)

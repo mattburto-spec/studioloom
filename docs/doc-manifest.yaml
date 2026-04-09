@@ -281,7 +281,7 @@ docs:
 
   - path: docs/projects/dimensions3.md
     title: "Project Dimensions3 — Generation Pipeline Rebuild"
-    purpose: "6-stage compartmentalized generation pipeline with typed contracts, 2-pass ingestion, Activity Block Library, sandbox debugger, feedback loop with approval queue + guardrails, PII/copyright scanning, library health. No hardcoded sequences — system learns from usage. 43 decisions logged. Phases A-D COMPLETE (9 Apr 2026). Phase E next."
+    purpose: "6-stage compartmentalized generation pipeline with typed contracts, 2-pass ingestion, Activity Block Library, sandbox debugger, feedback loop with approval queue + guardrails, admin dashboard with operational monitors, unit import, smoke tests. No hardcoded sequences — system learns from usage. 43 decisions logged. ALL 5 PHASES COMPLETE (9 Apr 2026). Not yet wired to wizard routes."
     category: projects
     last_verified: "2026-04-09"
     referenced_from: ["CLAUDE.md AI Brain table"]

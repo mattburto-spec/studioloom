@@ -195,6 +195,24 @@
 
 ---
 
+## 9 Apr 2026 — Dimensions3 Phase E Complete (Admin Dashboard + Polish) — ALL PHASES DONE
+
+**What changed:**
+- Dimensions3 Phase E completed — all 5 tasks done. **This completes the entire Dimensions3 build.**
+- E1: Unit Import Flow — teacher uploads an existing unit plan, system runs ingestion pipeline + AI reconstruction (Sonnet), produces a Match Report with side-by-side comparison (original vs reconstructed), per-lesson match %, colour-coded diff. Teacher can accept/edit/reject. Files: `src/lib/ingestion/unit-import.ts`, `src/app/teacher/knowledge/import/page.tsx`, `src/components/teacher/knowledge/MatchReport.tsx`, `src/app/api/teacher/knowledge/import/route.ts`.
+- E2: Admin Dashboard Landing Page — health strip with 5 traffic lights (Pipeline/Library/Cost/Quality/Wiring), active alerts feed (red badges), quick stats row (active teachers, students, units, blocks, bugs), 7-day trend sparklines. Files: `src/app/admin/page.tsx`, `src/components/admin/dashboard/HealthStrip.tsx`, `QuickStats.tsx`, `AlertsFeed.tsx`, `src/lib/admin/health-checks.ts`, `src/app/api/admin/health/route.ts`.
+- E3: Admin Tab Navigation + Key Tabs — updated admin layout with horizontal tab bar linking all sections. 4 fully built tabs: Pipeline Health (recent runs, per-stage success/failure, error log), Block Library (browse/search/filter blocks by category/phase/source, sort by efficacy/usage/date), Cost & Usage (daily/weekly/monthly cost aggregation, per-teacher breakdown), Settings (model selection per tier, guardrail config viewer). Remaining tabs as stubs. Files: `src/app/admin/pipeline/page.tsx`, `library/page.tsx`, `costs/page.tsx`, `settings/page.tsx` + components.
+- E4: 13 Smoke Tests — 6 E2E flow tests (ingestion→library, library→generation, generation→delivery, delivery→tracking, tracking→feedback, feedback→library) plus component tests. On-demand trigger via API. Files: `src/lib/__tests__/smoke-tests.test.ts`, `src/app/api/admin/smoke-tests/route.ts`.
+- E5: 6 Operational Monitors — pure functions that query the database and return typed results: pipeline health (24h success/failure rate, avg time, cost trend), cost alerts (threshold checks, spike detection), quality drift (Pulse score week-over-week), edit tracker summary (most-edited/deleted blocks, new patterns), stale data watchdog (unscanned blocks, failed runs, orphaned data), usage analytics (active users, generation counts, library growth). All feed into admin dashboard. Files: `src/lib/admin/monitors/` (6 files + index).
+- 30 new files, 2440 lines total
+- Committed on main (copied from worktree `claude/eloquent-morse`)
+
+**Systems affected:** Admin Dashboard (v0→v1, planned→active), Generation Pipeline (all phases complete)
+
+**Files synced:** ALL-PROJECTS.md, dashboard.html, WIRING.yaml, wiring-dashboard.html, system-architecture-map.html, doc-manifest.yaml, changelog.md, CLAUDE.md
+
+---
+
 ## 9 Apr 2026 — Dimensions3 Phase D Complete (Feedback System)
 
 **What changed:**
