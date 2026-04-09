@@ -113,11 +113,9 @@ function validateSuggestions(raw: Record<string, unknown>): SuggestResponse {
  * Uses teacher's own key if configured, otherwise falls back to platform key.
  * Body: { tier: 1|2|3, context: SuggestContext }
  */
-// QUARANTINED (3 Apr 2026) — Wizard disabled pending Dimensions2 rebuild.
-const QUARANTINE_RESPONSE = NextResponse.json({ error: "Generation pipeline quarantined — pending architecture rebuild. See docs/quarantine.md" }, { status: 410 });
+// Un-quarantined (9 Apr 2026) — Dimensions3 pipeline complete, wizard routes restored.
 
 export async function POST(request: NextRequest) {
-  return QUARANTINE_RESPONSE;
   const supabase = createSupabaseServer(request);
   const {
     data: { user },

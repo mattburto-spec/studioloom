@@ -25,9 +25,7 @@ import { retrieveAggregatedFeedback } from "@/lib/knowledge/feedback";
 import { formatFeedbackContext } from "@/lib/ai/prompts";
 import type { LessonJourneyInput, JourneyOutlineOption } from "@/types";
 
-// QUARANTINED (3 Apr 2026) — Generation pipeline disabled pending architecture rebuild (Dimensions2).
-// See docs/quarantine.md for full rationale.
-const QUARANTINE_RESPONSE = NextResponse.json({ error: "Generation pipeline quarantined — pending architecture rebuild. See docs/quarantine.md" }, { status: 410 });
+// Un-quarantined (9 Apr 2026) — Dimensions3 pipeline complete, wizard routes restored.
 
 function createSupabaseServer(request: NextRequest) {
   return createServerClient(
@@ -51,7 +49,6 @@ function createSupabaseServer(request: NextRequest) {
  * Body: { journeyInput: LessonJourneyInput }
  */
 export async function POST(request: NextRequest) {
-  return QUARANTINE_RESPONSE;
   const supabase = createSupabaseServer(request);
   const {
     data: { user },
