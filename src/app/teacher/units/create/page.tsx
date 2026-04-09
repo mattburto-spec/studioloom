@@ -14,28 +14,6 @@ import { getActivityById, type ActivityTemplate } from "@/lib/activity-library";
 export default function CreateUnitWizardPage() {
   const router = useRouter();
 
-  // QUARANTINED (3 Apr 2026) — Generation pipeline disabled pending Dimensions2 rebuild.
-  // See docs/quarantine.md for full rationale.
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-      <div className="max-w-md text-center">
-        <div className="text-5xl mb-4">🔧</div>
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Unit Builder is Being Rebuilt</h1>
-        <p className="text-gray-500 mb-6">
-          The AI unit generation pipeline is being rebuilt from the ground up with a new architecture.
-          Existing units are not affected — you can still edit and teach them.
-        </p>
-        <button
-          onClick={() => router.push("/teacher/units")}
-          className="px-5 py-2.5 text-sm font-semibold text-white rounded-xl"
-          style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)" }}
-        >
-          Back to Units
-        </button>
-      </div>
-    </div>
-  );
-
   const { state, dispatch } = useWizardState();
   const { suggestions, status: suggestionStatus } = useWizardSuggestions(state.input);
 
