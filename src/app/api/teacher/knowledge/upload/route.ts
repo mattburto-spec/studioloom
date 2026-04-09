@@ -14,7 +14,7 @@ import type { LessonProfile, PartialTeachingContext, SchoolContext, TeacherPrefe
 import type { TextbookSectionContent, LessonResourceContent } from "@/types/knowledge-library";
 import { UPLOAD_STAGE_CONFIG, type UploadSSEEvent, type UploadStage } from "@/types/upload-progress";
 
-const QUARANTINE_RESPONSE = NextResponse.json({ error: "Knowledge pipeline quarantined — pending architecture rebuild. See docs/quarantine.md" }, { status: 410 });
+// Un-quarantined (9 Apr 2026) — Knowledge pipeline restored.
 
 // Vercel Hobby plan: 4.5MB body limit, 60s max duration
 // Vercel Pro plan: 4.5MB default (configurable), 300s max duration
@@ -61,7 +61,6 @@ function buildProfileEmbeddingText(profile: LessonProfile): string {
  * a rich review screen immediately after upload.
  */
 export const POST = withErrorHandler("teacher/knowledge/upload:POST", async (request: NextRequest) => {
-  return QUARANTINE_RESPONSE;
   const auth = await requireTeacherAuth(request);
   if (auth.error) return auth.error;
   const teacherId = auth.teacherId;
@@ -755,7 +754,6 @@ export const POST = withErrorHandler("teacher/knowledge/upload:POST", async (req
  * GET: List teacher's uploads (with linked profile IDs)
  */
 export const GET = withErrorHandler("teacher/knowledge/upload:GET", async (request: NextRequest) => {
-  return QUARANTINE_RESPONSE;
   const auth = await requireTeacherAuth(request);
   if (auth.error) return auth.error;
   const teacherId = auth.teacherId;
@@ -811,7 +809,6 @@ export const GET = withErrorHandler("teacher/knowledge/upload:GET", async (reque
  * DELETE: Remove an upload, its chunks, and its lesson profile
  */
 export const DELETE = withErrorHandler("teacher/knowledge/upload:DELETE", async (request: NextRequest) => {
-  return QUARANTINE_RESPONSE;
   const auth = await requireTeacherAuth(request);
   if (auth.error) return auth.error;
   const teacherId = auth.teacherId;

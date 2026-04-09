@@ -8,7 +8,7 @@ import {
 } from "@/lib/knowledge-library";
 import type { UpdateKnowledgeItemRequest } from "@/types/knowledge-library";
 
-const QUARANTINE_RESPONSE = NextResponse.json({ error: "Knowledge pipeline quarantined — pending architecture rebuild. See docs/quarantine.md" }, { status: 410 });
+// Un-quarantined (9 Apr 2026) — Knowledge pipeline restored.
 
 async function getTeacherId(request: NextRequest): Promise<string | null> {
   const supabase = createServerClient(
@@ -38,7 +38,6 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  return QUARANTINE_RESPONSE;
   const teacherId = await getTeacherId(request);
   if (!teacherId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -68,7 +67,6 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  return QUARANTINE_RESPONSE;
   const teacherId = await getTeacherId(request);
   if (!teacherId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -105,7 +103,6 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  return QUARANTINE_RESPONSE;
   const teacherId = await getTeacherId(request);
   if (!teacherId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

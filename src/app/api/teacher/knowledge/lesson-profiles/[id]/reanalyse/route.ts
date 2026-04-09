@@ -6,8 +6,7 @@ import { embedText } from "@/lib/ai/embeddings";
 import { ANALYSIS_PROMPT_VERSION } from "@/lib/knowledge/analysis-prompts";
 import type { LessonProfile, PartialTeachingContext, SchoolContext, TeacherPreferences } from "@/types/lesson-intelligence";
 
-// QUARANTINED (3 Apr 2026) — Knowledge pipeline disabled pending architecture rebuild.
-const QUARANTINE_RESPONSE = NextResponse.json({ error: "Knowledge pipeline quarantined — pending architecture rebuild. See docs/quarantine.md" }, { status: 410 });
+// Un-quarantined (9 Apr 2026) — Knowledge pipeline restored.
 
 async function getTeacherId(request: NextRequest): Promise<string | null> {
   const supabase = createServerClient(
@@ -56,7 +55,6 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  return QUARANTINE_RESPONSE;
   const teacherId = await getTeacherId(request);
   if (!teacherId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

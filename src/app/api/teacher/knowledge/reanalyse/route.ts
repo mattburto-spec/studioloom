@@ -18,7 +18,7 @@ import type {
 } from "@/types/lesson-intelligence";
 import type { ExtractedDoc } from "@/lib/knowledge/extract";
 
-const QUARANTINE_RESPONSE = NextResponse.json({ error: "Knowledge pipeline quarantined — pending architecture rebuild. See docs/quarantine.md" }, { status: 410 });
+// Un-quarantined (9 Apr 2026) — Knowledge pipeline restored.
 
 export const maxDuration = 300; // 5 minutes — same as upload route
 
@@ -64,7 +64,6 @@ function buildProfileEmbeddingText(profile: LessonProfile): string {
 export const POST = withErrorHandler(
   "teacher/knowledge/reanalyse:POST",
   async (request: NextRequest) => {
-    return QUARANTINE_RESPONSE;
     const auth = await requireTeacherAuth(request);
     if (auth.error) return auth.error;
     const teacherId = auth.teacherId;

@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { aggregateFeedback } from "@/lib/knowledge/feedback";
 
-// QUARANTINED (3 Apr 2026) — Knowledge pipeline disabled pending architecture rebuild.
-const QUARANTINE_RESPONSE = NextResponse.json({ error: "Knowledge pipeline quarantined — pending architecture rebuild. See docs/quarantine.md" }, { status: 410 });
+// Un-quarantined (9 Apr 2026) — Knowledge pipeline restored.
 
 function createSupabaseServer(request: NextRequest) {
   return createServerClient(
@@ -29,7 +28,6 @@ function createSupabaseServer(request: NextRequest) {
  * This is the read-side of the feedback loop (Layer 2).
  */
 export async function GET(request: NextRequest) {
-  return QUARANTINE_RESPONSE;
   const supabase = createSupabaseServer(request);
   const {
     data: { user },
