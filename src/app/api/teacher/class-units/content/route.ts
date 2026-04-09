@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireTeacherAuth } from "@/lib/auth/verify-teacher-unit";
 import { ensureForked, hasContent } from "@/lib/units/resolve-content";
+import { trackEdits } from "@/lib/feedback/edit-tracker";
 import type { UnitContentData } from "@/types";
 
 // ─────────────────────────────────────────────────────────────────
@@ -158,6 +159,22 @@ async function PATCH(request: NextRequest) {
     // Ensure forked (if not already, this deep-copies master first)
     await ensureForked(supabase, unitId, classId);
 
+    // Snapshot previous content for edit tracking
+    let previousContent: UnitContentData | null = null;
+    try {
+      const { data: prev } = await supabase
+        .from("class_units")
+        .select("content_data")
+        .eq("unit_id", unitId)
+        .eq("class_id", classId)
+        .maybeSingle();
+      if (prev?.content_data) {
+        previousContent = prev.content_data as UnitContentData;
+      }
+    } catch {
+      // Non-critical — skip edit tracking if snapshot fails
+    }
+
     // Now write the new content
     const { error: updateErr } = await supabase
       .from("class_units")
@@ -170,6 +187,13 @@ async function PATCH(request: NextRequest) {
       return NextResponse.json(
         { error: "Failed to update content" },
         { status: 500 }
+      );
+    }
+
+    // Fire-and-forget: track teacher edits for feedback loop
+    if (previousContent) {
+      trackEdits(supabase, unitId, unitId, previousContent, content_data).catch(
+        (err) => console.error("[class-units/content PATCH] edit tracking error:", err)
       );
     }
 
