@@ -173,21 +173,48 @@ export default function CreateUnitWizardPage() {
   async function generateAll() {
     dispatch({ type: "SET_ERROR", error: "" });
     const criteria = state.input.selectedCriteria;
-    const outline =
-      state.selectedOutline !== null ? state.outlineOptions[state.selectedOutline] : null;
 
-    // Generate all criteria in parallel — each updates its own status independently
-    const results = await Promise.allSettled(
-      criteria.map((criterion) => generateCriterionStreaming(criterion, outline))
-    );
+    // Mark all criteria as generating
+    for (const criterion of criteria) {
+      dispatch({ type: "SET_CRITERION_STATUS", criterion, status: "generating" });
+    }
 
-    // Report first failure if any
-    const firstFailure = results.find(
-      (r) => r.status === "rejected" || (r.status === "fulfilled" && !r.value)
-    );
-    if (firstFailure) {
-      // Individual criterion errors already dispatched inside generateCriterionStreaming
-      return;
+    try {
+      const res = await fetch("/api/teacher/generate-unit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ wizardInput: state.input }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        const errorMsg = data.error || "Failed to generate unit";
+        for (const criterion of criteria) {
+          dispatch({ type: "SET_CRITERION_STATUS", criterion, status: "error" });
+        }
+        dispatch({ type: "SET_ERROR", error: errorMsg });
+        return;
+      }
+
+      const data = await res.json();
+
+      // Merge all generated pages into wizard state
+      dispatch({ type: "MERGE_PAGES", pages: data.pages });
+
+      // Mark all criteria as done
+      for (const criterion of criteria) {
+        dispatch({ type: "SET_CRITERION_STATUS", criterion, status: "done" });
+      }
+
+      // Store quality report and cost info if available
+      if (data.qualityReport) {
+        dispatch({ type: "SET_QUALITY_REPORT", report: data.qualityReport });
+      }
+    } catch (err) {
+      for (const criterion of criteria) {
+        dispatch({ type: "SET_CRITERION_STATUS", criterion, status: "error" });
+      }
+      dispatch({ type: "SET_ERROR", error: err instanceof Error ? err.message : "Network error" });
     }
   }
 

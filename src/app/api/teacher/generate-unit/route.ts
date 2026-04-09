@@ -1,22 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { withErrorHandler } from "@/lib/api/error-handler";
-import { resolveCredentials } from "@/lib/ai/resolve-credentials";
-import { createAIProvider } from "@/lib/ai";
-import { UNIT_SYSTEM_PROMPT, buildUnitSystemPrompt, buildRAGCriterionPrompt, getGradeTimingProfile, buildTimingContext, calculateUsableTime, maxInstructionMinutes } from "@/lib/ai/prompts";
-import { buildUnitTypeSystemPrompt } from "@/lib/ai/unit-types";
-import { validateGeneratedPages } from "@/lib/ai/validation";
-import { validateLessonTiming } from "@/lib/ai/timing-validation";
 import type { UnitWizardInput } from "@/types";
-import { getCriterionKeys, getFrameworkCriterionKeys } from "@/lib/constants";
-import type { CriterionKey } from "@/lib/constants";
 import { onUnitCreated } from "@/lib/teacher-style/profile-service";
-import { computeLessonPulse } from "@/lib/layers/lesson-pulse";
-import type { PulseActivity, LessonPulseScore } from "@/lib/layers/lesson-pulse";
-
-// QUARANTINED (3 Apr 2026) — Generation pipeline disabled pending architecture rebuild (Dimensions2).
-// See docs/quarantine.md for full rationale.
-const QUARANTINE_RESPONSE = NextResponse.json({ error: "Generation pipeline quarantined — pending architecture rebuild. See docs/quarantine.md" }, { status: 410 });
+import { runPipeline } from "@/lib/pipeline/orchestrator";
+import type { OrchestratorConfig } from "@/lib/pipeline/orchestrator";
+import { wizardInputToGenerationRequest } from "@/lib/pipeline/adapters/input-adapter";
+import { timedUnitToContentData } from "@/lib/pipeline/adapters/output-adapter";
 
 function createSupabaseServer(request: NextRequest) {
   return createServerClient(
@@ -35,15 +25,12 @@ function createSupabaseServer(request: NextRequest) {
 
 /**
  * POST /api/teacher/generate-unit
- * Generate pages for a single criterion using the teacher's AI provider.
+ * Generate a full unit using the Dimensions3 pipeline.
  *
- * When `stream=true` in the body, returns a Server-Sent Events stream
- * with partial JSON updates and a final complete event.
- *
- * When `stream=false` (default), returns the full JSON response.
+ * Body: { wizardInput: UnitWizardInput }
+ * Returns: { pages, qualityReport, costSummary, runId }
  */
 export const POST = withErrorHandler("teacher/generate-unit:POST", async (request: NextRequest) => {
-  return QUARANTINE_RESPONSE;
   const supabase = createSupabaseServer(request);
   const {
     data: { user },
@@ -54,220 +41,55 @@ export const POST = withErrorHandler("teacher/generate-unit:POST", async (reques
   }
 
   const body = await request.json();
-  const { wizardInput, criterion, selectedOutline, stream: wantStream } = body as {
-    wizardInput: UnitWizardInput;
-    criterion: CriterionKey;
-    selectedOutline?: { approach: string; pages: Record<string, { title: string; summary: string }> } | null;
-    stream?: boolean;
-  };
+  const { wizardInput } = body as { wizardInput: UnitWizardInput };
 
-  // Resolve system prompt based on unit type and framework
-  const unitType = wizardInput.unitType || "design";
-  const framework = wizardInput.framework || "IB_MYP";
-  const systemPrompt = unitType !== "design"
-    ? buildUnitTypeSystemPrompt(unitType)
-    : buildUnitSystemPrompt(framework);
-
-  // Validate inputs
-  if (!wizardInput || !criterion) {
-    return NextResponse.json(
-      { error: "wizardInput and criterion are required" },
-      { status: 400 }
-    );
-  }
-
-  // Validate criterion against the unit type's criteria set (dynamic, not hardcoded A/B/C/D)
-  const validCriteria = getCriterionKeys(unitType);
-  if (!validCriteria.includes(criterion)) {
-    return NextResponse.json(
-      { error: `Invalid criterion "${criterion}" for unit type "${unitType}". Valid: ${validCriteria.join(", ")}` },
-      { status: 400 }
-    );
-  }
-
-  // Resolve AI credentials (teacher key → platform key fallback)
-  const creds = await resolveCredentials(supabase, user.id);
-
-  if (!creds) {
-    return NextResponse.json(
-      { error: "AI provider not configured. Go to Settings to add your API key." },
-      { status: 400 }
-    );
+  if (!wizardInput) {
+    return NextResponse.json({ error: "wizardInput is required" }, { status: 400 });
   }
 
   try {
-    const provider = createAIProvider(creds.provider, {
-      apiEndpoint: creds.apiEndpoint,
-      apiKey: creds.apiKey,
-      modelName: creds.modelName,
-    });
+    // Convert wizard input → pipeline request
+    const generationRequest = wizardInputToGenerationRequest(wizardInput);
 
-    // Build prompts with RAG context, selected outline, and framework
-    const { prompt: userPrompt, chunkIds } = await buildRAGCriterionPrompt(
-      criterion,
+    // Configure the orchestrator
+    const config: OrchestratorConfig = {
+      supabase,
+      teacherId: user.id,
+      apiKey: process.env.ANTHROPIC_API_KEY!,
+      sandboxMode: false,
+      modelId: "claude-sonnet-4-20250514",
+    };
+
+    // Run the Dimensions3 pipeline
+    const result = await runPipeline(generationRequest, config);
+
+    // Convert pipeline output → UnitContentDataV2 format
+    const { contentData, pages } = timedUnitToContentData(
+      result.timedUnit,
+      result.qualityReport,
       wizardInput,
-      user.id,
-      selectedOutline,
-      framework
     );
 
-    // --- Streaming path ---
-    if (wantStream && provider.streamCriterionPages) {
-      const encoder = new TextEncoder();
-      const stream = new ReadableStream({
-        async start(controller) {
-          try {
-            const gen = provider.streamCriterionPages!(
-              criterion,
-              wizardInput,
-              systemPrompt,
-              userPrompt,
-              unitType
-            );
-
-            for await (const event of gen) {
-              if (event.type === "partial_json") {
-                controller.enqueue(
-                  encoder.encode(`data: ${JSON.stringify({ type: "delta", json: event.json })}\n\n`)
-                );
-              } else if (event.type === "complete") {
-                // Validate and send final result
-                const validation = validateGeneratedPages(event.pages);
-                controller.enqueue(
-                  encoder.encode(
-                    `data: ${JSON.stringify({
-                      type: "complete",
-                      pages: validation.pages,
-                      warnings: validation.errors,
-                      criterion,
-                      ragChunkIds: chunkIds,
-                    })}\n\n`
-                  )
-                );
-              }
-            }
-          } catch (err) {
-            const message = err instanceof Error ? err.message : "Unknown error";
-            controller.enqueue(
-              encoder.encode(`data: ${JSON.stringify({ type: "error", error: message })}\n\n`)
-            );
-          } finally {
-            controller.close();
-          }
-        },
-      });
-
-      return new Response(stream, {
-        headers: {
-          "Content-Type": "text/event-stream",
-          "Cache-Control": "no-cache",
-          Connection: "keep-alive",
-        },
-      });
-    }
-
-    // --- Non-streaming path (default, works with all providers) ---
-    const rawPages = await provider.generateCriterionPages(
-      criterion,
-      wizardInput,
-      systemPrompt,
-      userPrompt,
-      unitType
-    );
-
-    // Validate output (structural)
-    const validation = validateGeneratedPages(rawPages);
-
-    if (Object.keys(validation.pages).length === 0) {
-      return NextResponse.json(
-        {
-          error: "AI generated invalid content. Please try again.",
-          details: validation.errors,
-        },
-        { status: 422 }
-      );
-    }
-
-    // Timing validation — Workshop Model auto-repair on pages with workshopPhases
-    // Read teacher's actual period length from profile instead of hardcoding 60
-    let periodMinutes = 60; // fallback
-    try {
-      const { data: teacherProfile } = await supabase
-        .from("teacher_profiles")
-        .select("typical_period_minutes")
-        .eq("teacher_id", user.id)
-        .maybeSingle();
-      if (teacherProfile?.typical_period_minutes) {
-        periodMinutes = teacherProfile.typical_period_minutes;
-      }
-    } catch (e) {
-      // Non-critical — use default
-    }
-    const gradeLevel = wizardInput.gradeLevel || "Year 3 (Grade 8)";
-    const profile = getGradeTimingProfile(gradeLevel, framework);
-    const timingCtx = buildTimingContext(profile, periodMinutes, false);
-    const timingResults: Record<string, unknown> = {};
-
-    for (const [pid, page] of Object.entries(validation.pages)) {
-      if (page && typeof page === "object" && "sections" in page) {
-        try {
-          const result = validateLessonTiming(
-            page as Parameters<typeof validateLessonTiming>[0],
-            profile,
-            timingCtx
-          );
-          if (result.issues.length > 0) {
-            // Apply repaired workshopPhases back to the page
-            const repaired = page as unknown as Record<string, unknown>;
-            repaired.workshopPhases = result.repairedLesson.workshopPhases;
-            repaired.extensions = result.repairedLesson.extensions;
-            timingResults[pid] = { issues: result.issues, stats: result.stats };
-          }
-        } catch {
-          // Timing validation is enhancement, not requirement
-        }
-      }
-    }
-
-    // ── Lesson Pulse scoring ──
-    const pulseScores: Record<string, LessonPulseScore> = {};
-    try {
-      for (const [pid, page] of Object.entries(validation.pages)) {
-        if (page && typeof page === "object" && "sections" in page) {
-          const sections = (page as unknown as { sections?: unknown[] }).sections;
-          if (Array.isArray(sections) && sections.length > 0) {
-            pulseScores[pid] = computeLessonPulse(sections as PulseActivity[]);
-          }
-        }
-      }
-    } catch {
-      // Pulse scoring is enhancement, not requirement
+    // Build pages record keyed by page ID for the wizard's MERGE_PAGES action
+    const pagesRecord: Record<string, unknown> = {};
+    for (const page of pages) {
+      pagesRecord[page.id] = page.content;
     }
 
     // Signal teacher style profile: unit generated
-    onUnitCreated(user.id).catch(() => {}); // non-fatal
-
-    // ── Activity Block usage tracking (Dimensions2) ──
-    try {
-      const { recordBlockUsageFromPages } = await import("@/lib/activity-blocks");
-      const { createAdminClient } = await import("@/lib/supabase/admin");
-      const pagesArray = Object.values(validation.pages).filter(Boolean) as Array<{ sections?: Array<{ source_block_id?: string | null }> }>;
-      const usedBlockCount = await recordBlockUsageFromPages(createAdminClient(), pagesArray);
-      if (usedBlockCount > 0) console.log(`[generate-unit] ${usedBlockCount} activity blocks used`);
-    } catch {
-      // Block usage tracking is enhancement, not requirement
-    }
+    onUnitCreated(user.id).catch(() => {});
 
     return NextResponse.json({
-      pages: validation.pages,
-      warnings: validation.errors,
-      criterion,
-      ragChunkIds: chunkIds,
-      timingValidation: Object.keys(timingResults).length > 0 ? timingResults : undefined,
-      pulseScores: Object.keys(pulseScores).length > 0 ? pulseScores : undefined,
+      pages: pagesRecord,
+      contentData,
+      qualityReport: result.qualityReport,
+      costSummary: result.totalCost,
+      runId: result.runId,
+      stageTimings: result.stageTimings,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
+    console.error("[generate-unit] Pipeline error:", message);
     return NextResponse.json(
       { error: `Generation failed: ${message}` },
       { status: 500 }
