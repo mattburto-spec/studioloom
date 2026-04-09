@@ -262,6 +262,135 @@ const INQUIRY_TYPE: UnitTypeDefinition = {
 };
 
 // =========================================================================
+// FormatProfile — Pipeline-facing unit type metadata
+// =========================================================================
+
+export interface FormatProfile {
+  type: UnitType;
+  cycleName: string;
+  phases: UnitTypePhase[];
+  /** How to score/filter activity blocks for this format */
+  blockRelevance: {
+    phaseIds: string[];
+    boost: string[];
+    suppress: string[];
+  };
+  /** How to arrange lessons across the unit */
+  sequenceHints: {
+    phaseWeights: Record<string, number>;
+    openingPhase: string;
+    closingPhase: string;
+  };
+  /** Timing adjustments for this format */
+  timingModifiers: {
+    setupBuffer: number;
+    cleanupBuffer: number;
+    safetyBriefMinutes: number;
+  };
+  /** Weights for Pulse quality scoring */
+  pulseWeights: {
+    cognitiveRigour: number;
+    studentAgency: number;
+    teacherCraft: number;
+  };
+  /** Teaching principles for AI prompt injection */
+  teachingPrinciples: string;
+  aiPersona: string;
+  typicalActivities: string[];
+}
+
+const FORMAT_PROFILES: Record<UnitType, FormatProfile> = {
+  design: {
+    type: "design",
+    cycleName: "Design Cycle",
+    phases: DESIGN_TYPE.phases,
+    blockRelevance: {
+      phaseIds: ["investigate", "develop", "create", "evaluate"],
+      boost: ["making", "ideation", "critique", "skill-building"],
+      suppress: ["journey"],
+    },
+    sequenceHints: {
+      phaseWeights: { investigate: 0.25, develop: 0.25, create: 0.30, evaluate: 0.20 },
+      openingPhase: "investigate",
+      closingPhase: "evaluate",
+    },
+    timingModifiers: { setupBuffer: 7, cleanupBuffer: 6, safetyBriefMinutes: 4 },
+    pulseWeights: { cognitiveRigour: 0.35, studentAgency: 0.30, teacherCraft: 0.35 },
+    teachingPrinciples: DESIGN_TYPE.teachingPrinciples,
+    aiPersona: DESIGN_TYPE.aiPersona,
+    typicalActivities: DESIGN_TYPE.typicalActivities,
+  },
+  service: {
+    type: "service",
+    cycleName: "IPARD Cycle",
+    phases: SERVICE_TYPE.phases,
+    blockRelevance: {
+      phaseIds: ["investigate", "plan", "act", "reflect", "demonstrate"],
+      boost: ["research", "collaboration", "reflection", "presentation"],
+      suppress: ["making", "skill-building"],
+    },
+    sequenceHints: {
+      phaseWeights: { investigate: 0.20, plan: 0.20, act: 0.25, reflect: 0.20, demonstrate: 0.15 },
+      openingPhase: "investigate",
+      closingPhase: "demonstrate",
+    },
+    timingModifiers: { setupBuffer: 3, cleanupBuffer: 2, safetyBriefMinutes: 0 },
+    pulseWeights: { cognitiveRigour: 0.25, studentAgency: 0.45, teacherCraft: 0.30 },
+    teachingPrinciples: SERVICE_TYPE.teachingPrinciples,
+    aiPersona: SERVICE_TYPE.aiPersona,
+    typicalActivities: SERVICE_TYPE.typicalActivities,
+  },
+  personal_project: {
+    type: "personal_project",
+    cycleName: "PP Process",
+    phases: PERSONAL_PROJECT_TYPE.phases,
+    blockRelevance: {
+      phaseIds: ["define", "plan", "apply", "reflect", "report"],
+      boost: ["planning", "reflection", "documentation", "research"],
+      suppress: ["warmup"],
+    },
+    sequenceHints: {
+      phaseWeights: { define: 0.15, plan: 0.20, apply: 0.30, reflect: 0.20, report: 0.15 },
+      openingPhase: "define",
+      closingPhase: "report",
+    },
+    timingModifiers: { setupBuffer: 3, cleanupBuffer: 2, safetyBriefMinutes: 0 },
+    pulseWeights: { cognitiveRigour: 0.30, studentAgency: 0.40, teacherCraft: 0.30 },
+    teachingPrinciples: PERSONAL_PROJECT_TYPE.teachingPrinciples,
+    aiPersona: PERSONAL_PROJECT_TYPE.aiPersona,
+    typicalActivities: PERSONAL_PROJECT_TYPE.typicalActivities,
+  },
+  inquiry: {
+    type: "inquiry",
+    cycleName: "Inquiry Cycle",
+    phases: INQUIRY_TYPE.phases,
+    blockRelevance: {
+      phaseIds: ["wonder", "investigate", "synthesize", "act"],
+      boost: ["research", "analysis", "collaboration", "presentation"],
+      suppress: ["making", "skill-building"],
+    },
+    sequenceHints: {
+      phaseWeights: { wonder: 0.20, investigate: 0.30, synthesize: 0.25, act: 0.25 },
+      openingPhase: "wonder",
+      closingPhase: "act",
+    },
+    timingModifiers: { setupBuffer: 3, cleanupBuffer: 2, safetyBriefMinutes: 0 },
+    pulseWeights: { cognitiveRigour: 0.40, studentAgency: 0.35, teacherCraft: 0.25 },
+    teachingPrinciples: INQUIRY_TYPE.teachingPrinciples,
+    aiPersona: INQUIRY_TYPE.aiPersona,
+    typicalActivities: INQUIRY_TYPE.typicalActivities,
+  },
+};
+
+/**
+ * Get the FormatProfile for a unit type.
+ * Falls back to design for unknown types.
+ */
+export function getFormatProfile(unitType: string): FormatProfile {
+  return FORMAT_PROFILES[unitType as UnitType] ?? FORMAT_PROFILES.design;
+}
+
+// =========================================================================
 // Registry & Helpers
 // =========================================================================
 

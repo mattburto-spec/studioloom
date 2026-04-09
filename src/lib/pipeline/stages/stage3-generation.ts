@@ -1,0 +1,374 @@
+/**
+ * Stage 3: Gap Generation
+ *
+ * Fills gaps identified in Stage 2 with AI-generated activities.
+ * One Sonnet call per gap, parallelized via Promise.all.
+ * Most expensive stage — most tokens spent here.
+ */
+
+import Anthropic from "@anthropic-ai/sdk";
+import type {
+  CostBreakdown,
+  AssembledSequence,
+  FilledSequence,
+  FilledLesson,
+  FilledActivity,
+  GapMetric,
+  ActivitySlot,
+  Scaffolding,
+  AIRules,
+} from "@/types/activity-blocks";
+import type { FormatProfile } from "@/lib/ai/unit-types";
+
+// ─── Types ───
+
+interface GenerationConfig {
+  apiKey: string;
+  modelId?: string;
+  maxConcurrency?: number;
+}
+
+// ─── Helpers ───
+
+const ZERO_COST: CostBreakdown = {
+  inputTokens: 0, outputTokens: 0, modelId: "simulator",
+  estimatedCostUSD: 0, timeMs: 0,
+};
+
+function buildGapPrompt(
+  gap: ActivitySlot,
+  lessonLabel: string,
+  lessonPosition: number,
+  totalLessons: number,
+  topic: string,
+  gradeLevel: string,
+  profile: FormatProfile
+): string {
+  const ctx = gap.gapContext || {};
+  const progress = lessonPosition / totalLessons;
+  const progressLabel = progress < 0.33 ? "early" : progress < 0.66 ? "middle" : "late";
+
+  return `Generate a single teaching activity for a ${profile.cycleName} unit.
+
+## Context
+- Topic: "${topic}"
+- Grade: ${gradeLevel}
+- Lesson: "${lessonLabel}" (${lessonPosition}/${totalLessons}, ${progressLabel} in unit)
+- Unit type: ${profile.type}
+- Phase: ${ctx.suggestedPhase || "core"}
+- Gap description: ${gap.gapDescription || "Activity needed"}
+
+## Requirements
+- Bloom level: ${ctx.suggestedBloom || "apply"}
+- Grouping: ${ctx.suggestedGrouping || "individual"}
+- Time weight: ${ctx.suggestedTimeWeight || "moderate"} (quick=5-8min, moderate=10-18min, extended=20-35min)
+- Category: ${ctx.suggestedCategory || "research"}
+- Lesson role: ${ctx.suggestedLessonRole || "core"}
+
+## Teaching Context
+${profile.teachingPrinciples.slice(0, 500)}
+
+## Scaffolding Requirements
+- Include hints (2-3 progressive hints)
+- Include sentence starters (3-4 for ELL support)
+- Include vocabulary if relevant
+- ${progressLabel === "early" ? "Heavy scaffolding — worked examples, structured templates" : progressLabel === "middle" ? "Moderate scaffolding — some sentence starters" : "Minimal scaffolding — extension prompts only"}
+
+## AI Rules for This Activity
+Determine the appropriate AI interaction rules:
+- phase: "divergent" (ideation/brainstorming), "convergent" (analysis/evaluation), or "neutral"
+- tone: brief description of how AI should interact
+- rules: 2-3 specific behaviour rules for the AI mentor
+
+Respond with JSON matching this exact schema:
+{
+  "title": "Short descriptive title",
+  "prompt": "Clear, engaging task description for the student (2-4 sentences)",
+  "bloom_level": "${ctx.suggestedBloom || "apply"}",
+  "time_weight": "${ctx.suggestedTimeWeight || "moderate"}",
+  "grouping": "${ctx.suggestedGrouping || "individual"}",
+  "phase": "${ctx.suggestedPhase || "core"}",
+  "activity_category": "${ctx.suggestedCategory || "research"}",
+  "lesson_structure_role": "${ctx.suggestedLessonRole || "core"}",
+  "response_type": "long-text",
+  "materials_needed": [],
+  "scaffolding": {
+    "hints": ["Hint 1", "Hint 2"],
+    "sentence_starters": ["Start with...", "Consider..."],
+    "worked_example": "Brief example or null",
+    "vocabulary": ["term1", "term2"]
+  },
+  "ai_rules": {
+    "phase": "divergent|convergent|neutral",
+    "tone": "Brief tone description",
+    "rules": ["Rule 1", "Rule 2"]
+  },
+  "udl_checkpoints": ["5.1", "7.2"],
+  "success_look_fors": ["Student can...", "Evidence of..."],
+  "output_type": "what this activity produces (e.g., research_notes, sketch, analysis)",
+  "prerequisite_tags": []
+}`;
+}
+
+interface AIActivity {
+  title: string;
+  prompt: string;
+  bloom_level: string;
+  time_weight: string;
+  grouping: string;
+  phase: string;
+  activity_category: string;
+  lesson_structure_role: string;
+  response_type: string;
+  materials_needed: string[];
+  scaffolding?: Scaffolding;
+  ai_rules?: AIRules;
+  udl_checkpoints?: string[];
+  success_look_fors?: string[];
+  output_type?: string;
+  prerequisite_tags?: string[];
+}
+
+// ─── Main ───
+
+export async function stage3_fillGaps(
+  assembled: AssembledSequence,
+  profile: FormatProfile,
+  config: GenerationConfig
+): Promise<FilledSequence> {
+  const startMs = Date.now();
+  const modelId = config.modelId || "claude-sonnet-4-20250514";
+  const maxConcurrency = config.maxConcurrency ?? 4;
+  const { request } = assembled;
+
+  // Collect all gaps that need filling
+  interface GapTask {
+    lessonIndex: number;
+    activityIndex: number;
+    slot: ActivitySlot;
+    lessonLabel: string;
+    lessonPosition: number;
+  }
+
+  const gapTasks: GapTask[] = [];
+  for (let li = 0; li < assembled.lessons.length; li++) {
+    const lesson = assembled.lessons[li];
+    for (let ai = 0; ai < lesson.activities.length; ai++) {
+      const slot = lesson.activities[ai];
+      if (slot.source === "gap") {
+        gapTasks.push({
+          lessonIndex: li,
+          activityIndex: ai,
+          slot,
+          lessonLabel: lesson.label,
+          lessonPosition: lesson.position,
+        });
+      }
+    }
+  }
+
+  // Fill gaps with AI calls, batched by concurrency limit
+  const client = new Anthropic({ apiKey: config.apiKey, maxRetries: 2 });
+  const gapResults = new Map<string, { activity: AIActivity; metric: GapMetric }>();
+  const perGapMetrics: GapMetric[] = [];
+
+  // Process in batches
+  for (let batch = 0; batch < gapTasks.length; batch += maxConcurrency) {
+    const batchTasks = gapTasks.slice(batch, batch + maxConcurrency);
+
+    const batchResults = await Promise.allSettled(
+      batchTasks.map(async (task) => {
+        const gapStartMs = Date.now();
+        const key = `${task.lessonIndex}-${task.activityIndex}`;
+
+        try {
+          const prompt = buildGapPrompt(
+            task.slot,
+            task.lessonLabel,
+            task.lessonPosition,
+            assembled.lessons.length,
+            request.topic,
+            request.gradeLevel,
+            profile
+          );
+
+          const response = await client.messages.create({
+            model: modelId,
+            system: `You are a ${profile.cycleName} curriculum designer. Return ONLY valid JSON — no markdown, no explanation.`,
+            messages: [{ role: "user", content: prompt }],
+            max_tokens: 2048,
+            temperature: 0.7,
+          });
+
+          const textBlock = response.content.find(b => b.type === "text");
+          if (!textBlock || textBlock.type !== "text") {
+            throw new Error("No text response");
+          }
+
+          let jsonText = textBlock.text.trim();
+          if (jsonText.startsWith("```")) {
+            jsonText = jsonText.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
+          }
+
+          const activity = JSON.parse(jsonText) as AIActivity;
+          const metric: GapMetric = {
+            gapIndex: batch + batchTasks.indexOf(task),
+            lessonPosition: task.lessonPosition,
+            tokensUsed: (response.usage?.input_tokens || 0) + (response.usage?.output_tokens || 0),
+            cost: {
+              inputTokens: response.usage?.input_tokens || 0,
+              outputTokens: response.usage?.output_tokens || 0,
+              modelId,
+              estimatedCostUSD: ((response.usage?.input_tokens || 0) * 3 + (response.usage?.output_tokens || 0) * 15) / 1_000_000,
+              timeMs: Date.now() - gapStartMs,
+            },
+            timeMs: Date.now() - gapStartMs,
+            modelUsed: modelId,
+            promptTokens: response.usage?.input_tokens || 0,
+            completionTokens: response.usage?.output_tokens || 0,
+          };
+
+          return { key, activity, metric };
+        } catch (e) {
+          console.error(`[stage3] Gap fill failed for ${key}:`, e);
+          // Fallback: create a basic activity from the gap context
+          const ctx = task.slot.gapContext || {};
+          const fallback: AIActivity = {
+            title: task.slot.gapDescription || "Activity",
+            prompt: `Complete this ${ctx.suggestedCategory || "activity"} task for "${request.topic}".`,
+            bloom_level: ctx.suggestedBloom || "apply",
+            time_weight: ctx.suggestedTimeWeight || "moderate",
+            grouping: ctx.suggestedGrouping || "individual",
+            phase: ctx.suggestedPhase || "",
+            activity_category: ctx.suggestedCategory || "research",
+            lesson_structure_role: ctx.suggestedLessonRole || "core",
+            response_type: "long-text",
+            materials_needed: [],
+            scaffolding: { hints: ["Think about the key requirements."], sentence_starters: ["I think..."] },
+          };
+          return {
+            key,
+            activity: fallback,
+            metric: {
+              gapIndex: batch + batchTasks.indexOf(task),
+              lessonPosition: task.lessonPosition,
+              tokensUsed: 0, cost: { ...ZERO_COST, timeMs: Date.now() - gapStartMs },
+              timeMs: Date.now() - gapStartMs, modelUsed: "fallback",
+              promptTokens: 0, completionTokens: 0,
+            },
+          };
+        }
+      })
+    );
+
+    for (const result of batchResults) {
+      if (result.status === "fulfilled") {
+        gapResults.set(result.value.key, {
+          activity: result.value.activity,
+          metric: result.value.metric,
+        });
+        perGapMetrics.push(result.value.metric);
+      }
+    }
+  }
+
+  // Build FilledSequence
+  const lessons: FilledLesson[] = assembled.lessons.map((lesson, li) => {
+    const activities: FilledActivity[] = lesson.activities.map((slot, ai) => {
+      if (slot.source === "library" && slot.block) {
+        const b = slot.block.block;
+        return {
+          source: "library" as const,
+          sourceBlockId: b.id,
+          title: b.title,
+          prompt: b.prompt,
+          bloom_level: b.bloom_level || "apply",
+          time_weight: b.time_weight,
+          grouping: b.grouping,
+          phase: b.phase || "",
+          activity_category: b.activity_category || "research",
+          lesson_structure_role: b.lesson_structure_role || "core",
+          response_type: b.response_type || "long-text",
+          materials_needed: b.materials_needed,
+          scaffolding: b.scaffolding,
+          ai_rules: b.ai_rules,
+          udl_checkpoints: b.udl_checkpoints,
+          success_look_fors: b.success_look_fors,
+          output_type: b.output_type || undefined,
+          prerequisite_tags: b.prerequisite_tags,
+        };
+      }
+
+      // Gap — use AI-generated activity
+      const key = `${li}-${ai}`;
+      const generated = gapResults.get(key);
+      if (generated) {
+        const act = generated.activity;
+        return {
+          source: "generated" as const,
+          title: act.title,
+          prompt: act.prompt,
+          bloom_level: act.bloom_level || "apply",
+          time_weight: act.time_weight || "moderate",
+          grouping: act.grouping || "individual",
+          phase: act.phase || "",
+          activity_category: act.activity_category || "research",
+          lesson_structure_role: act.lesson_structure_role || "core",
+          response_type: act.response_type || "long-text",
+          materials_needed: act.materials_needed || [],
+          scaffolding: act.scaffolding,
+          ai_rules: act.ai_rules,
+          udl_checkpoints: act.udl_checkpoints,
+          success_look_fors: act.success_look_fors,
+          output_type: act.output_type,
+          prerequisite_tags: act.prerequisite_tags,
+        };
+      }
+
+      // Absolute fallback
+      const ctx = slot.gapContext || {};
+      return {
+        source: "generated" as const,
+        title: slot.gapDescription || "Activity",
+        prompt: `Complete this activity for "${request.topic}".`,
+        bloom_level: ctx.suggestedBloom || "apply",
+        time_weight: ctx.suggestedTimeWeight || "moderate",
+        grouping: ctx.suggestedGrouping || "individual",
+        phase: ctx.suggestedPhase || "",
+        activity_category: ctx.suggestedCategory || "research",
+        lesson_structure_role: ctx.suggestedLessonRole || "core",
+        response_type: "long-text",
+        materials_needed: [],
+      };
+    });
+
+    return {
+      position: lesson.position,
+      label: lesson.label,
+      description: lesson.description,
+      learningGoal: `Students will develop ${profile.cycleName} skills through "${request.topic}"`,
+      activities,
+    };
+  });
+
+  const totalTokens = perGapMetrics.reduce((sum, m) => sum + m.tokensUsed, 0);
+  const totalCostUSD = perGapMetrics.reduce((sum, m) => sum + m.cost.estimatedCostUSD, 0);
+
+  return {
+    request,
+    lessons,
+    generationMetrics: {
+      gapsFilled: gapTasks.length,
+      totalTokensUsed: totalTokens,
+      totalCost: {
+        inputTokens: perGapMetrics.reduce((s, m) => s + m.promptTokens, 0),
+        outputTokens: perGapMetrics.reduce((s, m) => s + m.completionTokens, 0),
+        modelId,
+        estimatedCostUSD: totalCostUSD,
+        timeMs: Date.now() - startMs,
+      },
+      generationTimeMs: Date.now() - startMs,
+      perGapMetrics,
+    },
+  };
+}
