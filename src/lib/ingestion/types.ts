@@ -16,7 +16,13 @@ import type { CostBreakdown } from "@/types/activity-blocks";
 // =========================================================================
 
 export interface PassConfig {
-  /** Supabase client — created by API route, passed to pure functions (OS Seam 1) */
+  /**
+   * Supabase client — created by API route, passed to pure functions (OS Seam 1).
+   * Structurally typed (not the full SupabaseClient generic) so unit-test mocks
+   * and the service-role client both satisfy it without dragging the generated
+   * Database type through every ingestion module.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- structural shape; full SupabaseClient generics break inline test mocks
   supabaseClient?: { from: (table: string) => any };
   /** Teacher ID for ownership scoping */
   teacherId?: string;
@@ -41,8 +47,18 @@ export interface IngestionPass<TInput, TOutput> {
 
 export interface DedupResult {
   fileHash: string;
+  /** Hard duplicate: same SHA-256 file_hash already in content_items. Skips downstream stages. */
   isDuplicate: boolean;
   existingContentItemId?: string;
+  /**
+   * Soft duplicate: max cosine similarity vs any existing activity_block embedding.
+   * 0..1; populated when nearest neighbour ≥ 0.92. Informational only — does NOT
+   * skip pipeline stages. Surfaces near-duplicate content in the sandbox so the
+   * curator can decide whether to commit or merge.
+   */
+  nearDuplicateScore?: number;
+  nearDuplicateBlockId?: string;
+  nearDuplicateBlockTitle?: string;
   cost: CostBreakdown;
 }
 

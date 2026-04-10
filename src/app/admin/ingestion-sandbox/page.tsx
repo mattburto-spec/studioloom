@@ -454,6 +454,23 @@ export default function IngestionSandboxPage() {
         </button>
       </section>
 
+      {/* Near-duplicate warning (soft dedup) */}
+      {state.dedup.status === "done" &&
+        state.dedup.output &&
+        (state.dedup.output as DedupResult).nearDuplicateScore != null && (
+          <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
+            <span className="font-semibold">⚠ Near-duplicate detected:</span>{" "}
+            cosine{" "}
+            {(state.dedup.output as DedupResult).nearDuplicateScore!.toFixed(3)}{" "}
+            vs existing block{" "}
+            <code className="font-mono">
+              {(state.dedup.output as DedupResult).nearDuplicateBlockId?.slice(0, 8)}
+            </code>{" "}
+            — &ldquo;{(state.dedup.output as DedupResult).nearDuplicateBlockTitle}
+            &rdquo;. Pipeline will still run; review carefully before commit.
+          </div>
+        )}
+
       {/* Stage panels */}
       <section className="space-y-3">
         <StagePanel
