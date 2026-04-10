@@ -119,6 +119,37 @@ YAML values containing unquoted colons (e.g., `summary: Kit/Sage/Spark: three AI
 ### 35. Health check scripts must be dependency-free for CI reliability
 The initial WIRING health checker was written in TypeScript requiring `npm install yaml`. This adds a dependency that may not be installed in CI environments. Rewrote as Python using the built-in `yaml` package (available in all GitHub Actions runners). **Rule:** Automation scripts that run in CI should use only built-in language features or already-installed packages. If a TypeScript script needs a non-standard npm package, consider Python or bash instead.
 
+### 36. Data-backfill migrations need edge-case SQL, not just a simple UPDATE
+Migration 065 added `student_progress.class_id` with a backfill that assigned the single-class case only. 33 multi-class-enrolled rows were left NULL, silently blocking Checkpoint 0.1 for Dimensions3 Phase 0. The working resolution used unit→class intersection with an enrollment-recency tiebreaker:
+```sql
+WITH resolved AS (
+  SELECT sp.id,
+    (SELECT cs.class_id FROM class_students cs
+      JOIN class_units cu ON cu.class_id = cs.class_id
+      WHERE cs.student_id = sp.student_id AND cu.unit_id = sp.unit_id
+      ORDER BY cs.created_at DESC LIMIT 1) AS new_class_id
+  FROM student_progress sp WHERE sp.class_id IS NULL
+)
+UPDATE student_progress sp SET class_id = r.new_class_id
+FROM resolved r WHERE sp.id = r.id AND r.new_class_id IS NOT NULL;
+```
+Then delete the remaining orphans (student with progress on a unit no class they're in has assigned). **Rule:** Any migration that backfills a non-null FK must (a) handle the multi-row / multi-parent case explicitly with a deterministic tiebreaker, (b) include a verify-count query in the post-apply checklist, (c) expect orphans and decide upfront whether to delete them or allow NULL. Don't trust `UPDATE ... WHERE COUNT = 1`-style backfills to cover real production data.
+
+### 37. Verify data migrations with an ambiguity query before declaring done
+Checkpoint 0.1 would have silently "passed" if we had only checked that the `class_id` column existed — the 33 NULL rows were invisible without a targeted query. **Rule:** Every data-migration checkpoint must include a verify SQL that looks for the specific edge case the migration is supposed to fix (e.g., "count rows where the new column is still NULL AND the source has multiple candidate parents"). The verify query is part of the migration's acceptance criteria, not an afterthought.
+
+### 38. ADD COLUMN DEFAULT silently overrides subsequent conditional UPDATEs in the same migration
+Migration 067 (Phase 1.5, content moderation) added `moderation_status` with `ADD COLUMN ... DEFAULT 'pending'`, then tried to conditionally promote the 55 seed rows with `UPDATE ... SET moderation_status = 'grandfathered' WHERE ... AND moderation_status IS NULL`. The grandfather UPDATE matched **zero rows** because `ADD COLUMN ... DEFAULT` backfilled EVERY existing row to 'pending' at ALTER time — nothing was NULL anymore. The verify query at the end of the migration passed (all rows were non-NULL), the migration completed "successfully", and prod silently landed with all 55 seed rows incorrectly marked 'pending' instead of 'grandfathered'. Matt had to run a corrective UPDATE by hand post-deploy.
+
+**Why the verify didn't catch it:** the verify query only checked for NULLs, not for the EXPECTED VALUES. A migration that's supposed to produce a specific value distribution (e.g., "55 grandfathered + N pending") must verify against that distribution, not against "non-null count".
+
+**Rules:**
+- **If a column has conditional backfill logic, ADD it WITHOUT a DEFAULT.** Fill the rows explicitly in the correct order, then `ALTER COLUMN SET NOT NULL` afterward. DEFAULT is for forward-compatibility (new INSERTs), not for populating existing rows when the value depends on row state.
+- **Verify queries must assert expected values, not just "not null".** For a backfill that produces a distribution of values, include a `SELECT column, count(*) FROM table GROUP BY 1` in the post-apply checklist, and write down the expected counts BEFORE running the migration.
+- **If you must use DEFAULT for ergonomics, put the conditional UPDATE BEFORE the `ALTER TABLE ADD COLUMN` step** — which is impossible with ADD COLUMN DEFAULT, hence: don't use DEFAULT with conditional backfills.
+
+This was repaired in prod via migration 069 (idempotent grandfather safety net, no `IS NULL` predicate, re-runnable). Migration 067 in the repo is also corrected so fresh-database applies produce the right state end-to-end.
+
 ---
 
-*Last updated: 7 Apr 2026*
+*Last updated: 10 Apr 2026*

@@ -21,26 +21,44 @@
 -- bottom of this migration fails loudly if any row is left with a NULL
 -- moderation_status. If that happens, the migration aborts — we do NOT want
 -- silently-orphaned content reaching the catalogue.
+--
+-- Lesson #38 (ADD COLUMN DEFAULT overrides conditional UPDATEs): the
+-- original version of this migration added the column with
+-- `DEFAULT 'pending'`, which backfilled every existing row to 'pending'
+-- at ALTER time. The subsequent grandfather UPDATE then matched zero
+-- rows (nothing was NULL) and the seed library silently lost its
+-- 'grandfathered' status in prod. Migration 069 is the idempotent
+-- safety net that repaired prod. This version of 067 is corrected so a
+-- fresh-database apply produces the right state end-to-end: the column
+-- is added WITHOUT a DEFAULT, the grandfather UPDATE runs first against
+-- NULL, and the remaining NULLs are filled with 'pending' after.
 
 -- ─────────────────────────────────────────────────────────────────────────
--- 1. activity_blocks.moderation_status
+-- 1. activity_blocks.moderation_status (NO default — see Lesson #38)
 -- ─────────────────────────────────────────────────────────────────────────
 
 ALTER TABLE activity_blocks
-  ADD COLUMN IF NOT EXISTS moderation_status TEXT DEFAULT 'pending';
+  ADD COLUMN IF NOT EXISTS moderation_status TEXT;
 
--- CHECK constraint added after backfill so existing NULL rows don't violate.
+-- NOT NULL + CHECK constraint added after backfill so existing rows
+-- don't violate either constraint during the UPDATE.
 
 -- ─────────────────────────────────────────────────────────────────────────
--- 2. Backfill
+-- 2. Backfill — order matters
 -- ─────────────────────────────────────────────────────────────────────────
 --
 -- Seed rows from scripts/seed-teaching-moves.mjs are pre-vetted (Matt curated
 -- the 55 Teaching Moves before they landed) and should not go through the
--- moderation queue. They get 'grandfathered'.
+-- moderation queue. They get 'grandfathered' FIRST.
 --
--- Everything else (anything a teacher or the sandbox has created) goes to
--- 'pending' so the next Haiku moderation pass picks it up.
+-- Everything else (anything a teacher or the sandbox has created) then
+-- gets 'pending' so the next Haiku moderation pass picks it up.
+--
+-- Both UPDATEs still gate on `moderation_status IS NULL` — this makes the
+-- migration re-runnable against an environment where the column was added
+-- by an earlier version of this file but the values drifted: such rows
+-- will be non-NULL already and the UPDATE here will skip them. Use
+-- migration 069 to repair the specific prod drift from the original bug.
 
 UPDATE activity_blocks
 SET moderation_status = 'grandfathered'
@@ -59,6 +77,15 @@ WHERE moderation_status IS NULL;
 -- Fail loudly (not silently) if any row slipped past the backfill. If this
 -- RAISE fires, the migration is rolled back — an orphan row must be resolved
 -- by hand before this migration can be applied.
+--
+-- NOTE: this only checks for NULLs. The original bug was a wrong VALUE
+-- (everything was 'pending' instead of some being 'grandfathered'), which
+-- is NOT caught by a NULL check. Verify queries must look at the values
+-- the migration is supposed to produce, not just "any non-null". The
+-- audit-by-value query for this migration lives in the Phase 1.5 push
+-- checklist:
+--     SELECT moderation_status, count(*) FROM activity_blocks GROUP BY 1;
+-- The checklist expects the seed row count under 'grandfathered'.
 
 DO $$
 DECLARE
