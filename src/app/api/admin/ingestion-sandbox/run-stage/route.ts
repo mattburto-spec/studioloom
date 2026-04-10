@@ -29,9 +29,8 @@ import type {
   ParseResult,
   IngestionClassification,
   IngestionAnalysis,
+  CopyrightFlag,
 } from "@/lib/ingestion/types";
-
-type CopyrightFlag = "own" | "copyrighted" | "creative_commons" | "unknown";
 
 export const maxDuration = 300;
 

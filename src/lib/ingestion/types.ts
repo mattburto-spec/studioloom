@@ -124,6 +124,9 @@ export interface IngestionAnalysis {
 // Stage I-4: Block Extraction
 // =========================================================================
 
+/** Copyright provenance flag set at upload and carried through extraction. */
+export type CopyrightFlag = "own" | "copyrighted" | "creative_commons" | "unknown";
+
 export interface PIIFlag {
   type: "email" | "phone" | "name" | "school" | "location" | "date" | "other";
   value: string;
