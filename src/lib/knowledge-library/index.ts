@@ -319,6 +319,10 @@ export async function deleteKnowledgeItem(
 ): Promise<boolean> {
   const supabase = createAdminClient();
 
+  // Legacy write flagged for Dimensions3 phase TBD (Phase 0.4 audit, 10 Apr 2026).
+  // Knowledge items can still be deleted by teachers; the chunk cleanup is
+  // cascade-style and harmless for the new pipeline. Revisit when legacy
+  // knowledge_chunks is fully drained.
   // Delete associated chunks first
   await supabase
     .from("knowledge_chunks")
@@ -545,6 +549,11 @@ async function generateEmbedding(
  *
  * This bridges the Knowledge Library (browsable) with the RAG pipeline (searchable).
  */
+// Legacy write flagged for Dimensions3 phase TBD (Phase 0.4 audit, 10 Apr 2026).
+// generateItemChunks bridges the Knowledge Library (knowledge_items) with the
+// legacy RAG store (knowledge_chunks). Still called from knowledge item
+// create/update flows. Cutover to activity_blocks / content_items is a
+// Dimensions3 follow-on, not Phase 0 scope.
 export async function generateItemChunks(item: KnowledgeItem): Promise<number> {
   const supabase = createAdminClient();
 

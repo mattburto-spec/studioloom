@@ -2,6 +2,12 @@
  * Feedback loop for RAG quality improvement.
  * Tracks which chunks were used in generation and updates quality scores.
  * Also provides feedback aggregation for the learning loop (Layer 2).
+ *
+ * Phase 0.4 audit (10 Apr 2026): recordFork() and updateQualityFromFeedback()
+ * have zero live callers after the knowledge/feedback POST quarantine and the
+ * teacher/units fork path cleanup. recordGenerationUsage() / aggregate readers
+ * may still have callers — grep before deleting. Full file deletion deferred
+ * to Phase 7 cleanup.
  */
 
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -40,6 +46,7 @@ export async function recordGenerationUsage(
 export async function recordFork(unitId: string): Promise<void> {
   const supabaseAdmin = createAdminClient();
 
+  // Historical read — legacy pipeline, do not reintroduce writes.
   // Boost fork_count and quality_score for all chunks from this unit
   const { data: chunks } = await supabaseAdmin
     .from("knowledge_chunks")
@@ -50,6 +57,9 @@ export async function recordFork(unitId: string): Promise<void> {
   if (!chunks?.length) return;
 
   for (const chunk of chunks) {
+    // Legacy write flagged for Dimensions3 phase TBD (Phase 0.4 audit, 10 Apr 2026).
+    // Function has zero live callers after Phase 0.4 quarantine — dead code
+    // retained pending Phase 7 deletion.
     await supabaseAdmin
       .from("knowledge_chunks")
       .update({
@@ -285,6 +295,7 @@ export async function updateQualityFromFeedback(
 
   const supabaseAdmin = createAdminClient();
 
+  // Historical read — legacy pipeline, do not reintroduce writes.
   // Find chunks associated with this unit
   const { data: chunks } = await supabaseAdmin
     .from("knowledge_chunks")
@@ -325,6 +336,8 @@ export async function updateQualityFromFeedback(
     const newScore = Math.max(0.1, Math.min(1.0, currentScore + delta));
 
     try {
+      // Legacy write flagged for Dimensions3 phase TBD (Phase 0.4 audit, 10 Apr 2026).
+      // Function has zero live callers after Phase 0.4 quarantine.
       await supabaseAdmin
         .from("knowledge_chunks")
         .update({

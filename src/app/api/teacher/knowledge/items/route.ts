@@ -69,6 +69,7 @@ export async function GET(request: NextRequest) {
 
     if (uploadIds.length > 0) {
       const supabase = createAdminClient();
+      // Historical read — legacy pipeline, do not reintroduce writes.
       const { data: profiles } = await supabase
         .from("lesson_profiles")
         .select("upload_id, pedagogical_approach, complexity_level, criteria_covered, estimated_duration_minutes, created_at, profile_data")

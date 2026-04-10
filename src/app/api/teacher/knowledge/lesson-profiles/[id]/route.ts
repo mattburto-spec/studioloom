@@ -2,7 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-// Un-quarantined (9 Apr 2026) — Knowledge pipeline restored.
+// Phase 0.4 (10 Apr 2026): GET kept as a historical read on the legacy
+// lesson_profiles table. PATCH re-quarantined — verification/rating writes
+// to lesson_profiles no longer accepted. See docs/quarantine.md.
+const QUARANTINE_RESPONSE = NextResponse.json(
+  {
+    error:
+      "Legacy lesson-profile PATCH quarantined — use /api/teacher/knowledge/ingest (Dimensions3). See docs/quarantine.md",
+  },
+  { status: 410 }
+);
 
 async function getTeacherId(request: NextRequest): Promise<string | null> {
   const supabase = createServerClient(
@@ -38,6 +47,7 @@ export async function GET(
   const { id } = await params;
   const supabaseAdmin = createAdminClient();
 
+  // Historical read — legacy pipeline, do not reintroduce writes.
   const { data: row, error } = await supabaseAdmin
     .from("lesson_profiles")
     .select(
@@ -76,52 +86,8 @@ export async function GET(
  * PATCH: Update verification status and rating
  */
 export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  _request: NextRequest,
+  _ctx: { params: Promise<{ id: string }> }
 ) {
-  const teacherId = await getTeacherId(request);
-  if (!teacherId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { id } = await params;
-  const body = await request.json();
-  const supabaseAdmin = createAdminClient();
-
-  // Build update object from allowed fields
-  const updates: Record<string, unknown> = {};
-  if (typeof body.teacher_verified === "boolean") {
-    updates.teacher_verified = body.teacher_verified;
-  }
-  if (typeof body.teacher_quality_rating === "number" && body.teacher_quality_rating >= 1 && body.teacher_quality_rating <= 5) {
-    updates.teacher_quality_rating = body.teacher_quality_rating;
-  }
-
-  if (Object.keys(updates).length === 0) {
-    return NextResponse.json(
-      { error: "No valid fields to update" },
-      { status: 400 }
-    );
-  }
-
-  const { data: row, error } = await supabaseAdmin
-    .from("lesson_profiles")
-    .update(updates)
-    .eq("id", id)
-    .eq("teacher_id", teacherId)
-    .select("id, teacher_verified, teacher_quality_rating")
-    .single();
-
-  if (error || !row) {
-    return NextResponse.json(
-      { error: "Failed to update profile" },
-      { status: 500 }
-    );
-  }
-
-  return NextResponse.json({
-    profileId: row.id,
-    verified: row.teacher_verified,
-    rating: row.teacher_quality_rating,
-  });
+  return QUARANTINE_RESPONSE;
 }

@@ -242,6 +242,11 @@ export async function recordLessonProfileRetrieval(
   const supabaseAdmin = createAdminClient();
   for (const id of profileIds) {
     try {
+      // Legacy write flagged for Dimensions3 phase TBD (Phase 0.4 audit, 10 Apr 2026).
+      // Bumps a usage counter on the legacy lesson_profiles table. Still called
+      // from live generation routes (generate-outlines, regenerate-page, etc.) —
+      // cannot be removed until the generation pipeline is cut over to the new
+      // content_items / activity_blocks store.
       await supabaseAdmin
         .from("lesson_profiles")
         .update({ times_referenced: supabaseAdmin.rpc("increment_profile_reference", { profile_id: id }) as unknown as number })
@@ -264,6 +269,7 @@ export async function incrementProfileReferences(
   const supabaseAdmin = createAdminClient();
   for (const id of profileIds) {
     try {
+      // Historical read — legacy pipeline, do not reintroduce writes.
       // Direct increment — simpler than RPC
       const { data } = await supabaseAdmin
         .from("lesson_profiles")
@@ -272,6 +278,8 @@ export async function incrementProfileReferences(
         .single();
 
       if (data) {
+        // Legacy write flagged for Dimensions3 phase TBD (Phase 0.4 audit, 10 Apr 2026).
+        // Same disposition as recordLessonProfileRetrieval above.
         await supabaseAdmin
           .from("lesson_profiles")
           .update({ times_referenced: (data.times_referenced || 0) + 1 })

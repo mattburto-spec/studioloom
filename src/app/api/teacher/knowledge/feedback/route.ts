@@ -1,9 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireTeacherAuth } from "@/lib/auth/verify-teacher-unit";
-import { updateQualityFromFeedback } from "@/lib/knowledge/feedback";
 
-// Un-quarantined (9 Apr 2026) — Knowledge pipeline restored.
+// Phase 0.4 (10 Apr 2026): POST re-quarantined because its fire-and-forget
+// updateQualityFromFeedback() call writes to the legacy knowledge_chunks
+// table. GET kept — it reads lesson_feedback (separate table, not in scope).
+// See docs/quarantine.md.
+const QUARANTINE_RESPONSE = NextResponse.json(
+  {
+    error:
+      "Legacy knowledge feedback quarantined — use /api/teacher/knowledge/ingest (Dimensions3). See docs/quarantine.md",
+  },
+  { status: 410 }
+);
 
 /**
  * POST: Submit post-lesson feedback.
@@ -21,94 +30,8 @@ import { updateQualityFromFeedback } from "@/lib/knowledge/feedback";
  *   feedback_data: TeacherPostLessonFeedback | StudentPostLessonFeedback;
  * }
  */
-export async function POST(request: NextRequest) {
-  const auth = await requireTeacherAuth(request);
-  if (auth.error) return auth.error;
-  const teacherId = auth.teacherId;
-
-  const body = await request.json();
-  const {
-    feedback_type,
-    lesson_profile_id,
-    unit_id,
-    page_id,
-    class_id,
-    feedback_data,
-  } = body;
-
-  if (!feedback_type || !["teacher", "student"].includes(feedback_type)) {
-    return NextResponse.json(
-      { error: "feedback_type must be 'teacher' or 'student'" },
-      { status: 400 }
-    );
-  }
-
-  if (!lesson_profile_id && !unit_id) {
-    return NextResponse.json(
-      { error: "lesson_profile_id or unit_id is required" },
-      { status: 400 }
-    );
-  }
-
-  if (!feedback_data) {
-    return NextResponse.json(
-      { error: "feedback_data is required" },
-      { status: 400 }
-    );
-  }
-
-  const supabaseAdmin = createAdminClient();
-
-  // Verify the lesson profile exists (only if provided)
-  if (lesson_profile_id) {
-    const { data: profile, error: profileError } = await supabaseAdmin
-      .from("lesson_profiles")
-      .select("id")
-      .eq("id", lesson_profile_id)
-      .single();
-
-    if (profileError || !profile) {
-      return NextResponse.json(
-        { error: "Lesson profile not found" },
-        { status: 404 }
-      );
-    }
-  }
-
-  // Insert feedback
-  const { data: row, error: insertError } = await supabaseAdmin
-    .from("lesson_feedback")
-    .insert({
-      lesson_profile_id: lesson_profile_id || null,
-      teacher_id: teacherId,
-      unit_id: unit_id || null,
-      page_id: page_id || null,
-      class_id: class_id || null,
-      feedback_type,
-      feedback_data,
-    })
-    .select("id, created_at")
-    .single();
-
-  if (insertError) {
-    console.error("[feedback] Insert failed:", insertError.message);
-    return NextResponse.json(
-      { error: `Failed to submit feedback: ${insertError.message}` },
-      { status: 500 }
-    );
-  }
-
-  // Fire-and-forget: update chunk quality scores based on feedback
-  if (unit_id) {
-    updateQualityFromFeedback(unit_id, feedback_type, feedback_data).catch(() => {
-      // Non-critical — quality re-scoring should never block the response
-    });
-  }
-
-  return NextResponse.json({
-    feedbackId: row.id,
-    createdAt: row.created_at,
-  });
+export async function POST(_request: NextRequest) {
+  return QUARANTINE_RESPONSE;
 }
 
 /**

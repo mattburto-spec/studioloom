@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
-// QUARANTINED (3 Apr 2026) — Knowledge pipeline disabled
-// import { ingestUnit } from "@/lib/knowledge/ingest-unit";
-// import { recordFork } from "@/lib/knowledge/feedback";
+// Legacy knowledge pipeline helpers removed (Phase 0.4, 10 Apr 2026):
+//   - ingest-unit.ts deleted (was dead code, wrote knowledge_chunks)
+//   - recordFork() still in feedback.ts but not imported here
 import { getPageList } from "@/lib/unit-adapter";
 import type { PageContent } from "@/types";
 
@@ -203,11 +203,8 @@ export async function POST(request: NextRequest) {
         .update({ fork_count: (source.fork_count || 0) + 1 })
         .eq("id", unitId);
 
-      // QUARANTINED (3 Apr 2026) — Knowledge pipeline disabled pending architecture rebuild.
-      // See docs/quarantine.md for full rationale.
-      // ingestUnit(...).catch(() => {});
-      // recordFork(unitId).catch(() => {});
-
+      // Legacy knowledge pipeline helpers (ingestUnit, recordFork) removed in
+      // Phase 0.4 (10 Apr 2026). Dimensions3 replacement TBD.
       return NextResponse.json({ success: true, unitId: newUnit?.id });
     }
 
