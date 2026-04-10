@@ -7,6 +7,7 @@ const TABS = [
   { label: "Dashboard", href: "/admin" },
   { label: "Pipeline", href: "/admin/pipeline" },
   { label: "Library", href: "/admin/library" },
+  { label: "Ingestion Sandbox", href: "/admin/ingestion-sandbox" },
   { label: "Simulator", href: "/admin/simulator" },
   { label: "Feedback", href: "/admin/feedback" },
   { label: "Costs", href: "/admin/costs" },
