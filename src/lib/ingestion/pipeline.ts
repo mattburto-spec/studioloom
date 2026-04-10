@@ -23,6 +23,7 @@ import { parseDocument } from "./parse";
 import { passA } from "./pass-a";
 import { passB } from "./pass-b";
 import { extractBlocks } from "./extract";
+import { checkBlocksForCopyright } from "./copyright-check";
 import { moderateExtractedBlocks } from "./moderate";
 
 function sumCosts(...costs: CostBreakdown[]): CostBreakdown {
@@ -111,11 +112,24 @@ export async function runIngestionPipeline(
   // Stage I-3: Pass B — Analyse + Enrich
   const analysis: IngestionAnalysis = await passB.run(classification, config);
 
-  // Stage I-4: Block Extraction + PII + Copyright
-  const extraction: ExtractionResult = extractBlocks(
+  // Stage I-4: Block Extraction + PII + Copyright (user-declared)
+  const extractionRaw: ExtractionResult = extractBlocks(
     analysis,
     input.copyrightFlag || "unknown"
   );
+
+  // Stage I-4b: Copyright heuristic — flip any block whose prompt/description
+  // contains a ≥200 char verbatim match against the existing block corpus.
+  // Failure-safe: DB errors leave blocks unchanged.
+  const copyrightCheck = await checkBlocksForCopyright(extractionRaw.blocks, config);
+  const extraction: ExtractionResult = {
+    ...extractionRaw,
+    blocks: copyrightCheck.blocks,
+    cost: {
+      ...extractionRaw.cost,
+      timeMs: extractionRaw.cost.timeMs + copyrightCheck.cost.timeMs,
+    },
+  };
 
   // Stage I-5: Haiku moderation on extracted blocks (§17.6 Phase B).
   // Runs after extract so the moderator sees the final title/prompt/description

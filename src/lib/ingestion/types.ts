@@ -189,6 +189,13 @@ export interface ExtractedBlock {
   source_section_index: number;
   piiFlags: PIIFlag[];
   copyrightFlag: "own" | "copyrighted" | "creative_commons" | "unknown";
+  /**
+   * Set by the Stage I-4b copyright heuristic when a verbatim chunk ≥ 200
+   * chars matched an existing block in the corpus. Populated alongside a
+   * forced `copyrightFlag='copyrighted'` flip. Advisory only — surfaced in
+   * the sandbox review UI so curators can see what triggered the flag.
+   */
+  copyrightMatchedSnippet?: string;
 }
 
 export interface ExtractionResult {

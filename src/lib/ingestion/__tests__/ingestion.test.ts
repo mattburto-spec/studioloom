@@ -5,6 +5,7 @@ import { passA } from "../pass-a";
 import { passB } from "../pass-b";
 import { extractBlocks } from "../extract";
 import { moderateExtractedBlocks } from "../moderate";
+import { detectVerbatimOverlap, checkBlocksForCopyright, COPYRIGHT_MIN_MATCH_CHARS } from "../copyright-check";
 import { scanForPII, hasPII } from "../pii-scan";
 import { ingestionPasses, getPass } from "../registry";
 import { runIngestionPipeline } from "../pipeline";
@@ -632,5 +633,124 @@ describe("moderateExtractedBlocks", () => {
     // moderate.ts for that branch.
     const res = await moderateExtractedBlocks(FAKE_BLOCKS, {});
     expect(res.blocks.every((b) => b.moderationStatus === "approved")).toBe(true);
+  });
+});
+
+describe("copyright heuristic — detectVerbatimOverlap", () => {
+  const LONG = "a".repeat(COPYRIGHT_MIN_MATCH_CHARS);
+
+  it("returns no match for empty corpus", () => {
+    expect(detectVerbatimOverlap(LONG, [])).toEqual({ matched: false });
+  });
+
+  it("returns no match when text is shorter than minChars", () => {
+    expect(detectVerbatimOverlap("short text", [LONG])).toEqual({ matched: false });
+  });
+
+  it("detects an exact verbatim chunk ≥ minChars", () => {
+    const source =
+      "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.";
+    // Embed the source inside a larger block
+    const block = `Intro to the activity. ${source} Now do this with your partner.`;
+    const result = detectVerbatimOverlap(block, [source]);
+    expect(result.matched).toBe(true);
+    expect(result.snippet).toBeDefined();
+    expect(result.snippet!.length).toBe(COPYRIGHT_MIN_MATCH_CHARS);
+  });
+
+  it("normalises whitespace (tabs/newlines vs spaces still match)", () => {
+    const corpusEntry =
+      "The students will research the structural principles of bridges including tension compression and load distribution. They will then design and build a prototype using available materials and test it against a 5 kilogram load.";
+    const blockWithDifferentWhitespace = corpusEntry
+      .replace(/ /g, "\n")
+      .replace(/\n\n/g, "\t");
+    const result = detectVerbatimOverlap(blockWithDifferentWhitespace, [corpusEntry]);
+    expect(result.matched).toBe(true);
+  });
+
+  it("does not match when corpus has only short entries", () => {
+    expect(detectVerbatimOverlap(LONG, ["short", "also short"])).toEqual({
+      matched: false,
+    });
+  });
+
+  it("does not match on unrelated content of sufficient length", () => {
+    const a = "a".repeat(300);
+    const b = "b".repeat(300);
+    expect(detectVerbatimOverlap(a, [b])).toEqual({ matched: false });
+  });
+});
+
+describe("copyright heuristic — checkBlocksForCopyright", () => {
+  const BASE_BLOCK = {
+    tempId: "c1",
+    title: "Research activity",
+    description: "A research activity for pairs.",
+    prompt: "",
+    bloom_level: "understand",
+    time_weight: "moderate",
+    grouping: "pair",
+    phase: "investigate",
+    activity_category: "research",
+    materials: [],
+    source_section_index: 0,
+    piiFlags: [],
+    copyrightFlag: "own" as const,
+  };
+
+  it("returns blocks unchanged when DB is unavailable", async () => {
+    const result = await checkBlocksForCopyright(
+      [{ ...BASE_BLOCK, prompt: "a".repeat(300) }],
+      {}
+    );
+    expect(result.flaggedCount).toBe(0);
+    expect(result.blocks[0].copyrightFlag).toBe("own");
+  });
+
+  it("flips copyrightFlag when a verbatim match is found in the corpus", async () => {
+    const copiedText =
+      "Students will build a cardboard prototype of their chair design using corrugated cardboard, hot glue, and a craft knife. They should focus on structural integrity and the comfort of the seat, testing with a 50 kilogram load before the final review.";
+
+    const mockClient = {
+      from: () => ({
+        select: () => ({
+          limit: async () => ({
+            data: [{ prompt: copiedText, description: "unrelated" }],
+          }),
+        }),
+      }),
+    };
+
+    const result = await checkBlocksForCopyright(
+      [{ ...BASE_BLOCK, prompt: `Today: ${copiedText} End.` }],
+      { supabaseClient: mockClient }
+    );
+    expect(result.flaggedCount).toBe(1);
+    expect(result.blocks[0].copyrightFlag).toBe("copyrighted");
+    expect(result.blocks[0].copyrightMatchedSnippet).toBeDefined();
+  });
+
+  it("is failure-safe when the DB query throws", async () => {
+    const mockClient = {
+      from: () => ({
+        select: () => ({
+          limit: async () => {
+            throw new Error("connection refused");
+          },
+        }),
+      }),
+    };
+    const result = await checkBlocksForCopyright(
+      [{ ...BASE_BLOCK, prompt: "a".repeat(300) }],
+      { supabaseClient: mockClient }
+    );
+    expect(result.flaggedCount).toBe(0);
+    expect(result.blocks[0].copyrightFlag).toBe("own");
+  });
+
+  it("handles empty input array", async () => {
+    const result = await checkBlocksForCopyright([], {});
+    expect(result.blocks).toEqual([]);
+    expect(result.flaggedCount).toBe(0);
   });
 });
