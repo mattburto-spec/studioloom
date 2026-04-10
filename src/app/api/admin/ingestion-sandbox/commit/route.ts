@@ -57,6 +57,9 @@ interface AcceptedCandidate {
   udl_hints?: string[];
   teaching_approach?: string;
   piiFlags?: unknown[];
+  /** Set by Stage I-5 moderation. Unmoderated candidates default to 'pending'. */
+  moderationStatus?: "approved" | "flagged" | "rejected" | "pending";
+  moderationFlags?: Array<{ category: string; severity: string; reason?: string }>;
 }
 
 function supabase() {
@@ -110,6 +113,10 @@ export async function POST(request: NextRequest) {
       const embedSource = `${c.title}\n\n${c.prompt}\n\n${c.description || ""}`.trim();
       const vec = await embedText(embedSource);
 
+      // Default to 'pending' if the caller didn't pipe a moderation result
+      // through — never auto-approve on the commit path.
+      const moderationStatus = c.moderationStatus || "pending";
+
       const payload: Record<string, unknown> = {
         title: c.title.slice(0, 200),
         prompt: c.prompt,
@@ -132,6 +139,7 @@ export async function POST(request: NextRequest) {
         pii_scanned: true,
         pii_flags: c.piiFlags && c.piiFlags.length > 0 ? c.piiFlags : null,
         scaffolding: c.scaffolding_notes ? { notes: c.scaffolding_notes } : null,
+        moderation_status: moderationStatus,
         embedding: toPgVector(vec),
       };
 
@@ -142,6 +150,20 @@ export async function POST(request: NextRequest) {
         .single();
       if (error) throw error;
       inserted.push({ id: data.id, title: data.title });
+
+      // Write a content_moderation_log row so the decision is auditable. Best
+      // effort — if the log insert fails, the block still persisted above.
+      try {
+        await sb.from("content_moderation_log").insert({
+          block_id: data.id,
+          status: moderationStatus,
+          reason: c.moderationFlags && c.moderationFlags[0]?.reason ? c.moderationFlags[0].reason : null,
+          model_id: c.moderationStatus ? "claude-haiku-4-5-20251001" : null,
+          flags: c.moderationFlags && c.moderationFlags.length > 0 ? c.moderationFlags : [],
+        });
+      } catch (logErr) {
+        console.warn("[sandbox/commit] moderation log insert failed:", logErr);
+      }
     } catch (e) {
       failed.push({ title: c.title, error: e instanceof Error ? e.message : String(e) });
     }

@@ -104,6 +104,13 @@ describe("E2E: Library → Generation (Reconstruction)", () => {
         cost: ZERO_COST,
       },
       analysis: { classification: { documentType: "lesson_plan", confidence: 0.9, confidences: { documentType: 0.9 }, topic: "Design", sections: [], cost: ZERO_COST }, enrichedSections: [], cost: ZERO_COST },
+      moderation: {
+        blocks: [],
+        cost: ZERO_COST,
+        approvedCount: 0,
+        flaggedCount: 0,
+        pendingCount: 0,
+      },
       extraction: {
         blocks: [
           {
@@ -176,7 +183,7 @@ describe("E2E: Library → Generation (Reconstruction)", () => {
           title: "Lesson 1",
           learningGoal: "Understand bridges",
           blocks: [
-            { tempId: "b1", title: "Activity 1", description: "desc", prompt: "p", bloom_level: "remember", time_weight: "quick", grouping: "individual", phase: "discover", activity_category: "warmup", materials: [], source_section_index: 0, piiFlags: [] as unknown[], copyrightFlag: "own" as const },
+            { tempId: "b1", title: "Activity 1", description: "desc", prompt: "p", bloom_level: "remember", time_weight: "quick", grouping: "individual", phase: "discover", activity_category: "warmup", materials: [], source_section_index: 0, piiFlags: [], copyrightFlag: "own" as const },
           ],
           matchPercentage: 80,
           originalIndex: 0,

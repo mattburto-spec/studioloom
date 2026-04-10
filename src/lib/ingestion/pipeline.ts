@@ -14,6 +14,7 @@ import type {
   IngestionClassification,
   IngestionAnalysis,
   ExtractionResult,
+  ModerationStageResult,
   IngestionPipelineResult,
   CopyrightFlag,
 } from "./types";
@@ -22,6 +23,7 @@ import { parseDocument } from "./parse";
 import { passA } from "./pass-a";
 import { passB } from "./pass-b";
 import { extractBlocks } from "./extract";
+import { moderateExtractedBlocks } from "./moderate";
 
 function sumCosts(...costs: CostBreakdown[]): CostBreakdown {
   return {
@@ -88,6 +90,13 @@ export async function runIngestionPipeline(
         blocks: [], totalSectionsProcessed: 0, activitySectionsFound: 0,
         piiDetected: false, cost: zeroCost,
       },
+      moderation: {
+        blocks: [],
+        cost: zeroCost,
+        approvedCount: 0,
+        flaggedCount: 0,
+        pendingCount: 0,
+      },
       totalCost: zeroCost,
       totalTimeMs: Date.now() - startTime,
     };
@@ -108,12 +117,26 @@ export async function runIngestionPipeline(
     input.copyrightFlag || "unknown"
   );
 
+  // Stage I-5: Haiku moderation on extracted blocks (§17.6 Phase B).
+  // Runs after extract so the moderator sees the final title/prompt/description
+  // each block will carry into the review queue. Failure-safe — any Haiku error
+  // leaves every block at 'pending' rather than auto-approving.
+  const moderationRaw = await moderateExtractedBlocks(extraction.blocks, config);
+  const moderation: ModerationStageResult = {
+    blocks: moderationRaw.blocks,
+    cost: moderationRaw.cost,
+    approvedCount: moderationRaw.blocks.filter((b) => b.moderationStatus === "approved").length,
+    flaggedCount: moderationRaw.blocks.filter((b) => b.moderationStatus === "flagged").length,
+    pendingCount: moderationRaw.blocks.filter((b) => b.moderationStatus === "pending").length,
+  };
+
   const totalCost = sumCosts(
     dedup.cost,
     parse.cost,
     classification.cost,
     analysis.cost,
-    extraction.cost
+    extraction.cost,
+    moderation.cost
   );
 
   return {
@@ -122,6 +145,7 @@ export async function runIngestionPipeline(
     classification,
     analysis,
     extraction,
+    moderation,
     totalCost: { ...totalCost, timeMs: Date.now() - startTime },
     totalTimeMs: Date.now() - startTime,
   };

@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
     let query = adminClient
       .from("activity_blocks")
       .select(
-        "id, title, description, prompt, bloom_level, time_weight, grouping, phase, activity_category, materials_needed, pii_scanned, pii_flags, copyright_flag, teacher_verified, source_upload_id, created_at"
+        "id, title, description, prompt, bloom_level, time_weight, grouping, phase, activity_category, materials_needed, pii_scanned, pii_flags, copyright_flag, teacher_verified, source_upload_id, created_at, moderation_status"
       )
       .eq("teacher_id", teacherId)
       .eq("source_type", "extracted")

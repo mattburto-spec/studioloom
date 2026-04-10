@@ -200,6 +200,42 @@ export interface ExtractionResult {
 }
 
 // =========================================================================
+// Stage I-5: Moderation (Haiku)
+// =========================================================================
+
+/** Lifecycle of a candidate block through moderation. Matches the DB CHECK
+ *  constraint on `activity_blocks.moderation_status` added in migration 067. */
+export type ModerationStatus =
+  | "approved"
+  | "flagged"
+  | "rejected"
+  | "pending"
+  | "grandfathered";
+
+export interface ModerationFlag {
+  category: string;                   // 'violence' | 'sexual' | ... | 'other'
+  severity: "info" | "warning" | "critical";
+  reason?: string;
+  snippet?: string;
+}
+
+/** ExtractedBlock after Stage I-5 moderation has run. */
+export interface ModeratedBlock extends ExtractedBlock {
+  moderationStatus: ModerationStatus;
+  moderationFlags: ModerationFlag[];
+}
+
+export interface ModerationStageResult {
+  blocks: ModeratedBlock[];
+  /** Total Haiku cost across the moderation batch. */
+  cost: CostBreakdown;
+  /** Counts for the sandbox summary panel. */
+  approvedCount: number;
+  flaggedCount: number;
+  pendingCount: number;
+}
+
+// =========================================================================
 // Full Pipeline Result
 // =========================================================================
 
@@ -210,6 +246,7 @@ export interface IngestionPipelineResult {
   classification: IngestionClassification;
   analysis: IngestionAnalysis;
   extraction: ExtractionResult;
+  moderation: ModerationStageResult;
   totalCost: CostBreakdown;
   totalTimeMs: number;
 }

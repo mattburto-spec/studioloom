@@ -20,13 +20,17 @@ import type {
   IngestionAnalysis,
   ExtractionResult,
   ExtractedBlock,
+  ModeratedBlock,
+  ModerationStageResult,
+  ModerationStatus,
+  ModerationFlag,
 } from "@/lib/ingestion/types";
 
 // -----------------------------------------------------------------------------
 // Types
 // -----------------------------------------------------------------------------
 
-type StageId = "dedup" | "parse" | "passA" | "passB" | "extract";
+type StageId = "dedup" | "parse" | "passA" | "passB" | "extract" | "moderate";
 
 type StageStatus = "idle" | "running" | "done" | "error";
 
@@ -55,6 +59,7 @@ interface SandboxState {
   passA: StageState<IngestionClassification>;
   passB: StageState<IngestionAnalysis>;
   extract: StageState<ExtractionResult>;
+  moderate: StageState<ModerationStageResult>;
   candidates: AcceptedCandidate[];
   rejected: Set<string>;
   copyrightFlag: "own" | "copyrighted" | "creative_commons" | "unknown";
@@ -75,6 +80,8 @@ interface AcceptedCandidate {
   udl_hints?: string[];
   teaching_approach?: string;
   piiFlags?: unknown[];
+  moderationStatus?: ModerationStatus;
+  moderationFlags?: ModerationFlag[];
   accepted: boolean;
   edited: boolean;
 }
@@ -90,6 +97,7 @@ const initialState: SandboxState = {
   passA: emptyStage<IngestionClassification>(),
   passB: emptyStage<IngestionAnalysis>(),
   extract: emptyStage<ExtractionResult>(),
+  moderate: emptyStage<ModerationStageResult>(),
   candidates: [],
   rejected: new Set(),
   copyrightFlag: "unknown",
@@ -133,7 +141,8 @@ export default function IngestionSandboxPage() {
     costFromStage(state.parse) +
     costFromStage(state.passA) +
     costFromStage(state.passB) +
-    costFromStage(state.extract);
+    costFromStage(state.extract) +
+    costFromStage(state.moderate);
 
   const acceptedCount = useMemo(
     () => state.candidates.filter((c) => c.accepted).length,
@@ -223,6 +232,13 @@ export default function IngestionSandboxPage() {
           }
           input = state.passB.output;
           break;
+        case "moderate":
+          if (state.extract.status !== "done") {
+            alert("Run Extract first");
+            return;
+          }
+          input = state.extract.output;
+          break;
       }
 
       setState((s) => ({ ...s, [stage]: { status: "running" } }));
@@ -276,10 +292,28 @@ export default function IngestionSandboxPage() {
               udl_hints: b.udl_hints,
               teaching_approach: b.teaching_approach,
               piiFlags: b.piiFlags,
+              moderationStatus: "pending",
+              moderationFlags: [],
               accepted: true,
               edited: false,
             }));
             next.rejected = new Set();
+          }
+          // Merge moderation results onto existing candidates
+          if (stage === "moderate") {
+            const mod = data.output as ModerationStageResult;
+            const byTempId = new Map<string, ModeratedBlock>(
+              (mod?.blocks || []).map((b) => [b.tempId, b])
+            );
+            next.candidates = s.candidates.map((c) => {
+              const m = byTempId.get(c.tempId);
+              if (!m) return c;
+              return {
+                ...c,
+                moderationStatus: m.moderationStatus,
+                moderationFlags: m.moderationFlags,
+              };
+            });
           }
           return next;
         });
@@ -302,6 +336,7 @@ export default function IngestionSandboxPage() {
     await runStage("passA");
     await runStage("passB");
     await runStage("extract");
+    await runStage("moderate");
   }, [runStage]);
 
   // ---------------------------------------------------------------------------
@@ -338,6 +373,8 @@ export default function IngestionSandboxPage() {
             udl_hints: c.udl_hints,
             teaching_approach: c.teaching_approach,
             piiFlags: c.piiFlags,
+            moderationStatus: c.moderationStatus,
+            moderationFlags: c.moderationFlags,
           })),
         }),
       });
@@ -507,6 +544,13 @@ export default function IngestionSandboxPage() {
           state={state.extract}
           disabled={state.passB.status !== "done"}
           onRun={() => runStage("extract")}
+        />
+        <StagePanel
+          id="moderate"
+          label="I-5. Moderate (Haiku)"
+          state={state.moderate}
+          disabled={state.extract.status !== "done"}
+          onRun={() => runStage("moderate")}
         />
       </section>
 
@@ -760,6 +804,19 @@ function CandidateCard({
             {hasPII && (
               <span className="text-[10px] bg-red-100 text-red-800 px-2 py-0.5 rounded font-semibold">
                 ⚠ PII ({candidate.piiFlags!.length})
+              </span>
+            )}
+            {candidate.moderationStatus && (
+              <span
+                className={`text-[10px] px-2 py-0.5 rounded font-semibold ${
+                  candidate.moderationStatus === "approved"
+                    ? "bg-green-100 text-green-800"
+                    : candidate.moderationStatus === "flagged"
+                      ? "bg-red-100 text-red-800"
+                      : "bg-gray-100 text-gray-700"
+                }`}
+              >
+                mod: {candidate.moderationStatus}
               </span>
             )}
             {candidate.edited && (

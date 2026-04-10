@@ -63,6 +63,13 @@ export async function POST() {
         ],
         totalSectionsProcessed: 1, activitySectionsFound: 1, piiDetected: false, cost: ZERO_COST,
       },
+      moderation: {
+        blocks: [],
+        cost: ZERO_COST,
+        approvedCount: 0,
+        flaggedCount: 0,
+        pendingCount: 0,
+      },
       totalCost: ZERO_COST,
       totalTimeMs: 50,
     };

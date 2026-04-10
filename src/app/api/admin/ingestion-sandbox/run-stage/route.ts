@@ -24,18 +24,20 @@ import { parseDocument } from "@/lib/ingestion/parse";
 import { passA } from "@/lib/ingestion/pass-a";
 import { passB } from "@/lib/ingestion/pass-b";
 import { extractBlocks } from "@/lib/ingestion/extract";
+import { moderateExtractedBlocks } from "@/lib/ingestion/moderate";
 import type {
   PassConfig,
   ParseResult,
   IngestionClassification,
   IngestionAnalysis,
+  ExtractionResult,
   CopyrightFlag,
 } from "@/lib/ingestion/types";
 
 export const maxDuration = 300;
 
-type Stage = "dedup" | "parse" | "passA" | "passB" | "extract";
-const VALID_STAGES: Stage[] = ["dedup", "parse", "passA", "passB", "extract"];
+type Stage = "dedup" | "parse" | "passA" | "passB" | "extract" | "moderate";
+const VALID_STAGES: Stage[] = ["dedup", "parse", "passA", "passB", "extract", "moderate"];
 
 function supabase() {
   return createClient(
@@ -139,6 +141,27 @@ export async function POST(request: NextRequest) {
           );
         }
         output = extractBlocks(analysis, body.copyrightFlag || "unknown");
+        break;
+      }
+      case "moderate": {
+        const extraction = body.input as ExtractionResult;
+        if (!extraction?.blocks) {
+          return NextResponse.json(
+            { error: "moderate stage expects input to be an ExtractionResult" },
+            { status: 400 }
+          );
+        }
+        const res = await moderateExtractedBlocks(extraction.blocks, config);
+        const approvedCount = res.blocks.filter((b) => b.moderationStatus === "approved").length;
+        const flaggedCount = res.blocks.filter((b) => b.moderationStatus === "flagged").length;
+        const pendingCount = res.blocks.filter((b) => b.moderationStatus === "pending").length;
+        output = {
+          blocks: res.blocks,
+          cost: res.cost,
+          approvedCount,
+          flaggedCount,
+          pendingCount,
+        };
         break;
       }
     }
