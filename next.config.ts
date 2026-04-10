@@ -23,6 +23,18 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  // Permanent redirects
+  async redirects() {
+    return [
+      {
+        // Phase 0.3 (10 Apr 2026) — renamed to disambiguate from the real
+        // §7.2/7.3 sandboxes that ship in Dimensions3 Phase 7.
+        source: "/admin/sandbox",
+        destination: "/admin/simulator",
+        permanent: true,
+      },
+    ];
+  },
   // Security headers — OWASP basics
   async headers() {
     return [

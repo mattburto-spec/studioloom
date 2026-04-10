@@ -28,7 +28,7 @@ const DEFAULT_REQUEST: GenerationRequest = {
   },
 };
 
-export default function SandboxPage() {
+export default function SimulatorPage() {
   const [request, setRequest] = useState<GenerationRequest>(DEFAULT_REQUEST);
   const [result, setResult] = useState<PipelineResult | null>(null);
   const [activeStage, setActiveStage] = useState<number | null>(null);
@@ -50,11 +50,18 @@ export default function SandboxPage() {
 
   return (
     <div className="max-w-7xl mx-auto p-6 space-y-6">
+      {/* Fixture-data banner (Phase 0.3, 10 Apr 2026) */}
+      <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r-lg">
+        <p className="text-sm text-yellow-800">
+          This simulator uses hardcoded fixture data. It does not generate real units.
+        </p>
+      </div>
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Pipeline Sandbox</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Pipeline Simulator (offline)</h1>
         <p className="text-sm text-gray-500 mt-1">
-          Test the generation pipeline with simulated data. No AI calls, no cost.
+          Offline fixture-based simulator. Validates pipeline wiring. Zero AI calls. For live
+          generation debugging, use Generation Sandbox (built in Phase 7).
         </p>
       </div>
 
