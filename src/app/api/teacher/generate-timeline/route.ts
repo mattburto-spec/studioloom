@@ -17,9 +17,7 @@ import type { LessonJourneyInput, TimelineOutlineOption, TimelinePhase, Timeline
  * 2. Activities have warmup/reflection bookends
  * 3. No single activity exceeds reasonable duration
  */
-// QUARANTINED (3 Apr 2026) — Generation pipeline disabled pending architecture rebuild (Dimensions2).
-// See docs/quarantine.md for full rationale.
-const QUARANTINE_RESPONSE = NextResponse.json({ error: "Generation pipeline quarantined — pending architecture rebuild. See docs/quarantine.md" }, { status: 410 });
+// Un-quarantined (10 Apr 2026) — Wizard routes restored.
 
 function validateTimelineTiming(
   activities: TimelineActivity[],
@@ -109,7 +107,6 @@ function createSupabaseServer(request: NextRequest) {
  * }
  */
 export async function POST(request: NextRequest) {
-  return QUARANTINE_RESPONSE;
   const supabase = createSupabaseServer(request);
   const {
     data: { user },
