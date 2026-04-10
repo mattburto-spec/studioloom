@@ -26,7 +26,12 @@ import { extractBlocks } from "./extract";
 import { checkBlocksForCopyright } from "./copyright-check";
 import { moderateExtractedBlocks } from "./moderate";
 
-function sumCosts(...costs: CostBreakdown[]): CostBreakdown {
+/**
+ * Sum a list of CostBreakdown objects into a single aggregate. Exported
+ * for unit tests so the cost-tracking regression guard can verify all
+ * stage costs roll up correctly. Phase 1.5 item 9.
+ */
+export function sumCosts(...costs: CostBreakdown[]): CostBreakdown {
   return {
     inputTokens: costs.reduce((s, c) => s + c.inputTokens, 0),
     outputTokens: costs.reduce((s, c) => s + c.outputTokens, 0),

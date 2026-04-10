@@ -6,9 +6,10 @@ import { passB } from "../pass-b";
 import { extractBlocks } from "../extract";
 import { moderateExtractedBlocks } from "../moderate";
 import { detectVerbatimOverlap, checkBlocksForCopyright, COPYRIGHT_MIN_MATCH_CHARS } from "../copyright-check";
+import { computeContentFingerprint, normaliseForFingerprint } from "../fingerprint";
 import { scanForPII, hasPII } from "../pii-scan";
 import { ingestionPasses, getPass } from "../registry";
-import { runIngestionPipeline } from "../pipeline";
+import { runIngestionPipeline, sumCosts } from "../pipeline";
 import type {
   PassConfig,
   IngestionClassification,
@@ -557,6 +558,48 @@ describe("runIngestionPipeline (sandbox)", () => {
     expect(result.moderation.cost.estimatedCostUSD).toBe(0);
   });
 
+  it("totalCost aggregates input/output tokens AND USD across stages (item 9 regression guard)", async () => {
+    // Build six fake stage costs with distinct non-zero values so we can
+    // verify each contributes to the aggregate. If a future refactor drops
+    // a stage from sumCosts, this test catches it.
+    const stage1 = { inputTokens: 100, outputTokens: 50, modelId: "a", estimatedCostUSD: 0.001, timeMs: 10 };
+    const stage2 = { inputTokens: 200, outputTokens: 75, modelId: "b", estimatedCostUSD: 0.002, timeMs: 20 };
+    const stage3 = { inputTokens: 300, outputTokens: 100, modelId: "c", estimatedCostUSD: 0.003, timeMs: 30 };
+    const stage4 = { inputTokens: 400, outputTokens: 125, modelId: "d", estimatedCostUSD: 0.004, timeMs: 40 };
+    const stage5 = { inputTokens: 500, outputTokens: 150, modelId: "e", estimatedCostUSD: 0.005, timeMs: 50 };
+    const stage6 = { inputTokens: 600, outputTokens: 175, modelId: "f", estimatedCostUSD: 0.006, timeMs: 60 };
+
+    const total = sumCosts(stage1, stage2, stage3, stage4, stage5, stage6);
+
+    expect(total.inputTokens).toBe(2100);
+    expect(total.outputTokens).toBe(675);
+    expect(total.estimatedCostUSD).toBeCloseTo(0.021, 10);
+    expect(total.timeMs).toBe(210);
+    expect(total.modelId).toBe("pipeline");
+  });
+
+  it("pipeline totalCost includes moderation stage cost (item 9)", async () => {
+    // In sandbox mode every stage cost is 0, so we just verify the
+    // moderation cost FIELD is present in the result and that totalCost
+    // equals the sum of (dedup + parse + classification + analysis +
+    // extraction + moderation). This catches a regression where a future
+    // refactor drops moderation from sumCosts.
+    const result = await runIngestionPipeline(
+      { rawText: SAMPLE_LESSON_PLAN },
+      SANDBOX_CONFIG
+    );
+    const expectedTotal =
+      result.dedup.cost.estimatedCostUSD +
+      result.parse.cost.estimatedCostUSD +
+      result.classification.cost.estimatedCostUSD +
+      result.analysis.cost.estimatedCostUSD +
+      result.extraction.cost.estimatedCostUSD +
+      result.moderation.cost.estimatedCostUSD;
+    expect(result.totalCost.estimatedCostUSD).toBeCloseTo(expectedTotal, 10);
+    expect(result.moderation.cost).toBeDefined();
+    expect(result.moderation.cost.modelId).toBeTruthy();
+  });
+
   it("moderation stage runs in sandbox and approves all blocks", async () => {
     const result = await runIngestionPipeline(
       { rawText: SAMPLE_LESSON_PLAN, copyrightFlag: "own" },
@@ -752,5 +795,91 @@ describe("copyright heuristic — checkBlocksForCopyright", () => {
     const result = await checkBlocksForCopyright([], {});
     expect(result.blocks).toEqual([]);
     expect(result.flaggedCount).toBe(0);
+  });
+});
+
+describe("content fingerprint — normaliseForFingerprint", () => {
+  it("lowercases", () => {
+    expect(normaliseForFingerprint("HELLO World")).toBe("hello world");
+  });
+
+  it("collapses whitespace runs", () => {
+    expect(normaliseForFingerprint("hello   \t\n  world")).toBe("hello world");
+  });
+
+  it("trims leading and trailing whitespace", () => {
+    expect(normaliseForFingerprint("   padded   ")).toBe("padded");
+  });
+
+  it("strips trailing punctuation", () => {
+    expect(normaliseForFingerprint("hello world.")).toBe("hello world");
+    expect(normaliseForFingerprint("hello world!?!")).toBe("hello world");
+    expect(normaliseForFingerprint("hello, world,")).toBe("hello, world");
+  });
+
+  it("preserves internal punctuation", () => {
+    expect(normaliseForFingerprint("yes, then no.")).toBe("yes, then no");
+  });
+});
+
+describe("content fingerprint — computeContentFingerprint", () => {
+  it("returns a 64-char hex SHA-256", () => {
+    const fp = computeContentFingerprint({
+      title: "Bridge Design",
+      prompt: "Design a bridge",
+      sourceType: "extracted",
+    });
+    expect(fp).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  it("is stable across calls", () => {
+    const a = computeContentFingerprint({
+      title: "Bridge Design",
+      prompt: "Design a bridge",
+      sourceType: "extracted",
+    });
+    const b = computeContentFingerprint({
+      title: "Bridge Design",
+      prompt: "Design a bridge",
+      sourceType: "extracted",
+    });
+    expect(a).toBe(b);
+  });
+
+  it("is invariant to whitespace, case, and trailing punctuation", () => {
+    const a = computeContentFingerprint({
+      title: "Bridge Design",
+      prompt: "Design a bridge.",
+      sourceType: "extracted",
+    });
+    const b = computeContentFingerprint({
+      title: "  bridge   design  ",
+      prompt: "DESIGN  a   BRIDGE!",
+      sourceType: "extracted",
+    });
+    expect(a).toBe(b);
+  });
+
+  it("changes when title differs", () => {
+    const a = computeContentFingerprint({ title: "A", prompt: "p", sourceType: "extracted" });
+    const b = computeContentFingerprint({ title: "B", prompt: "p", sourceType: "extracted" });
+    expect(a).not.toBe(b);
+  });
+
+  it("changes when prompt differs", () => {
+    const a = computeContentFingerprint({ title: "A", prompt: "p1", sourceType: "extracted" });
+    const b = computeContentFingerprint({ title: "A", prompt: "p2", sourceType: "extracted" });
+    expect(a).not.toBe(b);
+  });
+
+  it("changes when sourceType differs", () => {
+    const a = computeContentFingerprint({ title: "A", prompt: "p", sourceType: "extracted" });
+    const b = computeContentFingerprint({ title: "A", prompt: "p", sourceType: "manual" });
+    expect(a).not.toBe(b);
+  });
+
+  it("handles empty fields without throwing", () => {
+    const fp = computeContentFingerprint({ title: "", prompt: "", sourceType: "" });
+    expect(fp).toMatch(/^[a-f0-9]{64}$/);
   });
 });

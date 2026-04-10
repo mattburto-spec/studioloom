@@ -40,6 +40,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { embedText } from "@/lib/ai/embeddings";
+import { computeContentFingerprint } from "@/lib/ingestion/fingerprint";
 
 export const maxDuration = 300;
 
@@ -80,6 +81,24 @@ export async function POST(request: NextRequest) {
     teacherId?: string;
     copyrightFlag?: string;
     candidates?: AcceptedCandidate[];
+    /**
+     * Phase 1.5 item 8 — dryRun mode. When true, the route builds every
+     * payload and runs the embedding call (so the caller sees what
+     * Voyage tokens would have been spent), but skips ALL DB writes:
+     * no activity_blocks insert, no moderation_log insert, no
+     * content_items status update. The response includes the would-be
+     * payloads under `wouldInsert` so the curator can preview.
+     */
+    dryRun?: boolean;
+    /**
+     * Phase 1.5 item 10 — force overwrite on fingerprint conflict.
+     * Default false: a duplicate content_fingerprint causes the row
+     * to be SKIPPED (and reported under `skipped`). When true, the
+     * existing row is updated in place via upsert. Use sparingly —
+     * the default-skip behaviour is what stops accidental re-imports
+     * from polluting the corpus.
+     */
+    force?: boolean;
   };
   try {
     body = await request.json();
@@ -100,9 +119,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "candidates array is required and non-empty" }, { status: 400 });
   }
 
+  const dryRun = body.dryRun === true;
+  const force = body.force === true;
   const sb = supabase();
   const inserted: Array<{ id: string; title: string }> = [];
   const failed: Array<{ title: string; error: string }> = [];
+  // Phase 1.5 item 10 — rows skipped because their content_fingerprint
+  // already exists in activity_blocks AND `force` was not set.
+  const skipped: Array<{ title: string; fingerprint: string; existingId: string }> = [];
+  // dryRun preview rows — only populated when dryRun=true. We strip the
+  // embedding from the preview because it's a 1024-element vector that
+  // would dominate the response and isn't useful for human review.
+  const wouldInsert: Array<Record<string, unknown>> = [];
 
   for (const c of candidates) {
     if (!c.title || !c.prompt) {
@@ -116,6 +144,14 @@ export async function POST(request: NextRequest) {
       // Default to 'pending' if the caller didn't pipe a moderation result
       // through — never auto-approve on the commit path.
       const moderationStatus = c.moderationStatus || "pending";
+
+      // Phase 1.5 item 10 — deterministic fingerprint over title + prompt
+      // + source_type. Mirrors the SQL backfill in migration 068.
+      const contentFingerprint = computeContentFingerprint({
+        title: c.title,
+        prompt: c.prompt,
+        sourceType: "extracted",
+      });
 
       const payload: Record<string, unknown> = {
         title: c.title.slice(0, 200),
@@ -140,15 +176,61 @@ export async function POST(request: NextRequest) {
         pii_flags: c.piiFlags && c.piiFlags.length > 0 ? c.piiFlags : null,
         scaffolding: c.scaffolding_notes ? { notes: c.scaffolding_notes } : null,
         moderation_status: moderationStatus,
+        content_fingerprint: contentFingerprint,
         embedding: toPgVector(vec),
       };
 
-      const { data, error } = await sb
+      if (dryRun) {
+        // Strip the embedding for the preview — vector is huge and not
+        // human-readable. Everything else mirrors the would-be row.
+        const { embedding: _embedding, ...preview } = payload;
+        void _embedding;
+        wouldInsert.push(preview);
+        continue;
+      }
+
+      // Phase 1.5 item 10 — pre-check for an existing row with the same
+      // fingerprint. We do this with an explicit SELECT first (rather
+      // than relying on ON CONFLICT) so we can distinguish "skipped"
+      // from "failed" cleanly in the response, and so we can keep the
+      // existing block's id around for the response.
+      const { data: existing } = await sb
         .from("activity_blocks")
-        .insert(payload)
-        .select("id, title")
-        .single();
-      if (error) throw error;
+        .select("id")
+        .eq("content_fingerprint", contentFingerprint)
+        .limit(1)
+        .maybeSingle();
+
+      if (existing && !force) {
+        skipped.push({ title: c.title, fingerprint: contentFingerprint, existingId: existing.id });
+        continue;
+      }
+
+      let data: { id: string; title: string };
+      if (existing && force) {
+        // Update in place — the row already exists at this fingerprint,
+        // and the caller asked us to overwrite. We don't touch teacher_id
+        // or efficacy_score (those are owned by other systems); we
+        // refresh the content fields + embedding + moderation_status.
+        const { id: _id, source_type: _src, teacher_id: _tid, efficacy_score: _eff, times_used: _tu, ...updateFields } = payload;
+        void _id; void _src; void _tid; void _eff; void _tu;
+        const { data: updated, error: updateErr } = await sb
+          .from("activity_blocks")
+          .update(updateFields)
+          .eq("id", existing.id)
+          .select("id, title")
+          .single();
+        if (updateErr) throw updateErr;
+        data = updated;
+      } else {
+        const { data: insertedRow, error: insertErr } = await sb
+          .from("activity_blocks")
+          .insert(payload)
+          .select("id, title")
+          .single();
+        if (insertErr) throw insertErr;
+        data = insertedRow;
+      }
       inserted.push({ id: data.id, title: data.title });
 
       // Write a content_moderation_log row so the decision is auditable. Best
@@ -169,8 +251,10 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Mark content_items row completed + record block count
-  if (body.contentItemId) {
+  // Mark content_items row completed + record block count.
+  // Skipped under dryRun — the row stays in whatever processing_status it
+  // was in, since nothing was actually written.
+  if (body.contentItemId && !dryRun) {
     try {
       await sb
         .from("content_items")
@@ -184,12 +268,27 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  if (dryRun) {
+    return NextResponse.json({
+      dryRun: true,
+      wouldInsert,
+      failed,
+      summary: {
+        accepted: candidates.length,
+        wouldInsertCount: wouldInsert.length,
+        failedCount: failed.length,
+      },
+    });
+  }
+
   return NextResponse.json({
     inserted,
+    skipped,
     failed,
     summary: {
       accepted: candidates.length,
       insertedCount: inserted.length,
+      skippedCount: skipped.length,
       failedCount: failed.length,
     },
   });
