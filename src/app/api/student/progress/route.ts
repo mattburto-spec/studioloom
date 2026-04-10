@@ -66,11 +66,57 @@ export const POST = withErrorHandler("student/progress:POST", async (request: Ne
 
   const supabase = createAdminClient();
 
+  // Phase 0.9 (Dimensions3): resolve class_id so progress rows are no longer
+  // ambiguous when a student is enrolled in multiple classes. Uses the same
+  // junction + legacy intersection pattern as src/app/api/student/unit/route.ts.
+  // Falls back to NULL if the student is in multiple classes AND the unit is
+  // assigned to more than one of them (ambiguous — the POST caller never says
+  // which class the session is in). Migration 065 also runs a best-effort
+  // backfill for single-class students.
+  let resolvedClassId: string | null = null;
+  try {
+    const [{ data: enrollments }, { data: student }] = await Promise.all([
+      supabase
+        .from("class_students")
+        .select("class_id")
+        .eq("student_id", studentId)
+        .eq("is_active", true),
+      supabase
+        .from("students")
+        .select("class_id")
+        .eq("id", studentId)
+        .single(),
+    ]);
+
+    const activeClassIds = new Set<string>();
+    if (enrollments) {
+      for (const e of enrollments as { class_id: string }[]) {
+        if (e.class_id) activeClassIds.add(e.class_id);
+      }
+    }
+    if (student?.class_id) activeClassIds.add(student.class_id);
+
+    if (activeClassIds.size > 0) {
+      const { data: cuRows } = await supabase
+        .from("class_units")
+        .select("class_id")
+        .in("class_id", Array.from(activeClassIds))
+        .eq("unit_id", unitId)
+        .eq("is_active", true);
+      if (cuRows && cuRows.length === 1) {
+        resolvedClassId = (cuRows[0] as { class_id: string }).class_id;
+      }
+    }
+  } catch {
+    // Non-fatal — class_id is additive context, not a write gate.
+  }
+
   // Build upsert payload
   const upsertPayload: Record<string, unknown> = {
     student_id: studentId,
     unit_id: unitId,
     page_id: pageId,
+    ...(resolvedClassId && { class_id: resolvedClassId }),
     ...(status && { status }),
     ...(responses && { responses }),
     ...(timeSpent !== undefined && { time_spent: timeSpent }),
@@ -123,6 +169,7 @@ export const POST = withErrorHandler("student/progress:POST", async (request: Ne
           student_id: studentId,
           unit_id: unitId,
           page_number: pageNumber,
+          ...(resolvedClassId && { class_id: resolvedClassId }),
           ...(status && { status }),
           ...(responses && { responses }),
           ...(timeSpent !== undefined && { time_spent: timeSpent }),
