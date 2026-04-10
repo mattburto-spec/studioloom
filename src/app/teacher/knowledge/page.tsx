@@ -562,6 +562,19 @@ export default function KnowledgeLibraryPage() {
 
   return (
     <main className="max-w-6xl mx-auto px-6 py-8">
+      {/* ── Quarantine banner (Phase 0.2, 10 Apr 2026) ── */}
+      <div className="bg-amber-50 border-l-4 border-amber-400 p-4 mb-6 rounded-r-lg">
+        <p className="text-sm text-amber-900 font-semibold">
+          Migrated to new ingestion
+        </p>
+        <p className="text-sm text-amber-800 mt-1">
+          The legacy knowledge upload pipeline is quarantined. Use the new Dimensions3 pipeline via{" "}
+          <Link href="/teacher/knowledge/review" className="underline font-medium">
+            /teacher/knowledge/review
+          </Link>
+          . Upload buttons on this page call the old API and will return an error.
+        </p>
+      </div>
       {/* ── Header ── */}
       <div className="flex items-start justify-between mb-6">
         <div>

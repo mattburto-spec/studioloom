@@ -376,6 +376,17 @@ export default function BatchUpload({
 
   return (
     <div className={`w-full max-w-2xl mx-auto ${className}`}>
+      {/* Quarantine banner (Phase 0.2, 10 Apr 2026) */}
+      <div className="bg-amber-50 border-l-4 border-amber-400 p-4 mb-6 rounded-r-lg">
+        <p className="text-sm text-amber-900 font-semibold">Migrated to new ingestion</p>
+        <p className="text-sm text-amber-800 mt-1">
+          The legacy knowledge upload pipeline is quarantined. Use the new Dimensions3 pipeline via{" "}
+          <a href="/teacher/knowledge/review" className="underline font-medium">
+            /teacher/knowledge/review
+          </a>
+          . Uploads submitted from this component will fail with HTTP 410.
+        </p>
+      </div>
       {/* Source Category Selector */}
       <div className="mb-6">
         <label className="block text-sm font-medium text-gray-900 mb-2">
