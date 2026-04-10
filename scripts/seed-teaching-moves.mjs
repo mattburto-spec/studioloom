@@ -233,8 +233,8 @@ function moveToBlockPayload(move, studentPrompt) {
   };
 }
 
-// ─── Dedup check ───
-async function findExistingBlock(supabase, move) {
+// ─── Dedup check (title + cosine) ───
+async function findExistingBlockByTitle(supabase, move) {
   const { data, error } = await supabase
     .from("activity_blocks")
     .select("id")
@@ -242,8 +242,72 @@ async function findExistingBlock(supabase, move) {
     .eq("module", "studioloom")
     .eq("title", move.name)
     .limit(1);
-  if (error) throw new Error(`Dedup lookup failed: ${error.message}`);
+  if (error) throw new Error(`Title dedup lookup failed: ${error.message}`);
   return data?.[0]?.id || null;
+}
+
+/**
+ * Parse a halfvec/pgvector literal ("[0.1,0.2,...]") back into an array.
+ * Returns null for invalid/empty inputs.
+ */
+function parsePgVector(v) {
+  if (v == null) return null;
+  if (Array.isArray(v)) return v;
+  if (typeof v !== "string") return null;
+  const trimmed = v.trim();
+  if (!trimmed.startsWith("[") || !trimmed.endsWith("]")) return null;
+  try {
+    const arr = trimmed.slice(1, -1).split(",").map((s) => parseFloat(s));
+    if (arr.some((n) => !Number.isFinite(n))) return null;
+    return arr;
+  } catch {
+    return null;
+  }
+}
+
+function cosineSimilarity(a, b) {
+  if (!a || !b || a.length !== b.length) return 0;
+  let dot = 0, na = 0, nb = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    na += a[i] * a[i];
+    nb += b[i] * b[i];
+  }
+  const denom = Math.sqrt(na) * Math.sqrt(nb);
+  return denom === 0 ? 0 : dot / denom;
+}
+
+/**
+ * Fetch community+studioloom embeddings for in-process cosine dedup.
+ * Note: fetching all embeddings is only viable while the community pool
+ * is small (< ~1000 blocks). For larger pools, swap to a pgvector RPC.
+ */
+async function fetchCommunityEmbeddings(supabase) {
+  // Lesson #24: keep this SELECT narrow — embedding column is known to exist
+  // from migration 060. If future phases rename it, this query fails loud.
+  const { data, error } = await supabase
+    .from("activity_blocks")
+    .select("id, title, embedding")
+    .eq("source_type", "community")
+    .eq("module", "studioloom")
+    .not("embedding", "is", null);
+  if (error) throw new Error(`Embedding fetch failed: ${error.message}`);
+  return (data || []).map((r) => ({
+    id: r.id,
+    title: r.title,
+    vec: parsePgVector(r.embedding),
+  })).filter((r) => r.vec !== null);
+}
+
+const COSINE_DEDUP_THRESHOLD = 0.92;
+
+function findCosineDuplicate(candidateVec, pool) {
+  let best = { id: null, title: null, sim: 0 };
+  for (const row of pool) {
+    const sim = cosineSimilarity(candidateVec, row.vec);
+    if (sim > best.sim) best = { id: row.id, title: row.title, sim };
+  }
+  return best.sim >= COSINE_DEDUP_THRESHOLD ? best : null;
 }
 
 // ─── Embedding literal ───
@@ -275,11 +339,23 @@ async function main() {
 
   const cache = loadRewriteCache();
 
-  const supabase = REWRITE_ONLY || DRY_RUN
+  const supabase = REWRITE_ONLY
     ? null
     : createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: false } });
 
-  const summary = { inserted: 0, updated: 0, skipped: 0, failed: 0, rewritten: 0, cached: 0 };
+  // Pre-fetch existing community embeddings for cosine dedup (Phase 1 / Matt 2026-04-10).
+  // Empty on first seed run; grows as later curation adds similar blocks.
+  let communityPool = [];
+  if (supabase) {
+    try {
+      communityPool = await fetchCommunityEmbeddings(supabase);
+      console.log(`[seed] Loaded ${communityPool.length} existing community blocks for cosine dedup (threshold ${COSINE_DEDUP_THRESHOLD})`);
+    } catch (e) {
+      console.warn(`[seed] Could not pre-fetch embeddings for cosine dedup: ${e.message}`);
+    }
+  }
+
+  const summary = { inserted: 0, updated: 0, skipped_title: 0, skipped_cosine: 0, failed: 0, rewritten: 0, cached: 0 };
   const failures = [];
 
   for (const move of moves) {
@@ -294,11 +370,11 @@ async function main() {
         continue;
       }
 
-      // Step 2: dedup check against DB
-      const existingId = supabase ? await findExistingBlock(supabase, move) : null;
+      // Step 2a: title-equality dedup
+      const existingId = supabase ? await findExistingBlockByTitle(supabase, move) : null;
       if (existingId && !FORCE) {
-        summary.skipped++;
-        console.log(`  ⊘ skip (exists)   ${move.id}`);
+        summary.skipped_title++;
+        console.log(`  ⊘ skip (title)    ${move.id}`);
         continue;
       }
 
@@ -310,8 +386,16 @@ async function main() {
       const vec = await embedText(embedSource);
       payload.embedding = toPgVector(vec);
 
+      // Step 2b: cosine dedup — after embedding is available
+      const cosineHit = findCosineDuplicate(vec, communityPool);
+      if (cosineHit && !FORCE) {
+        summary.skipped_cosine++;
+        console.log(`  ⊘ skip (cosine ${cosineHit.sim.toFixed(3)}) ${move.id} ≈ "${cosineHit.title}"`);
+        continue;
+      }
+
       if (DRY_RUN) {
-        console.log(`  ✎ dry-run         ${move.id} (would ${existingId ? "update" : "insert"})`);
+        console.log(`  ✎ dry-run         ${move.id} (would ${existingId ? "update" : "insert"}${cosineHit ? ` — cosine ${cosineHit.sim.toFixed(3)}` : ""})`);
         continue;
       }
 
@@ -332,6 +416,8 @@ async function main() {
           .single();
         if (error) throw new Error(`Insert failed: ${error.message}`);
         summary.inserted++;
+        // Add to in-memory pool so later moves in this run can cosine-dedup against it
+        communityPool.push({ id: data.id, title: move.name, vec });
         console.log(`  ✓ inserted        ${move.id} → ${data.id}`);
       }
     } catch (e) {
@@ -347,7 +433,8 @@ async function main() {
   if (!REWRITE_ONLY) {
     console.log(`  inserted:         ${summary.inserted}`);
     console.log(`  updated:          ${summary.updated}`);
-    console.log(`  skipped:          ${summary.skipped}`);
+    console.log(`  skipped (title):  ${summary.skipped_title}`);
+    console.log(`  skipped (cosine): ${summary.skipped_cosine}`);
   }
   console.log(`  failed:           ${summary.failed}`);
   if (REWRITE_ONLY) {
