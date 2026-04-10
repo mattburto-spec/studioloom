@@ -117,7 +117,11 @@ function validateRewrite(text) {
   // Banned meta/teacher-perspective vocabulary
   if (/\bstudents\s+will\b/.test(lc)) return 'contains "students will" (meta commentary)';
   if (/^in this activity/.test(lc)) return 'starts with "In this activity"';
-  if (/\bthe teacher\b/.test(lc)) return 'contains "the teacher"';
+  // "teacher" is allowed when it names a role the student plays (peer-teach-back,
+  // role reversal). Only block when teacher is the actor giving instructions.
+  if (/\bthe teacher\s+(will|asks|models|explains|introduces|reminds|circulates|walks around|tells|gives|prompts)\b/.test(lc)) {
+    return 'contains adult-teacher perspective ("the teacher will/asks/...")';
+  }
   return null;
 }
 
