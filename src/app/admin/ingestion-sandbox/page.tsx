@@ -386,7 +386,7 @@ export default function IngestionSandboxPage() {
         <div className="flex items-center gap-4 flex-wrap">
           <input
             type="file"
-            accept=".pdf,.docx,.txt,.md"
+            accept=".pdf,.docx,.pptx,.txt,.md"
             disabled={isUploading}
             onChange={(e) => {
               const f = e.target.files?.[0];

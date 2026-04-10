@@ -2,7 +2,7 @@
  * POST /api/admin/ingestion-sandbox/upload
  *
  * Phase 1.4 (Dimensions3 Completion Spec §3.4). Accepts a multipart file,
- * extracts text (PDF/DOCX/plain), computes file hash, creates a
+ * extracts text (PDF/DOCX/PPTX/plain), computes file hash, creates a
  * content_items row in `processing_status='pending'`, and returns the
  * rawText + title + contentItemId for the client-side pipeline runner.
  *
@@ -12,7 +12,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { createHash } from "crypto";
-import { extractFromPDF, extractFromDOCX } from "@/lib/knowledge/extract";
+import { extractDocument } from "@/lib/knowledge/extract";
+import { extractImages } from "@/lib/ingestion/image-extraction";
 
 export const maxDuration = 300;
 
@@ -49,23 +50,22 @@ export async function POST(request: NextRequest) {
   const filename = file.name || "untitled";
   const ext = filename.toLowerCase().split(".").pop() || "";
 
-  // Text extraction
+  // Text extraction — routes through extractDocument which handles
+  // PDF / DOCX / PPTX uniformly. Plain text/markdown handled here.
   let title = filename.replace(/\.[^.]+$/, "");
   let rawText = "";
   try {
-    if (ext === "pdf") {
-      const doc = await extractFromPDF(buffer, filename);
-      title = doc.title || title;
-      rawText = doc.rawText;
-    } else if (ext === "docx") {
-      const doc = await extractFromDOCX(buffer, filename);
+    if (ext === "pdf" || ext === "docx" || ext === "pptx") {
+      const doc = await extractDocument(buffer, filename, file.type || "");
       title = doc.title || title;
       rawText = doc.rawText;
     } else if (ext === "txt" || ext === "md") {
       rawText = buffer.toString("utf8");
     } else {
       return NextResponse.json(
-        { error: `Unsupported file type: .${ext}. Supported: pdf, docx, txt, md.` },
+        {
+          error: `Unsupported file type: .${ext}. Supported: pdf, docx, pptx, txt, md.`,
+        },
         { status: 415 }
       );
     }
@@ -78,6 +78,11 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+
+  // Image extraction (stub — Seam 4 deferred). Always returns []. The call
+  // is here so the wiring exists when content_assets lands; removing the
+  // stub is then a one-line swap for the real implementation.
+  const extractedImages = await extractImages(buffer, ext);
 
   if (!rawText || rawText.trim().length === 0) {
     return NextResponse.json({ error: "Extracted text is empty" }, { status: 422 });
@@ -140,5 +145,6 @@ export async function POST(request: NextRequest) {
     sizeBytes: buffer.length,
     rawTextLength: rawText.length,
     rawText,
+    extractedImageCount: extractedImages.length,
   });
 }
