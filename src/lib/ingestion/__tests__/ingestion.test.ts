@@ -182,6 +182,28 @@ describe("passA (sandbox mode)", () => {
     }
   });
 
+  it("populates per-tag confidences and detected strand/level", async () => {
+    const parsed = parseDocument(SAMPLE_LESSON_PLAN);
+    const result = await passA.run(parsed, SANDBOX_CONFIG);
+
+    // Per-tag confidence object exists with at least documentType
+    expect(result.confidences).toBeDefined();
+    expect(result.confidences.documentType).toBeGreaterThanOrEqual(0);
+    expect(result.confidences.documentType).toBeLessThanOrEqual(1);
+
+    // Sandbox mode populates all four confidences
+    expect(result.confidences.subject).toBeDefined();
+    expect(result.confidences.strand).toBeDefined();
+    expect(result.confidences.level).toBeDefined();
+
+    // Strand + level fields exposed
+    expect(result.detectedStrand).toBeTruthy();
+    expect(result.detectedLevel).toBeTruthy();
+
+    // Back-compat: top-level `confidence` mirrors documentType confidence
+    expect(result.confidence).toBe(result.confidences.documentType);
+  });
+
   it("returns zero cost in sandbox mode", async () => {
     const parsed = parseDocument(SAMPLE_SHORT_TEXT);
     const result = await passA.run(parsed, SANDBOX_CONFIG);
@@ -263,6 +285,7 @@ describe("extractBlocks", () => {
       classification: {
         documentType: "rubric",
         confidence: 0.9,
+        confidences: { documentType: 0.9 },
         topic: "Assessment rubric",
         sections: [],
         cost: { inputTokens: 0, outputTokens: 0, modelId: "none", estimatedCostUSD: 0, timeMs: 0 },

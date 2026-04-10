@@ -23,6 +23,7 @@ describe("E2E: Ingestion → Library", () => {
     const classification: IngestionClassification = {
       documentType: "lesson_plan",
       confidence: 0.9,
+      confidences: { documentType: 0.9 },
       topic: "Bridge Design",
       sections: [],
       detectedSubject: "Design Technology",
@@ -97,11 +98,12 @@ describe("E2E: Library → Generation (Reconstruction)", () => {
       classification: {
         documentType: "lesson_plan",
         confidence: 0.9,
+        confidences: { documentType: 0.9 },
         topic: "Design",
         sections: [],
         cost: ZERO_COST,
       },
-      analysis: { classification: { documentType: "lesson_plan", confidence: 0.9, topic: "Design", sections: [], cost: ZERO_COST }, enrichedSections: [], cost: ZERO_COST },
+      analysis: { classification: { documentType: "lesson_plan", confidence: 0.9, confidences: { documentType: 0.9 }, topic: "Design", sections: [], cost: ZERO_COST }, enrichedSections: [], cost: ZERO_COST },
       extraction: {
         blocks: [
           {
@@ -260,7 +262,7 @@ describe("E2E: Delivery → Tracking", () => {
   it("extractActivities handles empty content", () => {
     expect(extractActivities({})).toEqual([]);
     expect(extractActivities({ pages: [] })).toEqual([]);
-    expect(extractActivities(null as any)).toEqual([]);
+    expect(extractActivities(null as unknown as Parameters<typeof extractActivities>[0])).toEqual([]);
   });
 });
 

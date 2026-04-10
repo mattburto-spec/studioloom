@@ -35,6 +35,7 @@ export async function POST() {
     const classification: IngestionClassification = {
       documentType: "lesson_plan",
       confidence: 0.9,
+      confidences: { documentType: 0.9 },
       topic: "Bridge Design",
       sections: [],
       cost: ZERO_COST,
@@ -54,8 +55,8 @@ export async function POST() {
     const fakeIngestion: IngestionPipelineResult = {
       dedup: { fileHash: "test", isDuplicate: false, cost: ZERO_COST },
       parse: { title: "Test", sections: [], totalWordCount: 100, headingCount: 2, cost: ZERO_COST },
-      classification: { documentType: "lesson_plan", confidence: 0.9, topic: "Test", sections: [], cost: ZERO_COST },
-      analysis: { classification: { documentType: "lesson_plan", confidence: 0.9, topic: "Test", sections: [], cost: ZERO_COST }, enrichedSections: [], cost: ZERO_COST },
+      classification: { documentType: "lesson_plan", confidence: 0.9, confidences: { documentType: 0.9 }, topic: "Test", sections: [], cost: ZERO_COST },
+      analysis: { classification: { documentType: "lesson_plan", confidence: 0.9, confidences: { documentType: 0.9 }, topic: "Test", sections: [], cost: ZERO_COST }, enrichedSections: [], cost: ZERO_COST },
       extraction: {
         blocks: [
           { tempId: "b1", title: "Opener", description: "d", prompt: "p", bloom_level: "remember", time_weight: "quick", grouping: "whole_class", phase: "opening", activity_category: "warmup", materials: [], source_section_index: 0, piiFlags: [], copyrightFlag: "own" },

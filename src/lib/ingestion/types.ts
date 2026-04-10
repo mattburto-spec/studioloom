@@ -105,12 +105,33 @@ export interface IngestionSection {
   estimatedDuration?: "quick" | "moderate" | "extended";
 }
 
+/**
+ * Per-tag confidence scores. Replaces the single document-level `confidence`
+ * with one score per classified dimension. Spec §4 requires per-tag confidence
+ * so the curator can spot weak fields without re-reading the whole output.
+ *
+ * All values 0..1; absent dimensions are treated as 0 (not classified).
+ */
+export interface ClassificationConfidence {
+  documentType: number;
+  subject?: number;
+  strand?: number;
+  level?: number;
+}
+
 export interface IngestionClassification {
   documentType: DocumentType;
+  /** @deprecated use `confidences.documentType` — kept for back-compat with v1 sandbox/tests */
   confidence: number;
+  /** Per-tag confidence per spec §4. */
+  confidences: ClassificationConfidence;
   topic: string;
   sections: IngestionSection[];
   detectedSubject?: string;
+  /** Curriculum strand or domain (e.g., "Materials & Manufacture", "Algebra"). */
+  detectedStrand?: string;
+  /** Year/grade level or stage (e.g., "MYP3", "Year 9", "KS3"). */
+  detectedLevel?: string;
   cost: CostBreakdown;
 }
 

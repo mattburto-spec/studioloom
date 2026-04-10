@@ -42,9 +42,9 @@ const CLASSIFICATION_TOOL = {
         ],
         description: "The type of educational document",
       },
-      confidence: {
+      documentTypeConfidence: {
         type: "number",
-        description: "Confidence in classification (0-1)",
+        description: "Confidence in documentType classification (0-1)",
       },
       topic: {
         type: "string",
@@ -53,6 +53,28 @@ const CLASSIFICATION_TOOL = {
       detectedSubject: {
         type: "string",
         description: "Academic subject area (e.g., Design Technology, Science, Art)",
+      },
+      detectedSubjectConfidence: {
+        type: "number",
+        description: "Confidence in detectedSubject (0-1). Omit if subject is unclear.",
+      },
+      detectedStrand: {
+        type: "string",
+        description:
+          "Curriculum strand or domain within the subject (e.g., 'Materials & Manufacture', 'Algebra', 'Reading Comprehension'). Omit if not detectable.",
+      },
+      detectedStrandConfidence: {
+        type: "number",
+        description: "Confidence in detectedStrand (0-1). Omit if strand absent.",
+      },
+      detectedLevel: {
+        type: "string",
+        description:
+          "Year/grade level or stage (e.g., 'MYP3', 'Year 9', 'KS3', 'Grade 7'). Omit if not detectable.",
+      },
+      detectedLevelConfidence: {
+        type: "number",
+        description: "Confidence in detectedLevel (0-1). Omit if level absent.",
       },
       sections: {
         type: "array",
@@ -76,7 +98,7 @@ const CLASSIFICATION_TOOL = {
         },
       },
     },
-    required: ["documentType", "confidence", "topic", "sections"],
+    required: ["documentType", "documentTypeConfidence", "topic", "sections"],
   },
 };
 
@@ -97,6 +119,16 @@ Total words: ${parsed.totalWordCount}
 Sections:
 ${sectionSummaries}
 
+DOCUMENT-LEVEL CLASSIFICATION
+You must return:
+- documentType + documentTypeConfidence (0-1)
+- detectedSubject + detectedSubjectConfidence (e.g., "Design Technology", "Mathematics") — omit confidence if subject unclear
+- detectedStrand + detectedStrandConfidence — the curriculum strand or domain within the subject (e.g., "Materials & Manufacture" inside Design Tech, "Number & Algebra" inside Maths). Omit if not detectable.
+- detectedLevel + detectedLevelConfidence — year/grade/stage (e.g., "MYP3", "Year 9", "KS3", "Grade 7"). Omit if not detectable.
+
+Confidence is YOUR self-rated certainty 0-1. Use the full range — 0.3 if you're guessing, 0.95 if it's explicit in the document.
+
+SECTION CLASSIFICATION
 For each section, determine if it is:
 - "activity": A student task or hands-on activity
 - "instruction": Teacher-directed content or explanation
@@ -129,9 +161,17 @@ function simulateClassification(parsed: ParseResult): IngestionClassification {
   return {
     documentType: "lesson_plan",
     confidence: 0.75,
+    confidences: {
+      documentType: 0.75,
+      subject: 0.7,
+      strand: 0.5,
+      level: 0.5,
+    },
     topic: parsed.title,
     sections,
     detectedSubject: "Design Technology",
+    detectedStrand: "Materials & Manufacture",
+    detectedLevel: "MYP3",
     cost: {
       inputTokens: 0,
       outputTokens: 0,
@@ -176,9 +216,14 @@ async function runPassA(
 
   const result = toolBlock.input as {
     documentType: IngestionClassification["documentType"];
-    confidence: number;
+    documentTypeConfidence: number;
     topic: string;
     detectedSubject?: string;
+    detectedSubjectConfidence?: number;
+    detectedStrand?: string;
+    detectedStrandConfidence?: number;
+    detectedLevel?: string;
+    detectedLevelConfidence?: number;
     sections: IngestionSection[];
   };
 
@@ -196,9 +241,17 @@ async function runPassA(
 
   return {
     documentType: result.documentType,
-    confidence: result.confidence,
+    confidence: result.documentTypeConfidence,
+    confidences: {
+      documentType: result.documentTypeConfidence,
+      subject: result.detectedSubjectConfidence,
+      strand: result.detectedStrandConfidence,
+      level: result.detectedLevelConfidence,
+    },
     topic: result.topic,
     detectedSubject: result.detectedSubject,
+    detectedStrand: result.detectedStrand,
+    detectedLevel: result.detectedLevel,
     sections: result.sections,
     cost,
   };
