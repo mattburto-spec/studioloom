@@ -355,6 +355,73 @@ describe("scanForPII", () => {
   it("hasPII returns true when flags present", () => {
     expect(hasPII([{ type: "email", value: "x@y.com", position: 0, aiVerified: false }])).toBe(true);
   });
+
+  // -- Phase 1.5 item 5 hardening --
+
+  it("does NOT match the v1 EMAIL_PATTERN bug (pipe in TLD class)", () => {
+    // Old regex `[A-Z|a-z]` would have considered `foo@bar.|x` valid up to the
+    // pipe. New regex requires a real letter TLD.
+    const flags = scanForPII("foo@bar.|x and ok@mail.com");
+    const emails = flags.filter((f) => f.type === "email").map((f) => f.value);
+    expect(emails).toContain("ok@mail.com");
+    expect(emails).not.toContain("foo@bar.|x");
+  });
+
+  it("detects honorific-prefixed personal names", () => {
+    const flags = scanForPII("Hand the lab report to Dr Sarah Chen by Friday.");
+    const names = flags.filter((f) => f.type === "name").map((f) => f.value);
+    expect(names.some((n) => n.includes("Dr Sarah Chen"))).toBe(true);
+  });
+
+  it("detects multiple honorific name shapes", () => {
+    const text = "Mr Burton, Mrs Patel, and Prof. James Liu will lead the workshop.";
+    const names = scanForPII(text).filter((f) => f.type === "name").map((f) => f.value);
+    expect(names.some((n) => n.includes("Mr Burton"))).toBe(true);
+    expect(names.some((n) => n.includes("Mrs Patel"))).toBe(true);
+    expect(names.some((n) => n.includes("Prof. James Liu"))).toBe(true);
+  });
+
+  it("detects 'by <Name> <Name>' attribution names", () => {
+    const flags = scanForPII("Lesson written by Marcus Liu for the Year 9 cohort.");
+    const names = flags.filter((f) => f.type === "name").map((f) => f.value);
+    expect(names).toContain("Marcus Liu");
+  });
+
+  it("does not flag 'by Friday Morning' as a name", () => {
+    const flags = scanForPII("Submit by Friday Morning to the shared folder.");
+    const names = flags.filter((f) => f.type === "name");
+    expect(names).toHaveLength(0);
+  });
+
+  it("does not flag a numeric date as a phone number", () => {
+    // Old regex would match "12/03/2025" as a phone candidate.
+    const flags = scanForPII("Field trip on 12/03/2025. Bring water.");
+    const phones = flags.filter((f) => f.type === "phone");
+    expect(phones).toHaveLength(0);
+    // But it SHOULD still be flagged as a date.
+    const dates = flags.filter((f) => f.type === "date");
+    expect(dates.length).toBeGreaterThan(0);
+  });
+
+  it("flags real phone numbers (≥10 digits)", () => {
+    const flags = scanForPII("Call the office on +61 2 9876 5432 if you need help.");
+    const phones = flags.filter((f) => f.type === "phone");
+    expect(phones.length).toBeGreaterThan(0);
+  });
+
+  it("does not flag short numeric strings as phones", () => {
+    const flags = scanForPII("Year 9 students bring 5 sheets of A4 paper.");
+    expect(flags.filter((f) => f.type === "phone")).toHaveLength(0);
+  });
+
+  it("does not produce false positives on clean lesson text", () => {
+    const text = `Activity 1: Research Phase (15 minutes)
+Students research existing sustainable packaging solutions online.
+Work in pairs to compile a mood board of at least 5 examples.
+Document materials used and environmental impact.`;
+    const flags = scanForPII(text);
+    expect(flags).toHaveLength(0);
+  });
 });
 
 // =========================================================================
