@@ -292,6 +292,8 @@ export interface FormatProfile {
     setupBuffer: number;
     cleanupBuffer: number;
     safetyBriefMinutes: number;
+    defaultWorkTimeFloor: number;
+    reflectionMinimum: number;
   };
   /** Weights for Pulse quality scoring */
   pulseWeights: {
@@ -337,7 +339,7 @@ const FORMAT_PROFILES: Record<UnitType, FormatProfile> = {
       requiredPhases: ["investigate", "create", "evaluate"],
       repeatablePhases: ["develop", "create"],
     },
-    timingModifiers: { setupBuffer: 7, cleanupBuffer: 6, safetyBriefMinutes: 4 },
+    timingModifiers: { setupBuffer: 7, cleanupBuffer: 6, safetyBriefMinutes: 4, defaultWorkTimeFloor: 0.45, reflectionMinimum: 5 },
     pulseWeights: { cognitiveRigour: 0.35, studentAgency: 0.30, teacherCraft: 0.35 },
     teachingPrinciples: DESIGN_TYPE.teachingPrinciples,
     aiPersona: DESIGN_TYPE.aiPersona,
@@ -384,7 +386,7 @@ const FORMAT_PROFILES: Record<UnitType, FormatProfile> = {
       requiredPhases: ["investigate", "plan", "act", "reflect", "demonstrate"],
       repeatablePhases: ["act", "reflect"],
     },
-    timingModifiers: { setupBuffer: 3, cleanupBuffer: 2, safetyBriefMinutes: 0 },
+    timingModifiers: { setupBuffer: 3, cleanupBuffer: 2, safetyBriefMinutes: 0, defaultWorkTimeFloor: 0.30, reflectionMinimum: 10 },
     pulseWeights: { cognitiveRigour: 0.25, studentAgency: 0.45, teacherCraft: 0.30 },
     teachingPrinciples: SERVICE_TYPE.teachingPrinciples,
     aiPersona: SERVICE_TYPE.aiPersona,
@@ -431,7 +433,7 @@ const FORMAT_PROFILES: Record<UnitType, FormatProfile> = {
       requiredPhases: ["define", "plan", "apply", "reflect", "report"],
       repeatablePhases: ["apply", "reflect"],
     },
-    timingModifiers: { setupBuffer: 3, cleanupBuffer: 2, safetyBriefMinutes: 0 },
+    timingModifiers: { setupBuffer: 3, cleanupBuffer: 2, safetyBriefMinutes: 0, defaultWorkTimeFloor: 0.60, reflectionMinimum: 15 },
     pulseWeights: { cognitiveRigour: 0.30, studentAgency: 0.40, teacherCraft: 0.30 },
     teachingPrinciples: PERSONAL_PROJECT_TYPE.teachingPrinciples,
     aiPersona: PERSONAL_PROJECT_TYPE.aiPersona,
@@ -477,7 +479,7 @@ const FORMAT_PROFILES: Record<UnitType, FormatProfile> = {
       requiredPhases: ["wonder", "investigate", "synthesize", "act"],
       repeatablePhases: ["investigate", "synthesize"],
     },
-    timingModifiers: { setupBuffer: 3, cleanupBuffer: 2, safetyBriefMinutes: 0 },
+    timingModifiers: { setupBuffer: 3, cleanupBuffer: 2, safetyBriefMinutes: 0, defaultWorkTimeFloor: 0.40, reflectionMinimum: 5 },
     pulseWeights: { cognitiveRigour: 0.40, studentAgency: 0.35, teacherCraft: 0.25 },
     teachingPrinciples: INQUIRY_TYPE.teachingPrinciples,
     aiPersona: INQUIRY_TYPE.aiPersona,

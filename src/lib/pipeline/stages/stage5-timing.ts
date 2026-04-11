@@ -138,13 +138,22 @@ export function stage5_applyTiming(
         phaseMap.miniLesson.reduce((s, a) => s + getTimeForWeight(a.time_weight), 0)))
       : 0;
 
+    // Reflection floor (spec §4.3): profile.reflectionMinimum is a hard floor on debrief duration.
+    // For PP (reflectionMinimum=15), this intentionally overrides WORKSHOP_PHASES.debrief.max (8) —
+    // the spec is explicit that "PP demands the deepest reflection of any format".
+    // For format profiles where reflectionMinimum ≤ debrief.max, this is a natural no-op when the
+    // computed debrief is already above the floor.
+    const reflectionFloor = profile.timingModifiers.reflectionMinimum;
     const debriefDuration = phaseMap.debrief.length > 0
-      ? Math.min(WORKSHOP_PHASES.debrief.max, Math.max(WORKSHOP_PHASES.debrief.min,
-        phaseMap.debrief.reduce((s, a) => s + getTimeForWeight(a.time_weight), 0)))
-      : WORKSHOP_PHASES.debrief.default;
+      ? Math.max(
+          reflectionFloor,
+          Math.min(WORKSHOP_PHASES.debrief.max, Math.max(WORKSHOP_PHASES.debrief.min,
+            phaseMap.debrief.reduce((s, a) => s + getTimeForWeight(a.time_weight), 0)))
+        )
+      : Math.max(reflectionFloor, WORKSHOP_PHASES.debrief.default);
 
-    // Work time gets the rest — but must be at least 45% of usable time
-    const minWorkTime = Math.ceil(usableMinutes * WORKSHOP_PHASES.workTime.minPercent);
+    // Work time gets the rest — but must be at least profile.defaultWorkTimeFloor of usable time
+    const minWorkTime = Math.ceil(usableMinutes * profile.timingModifiers.defaultWorkTimeFloor);
     const remainingForWork = usableMinutes - openingDuration - miniLessonDuration - debriefDuration;
     const workTimeDuration = Math.max(minWorkTime, remainingForWork);
 
