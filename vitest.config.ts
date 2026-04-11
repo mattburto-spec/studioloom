@@ -7,6 +7,7 @@ export default defineConfig({
       "src/**/*.test.ts",
       "src/**/*.test.tsx",
       "tests/e2e/**/*.test.ts",
+      "tests/pipeline/**/*.test.ts",
     ],
     // E2E tests (tests/e2e/**) may hit the live Anthropic API when
     // RUN_E2E=1. The DOCX run took ~132s on 11 Apr 2026. 300s per test
