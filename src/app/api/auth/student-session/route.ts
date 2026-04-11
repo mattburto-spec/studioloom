@@ -66,26 +66,26 @@ export async function GET(request: NextRequest) {
   }
 
   // Step 3: Get class info — try junction table first, then legacy class_id
-  let classInfo: { id: string; name: string; code: string } | null = null;
+  let classInfo: { id: string; name: string; code: string; framework?: string | null } | null = null;
 
   // New path: class_students junction (migration 041)
   const { data: enrollment } = await supabase
     .from("class_students")
-    .select("class_id, classes(id, name, code)")
+    .select("class_id, classes(id, name, code, framework)")
     .eq("student_id", student.id)
     .eq("is_active", true)
     .limit(1)
     .maybeSingle();
 
   if (enrollment?.classes) {
-    classInfo = enrollment.classes as unknown as { id: string; name: string; code: string };
+    classInfo = enrollment.classes as unknown as { id: string; name: string; code: string; framework?: string | null };
   }
 
   // Legacy fallback: students.class_id
   if (!classInfo && student.class_id) {
     const { data: legacyClass } = await supabase
       .from("classes")
-      .select("id, name, code")
+      .select("id, name, code, framework")
       .eq("id", student.class_id)
       .maybeSingle();
 
