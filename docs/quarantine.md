@@ -41,6 +41,43 @@ The 15 API routes in the table below that return 410 Gone are unchanged —
 they remain as harmless tombstones. Deleting them risks breaking any cached
 client that still hits them in dev.
 
+### Phase 1.6 cleanup commit (11 Apr 2026, follow-up to e7b020b)
+
+After the initial Phase 1.6 disconnect commit, a cleanup pass:
+
+- **Wired the import endpoint** at `src/app/api/teacher/library/import/route.ts`
+  (Option A from the checkpoint report). It chains `runIngestionPipeline()` →
+  `reconstructUnit()` → `reconstructionToContentData()` and returns the shape
+  the moved `library/import/page.tsx` expects.
+- **Deleted `src/components/teacher/BatchUpload.tsx`** entirely. It had no
+  importers anywhere in `src/`, contained ~580 lines of dead code, and was
+  pointed at the 410 `/api/teacher/knowledge/upload` tombstone.
+- **Relocated 3 Dimensions3 components** from `src/components/teacher/knowledge/`
+  to `src/components/teacher/library/`:
+    - `ReviewQueue.tsx`
+    - `BlockReviewCard.tsx`
+    - `MatchReport.tsx`
+  Import paths in `src/app/teacher/library/review/page.tsx` and
+  `src/app/teacher/library/import/page.tsx` were updated.
+- **Deleted 8 fully-quarantined components** from `src/components/teacher/knowledge/`:
+    - `AnalysisDetailPanel.tsx`
+    - `CurriculumMapper.tsx`
+    - `KnowledgeItemCard.tsx`
+    - `KnowledgeItemForm.tsx`
+    - `LessonProfileReview.tsx`
+    - `MediaUploader.tsx`
+    - `TagAutocomplete.tsx`
+    - `TeacherFeedbackForm.tsx`
+  None had any live importers (only the now-removed commented-out
+  `TeacherFeedbackForm` import in `src/app/teacher/units/[unitId]/page.tsx:7`).
+- **Removed the dead `// import TeacherFeedbackForm ...`** quarantine-stub
+  comment from `src/app/teacher/units/[unitId]/page.tsx`.
+- **`src/components/teacher/knowledge/` is NOT deleted** — it still contains
+  `StudentFeedbackPulse.tsx`, which is the student pace feedback component
+  (posts to `/api/student/pace-feedback`, not knowledge endpoints) and is
+  imported by `src/app/(student)/unit/[unitId]/[pageId]/page.tsx`. It will
+  be relocated to a more appropriate folder in a later cleanup.
+
 ---
 **Reason:** Both the knowledge pipeline and unit generation pipeline are being rebuilt from scratch per Dimensions2 spec (`docs/projects/dimensions2.md`). The existing ingestion pipeline (upload → 3-pass analysis → chunking → embedding) will be replaced by the Activity Block Library (Pillar 1). The existing generation pipeline (wizard → AI generation → structured output) will be replaced by Block-Aware Generation (Pillar 2). Keeping the old pipelines active during the rebuild risks contaminating the new architecture.
 
@@ -116,15 +153,12 @@ These files still exist on disk. No code calls them anymore because all entry po
 - `src/lib/knowledge/vision.ts` (462 lines) — Claude Vision for diagrams
 - `src/lib/knowledge/ingest-unit.ts` (121 lines) — auto-ingest created units
 - `src/lib/knowledge/feedback.ts` (339 lines) — RAG quality feedback loop
-- `src/components/teacher/knowledge/KnowledgeItemCard.tsx` (418 lines)
-- `src/components/teacher/knowledge/KnowledgeItemForm.tsx` (690 lines)
-- `src/components/teacher/knowledge/LessonProfileReview.tsx` (1,026 lines)
-- `src/components/teacher/knowledge/AnalysisDetailPanel.tsx` (738 lines)
-- `src/components/teacher/knowledge/TeacherFeedbackForm.tsx` (489 lines)
-- `src/components/teacher/knowledge/CurriculumMapper.tsx` (169 lines)
-- `src/components/teacher/knowledge/TagAutocomplete.tsx` (137 lines)
-- `src/components/teacher/knowledge/MediaUploader.tsx` (153 lines)
-- `src/components/teacher/BatchUpload.tsx` (572 lines)
+
+(The 9 component files previously listed here — KnowledgeItemCard,
+KnowledgeItemForm, LessonProfileReview, AnalysisDetailPanel,
+TeacherFeedbackForm, CurriculumMapper, TagAutocomplete, MediaUploader, and
+BatchUpload — were all DELETED in the Phase 1.6 cleanup commit on 11 Apr
+2026.)
 
 ## How to verify quarantine is working
 

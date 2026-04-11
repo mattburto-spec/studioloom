@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import ReviewQueue from "@/components/teacher/knowledge/ReviewQueue";
-import type { ReviewBlock } from "@/components/teacher/knowledge/BlockReviewCard";
+import ReviewQueue from "@/components/teacher/library/ReviewQueue";
+import type { ReviewBlock } from "@/components/teacher/library/BlockReviewCard";
 
 export default function ReviewQueuePage() {
   const [blocks, setBlocks] = useState<ReviewBlock[]>([]);

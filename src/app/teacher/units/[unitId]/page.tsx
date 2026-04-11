@@ -3,8 +3,6 @@
 import { useState, useEffect, use } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-// QUARANTINED (3 Apr 2026) — Knowledge pipeline disabled pending architecture rebuild.
-// import TeacherFeedbackForm from "@/components/teacher/knowledge/TeacherFeedbackForm";
 import UnitThumbnailPicker from "@/components/teacher/UnitThumbnailPicker";
 import {
   getPageList,

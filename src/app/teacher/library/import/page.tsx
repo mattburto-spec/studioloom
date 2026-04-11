@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import MatchReport from "@/components/teacher/knowledge/MatchReport";
+import MatchReport from "@/components/teacher/library/MatchReport";
 
 interface ImportResult {
   reconstruction: {
@@ -66,10 +66,6 @@ export default function ImportPage() {
     setResult(null);
 
     try {
-      // NOTE (Phase 1.6, 11 Apr 2026): no real reconstruction endpoint exists yet.
-      // The previous /api/teacher/knowledge/import was a 501 placeholder stub and
-      // has been deleted. This page will surface a 404 here until the
-      // reconstruction endpoint is wired. Awaiting product decision.
       const res = await fetch("/api/teacher/library/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
