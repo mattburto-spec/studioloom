@@ -31,6 +31,33 @@ interface GenerationConfig {
 
 // ─── Helpers ───
 
+// 5.5 — Forbidden-pattern validator. Scans the FULL serialized AI response
+// (JSON.stringify + toLowerCase) for any natural-language banned phrase from
+// profile.gapGenerationRules.forbiddenPatterns. Returns the first matching
+// pattern string if a violation is detected, or null if clean. Called after
+// JSON.parse of the AI response, before the activity is accepted into the
+// output. Per Matt's lock: case-insensitive substring, whole-response scan.
+//
+// Design note: we intentionally stringify the entire response (not just the
+// student-facing text fields) so the AI cannot hide banned content in
+// metadata, tags, or bookkeeping fields. False-positive risk is mitigated by
+// the distinctive natural-language shape of the spec's forbidden patterns.
+export function findForbiddenPattern(
+  parsedAIResponse: unknown,
+  profile: FormatProfile
+): string | null {
+  const patterns = profile.gapGenerationRules?.forbiddenPatterns ?? [];
+  if (patterns.length === 0) return null;
+
+  const serialized = JSON.stringify(parsedAIResponse).toLowerCase();
+  for (const pattern of patterns) {
+    if (serialized.includes(pattern.toLowerCase())) {
+      return pattern;
+    }
+  }
+  return null;
+}
+
 const ZERO_COST: CostBreakdown = {
   inputTokens: 0, outputTokens: 0, modelId: "simulator",
   estimatedCostUSD: 0, timeMs: 0,
@@ -67,7 +94,7 @@ function buildGapPrompt(
 - Lesson role: ${ctx.suggestedLessonRole || "core"}
 
 ## Teaching Context
-${profile.teachingPrinciples.slice(0, 500)}
+${(profile.gapGenerationRules?.teachingPrinciples ?? profile.teachingPrinciples).slice(0, 500)}
 
 ## Scaffolding Requirements
 - Include hints (2-3 progressive hints)
@@ -195,7 +222,9 @@ export async function stage3_fillGaps(
 
           const response = await client.messages.create({
             model: modelId,
-            system: `You are a ${profile.cycleName} curriculum designer. Return ONLY valid JSON — no markdown, no explanation.`,
+            // 5.5 — Inject aiPersona from nested gapGenerationRules, fall back to flat field for back-compat.
+            // teachingPrinciples follows the same nested-preferred pattern at its read site in buildGapPrompt.
+            system: `You are a ${profile.cycleName} curriculum designer.\n\n## Persona\n${profile.gapGenerationRules?.aiPersona ?? profile.aiPersona}\n\nReturn ONLY valid JSON — no markdown, no explanation.`,
             messages: [{ role: "user", content: prompt }],
             max_tokens: 2048,
             temperature: 0.7,
@@ -216,6 +245,21 @@ export async function stage3_fillGaps(
           }
 
           const activity = JSON.parse(jsonText) as AIActivity;
+
+          // 5.5 — Forbidden-pattern validator. If AI gap-fill output contains a banned phrase
+          // from profile.gapGenerationRules.forbiddenPatterns, discard the AI output and throw
+          // into the local catch so the standard per-gap fallback path fires. This keeps the
+          // fallback discriminator (metric.modelUsed === "fallback") consistent with existing
+          // parse-error semantics — tests can distinguish AI-happy from fallback via that
+          // single field. Per Matt's lock: soft-warn, per-gap fallback, output-level.
+          const violatingPattern = findForbiddenPattern(activity, profile);
+          if (violatingPattern !== null) {
+            console.warn(
+              `[stage3_fillGaps] Forbidden pattern detected in AI output: "${violatingPattern}" (profile=${profile.type}, gap=${task.lessonIndex}-${task.activityIndex}). Falling back.`
+            );
+            throw new Error(`Forbidden pattern in AI output: ${violatingPattern}`);
+          }
+
           const metric: GapMetric = {
             gapIndex: batch + batchTasks.indexOf(task),
             lessonPosition: task.lessonPosition,

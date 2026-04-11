@@ -303,6 +303,14 @@ export interface FormatProfile {
   teachingPrinciples: string;
   aiPersona: string;
   typicalActivities: string[];
+  /** 5.5 — Nested gap-generation rules per spec format-profile-definitions.md §gapGenerationRules. Optional: when present, Stage 3 reads prefer nested values over the flat duplicates above. Flat fields retained for back-compat — cleanup phase may consolidate later. */
+  gapGenerationRules?: {
+    aiPersona: string;
+    teachingPrinciples: string;
+    typicalActivities: string[];
+    /** 5.5 NEW — banned natural-language phrases. If AI gap-fill output contains any pattern (case-insensitive substring, whole serialized response), the validator substitutes fallback content for that gap. */
+    forbiddenPatterns: string[];
+  };
 }
 
 const FORMAT_PROFILES: Record<UnitType, FormatProfile> = {
@@ -328,6 +336,17 @@ const FORMAT_PROFILES: Record<UnitType, FormatProfile> = {
     teachingPrinciples: DESIGN_TYPE.teachingPrinciples,
     aiPersona: DESIGN_TYPE.aiPersona,
     typicalActivities: DESIGN_TYPE.typicalActivities,
+    gapGenerationRules: {
+      aiPersona: DESIGN_TYPE.aiPersona,
+      teachingPrinciples: DESIGN_TYPE.teachingPrinciples,
+      typicalActivities: DESIGN_TYPE.typicalActivities,
+      forbiddenPatterns: [
+        "All-lecture lessons with no making/doing",
+        "Skipping safety briefing in workshop lessons",
+        "Evaluation only at the very end (should iterate)",
+        "Product-only assessment (process documentation is essential)",
+      ],
+    },
   },
   service: {
     type: "service",
@@ -353,6 +372,19 @@ const FORMAT_PROFILES: Record<UnitType, FormatProfile> = {
     teachingPrinciples: SERVICE_TYPE.teachingPrinciples,
     aiPersona: SERVICE_TYPE.aiPersona,
     typicalActivities: SERVICE_TYPE.typicalActivities,
+    gapGenerationRules: {
+      aiPersona: SERVICE_TYPE.aiPersona,
+      teachingPrinciples: SERVICE_TYPE.teachingPrinciples,
+      typicalActivities: SERVICE_TYPE.typicalActivities,
+      forbiddenPatterns: [
+        "Teacher-assigned service topic (student voice is essential)",
+        "One-day volunteering presented as service learning",
+        "Charity framing ('helping the less fortunate')",
+        "Skipping community voice (students assuming they know the need)",
+        "Assessment without reflection (product-only evaluation)",
+        "Workshop/making activities unrelated to service action",
+      ],
+    },
   },
   personal_project: {
     type: "personal_project",
@@ -376,6 +408,18 @@ const FORMAT_PROFILES: Record<UnitType, FormatProfile> = {
     teachingPrinciples: PERSONAL_PROJECT_TYPE.teachingPrinciples,
     aiPersona: PERSONAL_PROJECT_TYPE.aiPersona,
     typicalActivities: PERSONAL_PROJECT_TYPE.typicalActivities,
+    gapGenerationRules: {
+      aiPersona: PERSONAL_PROJECT_TYPE.aiPersona,
+      teachingPrinciples: PERSONAL_PROJECT_TYPE.teachingPrinciples,
+      typicalActivities: PERSONAL_PROJECT_TYPE.typicalActivities,
+      forbiddenPatterns: [
+        "Teacher-directed workshop demo (PP is student-directed)",
+        "Content-heavy mini-lessons (teacher isn't the content expert)",
+        "Group projects (PP is individual)",
+        "Product-only assessment (process and reflection are primary)",
+        "Rigid weekly schedule (PP students work at different paces)",
+      ],
+    },
   },
   inquiry: {
     type: "inquiry",
@@ -399,6 +443,18 @@ const FORMAT_PROFILES: Record<UnitType, FormatProfile> = {
     teachingPrinciples: INQUIRY_TYPE.teachingPrinciples,
     aiPersona: INQUIRY_TYPE.aiPersona,
     typicalActivities: INQUIRY_TYPE.typicalActivities,
+    gapGenerationRules: {
+      aiPersona: INQUIRY_TYPE.aiPersona,
+      teachingPrinciples: INQUIRY_TYPE.teachingPrinciples,
+      typicalActivities: INQUIRY_TYPE.typicalActivities,
+      forbiddenPatterns: [
+        "Pre-determined answers (inquiry must be genuinely open)",
+        "Teacher-driven question selection (students generate questions)",
+        "Product-focused assessment (thinking is assessed, not artifacts)",
+        "Single-perspective investigations (always seek multiple viewpoints)",
+        "Heavy front-loaded content delivery (provoke, don't lecture)",
+      ],
+    },
   },
 };
 
