@@ -176,3 +176,43 @@ Phase 1.7 ended up fixing both Pass A (`pass-a.ts`: 2000→8000, guard, `?? []`)
 ---
 
 *Last updated: 11 Apr 2026*
+
+---
+
+## Lesson #40 — Pre-flight audits catch brief transcription slips every time
+**Date:** 12 Apr 2026
+**Phase:** Dimensions3 v2 Phase 2, sub-tasks 5.5-5.9
+**Trigger:** 5 brief transcription slips caught by Code's pre-flight audit in sub-task 5.9 alone
+
+**What happened:** Sub-task 5.9 (FrameworkAdapter) ran the standard pre-flight → design → test → NC → commit cadence. Code's pre-flight audits before both the design phase and the test phase caught FIVE separate brief errors that would otherwise have caused first-run failures or silent-pass traps:
+1. **tsc baseline drift** — brief said 105, actual was 80 (brief was stale from earlier checkpoint)
+2. **vitest glob trap** — brief specified `tests/frameworks/adapter.test.ts` but `vitest.config.ts` include glob is `src/**/*.test.ts`. The file would have been silently ignored by the runner, test count would stay at 673, all gates would technically "pass" while actually skipping the entire test phase. Classic silent-pass shape (Lesson #38 family).
+3. **Group 4 function name** — brief said `getNeutralLabel` but meant `fromLabel`. `getNeutralLabel` takes only `NeutralCriterionKey` (no framework param); `fromLabel` is the label→neutral-keys reverse lookup.
+4. **Group 3 `length === 8`** — assumed 8 criteria per framework based on "8 neutral keys" conflation. Reality is 2-4 criteria per framework. Would have failed all 8 frameworks on first run.
+5. **Group 3a MYP `short` transcription** — brief typed `full` values (`"Criterion A"`) where `short` values (`"A"`) were needed. Only MYP would have failed because it's the only framework where `short !== full`.
+
+**Root cause:** I was writing briefs from memory + summarised context. Code was reading actual source. Every time those two diverged, Code caught it in pre-flight. The briefs "looked right" to me because I was pattern-matching against recent similar briefs, not re-grounding each value in source.
+
+**Lesson:**
+- **Never skip a pre-flight audit, even on briefs that "look simple".** The per-sub-task catch rate is ~1 slip minimum; 5.9 hit 5.
+- **Pre-flight audits are cheap** (~1 turn) and first-run failures are expensive (2-3 turns + potential silent-pass blindness).
+- **Accept Code's pushback on brief errors without re-arguing.** My first instinct when Code stops is often to rationalise the brief; stop and verify instead. In 5.9, I had to flip my own pushback on judgment call #6 (IGCSE × analysing) after Code correctly applied my own "exclusive-key wins" precedent.
+- **Silent-pass traps are the scariest category** — a test file not being run by the glob is indistinguishable from a passing test file unless you check the actual test count delta. The vitest glob trap would have nuked the entire test phase without any red flags.
+- **Always specify exact expected values in test briefs, transcribed from actual source, not from memory.** Lesson #38 applies to briefs as much as to tests — "assert expected values" means "values I actually verified against source", not "values that seem right".
+
+---
+
+## Lesson #41 — NC reverts on uncommitted files need the Edit tool, not git checkout
+**Date:** 12 Apr 2026
+**Phase:** Dimensions3 v2 Phase 2, sub-task 5.9 test phase
+**Trigger:** NC-1 in 5.9 test phase on `myp.ts` (still untracked at NC run time)
+
+**What happened:** Standard NC protocol for 5.9 was: (1) mutate one cell in `src/lib/frameworks/mappings/myp.ts`, (2) run tests, (3) verify expected failure, (4) `git checkout -- myp.ts`, (5) re-run tests, (6) verify green. But `myp.ts` was untracked (the whole design phase hadn't been committed yet — commit was gated on test phase completion). `git checkout --` is a no-op for untracked files. Code correctly switched to manual Edit-tool revert and documented the approach in the NC report.
+
+**Lesson:**
+- **`git checkout -- <file>` only works on files git has a baseline for** — tracked files with committed or staged state. Untracked files or files with only working-tree edits post-staging have no baseline to restore to.
+- **For NC on files not yet committed this phase**, the correct revert path is manual Edit-tool revert (read current, overwrite with original). Or `git stash` + verify + `git stash pop` as a noisier alternative (can mis-stash unrelated files).
+- **Test-phase briefs should specify the revert method explicitly** when the NC targets uncommitted files. Otherwise Code has to figure it out mid-NC and burn a turn.
+- **This matters because NC is load-bearing.** If the revert mechanism silently fails, tests stay in their mutated state and "pass" on re-run gives a false green. The 5.9 NC had two directions (TS mutation + fixture mutation) and both needed manual revert — the fixture was also uncommitted.
+
+---

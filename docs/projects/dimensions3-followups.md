@@ -227,3 +227,85 @@ zero dangling refs + zero unintentional orphans against a clean working
 tree.
 
 ---
+
+
+## FU-A — `pipeline.ts:590-592` simulator stage6 duplicate
+**Surfaced:** Sub-task 5.8 pre-flight (12 Apr 2026)
+**Target phase:** Phase 2 tidy pass or Phase 3
+**Priority:** P2 (sandbox code duplication, no functional impact)
+
+**Symptom:** `src/lib/pipeline/pipeline.ts:590-592` contains a stage 6 scoring call in the simulator branch that duplicates the stage6 call earlier in the same function. Both run against the same TimedUnit in sandbox mode.
+
+**What we know:** Identified during 5.8 (stage 6 pulseWeights wiring) pre-flight audit. Code flagged it but did not touch (outside 5.8 scope). Wiring test in 5.8 isolates against this by asserting on the second call's return value directly.
+
+**Investigation steps:**
+1. Confirm the duplicate is truly dead (or truly redundant) — one of the two calls may be a remnant from an older simulator path.
+2. Delete whichever call is redundant. Re-run stage6 tests + simulator smoke.
+
+**Definition of done:** One stage6 call per simulator run. Sandbox smoke test still green.
+
+---
+
+## FU-B — pulseWeights 0.05 drift across FormatProfiles
+**Surfaced:** Sub-task 5.8 pre-flight (12 Apr 2026)
+**Target phase:** Phase 2 tidy pass (batch with FU-A)
+**Priority:** P2 (spec drift, no functional blocker)
+
+**Symptom:** All 4 FormatProfiles (design, service, personal-project, inquiry) have `pulseWeights` values that drift by 0.05 from the values specified in the spec §3.x per-format tables.
+
+**What we know:**
+- Drift is consistent across all 4 profiles (same 0.05 delta), suggesting a single-source origin — likely a spec edit or a typo during profile authoring that propagated.
+- Stage 6 wiring test in 5.8 passes because it uses synthetic orthogonal profiles ({1,0,0}/{0,1,0}/{0,0,1}) rather than real profile values, so the drift is invisible to tests.
+- Real pipeline runs use the drifted values.
+
+**Investigation steps:**
+1. Diff all 4 profile `pulseWeights` against spec §3.x tables. Identify which direction the drift is (profile → spec or spec → profile).
+2. Decide which is canonical. If spec is canonical, update `unit-types.ts`. If profiles are canonical, update spec + changelog.
+3. Re-run stage6 tests + pipeline smoke.
+
+**Definition of done:** Zero drift between `unit-types.ts` FormatProfile.pulseWeights and `docs/projects/dimensions3-completion-spec.md` §3.x. Decision logged in decisions-log.md.
+
+---
+
+## FU-C — NESA §3.7 `analysing` spec bug
+**Surfaced:** Sub-task 5.9 design phase (12 Apr 2026)
+**Target phase:** Spec amendment pass (batch with FU-D)
+**Priority:** P2 (adapter honours prose intent via workaround)
+
+**Symptom:** `docs/specs/neutral-criterion-taxonomy.md §3.7` mentions `analysing` in the NESA DT prose but omits it from the Neutral Keys column of the forward table. Strict spec-literal reading would make it a gap cell.
+
+**What we know:**
+- §3.7 prose intent is clear — NESA's `Ev` (Evaluating) criterion absorbs analysing in NEA-style project work.
+- FrameworkAdapter honours the prose intent per Matt sign-off (12 Apr 2026): NESA × analysing returns `{ kind: "label", short: "Ev", full: "Ev", name: "Evaluating" }`.
+- `src/lib/frameworks/mappings/nesa.ts` has a comment `// FU-C: §3.7 prose intent, omitted from Neutral Keys column — filed as spec bug FU-C` and `Ev.neutralKeys` was extended to `["evaluating", "reflecting", "analysing"]` to round-trip correctly.
+
+**Investigation steps:**
+1. Amend spec §3.7 — add `analysing` to the Neutral Keys column for the Ev row.
+2. Add changelog entry to spec noting the intent was always present but the column was missing.
+3. Remove the FU-C comment from `nesa.ts` once spec is updated.
+
+**Definition of done:** Spec §3.7 Neutral Keys column lists `analysing` under Ev. `nesa.ts` comment removed. Adapter behaviour unchanged (test 139 stays green).
+
+---
+
+## FU-D — IGCSE §3.4 missing reverse table
+**Surfaced:** Sub-task 5.9 design phase (12 Apr 2026)
+**Target phase:** Spec amendment pass (batch with FU-C)
+**Priority:** P2 (adapter applies heuristic, needs spec canonical resolution)
+
+**Symptom:** `docs/specs/neutral-criterion-taxonomy.md §3.4` (IGCSE DT) has a forward table but no explicit reverse table declaring primacy. Multiple neutral keys (analysing, designing, researching) appear in more than one AO without primary indication.
+
+**What we know:**
+- The forward table lists analysing under both AO1 (pure recall) and AO2 (broad problem-solving) without primacy markers.
+- Similar ambiguity for designing (AO2 + AO3) and researching (AO2).
+- FrameworkAdapter applies the "exclusive-key wins" heuristic (same rule used for Victorian × TC): AO1 is analysing-exclusive so it wins primary. `src/lib/frameworks/mappings/igcse.ts` has a 5-line comment documenting the heuristic and filing this followup.
+- Pedagogically, AO2 is the stronger anchor for NEA-context analysing, but honouring spec-literal + precedent.
+
+**Investigation steps:**
+1. Add an explicit reverse table to §3.4 declaring primacy for the 3 shared keys.
+2. Subject-expert review recommended — the "exclusive-key wins" heuristic may not match how IGCSE DT is actually assessed.
+3. If reverse table disagrees with adapter, update `igcse.ts` + re-run adapter tests. Expected delta: Group 1 + Group 2 tests for IGCSE×analysing may need fixture updates.
+
+**Definition of done:** Spec §3.4 has explicit reverse table. Adapter matches spec (either confirming current heuristic or flipping to AO2). IGCSE comment in `igcse.ts` updated or removed.
+
+---

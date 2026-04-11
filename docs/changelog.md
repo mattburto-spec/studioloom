@@ -458,3 +458,43 @@
 **Systems affected:** `skills-library` (new, planned, v0), `open-studio-mode` (new, planned, v0), `student-open-studio` (v1 noted as superseded-in-behaviour by Mode). Touches future work across learning_events schema (new event types), Journey Engine consumers, and student dashboard UI.
 
 **Session context:** Matt dropped 8 workshop artifacts and asked me to check for related existing projects, start new ones if needed, then organize the files. Key concern: guaranteed context preservation for future sessions — solved with a 4-mechanism lock-in (cross-links + required-reading block + auto-memory trigger + WIRING entries). No code changes — planning and organization only. Both projects remain planned/P1; build starts next week.
+
+## 12 Apr 2026 — Dimensions3 v2 Phase 2: Sub-tasks 5.5–5.9 shipped (FormatProfile wiring + FrameworkAdapter)
+
+**What changed:**
+- **5.5 test phase** closed — stage 3 gap-generation rules per-profile tests with mocked AI + 4 fixtures (design/service/PP/inquiry). 6 tests. Commit `e610050`.
+- **5.6 design + test** closed — FormatProfile.connectiveTissue added as required field, wired into stage 4 polish prompt (audienceLanguage + reflectionStyle gloss + transitionVocabulary). 5 tests with double-sensitive distinctness gate. Commits `bc46383` + `1991de2`.
+- **5.7 design + test** closed — FormatProfile.timingModifiers additively extended to 5 fields (added defaultWorkTimeFloor + reflectionMinimum), wired into stage 5 timing. 5 tests with 3 NC proofs including edge-case sharpness. Commits `fa8e3dc` + `c5fc92f`.
+- **5.8 test-only** closed — stage 6 pulseWeights wiring test with 3 synthetic orthogonal profiles ({1,0,0}/{0,1,0}/{0,0,1}) + shared TimedUnit. NC via hardcoded `1/3` collapse to 6.6. Commit `0e101aa`.
+- **5.9 FrameworkAdapter build + test** closed — `src/lib/frameworks/adapter.ts` + 8 mapping files + 139 tests + 8×8 JSON fixture cross-check. Discriminated union return type (label | implicit | not_assessed) for 16 gap cells, 0 not_assessed (all implicit roll-ups). 3 exam-prep context overrides. Commits `ccc3d2a` + `4e31363`.
+
+**Files created:**
+- `src/lib/frameworks/adapter.ts` (199 lines)
+- `src/lib/frameworks/mappings/{myp,gcse,alevel,igcse,acara,pltw,nesa,victorian}.ts` (8 files, 31–56 lines each)
+- `src/lib/frameworks/__tests__/adapter.test.ts` (262 lines, 139 tests)
+- `tests/fixtures/phase-2/framework-adapter-8x8.json` (208 lines)
+- `src/lib/pipeline/stages/__tests__/stage3-gap-generation-rules.test.ts` + 4 stage3 fixtures
+- `src/lib/pipeline/stages/__tests__/stage4-polish-connective-tissue.test.ts` + 4 stage4 fixtures
+- `src/lib/pipeline/stages/__tests__/stage5-timing-profile-wiring.test.ts`
+- `src/lib/pipeline/stages/__tests__/stage6-scoring-pulse-weights-wiring.test.ts`
+
+**Files modified:** `src/lib/ai/unit-types.ts` (connectiveTissue + timingModifiers extensions), `src/lib/pipeline/stages/stage4-polish.ts` (connectiveTissue injection), `src/lib/pipeline/stages/stage5-timing.ts` (work-time floor + reflection minimum wiring), 3 pre-existing stage4 test fixtures thickened with stub connectiveTissue.
+
+**Followups filed (docs/projects/dimensions3-followups.md):**
+- FU-A: `pipeline.ts:590-592` simulator stage6 duplicate (from 5.8 pre-flight)
+- FU-B: pulseWeights 0.05 drift across all 4 FormatProfiles (from 5.8 pre-flight)
+- FU-C: NESA §3.7 analysing spec bug — adapter honours prose intent via Ev extension
+- FU-D: IGCSE §3.4 missing reverse table — adapter applies exclusive-key heuristic
+
+**Auto-memory added:**
+- `feedback_nc_revert_uncommitted.md` — Use Edit-tool revert, not `git checkout --`, on not-yet-committed NC files
+- `feedback_brief_transcription_slips.md` — Pre-flight audits catch ~1 brief slip per sub-task; never skip them
+- `project_dimensions3_phase2_progress.md` — Phase 2 current state + next steps
+
+**Test counts:** 673 → 812 (+139 from 5.9; 5.5-5.8 added ~17 to the pre-5.9 baseline). tsc baseline held at 80 throughout.
+
+**Commits:** 7 new commits this session. HEAD `4e31363`, 26 ahead of origin/main. Not pushed — push gated on Matt Checkpoint 2.1 per build-methodology.md.
+
+**Systems affected:** `generation-pipeline` (Stages 3/4/5/6 now consume FormatProfile fields previously ignored), `framework-adapter` (new system — first consumer is 5.10 Admin panel), `format-profiles` (connectiveTissue + timingModifiers extended).
+
+**Session context:** Long session continuing Dimensions3 v2 Phase 2 build after context compaction. Phased-with-checkpoints methodology held throughout. Every sub-task followed pre-flight → design/lock → test → NC → commit cadence. Pre-flight audits caught 5 brief transcription slips in 5.9 alone (baseline drift, vitest glob trap, Group 4 function name, Group 3 length miscount, Group 3a MYP short/full mix-up) — none reached EDITS. Next session starts with 5.10 (Admin panel) pre-flight.
