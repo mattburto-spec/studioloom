@@ -18,6 +18,7 @@ import type {
 } from "@/types/activity-blocks";
 import type { FormatProfile } from "@/lib/ai/unit-types";
 import { validateNeutralContent, NeutralValidationError } from "./stage4-neutral-validator";
+import { assertNotMaxTokens, MaxTokensError } from "./max-tokens-guard";
 
 // ─── Types ───
 
@@ -154,6 +155,10 @@ export async function stage4_polish(
         temperature: 0.3,
       });
 
+      // Lesson #39 — fail loud on max_tokens truncation before JSON.parse
+      // can die with a cryptic "Unexpected end of JSON input".
+      assertNotMaxTokens(response, "stage4_polish", 4096);
+
       const textBlock = response.content.find(b => b.type === "text");
       if (textBlock && textBlock.type === "text") {
         let jsonText = textBlock.text.trim();
@@ -174,6 +179,8 @@ export async function stage4_polish(
       };
     }
   } catch (e) {
+    // Lesson #39 — max_tokens truncation is a loud, fail-fast condition.
+    if (e instanceof MaxTokensError) throw e;
     if (e instanceof NeutralValidationError) throw e;
     console.error("[stage4] AI polish failed, using algorithmic fallback:", e);
   }
