@@ -616,14 +616,14 @@ const SYSTEMS = [
     osSeam: "ready", osNotes: "Activity Blocks are THE core shared entity across all Loominary products."
   },
   {
-    id: "intelligence-profiles", name: "Intelligence Profiles", category: "AI & Intelligence",
-    v1: "3 JSONB columns: Student Intelligence Profile (on students), Teacher Intelligence Profile (on teachers), Class Climate Profile (on classes). Updated at write time via exponential moving average (α=0.3). AI reads 200-300 token natural language summary.",
-    v2: "Cross-session learning patterns, predictive modelling for at-risk students",
-    v3: "Unified StudentLearningProfile merging passive signals with Discovery data",
+    id: "intelligence-profiles", name: "Student Learning Profile — Unified Schema", category: "AI & Intelligence",
+    v1: "Unified student_learning_profile JSONB — 7 sections (identity incl. creative_voice 1024-d aesthetic_embedding + trajectory_snapshots, cognitive, current_state incl. motivational_state SDT, wellbeing, passive_signals, social incl. group work + HMAC-hashed peer refs, custom via profile_dimensions registry) + computed pedagogy_preferences. 7 writer classes via SECURITY DEFINER. Teacher style_profile + class climate_profile alongside. Option 2 extension 10 Apr 2026.",
+    v2: "Cross-session learning patterns, predictive modelling for at-risk students, dimension governance UI",
+    v3: "Loominary OS cross-product intelligence layer — shared profiles across StudioLoom, Makloom, Seedlings",
     v4: null, v5: null,
-    currentVersion: 0, status: "planned",
-    deps: ["discovery-engine", "student-data", "toolkit-persistence"],
-    osSeam: "ready", osNotes: "Profile schema and update engine fully product-agnostic."
+    currentVersion: 0, status: "ready",
+    deps: ["discovery-engine", "student-data", "toolkit-persistence", "work-capture-pipeline", "class-gallery", "peer-review", "teaching-mode", "embedding-search"],
+    osSeam: "designed", osNotes: "Schema designed as OS seam — product-agnostic sections, registered dimensions enable per-product extensions without migrations. Unblocks Designer Mentor via mentor_matcher touchpoint."
   },
   {
     id: "ai-provider", name: "AI Provider Abstraction", category: "AI & Intelligence",

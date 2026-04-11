@@ -29,7 +29,7 @@ docs:
     title: "Session Changelog"
     purpose: "Rolling log of changes across sessions for cross-session context"
     category: root
-    last_verified: "2026-04-09"
+    last_verified: "2026-04-11"
 
   - path: docs/decisions-log.md
     title: "Key Decisions Log"
@@ -39,9 +39,15 @@ docs:
 
   - path: docs/lessons-learned.md
     title: "Lessons Learned"
-    purpose: "31 hard-won lessons from production bugs, build disasters, Supabase/Vercel gotchas"
+    purpose: "39 hard-won lessons from production bugs, build disasters, Supabase/Vercel gotchas (Lessons #38 + #39 added 10–11 Apr 2026; #39 covers silent max_tokens truncation + 'fix all similar sites in same phase' rule)"
     category: root
-    last_verified: "2026-04-07"
+    last_verified: "2026-04-11"
+
+  - path: docs/build-methodology.md
+    title: "Build Methodology — Phased with Checkpoints"
+    purpose: "Canonical build discipline for non-trivial work. Phased-with-checkpoints model, sandbox/sim baked in as first-class spec components, pre-flight ritual, stop triggers, verify=expected values, audit-then-fix patterns. Default discipline; prefer it even when not explicitly asked."
+    category: root
+    last_verified: "2026-04-11"
 
   - path: docs/quarantine.md
     title: "Quarantine Status"
@@ -242,8 +248,50 @@ docs:
     title: "StudioLoom — Master Project Index"
     purpose: "CANONICAL project tracker. ALL project status, new projects, completions. Single source of truth."
     category: projects
-    last_verified: "2026-04-07"
+    last_verified: "2026-04-11"
     referenced_from: ["CLAUDE.md project tracking section"]
+
+  - path: docs/projects/discovery-engine-cognitive-layer.md
+    title: "Discovery Engine — Cognitive Layer (MindPrint-Informed)"
+    purpose: "Enhancement proposal: add 3 cognitive rooms (spatial reasoning, flexible thinking, visual memory) to the Discover Your Design DNA onboarding. Informed by MindPrint Learning's NIH/UPenn cognitive battery (ESSA Tier IV). Cognitive vector doesn't change which designer the student matches with — it changes how the AI mentor adapts its pedagogy (visual vs verbal scaffolding, structured vs open prompts, repetition strategy, flexible provocations). Puzzle-framed, ~60s each. Next steps, scoring rubrics, future MindPrint-ingestion path."
+    category: projects
+    last_verified: "2026-04-10"
+    referenced_from: ["ALL-PROJECTS.md Discovery Engine Cognitive Layer project", "WIRING.yaml discovery-engine docs"]
+
+  - path: docs/projects/studentdash.md
+    title: "StudentDash — Student Dashboard Reimagination"
+    purpose: "CANONICAL doc for student dashboard project. 7 directions explored, Studio Desk chosen (10 Apr 2026). TWO prototypes built: v1 dark 3D desk scene + v2 flat Miro-bench variant (10 Apr 2026 — r3f-motion-sample.html). v2 section documents reusable primitives (flat workbench, fixed-camera R3F anchor, hover-glow 3D badge, single-corner card interactions, snap-to-stack via registry ref) and 10 open questions."
+    category: projects
+    last_verified: "2026-04-10"
+    referenced_from: ["ALL-PROJECTS.md StudentDash project"]
+
+  - path: docs/dashboard/studio-desk-session-summary.docx
+    title: "Student Dashboard — Studio Desk Session Summary"
+    purpose: "Design session notes for Student Dashboard reimagination as Studio Desk workspace. Chosen direction, growth-over-gamification decision, map parked, 7 open questions."
+    category: projects
+    last_verified: "2026-04-10"
+    referenced_from: ["ALL-PROJECTS.md Student Dashboard project"]
+
+  - path: docs/dashboard/studio-desk-references.docx
+    title: "Studio Desk Dashboard — Design References"
+    purpose: "6 design references with 'steal this' takeaways: Miro/FigJam, Things 3, Forest App, Animal Crossing, Minecraft Edu, Notion Gallery. Cross-cutting principles and anti-patterns."
+    category: projects
+    last_verified: "2026-04-10"
+    referenced_from: ["ALL-PROJECTS.md Student Dashboard project"]
+
+  - path: docs/dashboard/student-workspace.jsx
+    title: "Student Workspace Prototype v1 — Dark Studio Desk"
+    purpose: "Working React + Three.js prototype for Studio Desk dashboard (v1). Draggable frosted-glass cards over 3D desk scene with physical objects."
+    category: projects
+    last_verified: "2026-04-10"
+    referenced_from: ["ALL-PROJECTS.md Student Dashboard project"]
+
+  - path: docs/dashboard/r3f-motion-sample.html
+    title: "Student Workspace Prototype v2 — Miro-Bench Variant"
+    purpose: "Single-file HTML prototype (React 18 + R3F + Framer Motion via esm.sh). Flat 2D Miro-style wood workbench with one low-poly boombox speaker embedded top-right (fixed-camera R3F anchor so perspective never changes), one clickable 3D hex-medal badge bottom-right (hover glow via emissive + pointLight + CSS radial), 3 draggable student-content cards (Current Unit / Next Step / Feedback) with single rotate corner + single resize corner + snap-to-stack via shared registry ref, and a Focus Mode pill-toggle in the header (fades everything except the Next Step card which springs to centre at 1.35× scale; savedRef snapshot restores exact prior state on toggle-off). 7 reusable primitives documented in studentdash.md Prototype v2 section."
+    category: projects
+    last_verified: "2026-04-10"
+    referenced_from: ["ALL-PROJECTS.md StudentDash project", "studentdash.md Prototype v2 section"]
 
   - path: docs/projects/README.md
     title: "StudioLoom Projects"
@@ -255,21 +303,21 @@ docs:
     title: "WIRING — Machine-Readable System Registry"
     purpose: "82+ systems with dependencies, affects relationships, data fields, docs, change impacts. CRITICAL: check before making changes."
     category: projects
-    last_verified: "2026-04-07"
+    last_verified: "2026-04-11"
     referenced_from: ["CLAUDE.md impact analysis section"]
 
   - path: docs/projects/dashboard.html
     title: "Project Dashboard"
     purpose: "Interactive dashboard with PROJECTS array in sync with ALL-PROJECTS.md"
     category: projects
-    last_verified: "2026-04-07"
+    last_verified: "2026-04-11"
     referenced_from: ["CLAUDE.md project tracking section"]
 
   - path: docs/projects/wiring-dashboard.html
     title: "Wiring Dashboard"
     purpose: "Interactive visual view of system dependencies. Click system to see upstream/downstream."
     category: projects
-    last_verified: "2026-04-07"
+    last_verified: "2026-04-11"
     referenced_from: ["CLAUDE.md impact analysis section"]
 
   - path: docs/projects/system-architecture-map.html
@@ -280,11 +328,25 @@ docs:
     referenced_from: ["CLAUDE.md impact analysis section"]
 
   - path: docs/projects/dimensions3.md
-    title: "Project Dimensions3 — Generation Pipeline Rebuild"
-    purpose: "6-stage compartmentalized generation pipeline with typed contracts, 2-pass ingestion, Activity Block Library, sandbox debugger, feedback loop with approval queue + guardrails, admin dashboard with operational monitors, unit import, smoke tests. No hardcoded sequences — system learns from usage. 43 decisions logged. ALL 5 PHASES + WIRING COMPLETE (9 Apr 2026). Pipeline connected to wizard UI."
+    title: "Project Dimensions3 — Generation Pipeline Rebuild (Master Spec)"
+    purpose: "6-stage compartmentalized generation pipeline with typed contracts, 2-pass ingestion, Activity Block Library, sandbox debugger, feedback loop with approval queue + guardrails, admin dashboard with operational monitors, unit import, smoke tests. No hardcoded sequences — system learns from usage. 43 decisions logged. Master spec — see dimensions3-completion-spec.md for the v2 build plan."
     category: projects
-    last_verified: "2026-04-09"
+    last_verified: "2026-04-10"
     referenced_from: ["CLAUDE.md AI Brain table"]
+
+  - path: docs/projects/dimensions3-completion-spec.md
+    title: "Dimensions3 v2 Completion Spec (Canonical Build Plan)"
+    purpose: "v2 rewrite of the Dimensions3 build plan (~1,600 lines). Full audit of v1 gaps fixed: removed Stage 5b misconception (curriculum mapping is render-time via FrameworkAdapter), added Phase 5 Content Safety (§17), expanded Phase 4 to all 7 automation systems (§9.3), expanded Phase 7 to all 12 admin tabs + 5 sandboxes + Bug Reporting. 12 mandatory Matt Checkpoints, per-sub-task verification, rollback sections. 21–25 day estimate. §3.7 amended (11 Apr 2026): Checkpoint 1.2 promoted to automated E2E gate, manual smoke walkthrough demoted to optional pre-push. THIS IS THE BUILD PLAN TO FOLLOW."
+    category: projects
+    last_verified: "2026-04-11"
+    referenced_from: ["ALL-PROJECTS.md", "decisions-log.md", "changelog.md"]
+
+  - path: docs/projects/dimensions3-followups.md
+    title: "Dimensions3 Follow-Ups Tracker"
+    purpose: "Per-FU tracking for Dimensions3 phase follow-ups (FU-1 through FU-5). FU-1 /teacher/units render delay P1. FU-2 Unknown strand/level chips P2. FU-3 Migration 067 grandfather bug ✅ FIXED. FU-4 delete junk test units P2. FU-5 max_tokens silent truncation audit (Pass A + Pass B fixed in Phase 1.7, 9 sites remaining)."
+    category: projects
+    last_verified: "2026-04-11"
+    referenced_from: ["ALL-PROJECTS.md Dimensions3 follow-ups", "CLAUDE.md current focus"]
 
   - path: docs/projects/dimensions2.md
     title: "Project Dimensions2 — Platform Architecture Reset"
@@ -522,6 +584,12 @@ docs:
     category: projects
     last_verified: "2026-04-04"
 
+  - path: docs/projects/ell.md
+    title: "Project: ELL — Language Support for Multilingual Learners"
+    purpose: "Per-student language scaffolding strategy + Medley Learning research"
+    category: projects
+    last_verified: "2026-04-10"
+
   - path: docs/projects/inclusive.md
     title: "Project: Inclusive"
     purpose: "Inclusivity and accessibility features"
@@ -640,6 +708,13 @@ docs:
     purpose: "Architecture for Discovery as student profiling backbone"
     category: specs
     last_verified: "2026-03-26"
+    superseded_by: "docs/specs/student-learning-profile-schema.md"
+
+  - path: docs/specs/student-learning-profile-schema.md
+    title: "Student Learning Profile — Unified Schema Spec"
+    purpose: "Canonical unified profile schema. 7 sections (identity incl. creative_voice + trajectory_snapshots, cognitive, current_state incl. motivational_state SDT, wellbeing, passive_signals, social incl. group work, custom via dimension registry) + computed pedagogy_preferences. 7 writer classes via SECURITY DEFINER. profile_dimensions registry enables future journey blocks to declare new dimensions without migrations. 1024-d aesthetic_embedding unblocks Designer Mentor matching. 4-phase build plan (21-25d). Option 2 stress-test extension 10 Apr 2026 added 5 structural gaps (SDT motivation, social/peer + group work, dimension registry, creative_voice, trajectory snapshots). Consolidates 3 prior overlapping specs."
+    category: specs
+    last_verified: "2026-04-10"
 
   - path: docs/specs/neutral-criterion-taxonomy.md
     title: "Neutral Criterion Taxonomy"
@@ -1376,25 +1451,86 @@ docs:
     category: root
     last_verified: "2026-03-19"
 
+  # --- SKILLS LIBRARY + OPEN STUDIO MODE (added 11 Apr 2026) ---
+  - path: "docs/projects/skills-library.md"
+    title: "Skills Library — Canonical Content Layer"
+    purpose: "P1 project: canonical skill cards, state ladder, freshness, context-aware gating, radar chart. Supersedes self-help-library.md"
+    category: projects
+    last_verified: "2026-04-11"
+
+  - path: "docs/projects/open-studio-mode.md"
+    title: "Open Studio Mode — Studio Desk, Three-Touch Pattern"
+    purpose: "P1 project: runtime open studio (studio desk, arrival intent, passive evidence, departure reflection, 5-rung escalation). Contains MANDATORY required-reading block"
+    category: projects
+    last_verified: "2026-04-11"
+
+  - path: "docs/specs/skills-library-spec.md"
+    title: "Skills Library Spec (base)"
+    purpose: "Canonical spec: skill card anatomy, schema, embed contexts, quizzes, badges, authoring phases, cross-school sharing"
+    category: specs
+    last_verified: "2026-04-11"
+
+  - path: "docs/specs/skills-library-completion-addendum.md"
+    title: "Skills Library Completion Addendum"
+    purpose: "Completion state model, freshness layer, context-aware gating, categories, strength radar chart formula, privacy rules"
+    category: specs
+    last_verified: "2026-04-11"
+
+  - path: "docs/open studio/open-studio-mode-spec.md"
+    title: "Open Studio Mode Spec"
+    purpose: "Principles, three-touch pattern, AI behaviour, 5-rung escalation, UX wireframe, Wayfinder/Stones/Recalibration integration"
+    category: open-studio
+    last_verified: "2026-04-11"
+
+  - path: "docs/prototypes/strength-chart-prototype.html"
+    title: "Strength Radar Chart Prototype"
+    purpose: "Interactive prototype of skill strength radar chart (state × freshness × category weight)"
+    category: prototypes
+    last_verified: "2026-04-11"
+
+  - path: "docs/open studio/prototypes/open-studio-wireframe.html"
+    title: "Open Studio Wireframe"
+    purpose: "Studio desk wireframe for Open Studio Mode"
+    category: prototypes
+    last_verified: "2026-04-11"
+
+  - path: "docs/open studio/prototypes/open-studio-reference-prototypes.html"
+    title: "Open Studio Reference Prototypes"
+    purpose: "Reference layouts for Open Studio Mode UI patterns"
+    category: prototypes
+    last_verified: "2026-04-11"
+
+  - path: "docs/open studio/prototypes/student-dashboard-composed.html"
+    title: "Student Dashboard Composed"
+    purpose: "Student dashboard with greyscale unit card + colourful Studio card pattern"
+    category: prototypes
+    last_verified: "2026-04-11"
+
+  - path: "docs/open studio/prototypes/SESSION-SUMMARY-apr-2026.md"
+    title: "Skills + Open Studio Workshop Session Summary (April 2026)"
+    purpose: "Orientation doc listing all workshop artifacts, decisions, scope tiers, open questions"
+    category: open-studio
+    last_verified: "2026-04-11"
+
 # --- SUMMARY STATISTICS ---
 summary:
-  total_documents: 222
+  total_documents: 233
   by_category:
     root: 19
     brain: 8
-    projects: 60
-    specs: 49
+    projects: 63
+    specs: 51
     research: 7
     testing: 7
     ideas: 7
-    open-studio: 8
+    open-studio: 10
     components: 3
     design: 2
     automation: 2
     audits: 2
-    prototypes: 14
+    prototypes: 17
     archive: 20
     marketing: 1
     safety: 1
-  last_updated: "2026-04-07"
+  last_updated: "2026-04-11"
   referenced_in_claude_md: 17

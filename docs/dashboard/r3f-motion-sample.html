@@ -1,0 +1,1451 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Studio Desk — Miro-style workbench</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --ink: #2a1e14;
+    --ink-dim: #5a4836;
+    --ink-faint: #8a7560;
+    --accent: #b8601f;
+    --accent-2: #d87a2e;
+    --paper: #fdf6e6;
+    --paper-shade: #f0e6cf;
+  }
+  * { box-sizing: border-box; }
+  html, body, #root { height: 100%; margin: 0; overflow: hidden; }
+  body {
+    font-family: "DM Sans", system-ui, sans-serif;
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+  }
+  .serif { font-family: "DM Serif Display", serif; letter-spacing: -0.01em; }
+
+  /* ---------- THE WORKBENCH ---------- */
+  .bench {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    /* base wood tone with big radial highlight where the "light" falls */
+    background:
+      radial-gradient(ellipse 80% 65% at 50% 45%, #e8b87a 0%, #d09858 40%, #a6703a 100%);
+  }
+  /* Wood grain streaks — long, horizontal-ish smears */
+  .bench::before {
+    content: "";
+    position: absolute; inset: 0;
+    background:
+      /* long dark grain lines */
+      repeating-linear-gradient(
+        92deg,
+        rgba(45, 22, 8, 0) 0px,
+        rgba(45, 22, 8, 0) 6px,
+        rgba(45, 22, 8, 0.15) 7px,
+        rgba(45, 22, 8, 0) 9px,
+        rgba(45, 22, 8, 0) 22px,
+        rgba(60, 32, 14, 0.08) 23px,
+        rgba(45, 22, 8, 0) 26px,
+        rgba(45, 22, 8, 0) 50px,
+        rgba(30, 15, 5, 0.1) 51px,
+        rgba(45, 22, 8, 0) 54px
+      ),
+      /* softer cross grain */
+      repeating-linear-gradient(
+        90deg,
+        rgba(255, 220, 170, 0) 0px,
+        rgba(255, 220, 170, 0) 120px,
+        rgba(255, 220, 170, 0.04) 121px,
+        rgba(255, 220, 170, 0) 122px
+      );
+    mix-blend-mode: multiply;
+    pointer-events: none;
+  }
+  /* turbulence noise layer — makes it look like actual worn wood */
+  .bench::after {
+    content: "";
+    position: absolute; inset: 0;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='420' height='420'><filter id='w'><feTurbulence type='fractalNoise' baseFrequency='0.012 0.45' numOctaves='3' seed='7'/><feColorMatrix values='0 0 0 0 0.4  0 0 0 0 0.22  0 0 0 0 0.08  0 0 0 0.35 0'/></filter><rect width='100%25' height='100%25' filter='url(%23w)'/></svg>");
+    opacity: 0.35;
+    mix-blend-mode: multiply;
+    pointer-events: none;
+  }
+
+  /* Coffee rings, paint blobs, scratches, pencil marks — hand-placed marks */
+  .bench-marks {
+    position: absolute; inset: 0;
+    pointer-events: none;
+  }
+  .mark {
+    position: absolute;
+    pointer-events: none;
+  }
+  .ring {
+    border: 4px solid rgba(50, 22, 6, 0.32);
+    border-radius: 50%;
+    box-shadow: inset 0 0 3px rgba(50, 22, 6, 0.3);
+    mix-blend-mode: multiply;
+  }
+  .scratch {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(30, 15, 5, 0.6), transparent);
+    transform-origin: left center;
+    mix-blend-mode: multiply;
+  }
+  .paint {
+    border-radius: 50%;
+    filter: blur(1px);
+    mix-blend-mode: multiply;
+  }
+  .dust {
+    width: 2px; height: 2px;
+    background: rgba(50, 25, 8, 0.5);
+    border-radius: 50%;
+    mix-blend-mode: multiply;
+  }
+  .edge-vignette {
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse 90% 80% at 50% 50%, transparent 65%, rgba(60, 30, 10, 0.3) 100%);
+    pointer-events: none;
+    mix-blend-mode: multiply;
+  }
+
+  /* ---------- HEADER ---------- */
+  .header {
+    position: absolute;
+    top: 28px; left: 36px; right: 36px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    z-index: 30;
+    pointer-events: none;
+  }
+  .header-title {
+    text-shadow: 0 2px 8px rgba(0,0,0,0.55);
+  }
+  .header-kicker {
+    font-size: 10px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: #f3d9b0;
+    margin-bottom: 6px;
+    font-weight: 600;
+  }
+  .header-h1 {
+    margin: 0;
+    font-size: 36px;
+    color: #fff3dc;
+    font-family: "DM Serif Display", serif;
+    letter-spacing: -0.01em;
+  }
+  .header-sub {
+    font-size: 13px;
+    color: #f0dcb8;
+    margin-top: 6px;
+    max-width: 420px;
+  }
+  .toolbar {
+    pointer-events: auto;
+    background: rgba(253, 246, 230, 0.94);
+    border: 1px solid rgba(40, 25, 15, 0.15);
+    border-radius: 14px;
+    padding: 8px;
+    display: flex;
+    gap: 4px;
+    box-shadow: 0 12px 28px -10px rgba(0,0,0,0.45);
+  }
+  .tool-btn {
+    width: 38px; height: 38px;
+    display: grid;
+    place-items: center;
+    border-radius: 10px;
+    border: none;
+    background: transparent;
+    color: var(--ink-dim);
+    font-size: 16px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  .tool-btn:hover { background: rgba(184, 96, 31, 0.1); color: var(--accent); }
+  .tool-btn.active { background: rgba(184, 96, 31, 0.15); color: var(--accent); }
+
+  /* ---------- FOCUS TOGGLE ---------- */
+  .focus-toggle {
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(253, 246, 230, 0.94);
+    border: 1px solid rgba(40, 25, 15, 0.15);
+    border-radius: 22px;
+    padding: 8px 14px 8px 10px;
+    margin-right: 10px;
+    cursor: pointer;
+    box-shadow: 0 12px 28px -10px rgba(0,0,0,0.45);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: var(--ink-dim);
+    transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+    user-select: none;
+  }
+  .focus-toggle:hover { background: rgba(255, 236, 200, 0.98); }
+  .focus-toggle.on {
+    background: rgba(184, 96, 31, 0.95);
+    color: #fff6e2;
+    box-shadow: 0 12px 28px -8px rgba(120, 50, 0, 0.6);
+  }
+  .focus-switch {
+    width: 28px;
+    height: 16px;
+    border-radius: 9px;
+    background: rgba(40, 25, 15, 0.2);
+    position: relative;
+    transition: background 0.2s;
+  }
+  .focus-toggle.on .focus-switch { background: rgba(255, 240, 200, 0.5); }
+  .focus-switch::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #fff3dc;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    transition: transform 0.2s;
+  }
+  .focus-toggle.on .focus-switch::after { transform: translateX(12px); }
+  .header-right {
+    pointer-events: auto;
+    display: flex;
+    align-items: flex-start;
+  }
+
+  /* ---------- CARDS ---------- */
+  .cards-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+  }
+  .card {
+    position: absolute;
+    width: 300px;
+    background: var(--paper);
+    border-radius: 14px;
+    overflow: hidden;
+    cursor: grab;
+    user-select: none;
+    box-shadow:
+      0 2px 0 rgba(255, 255, 255, 0.6) inset,
+      0 24px 48px -14px rgba(20, 10, 2, 0.55),
+      0 6px 14px -4px rgba(20, 10, 2, 0.35);
+    border: 1px solid rgba(40, 25, 15, 0.1);
+    touch-action: none;
+  }
+  .card-corner {
+    position: absolute;
+    width: 26px;
+    height: 26px;
+    z-index: 5;
+    opacity: 0;
+    transition: opacity 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(40,25,15,0.55);
+  }
+  .card:hover .card-corner { opacity: 0.85; }
+  .card-corner.tr { top: 0; right: 0; cursor: grab; border-top-right-radius: 14px; }
+  .card-corner.br {
+    bottom: 0;
+    right: 0;
+    cursor: nwse-resize;
+    border-bottom-right-radius: 14px;
+    background:
+      linear-gradient(135deg, transparent 0 45%, rgba(40,25,15,0.4) 45% 55%, transparent 55% 70%, rgba(40,25,15,0.4) 70% 80%, transparent 80%);
+  }
+  .card-corner.tr::before {
+    content: "↻";
+    font-size: 14px;
+    line-height: 1;
+  }
+  .card-corner.tr:active { cursor: grabbing; }
+  .card-sub {
+    font-size: 13px;
+    line-height: 1.4;
+    color: var(--ink-dim);
+    margin-top: -2px;
+    margin-bottom: 6px;
+  }
+  .card-image {
+    width: 100%;
+    height: 180px;
+    position: relative;
+    overflow: hidden;
+  }
+  .card-image svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .card-pin {
+    position: absolute;
+    top: 10px; left: 50%;
+    transform: translateX(-50%);
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #e64a19, #8b1a00 70%, #3d0800);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.5), 0 0 0 2px rgba(255, 220, 200, 0.25);
+    z-index: 2;
+  }
+  .card-body {
+    padding: 16px 20px 20px;
+  }
+  .card-kicker {
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+  .card-title {
+    font-family: "DM Serif Display", serif;
+    font-size: 22px;
+    line-height: 1.15;
+    margin: 0 0 8px;
+    color: var(--ink);
+  }
+  .card-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    color: var(--ink-faint);
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(40, 25, 15, 0.1);
+  }
+  .card-progress {
+    flex: 1;
+    height: 4px;
+    background: rgba(40, 25, 15, 0.1);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-right: 10px;
+  }
+  .card-progress-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+  }
+
+  /* ---------- 3D OBJECT ---------- */
+  .three-anchor {
+    position: absolute;
+    width: 360px;
+    height: 360px;
+    z-index: 15;
+    cursor: grab;
+    user-select: none;
+  }
+  .three-anchor:active { cursor: grabbing; }
+  .three-anchor canvas {
+    width: 100% !important;
+    height: 100% !important;
+    pointer-events: none;
+  }
+
+  /* ---------- 3D BADGE ---------- */
+  .badge-anchor {
+    position: absolute;
+    bottom: 28px;
+    right: 32px;
+    width: 150px;
+    height: 170px;
+    z-index: 30;
+    cursor: pointer;
+    user-select: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .badge-anchor canvas {
+    width: 100% !important;
+    height: 100% !important;
+    pointer-events: none;
+  }
+  .badge-glow {
+    position: absolute;
+    inset: 10px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 200, 100, 0.55) 0%, rgba(255, 180, 60, 0) 65%);
+    opacity: 0;
+    transition: opacity 0.25s ease-out;
+    pointer-events: none;
+    filter: blur(8px);
+  }
+  .badge-anchor.is-hover .badge-glow { opacity: 1; }
+  .badge-label {
+    position: absolute;
+    bottom: 2px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(253, 246, 230, 0.92);
+    border: 1px solid rgba(40, 25, 15, 0.15);
+    border-radius: 20px;
+    padding: 5px 14px;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    font-weight: 700;
+    white-space: nowrap;
+    box-shadow: 0 4px 10px -2px rgba(0,0,0,0.35);
+    transition: color 0.2s, background 0.2s;
+    pointer-events: none;
+  }
+  .badge-anchor.is-hover .badge-label {
+    background: rgba(255, 235, 180, 0.98);
+    color: #8a4a0a;
+    box-shadow: 0 6px 16px -2px rgba(140, 60, 0, 0.5);
+  }
+  .three-label {
+    position: absolute;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(253, 246, 230, 0.92);
+    border: 1px solid rgba(40, 25, 15, 0.12);
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--ink-dim);
+    font-weight: 600;
+    white-space: nowrap;
+    box-shadow: 0 4px 10px -2px rgba(0,0,0,0.35);
+  }
+
+  /* ---------- FOOTER ---------- */
+  .footer {
+    position: absolute;
+    bottom: 24px;
+    left: 0; right: 0;
+    text-align: center;
+    font-size: 10px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: #d4b896;
+    z-index: 30;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.55);
+  }
+
+  .loading {
+    position: absolute; inset: 0;
+    display: grid; place-items: center;
+    color: #d4b896;
+    font-size: 12px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    text-align: center;
+    padding: 40px;
+    white-space: pre-wrap;
+  }
+  .loading.error {
+    color: #ff9a7a;
+    text-transform: none;
+    letter-spacing: 0;
+    font-family: ui-monospace, monospace;
+    font-size: 12px;
+    text-align: left;
+  }
+  canvas { display: block; }
+</style>
+
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@18.3.1",
+    "react/jsx-runtime": "https://esm.sh/react@18.3.1/jsx-runtime",
+    "react-dom": "https://esm.sh/react-dom@18.3.1",
+    "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
+    "three": "https://esm.sh/three@0.160.0",
+    "@react-three/fiber": "https://esm.sh/@react-three/fiber@8.17.10?bundle&external=react,react-dom,three",
+    "framer-motion": "https://esm.sh/framer-motion@11.11.17?bundle&external=react,react-dom"
+  }
+}
+</script>
+</head>
+<body>
+<div id="root"><div class="loading" id="loader">Loading studio…</div></div>
+
+<script>
+  window.addEventListener("error", (e) => {
+    const el = document.getElementById("loader");
+    if (el) {
+      el.className = "loading error";
+      el.textContent =
+        "Failed to load:\n\n" +
+        (e.message || e.error?.message || "Unknown error") +
+        "\n\n" + (e.filename || "") +
+        (e.error?.stack ? "\n\n" + e.error.stack : "");
+    }
+  });
+  window.addEventListener("unhandledrejection", (e) => {
+    const el = document.getElementById("loader");
+    if (el) {
+      el.className = "loading error";
+      el.textContent =
+        "Import failed:\n\n" +
+        (e.reason?.message || String(e.reason)) +
+        (e.reason?.stack ? "\n\n" + e.reason.stack : "");
+    }
+  });
+</script>
+
+<script type="module">
+import React, { useState, useRef, useEffect, Suspense } from "react";
+import { createRoot } from "react-dom/client";
+import { Canvas } from "@react-three/fiber";
+import * as THREE from "three";
+import { motion, useMotionValue, animate } from "framer-motion";
+
+const h = React.createElement;
+
+/* ---------- WORN-BENCH MARKS (decorative DOM) ---------- */
+
+function BenchMarks() {
+  // Hand-placed marks so each load looks the same
+  const rings = [
+    { top: "18%", left: "72%", size: 86 },
+    { top: "62%", left: "14%", size: 120 },
+    { top: "78%", left: "82%", size: 64 },
+  ];
+  const scratches = [
+    { top: "30%", left: "8%", width: 180, rotate: 4 },
+    { top: "48%", left: "60%", width: 240, rotate: -2 },
+    { top: "70%", left: "30%", width: 140, rotate: 8 },
+    { top: "22%", left: "40%", width: 90, rotate: -12 },
+    { top: "85%", left: "55%", width: 200, rotate: 1 },
+  ];
+  const paints = [
+    { top: "15%", left: "20%", w: 24, h: 18, color: "rgba(20, 80, 140, 0.45)" },
+    { top: "55%", left: "85%", w: 18, h: 14, color: "rgba(180, 60, 30, 0.5)" },
+    { top: "82%", left: "45%", w: 14, h: 12, color: "rgba(40, 110, 60, 0.4)" },
+  ];
+  const dusts = Array.from({ length: 60 }, (_, i) => ({
+    top: Math.random() * 100 + "%",
+    left: Math.random() * 100 + "%",
+    size: 1 + Math.random() * 2.5,
+  }));
+
+  return h(
+    "div",
+    { className: "bench-marks" },
+    ...rings.map((r, i) =>
+      h("div", {
+        key: "r" + i,
+        className: "mark ring",
+        style: { top: r.top, left: r.left, width: r.size, height: r.size * 0.7 },
+      })
+    ),
+    ...scratches.map((s, i) =>
+      h("div", {
+        key: "s" + i,
+        className: "mark scratch",
+        style: {
+          top: s.top,
+          left: s.left,
+          width: s.width,
+          transform: `rotate(${s.rotate}deg)`,
+        },
+      })
+    ),
+    ...paints.map((p, i) =>
+      h("div", {
+        key: "p" + i,
+        className: "mark paint",
+        style: { top: p.top, left: p.left, width: p.w, height: p.h, background: p.color },
+      })
+    ),
+    ...dusts.map((d, i) =>
+      h("div", {
+        key: "d" + i,
+        className: "mark dust",
+        style: { top: d.top, left: d.left, width: d.size, height: d.size },
+      })
+    )
+  );
+}
+
+/* ---------- 3D OBJECT: slowly rotating speaker ---------- */
+
+// Low-poly boombox-style speaker. Flat shading so every facet reads as 3D.
+// ~10 meshes, low segment counts, strong silhouette from any angle.
+function SpeakerMesh() {
+  // Static pose — turned slightly so the front panel and side both read.
+  // Shared material helper — flat-shaded so edges catch light crisply.
+  const mat = (color, opts = {}) =>
+    h("meshStandardMaterial", {
+      color,
+      roughness: 0.55,
+      metalness: 0.1,
+      flatShading: true,
+      ...opts,
+    });
+
+  return h(
+    "group",
+    { position: [0, 0, 0], rotation: [0, -0.5, 0], scale: 0.9 },
+
+    // ---- BODY ----
+    // main cream block (BoxGeometry with low segment count)
+    h(
+      "mesh",
+      { position: [0, 0.1, 0], castShadow: true, receiveShadow: true },
+      h("boxGeometry", { args: [1.9, 1.1, 0.7] }),
+      mat("#f0e4cc", { roughness: 0.65 })
+    ),
+    // darker front inset panel so speakers sit in a recess
+    h(
+      "mesh",
+      { position: [0, 0.05, 0.36] },
+      h("boxGeometry", { args: [1.75, 0.85, 0.04] }),
+      mat("#3a2d22", { roughness: 0.7 })
+    ),
+
+    // ---- TWO SPEAKER CONES ----
+    // left cone housing (octagonal cylinder = 8 segments for low-poly look)
+    h(
+      "mesh",
+      { position: [-0.55, 0.05, 0.4], rotation: [Math.PI / 2, 0, 0], castShadow: true },
+      h("cylinderGeometry", { args: [0.34, 0.38, 0.08, 12] }),
+      mat("#1f1812", { roughness: 0.6, metalness: 0.3 })
+    ),
+    // left copper cone
+    h(
+      "mesh",
+      { position: [-0.55, 0.05, 0.44], rotation: [Math.PI / 2, 0, 0] },
+      h("cylinderGeometry", { args: [0.12, 0.28, 0.06, 12] }),
+      mat("#d4843a", { roughness: 0.35, metalness: 0.7 })
+    ),
+    // left center dome
+    h(
+      "mesh",
+      { position: [-0.55, 0.05, 0.48] },
+      h("sphereGeometry", { args: [0.08, 10, 8] }),
+      mat("#1a1208", { roughness: 0.3, metalness: 0.7 })
+    ),
+    // right cone housing
+    h(
+      "mesh",
+      { position: [0.55, 0.05, 0.4], rotation: [Math.PI / 2, 0, 0], castShadow: true },
+      h("cylinderGeometry", { args: [0.34, 0.38, 0.08, 12] }),
+      mat("#1f1812", { roughness: 0.6, metalness: 0.3 })
+    ),
+    h(
+      "mesh",
+      { position: [0.55, 0.05, 0.44], rotation: [Math.PI / 2, 0, 0] },
+      h("cylinderGeometry", { args: [0.12, 0.28, 0.06, 12] }),
+      mat("#d4843a", { roughness: 0.35, metalness: 0.7 })
+    ),
+    h(
+      "mesh",
+      { position: [0.55, 0.05, 0.48] },
+      h("sphereGeometry", { args: [0.08, 10, 8] }),
+      mat("#1a1208", { roughness: 0.3, metalness: 0.7 })
+    ),
+
+    // ---- CENTRE PANEL: display + knobs ----
+    // small amber display screen
+    h(
+      "mesh",
+      { position: [0, 0.3, 0.38] },
+      h("boxGeometry", { args: [0.4, 0.12, 0.02] }),
+      mat("#3a1a06", { emissive: "#e49653", emissiveIntensity: 0.6, roughness: 0.4 })
+    ),
+    // left knob
+    h(
+      "mesh",
+      { position: [-0.15, -0.25, 0.4], rotation: [Math.PI / 2, 0, 0], castShadow: true },
+      h("cylinderGeometry", { args: [0.07, 0.08, 0.09, 10] }),
+      mat("#c4a070", { roughness: 0.4, metalness: 0.5 })
+    ),
+    // right knob
+    h(
+      "mesh",
+      { position: [0.15, -0.25, 0.4], rotation: [Math.PI / 2, 0, 0], castShadow: true },
+      h("cylinderGeometry", { args: [0.07, 0.08, 0.09, 10] }),
+      mat("#c4a070", { roughness: 0.4, metalness: 0.5 })
+    ),
+
+    // ---- HANDLE on top ----
+    h(
+      "mesh",
+      { position: [0, 0.68, 0], rotation: [Math.PI / 2, 0, 0], castShadow: true },
+      h("torusGeometry", { args: [0.28, 0.04, 8, 16, Math.PI] }),
+      mat("#3a2810", { roughness: 0.5, metalness: 0.6 })
+    ),
+    // handle anchor points
+    h(
+      "mesh",
+      { position: [-0.28, 0.55, 0], castShadow: true },
+      h("boxGeometry", { args: [0.08, 0.08, 0.12] }),
+      mat("#1f1812")
+    ),
+    h(
+      "mesh",
+      { position: [0.28, 0.55, 0], castShadow: true },
+      h("boxGeometry", { args: [0.08, 0.08, 0.12] }),
+      mat("#1f1812")
+    ),
+
+    // ---- ANTENNA ----
+    h(
+      "mesh",
+      { position: [0.82, 1.05, -0.2], rotation: [0, 0, -0.25], castShadow: true },
+      h("cylinderGeometry", { args: [0.015, 0.02, 0.9, 6] }),
+      mat("#8a7560", { metalness: 0.6, roughness: 0.4 })
+    ),
+    h(
+      "mesh",
+      { position: [0.93, 1.48, -0.22] },
+      h("sphereGeometry", { args: [0.035, 8, 6] }),
+      mat("#d4843a", { metalness: 0.7, roughness: 0.3 })
+    ),
+
+    // ---- FEET (4 small cylinders) ----
+    ...[
+      [-0.8, -0.5, 0.28],
+      [0.8, -0.5, 0.28],
+      [-0.8, -0.5, -0.28],
+      [0.8, -0.5, -0.28],
+    ].map((p, i) =>
+      h(
+        "mesh",
+        { key: "foot" + i, position: p, castShadow: true },
+        h("cylinderGeometry", { args: [0.06, 0.07, 0.1, 8] }),
+        mat("#2a1f14")
+      )
+    )
+  );
+}
+
+// Fake contact shadow — a dark ellipse flat on the desk under the object.
+// Cleaner than a real directional shadow for a flat top-down board.
+function ContactShadow() {
+  return h(
+    "mesh",
+    { rotation: [-Math.PI / 2, 0, 0], position: [0.05, -0.54, 0.05] },
+    h("circleGeometry", { args: [1.15, 32] }),
+    h("meshBasicMaterial", {
+      color: "#1a0c04",
+      transparent: true,
+      opacity: 0.32,
+    })
+  );
+}
+
+function ThreeDObject() {
+  return h(
+    Canvas,
+    {
+      shadows: false,
+      dpr: [1, 2],
+      // Eye-level-ish camera looking slightly down at the object — feels like
+      // seeing something sitting on the desk in front of you rather than
+      // straight down from above.
+      orthographic: false,
+      // High camera looking down onto the top of the speaker with a slight
+      // forward lean so the handle and top face read clearly.
+      camera: { position: [1.6, 3.6, 2.2], fov: 30 },
+      onCreated: ({ camera }) => camera.lookAt(0, 0.05, 0),
+      gl: {
+        antialias: true,
+        alpha: true,
+        toneMapping: THREE.ACESFilmicToneMapping,
+        toneMappingExposure: 1.5,
+      },
+      style: { background: "transparent" },
+    },
+    // Bright, clean studio light — no dark shadows
+    h("ambientLight", { intensity: 1.25, color: "#fff6e4" }),
+    // key light from upper-left-front
+    h("directionalLight", {
+      position: [-3, 6, 5],
+      intensity: 2.4,
+      color: "#fff4dc",
+    }),
+    // fill from opposite side
+    h("directionalLight", {
+      position: [4, 3, -2],
+      intensity: 1.3,
+      color: "#ffe8c8",
+    }),
+    // rim from behind
+    h("directionalLight", {
+      position: [-2, 2, -4],
+      intensity: 0.7,
+      color: "#ffd9a8",
+    }),
+    h("hemisphereLight", { args: ["#fff5dc", "#8a6a40", 0.9] }),
+    h(Suspense, { fallback: null }, h(ContactShadow), h(SpeakerMesh))
+  );
+}
+
+/* ---------- 3D BADGE (bottom-right corner) ---------- */
+
+// A hexagonal gold medal — low-poly, flat-shaded. Glows when `hover` is true
+// via emissive boost + subtle tilt.
+function BadgeMesh({ hover }) {
+  const groupRef = useRef(null);
+  // gentle idle tilt toward the camera when hovered
+  const targetRot = hover ? 0.3 : 0.0;
+  useEffect(() => {
+    if (!groupRef.current) return;
+    groupRef.current.rotation.x = targetRot;
+  }, [hover]);
+
+  const mat = (color, opts = {}) =>
+    h("meshStandardMaterial", {
+      color,
+      roughness: 0.35,
+      metalness: 0.75,
+      flatShading: true,
+      ...opts,
+    });
+
+  const rimEmissive = hover ? "#ffb547" : "#3a2208";
+  const faceEmissive = hover ? "#ffd48a" : "#1a1008";
+  const rimEmissiveI = hover ? 1.1 : 0.15;
+  const faceEmissiveI = hover ? 0.9 : 0.1;
+
+  return h(
+    "group",
+    { ref: groupRef, rotation: [0.1, 0, 0] },
+
+    // outer hex rim (6-sided cylinder)
+    h(
+      "mesh",
+      { position: [0, 0, 0] },
+      h("cylinderGeometry", { args: [1.2, 1.2, 0.25, 6] }),
+      mat("#d89a2c", { emissive: rimEmissive, emissiveIntensity: rimEmissiveI })
+    ),
+    // bevelled front face (slightly smaller hex sitting on top)
+    h(
+      "mesh",
+      { position: [0, 0.18, 0] },
+      h("cylinderGeometry", { args: [0.92, 1.05, 0.14, 6] }),
+      mat("#f4c25a", { emissive: faceEmissive, emissiveIntensity: faceEmissiveI })
+    ),
+    // centre disc (darker inset)
+    h(
+      "mesh",
+      { position: [0, 0.27, 0] },
+      h("cylinderGeometry", { args: [0.6, 0.6, 0.08, 24] }),
+      mat("#b07020", {
+        emissive: hover ? "#b07020" : "#2a1408",
+        emissiveIntensity: hover ? 0.5 : 0.15,
+      })
+    ),
+    // raised star glyph — 5 small boxes arranged roughly as a star
+    ...[0, 1, 2, 3, 4].map((i) => {
+      const a = (i / 5) * Math.PI * 2 - Math.PI / 2;
+      return h(
+        "mesh",
+        {
+          key: "pt" + i,
+          position: [Math.cos(a) * 0.28, 0.34, Math.sin(a) * 0.28],
+          rotation: [0, -a, 0],
+        },
+        h("boxGeometry", { args: [0.14, 0.08, 0.14] }),
+        mat("#fff1c0", {
+          emissive: hover ? "#ffe08a" : "#3a2d10",
+          emissiveIntensity: hover ? 1.2 : 0.2,
+        })
+      );
+    }),
+    // ribbon flap hanging at top
+    h(
+      "mesh",
+      { position: [0, 1.2, 0.04], rotation: [0, 0, 0] },
+      h("boxGeometry", { args: [0.7, 0.55, 0.08] }),
+      mat("#9a2020", {
+        emissive: hover ? "#c83020" : "#2a0808",
+        emissiveIntensity: hover ? 0.6 : 0.15,
+      })
+    ),
+    // small loop at very top
+    h(
+      "mesh",
+      { position: [0, 1.55, 0.04], rotation: [Math.PI / 2, 0, 0] },
+      h("torusGeometry", { args: [0.1, 0.03, 8, 16] }),
+      mat("#d89a2c")
+    )
+  );
+}
+
+function BadgeScene({ hover }) {
+  return h(
+    Canvas,
+    {
+      shadows: false,
+      dpr: [1, 2],
+      camera: { position: [0, 0.2, 5], fov: 28 },
+      gl: {
+        antialias: true,
+        alpha: true,
+        toneMapping: THREE.ACESFilmicToneMapping,
+        toneMappingExposure: 1.5,
+      },
+      style: { background: "transparent" },
+    },
+    h("ambientLight", { intensity: 0.8, color: "#fff5dc" }),
+    h("directionalLight", { position: [3, 4, 5], intensity: 2.2, color: "#fff2c8" }),
+    h("directionalLight", { position: [-3, 2, 2], intensity: 1.0, color: "#ffd9a8" }),
+    h("pointLight", {
+      position: [0, 0, 3],
+      intensity: hover ? 3.5 : 1.0,
+      color: "#ffd47a",
+      distance: 8,
+    }),
+    h(Suspense, { fallback: null }, h(BadgeMesh, { hover }))
+  );
+}
+
+function BadgeAnchor({ focusMode }) {
+  const [hover, setHover] = useState(false);
+  const onClick = () => {
+    // placeholder — wire to real /badges route later
+    console.log("[badge] clicked → navigate to /badges");
+  };
+  return h(
+    motion.div,
+    {
+      className: "badge-anchor" + (hover ? " is-hover" : ""),
+      onMouseEnter: () => !focusMode && setHover(true),
+      onMouseLeave: () => setHover(false),
+      onClick: focusMode ? undefined : onClick,
+      whileTap: focusMode ? undefined : { scale: 0.96 },
+      whileHover: focusMode ? undefined : { scale: 1.06 },
+      initial: { opacity: 0, y: 20 },
+      animate: {
+        opacity: focusMode ? 0 : 1,
+        y: focusMode ? 12 : 0,
+        scale: focusMode ? 0.85 : 1,
+      },
+      transition: { delay: focusMode ? 0 : 0.35, type: "spring", stiffness: 180, damping: 22 },
+      style: { pointerEvents: focusMode ? "none" : "auto" },
+    },
+    h("div", { className: "badge-glow" }),
+    h(BadgeScene, { hover }),
+    h("div", { className: "badge-label" }, "Badges")
+  );
+}
+
+/* ---------- CARD IMAGES (inline SVG "photos") ---------- */
+
+function SpeakerImage() {
+  return h(
+    "svg",
+    { viewBox: "0 0 400 240", xmlns: "http://www.w3.org/2000/svg" },
+    h(
+      "defs",
+      null,
+      h(
+        "linearGradient",
+        { id: "bg1", x1: "0%", y1: "0%", x2: "0%", y2: "100%" },
+        h("stop", { offset: "0%", stopColor: "#f5d9a8" }),
+        h("stop", { offset: "100%", stopColor: "#c88a4a" })
+      ),
+      h(
+        "radialGradient",
+        { id: "sp", cx: "50%", cy: "50%", r: "50%" },
+        h("stop", { offset: "0%", stopColor: "#e49653" }),
+        h("stop", { offset: "70%", stopColor: "#8a4a1e" }),
+        h("stop", { offset: "100%", stopColor: "#2a1508" })
+      )
+    ),
+    h("rect", { width: 400, height: 240, fill: "url(#bg1)" }),
+    h("ellipse", { cx: 200, cy: 220, rx: 140, ry: 14, fill: "rgba(30, 15, 5, 0.35)" }),
+    // speaker body
+    h("rect", { x: 120, y: 90, width: 160, height: 110, rx: 8, fill: "#1a1512" }),
+    h("circle", { cx: 200, cy: 145, r: 44, fill: "url(#sp)" }),
+    h("circle", { cx: 200, cy: 145, r: 20, fill: "#1a1008" }),
+    h("circle", { cx: 200, cy: 145, r: 6, fill: "#c4763a" }),
+    h("circle", { cx: 148, cy: 110, r: 4, fill: "#c4763a" }),
+    h("circle", { cx: 252, cy: 110, r: 4, fill: "#3a2a20" }),
+    h("rect", { x: 170, y: 185, width: 60, height: 3, fill: "#c4763a", opacity: 0.7 })
+  );
+}
+
+function SketchbookImage() {
+  return h(
+    "svg",
+    { viewBox: "0 0 400 240", xmlns: "http://www.w3.org/2000/svg" },
+    h(
+      "defs",
+      null,
+      h(
+        "linearGradient",
+        { id: "bg2", x1: "0%", y1: "0%", x2: "0%", y2: "100%" },
+        h("stop", { offset: "0%", stopColor: "#e8dcc0" }),
+        h("stop", { offset: "100%", stopColor: "#c8b888" })
+      )
+    ),
+    h("rect", { width: 400, height: 240, fill: "url(#bg2)" }),
+    // sketchbook paper
+    h("rect", { x: 60, y: 40, width: 280, height: 170, rx: 4, fill: "#faf3e0", stroke: "#8a7560", strokeWidth: 1 }),
+    // faint grid
+    ...Array.from({ length: 12 }, (_, i) =>
+      h("line", {
+        key: "gx" + i,
+        x1: 60 + i * 24, y1: 40,
+        x2: 60 + i * 24, y2: 210,
+        stroke: "#d4c4a0", strokeWidth: 0.5,
+      })
+    ),
+    ...Array.from({ length: 8 }, (_, i) =>
+      h("line", {
+        key: "gy" + i,
+        x1: 60, y1: 40 + i * 22,
+        x2: 340, y2: 40 + i * 22,
+        stroke: "#d4c4a0", strokeWidth: 0.5,
+      })
+    ),
+    // sketched concept — rough organic curves
+    h("path", {
+      d: "M 120 150 Q 140 80, 200 90 T 290 150 Q 270 180, 200 180 T 120 150 Z",
+      fill: "none", stroke: "#3a2810", strokeWidth: 2.5, strokeLinecap: "round",
+    }),
+    h("path", {
+      d: "M 150 140 Q 200 120, 250 140",
+      fill: "none", stroke: "#3a2810", strokeWidth: 1.8,
+    }),
+    h("circle", { cx: 175, cy: 130, r: 5, fill: "none", stroke: "#3a2810", strokeWidth: 1.8 }),
+    h("circle", { cx: 225, cy: 130, r: 5, fill: "none", stroke: "#3a2810", strokeWidth: 1.8 }),
+    h("text", {
+      x: 80, y: 70,
+      fontFamily: "DM Serif Display, serif", fontSize: 14, fill: "#3a2810",
+    }, "concept 3 — softer grille"),
+    h("path", { d: "M 290 60 L 330 90", stroke: "#3a2810", strokeWidth: 1.5 }),
+    h("path", { d: "M 320 85 L 330 90 L 325 80", stroke: "#3a2810", strokeWidth: 1.5, fill: "none" })
+  );
+}
+
+function PrototypeImage() {
+  return h(
+    "svg",
+    { viewBox: "0 0 400 240", xmlns: "http://www.w3.org/2000/svg" },
+    h(
+      "defs",
+      null,
+      h(
+        "linearGradient",
+        { id: "bg3", x1: "0%", y1: "0%", x2: "0%", y2: "100%" },
+        h("stop", { offset: "0%", stopColor: "#2e3440" }),
+        h("stop", { offset: "100%", stopColor: "#1a1f28" })
+      )
+    ),
+    h("rect", { width: 400, height: 240, fill: "url(#bg3)" }),
+    // warm rim light
+    h("ellipse", { cx: 280, cy: 80, rx: 150, ry: 90, fill: "rgba(228, 150, 83, 0.25)" }),
+    // workbench edge
+    h("rect", { x: 0, y: 195, width: 400, height: 50, fill: "#4a2f18" }),
+    h("rect", { x: 0, y: 195, width: 400, height: 3, fill: "#6a4020" }),
+    // cardboard prototype — tilted box
+    h("polygon", {
+      points: "140,100 270,90 285,180 155,195",
+      fill: "#a67442", stroke: "#5a3510", strokeWidth: 2,
+    }),
+    h("polygon", {
+      points: "270,90 305,115 320,200 285,180",
+      fill: "#7a5028", stroke: "#3a2208", strokeWidth: 2,
+    }),
+    h("polygon", {
+      points: "140,100 270,90 305,115 175,125",
+      fill: "#c28a52", stroke: "#5a3510", strokeWidth: 2,
+    }),
+    // tape strips
+    h("rect", { x: 200, y: 85, width: 40, height: 12, fill: "rgba(240, 220, 170, 0.75)", transform: "rotate(-4 220 91)" }),
+    h("rect", { x: 260, y: 145, width: 30, height: 10, fill: "rgba(240, 220, 170, 0.75)", transform: "rotate(8 275 150)" }),
+    // pencil marks on side
+    h("line", { x1: 160, y1: 130, x2: 260, y2: 125, stroke: "#3a2208", strokeWidth: 1, strokeDasharray: "4 3" }),
+    h("circle", { cx: 210, cy: 140, r: 3, fill: "#c4763a" })
+  );
+}
+
+/* ---------- CARDS ---------- */
+
+const CARDS = [
+  {
+    id: "current-unit",
+    kicker: "Current Unit",
+    title: "Bluetooth Speaker",
+    body: "Lesson 4 of 7 · Develop phase",
+    progress: 0.55,
+    meta: "Due Fri 17 Apr",
+    Image: SpeakerImage,
+    initial: { x: -440, y: -40, rotate: -2.5 },
+  },
+  {
+    id: "next-step",
+    kicker: "Next Step",
+    title: "Sketch 3 form variations",
+    body: "Open the Ideate toolkit → Morphological chart",
+    progress: null,
+    meta: "~25 min · Design assistant ready",
+    Image: SketchbookImage,
+    initial: { x: -120, y: 120, rotate: 1.5 },
+  },
+  {
+    id: "feedback",
+    kicker: "Feedback · Ms. Chen",
+    title: "\"Love the rounded silhouette\"",
+    body: "Try scaling the speaker grille down ~20% so the cone reads as the focal point.",
+    progress: null,
+    meta: "Yesterday · 4:12 pm",
+    Image: PrototypeImage,
+    initial: { x: 160, y: -80, rotate: 3 },
+  },
+];
+
+function UnitCard({ card, constraintsRef, registry, bringToFront, focusMode }) {
+  const isFocusCard = card.id === "next-step";
+  const x = useMotionValue(card.initial.x);
+  const y = useMotionValue(card.initial.y);
+  const rotate = useMotionValue(card.initial.rotate);
+  const scale = useMotionValue(1);
+  const [z, setZ] = useState(card.initial.z || 1);
+  // when a corner is being used, disable drag on the card body so resize/spin
+  // don't fight with the drag gesture
+  const [cornerActive, setCornerActive] = useState(false);
+  const cardRef = useRef(null);
+  // snapshot of where the card was when focus mode turned on, so we can
+  // animate back to the exact same position when it turns off
+  const savedRef = useRef(null);
+
+  // register motion values so siblings can snap onto this card
+  useEffect(() => {
+    registry.current[card.id] = { x, y, rotate, scale, setZ };
+    return () => {
+      delete registry.current[card.id];
+    };
+  }, []);
+
+  // focus mode: the "next-step" card flies to centre and scales up;
+  // every other card stays wherever it was (opacity handles hiding)
+  useEffect(() => {
+    if (!isFocusCard) return;
+    const spring = { type: "spring", stiffness: 180, damping: 24 };
+    if (focusMode) {
+      savedRef.current = {
+        x: x.get(),
+        y: y.get(),
+        rotate: rotate.get(),
+        scale: scale.get(),
+      };
+      animate(x, 0, spring);
+      animate(y, -10, spring);
+      animate(rotate, 0, spring);
+      animate(scale, 1.35, spring);
+      setZ(999);
+    } else if (savedRef.current) {
+      animate(x, savedRef.current.x, spring);
+      animate(y, savedRef.current.y, spring);
+      animate(rotate, savedRef.current.rotate, spring);
+      animate(scale, savedRef.current.scale, spring);
+    }
+  }, [focusMode]);
+
+  // bottom-right corner → resize
+  const onResizePointerDown = (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setCornerActive(true);
+    bringToFront(card.id);
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startScale = scale.get();
+    const move = (ev) => {
+      // use average of x+y delta so diagonal drag feels natural
+      const delta = ((ev.clientX - startX) + (ev.clientY - startY)) * 0.5;
+      const next = Math.max(0.6, Math.min(1.8, startScale + delta * 0.004));
+      scale.set(next);
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      setCornerActive(false);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+
+  // other 3 corners → grab-and-spin around the card's centre
+  const onSpinPointerDown = (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    setCornerActive(true);
+    bringToFront(card.id);
+    const rect = cardRef.current.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const startAngle = Math.atan2(e.clientY - cy, e.clientX - cx) * 180 / Math.PI;
+    const startRotate = rotate.get();
+    const move = (ev) => {
+      const a = Math.atan2(ev.clientY - cy, ev.clientX - cx) * 180 / Math.PI;
+      let delta = a - startAngle;
+      // unwrap across the -180/180 seam so dragging past feels continuous
+      if (delta > 180) delta -= 360;
+      if (delta < -180) delta += 360;
+      rotate.set(startRotate + delta);
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      setCornerActive(false);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+
+  // snap-to-stack on drag end: find nearest other card within threshold,
+  // stagger onto its top with a small offset + matching rotation
+  const onDragEnd = () => {
+    const myCx = x.get();
+    const myCy = y.get();
+    let nearest = null;
+    let nearestDist = Infinity;
+    Object.entries(registry.current).forEach(([id, other]) => {
+      if (id === card.id) return;
+      const dx = other.x.get() - myCx;
+      const dy = other.y.get() - myCy;
+      const d = Math.hypot(dx, dy);
+      if (d < nearestDist) {
+        nearestDist = d;
+        nearest = other;
+      }
+    });
+    if (nearest && nearestDist < 140) {
+      // snap onto the stack: offset a bit so you can see the one underneath
+      x.set(nearest.x.get() + 26);
+      y.set(nearest.y.get() + 22);
+      rotate.set(nearest.rotate.get() + 2);
+      bringToFront(card.id);
+    }
+  };
+
+  // cards hidden in focus mode: every card except the Next Step card
+  const hiddenByFocus = focusMode && !isFocusCard;
+
+  return h(
+    motion.div,
+    {
+      ref: cardRef,
+      drag: !cornerActive && !hiddenByFocus,
+      dragMomentum: true,
+      dragElastic: 0.25,
+      dragConstraints: constraintsRef,
+      dragTransition: { bounceStiffness: 260, bounceDamping: 24 },
+      onDragStart: () => bringToFront(card.id),
+      onDragEnd,
+      whileDrag: { cursor: "grabbing" },
+      whileHover: hiddenByFocus ? undefined : { scale: 1.015 },
+      className: "card",
+      style: {
+        left: "50%",
+        top: "50%",
+        x,
+        y,
+        rotate,
+        scale,
+        zIndex: z,
+        marginLeft: -150,
+        marginTop: -170,
+        pointerEvents: hiddenByFocus ? "none" : "auto",
+      },
+      initial: { opacity: 0 },
+      animate: { opacity: hiddenByFocus ? 0 : 1 },
+      transition: {
+        delay: hiddenByFocus ? 0 : 0.1 + Math.random() * 0.25,
+        type: "spring",
+        stiffness: 180,
+        damping: 22,
+      },
+    },
+    h("div", { className: "card-pin" }),
+    h(
+      "div",
+      { className: "card-image" },
+      h(card.Image)
+    ),
+    h(
+      "div",
+      { className: "card-body" },
+      h("div", { className: "card-kicker" }, card.kicker),
+      h("h3", { className: "card-title" }, card.title),
+      card.body && h("div", { className: "card-sub" }, card.body),
+      h(
+        "div",
+        { className: "card-meta" },
+        card.progress != null
+          ? h(
+              "div",
+              { className: "card-progress" },
+              h("div", {
+                className: "card-progress-fill",
+                style: { width: `${card.progress * 100}%` },
+              })
+            )
+          : null,
+        h("div", null, card.meta)
+      )
+    ),
+    h("div", { className: "card-corner tr", onPointerDown: onSpinPointerDown }),
+    h("div", { className: "card-corner br", onPointerDown: onResizePointerDown })
+  );
+}
+
+/* ---------- APP ---------- */
+
+function App() {
+  const constraintsRef = useRef(null);
+  const registry = useRef({});
+  const [zCounter, setZCounter] = useState(10);
+  const [focusMode, setFocusMode] = useState(false);
+  const bringToFront = (id) => {
+    setZCounter((c) => {
+      const next = c + 1;
+      const entry = registry.current[id];
+      if (entry) entry.setZ(next);
+      return next;
+    });
+  };
+
+  return h(
+    "div",
+    { style: { position: "relative", width: "100vw", height: "100vh" } },
+
+    // workbench surface
+    h("div", { className: "bench" }),
+    h(BenchMarks),
+    h("div", { className: "edge-vignette" }),
+
+    // header
+    h(
+      "div",
+      { className: "header" },
+      h(
+        motion.div,
+        {
+          className: "header-title",
+          animate: { opacity: focusMode ? 0 : 1 },
+          transition: { type: "spring", stiffness: 180, damping: 22 },
+        },
+        h("div", { className: "header-kicker" }, "Studio · Friday, 10 April"),
+        h("h1", { className: "header-h1" }, "Good evening, Kai."),
+        h(
+          "div",
+          { className: "header-sub" },
+          "Here's what's on your desk today."
+        )
+      ),
+      h(
+        "div",
+        { className: "header-right" },
+        h(
+          "div",
+          {
+            className: "focus-toggle" + (focusMode ? " on" : ""),
+            onClick: () => setFocusMode((v) => !v),
+            title: "Focus mode — clear the desk to just your next step",
+          },
+          h("div", { className: "focus-switch" }),
+          h("span", null, focusMode ? "Focus on" : "Focus")
+        ),
+        h(
+          "div",
+          { className: "toolbar" },
+          h("button", { className: "tool-btn active", title: "Move" }, "✥"),
+          h("button", { className: "tool-btn", title: "Add card" }, "+"),
+          h("button", { className: "tool-btn", title: "Sticky note" }, "✎"),
+          h("button", { className: "tool-btn", title: "Zoom" }, "⊙")
+        )
+      )
+    ),
+
+    // 3D speaker — parked in the top-right corner. Still draggable so Kai can
+    // move it around; the R3F camera stays fixed so the angle never changes.
+    // Fades out in focus mode.
+    h(
+      motion.div,
+      {
+        className: "three-anchor",
+        drag: !focusMode,
+        dragMomentum: true,
+        dragElastic: 0.08,
+        dragConstraints: constraintsRef,
+        dragTransition: { bounceStiffness: 220, bounceDamping: 22 },
+        whileHover: { scale: 1.02 },
+        whileDrag: { scale: 1.03, zIndex: 45 },
+        style: {
+          top: 20,
+          right: 20,
+          pointerEvents: focusMode ? "none" : "auto",
+        },
+        initial: { opacity: 0, y: 20 },
+        animate: { opacity: focusMode ? 0 : 1, y: 0, scale: focusMode ? 0.85 : 1 },
+        transition: { delay: focusMode ? 0 : 0.2, type: "spring", stiffness: 180, damping: 22 },
+      },
+      h(ThreeDObject),
+      h("div", { className: "three-label" }, "Current build · Speaker V3")
+    ),
+
+    // 3D badge — clickable entry point to the Badges screen (not wired yet).
+    // Glows on hover. Fades out in focus mode.
+    h(BadgeAnchor, { focusMode }),
+
+    // cards layer — constraintsRef lives on this wrapper so cards bounce
+    // back when dragged past the viewport edges
+    h(
+      "div",
+      { className: "cards-layer", ref: constraintsRef },
+      CARDS.map((c) =>
+        h(UnitCard, {
+          key: c.id,
+          card: c,
+          constraintsRef,
+          registry,
+          bringToFront,
+          focusMode,
+        })
+      )
+    ),
+
+    // footer hint
+    h(
+      "div",
+      { className: "footer" },
+      "Drag units to rearrange · click to open"
+    )
+  );
+}
+
+const loader = document.getElementById("loader");
+if (loader) loader.remove();
+
+const root = createRoot(document.getElementById("root"));
+root.render(h(App));
+</script>
+</body>
+</html>

@@ -1,8 +1,10 @@
 # Self-Help Skill Library
 
-**Status:** PLANNING (Phase 2 Post-Dimensions3)
+**Status:** SUPERSEDED — absorbed into [`skills-library.md`](skills-library.md) (11 April 2026). Kept for historical reference.
 **Estimate:** 6-8 days
 **Effort:** Medium
+
+> **If you're here to build the skills library:** start at [`skills-library.md`](skills-library.md). This idea doc was the early framing; the full spec is now in [`../specs/skills-library-spec.md`](../specs/skills-library-spec.md) + [`../specs/skills-library-completion-addendum.md`](../specs/skills-library-completion-addendum.md). The new spec is much bigger: canonical skill cards with state ladder, freshness, context-aware gating, radar chart, six embed contexts, and cross-school sharing as moat.
 
 ## What is it
 

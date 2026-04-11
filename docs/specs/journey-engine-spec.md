@@ -6,6 +6,17 @@
 **Depends on:** Dimensions3 (Activity Block schema), 3D Elements (R3F renderer, asset library), Discovery Engine (reference implementation)
 **Companion docs:** `discovery-engine-build-plan.md` (current Discovery — becomes first Journey), `3delements.md` (R3F architecture), `dimensions3.md` (Activity Block pipeline)
 
+> **⚠️ SUPERSEDED STORAGE MODEL (10 Apr 2026)** — This spec originally proposed a single `students.learning_profile` JSONB column (migration 048) as the merge target for all journey `profile_writes`. That storage model is **superseded by `docs/specs/student-learning-profile-schema.md`**. The new system uses five dedicated tables (`student_learning_profile`, `student_project_history`, `student_learning_events`, `profile_synthesis_jobs`) with writer-class gating, RLS, and COPPA controls.
+>
+> **What this means for Journey Engine implementation:**
+> - The `students.learning_profile` column **must be dropped** in migration 065 (the student profile schema migration). It was never populated in production.
+> - `profile_writes` accumulated during a journey session are **still** the right pattern — but on session completion, they flow through `ProfilingJourneyWriter` (a SECURITY DEFINER writer class) into `student_learning_profile.profile.identity` / `current_state`, not into a column on `students`.
+> - Cross-journey conditional routing still reads from the persistent profile — but the read path is `getStudentProfile(studentId)` (in `src/lib/profile/read.ts`), not a direct JSONB column fetch.
+> - References throughout this spec to `learning_profile` paths, `buildProfileContext()`, and namespaced writes should be mentally translated to "the relevant section of `student_learning_profile.profile`."
+>
+> See `docs/specs/student-learning-profile-schema.md` §4.3, §7, §10, §11 for the full migration path and writer-class contract.
+
+
 ---
 
 ## 1. What This Is

@@ -1,7 +1,9 @@
 # Project: Open Studio v2 — Journey-Based Self-Directed Learning
 **Created: 3 April 2026**
-**Status: IDEA — architectural thinking, not yet specced**
+**Status: SUPERSEDED — absorbed into [`openstudio-v2.md`](openstudio-v2.md) (planning journey) and [`open-studio-mode.md`](open-studio-mode.md) (runtime mode). Kept for historical reference.**
 **Depends on: Dimensions3 (Block Library + Journey infrastructure), Discovery Engine**
+
+> **If you're here to build Open Studio Mode:** start at [`open-studio-mode.md`](open-studio-mode.md) — it has the required-reading block. This idea doc is the early architectural thinking that got split into two sibling projects.
 
 ---
 

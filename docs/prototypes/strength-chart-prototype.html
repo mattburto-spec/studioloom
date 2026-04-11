@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Loominary — Strength Chart &amp; Smart Scaffolding</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #1a1410;
+    --bg-deep: #120d0a;
+    --surface: #26201a;
+    --surface-raised: #2f2821;
+    --surface-paper: #3a3028;
+    --line: #4a3d32;
+    --line-soft: #3a3028;
+    --text: #f2e8d8;
+    --text-dim: #b8ac99;
+    --text-faint: #7a7065;
+    --amber: #d4a574;
+    --amber-bright: #e8b87d;
+    --brass: #b08450;
+    --sage: #7a9260;
+    --ember: #c67a5c;
+    --rose: #b8624e;
+    --shadow: 0 20px 60px -20px rgba(0,0,0,0.6), 0 8px 24px -12px rgba(0,0,0,0.4);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'IBM Plex Sans', system-ui, sans-serif;
+    background: var(--bg-deep);
+    color: var(--text);
+    font-weight: 300;
+    line-height: 1.6;
+    min-height: 100vh;
+    padding: 56px 24px 96px;
+    background-image:
+      radial-gradient(ellipse at top, rgba(212,165,116,0.07) 0%, transparent 60%),
+      radial-gradient(ellipse at bottom, rgba(198,122,92,0.04) 0%, transparent 50%);
+  }
+
+  .page { max-width: 1180px; margin: 0 auto; }
+
+  /* ==================== HEADER ==================== */
+  .page-header {
+    margin-bottom: 56px;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 32px;
+  }
+  .eyebrow {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--amber);
+    margin-bottom: 14px;
+  }
+  h1 {
+    font-family: 'Fraunces', Georgia, serif;
+    font-weight: 400;
+    font-size: clamp(34px, 5vw, 52px);
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+    margin-bottom: 14px;
+  }
+  h1 em { font-style: italic; color: var(--amber-bright); font-weight: 300; }
+  .subtitle {
+    font-family: 'Fraunces', Georgia, serif;
+    font-style: italic;
+    font-size: 17px;
+    color: var(--text-dim);
+    max-width: 660px;
+    font-weight: 300;
+  }
+
+  /* ==================== SECTION ==================== */
+  .section { margin-bottom: 80px; }
+  .section-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .section-label::before {
+    content: '';
+    width: 28px;
+    height: 1px;
+    background: var(--brass);
+  }
+  .section-title {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 28px;
+    font-weight: 400;
+    color: var(--text);
+    letter-spacing: -0.01em;
+    margin-bottom: 8px;
+  }
+  .section-tagline {
+    font-family: 'Fraunces', Georgia, serif;
+    font-style: italic;
+    font-size: 16px;
+    color: var(--text-dim);
+    margin-bottom: 32px;
+    max-width: 640px;
+  }
+
+  /* ==================== RADAR CHART ROW ==================== */
+  .charts-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+  }
+
+  .student-card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    padding: 28px 24px;
+    box-shadow: var(--shadow);
+  }
+
+  .student-head {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--line);
+  }
+  .student-avatar {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 18px;
+    color: var(--bg);
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+  .student-card.lin .student-avatar { background: linear-gradient(135deg, var(--amber), var(--brass)); }
+  .student-card.maya .student-avatar { background: linear-gradient(135deg, var(--sage), #5a7045); }
+  .student-card.eli .student-avatar { background: linear-gradient(135deg, var(--ember), var(--rose)); }
+
+  .student-name {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 18px;
+    color: var(--text);
+    margin-bottom: 2px;
+  }
+  .student-meta {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--text-faint);
+    letter-spacing: 0.05em;
+  }
+
+  .radar-wrap {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 16px;
+  }
+  .radar { width: 100%; max-width: 280px; height: auto; }
+
+  .radar-grid { fill: none; stroke: var(--line); stroke-width: 1; }
+  .radar-grid.outer { stroke: var(--line-soft); }
+  .radar-axis { stroke: var(--line); stroke-width: 1; }
+  .radar-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    fill: var(--text-faint);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .radar-fill {
+    fill-opacity: 0.18;
+    stroke-width: 2;
+    stroke-linejoin: round;
+  }
+  .student-card.lin .radar-fill { fill: var(--amber); stroke: var(--amber-bright); }
+  .student-card.maya .radar-fill { fill: var(--sage); stroke: var(--sage); }
+  .student-card.eli .radar-fill { fill: var(--ember); stroke: var(--ember); }
+  .radar-stale {
+    fill: none;
+    stroke-width: 1.5;
+    stroke-dasharray: 3 3;
+    stroke-opacity: 0.5;
+  }
+  .student-card.lin .radar-stale { stroke: var(--amber-bright); }
+  .student-card.maya .radar-stale { stroke: var(--sage); }
+  .student-card.eli .radar-stale { stroke: var(--ember); }
+  .radar-point {
+    r: 3;
+  }
+  .student-card.lin .radar-point { fill: var(--amber-bright); }
+  .student-card.maya .radar-point { fill: var(--sage); }
+  .student-card.eli .radar-point { fill: var(--ember); }
+
+  .student-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px 8px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line-soft);
+  }
+  .stat-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    color: var(--text-faint);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 2px;
+  }
+  .stat-val {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 18px;
+    color: var(--text);
+    font-weight: 400;
+    line-height: 1;
+  }
+  .stat-val small {
+    font-size: 11px;
+    color: var(--text-faint);
+    font-family: 'IBM Plex Mono', monospace;
+    margin-left: 2px;
+  }
+
+  .student-narrative {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line-soft);
+    font-family: 'Fraunces', Georgia, serif;
+    font-style: italic;
+    font-size: 13px;
+    color: var(--text-dim);
+    line-height: 1.5;
+  }
+
+  /* ==================== LEGEND ==================== */
+  .legend {
+    background: var(--surface);
+    border-left: 2px solid var(--brass);
+    padding: 16px 22px;
+    margin-bottom: 32px;
+    border-radius: 0 2px 2px 0;
+  }
+  .legend-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--brass);
+    margin-bottom: 10px;
+  }
+  .legend-items {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+  .legend-swatch {
+    width: 24px;
+    height: 12px;
+  }
+  .legend-swatch.fill {
+    background: rgba(212,165,116,0.3);
+    border: 2px solid var(--amber-bright);
+  }
+  .legend-swatch.stale {
+    border: 1.5px dashed var(--amber-bright);
+    background: transparent;
+  }
+
+  /* ==================== STATE LADDER ==================== */
+  .ladder {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    padding: 28px 32px;
+    box-shadow: var(--shadow);
+  }
+  .ladder-row {
+    display: grid;
+    grid-template-columns: 80px 1fr 100px;
+    gap: 20px;
+    align-items: center;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .ladder-row:last-child { border-bottom: none; }
+  .ladder-row.header {
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 10px;
+    margin-bottom: 4px;
+  }
+  .ladder-header {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    color: var(--text-faint);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+  .ladder-state {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    padding: 4px 10px;
+    border-radius: 1px;
+    text-align: center;
+    display: inline-block;
+  }
+  .ladder-state.s0 { background: var(--surface-raised); color: var(--text-faint); border: 1px solid var(--line); }
+  .ladder-state.s1 { background: rgba(184,172,153,0.15); color: var(--text-dim); border: 1px solid var(--text-dim); }
+  .ladder-state.s2 { background: rgba(212,165,116,0.18); color: var(--amber); border: 1px solid var(--brass); }
+  .ladder-state.s3 { background: rgba(122,146,96,0.18); color: var(--sage); border: 1px solid var(--sage); }
+  .ladder-state.s4 { background: rgba(232,184,125,0.2); color: var(--amber-bright); border: 1px solid var(--amber); }
+  .ladder-desc {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 14px;
+    color: var(--text);
+    line-height: 1.4;
+  }
+  .ladder-desc em {
+    color: var(--text-dim);
+    font-style: italic;
+    display: block;
+    font-size: 12px;
+    margin-top: 2px;
+  }
+  .ladder-score {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 22px;
+    color: var(--amber);
+    font-weight: 400;
+    text-align: right;
+  }
+  .ladder-score small {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--text-faint);
+    display: block;
+    margin-top: 2px;
+    letter-spacing: 0.06em;
+  }
+
+  /* ==================== GATING DEMO ==================== */
+  .gating {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+  }
+
+  .gating-card {
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    padding: 24px;
+    box-shadow: var(--shadow);
+    position: relative;
+    overflow: hidden;
+  }
+  .gating-card.full { border-left: 3px solid var(--amber); }
+  .gating-card.refresh { border-left: 3px solid var(--brass); }
+  .gating-card.skip { border-left: 3px solid var(--sage); }
+
+  .gating-context {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin-bottom: 8px;
+  }
+  .gating-action {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 22px;
+    color: var(--text);
+    font-weight: 400;
+    margin-bottom: 4px;
+  }
+  .gating-card.full .gating-action { color: var(--amber-bright); }
+  .gating-card.refresh .gating-action { color: var(--brass); }
+  .gating-card.skip .gating-action { color: var(--sage); }
+  .gating-because {
+    font-family: 'Fraunces', Georgia, serif;
+    font-style: italic;
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 18px;
+  }
+
+  .mock-card {
+    background: var(--surface-paper);
+    border: 1px solid var(--line);
+    border-radius: 1px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+  }
+  .mock-card-title {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 14px;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+  .mock-card-body {
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: 1.5;
+  }
+  .mock-card-body.full {
+    -webkit-line-clamp: unset;
+  }
+  .mock-card.collapsed {
+    padding: 10px 14px;
+  }
+  .mock-card.collapsed .mock-card-title {
+    font-size: 13px;
+    margin-bottom: 0;
+  }
+  .mock-bullet {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--text-dim);
+    padding: 3px 0;
+    padding-left: 14px;
+    position: relative;
+  }
+  .mock-bullet::before {
+    content: '→';
+    position: absolute;
+    left: 0;
+    color: var(--brass);
+  }
+
+  .mock-quiz {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    padding: 12px 14px;
+    margin-top: 8px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--text-faint);
+    letter-spacing: 0.04em;
+  }
+  .mock-quiz strong { color: var(--amber); font-weight: 500; }
+
+  .gating-footer {
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px dashed var(--line);
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .gating-tag {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    color: var(--text-faint);
+    background: var(--surface-raised);
+    padding: 3px 8px;
+    border: 1px solid var(--line);
+    letter-spacing: 0.04em;
+  }
+  .gating-tag.state { color: var(--amber); border-color: var(--brass); }
+
+  /* ==================== STUDENT NARRATIVE NOTE ==================== */
+  .narrative-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-top: 20px;
+  }
+  .narrative-card {
+    padding: 14px 16px;
+    background: var(--surface);
+    border-left: 2px solid var(--amber);
+    border-radius: 0 2px 2px 0;
+  }
+  .narrative-name {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.14em;
+    color: var(--amber);
+    margin-bottom: 4px;
+    text-transform: uppercase;
+  }
+  .narrative-text {
+    font-family: 'Fraunces', Georgia, serif;
+    font-style: italic;
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.5;
+  }
+
+  @media (max-width: 900px) {
+    .charts-row { grid-template-columns: 1fr; }
+    .gating { grid-template-columns: 1fr; }
+    .narrative-grid { grid-template-columns: 1fr; }
+    .ladder-row { grid-template-columns: 70px 1fr; }
+    .ladder-score { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <!-- ============ HEADER ============ -->
+  <header class="page-header">
+    <div class="eyebrow">Loominary · skills library · prototype</div>
+    <h1>Strength chart <em>&amp; smart scaffolding</em></h1>
+    <p class="subtitle">Three students, three weeks into Grade 10 electronics. Same library, same lessons, three very different shapes — and the system adapts to each.</p>
+  </header>
+
+  <!-- ============ SECTION 1 — RADAR CHARTS ============ -->
+  <section class="section">
+    <div class="section-label">section 01 · the radar</div>
+    <h2 class="section-title">Where each student stands today</h2>
+    <p class="section-tagline">Four axes from MYP Design's criteria. Solid fill = current strength. Dashed outline = what's gone stale and could be refreshed.</p>
+
+    <div class="legend">
+      <div class="legend-label">how to read it</div>
+      <div class="legend-items">
+        <div class="legend-item"><span class="legend-swatch fill"></span> current strength · skills used in last 90 days</div>
+        <div class="legend-item"><span class="legend-swatch stale"></span> faded outline · what was there before decay</div>
+      </div>
+    </div>
+
+    <div class="charts-row">
+
+      <!-- ===== LIN ===== -->
+      <div class="student-card lin">
+        <div class="student-head">
+          <div class="student-avatar">L</div>
+          <div>
+            <div class="student-name">Lin</div>
+            <div class="student-meta">grade 10 · session 14</div>
+          </div>
+        </div>
+
+        <div class="radar-wrap">
+          <svg class="radar" viewBox="0 0 280 280">
+            <!-- Grid circles -->
+            <circle class="radar-grid" cx="140" cy="140" r="30"/>
+            <circle class="radar-grid" cx="140" cy="140" r="60"/>
+            <circle class="radar-grid" cx="140" cy="140" r="90"/>
+            <circle class="radar-grid outer" cx="140" cy="140" r="110"/>
+            <!-- Axes (4 axes at 0, 90, 180, 270) -->
+            <line class="radar-axis" x1="140" y1="30" x2="140" y2="250"/>
+            <line class="radar-axis" x1="30" y1="140" x2="250" y2="140"/>
+            <!-- Labels -->
+            <text class="radar-label" x="140" y="22" text-anchor="middle">inquiring</text>
+            <text class="radar-label" x="262" y="144" text-anchor="middle">developing</text>
+            <text class="radar-label" x="140" y="270" text-anchor="middle">creating</text>
+            <text class="radar-label" x="18" y="144" text-anchor="middle">evaluating</text>
+            <!-- Stale outline (Lin: was strong in evaluating, now faded) -->
+            <polygon class="radar-stale" points="140,65 215,140 140,210 60,140"/>
+            <!-- Current fill (Lin: strong creating, ok inquiring, weak others) -->
+            <polygon class="radar-fill" points="140,75 195,140 140,200 105,140"/>
+            <!-- Points -->
+            <circle class="radar-point" cx="140" cy="75"/>
+            <circle class="radar-point" cx="195" cy="140"/>
+            <circle class="radar-point" cx="140" cy="200"/>
+            <circle class="radar-point" cx="105" cy="140"/>
+          </svg>
+        </div>
+
+        <div class="student-stats">
+          <div>
+            <div class="stat-label">skills earned</div>
+            <div class="stat-val">14</div>
+          </div>
+          <div>
+            <div class="stat-label">mastered</div>
+            <div class="stat-val">3</div>
+          </div>
+          <div>
+            <div class="stat-label">going stale</div>
+            <div class="stat-val">2</div>
+          </div>
+          <div>
+            <div class="stat-label">badges</div>
+            <div class="stat-val">2</div>
+          </div>
+        </div>
+
+        <div class="student-narrative">A strong builder, weakest at evaluation. Used to be solid there in Grade 9 but it's faded — the dashed outline shows where she used to be.</div>
+      </div>
+
+      <!-- ===== MAYA ===== -->
+      <div class="student-card maya">
+        <div class="student-head">
+          <div class="student-avatar">M</div>
+          <div>
+            <div class="student-name">Maya</div>
+            <div class="student-meta">grade 10 · session 14</div>
+          </div>
+        </div>
+
+        <div class="radar-wrap">
+          <svg class="radar" viewBox="0 0 280 280">
+            <circle class="radar-grid" cx="140" cy="140" r="30"/>
+            <circle class="radar-grid" cx="140" cy="140" r="60"/>
+            <circle class="radar-grid" cx="140" cy="140" r="90"/>
+            <circle class="radar-grid outer" cx="140" cy="140" r="110"/>
+            <line class="radar-axis" x1="140" y1="30" x2="140" y2="250"/>
+            <line class="radar-axis" x1="30" y1="140" x2="250" y2="140"/>
+            <text class="radar-label" x="140" y="22" text-anchor="middle">inquiring</text>
+            <text class="radar-label" x="262" y="144" text-anchor="middle">developing</text>
+            <text class="radar-label" x="140" y="270" text-anchor="middle">creating</text>
+            <text class="radar-label" x="18" y="144" text-anchor="middle">evaluating</text>
+            <!-- Maya: balanced, strong all-rounder -->
+            <polygon class="radar-fill" points="140,55 220,140 140,215 65,140"/>
+            <circle class="radar-point" cx="140" cy="55"/>
+            <circle class="radar-point" cx="220" cy="140"/>
+            <circle class="radar-point" cx="140" cy="215"/>
+            <circle class="radar-point" cx="65" cy="140"/>
+          </svg>
+        </div>
+
+        <div class="student-stats">
+          <div>
+            <div class="stat-label">skills earned</div>
+            <div class="stat-val">22</div>
+          </div>
+          <div>
+            <div class="stat-label">mastered</div>
+            <div class="stat-val">8</div>
+          </div>
+          <div>
+            <div class="stat-label">going stale</div>
+            <div class="stat-val">0</div>
+          </div>
+          <div>
+            <div class="stat-label">badges</div>
+            <div class="stat-val">4</div>
+          </div>
+        </div>
+
+        <div class="student-narrative">A balanced all-rounder. Touches every category regularly so nothing decays. The chart's job here is reassurance, not diagnosis.</div>
+      </div>
+
+      <!-- ===== ELI ===== -->
+      <div class="student-card eli">
+        <div class="student-head">
+          <div class="student-avatar">E</div>
+          <div>
+            <div class="student-name">Eli</div>
+            <div class="student-meta">grade 10 · session 8</div>
+          </div>
+        </div>
+
+        <div class="radar-wrap">
+          <svg class="radar" viewBox="0 0 280 280">
+            <circle class="radar-grid" cx="140" cy="140" r="30"/>
+            <circle class="radar-grid" cx="140" cy="140" r="60"/>
+            <circle class="radar-grid" cx="140" cy="140" r="90"/>
+            <circle class="radar-grid outer" cx="140" cy="140" r="110"/>
+            <line class="radar-axis" x1="140" y1="30" x2="140" y2="250"/>
+            <line class="radar-axis" x1="30" y1="140" x2="250" y2="140"/>
+            <text class="radar-label" x="140" y="22" text-anchor="middle">inquiring</text>
+            <text class="radar-label" x="262" y="144" text-anchor="middle">developing</text>
+            <text class="radar-label" x="140" y="270" text-anchor="middle">creating</text>
+            <text class="radar-label" x="18" y="144" text-anchor="middle">evaluating</text>
+            <!-- Eli: deep researcher, weak builder -->
+            <polygon class="radar-fill" points="140,45 175,140 140,170 95,140"/>
+            <circle class="radar-point" cx="140" cy="45"/>
+            <circle class="radar-point" cx="175" cy="140"/>
+            <circle class="radar-point" cx="140" cy="170"/>
+            <circle class="radar-point" cx="95" cy="140"/>
+          </svg>
+        </div>
+
+        <div class="student-stats">
+          <div>
+            <div class="stat-label">skills earned</div>
+            <div class="stat-val">9</div>
+          </div>
+          <div>
+            <div class="stat-label">mastered</div>
+            <div class="stat-val">2</div>
+          </div>
+          <div>
+            <div class="stat-label">going stale</div>
+            <div class="stat-val">0</div>
+          </div>
+          <div>
+            <div class="stat-label">badges</div>
+            <div class="stat-val">1</div>
+          </div>
+        </div>
+
+        <div class="student-narrative">Deep researcher, light builder. The shape tells the teacher something a grade book can't — Eli needs encouragement to start making, not more reading.</div>
+      </div>
+
+    </div>
+
+    <div class="narrative-grid">
+      <div class="narrative-card">
+        <div class="narrative-name">what Lin sees</div>
+        <div class="narrative-text">"Your evaluation skills are quietly fading. Want to refresh one of them?" — surfaced when she next opens an evaluation-tagged Stone.</div>
+      </div>
+      <div class="narrative-card">
+        <div class="narrative-name">what Maya sees</div>
+        <div class="narrative-text">No prompts. The chart is just there as a quiet record of how much she's grown since Grade 9.</div>
+      </div>
+      <div class="narrative-card">
+        <div class="narrative-name">what Eli sees</div>
+        <div class="narrative-text">"Three classmates are working on the same building stone right now — want to join them?" — using the chart shape, not chat.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SECTION 2 — STATE LADDER ============ -->
+  <section class="section">
+    <div class="section-label">section 02 · the ladder</div>
+    <h2 class="section-title">Five states, one direction</h2>
+    <p class="section-tagline">A student's relationship with a skill is never binary. Each state contributes a different score to the radar.</p>
+
+    <div class="ladder">
+      <div class="ladder-row header">
+        <div class="ladder-header">state</div>
+        <div class="ladder-header">how it's earned</div>
+        <div class="ladder-header" style="text-align: right;">score</div>
+      </div>
+      <div class="ladder-row">
+        <div><span class="ladder-state s0">not started</span></div>
+        <div class="ladder-desc">Default. The student has never opened the card.<em>contributes nothing to the chart</em></div>
+        <div class="ladder-score">0.0</div>
+      </div>
+      <div class="ladder-row">
+        <div><span class="ladder-state s1">viewed</span></div>
+        <div class="ladder-desc">Student opens the card and scrolls through it.<em>awareness only — no tested understanding</em></div>
+        <div class="ladder-score">0.2</div>
+      </div>
+      <div class="ladder-row">
+        <div><span class="ladder-state s2">quiz_passed</span></div>
+        <div class="ladder-desc">Student passes the card's quiz at threshold.<em>tested understanding · the most common state</em></div>
+        <div class="ladder-score">0.6</div>
+      </div>
+      <div class="ladder-row">
+        <div><span class="ladder-state s3">demonstrated</span></div>
+        <div class="ladder-desc">Teacher signs off in person — the safety badge model.<em>practical competence · verified by a human</em></div>
+        <div class="ladder-score">0.9</div>
+      </div>
+      <div class="ladder-row">
+        <div><span class="ladder-state s4">mastered</span></div>
+        <div class="ladder-desc">Skill has been a prerequisite for ≥3 successfully completed Stones.<em>derived from real work · not from test-taking</em></div>
+        <div class="ladder-score">1.0</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SECTION 3 — GATING ============ -->
+  <section class="section">
+    <div class="section-label">section 03 · context-aware gating</div>
+    <h2 class="section-title">Same card, three students, three experiences</h2>
+    <p class="section-tagline">"Use a multimeter for continuity testing" — embedded as a prerequisite in the same Stone. Watch how the same embed becomes three different things.</p>
+
+    <div class="gating">
+
+      <!-- LIN — full -->
+      <div class="gating-card full">
+        <div class="gating-context">Lin · first encounter</div>
+        <div class="gating-action">Full card</div>
+        <div class="gating-because">Lin has never touched this skill. Show the whole thing.</div>
+
+        <div class="mock-card">
+          <div class="mock-card-title">Continuity testing with a multimeter</div>
+          <div class="mock-card-body">A continuity test tells you whether two points in a circuit are electrically connected. It's the fastest way to find a broken wire or a bad solder joint.</div>
+          <div class="mock-bullet">set the dial to the continuity symbol</div>
+          <div class="mock-bullet">touch probes to the two points</div>
+          <div class="mock-bullet">listen for the beep</div>
+          <div class="mock-bullet">no beep = no connection</div>
+        </div>
+        <div class="mock-quiz"><strong>quiz · 5 questions</strong> · pass at 80%</div>
+
+        <div class="gating-footer">
+          <span class="gating-tag state">state · not_started</span>
+          <span class="gating-tag">embed · quiz_passed</span>
+          <span class="gating-tag">≈ 8 min</span>
+        </div>
+      </div>
+
+      <!-- ELI — refresh -->
+      <div class="gating-card refresh">
+        <div class="gating-context">Eli · last seen 7 months ago</div>
+        <div class="gating-action">Refresh</div>
+        <div class="gating-because">Eli passed this in March. He still knows it, but it's gone stale — offer a quick refresh.</div>
+
+        <div class="mock-card collapsed">
+          <div class="mock-card-title">Continuity testing — key points</div>
+        </div>
+        <div class="mock-bullet">set dial to continuity symbol</div>
+        <div class="mock-bullet">probes touch the two points</div>
+        <div class="mock-bullet">beep = connected</div>
+        <div class="mock-quiz" style="margin-top:12px;"><strong>quick quiz · 3 questions</strong> · or tap "got it"</div>
+
+        <div class="gating-footer">
+          <span class="gating-tag state">state · quiz_passed (stale)</span>
+          <span class="gating-tag">last used · mar</span>
+          <span class="gating-tag">≈ 90s</span>
+        </div>
+      </div>
+
+      <!-- MAYA — skip -->
+      <div class="gating-card skip">
+        <div class="gating-context">Maya · used 4 days ago</div>
+        <div class="gating-action">Skip silently</div>
+        <div class="gating-because">Maya is mastered and used this skill last week. Don't waste her time — log a passive reference and move on.</div>
+
+        <div class="mock-card collapsed" style="opacity: 0.6;">
+          <div class="mock-card-title">Continuity testing · ✓ mastered</div>
+        </div>
+        <div class="mock-bullet" style="opacity: 0.5;">no interruption — student moves to the next activity block</div>
+
+        <div class="gating-footer">
+          <span class="gating-tag state">state · mastered (current)</span>
+          <span class="gating-tag">last used · 4d ago</span>
+          <span class="gating-tag">0s</span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+</div>
+
+</body>
+</html>

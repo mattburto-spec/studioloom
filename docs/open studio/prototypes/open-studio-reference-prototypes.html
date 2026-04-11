@@ -1,0 +1,1422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Open Studio — Reference Prototypes</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #1a1410;
+    --bg-deep: #120d0a;
+    --surface: #26201a;
+    --surface-raised: #2f2821;
+    --surface-paper: #3a3028;
+    --line: #4a3d32;
+    --line-soft: #3a3028;
+    --text: #f2e8d8;
+    --text-dim: #b8ac99;
+    --text-faint: #7a7065;
+    --amber: #d4a574;
+    --amber-bright: #e8b87d;
+    --brass: #b08450;
+    --sage: #7a9260;
+    --ember: #c67a5c;
+    --rose: #b8624e;
+    --shadow: 0 20px 60px -20px rgba(0,0,0,0.6), 0 8px 24px -12px rgba(0,0,0,0.4);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'IBM Plex Sans', system-ui, sans-serif;
+    background: var(--bg-deep);
+    color: var(--text);
+    font-weight: 300;
+    line-height: 1.6;
+    min-height: 100vh;
+    padding: 56px 24px 96px;
+    background-image:
+      radial-gradient(ellipse at top, rgba(212,165,116,0.08) 0%, transparent 60%),
+      radial-gradient(ellipse at bottom, rgba(198,122,92,0.04) 0%, transparent 50%);
+  }
+
+  .page { max-width: 1180px; margin: 0 auto; }
+
+  /* ==================== HEADER ==================== */
+  .page-header {
+    margin-bottom: 64px;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 36px;
+  }
+  .eyebrow {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--amber);
+    margin-bottom: 16px;
+  }
+  h1 {
+    font-family: 'Fraunces', Georgia, serif;
+    font-weight: 400;
+    font-size: clamp(36px, 5vw, 56px);
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+    margin-bottom: 16px;
+  }
+  h1 em { font-style: italic; color: var(--amber-bright); font-weight: 300; }
+  .subtitle {
+    font-family: 'Fraunces', Georgia, serif;
+    font-style: italic;
+    font-size: 18px;
+    color: var(--text-dim);
+    max-width: 680px;
+    font-weight: 300;
+  }
+
+  /* Constraint banner */
+  .constraint {
+    margin-top: 28px;
+    padding: 18px 22px;
+    background: rgba(184, 98, 78, 0.08);
+    border-left: 2px solid var(--rose);
+    border-radius: 0 2px 2px 0;
+  }
+  .constraint-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--rose);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .constraint-body {
+    font-size: 14px;
+    color: var(--text-dim);
+  }
+
+  /* ==================== SECTION ==================== */
+  .proto {
+    margin-bottom: 88px;
+    scroll-margin-top: 24px;
+  }
+
+  .proto-header {
+    display: grid;
+    grid-template-columns: 60px 1fr;
+    gap: 24px;
+    align-items: start;
+    margin-bottom: 28px;
+  }
+  .proto-num {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 48px;
+    font-weight: 300;
+    color: var(--brass);
+    line-height: 1;
+    font-style: italic;
+  }
+  .proto-title-block { padding-top: 6px; }
+  .proto-source {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin-bottom: 6px;
+  }
+  .proto-title {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 28px;
+    font-weight: 400;
+    color: var(--text);
+    letter-spacing: -0.01em;
+    margin-bottom: 8px;
+  }
+  .proto-tagline {
+    font-family: 'Fraunces', Georgia, serif;
+    font-style: italic;
+    font-size: 16px;
+    color: var(--text-dim);
+  }
+
+  .proto-body {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 32px;
+  }
+
+  .proto-canvas {
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+    min-height: 320px;
+  }
+
+  .proto-notes {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    padding-top: 4px;
+  }
+  .note {
+    padding: 14px 16px;
+    background: var(--surface);
+    border-left: 2px solid var(--amber);
+    border-radius: 0 2px 2px 0;
+  }
+  .note.apply { border-left-color: var(--sage); }
+  .note-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--amber);
+    margin-bottom: 6px;
+  }
+  .note.apply .note-label { color: var(--sage); }
+  .note-body {
+    font-size: 12.5px;
+    color: var(--text-dim);
+    line-height: 1.55;
+  }
+
+  /* ==================== 01 SCRUM ==================== */
+  .scrum {
+    padding: 32px;
+    background: linear-gradient(180deg, var(--surface) 0%, var(--bg) 100%);
+  }
+  .scrum-header {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    color: var(--text-faint);
+    margin-bottom: 24px;
+    display: flex;
+    gap: 16px;
+    align-items: center;
+  }
+  .scrum-header strong { color: var(--amber); font-weight: 500; }
+  .scrum-cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  .scrum-card {
+    background: var(--surface-raised);
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    padding: 18px;
+  }
+  .scrum-q {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    color: var(--brass);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .scrum-a {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 14px;
+    color: var(--text);
+    line-height: 1.4;
+    font-weight: 400;
+  }
+  .scrum-card.blocker { border-left: 2px solid var(--ember); }
+  .scrum-suggestions {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--line);
+  }
+  .scrum-suggestion-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    color: var(--text-faint);
+    letter-spacing: 0.1em;
+    margin-bottom: 8px;
+  }
+  .scrum-link {
+    display: block;
+    font-size: 11px;
+    color: var(--amber);
+    padding: 4px 0;
+    font-family: 'IBM Plex Mono', monospace;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .scrum-link:last-child { border-bottom: none; }
+
+  /* ==================== 02 STRAVA ==================== */
+  .strava {
+    padding: 0;
+  }
+  .strava-feed-item {
+    padding: 24px 28px;
+    border-bottom: 1px solid var(--line);
+  }
+  .strava-feed-item:last-child { border-bottom: none; }
+  .strava-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+  }
+  .strava-author {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+  .strava-avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--brass), var(--ember));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 14px;
+    color: var(--bg);
+    font-weight: 600;
+  }
+  .strava-name {
+    font-size: 13px;
+    color: var(--text);
+    font-weight: 500;
+  }
+  .strava-when {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--text-faint);
+    letter-spacing: 0.05em;
+  }
+  .strava-title {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 19px;
+    color: var(--text);
+    margin-bottom: 14px;
+    font-weight: 500;
+  }
+  .strava-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    padding: 14px 0;
+    border-top: 1px solid var(--line-soft);
+    border-bottom: 1px solid var(--line-soft);
+    margin-bottom: 14px;
+  }
+  .strava-stat-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    color: var(--text-faint);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .strava-stat-val {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 22px;
+    color: var(--amber);
+    font-weight: 400;
+    line-height: 1;
+  }
+  .strava-stat-val small {
+    font-size: 11px;
+    color: var(--text-faint);
+    font-family: 'IBM Plex Mono', monospace;
+    margin-left: 2px;
+  }
+  .strava-reflection {
+    font-family: 'Fraunces', Georgia, serif;
+    font-style: italic;
+    font-size: 14px;
+    color: var(--text-dim);
+    padding-left: 12px;
+    border-left: 2px solid var(--brass);
+  }
+  .strava-planned {
+    background: rgba(122,146,96,0.06);
+    border-left: 2px solid var(--sage);
+  }
+  .strava-planned .strava-title { color: var(--text-dim); }
+  .strava-planned-tag {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    color: var(--sage);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  /* ==================== 03 FIGMA / LINEAR ==================== */
+  .figma {
+    padding: 24px;
+    background: var(--bg);
+  }
+  .figma-bar {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 16px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    margin-bottom: 18px;
+  }
+  .figma-file-name {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--text);
+    flex-shrink: 0;
+  }
+  .figma-presence {
+    display: flex;
+    margin-left: auto;
+    gap: -4px;
+  }
+  .figma-cursor {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 2px solid var(--surface);
+    margin-left: -8px;
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    color: var(--bg);
+  }
+  .figma-cursor.c1 { background: var(--amber); }
+  .figma-cursor.c2 { background: var(--sage); }
+  .figma-cursor.c3 { background: var(--ember); }
+  .figma-cursor.c4 { background: var(--rose); }
+
+  .figma-canvas {
+    position: relative;
+    height: 280px;
+    background:
+      linear-gradient(var(--line-soft) 1px, transparent 1px),
+      linear-gradient(90deg, var(--line-soft) 1px, transparent 1px),
+      var(--bg-deep);
+    background-size: 24px 24px;
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .figma-region {
+    position: absolute;
+    border: 1px dashed var(--line);
+    background: rgba(38,32,26,0.6);
+    border-radius: 2px;
+    padding: 10px 12px;
+  }
+  .figma-region-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    color: var(--text-faint);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .figma-region-content {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 13px;
+    color: var(--text-dim);
+    font-style: italic;
+  }
+  .figma-cursor-mark {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    transform: rotate(-15deg);
+  }
+  .figma-cursor-mark::before {
+    content: '';
+    display: block;
+    width: 0;
+    height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 14px solid currentColor;
+  }
+  .figma-cursor-mark .label {
+    position: absolute;
+    top: 16px;
+    left: 8px;
+    background: currentColor;
+    padding: 2px 6px;
+    border-radius: 2px;
+    font-size: 9px;
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--bg);
+    white-space: nowrap;
+  }
+
+  /* ==================== 04 FOCUSMATE ==================== */
+  .focusmate {
+    padding: 36px 32px;
+    background: linear-gradient(180deg, var(--surface) 0%, var(--bg) 100%);
+  }
+  .focusmate-header {
+    text-align: center;
+    margin-bottom: 28px;
+  }
+  .focusmate-eyebrow {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--amber);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .focusmate-time {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 32px;
+    color: var(--text);
+    font-weight: 300;
+    letter-spacing: -0.01em;
+  }
+  .focusmate-pair {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 20px;
+    align-items: center;
+    padding: 24px;
+    background: var(--surface-raised);
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    margin-bottom: 24px;
+  }
+  .focusmate-person { text-align: center; }
+  .focusmate-avatar {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--brass), var(--amber));
+    margin: 0 auto 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 22px;
+    color: var(--bg);
+    font-weight: 500;
+  }
+  .focusmate-avatar.partner {
+    background: linear-gradient(135deg, var(--sage), #5a7045);
+  }
+  .focusmate-pname {
+    font-size: 13px;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+  .focusmate-prole {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    color: var(--text-faint);
+    letter-spacing: 0.1em;
+  }
+  .focusmate-divider {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 18px;
+    color: var(--brass);
+    font-style: italic;
+  }
+  .focusmate-prompt {
+    background: var(--surface-paper);
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    padding: 22px;
+  }
+  .focusmate-q {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--amber);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .focusmate-a {
+    font-family: 'Fraunces', Georgia, serif;
+    font-style: italic;
+    font-size: 17px;
+    color: var(--text);
+    line-height: 1.4;
+  }
+
+  /* ==================== 05 NOTION DAILY ==================== */
+  .notion {
+    padding: 32px 36px;
+    background: var(--bg);
+  }
+  .notion-day {
+    margin-bottom: 24px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .notion-day:last-child { border-bottom: none; padding-bottom: 0; margin-bottom: 0; }
+  .notion-date {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--text-faint);
+    letter-spacing: 0.1em;
+    margin-bottom: 8px;
+  }
+  .notion-title {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 20px;
+    color: var(--text);
+    margin-bottom: 10px;
+    font-weight: 400;
+  }
+  .notion-bullet {
+    font-size: 13px;
+    color: var(--text-dim);
+    padding-left: 18px;
+    position: relative;
+    margin-bottom: 4px;
+    line-height: 1.55;
+  }
+  .notion-bullet::before {
+    content: '·';
+    position: absolute;
+    left: 6px;
+    color: var(--brass);
+    font-weight: 600;
+  }
+  .notion-bullet em {
+    color: var(--amber);
+    font-style: normal;
+    background: rgba(212,165,116,0.08);
+    padding: 1px 5px;
+    border-radius: 1px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+  }
+  .notion-template-tag {
+    display: inline-block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    color: var(--sage);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border: 1px solid var(--sage);
+    border-radius: 1px;
+    margin-bottom: 10px;
+  }
+
+  /* ==================== 06 DESTINY PURSUITS ==================== */
+  .destiny {
+    padding: 28px 32px;
+    background: var(--bg);
+  }
+  .destiny-pursuit {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--amber);
+    padding: 18px 20px;
+    margin-bottom: 14px;
+    position: relative;
+  }
+  .destiny-pursuit.epic { border-left-color: var(--ember); }
+  .destiny-pursuit.complete { border-left-color: var(--sage); opacity: 0.7; }
+  .destiny-tier {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--amber);
+    margin-bottom: 6px;
+  }
+  .destiny-pursuit.epic .destiny-tier { color: var(--ember); }
+  .destiny-name {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 18px;
+    color: var(--text);
+    margin-bottom: 6px;
+    font-weight: 500;
+  }
+  .destiny-desc {
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+    font-style: italic;
+    font-family: 'Fraunces', Georgia, serif;
+  }
+  .destiny-progress {
+    height: 4px;
+    background: var(--surface-raised);
+    border-radius: 1px;
+    overflow: hidden;
+    margin-bottom: 10px;
+  }
+  .destiny-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--brass), var(--amber));
+  }
+  .destiny-meta {
+    display: flex;
+    justify-content: space-between;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--text-faint);
+    letter-spacing: 0.05em;
+  }
+  .destiny-reward {
+    color: var(--amber);
+  }
+  .destiny-prereq {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--text-faint);
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--line);
+  }
+  .destiny-prereq a {
+    color: var(--amber);
+    text-decoration: none;
+    border-bottom: 1px dotted var(--amber);
+  }
+
+  /* ==================== 07 STUDIO CRIT BOARD ==================== */
+  .crit {
+    padding: 32px;
+    background:
+      radial-gradient(ellipse at 30% 20%, rgba(176,132,80,0.08) 0%, transparent 60%),
+      var(--bg);
+  }
+  .crit-board {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+  .crit-pin {
+    background: var(--surface-paper);
+    border: 1px solid var(--line);
+    padding: 12px;
+    box-shadow: 0 6px 20px -8px rgba(0,0,0,0.6);
+  }
+  .crit-pin:nth-child(1) { transform: rotate(-1.2deg); }
+  .crit-pin:nth-child(2) { transform: rotate(0.6deg); }
+  .crit-pin:nth-child(3) { transform: rotate(-0.4deg); }
+  .crit-image {
+    height: 120px;
+    background: linear-gradient(135deg, rgba(176,132,80,0.3), rgba(38,32,26,0.9));
+    border-radius: 1px;
+    margin-bottom: 10px;
+    position: relative;
+  }
+  .crit-image.exemplar::after {
+    content: 'EXEMPLAR';
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: var(--amber);
+    color: var(--bg);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 8px;
+    padding: 2px 6px;
+    letter-spacing: 0.1em;
+    font-weight: 600;
+  }
+  .crit-image.peer {
+    background: linear-gradient(135deg, rgba(122,146,96,0.3), rgba(38,32,26,0.9));
+  }
+  .crit-image.peer::after {
+    content: 'PEER · GR 10';
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: var(--sage);
+    color: var(--bg);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 8px;
+    padding: 2px 6px;
+    letter-spacing: 0.1em;
+    font-weight: 600;
+  }
+  .crit-caption {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 13px;
+    color: var(--text);
+    font-style: italic;
+    margin-bottom: 4px;
+  }
+  .crit-author {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    color: var(--text-faint);
+    letter-spacing: 0.08em;
+  }
+  .crit-walk {
+    background: var(--surface);
+    border-left: 2px solid var(--brass);
+    padding: 14px 18px;
+    margin-top: 24px;
+  }
+  .crit-walk-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    color: var(--brass);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .crit-walk-text {
+    font-family: 'Fraunces', Georgia, serif;
+    font-style: italic;
+    font-size: 14px;
+    color: var(--text-dim);
+  }
+
+  /* ==================== 08 DUOLINGO PATH ==================== */
+  .duo {
+    padding: 32px;
+    background: var(--bg);
+    position: relative;
+  }
+  .duo-warning {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    background: rgba(184,98,78,0.12);
+    border: 1px solid var(--rose);
+    border-radius: 2px;
+    padding: 6px 12px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.14em;
+    color: var(--rose);
+    text-transform: uppercase;
+  }
+  .duo-tree {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 20px 0;
+  }
+  .duo-node {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 13px;
+    color: var(--bg);
+    font-weight: 500;
+    text-align: center;
+    line-height: 1.1;
+    padding: 8px;
+    border: 3px solid;
+    position: relative;
+  }
+  .duo-node.done {
+    background: var(--sage);
+    border-color: #5a7045;
+  }
+  .duo-node.current {
+    background: var(--amber);
+    border-color: var(--brass);
+    box-shadow: 0 0 0 4px rgba(212,165,116,0.2);
+  }
+  .duo-node.locked {
+    background: var(--surface-raised);
+    border-color: var(--line);
+    color: var(--text-faint);
+  }
+  .duo-node.offset { margin-left: 80px; }
+  .duo-node.offset-r { margin-right: 80px; margin-left: 0; }
+  .duo-line {
+    width: 2px;
+    height: 16px;
+    background: var(--line);
+  }
+  .duo-current-card {
+    background: var(--surface);
+    border: 1px solid var(--amber);
+    border-radius: 2px;
+    padding: 16px 20px;
+    margin-top: 24px;
+    text-align: center;
+  }
+  .duo-current-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--amber);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .duo-current-task {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 16px;
+    color: var(--text);
+    margin-bottom: 8px;
+  }
+  .duo-current-resources {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--amber);
+    letter-spacing: 0.04em;
+  }
+
+  /* ==================== TOC ==================== */
+  .toc {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    padding: 24px 28px;
+    margin-bottom: 64px;
+    border-radius: 2px;
+  }
+  .toc-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin-bottom: 14px;
+  }
+  .toc-list {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px 24px;
+    list-style: none;
+  }
+  .toc-list a {
+    color: var(--text-dim);
+    text-decoration: none;
+    font-size: 13px;
+    display: flex;
+    gap: 12px;
+    padding: 4px 0;
+    border-bottom: 1px solid transparent;
+  }
+  .toc-list a:hover { color: var(--amber); border-bottom-color: var(--brass); }
+  .toc-num {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--brass);
+  }
+
+  @media (max-width: 860px) {
+    body { padding: 32px 16px 64px; }
+    .proto-body { grid-template-columns: 1fr; }
+    .proto-header { grid-template-columns: 48px 1fr; gap: 16px; }
+    .proto-num { font-size: 36px; }
+    .scrum-cards { grid-template-columns: 1fr; }
+    .strava-stats { grid-template-columns: repeat(2, 1fr); }
+    .crit-board { grid-template-columns: 1fr; }
+    .toc-list { grid-template-columns: 1fr; }
+    .focusmate-pair { grid-template-columns: 1fr; gap: 14px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <!-- ============ HEADER ============ -->
+  <header class="page-header">
+    <div class="eyebrow">Loominary · reference prototypes</div>
+    <h1>Eight patterns <em>worth borrowing</em></h1>
+    <p class="subtitle">Each prototype demonstrates one mechanism the Open Studio mode and student dashboard could borrow from. None of them rely on a chatbot.</p>
+
+    <div class="constraint">
+      <div class="constraint-label">design constraint · v1</div>
+      <div class="constraint-body">No student-facing chatbot at launch. Every "help" surface must be a curated, human-authored, navigable artefact — not generated text. Hints, next steps, and skill resources are linked, not synthesised.</div>
+    </div>
+  </header>
+
+  <!-- ============ TOC ============ -->
+  <nav class="toc">
+    <div class="toc-label">contents</div>
+    <ul class="toc-list">
+      <li><a href="#p1"><span class="toc-num">01</span> Scrum standup — three questions</a></li>
+      <li><a href="#p2"><span class="toc-num">02</span> Strava — planned, captured, reflected</a></li>
+      <li><a href="#p3"><span class="toc-num">03</span> Figma & Linear — ambient presence</a></li>
+      <li><a href="#p4"><span class="toc-num">04</span> Focusmate — body doubling</a></li>
+      <li><a href="#p5"><span class="toc-num">05</span> Notion daily notes — templated reflection</a></li>
+      <li><a href="#p6"><span class="toc-num">06</span> Destiny pursuits — self-chosen quests</a></li>
+      <li><a href="#p7"><span class="toc-num">07</span> Studio crit board — pinned exemplars</a></li>
+      <li><a href="#p8"><span class="toc-num">08</span> Duolingo path — cautionary streaks</a></li>
+    </ul>
+  </nav>
+
+  <!-- ============ 01 SCRUM ============ -->
+  <section class="proto" id="p1">
+    <div class="proto-header">
+      <div class="proto-num">01</div>
+      <div class="proto-title-block">
+        <div class="proto-source">borrowed from · scrum daily standup</div>
+        <h2 class="proto-title">Three questions, asynchronous</h2>
+        <p class="proto-tagline">Did, will do, blocking. The whole ritual in 60 seconds.</p>
+      </div>
+    </div>
+
+    <div class="proto-body">
+      <div class="proto-canvas">
+        <div class="scrum">
+          <div class="scrum-header">
+            <strong>Lin's standup</strong>
+            <span>·</span>
+            <span>tue · 09:14</span>
+          </div>
+          <div class="scrum-cards">
+            <div class="scrum-card">
+              <div class="scrum-q">Yesterday</div>
+              <div class="scrum-a">Got the breadboard wired but the LED stayed dark.</div>
+            </div>
+            <div class="scrum-card">
+              <div class="scrum-q">Today</div>
+              <div class="scrum-a">Trace the circuit with a multimeter, find the break.</div>
+            </div>
+            <div class="scrum-card blocker">
+              <div class="scrum-q">Blocker</div>
+              <div class="scrum-a">Not sure how to use the multimeter properly.</div>
+              <div class="scrum-suggestions">
+                <div class="scrum-suggestion-label">try one of these →</div>
+                <a class="scrum-link">→ skill card · multimeter basics</a>
+                <a class="scrum-link">→ video · 90s continuity test</a>
+                <a class="scrum-link">→ ask peer · Maya, Eli</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="proto-notes">
+        <div class="note">
+          <div class="note-label">what it does</div>
+          <div class="note-body">Three questions, no more. Closes the loop on yesterday and opens today's intent. The blocker is the only one that gets follow-up.</div>
+        </div>
+        <div class="note apply">
+          <div class="note-label">how it applies, no chatbot</div>
+          <div class="note-body">The blocker text is matched against a tagged skill library. The student sees three curated options — a skill card, a short video, and named peers — none of it generated. Teacher-authored, taggable, auditable.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 02 STRAVA ============ -->
+  <section class="proto" id="p2">
+    <div class="proto-header">
+      <div class="proto-num">02</div>
+      <div class="proto-title-block">
+        <div class="proto-source">borrowed from · strava activity feed</div>
+        <h2 class="proto-title">Planned · captured · reflected</h2>
+        <p class="proto-tagline">A timeline where every entry gives the student something back.</p>
+      </div>
+    </div>
+
+    <div class="proto-body">
+      <div class="proto-canvas">
+        <div class="strava">
+
+          <div class="strava-feed-item strava-planned">
+            <div class="strava-planned-tag">planned · for tomorrow</div>
+            <div class="strava-title">Solder header pins to the micro:bit carrier</div>
+            <div class="strava-meta">
+              <div class="strava-author">
+                <div class="strava-avatar">L</div>
+                <div class="strava-name">Lin · planning</div>
+              </div>
+              <div class="strava-when">~ 30 min · tools: soldering iron</div>
+            </div>
+          </div>
+
+          <div class="strava-feed-item">
+            <div class="strava-meta">
+              <div class="strava-author">
+                <div class="strava-avatar">L</div>
+                <div class="strava-name">Lin</div>
+              </div>
+              <div class="strava-when">today · 11:42 · session 14</div>
+            </div>
+            <div class="strava-title">Wired the PIR sensor and got blink working</div>
+            <div class="strava-stats">
+              <div>
+                <div class="strava-stat-label">focused</div>
+                <div class="strava-stat-val">52<small>min</small></div>
+              </div>
+              <div>
+                <div class="strava-stat-label">photos</div>
+                <div class="strava-stat-val">7</div>
+              </div>
+              <div>
+                <div class="strava-stat-label">files</div>
+                <div class="strava-stat-val">3</div>
+              </div>
+              <div>
+                <div class="strava-stat-label">milestone</div>
+                <div class="strava-stat-val">62<small>%</small></div>
+              </div>
+            </div>
+            <div class="strava-reflection">"Took longer than I thought because I wired the resistor wrong twice. Next time I'll check the colour bands before soldering."</div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="proto-notes">
+        <div class="note">
+          <div class="note-label">what it does</div>
+          <div class="note-body">Three states for one activity: planned, captured, reflected. Stats earned from passive evidence (Work Capture Pipeline) make every session feel rewarded.</div>
+        </div>
+        <div class="note apply">
+          <div class="note-label">how it applies, no chatbot</div>
+          <div class="note-body">The "planned" card is the perfect place to surface skill-card prerequisites. *"Tools: soldering iron"* links to the tool's safety card and a 60-second how-to. No AI involved — it's metadata + tagged resources.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 03 FIGMA / LINEAR ============ -->
+  <section class="proto" id="p3">
+    <div class="proto-header">
+      <div class="proto-num">03</div>
+      <div class="proto-title-block">
+        <div class="proto-source">borrowed from · figma + linear</div>
+        <h2 class="proto-title">Ambient presence</h2>
+        <p class="proto-tagline">See who's working on what, without anyone reporting in.</p>
+      </div>
+    </div>
+
+    <div class="proto-body">
+      <div class="proto-canvas">
+        <div class="figma">
+          <div class="figma-bar">
+            <span class="figma-file-name">grade 10 · electronics build</span>
+            <div class="figma-presence">
+              <div class="figma-cursor c1">L</div>
+              <div class="figma-cursor c2">M</div>
+              <div class="figma-cursor c3">E</div>
+              <div class="figma-cursor c4">A</div>
+            </div>
+          </div>
+          <div class="figma-canvas">
+            <div class="figma-region" style="top: 20px; left: 30px; width: 200px;">
+              <div class="figma-region-label">research</div>
+              <div class="figma-region-content">choosing a sensor</div>
+            </div>
+            <div class="figma-region" style="top: 30px; right: 30px; width: 180px;">
+              <div class="figma-region-label">build</div>
+              <div class="figma-region-content">soldering</div>
+            </div>
+            <div class="figma-region" style="bottom: 24px; left: 80px; width: 220px;">
+              <div class="figma-region-label">test &amp; iterate</div>
+              <div class="figma-region-content">debugging code</div>
+            </div>
+
+            <div class="figma-cursor-mark" style="color: var(--amber); top: 60px; left: 100px;">
+              <span class="label">Lin</span>
+            </div>
+            <div class="figma-cursor-mark" style="color: var(--sage); top: 80px; right: 80px;">
+              <span class="label">Maya</span>
+            </div>
+            <div class="figma-cursor-mark" style="color: var(--ember); bottom: 80px; left: 160px;">
+              <span class="label">Eli</span>
+            </div>
+            <div class="figma-cursor-mark" style="color: var(--rose); top: 140px; left: 280px;">
+              <span class="label">Asha</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="proto-notes">
+        <div class="note">
+          <div class="note-label">what it does</div>
+          <div class="note-body">No status updates. Just cursors on a shared canvas showing where everyone is working. Belonging without surveillance.</div>
+        </div>
+        <div class="note apply">
+          <div class="note-label">how it applies, no chatbot</div>
+          <div class="note-body">A class map of milestone regions. Stuck on soldering? Tap the region and see classmates currently in the same phase. Direct peer-to-peer help discovery — no AI mediation.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 04 FOCUSMATE ============ -->
+  <section class="proto" id="p4">
+    <div class="proto-header">
+      <div class="proto-num">04</div>
+      <div class="proto-title-block">
+        <div class="proto-source">borrowed from · focusmate</div>
+        <h2 class="proto-title">Body doubling &amp; commitment</h2>
+        <p class="proto-tagline">Two students, one timer, one stated intention each.</p>
+      </div>
+    </div>
+
+    <div class="proto-body">
+      <div class="proto-canvas">
+        <div class="focusmate">
+          <div class="focusmate-header">
+            <div class="focusmate-eyebrow">paired session · starts in 2 min</div>
+            <div class="focusmate-time">50 minutes</div>
+          </div>
+          <div class="focusmate-pair">
+            <div class="focusmate-person">
+              <div class="focusmate-avatar">L</div>
+              <div class="focusmate-pname">Lin</div>
+              <div class="focusmate-prole">you</div>
+            </div>
+            <div class="focusmate-divider">paired with</div>
+            <div class="focusmate-person">
+              <div class="focusmate-avatar partner">M</div>
+              <div class="focusmate-pname">Maya</div>
+              <div class="focusmate-prole">also gr 10 design</div>
+            </div>
+          </div>
+          <div class="focusmate-prompt">
+            <div class="focusmate-q">Tell Maya what you'll work on</div>
+            <div class="focusmate-a">"I'm going to finish the PIR wiring and try to get the LED blinking."</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="proto-notes">
+        <div class="note">
+          <div class="note-label">what it does</div>
+          <div class="note-body">A real human is on the other side of the timer. Stating your intention to a peer is more binding than stating it to a system. Almost no UI — just presence and a sentence.</div>
+        </div>
+        <div class="note apply">
+          <div class="note-label">how it applies, no chatbot</div>
+          <div class="note-body">"Open Studio paired sessions" — opt-in, scheduled, video off. The accountability and the peer-help channel are the same channel. Replaces the AI critic for students who'd rather work alongside a human.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 05 NOTION ============ -->
+  <section class="proto" id="p5">
+    <div class="proto-header">
+      <div class="proto-num">05</div>
+      <div class="proto-title-block">
+        <div class="proto-source">borrowed from · notion + roam daily notes</div>
+        <h2 class="proto-title">Templated daily reflection</h2>
+        <p class="proto-tagline">A page per day with the same prompts. Friction goes to zero.</p>
+      </div>
+    </div>
+
+    <div class="proto-body">
+      <div class="proto-canvas">
+        <div class="notion">
+
+          <div class="notion-day">
+            <div class="notion-date">tue · 11 nov</div>
+            <span class="notion-template-tag">daily template</span>
+            <div class="notion-title">Building day · electronics</div>
+            <div class="notion-bullet"><strong>Worked on</strong> wiring the <em>PIR sensor</em> &amp; testing with blink</div>
+            <div class="notion-bullet"><strong>Got stuck on</strong> wrong resistor value</div>
+            <div class="notion-bullet"><strong>Asked</strong> <em>Maya</em> — she'd hit the same thing yesterday</div>
+            <div class="notion-bullet"><strong>Tomorrow</strong> mount the sensor in the enclosure</div>
+          </div>
+
+          <div class="notion-day">
+            <div class="notion-date">mon · 10 nov</div>
+            <span class="notion-template-tag">daily template</span>
+            <div class="notion-title">Research day</div>
+            <div class="notion-bullet"><strong>Worked on</strong> choosing between PIR &amp; ultrasonic</div>
+            <div class="notion-bullet"><strong>Read</strong> <em>sensor comparison card</em></div>
+            <div class="notion-bullet"><strong>Decided</strong> PIR — cheaper, simpler, less power</div>
+            <div class="notion-bullet"><strong>Tomorrow</strong> wire it up</div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="proto-notes">
+        <div class="note">
+          <div class="note-label">what it does</div>
+          <div class="note-body">A templated daily page that auto-creates each session. Same prompts every day. The student fills in blanks, doesn't write from scratch.</div>
+        </div>
+        <div class="note apply">
+          <div class="note-label">how it applies, no chatbot</div>
+          <div class="note-body">The templated bullets become wikilinks. *"Got stuck on"* links to skill cards. *"Asked"* links to peers. *"Read"* links to teacher-curated resources. The reflection itself becomes the navigation surface — every word a door to a human-authored artefact.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 06 DESTINY ============ -->
+  <section class="proto" id="p6">
+    <div class="proto-header">
+      <div class="proto-num">06</div>
+      <div class="proto-title-block">
+        <div class="proto-source">borrowed from · destiny pursuits</div>
+        <h2 class="proto-title">Self-chosen quests</h2>
+        <p class="proto-tagline">Objectives the student picked, with hints baked into the description.</p>
+      </div>
+    </div>
+
+    <div class="proto-body">
+      <div class="proto-canvas">
+        <div class="destiny">
+
+          <div class="destiny-pursuit epic">
+            <div class="destiny-tier">milestone · epic</div>
+            <div class="destiny-name">Working motion-detector enclosure</div>
+            <div class="destiny-desc">Build a complete motion sensor that fits inside a 3D-printed case and triggers an LED.</div>
+            <div class="destiny-progress">
+              <div class="destiny-progress-fill" style="width: 62%;"></div>
+            </div>
+            <div class="destiny-meta">
+              <span>62% · 4 days remaining</span>
+              <span class="destiny-reward">unlocks: open studio · paired sessions</span>
+            </div>
+          </div>
+
+          <div class="destiny-pursuit">
+            <div class="destiny-tier">stone · in progress</div>
+            <div class="destiny-name">Wire the PIR sensor</div>
+            <div class="destiny-desc">Connect VCC, GND and OUT to the micro:bit. Test with blink before soldering.</div>
+            <div class="destiny-progress">
+              <div class="destiny-progress-fill" style="width: 80%;"></div>
+            </div>
+            <div class="destiny-meta">
+              <span>almost there</span>
+              <span class="destiny-reward">+ skill: continuity testing</span>
+            </div>
+            <div class="destiny-prereq">prerequisites: <a>multimeter basics</a> · <a>breadboard layout</a></div>
+          </div>
+
+          <div class="destiny-pursuit complete">
+            <div class="destiny-tier">stone · complete</div>
+            <div class="destiny-name">Choose a sensor</div>
+            <div class="destiny-desc">Compare two options. Decide based on power, price, complexity.</div>
+            <div class="destiny-meta">
+              <span>completed mon</span>
+              <span class="destiny-reward">+ skill: trade-off analysis</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="proto-notes">
+        <div class="note">
+          <div class="note-label">what it does</div>
+          <div class="note-body">Each pursuit has a name, a description, prerequisites, progress, and a reward. The student chose it, so it doesn't feel assigned. Hints live inside the description, not in a chat.</div>
+        </div>
+        <div class="note apply">
+          <div class="note-label">how it applies, no chatbot</div>
+          <div class="note-body">This is the most direct fit. Stones already have this shape. The win is the *prerequisites* line — every Stone links to the skill cards that unlock it. Stuck? Re-read the prereqs. The hint is the structure, not a generated answer.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 07 STUDIO CRIT BOARD ============ -->
+  <section class="proto" id="p7">
+    <div class="proto-header">
+      <div class="proto-num">07</div>
+      <div class="proto-title-block">
+        <div class="proto-source">borrowed from · maker studio crit</div>
+        <h2 class="proto-title">Pinned exemplars &amp; floor walks</h2>
+        <p class="proto-tagline">Visible reference work. The most powerful hint system ever invented.</p>
+      </div>
+    </div>
+
+    <div class="proto-body">
+      <div class="proto-canvas">
+        <div class="crit">
+          <div class="crit-board">
+            <div class="crit-pin">
+              <div class="crit-image exemplar"></div>
+              <div class="crit-caption">Clean enclosure with cable management</div>
+              <div class="crit-author">teacher · pinned</div>
+            </div>
+            <div class="crit-pin">
+              <div class="crit-image peer"></div>
+              <div class="crit-caption">Maya's PIR mount — uses zip ties</div>
+              <div class="crit-author">peer · same milestone</div>
+            </div>
+            <div class="crit-pin">
+              <div class="crit-image exemplar"></div>
+              <div class="crit-caption">Last year · Aisha's final build</div>
+              <div class="crit-author">archive · 2024 cohort</div>
+            </div>
+          </div>
+          <div class="crit-walk">
+            <div class="crit-walk-label">teacher floor walk · today</div>
+            <div class="crit-walk-text">"Three of you are stuck on resistor selection. Pinned a worked example to the board — start there."</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="proto-notes">
+        <div class="note">
+          <div class="note-label">what it does</div>
+          <div class="note-body">A real studio teaches by showing, not telling. Exemplars on the wall, peer work alongside, and the teacher walking the floor noticing patterns.</div>
+        </div>
+        <div class="note apply">
+          <div class="note-label">how it applies, no chatbot</div>
+          <div class="note-body">The single best chatbot replacement. Teacher pins exemplars per milestone; peer work surfaces automatically when the student is in the same phase. The floor walk note is a class-level broadcast, not a 1:1 generated message. Trust source: human, every time.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 08 DUOLINGO ============ -->
+  <section class="proto" id="p8">
+    <div class="proto-header">
+      <div class="proto-num">08</div>
+      <div class="proto-title-block">
+        <div class="proto-source">borrowed from · duolingo skill tree</div>
+        <h2 class="proto-title">A path, not a streak</h2>
+        <p class="proto-tagline">Take the visible path. Leave the coercion behind.</p>
+      </div>
+    </div>
+
+    <div class="proto-body">
+      <div class="proto-canvas">
+        <div class="duo">
+          <div class="duo-warning">cautionary · take path, drop streaks</div>
+          <div class="duo-tree">
+            <div class="duo-node done">Choose<br>sensor</div>
+            <div class="duo-line"></div>
+            <div class="duo-node done offset">Wire<br>circuit</div>
+            <div class="duo-line"></div>
+            <div class="duo-node current offset-r">Test &amp;<br>debug</div>
+            <div class="duo-line"></div>
+            <div class="duo-node locked offset">Mount in<br>enclosure</div>
+            <div class="duo-line"></div>
+            <div class="duo-node locked offset-r">Final<br>demo</div>
+          </div>
+          <div class="duo-current-card">
+            <div class="duo-current-label">you are here</div>
+            <div class="duo-current-task">Test &amp; debug the wired circuit</div>
+            <div class="duo-current-resources">→ 3 skill cards · 2 peer exemplars · 1 short video</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="proto-notes">
+        <div class="note">
+          <div class="note-label">what it does</div>
+          <div class="note-body">A visible path of nodes shows where you've been, where you are, and what's ahead. Locked nodes signal what's still to come without nagging.</div>
+        </div>
+        <div class="note apply">
+          <div class="note-label">how it applies, no chatbot</div>
+          <div class="note-body">Take the *path*. Drop the streaks, hearts, and notification guilt. The "you are here" card is the perfect non-chatbot hint surface — fixed resources for the current node, visible to everyone, authored by the teacher.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+</body>
+</html>

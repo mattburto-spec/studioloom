@@ -270,21 +270,23 @@ systems:
         purpose: AI touchpoints and prompt templates
       - path: docs/specs/discovery-engine-ux-design.md
         purpose: Visual design and interaction patterns
+      - path: docs/projects/discovery-engine-cognitive-layer.md
+        purpose: PLANNED — MindPrint-informed cognitive layer. 3 new rooms (spatial reasoning, flexible thinking, visual memory) feed a cognitive vector that drives mentor pedagogy adaptation (visual vs verbal scaffolding, structured vs open prompts) without changing designer match results.
     data_fields:
       - table: discovery_sessions
         columns: [id, student_id, mode, profile_data, completed_at]
         notes: Journey state and profile results
       - table: students
         columns: [id, learning_profile]
-        notes: Cached profile JSONB from latest session
+        notes: Cached profile JSONB from latest session. Cognitive layer (planned) adds spatial/flexible/visual_memory scores here.
     key_files:
       - src/app/student/discovery/page.tsx
       - src/components/student/discovery/DiscoveryFlow.tsx
       - src/lib/discovery-service.ts
-    future_needs: Adaptive 2nd/3rd completions (skip known stations), parallel mode for Service/PP/Inquiry, Phase B+C intelligence merging.
+    future_needs: Adaptive 2nd/3rd completions (skip known stations), parallel mode for Service/PP/Inquiry, Phase B+C intelligence merging, MindPrint-informed cognitive layer (3 new rooms driving mentor pedagogy adaptation), potential ingestion of existing MindPrint profiles from schools that already use the assessment.
     adrs: ["008"]
     os_seam: designed
-    change_impacts: Changes to station content or scoring require updating discovery-service. Changes to DiscoveryProfile schema require migration. Mentor system expansion (3→20) requires new dialogue generation.
+    change_impacts: Changes to station content or scoring require updating discovery-service. Changes to DiscoveryProfile schema require migration. Mentor system expansion (3→20) requires new dialogue generation. Cognitive layer addition will require new room component types, scoring rubrics, and mentor prompt-modifier logic downstream in ai-mentor.
 
   - id: student-pm
     name: Student Project Management Tools
@@ -307,16 +309,18 @@ systems:
     category: Student Experience
     status: complete
     currentVersion: 1
-    summary: Unlock per-unit self-directed mode with AI studio critic mentor (convergent tone vs. guided mode). Drift detection (3-level escalation), check-in rotation, documentation nudges.
+    summary: Unlock per-unit self-directed mode with AI studio critic mentor (convergent tone vs. guided mode). Drift detection (3-level escalation), check-in rotation, documentation nudges. v1 SHIPPED — superseded in behaviour (but not data model) by Open Studio Mode project.
     depends_on: [journey-engine, intelligence-profiles, student-work-pipeline, ai-mentor]
-    affects: [student-dashboard, student-data, gallery, intelligence-profiles]
+    affects: [student-dashboard, student-data, gallery, intelligence-profiles, open-studio-mode]
     docs:
       - path: docs/open studio/open-studio-spec.md
         purpose: v1 spec with unlock criteria, AI modes, drift detection
       - path: docs/open studio/open-studio-experience-design.md
         purpose: Experience journey and UI design
       - path: docs/projects/openstudio-v2.md
-        purpose: v2 mentor-guided planning
+        purpose: v2 mentor-guided planning (sibling project — produces the plan Mode executes against)
+      - path: docs/projects/open-studio-mode.md
+        purpose: Runtime studio mode project (sibling — where the work happens after planning)
     data_fields:
       - table: open_studio_status
         columns: [class_unit_id, status, unlocked_at, check_in_interval_minutes]
@@ -325,10 +329,107 @@ systems:
       - src/app/student/open-studio/[unitId]/page.tsx
       - src/components/student/open-studio/StudioChat.tsx
       - src/lib/open-studio-service.ts
-    future_needs: v2 with mentor-guided planning journeys, multi-week projects, peer collab.
+    future_needs: v2 with mentor-guided planning journeys, multi-week projects, peer collab. Open Studio Mode will replace the v1 runtime (desk view, three-touch pattern, reflection drawer, critic corner, escalation ladder).
     adrs: ["008"]
     os_seam: ready
-    change_impacts: Changes to drift detection thresholds affect student experience. Changes to mentor system affect studio critic prompts.
+    change_impacts: Changes to drift detection thresholds affect student experience. Changes to mentor system affect studio critic prompts. Changes to open_studio_status schema affect Open Studio Mode project.
+
+  - id: skills-library
+    name: Skills Library — Canonical Content Layer
+    category: Content / Curriculum
+    status: planned
+    currentVersion: 0
+    summary: |
+      One canonical skill card, many embed contexts (library browse, Stone prereqs, lesson activity blocks, Open Studio capability-gap, crit board pins, badges). Schema: skill_cards + tags + prerequisites + external_links + categories + quizzes. Completions as learning_events → student_skill_state derived view. Six quiz types all gradable without a model. State ladder (not_started → viewed → quiz_passed → demonstrated → mastered) + freshness (current/cooling/stale). Context-aware gating (state × freshness × embed requirement → full card / refresh / skip). Strength radar chart computed on view. Strategic frame — the library is the moat (15 years of teacher-authored material competitors cannot copy). Supersedes self-help-library.md idea. Workshop project ~4-6 days.
+    depends_on: [dimensions3, learning-events, student-data]
+    affects: [open-studio-mode, lesson-view, student-pm, gallery, safety-badges, student-dashboard, gamification]
+    docs:
+      - path: docs/projects/skills-library.md
+        purpose: Project doc with workshop scope, open questions, next steps
+      - path: docs/specs/skills-library-spec.md
+        purpose: Base spec (anatomy of skill card, schema, embed contexts, quizzes, badges, authoring phases, maintenance, cross-school sharing as moat)
+      - path: docs/specs/skills-library-completion-addendum.md
+        purpose: Completion state model, freshness layer, context-aware gating, refresh mode, categories, strength radar chart, privacy/wellbeing rules
+      - path: docs/prototypes/strength-chart-prototype.html
+        purpose: Radar chart working prototype with state ladder and context-aware gating demo
+      - path: docs/projects/self-help-library.md
+        purpose: Superseded idea doc — historical reference only
+    data_fields:
+      - table: skill_cards
+        columns: [id, slug, title, body, difficulty, estimated_min, visibility, author_id, school_id, forked_from, created_at, last_reviewed_at]
+        notes: Core card table. Body stored as JSONB (ordered content blocks). Visibility = private/school/network/public.
+      - table: skill_card_tags
+        columns: [skill_id, tag]
+        notes: Many-to-many. Flat tag graph over hierarchy.
+      - table: skill_prerequisites
+        columns: [skill_id, prerequisite_id]
+        notes: Directed prerequisite graph, cycle-checked at write time.
+      - table: skill_external_links
+        columns: [id, skill_id, url, title, link_type, last_checked_at, status]
+        notes: Tracked separately for nightly pg_cron link-check.
+      - table: skill_quizzes
+        columns: [skill_id, questions, pass_threshold, retakes_allowed]
+        notes: Optional, one per card. Questions as JSONB array.
+      - table: skill_categories
+        columns: [id, framework_id, slug, name, description, display_order, axis_label]
+        notes: Per-framework category set for strength chart axes (4 for MYP Design criteria).
+      - table: skill_card_categories
+        columns: [skill_id, category_id, weight]
+        notes: Many-to-many with weight for chart computation.
+      - table: skill_badge_requirements
+        columns: [badge_id, skill_id, requirement_type]
+        notes: Future — bridges to badge engine.
+      - table: learning_events
+        columns: [event_type, payload, student_id, skill_id, created_at]
+        notes: New event types — skill.viewed, skill.quiz_passed, skill.quiz_failed, skill.refresh_passed, skill.refresh_acknowledged, skill.demonstrated, skill.applied.
+      - view: student_skill_state
+        columns: [student_id, skill_id, highest_state, last_used_at, freshness]
+        notes: Derived view over learning_events. Cheap on read for v1; materialise overnight via pg_cron if needed at scale.
+    key_files: []
+    future_needs: |
+      Quiz types beyond MC/T/F (image identification, ordering, matching). Badge engine with teacher sign-off workflow. Forking/lineage UI. Cross-school visibility. Strength radar chart visualisation. Mastery derivation from Stone completions. Refresh mode quiz logic. Community contributor marketplace (phase 4).
+    adrs: []
+    os_seam: ready
+    change_impacts: |
+      Schema is the foundation. Changes to skill_cards body block types require authoring UI updates. Changes to learning_events skill event types break student_skill_state view. Changes to state score weights or freshness bands in computation logic affect the radar chart without schema change (chart is view-time computation). Open Studio Mode depends on this for capability-gap surfacing. Lesson activity blocks, Stone prereqs, safety badges, and future badge engine all consume skill cards — breaking changes to the card schema ripple wide. Tag governance is a phase 3+ concern; phase 1 = Matt decides.
+
+  - id: open-studio-mode
+    name: Open Studio Mode — Studio Desk, Three-Touch Pattern, No-Chatbot Scaffolding
+    category: Student Experience
+    status: planned
+    currentVersion: 0
+    summary: |
+      Runtime studio experience (not the planning journey). Three-touch pattern: arrival intent (~10s) → passive evidence (session) → departure reflection (~60s, non-dismissable). AI critic silent by default in corner, speaks only on invite / timer elapse / drift signal / blocker keyword. Escalation ladder with rungs 3-4 always teacher actions. Desk view extends existing student-workspace.jsx. No student-facing chatbot — every help moment resolves to a skill card via a join, not a model. Sibling to openstudio-v2 (which specs the Mentor-Guided Planning Journey that produces the plan this mode executes against).
+    depends_on: [skills-library, student-open-studio, journey-engine, student-work-pipeline, learning-events, recalibration-ritual, ai-mentor, student-learning-profile]
+    affects: [student-dashboard, student-data, teacher-dashboard, parent-updates, intelligence-profiles]
+    docs:
+      - path: docs/projects/open-studio-mode.md
+        purpose: Project doc with REQUIRED READING block — read first before any build work
+      - path: docs/open studio/open-studio-mode-spec.md
+        purpose: Canonical spec (principles, three-touch, AI behaviour, escalation ladder, UX, integration, open questions)
+      - path: docs/open studio/prototypes/open-studio-wireframe.html
+        purpose: Desk + reflection drawer wireframes with annotations
+      - path: docs/open studio/prototypes/open-studio-reference-prototypes.html
+        purpose: 8 reference patterns (Scrum, Strava, Figma, Focusmate, Notion, Destiny, crits, Duolingo)
+      - path: docs/open studio/prototypes/student-dashboard-composed.html
+        purpose: Composed dashboard (crit board + Stone prereqs + daily template journal)
+      - path: docs/open studio/prototypes/SESSION-SUMMARY-apr-2026.md
+        purpose: Decision log from April design session — captures decisions not in individual specs
+      - path: docs/projects/openstudio-v2.md
+        purpose: Sibling project — Mentor-Guided Planning Journey (the plan this mode executes against)
+      - path: docs/projects/openstudio.md
+        purpose: Original idea doc (superseded but retains early architectural framing)
+    data_fields:
+      - table: learning_events
+        columns: [event_type, payload, student_id, unit_id, created_at]
+        notes: New event types required — intent.declared, reflection.session_end, critic.conversation, open_studio.paused, open_studio.revoked
+    key_files:
+      - src/components/student/student-workspace.jsx (existing — extend for Open Studio default view)
+    future_needs: Teacher floor-walk dashboard (own spec), per-class drift threshold tuning UI, parent digest integration, full critic trigger conditions
+    adrs: ["008"]
+    os_seam: ready
+    change_impacts: |
+      Depends on Skills Library being in place for capability-gap surfacing (required_skills - earned_skills against student_skill_state view). Changes to learning_events schema affect Wayfinder append-only guarantee. Changes to three-touch event types affect Open Studio v1 backward compatibility — must preserve open_studio_status table. Before building, read the required-reading block in docs/projects/open-studio-mode.md.
 
   - id: integrity-monitor-student
     name: Academic Integrity Monitoring (Student-Facing)
@@ -745,7 +846,7 @@ systems:
     category: AI & Intelligence
     status: active
     currentVersion: 1
-    summary: "Dimensions3 ingestion pipeline REBUILT (Phase B, 7 Apr 2026). Expandable pass registry: Pass A (classify+tag, Haiku) → Pass B (analyse+enrich, Sonnet) → Block Extraction + PII scan + copyright flags. content_items + content_assets tables (OS Seam 3+4). Review queue UI. Old pipeline quarantined code still present but unused."
+    summary: "Dimensions3 ingestion pipeline REBUILT (Phase B, 7 Apr 2026) + HARDENED (Phase 1.5, 10 Apr 2026) + TRUNCATION BUGS FIXED (Phase 1.7, 11 Apr 2026). Expandable pass registry: Pass A (classify+tag+strand+level, Haiku, max_tokens 8000) → Pass B (analyse+enrich, Sonnet, max_tokens 16000) → Block Extraction + PII scan + copyright_flag enum + Haiku moderation pass + cosine dedup 0.92 + content_fingerprint idempotency. Both passes now have stop_reason guards and defensive fallbacks (Lesson #39). PPTX + image extraction supported. dryRun mode + per-run cost tracking. content_items + content_assets tables (OS Seam 3+4). Review queue UI (relocated to /teacher/library/review, Phase 1.6). Migrations 067 (moderation_status) + 068 (content_fingerprint UNIQUE) + 069 (067 grandfather safety net) applied to prod. First Dimensions3 system with automated E2E gate (Checkpoint 1.2, Phase 1.7)."
     depends_on: [activity-blocks, embedding-search, ai-provider]
     affects: [generation-pipeline, activity-blocks, unit-generation]
     docs:
@@ -767,20 +868,21 @@ systems:
       - src/lib/ingestion/extract.ts
       - src/lib/ingestion/pii-scan.ts
       - src/lib/ingestion/registry.ts
+      - tests/e2e/checkpoint-1-2-ingestion.test.ts
       - src/lib/knowledge/analyse.ts
       - src/lib/knowledge/analysis-prompts.ts
       - src/lib/knowledge/search.ts
     future_needs: Pass C (deep UDL), Pass D (cognitive load curves), cross-teacher knowledge sharing.
     adrs: ["004"]
     os_seam: designed
-    change_impacts: Ingestion pipeline rebuilt (Phase B). Changes to pass registry affect all ingestion. Changes to block extraction affect library quality. Old quarantined code (src/lib/knowledge/) still present but unused.
+    change_impacts: Ingestion pipeline rebuilt (Phase B), hardened (1.5), truncation-fixed (1.7). Changes to pass registry affect all ingestion. Changes to Pass A or Pass B max_tokens require updating Checkpoint 1.2 E2E test baselines. When fixing a stop_reason/defensive-destructure bug at one AI call site, audit FU-5 sites and fix all similar sites in the same phase (Lesson #39).
 
   - id: activity-blocks
     name: Activity Blocks (Reusable Component Library)
     category: AI & Intelligence
     status: active
     currentVersion: 1
-    summary: "First-class SQL entities replacing inline JSONB. Migration applied (Phase A). Extracted from uploads (knowledge pipeline) and generated units (generation pipeline). Composite ranking: relevance 30% + efficacy 25% + context match 20% + teacher affinity 15% + freshness 10%."
+    summary: "First-class SQL entities replacing inline JSONB. Migration applied (Phase A). Extracted from uploads (knowledge pipeline) and generated units (generation pipeline). Composite ranking: relevance 30% + efficacy 25% + context match 20% + teacher affinity 15% + freshness 10%. Phase 1.5 added moderation_status, content_fingerprint (UNIQUE idempotency), strand, level, copyright_flag. 55 teaching moves seeded (Phase 1.1, 10 Apr 2026)."
     depends_on: [knowledge-pipeline]
     affects: [generation-pipeline, unit-editor, lesson-pulse, unit-generation]
     docs:
@@ -790,8 +892,8 @@ systems:
         purpose: Block library architecture in pipeline
     data_fields:
       - table: activity_blocks
-        columns: [id, content, bloom_level, phase, category, efficacy_score, source, tags, created_at, updated_at]
-        notes: First-class block entity
+        columns: [id, content, bloom_level, phase, category, efficacy_score, source, source_type, module, tags, strand, level, moderation_status, content_fingerprint, copyright_flag, created_at, updated_at]
+        notes: First-class block entity. content_fingerprint is UNIQUE (sha256 idempotency). moderation_status in (pending, grandfathered, approved, rejected). Migrations 067+068 (10 Apr 2026).
       - table: block_usage
         columns: [block_id, unit_id, teacher_id, used_count, last_used, performance]
         notes: Usage tracking for efficacy
@@ -804,32 +906,37 @@ systems:
     change_impacts: Changes to block schema affect retrieval. Changes to ranking formula affect generation quality. Activity Block migration requires backfill.
 
   - id: intelligence-profiles
-    name: Intelligence Profiles (Student/Teacher/Class)
+    name: Student Learning Profile — Unified Schema (+ Teacher/Class Profiles)
     category: AI & Intelligence
-    status: planned
+    status: ready
     currentVersion: 0
-    summary: 3 JSONB columns (students.learning_profile, teachers.style_profile, classes.climate_profile). Incrementally updated via exponential moving average (α=0.3). Read by AI systems to personalize responses.
-    depends_on: [discovery-engine, student-data, toolkit-persistence]
-    affects: [ai-mentor, generation-pipeline, lesson-pulse, gamification]
+    summary: "Canonical unified student_learning_profile with 7 sections (identity incl. creative_voice + trajectory_snapshots, cognitive, current_state incl. motivational_state SDT, wellbeing, passive_signals, social incl. group work, custom via dimension registry) + computed pedagogy_preferences. 7 writer classes via SECURITY DEFINER (ProfilingJourneyWriter, CognitivePuzzleWriter, PassiveSignalWorker, TeacherProfileEditor, ProfileSynthesisJob, PeerInteractionWorker, CreativeVoiceWorker, TrajectorySnapshotJob). profile_dimensions registry enables new journey blocks without migrations. 1024-d aesthetic_embedding unblocks Designer Mentor matching. Also houses teachers.style_profile + classes.climate_profile."
+    depends_on: [discovery-engine, student-data, toolkit-persistence, work-capture-pipeline, class-gallery, peer-review, teaching-mode, embedding-search]
+    affects: [ai-mentor, generation-pipeline, lesson-pulse, gamification, designer-mentor-system, open-studio]
     docs:
-      - path: docs/student-learning-intelligence.md
+      - path: docs/specs/student-learning-profile-schema.md
+        purpose: Canonical unified schema spec (Option 2 extension 10 Apr 2026)
+      - path: docs/brain/student-learning-intelligence.md
         purpose: Student learning profile roadmap
-      - path: docs/ai-intelligence-architecture.md
+      - path: docs/brain/ai-intelligence-architecture.md
         purpose: Intelligence system architecture
     data_fields:
       - table: students
         columns: [id, learning_profile]
-        notes: Archetype, working style, interests, fears, self-efficacy, values
+        notes: 7-section unified profile — identity (archetype, creative_voice aesthetic_embedding 1024-d, trajectory_snapshots[]), cognitive, current_state (incl. motivational_state SDT autonomy/competence/relatedness/purpose), wellbeing, passive_signals, social (collaboration_orientation, hashed peer refs, group_history), custom (registered dimensions), pedagogy_preferences (computed)
+      - table: profile_dimensions
+        columns: [id, dimension_key, owner, data_type, visibility, synthesis_contributions, created_at]
+        notes: Admin-only dimension registry — journey blocks can declare new dimensions written into profile.custom without migrations
       - table: teachers
         columns: [id, style_profile]
-        notes: Pedagogical style (e.g., scaffolding preference, assessment style)
+        notes: Pedagogical style (scaffolding preference, assessment style)
       - table: classes
         columns: [id, climate_profile]
         notes: Class dynamics (energy level, collaboration patterns, pace)
-    future_needs: Phase 3-4 merging with passive signals (behavioral, grade, timing), cross-platform intelligence layer.
+    future_needs: Phase 3-4 merging with passive signals, cross-platform Loominary OS intelligence layer, richer dimension governance UI.
     adrs: ["008"]
     os_seam: designed
-    change_impacts: Changes to profile schema affect AI prompt context. Changes to EMA formula affect profile accuracy.
+    change_impacts: "Changes to profile schema affect AI prompt context — all AI mentor, generation, Open Studio prompts read via getStudentProfile(). Changes to writer grants require SECURITY DEFINER audit. Changes to creative_voice embedding break Designer Mentor matching (mentor_matcher touchpoint exclusive access). Changes to HMAC salt scoping affect cross-student privacy (OQ-13 BLOCKER). Changes to dimension registry require dispatcher update. Changes to synthesis rules affect pedagogy_preferences downstream."
 
   - id: ai-provider
     name: AI Provider Abstraction & Fallback Chain

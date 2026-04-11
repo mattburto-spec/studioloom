@@ -4,6 +4,65 @@
 
 ---
 
+## 11 Apr 2026 — Dimensions3 Phases 1.6 + 1.7 Complete (Checkpoint 1.2 PASSED), Build Methodology Captured
+
+**What changed:**
+- **Phase 1.6 (Disconnect Old Knowledge UI):** Aggressive cleanup given zero users — old `/teacher/knowledge/*` directory deleted entirely (no redirects), Dimensions3 pages relocated to `/teacher/library/*` namespace, `BatchUpload.tsx` deleted, `/teacher/library/import` endpoint wired to real reconstruction. Commits `e7b020b` (relocation) + `242e587` (cleanup).
+- **Phase 1.7 (Checkpoint 1.2 — Automated E2E Gate):** First Dimensions3 phase with a real automated gate protecting it. Three commits on `main`: `20fe163` fix Pass A + Pass B `max_tokens` truncation, `691bdf4` Checkpoint 1.2 automated E2E test, `cd5f9d4` spec §3.7 amend.
+  - **Pass A bug:** `max_tokens: 2000` → returned `outputTokens: 2000` exactly (hit cap), `sections: undefined`, downstream crash. Fix: bump to 8000, add `stop_reason` guard, defensive `?? []`.
+  - **Pass B bug (predicted by FU-5 audit, surfaced one stage downstream):** Identical pattern at `pass-b.ts:182` with `max_tokens: 4000`. Fix: bump 4000→16000 (Sonnet 4 supports 64K out, no ceiling concern), same guard + fallback.
+  - **Lesson #39 written** including new rule: "When fixing a `stop_reason`/defensive-destructure bug at one AI call site, audit and fix ALL sites with the same shape on the same critical path in the same phase, don't wait for the follow-up." Born from getting bitten twice in one phase.
+  - **Test variants:** α sandbox DOCX (tight, deterministic) + β live DOCX [`RUN_E2E=1`] (narrow range for AI-wobble fields, loose substring for classification text) + β live PDF [`RUN_E2E=1`] + structural completeness check on every block. 4/4 passing. Total suite: 615 passed | 2 skipped (no `RUN_E2E`), 617 passed (with `RUN_E2E=1`). Baseline cost/time recorded as comments not asserts.
+  - **Spec §3.7 amended:** Automated E2E test promoted to canonical Checkpoint 1.2 gate, 9-step manual walkthrough demoted to optional pre-push UI smoke.
+  - **Assertion policy locked:** β TIGHT for structural/enum/numeric, β NARROW RANGE for AI-judgment fields (block count 11–15, observed 12/13/14 over N=3), β LOOSE substring for classification text, internal consistency invariants TIGHT.
+- **Build methodology captured (`docs/build-methodology.md`):** 17-section reference doc covering scaffolding-as-first-class, phased-with-checkpoints discipline, pre-flight ritual, stop triggers, verify=expected values, audit-then-fix patterns, capture-truth-from-real-runs, push discipline, follow-up tracking, lessons-as-running-artifact. Meta-rule: prefer the discipline even when not explicitly asked. CLAUDE.md updated with new "How we build — PHASED WITH CHECKPOINTS" section + per-phase trigger so it loads in every session.
+- **Phase 1.6 follow-up (FU-5) burndown:** Original 10 sites, Pass B removed in 1.7, 9 remaining. Active sites for future maintenance pass: `moderate.ts:175`, `test-lesson/route.ts:151`. Quarantined sites (`anthropic.ts`) wait for Dimensions2 rebuild.
+
+**Systems affected:** `knowledge-pipeline` (truncation fixes, automated gate), `activity-blocks` (review queue UI relocated). WIRING.yaml + wiring-dashboard.html synced.
+
+**Push status:** All 5 Phase 1.6/1.7 commits live on `origin/main`, Vercel prod deploy green, post-deploy sanity check passed (615 passed | 2 skipped baseline). Backup branches `phase-1.6-wip` and `phase-1-7-wip` on origin.
+
+**Session context:** Continuation from prior compacted session. Phase 1.7 demonstrated the methodology end-to-end: stop trigger tripped at block-count delta >30%, paused for review, false-tight classification corrected via narrow-range policy, two truncation bugs caught before they shipped, doctrine written. First fully methodology-disciplined phase. Matt explicitly happy to continue methodically.
+
+---
+
+## 10 Apr 2026 — Dimensions3 Phases 0 + 1.1 + 1.5 Complete, Deployed to Prod
+
+**What changed:**
+- **Phase 0 Checkpoint 0.1:** Resolved 33 ambiguous `student_progress.class_id` rows via unit→class intersection with enrollment-recency tiebreaker. 32 backfilled, 1 orphan deleted. Final ambiguity count = 0.
+- **Phase 1.1 (Teaching Moves Seed):** 55 moves from `scripts/seed-data/teaching-moves-rewritten.json` seeded to `activity_blocks` as `system@studioloom.internal` (dedicated system teacher). Tagged `source_type='community'`, `module='studioloom'`, `efficacy_score=65`. Validator relaxed to allow student-as-teacher moves (role-reversal-critique, peer-teach-back).
+- **Phase 1.5 (Hardening Checklist):** All 10 items shipped and deployed to Vercel prod — cosine dedup 0.92 (voyage-3.5), PPTX + image extraction, strand/level fields (Pass A), Haiku moderation (fail-safe to 'pending'), PII scan wired, copyright_flag enum reuse (audit doc referenced wrong column name `is_copyright_flagged`), moderation migration now not deferred, dryRun mode, per-run cost tracking, content_fingerprint idempotency (sha256 normalised title+body+source_type, UNIQUE, ON CONFLICT DO UPDATE/NOTHING).
+- **Migrations applied to prod:** 067 (`moderation_status` + `content_moderation_log` + RLS audit) and 068 (`content_fingerprint TEXT UNIQUE` + backfill).
+- **Push discipline protocol established:** don't push to `origin/main` until checkpoint signed off AND migration applied to prod Supabase. Backup pattern: `git push origin main:phase-1.5-wip` (wip branch doesn't trigger Vercel prod deploy).
+
+**Bug found + fixed manually + logged:**
+- **Migration 067 grandfather backfill failed silently** — all 55 seed rows landed in `moderation_status='pending'` instead of `'grandfathered'`. Suspected root cause: `ADD COLUMN DEFAULT 'pending'` silently overrode subsequent conditional UPDATE in the same migration. Fixed in prod via corrective UPDATE. **Repo version of 067 is still broken** — logged as follow-up for audit + migration 069 safety net + Lesson #38.
+
+**Lessons learned added:**
+- #36 Data-backfill migrations need edge-case SQL, not just a simple UPDATE (student_progress 33-row incident)
+- #37 Verify queries must be part of acceptance criteria for data migrations
+- #38 pending — Migration 067 `ADD COLUMN DEFAULT` + conditional UPDATE order-of-operations bug (post-mortem blocked on Code audit)
+
+**Systems affected:**
+- `activity_blocks` (moderation_status, content_fingerprint, strand, level, copyright_flag)
+- `content_moderation_log` (new audit table)
+- `student_progress` (class_id now fully populated)
+- Ingestion pipeline (PPTX, PII, moderation, dedup, fingerprint)
+- Teacher Dashboard `/teacher/units` (render delay surfaced — not a regression, just slow hydration)
+
+**Phase 1.5 follow-ups logged in ALL-PROJECTS.md:**
+1. `/teacher/units` initial render delay (P1) — hydration lag, empty squares before cards paint
+2. "Unknown" strand/level chips on pre-Phase-1.5 units (P2) — backfill missed units table
+3. Migration 067 grandfather bug (P0) — repo broken, needs audit + 069 + Lesson #38
+4. Delete junk test units post-Checkpoint 1.2 (P2)
+
+**Session context:**
+- Started: continuation from compacted prior session
+- Ended: Phase 1.5 signed off + deployed + smoke-tested on prod
+- Next session kicks off: Phase 1.6 (disconnect old knowledge UI) → Phase 1.7 (Checkpoint 1.2 E2E test)
+
+---
+
 ## 7 Apr 2026 — Dimensions3 Phase C Complete (Generation Pipeline)
 
 **What changed:**
@@ -255,3 +314,147 @@
 **Systems affected:** Generation Pipeline (v2, feedback loop added), Activity Block Library (efficacy scoring)
 
 **Files synced:** ALL-PROJECTS.md, dashboard.html, WIRING.yaml, wiring-dashboard.html, system-architecture-map.html, doc-manifest.yaml, changelog.md, CLAUDE.md
+
+---
+
+## 10 Apr 2026 — Dimensions3 v2 Completion Spec Signed Off
+
+**What changed:**
+- Created `docs/projects/dimensions3-completion-spec.md` (v2, ~1,600 lines) — canonical build plan for completing Dimensions3. Full rewrite of v1 after audit found significant coverage gaps.
+- v1 audit findings fixed: (a) removed Stage 5b misconception — curriculum mapping is render-time via FrameworkAdapter, not a pipeline stage; (b) added new Phase 5 for Content Safety (§17 of master spec) — Layer 1 LDNOOBW blocklist + Layer 2 Haiku moderation, NSFW.js image classifier, franc-min language detection, ZH-Hans support, migration 067 for moderation tables; (c) expanded Phase 4 to cover all 7 operational automation systems from §9.3; (d) expanded Phase 7 to build all 12 admin tabs from §14.7 (was 5), 5 distinct sandboxes from §7 (was 1), per-teacher profitability dashboard, new Bug Reporting System.
+- Added execution discipline: Guiding Rules §1, 12 mandatory Matt Checkpoints, per-sub-task verification, rollback sections, realistic 21–25 day estimate.
+- Phase 0 prerequisites locked in: migration 065 adds `class_id` to student_progress (single-class auto-backfill, multi-class NULL); `is_sandbox` flag on knowledge_uploads + query guard.
+- Phase 4.7 model ID sweep: 12 files still on hardcoded `claude-sonnet-4-20250514` → update to `claude-sonnet-4-6` (consistency fix, string already in use by newer code in anthropic.ts). Add pricing entry to usage-tracking.ts. Delete duplicate pass-b-enrich.ts.
+- Resolved all 12 open questions via Matt Q&A, logged in §13 of completion spec and appended to decisions-log.md.
+- Efficacy formula locked: `0.30*kept + 0.25*completion + 0.20*time_accuracy + 0.10*(1-deletion) + 0.10*pace + 0.05*(1-edit)`.
+
+**Files created:** `docs/projects/dimensions3-completion-spec.md`
+**Files modified:** ALL-PROJECTS.md, decisions-log.md, changelog.md, doc-manifest.yaml, auto-memory
+
+**Systems affected:** Dimensions3 Generation Pipeline (v2 plan), Ingestion Pipeline (sandbox flag), Content Moderation (new), student_progress schema (class_id), Admin Dashboard (12 tabs scope), Bug Reporting (new)
+
+**Session context:** Continued from prior session's v2 rewrite. Walked through 12 open questions, verified model ID situation via grep, resolved all decisions, finalised cross-check against master spec + known issues, then saveme. Build ready to kick off. Next: Phase 0 cleanup + migrations 065 & is_sandbox.
+
+---
+
+## 10 Apr 2026 — StudentDash Prototype v2 (Miro-Bench Variant)
+
+**What changed:**
+- Built `docs/dashboard/r3f-motion-sample.html` — second StudentDash prototype. Single-file HTML (React 18 + R3F + Framer Motion via esm.sh import map). Flat 2D Miro-style wood workbench filling viewport (tan gradient + turbulence wood grain + hand-placed bench marks + edge vignette).
+- One low-poly boombox speaker embedded top-right via fixed-camera R3F anchor pattern — draggable motion.div wrapping a Canvas with fixed camera, so dragging translates the rendered bitmap but the 3D perspective stays identical across the whole screen. ~10 flat-shaded meshes, camera at `[1.6, 3.6, 2.2]` fov 30 looking down onto the top.
+- One clickable 3D hex-medal badge bottom-right — low-poly gold hexagonal prism with bevelled face, inset centre disc, 5 raised star-point boxes, red ribbon flap, loop at top. Hover boosts rim/face/star emissive intensities, bumps pointLight 1.0→3.5, fades in blurred CSS radial glow, warms "BADGES" pill label cream→amber, scales 1.06×. Click is placeholder `console.log` ready for real route.
+- Three draggable student-content cards: Current Unit (Bluetooth Speaker, lesson 4/7, progress bar), Next Step ("Sketch 3 form variations", ~25 min), Feedback · Ms. Chen (mentor quote + adjustment suggestion).
+- Card interaction model: `dragConstraints={constraintsRef}` on `.cards-layer` + `dragElastic: 0.25` for bounce-back, single top-right rotate corner (`↻` glyph, pointer-angle from card centre with ±180° seam unwrap), single bottom-right resize corner (diagonal stripes, x+y delta average, clamped 0.6–1.8×), snap-to-stack on `onDragEnd` (nearest sibling via shared `registry` ref, 140px threshold, +26/+22 offset, +2° rotation, zCounter pops to front), `drag={!cornerActive}` prevents drag-corner conflict.
+- Iterations during session: started with 4 rotate corners, dropped to 1 (visual clutter); first used `onWheel` for rotation, replaced with corner grab-and-spin (more discoverable).
+- Added Prototype v2 section to `docs/projects/studentdash.md` documenting what was built, interaction model, v1-vs-v2 comparison, 6 reusable primitives worth keeping, what's NOT in v2 (parked features), and 4 new v2-specific open questions.
+
+**Key takeaway:** v2 is cheaper to ship than v1 (one Canvas vs full scene, flat 2D CSS, responsive) and introduces reusable primitives: flat workbench recipe, fixed-camera R3F anchor, hover-glow 3D badge, single-corner card interactions, snap-to-stack via registry ref, student-action cards > unit thumbnails. Neither prototype committed — student testing should compare.
+
+**Files created:** `docs/dashboard/r3f-motion-sample.html`
+**Files modified:** `docs/projects/studentdash.md`, `docs/projects/ALL-PROJECTS.md`, `docs/doc-manifest.yaml`, `docs/changelog.md`
+
+**Systems affected:** StudentDash (student-dashboard in WIRING.yaml) — prototype direction expanded, no code changes to live dashboard.
+
+**Session context:** Iterative prototype session. Started from earlier 3D Studio Desk scene, pivoted to flat Miro-style workbench, rebuilt speaker as low-poly R3F boombox, adjusted camera angle to top-down, moved speaker to top-right, replaced card content with student-actionable items, added clickable 3D badge entry point with hover glow. Matt wants to come back to the reusable primitives later — saveme captures what's worth keeping.
+
+---
+
+## 10 Apr 2026 — Student Learning Profile Schema — Option 2 Stress-Test Extension
+
+**What changed:**
+- Stress-tested the Student Learning Profile spec against 4 questions (enough data points? world class? flexible for new journey blocks? real needle movers for adolescent design students?). Identified 5 structural gaps.
+- Matt chose **option 2** — build all 5 gaps into v1 to avoid a rebuild in 3 months. Explicit callouts: motivation + peers (incl. group work) + "add fields later" extensibility.
+- **Gap A — SDT motivational_state** added to `current_state`: autonomy/competence/relatedness/purpose with value/trajectory/confidence/last_signals, 21-day TTL, drives new SDT-based pedagogy rules in `synthesizePedagogyPreferences` §10.4 6b.
+- **Gap B — social section** added with group work support: collaboration_orientation (lone_wolf / small_group / connector / adaptive), critique_giving_quality + critique_receiving_quality (bidirectional), help_seeking_pattern, peer_influences[], group_history[], current_groups[]. Cross-student privacy via per-session HMAC peer_student_id hashing for system viewers. New `PeerInteractionWorker` §10.6. New COPPA `social` scope.
+- **Gap C — dimension registry** added: new `profile_dimensions` table (§7.6) + `profile.custom` JSONB slot (§8.8) + `<RegisteredDimensionWriter>` dispatcher. Future journey blocks can declare new dimensions without migrations. Synthesis loop (§10.4 6d) discovers registered dimensions and applies their `synthesis_contributions` to pedagogy_preferences. V1 admin-only registration; 2 seeds (metacognition_score, feedback_receptiveness).
+- **Gap D — creative_voice** added to identity: 1024-d aesthetic_embedding (rolling mean of Work Capture submissions, 30-day half-life), material_preferences, visual_tags, stated_references, revealed_references (cosine match against designer corpus), voice_confidence. New `CreativeVoiceWorker` §10.7 with surgical `writeCreativeVoice` SECURITY DEFINER grant (only touches identity.creative_voice.*). Directly unblocks Designer Mentor matching via `mentor_matcher` touchpoint.
+- **Gap E — trajectory_snapshots[]** added to identity: append-only, 50-cap, 4 triggers (term_end scheduled, drift when archetype Δ > 0.15, manual, project_end). Deterministic notable_delta. New `TrajectorySnapshotJob` §10.8. Gives O(1) long-horizon queries for 6-year student arc.
+- **Writer classes:** 5 → 7 (added PeerInteractionWorker, CreativeVoiceWorker, TrajectorySnapshotJob, `<RegisteredDimensionWriter>`).
+- **Read API §11:** ProfileReadOptions extended with social/custom sections + includeTrajectory; 9 enforcement rules (was 7) — added cross-student peer hash for system viewers, custom visibility filtering, trajectory gating, mentor_matcher exclusive access to aesthetic_embedding.
+- **Requirements §13:** added P0-13 (SDT), P0-14 (social + group work), P0-15 (dimension registry), P0-16 (creative_voice + Designer Mentor unblock), P0-17 (trajectory snapshots).
+- **Open questions §15:** added OQ-11 through OQ-15. Three new blockers: OQ-13 HMAC salt scope, OQ-14 group FERPA RLS tightening, OQ-15 Discovery SDT tag audit.
+- **Build plan §17:** stretched 15-19d → **21-25d**. Phase A 8→11d, B 3→5d, C 3→4d, D 2-4→5d. Designer Mentor matcher hook lands Day 23.
+- **Risks §18:** added 7 new entries (peer privacy leak Critical, group FERPA High, dimension sprawl, creative_voice staleness, SDT signal sparsity, trajectory drift, grant scope creep).
+- **Appendix §21:** example profile now shows all new sections; rendered DA prompt includes motivation snapshot + relatedness/purpose guidance.
+
+**Files modified:**
+- `docs/specs/student-learning-profile-schema.md` (~2,211 lines, +~1,200 lines of additions)
+- `docs/projects/ALL-PROJECTS.md` (SLP entry updated — 12-16d → 21-25d, 7 sections, 5 blockers)
+- `docs/projects/dashboard.html` (new P0 ready entry)
+- `docs/decisions-log.md` (6 new decisions)
+- `docs/doc-manifest.yaml` (last_verified bump)
+- `docs/changelog.md` (this entry)
+
+**Systems affected:** Student Learning Profile (spec only, no code); downstream: Designer Mentor System (unblocked via creative_voice), Discovery Engine (needs SDT tag audit), Open Studio v2 (benefits from motivational_state), Journey Engine (enables custom dimension declaration), Work Capture Pipeline (feeds creative_voice embeddings), Class Gallery + Peer Review (feeds PeerInteractionWorker), Teaching Mode (group check-ins feed group_history).
+
+**Session context:** Matt's "do we have enough data points, is this world class, is there flexibility?" stress test revealed that the initial 5-section spec was missing motivation, peer/social dynamics, a runtime extensibility slot, aesthetic fingerprinting, and long-horizon trajectory compression. Option 2 (build it all now, +6d) chosen over option 1 (defer, risk rebuild) because Matt explicitly confirmed motivation + peers + group work + "add fields later" as non-negotiable. Three blocking OQs must resolve before Phase A coding: HMAC salt scope (OQ-13), group FERPA RLS (OQ-14), Discovery SDT tag audit (OQ-15).
+
+---
+
+## 10 Apr 2026 — StudentDash Prototype v2: Focus Mode Added
+
+**What changed:**
+- Added a Focus Mode toggle to `docs/dashboard/r3f-motion-sample.html`. iOS-style pill switch in the header-right area alongside the toolbar. Shows "Focus" when off, "Focus on" in amber with sliding knob when on.
+- On toggle: Next Step card springs to screen centre at 1.35× scale with rotation zeroed via framer-motion's imperative `animate()`. Every non-essential element (speaker, badge, other two cards, header title) fades to opacity 0 with pointer-events disabled and drag turned off. Toolbar + focus toggle stay visible.
+- Off toggle: savedRef snapshot (captured at the moment focus turned on) restores the Next Step card's exact prior x/y/rotate/scale — so user can drag/resize/rotate it to any position, hit focus, hit focus again, and return to the exact prior state. Other elements fade back in with stagger.
+- `framer-motion` import expanded to include `animate` function for the imperative motion-value springs.
+- Drag, hover, and click are all gated on focusMode so hidden elements can't be interacted with by keyboard/trackpad.
+- New CSS: `.focus-toggle`, `.focus-switch` (with sliding knob pseudo-element), `.header-right` wrapper.
+- Updated `studentdash.md` Prototype v2 section to add Focus Mode as reusable primitive #7 — "any complex dashboard can have a single 'what matters right now' mode that doesn't destroy state."
+
+**Files modified:** `docs/dashboard/r3f-motion-sample.html`, `docs/projects/studentdash.md`, `docs/projects/ALL-PROJECTS.md`, `docs/projects/dashboard.html`, `docs/doc-manifest.yaml`, `docs/changelog.md`
+
+**Systems affected:** StudentDash prototype only — no live code changes.
+
+**Session context:** Follow-up iteration to the Miro-Bench prototype. Matt asked for a focus toggle so the dashboard can strip down to just "the next step" when a student wants to stop doom-scrolling the desk. Implementation uses imperative `animate()` against existing motion values rather than remounting, so drag state and corner interactions survive the toggle. The savedRef pattern (snapshot → animate away → animate back) is reusable for any "temporary view" mode elsewhere.
+
+---
+
+## 10 Apr 2026 — Student Learning Profile: Unified Schema Spec
+
+**What changed:**
+- Created `docs/specs/student-learning-profile-schema.md` (~1000 lines) — canonical build-ready spec consolidating three overlapping profile specs (discovery-intelligence-layer, student-learning-intelligence, cognitive-layer) into one unified `student_learning_profile` table.
+- 5 internally-owned sections (identity, cognitive, current_state, wellbeing, passive_signals) + computed `pedagogy_preferences` derived section. Single writer class per section enforced via SECURITY DEFINER + CI grep checks.
+- Companion tables: `student_project_history` (immutable per-project rows), `student_learning_events` (audit log).
+- 5 writer classes: ProfilingJourneyWriter, CognitivePuzzleWriter, PassiveSignalWorker, TeacherProfileEditor, ProfileSynthesisJob.
+- Section-level visibility: identity/cognitive/current_state/pedagogy student-visible; wellbeing/passive_signals teacher-only.
+- 4-phase build plan: A schema+writers (5d), B synthesis+read API (4d), C AI prompt injection (3d), D rollout (2-4d). Total 12-16 days. Feature flag `student_profile_v1`, hard cutover migration.
+- 10 open questions documented; 3 marked blocking before Phase A: OQ-2 multi-class teacher RLS, OQ-4 COPPA gating, OQ-9 synthesis job trigger.
+- Added entry to `docs/projects/ALL-PROJECTS.md` Active Projects (P0).
+
+**Files created:** `docs/specs/student-learning-profile-schema.md`
+**Files modified:** `docs/projects/ALL-PROJECTS.md`, `docs/changelog.md`, `docs/doc-manifest.yaml`
+
+**Systems affected:** Touches future Designer Mentor matching, Discovery Cognitive Layer, Open Studio v2 plan health, Design Assistant prompt injection, Journey Engine `learning_profile` writes. No code changes — spec only.
+
+**Session context:** Follow-up to "mindprint" exploration. Matt locked in 4 design decisions via AskUserQuestion (separate history table / computed pedagogy_preferences / section-level visibility / hard cutover) before spec was written. Spec is the next big project — Matt to work through it. Three blocking OQs to be resolved before Phase A coding begins.
+
+---
+
+## 11 Apr 2026 — Skills Library + Open Studio Mode: Project Kickoff + File Reorganization
+
+**What changed:**
+- Reviewed 8 workshop artifacts in the temporary `docs/skillsandopenstudio/` bucket (session summary, open studio mode spec, skills library design note + completion addendum, strength chart prototype, open studio wireframe, reference prototypes, composed student dashboard).
+- Created two new P1 projects: `docs/projects/skills-library.md` and `docs/projects/open-studio-mode.md`. Added both to `ALL-PROJECTS.md` 🔵 Planned section.
+- `open-studio-mode.md` contains a ⚠️ MANDATORY required-reading block listing 18 files — triggered whenever Matt says "start Open Studio Mode". Covers all 3 Open Studio project docs (v1 shipped, v2 planning journey, Mode runtime), 6 canonical specs, 4 prototypes, Skills Library dependency, build methodology.
+- `skills-library.md` supersedes the older `self-help-library.md` idea doc. Old doc marked SUPERSEDED with pointer. Old `openstudio.md` also marked SUPERSEDED with pointer to open-studio-mode.md + openstudio-v2.md.
+- Added sibling cross-link: `openstudio-v2.md` now references `open-studio-mode.md` as sibling.
+- Reorganized workshop files to canonical homes: skills library specs → `docs/specs/`, strength chart prototype → `docs/prototypes/`, open studio mode spec → `docs/open studio/`, open studio prototypes → `docs/open studio/prototypes/`, session summary → `docs/open studio/prototypes/SESSION-SUMMARY-apr-2026.md`. Empty bucket deleted.
+- Updated WIRING.yaml: modified `student-open-studio` entry (supersession note, affects list), added new `skills-library` and `open-studio-mode` system entries with full docs/data_fields/affects arrays.
+- Synced `dashboard.html` PROJECTS array and `wiring-dashboard.html` SYSTEMS array with new entries.
+- Added auto-memory entry `.auto-memory/project_open_studio_mode_required_reading.md` — future sessions will read the required-reading block when Matt says "start Open Studio Mode".
+- Appended 4 decisions to `docs/decisions-log.md` (sibling-not-merge, supersession, 4-mechanism lock-in, workshop reorganization rule).
+- Added 10 new doc entries to `docs/doc-manifest.yaml`.
+
+**Files created:**
+- `docs/projects/skills-library.md`
+- `docs/projects/open-studio-mode.md`
+- `.auto-memory/project_open_studio_mode_required_reading.md`
+
+**Files modified:** ALL-PROJECTS.md, dashboard.html, wiring-dashboard.html, WIRING.yaml, openstudio-v2.md, openstudio.md, self-help-library.md, decisions-log.md, doc-manifest.yaml, changelog.md, .auto-memory/MEMORY.md
+
+**Files moved (workshop → canonical):** 8 files out of `docs/skillsandopenstudio/` (now deleted) into specs/, prototypes/, open studio/, open studio/prototypes/.
+
+**Systems affected:** `skills-library` (new, planned, v0), `open-studio-mode` (new, planned, v0), `student-open-studio` (v1 noted as superseded-in-behaviour by Mode). Touches future work across learning_events schema (new event types), Journey Engine consumers, and student dashboard UI.
+
+**Session context:** Matt dropped 8 workshop artifacts and asked me to check for related existing projects, start new ones if needed, then organize the files. Key concern: guaranteed context preservation for future sessions — solved with a 4-mechanism lock-in (cross-links + required-reading block + auto-memory trigger + WIRING entries). No code changes — planning and organization only. Both projects remain planned/P1; build starts next week.

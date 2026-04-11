@@ -5,6 +5,7 @@
 **Status:** READY — spec complete, depends on Journey Engine
 **Depends on:** Journey Engine (§§2-5, rendering modes, branching), Dimensions3 (Block Library for MiniSkills/resources), Timetable & Scheduling (semester dates, session counts)
 **Companion docs:** `docs/specs/journey-engine-spec.md` (engine), `docs/open studio/open-studio-experience-design.md` (Phase 2-4 experience design), `docs/open studio/open-studio-spec.md` (v1 mechanism)
+**Sibling project:** [`open-studio-mode.md`](open-studio-mode.md) — specs the **runtime studio experience** after planning (desk view, three-touch pattern, reflection drawer, critic corner, escalation ladder). v2 negotiates the plan; Mode is where the work happens. Build Open Studio Mode ⇒ must read v1 + v2 + Mode together.
 **Supersedes:** `docs/projects/openstudio.md` (v2 idea doc — absorbed into this spec)
 
 ---
