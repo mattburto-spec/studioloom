@@ -32,6 +32,8 @@
 
 **Status (11 Apr 2026):** Phases 0, 1.1, 1.5, 1.6, 1.7 COMPLETE. Checkpoint 1.2 PASSED with first automated E2E gate (α sandbox + β live DOCX + β live PDF, 4/4 tests green, `RUN_E2E=1` gated). Critical path: 0 ✅ → 1 (1.1 ✅, 1.5 ✅, 1.6 ✅, 1.7 ✅) → 2 → 3 → 4 → 7. Phases 5 (Content Safety) and 6 (Integrity) run in parallel with 4.
 
+**Post-Dimensions3 priority order:** [`post-dimensions3-priority-order.md`](post-dimensions3-priority-order.md) — 6-tier dependency-sequenced build plan for everything after D3 ships (11 Apr 2026).
+
 ---
 
 ## 🔴 Active Projects
