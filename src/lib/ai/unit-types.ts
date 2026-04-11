@@ -280,6 +280,12 @@ export interface FormatProfile {
     phaseWeights: Record<string, number>;
     openingPhase: string;
     closingPhase: string;
+    /** 5.4 — High-level rhythm hint, e.g. "investigate-heavy front, build-heavy middle, reflect at end". Optional. */
+    defaultPattern?: string;
+    /** 5.4 — Phases that MUST each appear in at least one lesson. Presence-only, no positional constraint. Optional. */
+    requiredPhases?: string[];
+    /** 5.4 — Phases that may appear across multiple non-adjacent lessons. Informational hint to the assembler. Optional. */
+    repeatablePhases?: string[];
   };
   /** Timing adjustments for this format */
   timingModifiers: {
@@ -313,6 +319,9 @@ const FORMAT_PROFILES: Record<UnitType, FormatProfile> = {
       phaseWeights: { investigate: 0.25, develop: 0.25, create: 0.30, evaluate: 0.20 },
       openingPhase: "investigate",
       closingPhase: "evaluate",
+      defaultPattern: "investigate -> develop -> create -> evaluate, with making blocks concentrated mid-unit",
+      requiredPhases: ["investigate", "create", "evaluate"],
+      repeatablePhases: ["develop", "create"],
     },
     timingModifiers: { setupBuffer: 7, cleanupBuffer: 6, safetyBriefMinutes: 4 },
     pulseWeights: { cognitiveRigour: 0.35, studentAgency: 0.30, teacherCraft: 0.35 },
@@ -329,10 +338,15 @@ const FORMAT_PROFILES: Record<UnitType, FormatProfile> = {
       boost: ["research", "collaboration", "reflection", "presentation"],
       suppress: ["making", "skill-building"],
     },
+    // Service and Inquiry share an inquiry-style rhythm but differ on requiredPhases coverage and
+    // repeatable cadence — distinctness gate in 5.4 tests asserts this.
     sequenceHints: {
       phaseWeights: { investigate: 0.20, plan: 0.20, act: 0.25, reflect: 0.20, demonstrate: 0.15 },
       openingPhase: "investigate",
       closingPhase: "demonstrate",
+      defaultPattern: "investigate -> plan -> act -> reflect -> demonstrate, with reflection interleaved through act",
+      requiredPhases: ["investigate", "plan", "act", "reflect", "demonstrate"],
+      repeatablePhases: ["act", "reflect"],
     },
     timingModifiers: { setupBuffer: 3, cleanupBuffer: 2, safetyBriefMinutes: 0 },
     pulseWeights: { cognitiveRigour: 0.25, studentAgency: 0.45, teacherCraft: 0.30 },
@@ -353,6 +367,9 @@ const FORMAT_PROFILES: Record<UnitType, FormatProfile> = {
       phaseWeights: { define: 0.15, plan: 0.20, apply: 0.30, reflect: 0.20, report: 0.15 },
       openingPhase: "define",
       closingPhase: "report",
+      defaultPattern: "define -> plan -> apply (extended) -> reflect -> report, with reflect checkpoints between apply chunks",
+      requiredPhases: ["define", "plan", "apply", "reflect", "report"],
+      repeatablePhases: ["apply", "reflect"],
     },
     timingModifiers: { setupBuffer: 3, cleanupBuffer: 2, safetyBriefMinutes: 0 },
     pulseWeights: { cognitiveRigour: 0.30, studentAgency: 0.40, teacherCraft: 0.30 },
@@ -373,6 +390,9 @@ const FORMAT_PROFILES: Record<UnitType, FormatProfile> = {
       phaseWeights: { wonder: 0.20, investigate: 0.30, synthesize: 0.25, act: 0.25 },
       openingPhase: "wonder",
       closingPhase: "act",
+      defaultPattern: "wonder -> investigate (extended) -> synthesize -> act, with wonder revisited as new questions emerge",
+      requiredPhases: ["wonder", "investigate", "synthesize", "act"],
+      repeatablePhases: ["investigate", "synthesize"],
     },
     timingModifiers: { setupBuffer: 3, cleanupBuffer: 2, safetyBriefMinutes: 0 },
     pulseWeights: { cognitiveRigour: 0.40, studentAgency: 0.35, teacherCraft: 0.25 },

@@ -90,6 +90,17 @@ function buildAssemblyPrompt(
     .map(([id, w]) => `  ${id}: ${Math.round(w * 100)}%`)
     .join("\n");
 
+  // 5.4 — emit optional sequenceHints fields when profile supplies them.
+  const defaultPatternLine = profile.sequenceHints.defaultPattern
+    ? `\nSuggested rhythm: ${profile.sequenceHints.defaultPattern}`
+    : "";
+  const requiredPhasesLine = profile.sequenceHints.requiredPhases && profile.sequenceHints.requiredPhases.length > 0
+    ? `\nRequired phases (each must appear in at least one lesson): ${profile.sequenceHints.requiredPhases.join(", ")}`
+    : "";
+  const repeatablePhasesLine = profile.sequenceHints.repeatablePhases && profile.sequenceHints.repeatablePhases.length > 0
+    ? `\nPhases that may repeat across non-adjacent lessons: ${profile.sequenceHints.repeatablePhases.join(", ")}`
+    : "";
+
   return `You are assembling a ${request.lessonCount}-lesson unit on "${request.topic}" for ${request.gradeLevel} students.
 
 ## Unit Format: ${profile.cycleName}
@@ -100,7 +111,7 @@ Phase distribution targets:
 ${phaseWeights}
 
 Opening phase: ${profile.sequenceHints.openingPhase}
-Closing phase: ${profile.sequenceHints.closingPhase}
+Closing phase: ${profile.sequenceHints.closingPhase}${defaultPatternLine}${requiredPhasesLine}${repeatablePhasesLine}
 
 ## Available Library Blocks
 ${candidates.length > 0 ? JSON.stringify(blockSummaries, null, 2) : "NONE — all activities will need to be generated from scratch."}
@@ -160,6 +171,41 @@ interface AILesson {
     suggestedTimeWeight?: string;
     suggestedLessonRole?: string;
   }>;
+}
+
+// 5.4 — Presence-only validator. LessonSlot has no top-level phase field, so we
+// derive phase from each lesson's activities (library blocks carry phase at
+// activity.block.block.phase; gap activities carry it at gapContext.suggestedPhase).
+// Returns the list of required phases that are missing from the assembled output.
+// Empty array = pass. Caller decides whether to hard-fail, soft-warn, or fall
+// back to algorithmic assembly.
+//
+// Lesson #38 reminder: this helper was originally drafted with a structural
+// `Array<{ phase?: string }>` parameter that compiled fine but always reported
+// every required phase as missing because LessonSlot has no `phase` field at
+// the lesson level. Take the typed parameter so future regressions surface at
+// compile time.
+export function findMissingRequiredPhases(
+  lessons: LessonSlot[],
+  profile: FormatProfile
+): string[] {
+  const required = profile.sequenceHints.requiredPhases ?? [];
+  if (required.length === 0) return [];
+
+  const present = new Set<string>();
+  for (const lesson of lessons) {
+    for (const activity of lesson.activities) {
+      if (activity.source === "library") {
+        const p = activity.block?.block?.phase;
+        if (p) present.add(p);
+      } else {
+        const p = activity.gapContext?.suggestedPhase;
+        if (p) present.add(p);
+      }
+    }
+  }
+
+  return required.filter(p => !present.has(p));
 }
 
 // ─── Main ───
@@ -240,6 +286,19 @@ export async function stage2_assembleSequence(
         activities,
       };
     });
+
+    // 5.4 — soft-fail when required phases are missing from the assembled output.
+    // Falls back to algorithmic assembly so a flaky model output downgrades
+    // gracefully rather than hard-erroring. Helper derives phase from activities
+    // because LessonSlot has no top-level phase field. Test phase asserts both
+    // the warn path and the algorithmic-fallback path.
+    const missingRequired = findMissingRequiredPhases(lessons, profile);
+    if (missingRequired.length > 0) {
+      console.warn(
+        `[stage2_assembleSequence] Required phases missing from AI output: ${missingRequired.join(", ")} (profile=${profile.type}). Falling back to algorithmic assembly.`
+      );
+      return buildAlgorithmicSequence(request, profile, candidates, startMs);
+    }
 
     // Ensure we have the requested lesson count
     while (lessons.length < request.lessonCount) {
