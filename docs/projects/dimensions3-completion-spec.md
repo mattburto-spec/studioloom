@@ -477,9 +477,46 @@ Grep frontend for buttons/links that hit the old `/api/teacher/knowledge/upload`
 
 ### 3.7 🛑 Matt Checkpoint 1.2 — End-to-end ingestion
 
-**Code pauses:**
+**Canonical gate (automated):** `tests/e2e/checkpoint-1-2-ingestion.test.ts`.
 
-> 🛑 Checkpoint 1.2 ready. Manual test:
+Phase 1.7 (11 Apr 2026) promoted the automated E2E test to be the canonical
+Checkpoint 1.2 gate. The test exercises `runIngestionPipeline()` end-to-end
+against two real fixtures in three variants:
+
+1. **α — sandbox DOCX** (runs on every `npm test`, no API key required).
+   Asserts tight values against the deterministic sandbox pipeline; any
+   drift = real regression in parse/extract/moderation code.
+2. **β — live DOCX** (gated `RUN_E2E=1 ANTHROPIC_API_KEY=...`). Real
+   Anthropic calls through Pass A (Haiku) + Pass B (Sonnet) + moderation
+   against `mburton packaging redesign unit.docx` (50 sections). Tight on
+   enums and deterministic parse fields; narrow-range on block count
+   (observed 12–14 over N=3, asserted 11–15); loose substring match on
+   classification text fields (topic / level / strand) that wobble with
+   Haiku/Sonnet minor revisions. Bloom distribution asserted as shape
+   (higher-order dominant) not exact counts.
+3. **β — live PDF** (same gate). Young's Modulus PDF (CC-BY third-party
+   resource, 6 sections). Same pattern, narrower ranges because the
+   fixture is smaller.
+
+Also asserts idempotency: same DOCX produces identical file hashes and
+identical block content fingerprints across runs (only tempIds differ).
+Structural completeness asserted per block (`title`, `bloom_level`,
+`phase`, `activity_category` all truthy; `moderation_status` in the
+enum set) — the Lesson #39 defensive check that catches the class of
+bug where truncated tool_use responses return blocks with undefined
+fields.
+
+**Gate command:**
+```sh
+RUN_E2E=1 ANTHROPIC_API_KEY=... npm test -- checkpoint-1-2
+```
+Expected: 4/4 green. Baseline cost $0.21, wall time ~160s.
+
+**Optional pre-push manual smoke** (not the gate — just a UI sanity
+sweep before pushing anything that touches the admin ingestion sandbox
+UI itself):
+
+> 🛑 Checkpoint 1.2 UI smoke (optional — automated test is the gate):
 > 1. Go to `/admin/ingestion-sandbox`.
 > 2. Upload a real teaching resource PDF from `docs/lesson plans/` (pick one you know well).
 > 3. Click "Run Full Pipeline".
@@ -490,7 +527,7 @@ Grep frontend for buttons/links that hit the old `/api/teacher/knowledge/upload`
 > 8. Re-upload the same file — Dedup stage must flag it as duplicate and skip subsequent stages.
 > 9. Screenshot each stage panel to evidence file.
 >
-> Expected: all 9 pass. Reply `checkpoint pass` or `checkpoint fail: [reason]`.
+> Expected: all 9 pass. Reply `checkpoint pass` or `checkpoint fail: [reason]`. This smoke tests the admin UI wiring; the automated E2E test covers the underlying pipeline.
 
 ### 3.8 Phase 1 acceptance
 
