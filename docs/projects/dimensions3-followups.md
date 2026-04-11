@@ -144,6 +144,20 @@ silent-field-drop, but worth tightening:
 - `src/app/api/admin/ai-model/test/route.ts:118` — early `return
   QUARANTINE_RESPONSE` at :37, never reaches the call.
 
+**Addendum — Phase 2 pre-flight verification (11 Apr 2026):** Pre-flight read each of the 4 stage sites directly and confirmed they are **text-response sites with `JSON.parse()`**, NOT `tool_use` sites. The original FU-5 "Loud-but-not-throwing" classification was correct. (An earlier Phase 1 audit during conversation compaction misclassified these as `tool_use` sites — that misclassification was reverted at pre-flight.)
+
+| File | Line | max_tokens | Pattern | Failure mode |
+|------|------|-----------|---------|--------------|
+| `src/lib/pipeline/stages/stage2-assembly.ts` | 188 | 4096 | text + JSON.parse | Loud — `JSON.parse` throws "Unexpected end of JSON input" mid-output |
+| `src/lib/pipeline/stages/stage3-generation.ts` | 199 | 2048 | text + JSON.parse | Loud — same |
+| `src/lib/pipeline/stages/stage4-polish.ts` | 136 | 4096 | text + JSON.parse | Loud — same |
+| `src/lib/pipeline/stages/stage4-polish.ts` | 281 | 2048 | text + JSON.parse (chunked variant) | Loud — same |
+
+These are **NOT Lesson #39 silent-field-drop sites** — they crash loudly when max_tokens hits, they don't silently corrupt output. They still need the standard `stop_reason === "max_tokens"` guard pattern (so the error message is informative instead of cryptic), and the max_tokens values are tight (2048 in particular), so Phase 2 — which adds prompt complexity by wiring `gapGenerationRules` and `connectiveTissue` into stages 3 and 4 — could push them over. **Folded into Phase 2 as sub-task 5.2.5** (5 commits: 4 per-site fixes + 1 meta-test). The fix pattern is the same as Pass A/B but the lesson label is different.
+
+Also added at pre-flight (12th hardcoded model ID site missed in Phase 1.7):
+- `src/lib/ingestion/pass-b.ts:23` — `const DEFAULT_MODEL = "claude-sonnet-4-20250514"` constant survived the Phase 1.7 cleanup. This IS a `tool_use` site (uses `ENRICHMENT_TOOL` schema). Folded into Phase 2 sub-task 5.13 as a 12th update site (spec §4.7 list was stale by one entry).
+
 **Threshold note:** The Phase 1.7 brief said "stop and report if the audit
 finds > 10 sites missing stop_reason guards." The original audit hit
 exactly 10, at the threshold not over it, so Phase 1.7 proceeded. After
