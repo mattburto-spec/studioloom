@@ -309,6 +309,10 @@ async function polishInChunks(
         temperature: 0.3,
       });
 
+      // Lesson #39 — fail loud on max_tokens truncation before JSON.parse
+      // can die with a cryptic "Unexpected end of JSON input".
+      assertNotMaxTokens(response, "stage4_polishInChunks", 2048);
+
       const textBlock = response.content.find(b => b.type === "text");
       if (textBlock && textBlock.type === "text") {
         let jsonText = textBlock.text.trim();
@@ -322,6 +326,10 @@ async function polishInChunks(
         if (chunkResult.interactionMap) allInteractions.push(...chunkResult.interactionMap);
       }
     } catch (e) {
+      // Lesson #39 — max_tokens truncation is a loud, fail-fast condition;
+      // re-throw out of the chunks loop so stage4_polish's outer catch can
+      // surface it to the caller instead of silently producing empty polish.
+      if (e instanceof MaxTokensError) throw e;
       if (e instanceof NeutralValidationError) throw e;
       console.error(`[stage4] Chunk ${i}-${i + chunkSize} failed:`, e);
     }
