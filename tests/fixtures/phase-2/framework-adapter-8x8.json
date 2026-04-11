@@ -1,0 +1,208 @@
+{
+  "cells": {
+    "IB_MYP": {
+      "researching": { "kind": "label", "short": "A", "full": "Criterion A", "name": "Inquiring and Analysing" },
+      "analysing": { "kind": "label", "short": "A", "full": "Criterion A", "name": "Inquiring and Analysing" },
+      "designing": { "kind": "label", "short": "B", "full": "Criterion B", "name": "Developing Ideas" },
+      "creating": { "kind": "label", "short": "C", "full": "Criterion C", "name": "Creating the Solution" },
+      "evaluating": { "kind": "label", "short": "D", "full": "Criterion D", "name": "Evaluating" },
+      "reflecting": { "kind": "label", "short": "D", "full": "Criterion D", "name": "Evaluating" },
+      "communicating": {
+        "kind": "implicit",
+        "mappedTo": "researching",
+        "short": "A",
+        "full": "Criterion A",
+        "name": "Inquiring and Analysing",
+        "note": "MYP treats communicating as implicit across all criteria (§3.1 reverse table); rendered via Criterion A context. §5 rule 6: not tagged at activity level."
+      },
+      "planning": { "kind": "label", "short": "C", "full": "Criterion C", "name": "Creating the Solution" }
+    },
+    "GCSE_DT": {
+      "researching": { "kind": "label", "short": "AO1", "full": "AO1", "name": "Identify, investigate and outline design possibilities" },
+      "analysing": { "kind": "label", "short": "AO3", "full": "AO3", "name": "Analyse and evaluate design decisions and outcomes" },
+      "designing": { "kind": "label", "short": "AO2", "full": "AO2", "name": "Design and make prototypes that are fit for purpose" },
+      "creating": { "kind": "label", "short": "AO2", "full": "AO2", "name": "Design and make prototypes that are fit for purpose" },
+      "evaluating": { "kind": "label", "short": "AO3", "full": "AO3", "name": "Analyse and evaluate design decisions and outcomes" },
+      "reflecting": {
+        "kind": "implicit",
+        "mappedTo": "evaluating",
+        "short": "AO3",
+        "full": "AO3",
+        "name": "Analyse and evaluate design decisions and outcomes",
+        "note": "GCSE folds reflection into AO3 'analyse and evaluate design decisions and outcomes'; not assessed as a standalone AO."
+      },
+      "communicating": {
+        "kind": "implicit",
+        "mappedTo": "designing",
+        "short": "AO2",
+        "full": "AO2",
+        "name": "Design and make prototypes that are fit for purpose",
+        "note": "GCSE NEA portfolio documentation is implicit in AO2 design and make; not assessed as a standalone AO."
+      },
+      "planning": {
+        "kind": "implicit",
+        "mappedTo": "designing",
+        "short": "AO2",
+        "full": "AO2",
+        "name": "Design and make prototypes that are fit for purpose",
+        "note": "GCSE planning (making schedule, resource plan) is implicit in AO2 design and make; not assessed as a standalone AO."
+      }
+    },
+    "A_LEVEL_DT": {
+      "researching": { "kind": "label", "short": "C3", "full": "C3", "name": "Design and Make Task (NEA)" },
+      "analysing": { "kind": "label", "short": "C1", "full": "C1", "name": "Technical Principles" },
+      "designing": { "kind": "label", "short": "C3", "full": "C3", "name": "Design and Make Task (NEA)" },
+      "creating": { "kind": "label", "short": "C3", "full": "C3", "name": "Design and Make Task (NEA)" },
+      "evaluating": { "kind": "label", "short": "C3", "full": "C3", "name": "Design and Make Task (NEA)" },
+      "reflecting": {
+        "kind": "implicit",
+        "mappedTo": "evaluating",
+        "short": "C3",
+        "full": "C3",
+        "name": "Design and Make Task (NEA)",
+        "note": "A-Level folds reflection into C3 evaluation phase; not assessed as a standalone component."
+      },
+      "communicating": {
+        "kind": "implicit",
+        "mappedTo": "designing",
+        "short": "C3",
+        "full": "C3",
+        "name": "Design and Make Task (NEA)",
+        "note": "A-Level NEA design folder documentation is implicit in C3 designing; not assessed as a standalone component."
+      },
+      "planning": {
+        "kind": "implicit",
+        "mappedTo": "designing",
+        "short": "C3",
+        "full": "C3",
+        "name": "Design and Make Task (NEA)",
+        "note": "A-Level planning (timeline, manufacturing sequence) is implicit in C3 design and make; not assessed as a standalone component."
+      }
+    },
+    "IGCSE_DT": {
+      "researching": { "kind": "label", "short": "AO2", "full": "AO2", "name": "Handling information and problem solving" },
+      "analysing": { "kind": "label", "short": "AO1", "full": "AO1", "name": "Recall and understanding" },
+      "designing": { "kind": "label", "short": "AO3", "full": "AO3", "name": "Design and making skills" },
+      "creating": { "kind": "label", "short": "AO3", "full": "AO3", "name": "Design and making skills" },
+      "evaluating": { "kind": "label", "short": "AO3", "full": "AO3", "name": "Design and making skills" },
+      "reflecting": {
+        "kind": "implicit",
+        "mappedTo": "evaluating",
+        "short": "AO3",
+        "full": "AO3",
+        "name": "Design and making skills",
+        "note": "IGCSE folds reflection into AO3 design and making skills evaluation; not assessed as a standalone AO."
+      },
+      "communicating": {
+        "kind": "implicit",
+        "mappedTo": "designing",
+        "short": "AO3",
+        "full": "AO3",
+        "name": "Design and making skills",
+        "note": "IGCSE portfolio communication is implicit in AO3 design and making skills; not assessed as a standalone AO."
+      },
+      "planning": {
+        "kind": "implicit",
+        "mappedTo": "designing",
+        "short": "AO3",
+        "full": "AO3",
+        "name": "Design and making skills",
+        "note": "IGCSE planning is implicit in AO3 design and making skills; not assessed as a standalone AO."
+      }
+    },
+    "ACARA_DT": {
+      "researching": { "kind": "label", "short": "PPS", "full": "PPS", "name": "Processes and Production Skills" },
+      "analysing": { "kind": "label", "short": "KU", "full": "KU", "name": "Knowledge and Understanding" },
+      "designing": { "kind": "label", "short": "PPS", "full": "PPS", "name": "Processes and Production Skills" },
+      "creating": { "kind": "label", "short": "PPS", "full": "PPS", "name": "Processes and Production Skills" },
+      "evaluating": { "kind": "label", "short": "PPS", "full": "PPS", "name": "Processes and Production Skills" },
+      "reflecting": {
+        "kind": "implicit",
+        "mappedTo": "evaluating",
+        "short": "PPS",
+        "full": "PPS",
+        "name": "Processes and Production Skills",
+        "note": "ACARA folds reflection into PPS evaluating phase; not assessed as a standalone strand."
+      },
+      "communicating": {
+        "kind": "implicit",
+        "mappedTo": "designing",
+        "short": "PPS",
+        "full": "PPS",
+        "name": "Processes and Production Skills",
+        "note": "ACARA communicating design ideas is implicit in PPS generating phase; not assessed as a standalone strand."
+      },
+      "planning": {
+        "kind": "implicit",
+        "mappedTo": "designing",
+        "short": "PPS",
+        "full": "PPS",
+        "name": "Processes and Production Skills",
+        "note": "ACARA planning and managing is implicit in PPS producing phase; not assessed as a standalone strand."
+      }
+    },
+    "PLTW": {
+      "researching": { "kind": "label", "short": "Design", "full": "Design", "name": "Design Process" },
+      "analysing": { "kind": "label", "short": "Design", "full": "Design", "name": "Design Process" },
+      "designing": { "kind": "label", "short": "Design", "full": "Design", "name": "Design Process" },
+      "creating": { "kind": "label", "short": "Build", "full": "Build", "name": "Build & Prototype" },
+      "evaluating": { "kind": "label", "short": "Test", "full": "Test", "name": "Test & Evaluate" },
+      "reflecting": { "kind": "label", "short": "Present", "full": "Present", "name": "Present & Defend" },
+      "communicating": { "kind": "label", "short": "Present", "full": "Present", "name": "Present & Defend" },
+      "planning": { "kind": "label", "short": "Build", "full": "Build", "name": "Build & Prototype" }
+    },
+    "NESA_DT": {
+      "researching": { "kind": "label", "short": "DP", "full": "DP", "name": "Design Process" },
+      "analysing": { "kind": "label", "short": "Ev", "full": "Ev", "name": "Evaluating" },
+      "designing": { "kind": "label", "short": "DP", "full": "DP", "name": "Design Process" },
+      "creating": { "kind": "label", "short": "Pr", "full": "Pr", "name": "Producing" },
+      "evaluating": { "kind": "label", "short": "Ev", "full": "Ev", "name": "Evaluating" },
+      "reflecting": { "kind": "label", "short": "Ev", "full": "Ev", "name": "Evaluating" },
+      "communicating": { "kind": "label", "short": "DP", "full": "DP", "name": "Design Process" },
+      "planning": { "kind": "label", "short": "Pr", "full": "Pr", "name": "Producing" }
+    },
+    "VIC_DT": {
+      "researching": { "kind": "label", "short": "CDS", "full": "CDS", "name": "Creating Design Solutions" },
+      "analysing": { "kind": "label", "short": "TC", "full": "TC", "name": "Technological Contexts" },
+      "designing": { "kind": "label", "short": "CDS", "full": "CDS", "name": "Creating Design Solutions" },
+      "creating": { "kind": "label", "short": "CDS", "full": "CDS", "name": "Creating Design Solutions" },
+      "evaluating": { "kind": "label", "short": "CDS", "full": "CDS", "name": "Creating Design Solutions" },
+      "reflecting": {
+        "kind": "implicit",
+        "mappedTo": "evaluating",
+        "short": "CDS",
+        "full": "CDS",
+        "name": "Creating Design Solutions",
+        "note": "Victorian folds reflection into CDS evaluating phase; not assessed as a standalone strand."
+      },
+      "communicating": {
+        "kind": "implicit",
+        "mappedTo": "designing",
+        "short": "CDS",
+        "full": "CDS",
+        "name": "Creating Design Solutions",
+        "note": "Victorian communicating design ideas is implicit in CDS generating phase; not assessed as a standalone strand."
+      },
+      "planning": {
+        "kind": "implicit",
+        "mappedTo": "designing",
+        "short": "CDS",
+        "full": "CDS",
+        "name": "Creating Design Solutions",
+        "note": "Victorian planning and managing is implicit in CDS producing phase; not assessed as a standalone strand."
+      }
+    }
+  },
+  "examPrepOverrides": [
+    { "framework": "GCSE_DT", "key": "analysing", "defaultShort": "AO3", "examPrepShort": "AO4" },
+    { "framework": "A_LEVEL_DT", "key": "analysing", "defaultShort": "C1", "examPrepShort": "C2" },
+    { "framework": "A_LEVEL_DT", "key": "designing", "defaultShort": "C3", "examPrepShort": "C2" }
+  ],
+  "nesaAnalysingFuC": {
+    "framework": "NESA_DT",
+    "key": "analysing",
+    "short": "Ev",
+    "full": "Ev",
+    "name": "Evaluating"
+  }
+}
