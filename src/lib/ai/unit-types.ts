@@ -303,6 +303,12 @@ export interface FormatProfile {
   teachingPrinciples: string;
   aiPersona: string;
   typicalActivities: string[];
+  /** 5.6 — Stage 4 Polish wiring. Per spec format-profile-definitions.md §connectiveTissue. */
+  connectiveTissue: {
+    transitionVocabulary: string[];
+    reflectionStyle: "end-only" | "continuous" | "milestone";
+    audienceLanguage: string;
+  };
   /** 5.5 — Nested gap-generation rules per spec format-profile-definitions.md §gapGenerationRules. Optional: when present, Stage 3 reads prefer nested values over the flat duplicates above. Flat fields retained for back-compat — cleanup phase may consolidate later. */
   gapGenerationRules?: {
     aiPersona: string;
@@ -347,6 +353,17 @@ const FORMAT_PROFILES: Record<UnitType, FormatProfile> = {
         "Product-only assessment (process documentation is essential)",
       ],
     },
+    connectiveTissue: {
+      transitionVocabulary: [
+        "Now that you've investigated the problem, let's start generating ideas...",
+        "With your concept locked in, it's time to prototype...",
+        "Testing revealed some issues — back to the drawing board to refine...",
+        "Your solution is ready — let's evaluate how well it meets the brief...",
+        "Now we share what you've made with your target audience...",
+      ],
+      reflectionStyle: "end-only",
+      audienceLanguage: "your client/target audience",
+    },
   },
   service: {
     type: "service",
@@ -385,6 +402,17 @@ const FORMAT_PROFILES: Record<UnitType, FormatProfile> = {
         "Workshop/making activities unrelated to service action",
       ],
     },
+    connectiveTissue: {
+      transitionVocabulary: [
+        "Now that you've listened to your community, let's investigate what you heard...",
+        "With the needs clear, let's plan how to act — with them, not for them...",
+        "Time to take action alongside your community partner...",
+        "Now reflect: what changed? what did you learn? what's next?...",
+        "Let's share your story — highlighting the community's voice, not just yours...",
+      ],
+      reflectionStyle: "continuous",
+      audienceLanguage: "your community partner(s)",
+    },
   },
   personal_project: {
     type: "personal_project",
@@ -420,6 +448,17 @@ const FORMAT_PROFILES: Record<UnitType, FormatProfile> = {
         "Rigid weekly schedule (PP students work at different paces)",
       ],
     },
+    connectiveTissue: {
+      transitionVocabulary: [
+        "You've defined your goal — now build the knowledge you'll need...",
+        "With your research grounded, it's time to plan your action...",
+        "Time to create — document everything in your process journal...",
+        "Step back and evaluate: did you meet your goal? what would you do differently?...",
+        "Now write your report and present to...",
+      ],
+      reflectionStyle: "milestone",
+      audienceLanguage: "your supervisor",
+    },
   },
   inquiry: {
     type: "inquiry",
@@ -454,6 +493,17 @@ const FORMAT_PROFILES: Record<UnitType, FormatProfile> = {
         "Single-perspective investigations (always seek multiple viewpoints)",
         "Heavy front-loaded content delivery (provoke, don't lecture)",
       ],
+    },
+    connectiveTissue: {
+      transitionVocabulary: [
+        "The provocation sparked questions — now let's choose which to pursue...",
+        "With your questions framed, let's dig into sources and evidence...",
+        "Time to build understanding — what patterns are emerging?...",
+        "Now synthesize: what do you know? what do you still wonder?...",
+        "Share your learning with...",
+      ],
+      reflectionStyle: "end-only",
+      audienceLanguage: "your learning community",
     },
   },
 };

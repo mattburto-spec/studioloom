@@ -190,10 +190,16 @@ describe("stage4 neutral content enforcement — integration (Phase 2 sub-task 5
       },
     };
 
-    // Minimal FormatProfile — stage4 only reads `cycleName` in the prompt.
-    const minimalProfile = { cycleName: "Design" } as unknown as import(
-      "@/lib/ai/unit-types"
-    ).FormatProfile;
+    // Minimal FormatProfile — stage4 reads cycleName + connectiveTissue in the prompt.
+    // Stub values are fine; this test exercises neutral-validator integration, not prompt content.
+    const minimalProfile = {
+      cycleName: "Design",
+      connectiveTissue: {
+        transitionVocabulary: [],
+        reflectionStyle: "end-only",
+        audienceLanguage: "your audience",
+      },
+    } as unknown as import("@/lib/ai/unit-types").FormatProfile;
 
     // Note: we match by message + error.name (not instanceof) because
     // vi.resetModules() hands stage4_polish a fresh copy of

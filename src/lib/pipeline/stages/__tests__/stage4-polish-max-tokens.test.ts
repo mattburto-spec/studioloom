@@ -105,9 +105,16 @@ function makeFilledSequence(): FilledSequence {
   };
 }
 
+// Minimal FormatProfile — stage4 reads cycleName + connectiveTissue in the prompt.
+// Stub values are sufficient because this test exercises the max_tokens path, not prompt content.
 function makeMinimalProfile(): FormatProfile {
   return {
     cycleName: "Design",
+    connectiveTissue: {
+      transitionVocabulary: [],
+      reflectionStyle: "end-only",
+      audienceLanguage: "your audience",
+    },
   } as unknown as FormatProfile;
 }
 

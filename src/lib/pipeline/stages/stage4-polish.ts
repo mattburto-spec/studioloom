@@ -34,6 +34,19 @@ const ZERO_COST: CostBreakdown = {
   estimatedCostUSD: 0, timeMs: 0,
 };
 
+// 5.6 — Gloss the enum reflectionStyle into a concrete one-line instruction
+// so the AI has an actionable directive, not just a label.
+function reflectionStyleGloss(style: "end-only" | "continuous" | "milestone"): string {
+  switch (style) {
+    case "end-only":
+      return "Reserve reflection prompts for the final lesson(s) of the unit. Don't pepper earlier lessons with reflection.";
+    case "continuous":
+      return "Weave brief reflection prompts into every lesson, not just the end. Reflection is ongoing.";
+    case "milestone":
+      return "Anchor reflection at named project milestones (e.g. end of research, end of action). Not every lesson, not just the end.";
+  }
+}
+
 function buildPolishPrompt(
   filled: FilledSequence,
   profile: FormatProfile
@@ -54,6 +67,16 @@ function buildPolishPrompt(
   }));
 
   return `You are polishing a ${filled.lessons.length}-lesson ${profile.cycleName} unit on "${filled.request.topic}".
+
+## Connective tissue guidance
+
+Audience framing: refer to the student's audience as "${profile.connectiveTissue.audienceLanguage}".
+
+Reflection style: ${profile.connectiveTissue.reflectionStyle}
+${reflectionStyleGloss(profile.connectiveTissue.reflectionStyle)}
+
+Use these as transition tone models (don't copy verbatim — use them to calibrate voice and rhythm):
+${profile.connectiveTissue.transitionVocabulary.map(v => `  - ${v}`).join("\n")}
 
 ## Current Sequence
 ${JSON.stringify(lessonSummaries, null, 2)}
