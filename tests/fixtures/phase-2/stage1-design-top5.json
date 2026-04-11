@@ -1,0 +1,12 @@
+{
+  "profile": "design",
+  "topFive": [
+    { "id": "blk_001", "score": 0.36875 },
+    { "id": "blk_002", "score": 0.36875 },
+    { "id": "blk_003", "score": 0.36875 },
+    { "id": "blk_004", "score": 0.36875 },
+    { "id": "blk_011", "score": 0.2925 }
+  ],
+  "capturedAt": "2026-04-11",
+  "source": "sub-task 5.3 scratch capture, neutralised metaFit-dominated corpus, see test file for details"
+}
