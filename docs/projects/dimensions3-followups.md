@@ -177,3 +177,39 @@ message + the relevant max_tokens value + the truncating field, or
 gets its own commit. Each commit is green before the next starts.
 
 ---
+
+## FU-6 — WIRING.yaml dangling refs + orphan in committed main
+**Surfaced:** Phase 1.7 saveme verification (11 Apr 2026)
+**Target phase:** Any future WIRING touch
+**Priority:** P3 (dashboard hygiene, no functional impact)
+
+**Symptom:** `python3 scripts/check-wiring-health.py` against a clean tree
+reports:
+- 2 dangling refs:
+  - `generation-pipeline → feedback-system`
+  - `admin-dashboard → feedback-system`
+- 1 orphan: `Automation (CI/CD & Monitoring)`
+
+**What we know:**
+- Diagnosed via `git stash && python3 scripts/check-wiring-health.py` —
+  with the working tree stashed, the count drops from 7 dangling + 1
+  orphan to 2 dangling + 1 orphan, proving these 2+1 are baked into
+  committed main, not caused by current saveme work.
+- The other 5 dangling refs in the dirty-tree run came from
+  working-tree-dirty docs (other in-progress sessions).
+- Pre-existing drift, not a Phase 1.7 regression.
+
+**Investigation steps:**
+1. Decide whether `feedback-system` should exist as a top-level system in
+   WIRING.yaml (currently referenced but not defined). Either add the
+   entry or remove the references from `generation-pipeline` and
+   `admin-dashboard`.
+2. Decide whether `Automation (CI/CD & Monitoring)` should have at least
+   one inbound dependency, or whether it's intentionally an orphan (in
+   which case suppress the warning).
+
+**Definition of done:** `python3 scripts/check-wiring-health.py` returns
+zero dangling refs + zero unintentional orphans against a clean working
+tree.
+
+---
