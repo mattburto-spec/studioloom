@@ -281,6 +281,7 @@ export interface FilledActivity {
   ai_rules?: AIRules | null;
   udl_checkpoints?: string[];
   success_look_fors?: string[];
+  criterion_tags?: string[];
   output_type?: string;
   prerequisite_tags?: string[];
   adaptations?: ActivityAdaptation[];

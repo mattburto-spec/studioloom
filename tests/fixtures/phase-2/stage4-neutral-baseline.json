@@ -1,0 +1,89 @@
+{
+  "request": {
+    "topic": "Designing a community garden",
+    "lessons": 2,
+    "ageGroup": "13-14",
+    "format": "design"
+  },
+  "lessons": [
+    {
+      "position": 1,
+      "label": "Lesson 1",
+      "description": "Investigate user needs",
+      "learningGoal": "Students gather research about community garden users",
+      "activities": [
+        {
+          "id": "act-1-0",
+          "title": "User interviews",
+          "prompt": "Interview 3 community members about garden needs",
+          "bloom_level": "understand",
+          "time_weight": "medium",
+          "grouping": "pair",
+          "phase": "investigate",
+          "activity_category": "research",
+          "lesson_structure_role": "main",
+          "response_type": "text",
+          "materials_needed": ["notebook"],
+          "criterion_tags": ["researching"]
+        },
+        {
+          "id": "act-1-1",
+          "title": "Pattern mapping",
+          "prompt": "Group themes from your interviews",
+          "bloom_level": "analyse",
+          "time_weight": "medium",
+          "grouping": "individual",
+          "phase": "investigate",
+          "activity_category": "analysis",
+          "lesson_structure_role": "main",
+          "response_type": "text",
+          "materials_needed": ["sticky notes"],
+          "criterion_tags": ["analysing"]
+        }
+      ]
+    },
+    {
+      "position": 2,
+      "label": "Lesson 2",
+      "description": "Generate solutions",
+      "learningGoal": "Students sketch garden layout proposals",
+      "activities": [
+        {
+          "id": "act-2-0",
+          "title": "Concept sketching",
+          "prompt": "Sketch 3 garden layout ideas",
+          "bloom_level": "create",
+          "time_weight": "long",
+          "grouping": "individual",
+          "phase": "ideate",
+          "activity_category": "design",
+          "lesson_structure_role": "main",
+          "response_type": "drawing",
+          "materials_needed": ["paper", "pencils"],
+          "criterion_tags": ["designing"]
+        },
+        {
+          "id": "act-2-1",
+          "title": "Peer feedback",
+          "prompt": "Share sketches and gather peer reactions",
+          "bloom_level": "evaluate",
+          "time_weight": "short",
+          "grouping": "small_group",
+          "phase": "evaluate",
+          "activity_category": "review",
+          "lesson_structure_role": "closing",
+          "response_type": "text",
+          "materials_needed": [],
+          "criterion_tags": ["evaluating", "communicating"]
+        }
+      ]
+    }
+  ],
+  "generationMetrics": {
+    "gapsFilled": 0,
+    "totalTokensUsed": 0,
+    "totalCost": { "inputTokens": 0, "outputTokens": 0, "modelId": "fixture", "estimatedCostUSD": 0, "timeMs": 0 },
+    "generationTimeMs": 0,
+    "perGapMetrics": []
+  }
+}

@@ -17,6 +17,7 @@ import type {
   BlockInteraction,
 } from "@/types/activity-blocks";
 import type { FormatProfile } from "@/lib/ai/unit-types";
+import { validateNeutralContent, NeutralValidationError } from "./stage4-neutral-validator";
 
 // ─── Types ───
 
@@ -78,6 +79,22 @@ Also provide:
    - "increase" (early lessons, first time students encounter a skill)
    - "maintain" (middle lessons)
    - "reduce" (later lessons, students are more independent)
+
+## Framework-Neutral Vocabulary (HARD CONSTRAINT)
+Your output must NOT contain any framework-specific vocabulary.
+Do NOT use any of the following tokens anywhere in transitions,
+cross-references, or descriptions:
+- "Criterion A", "Criterion B", "Criterion C", "Criterion D"
+- "AO1", "AO2", "AO3", "AO4"
+- "MYP"
+- "GCSE"
+
+If you need to reference an assessment dimension, use the neutral
+vocabulary: researching, analysing, designing, creating,
+evaluating, reflecting, communicating, or planning.
+
+The output is post-validated and the entire pipeline will fail
+loudly if any forbidden token appears.
 
 Respond with JSON:
 {
@@ -144,6 +161,8 @@ export async function stage4_polish(
           jsonText = jsonText.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
         }
         polishResult = JSON.parse(jsonText) as AIPolishResult;
+        // Phase 2 sub-task 5.2 — fail-loud neutral content enforcement
+        validateNeutralContent(jsonText);
       }
 
       aiCost = {
@@ -155,6 +174,7 @@ export async function stage4_polish(
       };
     }
   } catch (e) {
+    if (e instanceof NeutralValidationError) throw e;
     console.error("[stage4] AI polish failed, using algorithmic fallback:", e);
   }
 
@@ -289,10 +309,13 @@ async function polishInChunks(
           jsonText = jsonText.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "");
         }
         const chunkResult = JSON.parse(jsonText) as AIPolishResult;
+        // Phase 2 sub-task 5.2 — fail-loud neutral content enforcement
+        validateNeutralContent(jsonText);
         if (chunkResult.activities) allActivities.push(...chunkResult.activities);
         if (chunkResult.interactionMap) allInteractions.push(...chunkResult.interactionMap);
       }
     } catch (e) {
+      if (e instanceof NeutralValidationError) throw e;
       console.error(`[stage4] Chunk ${i}-${i + chunkSize} failed:`, e);
     }
   }
