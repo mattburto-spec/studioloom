@@ -66,14 +66,18 @@ export default function ImportPage() {
     setResult(null);
 
     try {
-      const res = await fetch("/api/teacher/knowledge/import", {
+      // NOTE (Phase 1.6, 11 Apr 2026): no real reconstruction endpoint exists yet.
+      // The previous /api/teacher/knowledge/import was a 501 placeholder stub and
+      // has been deleted. This page will surface a 404 here until the
+      // reconstruction endpoint is wired. Awaiting product decision.
+      const res = await fetch("/api/teacher/library/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ rawText, copyrightFlag: copyright }),
       });
 
       if (!res.ok) {
-        const data = await res.json();
+        const data = await res.json().catch(() => ({}));
         throw new Error(data.error || "Import failed");
       }
 

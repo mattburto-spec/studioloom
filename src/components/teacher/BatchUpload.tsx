@@ -381,8 +381,8 @@ export default function BatchUpload({
         <p className="text-sm text-amber-900 font-semibold">Migrated to new ingestion</p>
         <p className="text-sm text-amber-800 mt-1">
           The legacy knowledge upload pipeline is quarantined. Use the new Dimensions3 pipeline via{" "}
-          <a href="/teacher/knowledge/review" className="underline font-medium">
-            /teacher/knowledge/review
+          <a href="/teacher/library/review" className="underline font-medium">
+            /teacher/library/review
           </a>
           . Uploads submitted from this component will fail with HTTP 410.
         </p>

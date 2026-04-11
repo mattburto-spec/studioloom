@@ -36,7 +36,7 @@ export default function ReviewQueuePage() {
     setUploadResult(null);
 
     try {
-      const res = await fetch("/api/teacher/knowledge/ingest", {
+      const res = await fetch("/api/teacher/library/ingest", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

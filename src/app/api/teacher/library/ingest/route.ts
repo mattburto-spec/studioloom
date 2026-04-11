@@ -1,9 +1,12 @@
 /**
- * POST /api/teacher/knowledge/ingest
+ * POST /api/teacher/library/ingest
  *
  * Runs the Dimensions3 ingestion pipeline on uploaded text.
  * Accepts raw text (from client-side PDF/DOCX extraction) + copyright flag.
  * Returns full pipeline result including extracted blocks for review.
+ *
+ * Relocated from /api/teacher/knowledge/ingest in Phase 1.6 (11 Apr 2026)
+ * as part of the old knowledge namespace teardown.
  */
 
 import { NextRequest, NextResponse } from "next/server";

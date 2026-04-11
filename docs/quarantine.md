@@ -1,7 +1,47 @@
 # Quarantine Register
 
-**Date:** 3 April 2026
+**Date:** 3 April 2026 (original) · **Updated:** 11 April 2026 (Phase 1.6 disconnect)
 **Status:** QUARANTINED — all entry points sealed
+
+---
+
+## Phase 1.6 update — 11 April 2026
+
+Phase 1.6 of the Dimensions3 Completion Project completed the old knowledge UI
+disconnect that was claimed (incorrectly) on 3 April. Three things to know:
+
+1. **The 3 April entry was wrong about the nav link.** The 3 Apr quarantine
+   register said the "Knowledge" nav link in `src/app/teacher/layout.tsx:43`
+   was commented out. It wasn't — the entry was either never applied or was
+   re-added. The nav link was *actually* disconnected on **11 Apr 2026** as
+   part of Phase 1.6, by replacing the entry with a "Library" link pointing
+   at `/teacher/library`.
+
+2. **Old `/teacher/knowledge/*` directory is DELETED, not quarantined.** The
+   directory `src/app/teacher/knowledge/` (containing the old dashboard
+   `page.tsx`, plus the new Dimensions3 `review/` and `import/` pages that
+   had been added under the old URL prefix) has been removed entirely. The
+   two new pages were relocated:
+   - `src/app/teacher/knowledge/review/page.tsx` → `src/app/teacher/library/review/page.tsx`
+   - `src/app/teacher/knowledge/import/page.tsx`  → `src/app/teacher/library/import/page.tsx`
+   - new landing page at `src/app/teacher/library/page.tsx`
+
+3. **`/api/teacher/knowledge/ingest` was relocated, `/api/teacher/knowledge/import` was deleted.**
+   - `src/app/api/teacher/knowledge/ingest/route.ts` (a real Dimensions3 route,
+     never a 410 tombstone) was moved to `src/app/api/teacher/library/ingest/route.ts`.
+     The new `library/review` page calls the new path.
+   - `src/app/api/teacher/knowledge/import/route.ts` was a 501 placeholder stub
+     and has been deleted entirely. **No real reconstruction endpoint exists**
+     yet — the moved `library/import/page.tsx` calls
+     `/api/teacher/library/import` which currently 404s. This is a known
+     blocker for the import flow, awaiting product decision (see
+     Phase 1.6 checkpoint report).
+
+The 15 API routes in the table below that return 410 Gone are unchanged —
+they remain as harmless tombstones. Deleting them risks breaking any cached
+client that still hits them in dev.
+
+---
 **Reason:** Both the knowledge pipeline and unit generation pipeline are being rebuilt from scratch per Dimensions2 spec (`docs/projects/dimensions2.md`). The existing ingestion pipeline (upload → 3-pass analysis → chunking → embedding) will be replaced by the Activity Block Library (Pillar 1). The existing generation pipeline (wizard → AI generation → structured output) will be replaced by Block-Aware Generation (Pillar 2). Keeping the old pipelines active during the rebuild risks contaminating the new architecture.
 
 ---
@@ -16,8 +56,8 @@ The entire Knowledge Base feature: upload UI, ingestion pipeline, analysis pipel
 
 | # | File | What was disabled | How |
 |---|------|-------------------|-----|
-| 1 | `src/app/teacher/layout.tsx` line 43 | "Knowledge" nav link | Commented out from NAV_ITEMS array |
-| 2 | `src/app/teacher/knowledge/page.tsx` | Entire knowledge library page | Nav link removed; page still exists but unreachable via UI. All API calls it makes return 410. |
+| 1 | `src/app/teacher/layout.tsx` line 43 | "Knowledge" nav link | **3 Apr entry was incorrect — link was not actually removed then.** Replaced with "Library" link → `/teacher/library` on **11 Apr 2026** (Phase 1.6). |
+| 2 | `src/app/teacher/knowledge/page.tsx` | Entire knowledge library page | **DELETED 11 Apr 2026** — whole `src/app/teacher/knowledge/` directory removed (Phase 1.6). |
 
 ### Layer 2: Ingestion Pipeline
 
@@ -40,7 +80,7 @@ with HTTP status 410 Gone.
 | # | Route file | Handlers blocked |
 |---|-----------|-----------------|
 | 8 | `upload/route.ts` | POST, GET, DELETE |
-| 9 | `ingest/route.ts` | POST |
+| 9 | ~~`ingest/route.ts`~~ | **MOVED 11 Apr 2026** to `src/app/api/teacher/library/ingest/route.ts` — never was a 410 tombstone, this row was always wrong. |
 | 10 | `reanalyse/route.ts` | POST |
 | 11 | `items/route.ts` | GET, POST |
 | 12 | `items/[id]/route.ts` | GET, PUT, DELETE |
