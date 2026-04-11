@@ -150,6 +150,29 @@ Migration 067 (Phase 1.5, content moderation) added `moderation_status` with `AD
 
 This was repaired in prod via migration 069 (idempotent grandfather safety net, no `IS NULL` predicate, re-runnable). Migration 067 in the repo is also corrected so fresh-database applies produce the right state end-to-end.
 
+### 39. Silent max_tokens truncation in Anthropic tool_use calls drops required fields without throwing
+Phase 1.7 Checkpoint 1.2 first-ever live run of `runIngestionPipeline()` against a real teacher DOCX (`mburton packaging redesign unit.docx`, 50 sections, 23,823 chars) crashed at `pass-b.ts:102` with `TypeError: Cannot read properties of undefined (reading 'map')`. Root cause was upstream in `pass-a.ts`: the Pass A Anthropic call was configured with `max_tokens: 2000`, the model produced a tool_use response that hit the cap exactly (`output_tokens: 2000`, `stop_reason: "max_tokens"`), and the JSON serialization of the tool_use input was truncated mid-`sections`-array. The Anthropic SDK does NOT throw on `max_tokens` — it returns the partial tool_use block with `sections` simply absent. Pass A then destructured `result.sections` into the return value as `undefined`, which propagated through the typed pipeline (TS thinks it's `IngestionSection[]`, runtime says undefined) and exploded in Pass B's `.map()`.
+
+**Why the bug was invisible:**
+- TypeScript types lied — the destructure assigned `result.sections: IngestionSection[]` from `unknown`. The compiler had no way to know the field was missing.
+- No defensive `?? []` fallback on a required field.
+- The `stop_reason` field on the response was never inspected. `max_tokens` is not an error from the SDK's perspective; it's a normal completion reason.
+- 613 unit tests passed because all unit tests use sandbox mode (deterministic in-memory simulation). The crash is only reachable via the live API path against documents large enough to exceed the cap.
+
+**Rules:**
+- **Every Anthropic tool_use call site must inspect `response.stop_reason` immediately after the await and throw a loud, site-specific error if it equals `"max_tokens"`.** The error message must name the file, the configured `max_tokens`, the actual `output_tokens`, and the tool name. Silent truncation is the failure mode; the throw is the only way to convert it into something a developer or test can see.
+- **Defensive `?? []` (or `?? {}`) on every required field destructured from a tool_use input**, even when the tool schema marks the field as `required`. The schema is enforced by the model's training, not by the SDK; truncation can drop fields the schema marked required.
+- **`max_tokens` budget must be sized against the worst-case schema × worst-case input, not the average case.** A per-section schema multiplied by 50 sections needs an order of magnitude more tokens than the same schema for 5 sections. Calculate the upper bound once at the call site, leave a comment with the math, and prefer over-allocation to truncation — unused tokens are free, truncated outputs are crashes.
+- **Sandbox-only test suites do not exercise live API failure modes.** Any pipeline that has a sandbox bypass needs at least one gated live integration test (`RUN_E2E=1`) against a representative real document, or live failures will only surface in production.
+
+The Phase 1.7 fix was three surgical changes to `src/lib/ingestion/pass-a.ts`: bumped `max_tokens` 2000 → 8000, added a `stop_reason === "max_tokens"` guard immediately after the create call, and added `result.sections ?? []` as a last-line fallback.
+
+**The same bug bit twice in the same phase.** After fixing Pass A, the very next live run of the pipeline against the same packaging DOCX crashed at `extract.ts:84` — `analysis.enrichedSections is not iterable`. Root cause: `pass-b.ts:182` had the identical anti-pattern (max_tokens=4000, no stop_reason guard, no defensive `?? []`), and with 50 sections of per-section enrichment the tool_use response truncated the exact same way Pass A's had. The systemic audit filed moments earlier had already flagged `pass-b.ts:182` as the #1 HIGH-risk site. We predicted it, documented it, and still got bitten because we fixed one site and ran the capture before extending the fix.
+
+**New rule from this double-hit:** **When you fix a stop_reason/defensive-destructure bug at one AI call site, audit and fix ALL sites with the same shape in the same phase, don't wait for the follow-up.** The audit is the diagnosis; leaving the audited sites unfixed while running the very scenario that tripped the bug is asking to get re-tripped. Follow-up tickets are for sites outside the immediate phase's critical path; sites on the phase's critical path get fixed in the same commit as the original.
+
+Phase 1.7 ended up fixing both Pass A (`pass-a.ts`: 2000→8000, guard, `?? []`) and Pass B (`pass-b.ts`: 4000→16000, guard, `?? []`) in the same commit. FU-5 in `docs/projects/dimensions3-followups.md` retains the remaining 8 sites outside the ingestion pipeline critical path for follow-up.
+
 ---
 
-*Last updated: 10 Apr 2026*
+*Last updated: 11 Apr 2026*

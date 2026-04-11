@@ -183,11 +183,19 @@ async function runPassB(
     model: modelId,
     system: "You are an expert educational content analyst specialising in curriculum design, Bloom's taxonomy, Universal Design for Learning, and activity classification. Analyse each section thoroughly.",
     messages: [{ role: "user", content: prompt }],
-    max_tokens: 4000,
+    max_tokens: 16000,
     temperature: 0.2,
     tools: [ENRICHMENT_TOOL],
     tool_choice: { type: "tool", name: "enrich_sections" },
   });
+
+  if (response.stop_reason === "max_tokens") {
+    throw new Error(
+      `[Pass B] Anthropic call hit max_tokens=16000 (output_tokens=${response.usage?.output_tokens}, input_tokens=${response.usage?.input_tokens}, sections=${input.sections.length}). ` +
+        `Tool: enrich_sections. The per-section enrichment schema is too large for this document — increase max_tokens, chunk the sections, or shrink the schema. ` +
+        `See Lesson #39: silent tool_use truncation drops required fields.`
+    );
+  }
 
   const toolBlock = response.content.find((b) => b.type === "tool_use");
   if (!toolBlock || toolBlock.type !== "tool_use") {
@@ -210,7 +218,7 @@ async function runPassB(
 
   return {
     classification: input,
-    enrichedSections: result.enrichedSections,
+    enrichedSections: result.enrichedSections ?? [],
     cost,
   };
 }

@@ -203,11 +203,19 @@ async function runPassA(
     model: modelId,
     system: "You are an expert educational document analyst. Classify documents accurately and identify section types.",
     messages: [{ role: "user", content: prompt }],
-    max_tokens: 2000,
+    max_tokens: 8000,
     temperature: 0.2,
     tools: [CLASSIFICATION_TOOL],
     tool_choice: { type: "tool", name: "classify_document" },
   });
+
+  if (response.stop_reason === "max_tokens") {
+    throw new Error(
+      `[Pass A] Anthropic call hit max_tokens=8000 (output_tokens=${response.usage?.output_tokens}, input_tokens=${response.usage?.input_tokens}). ` +
+        `Tool: classify_document. The per-section schema is too large for this document — increase max_tokens or shrink the schema. ` +
+        `See Lesson #39: silent tool_use truncation drops required fields.`
+    );
+  }
 
   const toolBlock = response.content.find((b) => b.type === "tool_use");
   if (!toolBlock || toolBlock.type !== "tool_use") {
@@ -252,7 +260,7 @@ async function runPassA(
     detectedSubject: result.detectedSubject,
     detectedStrand: result.detectedStrand,
     detectedLevel: result.detectedLevel,
-    sections: result.sections,
+    sections: result.sections ?? [],
     cost,
   };
 }
