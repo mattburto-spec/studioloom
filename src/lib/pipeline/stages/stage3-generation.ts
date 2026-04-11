@@ -19,6 +19,7 @@ import type {
   AIRules,
 } from "@/types/activity-blocks";
 import type { FormatProfile } from "@/lib/ai/unit-types";
+import { assertNotMaxTokens, MaxTokensError } from "./max-tokens-guard";
 
 // ─── Types ───
 
@@ -200,6 +201,10 @@ export async function stage3_fillGaps(
             temperature: 0.7,
           });
 
+          // Lesson #39 — fail loud on max_tokens truncation before JSON.parse
+          // can die with a cryptic "Unexpected end of JSON input".
+          assertNotMaxTokens(response, "stage3_fillGaps", 2048);
+
           const textBlock = response.content.find(b => b.type === "text");
           if (!textBlock || textBlock.type !== "text") {
             throw new Error("No text response");
@@ -230,6 +235,10 @@ export async function stage3_fillGaps(
 
           return { key, activity, metric };
         } catch (e) {
+          // Lesson #39 — max_tokens truncation is a loud, fail-fast condition;
+          // re-throw so Promise.allSettled surfaces it as a rejection instead
+          // of silently falling back to a generic gap activity.
+          if (e instanceof MaxTokensError) throw e;
           console.error(`[stage3] Gap fill failed for ${key}:`, e);
           // Fallback: create a basic activity from the gap context
           const ctx = task.slot.gapContext || {};
@@ -262,6 +271,8 @@ export async function stage3_fillGaps(
     );
 
     for (const result of batchResults) {
+      // Lesson #39 — don't let Promise.allSettled swallow a MaxTokensError.
+      if (result.status === "rejected" && result.reason instanceof MaxTokensError) throw result.reason;
       if (result.status === "fulfilled") {
         gapResults.set(result.value.key, {
           activity: result.value.activity,
