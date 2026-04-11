@@ -19,6 +19,7 @@ import type {
   RetrievedBlock,
 } from "@/types/activity-blocks";
 import type { FormatProfile } from "@/lib/ai/unit-types";
+import { assertNotMaxTokens, MaxTokensError } from "./max-tokens-guard";
 
 // ─── Types ───
 
@@ -189,6 +190,10 @@ export async function stage2_assembleSequence(
       temperature: 0.3,
     });
 
+    // Lesson #39 — fail loud on max_tokens truncation before JSON.parse
+    // can die with a cryptic "Unexpected end of JSON input".
+    assertNotMaxTokens(response, "stage2_assembleSequence", 4096);
+
     const textBlock = response.content.find(b => b.type === "text");
     if (!textBlock || textBlock.type !== "text") {
       throw new Error("No text response from assembly AI");
@@ -292,6 +297,9 @@ export async function stage2_assembleSequence(
       },
     };
   } catch (e) {
+    // Lesson #39 — max_tokens truncation is a loud, fail-fast condition;
+    // do NOT fall back to algorithmic assembly (which would hide the bug).
+    if (e instanceof MaxTokensError) throw e;
     console.error("[stage2] AI assembly failed, falling back to algorithmic:", e);
     return buildAlgorithmicSequence(request, profile, candidates, startMs);
   }
