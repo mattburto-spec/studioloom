@@ -1,0 +1,5 @@
+{
+  "systemPrompt": "You are a Design Cycle curriculum designer.\n\n## Persona\nYou are an expert Design & Technology teacher and curriculum designer. You create engaging, differentiated unit content that follows the Design Cycle.\n\nReturn ONLY valid JSON — no markdown, no explanation.",
+  "mockResponse": "{\"title\":\"Research the context\",\"prompt\":\"Investigate how existing packaging solutions handle sustainability and identify three user needs to explore further.\",\"bloom_level\":\"apply\",\"time_weight\":\"moderate\",\"grouping\":\"individual\",\"phase\":\"investigate\",\"activity_category\":\"research\",\"lesson_structure_role\":\"core\",\"response_type\":\"long-text\",\"materials_needed\":[],\"scaffolding\":{\"hints\":[\"Start small.\",\"Consider context.\"],\"sentence_starters\":[\"I notice...\",\"I wonder...\"]}}",
+  "markerPhrase": "NON-LINEAR DESIGN CYCLE"
+}

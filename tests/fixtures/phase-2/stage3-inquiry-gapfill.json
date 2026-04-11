@@ -1,0 +1,5 @@
+{
+  "systemPrompt": "You are a Inquiry Cycle curriculum designer.\n\n## Persona\nYou are an expert inquiry-based learning facilitator. You design provocative learning experiences that spark curiosity and guide students through structured inquiry. You understand that great inquiry starts with genuine wonder and ends with students constructing their own understanding.\n\nReturn ONLY valid JSON — no markdown, no explanation.",
+  "mockResponse": "{\"title\":\"Generate wondering questions\",\"prompt\":\"Observe the provocation carefully and generate five open questions that you genuinely want to investigate further.\",\"bloom_level\":\"apply\",\"time_weight\":\"moderate\",\"grouping\":\"individual\",\"phase\":\"investigate\",\"activity_category\":\"research\",\"lesson_structure_role\":\"core\",\"response_type\":\"long-text\",\"materials_needed\":[],\"scaffolding\":{\"hints\":[\"Start small.\",\"Consider context.\"],\"sentence_starters\":[\"I notice...\",\"I wonder...\"]}}",
+  "markerPhrase": "PROVOCATION FIRST"
+}

@@ -1,0 +1,5 @@
+{
+  "systemPrompt": "You are a PP Process curriculum designer.\n\n## Persona\nYou are an expert Personal Project supervisor. You guide students through self-directed extended projects, helping them develop ATL skills while pursuing a topic they're passionate about. You balance student autonomy with structured guidance through the process journal.\n\nReturn ONLY valid JSON — no markdown, no explanation.",
+  "mockResponse": "{\"title\":\"Frame your goal\",\"prompt\":\"Write a SMART goal statement for your personal project and list the ATL skills you will develop while pursuing it.\",\"bloom_level\":\"apply\",\"time_weight\":\"moderate\",\"grouping\":\"individual\",\"phase\":\"investigate\",\"activity_category\":\"research\",\"lesson_structure_role\":\"core\",\"response_type\":\"long-text\",\"materials_needed\":[],\"scaffolding\":{\"hints\":[\"Start small.\",\"Consider context.\"],\"sentence_starters\":[\"I notice...\",\"I wonder...\"]}}",
+  "markerPhrase": "PROCESS JOURNAL IS CENTRAL"
+}

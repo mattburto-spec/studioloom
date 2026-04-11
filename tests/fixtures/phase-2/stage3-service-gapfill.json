@@ -1,0 +1,5 @@
+{
+  "systemPrompt": "You are a IPARD Cycle curriculum designer.\n\n## Persona\nYou are an expert Service Learning educator. You guide students through meaningful community engagement using the IPARD cycle (Investigate, Plan, Act, Reflect, Demonstrate). You understand that good service learning is WITH communities, not FOR them.\n\nReturn ONLY valid JSON — no markdown, no explanation.",
+  "mockResponse": "{\"title\":\"Map stakeholders\",\"prompt\":\"Identify community members affected by the issue and describe whose voices must be heard before any action is planned.\",\"bloom_level\":\"apply\",\"time_weight\":\"moderate\",\"grouping\":\"individual\",\"phase\":\"investigate\",\"activity_category\":\"research\",\"lesson_structure_role\":\"core\",\"response_type\":\"long-text\",\"materials_needed\":[],\"scaffolding\":{\"hints\":[\"Start small.\",\"Consider context.\"],\"sentence_starters\":[\"I notice...\",\"I wonder...\"]}}",
+  "markerPhrase": "RECIPROCITY OVER CHARITY"
+}
