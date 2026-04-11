@@ -59,6 +59,26 @@ Listed because they apply directly to Phase 2 work shape:
 
 ---
 
+## Pipeline 2 Forward-Compat Seam Review
+
+A parallel session raised forward-compat items for the future Student Work Pipeline (Pipeline 2). Source verification against the actual repo (registry.ts, ingestion/types.ts, generation-log.ts, migrations 060/061, studentwork.md §4 + §9) showed the two pipelines should stay structurally separate — different inputs, outputs, consumers, and risk profiles. studentwork.md §4 already commits to separate `work_items` / `work_versions` / `work_assets` tables.
+
+**What's worth sharing (and already is — these are seams, not services):**
+- `IngestionPass<TInput, TOutput>` generic interface in `src/lib/ingestion/types.ts` — Pipeline 2 can register `IngestionPass<WorkAsset, EnhancedAsset>` with zero refactor.
+- `PassConfig.supabaseClient` is structurally typed (`{ from: (table: string) => any }`) — OS Seam 1, content-agnostic.
+- File-hash dedup uses SHA-256 of file bytes — content-agnostic.
+- `success_look_fors TEXT[]` on activity_blocks (migration 060) is plain strings, not UUIDs — Pipeline 2 vision feedback prompts can consume this directly.
+- `CostBreakdown` shape and stateless job-handler pattern.
+
+**What we're explicitly NOT sharing:**
+- No polymorphic runs table — Pipeline 2 gets its own.
+- No `pipeline_id` discriminator on `generation_runs` — YAGNI given separate tables. Cross-pipeline cost reports can UNION at query time.
+- No shared moderation contract until Phase 7 (Content Safety) forces the question.
+
+**Regression locks:** sub-task 5.1.5 adds 3 cheap guard tests so future refactors can't silently narrow the generic seams above. These aren't aspirational — they pin behaviour that already exists.
+
+---
+
 ## 5. Sub-task plan (one commit per item, with tests)
 
 Maps to spec §4.1 → §4.10 **with audit-driven adjustments (11 Apr 2026)**. The Phase 1 foundation audit found that several FormatProfile extension points are already wired in stages 1, 2, 5, and 6 — those sub-tasks become "verify-only" or "complete the partial wiring" instead of "wire from scratch". The audit also surfaced 4 unguarded `max_tokens` sites in `src/lib/pipeline/stages/` that FU-5 missed; per the fold-into-Phase-2 decision they become a new sub-task 5.2.5.
@@ -70,6 +90,7 @@ Each item gets its own pre-task audit, its own commit, and its own test assertio
 | # | Item | Commit hint | Tests | Truth-capture fixture | Audit notes |
 |---|---|---|---|---|---|
 | 5.1 | Confirm pipeline has no Stage 5b + permanent guard test | `chore: confirm orchestrator runs stages 0–6, no 5b + add guard test` | (1) grep + orchestrator inspection. (2) **NEW: permanent guard test** in `tests/pipeline/orchestrator-shape.test.ts` asserting `stage5b` / `5b` does not appear in orchestrator import list or stage array. | n/a (structural) | ✅ Already verified by Phase 1 audit. Adds the regression-prevention test so 5b can never silently come back. |
+| **5.1.5** | **Pipeline 2 forward-compat seam guard tests** | `test(pipeline): pipeline-2 forward-compat seam guards` | **3 tests** in `tests/pipeline/pipeline-2-seam-guards.test.ts` — see detail block below §5 for full spec. (1) `IngestionPass<TInput, TOutput>` generic survives in `types.ts`. (2) `PassConfig.supabaseClient` stays structurally typed. (3) migration 060 keeps `success_look_fors TEXT[]` as plain strings. | n/a (source grep) | Regression locks for Pipeline 2 seams that already exist on `main`. No schema change, no app code change. Detail block below the §5 table. |
 | 5.2 | Stage 4 neutral-content enforcement (prompt + **fail-loud validator** + criterion_tags) | `feat(pipeline): stage 4 enforces framework-neutral output` | **7 tests** in `stage4-polish.test.ts`: (1)–(4) validator throws on each forbidden token separately — `Criterion [A-D]`, `AO[1-4]`, `MYP`, `GCSE`. (5) validator passes neutral output (captured fixture). (6) `criterion_tags` output schema present + well-formed (8 neutral keys, none empty for assessment-tagged blocks). (7) **integration test** — validator actually runs inside `stage4-polish.ts` not just standalone (mock the AI call to return forbidden token, assert stage throws). | `tests/fixtures/phase-2/stage4-neutral-baseline.json` | Validator **fails loud** per locked decision. Riskiest single change in the phase — gets the most tests. |
 | **5.2.5** | **`max_tokens` `stop_reason` guards on the 4 pipeline-stage text-response JSON.parse sites** + meta-test | 4 separate commits — `fix(pipeline): stop_reason guard on stage2/3/4 max_tokens sites` + 1 meta-test commit | Each commit ships with a test that captures the current `max_tokens` value as a constant + asserts the guard throws an informative error when `stop_reason==="max_tokens"` (mock the Anthropic response with truncated text). **5th commit** adds a meta-test in `tests/pipeline/max-tokens-coverage.test.ts` that greps `src/lib/pipeline/stages/` for `client.messages.create` and asserts every match is paired with a `stop_reason` check within the same function. | n/a (mocks) | **CORRECTED at pre-flight:** these are TEXT-RESPONSE sites (`response.content.find(b => b.type === "text")` → `JSON.parse`), NOT `tool_use` sites. Failure mode is LOUD (`JSON.parse` throws "Unexpected end of JSON input") not silent — see corrected FU-5 addendum. Still worth fixing because: (1) error message becomes informative instead of cryptic, (2) max_tokens values are tight (2048 in particular) and Phase 2 adds prompt complexity via 5.5/5.6 that may push them over. Sites: `stage2-assembly.ts:188 (4096)`, `stage3-generation.ts:199 (2048)`, `stage4-polish.ts:136 (4096)`, `stage4-polish.ts:281 (2048)`. Lands BEFORE 5.5 + 5.6. |
 | 5.3 | Stage 1 (Retrieve) FormatProfile **verify + lock** (`blockRelevance.boost/suppress`) | `chore(pipeline): verify + lock stage 1 blockRelevance for all 4 profiles` | **4 tests** in `stage1-retrieval.test.ts` — one per profile (Design, Service, PP, Inquiry). Each asserts the top-5 retrieved blocks for a fixed query against a captured fixture. Tests must produce **4 distinct top-5 lists** — if any two are identical, blockRelevance isn't actually steering retrieval. | `tests/fixtures/phase-2/stage1-{design,service,pp,inquiry}-top5.json` | Already wired at `stage1-retrieval.ts:60-61` with magnitude `+1 / -0.5`. Decision at sub-task time: lock the magnitude that's intentional, fix if stale. |
@@ -92,6 +113,40 @@ Each item gets its own pre-task audit, its own commit, and its own test assertio
 - **Expands:** 5.2 (3→7 tests), 5.2.5 (NEW — 5 commits incl meta-test), 5.3 (1→4 tests), 5.4 (1→5), 5.5 (1→6), 5.6 (1→4), 5.7 (1→5), 5.8 (regression test instead of delete), 5.9 (64-cell adapter suite), 5.10 (3 component tests + 5 string decisions), 5.11 (+smoke test), 5.13 (+regression test), **5.14a NEW** (mocked-AI integration), **5.14 changed** (script → gated vitest E2E)
 - **Total new test count:** ~50 new tests across the phase (vs ~12 in original draft)
 - **Estimate:** Originally 4–5 days. Revised: **5–7 days realistic** with the truth-capture discipline. The extra time buys robust regression coverage that lets future phases build on Phase 2 confidently.
+
+### Sub-task 5.1.5 — Pipeline 2 forward-compat seam guard tests
+
+**Goal:** Lock in the 3 already-satisfied seams that Pipeline 2 will depend on, so a future Pipeline 1 refactor can't silently narrow them. Pure regression tests against existing source — no schema change, no app code change.
+
+**Files:**
+- NEW: `/questerra/tests/pipeline/pipeline-2-seam-guards.test.ts`
+
+**Tests:**
+
+1. `IngestionPass` interface remains generic
+   - Read `/questerra/src/lib/ingestion/types.ts` as text
+   - Assert source contains `IngestionPass<TInput, TOutput>` (or the exact generic signature with both type params)
+   - Failure means someone removed generics — Pipeline 2 would have to fork the interface
+
+2. `PassConfig.supabaseClient` stays structurally typed
+   - Read `/questerra/src/lib/ingestion/types.ts` as text
+   - Assert `PassConfig` contains `from: (table: string) => any` (or equivalent structural shape) AND does NOT import the full `SupabaseClient` type from `@supabase/supabase-js` for this field
+   - Failure means we narrowed to the concrete client and broke OS Seam 1
+
+3. `success_look_fors` migration column stays `TEXT[]`
+   - Read `/questerra/supabase/migrations/060_activity_blocks.sql` as text
+   - Assert source contains `success_look_fors TEXT[]`
+   - Failure means someone changed it to `UUID[]` or a foreign-key ref, which would break Pipeline 2 vision feedback prompts
+
+**Acceptance:**
+- All 3 tests pass on current `main`
+- Negative-control verification: temporarily break each assertion (e.g. rename `TInput` → `T` in source), confirm test fails with a clear error, revert
+- vitest count moves up by 3 (run before/after to confirm)
+
+**Out of scope:**
+- No schema migrations
+- No app code changes
+- No new `pipeline_id` column on `generation_runs` (deferred — YAGNI per seam review)
 
 ---
 
