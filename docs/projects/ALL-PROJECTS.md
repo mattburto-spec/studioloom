@@ -222,7 +222,7 @@
 | **Multi-Language / i18n** | Platform | Next.js i18n. Per-class language settings. 10-15 days. Post-revenue. Doc: [i18n.md](i18n.md) |
 | **VEX Robotics / Engineering Layer** | Expansion | CurriculumProfile for engineering. Toggle on/off per class. |
 | **Hardware Packs for Schools** | Business | Partner with suppliers, include materials lists in units. Revisit with traction. |
-| **Makloom (Consumer Version)** | Expansion | Sister project. 60-70% code reusable. No teacher/class structure. Self-directed. |
+| **Makloom (Consumer Version)** | Expansion | Sister project (makloom.com). 60-70% code reusable from StudioLoom. No teacher/class structure — self-directed learner experience. Could offer curated resource kits (physical materials) paired with free instructional content. **Inspiration: Craft Club Co** (craftclubco.com) — sell physical kits, include QR code in box linking to free detailed instructional videos (closeup hands-on footage). Good model for public individuals learning design/making skills. Explore: could Makloom partner with suppliers for kits, or curate third-party resources alongside AI-guided project journeys? |
 | **Teacher↔Student Messaging** | Communication | 1:1 + class group messaging. Thread on work items. Moderation hooks (minors). OS Service #20. Post-pilot. |
 
 ### Parked / Not a Feature
