@@ -19,7 +19,7 @@ const TIME_WEIGHT_EXPECTED: Record<string, number> = {
 /**
  * Gather teacher edit signals for a block from generation_feedback.
  */
-async function getTeacherSignals(
+export async function getTeacherSignals(
   supabase: SupabaseClient,
   blockId: string
 ): Promise<{ kept: number; deleted: number; edited: number; total: number }> {
@@ -49,31 +49,52 @@ async function getTeacherSignals(
  * Gather student completion and time signals from student_progress.
  * Looks for tracking keys matching the block's activity pattern.
  */
-async function getStudentSignals(
+export async function getStudentSignals(
   supabase: SupabaseClient,
   blockId: string
 ): Promise<{ completions: number; starts: number; avgTimeSpent: number; timeObservations: number }> {
   try {
-    // Query student_progress rows that reference this block
-    // Block usage is tracked via activity_blocks.source_unit_id + source_page_id + source_activity_index
-    // For now, use the block's avg_time_spent and avg_completion_rate from the block itself
-    const { data, error } = await supabase
+    // First, get the block's source unit + page for the join
+    const { data: block } = await supabase
       .from("activity_blocks")
-      .select("avg_time_spent, avg_completion_rate, times_used")
+      .select("source_unit_id, source_page_id")
       .eq("id", blockId)
       .maybeSingle();
 
-    if (error || !data) return { completions: 0, starts: 0, avgTimeSpent: 0, timeObservations: 0 };
+    if (!block?.source_unit_id) {
+      return { completions: 0, starts: 0, avgTimeSpent: 0, timeObservations: 0 };
+    }
 
-    const timesUsed = (data.times_used ?? 0) as number;
-    const completionRate = (data.avg_completion_rate ?? 0) as number;
-    const avgTime = (data.avg_time_spent ?? 0) as number;
+    // Query student_progress rows for pages containing this block's activities
+    // NOTE: Page-level granularity — one student_progress row per page, not per activity.
+    // This is an acceptable approximation until per-activity tracking exists.
+    let query = supabase
+      .from("student_progress")
+      .select("status, time_spent")
+      .eq("unit_id", block.source_unit_id);
+
+    if (block.source_page_id) {
+      query = query.eq("page_id", block.source_page_id);
+    }
+
+    const { data, error } = await query;
+    if (error || !data || data.length === 0) {
+      return { completions: 0, starts: 0, avgTimeSpent: 0, timeObservations: 0 };
+    }
+
+    const rows = data as Array<{ status: string; time_spent: number }>;
+    const starts = rows.length;
+    const completions = rows.filter(r => r.status === "complete").length;
+    const timeRows = rows.filter(r => r.time_spent > 0);
+    const avgTimeSpent = timeRows.length > 0
+      ? timeRows.reduce((sum, r) => sum + r.time_spent, 0) / timeRows.length
+      : 0;
 
     return {
-      completions: Math.round(timesUsed * completionRate),
-      starts: timesUsed,
-      avgTimeSpent: avgTime,
-      timeObservations: avgTime > 0 ? timesUsed : 0,
+      completions,
+      starts,
+      avgTimeSpent,
+      timeObservations: timeRows.length,
     };
   } catch {
     return { completions: 0, starts: 0, avgTimeSpent: 0, timeObservations: 0 };
@@ -84,7 +105,7 @@ async function getStudentSignals(
  * Gather pace feedback signals.
  * Maps pace feedback values: too_slow=0, just_right=0.5, too_fast=1 → inverted for score.
  */
-async function getPaceSignals(
+export async function getPaceSignals(
   supabase: SupabaseClient,
   _blockId: string
 ): Promise<{ paceScore: number; feedbackCount: number }> {

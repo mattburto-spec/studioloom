@@ -5,7 +5,7 @@
  * guardrails (D3), self-healing (D4).
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   extractActivities,
   computeDiffPercentage,
@@ -519,5 +519,137 @@ describe("D4: Self-Healing", () => {
     it("has correct time weight steps", () => {
       expect(HARD_GUARDRAILS.timeWeightSteps).toEqual(["quick", "moderate", "extended", "flexible"]);
     });
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════
+// D2: Signal Aggregation (test getStudentSignals structure)
+// ═════════════════════════════════════════════════════════════════
+
+describe("D2: Signal Aggregation", () => {
+  describe("getStudentSignals", () => {
+    it("returns correct structure with student_progress data", async () => {
+      const { getStudentSignals } = await import("../signals");
+
+      // Mock Supabase client that simulates the correct query path
+      const mockSupabase = {
+        from: vi.fn((table: string) => {
+          if (table === "activity_blocks") {
+            return {
+              select: vi.fn(function () { return this; }),
+              eq: vi.fn(function () { return this; }),
+              maybeSingle: vi.fn(async () => ({
+                data: { source_unit_id: "unit-123", source_page_id: "page-1" },
+                error: null,
+              })),
+            };
+          }
+
+          if (table === "student_progress") {
+            return {
+              select: vi.fn(function () { return this; }),
+              eq: vi.fn(function () { return this; }),
+              // Simulate query execution returning progress rows
+              [Symbol.asyncIterator]: undefined,
+              then: async function (onResolve: any) {
+                const progressRows = [
+                  { status: "complete", time_spent: 15 },
+                  { status: "complete", time_spent: 12 },
+                  { status: "in_progress", time_spent: 8 },
+                  { status: "not_started", time_spent: 0 },
+                ];
+                return onResolve({ data: progressRows, error: null });
+              },
+            };
+          }
+
+          return { select: () => ({}) };
+        }),
+      };
+
+      const result = await getStudentSignals(mockSupabase as any, "block-123");
+
+      // Verify the expected structure
+      expect(result).toHaveProperty("completions");
+      expect(result).toHaveProperty("starts");
+      expect(result).toHaveProperty("avgTimeSpent");
+      expect(result).toHaveProperty("timeObservations");
+
+      // Verify correct values based on mock data
+      expect(result.starts).toBe(4); // 4 student_progress rows
+      expect(result.completions).toBe(2); // 2 with status === "complete"
+      expect(result.avgTimeSpent).toBe((15 + 12 + 8) / 3); // avg of non-zero time_spent
+      expect(result.timeObservations).toBe(3); // 3 rows with time_spent > 0
+    });
+
+    it("returns zero values when no source_unit_id found", async () => {
+      const { getStudentSignals } = await import("../signals");
+
+      const mockSupabase = {
+        from: vi.fn((table: string) => {
+          if (table === "activity_blocks") {
+            return {
+              select: vi.fn(function () { return this; }),
+              eq: vi.fn(function () { return this; }),
+              maybeSingle: vi.fn(async () => ({
+                data: null,
+                error: null,
+              })),
+            };
+          }
+          return { select: () => ({}) };
+        }),
+      };
+
+      const result = await getStudentSignals(mockSupabase as any, "block-123");
+
+      expect(result).toEqual({
+        completions: 0,
+        starts: 0,
+        avgTimeSpent: 0,
+        timeObservations: 0,
+      });
+    });
+
+    it("returns zero values when student_progress query returns no data", async () => {
+      const { getStudentSignals } = await import("../signals");
+
+      const mockSupabase = {
+        from: vi.fn((table: string) => {
+          if (table === "activity_blocks") {
+            return {
+              select: vi.fn(function () { return this; }),
+              eq: vi.fn(function () { return this; }),
+              maybeSingle: vi.fn(async () => ({
+                data: { source_unit_id: "unit-123", source_page_id: "page-1" },
+                error: null,
+              })),
+            };
+          }
+
+          if (table === "student_progress") {
+            return {
+              select: vi.fn(function () { return this; }),
+              eq: vi.fn(function () { return this; }),
+              then: async function (onResolve: any) {
+                return onResolve({ data: [], error: null });
+              },
+            };
+          }
+
+          return { select: () => ({}) };
+        }),
+      };
+
+      const result = await getStudentSignals(mockSupabase as any, "block-123");
+
+      expect(result).toEqual({
+        completions: 0,
+        starts: 0,
+        avgTimeSpent: 0,
+        timeObservations: 0,
+      });
+    });
+
   });
 });
