@@ -1,0 +1,67 @@
+{
+  "_source": "src/lib/frameworks/adapter.ts getCriterionLabels('GCSE_DT') — captured 2026-04-12",
+  "class": {
+    "id": "class-gcse-1",
+    "name": "Year 11 GCSE DT",
+    "code": "G11DT",
+    "framework": "GCSE_DT"
+  },
+  "unitTitle": "Sustainable Packaging",
+  "assessment": {
+    "id": "assess-001",
+    "student_id": "stu-001",
+    "unit_id": "unit-001",
+    "class_id": "class-gcse-1",
+    "teacher_id": "t-001",
+    "criterion_scores": [
+      {
+        "criterion_key": "AO1",
+        "level": 6,
+        "comment": "Thorough research; cite 2 more sources next time."
+      },
+      {
+        "criterion_key": "AO2",
+        "level": 5,
+        "comment": "Prototype works but finish quality needs care."
+      },
+      {
+        "criterion_key": "AO3",
+        "level": 7,
+        "comment": "Strong evaluation against the spec."
+      },
+      {
+        "criterion_key": "AO4",
+        "level": 4,
+        "comment": "Technical principles explained briefly — go deeper on materials."
+      }
+    ],
+    "overall_grade": 6,
+    "teacher_comments": "Solid GCSE portfolio with clear research and evaluation.",
+    "strengths": ["Clear user research", "Honest evaluation"],
+    "areas_for_improvement": ["Materials technical detail", "Prototype finish"],
+    "assessed_at": "2026-04-01T10:00:00.000Z",
+    "is_draft": false
+  },
+  "expectedLabels": {
+    "AO1": {
+      "short": "AO1",
+      "full": "AO1",
+      "name": "Identify, investigate and outline design possibilities"
+    },
+    "AO2": {
+      "short": "AO2",
+      "full": "AO2",
+      "name": "Design and make prototypes that are fit for purpose"
+    },
+    "AO3": {
+      "short": "AO3",
+      "full": "AO3",
+      "name": "Analyse and evaluate design decisions and outcomes"
+    },
+    "AO4": {
+      "short": "AO4",
+      "full": "AO4",
+      "name": "Demonstrate and apply knowledge of technical principles"
+    }
+  }
+}

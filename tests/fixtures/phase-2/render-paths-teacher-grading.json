@@ -1,0 +1,58 @@
+{
+  "_source": "src/lib/constants.ts getFrameworkCriterion('AOn', 'GCSE_DT') — captured 2026-04-12",
+  "class": {
+    "id": "class-gcse-1",
+    "name": "Year 11 GCSE DT",
+    "code": "G11DT",
+    "framework": "GCSE_DT"
+  },
+  "unit": {
+    "id": "unit-001",
+    "title": "Sustainable Packaging",
+    "unit_type": "design"
+  },
+  "classFramework": "GCSE_DT",
+  "unitCriteria": ["AO1", "AO2", "AO3", "AO4"],
+  "students": [
+    {
+      "id": "stu-001",
+      "display_name": "Ada Lovelace",
+      "currentScores": {
+        "AO1": { "criterion_key": "AO1", "level": 6 },
+        "AO2": { "criterion_key": "AO2", "level": 5 },
+        "AO3": { "criterion_key": "AO3", "level": 7 },
+        "AO4": { "criterion_key": "AO4", "level": 4 }
+      }
+    }
+  ],
+  "expectedLabels": {
+    "AO1": {
+      "key": "AO1",
+      "name": "Identify, Investigate & Outline",
+      "color": "#3B82F6",
+      "bgClass": "bg-gray-100",
+      "textClass": "text-gray-700"
+    },
+    "AO2": {
+      "key": "AO2",
+      "name": "Design & Make Prototypes",
+      "color": "#10B981",
+      "bgClass": "bg-gray-100",
+      "textClass": "text-gray-700"
+    },
+    "AO3": {
+      "key": "AO3",
+      "name": "Analyse & Evaluate",
+      "color": "#F59E0B",
+      "bgClass": "bg-gray-100",
+      "textClass": "text-gray-700"
+    },
+    "AO4": {
+      "key": "AO4",
+      "name": "Knowledge & Understanding",
+      "color": "#EF4444",
+      "bgClass": "bg-gray-100",
+      "textClass": "text-gray-700"
+    }
+  }
+}

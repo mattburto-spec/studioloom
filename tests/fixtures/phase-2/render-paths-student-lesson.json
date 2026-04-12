@@ -1,0 +1,89 @@
+{
+  "_source": "src/lib/frameworks/mappings/gcse.ts toLabel() — captured 2026-04-12",
+  "class": {
+    "id": "class-gcse-1",
+    "name": "Year 11 GCSE DT",
+    "code": "G11DT",
+    "framework": "GCSE_DT"
+  },
+  "currentPage": {
+    "id": "L03",
+    "type": "lesson",
+    "phaseLabel": "Research",
+    "title": "User research interviews",
+    "content": {
+      "title": "User research interviews",
+      "learningGoal": "Plan and conduct a 10-minute user interview to surface unmet needs.",
+      "sections": [
+        {
+          "prompt": "Draft 5 open-ended questions for your interview.",
+          "responseType": "text",
+          "criterionTags": ["researching"],
+          "activityId": "act-001"
+        },
+        {
+          "prompt": "Summarise the 3 most surprising insights.",
+          "responseType": "text",
+          "criterionTags": ["analysing"],
+          "activityId": "act-002"
+        },
+        {
+          "prompt": "Sketch 2 concept directions that address one insight.",
+          "responseType": "upload",
+          "criterionTags": ["designing", "creating"],
+          "activityId": "act-003"
+        }
+      ]
+    }
+  },
+  "pageContent": {
+    "title": "User research interviews",
+    "learningGoal": "Plan and conduct a 10-minute user interview to surface unmet needs.",
+    "sections": [
+      {
+        "prompt": "Draft 5 open-ended questions for your interview.",
+        "responseType": "text",
+        "criterionTags": ["researching"],
+        "activityId": "act-001"
+      },
+      {
+        "prompt": "Summarise the 3 most surprising insights.",
+        "responseType": "text",
+        "criterionTags": ["analysing"],
+        "activityId": "act-002"
+      },
+      {
+        "prompt": "Sketch 2 concept directions that address one insight.",
+        "responseType": "upload",
+        "criterionTags": ["designing", "creating"],
+        "activityId": "act-003"
+      }
+    ]
+  },
+  "expectedLabels": {
+    "researching": {
+      "kind": "label",
+      "short": "AO1",
+      "full": "AO1",
+      "name": "Identify, investigate and outline design possibilities"
+    },
+    "analysing": {
+      "kind": "label",
+      "short": "AO3",
+      "full": "AO3",
+      "name": "Analyse and evaluate design decisions and outcomes"
+    },
+    "designing": {
+      "kind": "label",
+      "short": "AO2",
+      "full": "AO2",
+      "name": "Design and make prototypes that are fit for purpose"
+    },
+    "creating": {
+      "kind": "label",
+      "short": "AO2",
+      "full": "AO2",
+      "name": "Design and make prototypes that are fit for purpose"
+    }
+  }
+}
