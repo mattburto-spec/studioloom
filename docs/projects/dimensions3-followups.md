@@ -374,3 +374,98 @@ tree.
 **Definition of done:** Grades page imports only canonical types for any field that round-trips through Supabase. Lesson #42 rule enforced as a pattern, not a one-off fix.
 
 ---
+
+## FU-E — Migrate teacher grading pages from getFrameworkCriterion to FrameworkAdapter
+
+**Surfaced:** Sub-step 5.10.5 (12 Apr 2026)
+**Target phase:** Dedicated migration sub-step (post-Phase 2)
+**Priority:** P2 (blocked until teacher grading pages get a framework-awareness pass)
+
+**Symptom:** Two teacher grading call sites still use `getFrameworkCriterion` from `@/lib/constants` (the legacy MYPflex Phase 1 helper) rather than the 5.9 FrameworkAdapter:
+
+1. `src/app/teacher/classes/[classId]/grading/[unitId]/page.tsx` line 1016 — 2-arg form: `getFrameworkCriterion(criterionKey, framework)`
+2. `src/app/teacher/units/[unitId]/class/[classId]/page.tsx` line 1191 — 3-arg form: `getFrameworkCriterion(criterionKey, classFramework, (unit as any)?.unit_type || "design")`
+
+Both are regression-locked by 5.10.5 wiring tests (G1-G4 in `render-path-fixtures.test.ts`). Migration is safe to do in a future sub-step — the locks will break intentionally when the legacy import is removed, signalling the switchover.
+
+**Investigation steps:**
+1. Replace `getFrameworkCriterion` calls with `getCriterionLabels(framework).find(d => d.short === key)` or equivalent adapter pattern.
+2. Handle the 3-arg form on Site 2 (unit_type parameter) — FrameworkAdapter doesn't take unit_type. May need a FormatProfile lookup.
+3. Update G1-G4 wiring locks to assert FrameworkAdapter imports instead.
+4. Verify teacher grading UI renders correctly for all 8 frameworks.
+
+**Definition of done:** Both teacher grading pages use FrameworkAdapter. Legacy `getFrameworkCriterion` has zero import sites (can be deleted from constants.ts — see FU-F).
+
+---
+
+## FU-F — Legacy CRITERIA constant and CriterionKey type in @/lib/constants
+
+**Surfaced:** Sub-step 5.10.4 (12 Apr 2026)
+**Target phase:** Cleanup sweep after all pages use FrameworkAdapter
+**Priority:** P3
+
+**Symptom:** `CRITERIA` constant and `CriterionKey` type in `@/lib/constants` are MYP-specific (A/B/C/D only). The student grades page no longer imports them (migrated to `getCriterionLabels` in 5.10.4). The student lesson page still imports `CRITERIA` + `CriterionKey` (5.10.3 only migrated the badge pipeline via `collectCriterionChips`, not the full page). Teacher grading pages import `getFrameworkCriterion` + `getFrameworkCriterionKeys` (see FU-E).
+
+**Investigation steps:**
+1. Grep all remaining imports of `CRITERIA` and `CriterionKey` from `@/lib/constants`.
+2. Migrate each consumer to FrameworkAdapter equivalents.
+3. Once zero consumers remain, delete `CRITERIA`, `CriterionKey`, and the legacy `getFrameworkCriterion` family from constants.ts.
+
+**Definition of done:** `CRITERIA`, `CriterionKey`, `getFrameworkCriterion`, `getFrameworkCriterionKeys`, `getFrameworkCriteria` all removed from constants.ts. All consumers use FrameworkAdapter. Depends on FU-E.
+
+---
+
+## FU-G — getCriterionDisplay wrapper in render-helpers.ts vs direct adapter use
+
+**Surfaced:** Sub-step 5.10.2 (12 Apr 2026)
+**Target phase:** Post-FU-E cleanup
+**Priority:** P3 (depends on FU-E)
+
+**Symptom:** `getCriterionColor` in `src/lib/frameworks/render-helpers.ts` wraps `getCriterionDisplay` from the adapter with an arg-order swap (tag first, framework second → adapter takes framework first, key second). This wrapper exists because the render-path call sites (5.10.3 student lesson page) needed a tag-first signature.
+
+**Investigation steps:**
+1. After FU-E migrates teacher grading pages, audit all `getCriterionColor` consumers.
+2. Evaluate whether the wrapper is still needed or if call sites can use `getCriterionDisplay` directly.
+3. If inlining, update all call sites and delete the wrapper.
+
+**Definition of done:** Either (a) wrapper justified with a comment explaining the arg-order value, or (b) wrapper removed and call sites use adapter directly.
+
+---
+
+## FU-H — Strand-level headers on teacher grading pages (MYP-specific)
+
+**Surfaced:** Sub-step 5.10.3 (12 Apr 2026)
+**Target phase:** FU-E migration or dedicated UX pass
+**Priority:** P2 (UX gap for non-MYP teachers)
+
+**Symptom:** The teacher grading page (`src/app/teacher/classes/[classId]/grading/[unitId]/page.tsx`) renders strand-level headers using MYP-specific logic. MYP criteria have strands (e.g., Criterion A: i, ii, iii, iv); non-MYP frameworks (GCSE, PLTW, ACARA) don't use strands — they use Assessment Objectives or competency areas. When a non-MYP framework is active, strand headers either render empty or show MYP strand labels, which is confusing.
+
+**Investigation steps:**
+1. Audit the strand rendering block (around the `showStrands` state in the grading page).
+2. Determine whether strand data is available per-framework in the adapter or needs a new data source.
+3. Either conditionally hide strands for non-strand frameworks, or implement framework-aware strand/sub-criterion rendering.
+
+**Definition of done:** Non-MYP frameworks either (a) hide strand section entirely, or (b) show framework-appropriate sub-criteria. No MYP strand labels shown for non-MYP classes.
+
+---
+
+## FU-I — Null-framework fallback behavior across all pages
+
+**Surfaced:** Sub-step 5.10.3 (12 Apr 2026)
+**Target phase:** Monitor — revisit when non-MYP becomes majority
+**Priority:** P3
+
+**Symptom:** Sub-steps 5.10.3 (student lesson page) and 5.10.4 (student grades page) both use `?? "IB_MYP"` as the null-framework fallback when `classInfo?.framework` is null or undefined. This is correct for the current user base (Matt's IB MYP classes) but creates a silent assumption: any class without an explicit framework renders as MYP.
+
+**What we know:**
+- The fallback is used in 2 places so far (student lesson page + student grades page).
+- Teacher grading pages use `getFrameworkCriterion` which has its own default (`"IB_MYP"` in the function signature at constants.ts line 572).
+- If non-MYP becomes the majority (e.g., Australian ACARA schools), the fallback should be configurable — either per-teacher, per-school, or per-deployment.
+
+**Investigation steps:**
+1. No immediate action needed. Monitor adoption patterns.
+2. If non-MYP sign-ups occur, consider: (a) a school-level default framework setting, (b) an explicit "framework not set" UI state instead of silent MYP fallback, (c) onboarding step that requires framework selection.
+
+**Definition of done:** Either (a) confirmed IB_MYP remains the safe default for v1, or (b) configurable default implemented if user base shifts. Inline FU-I comments in code updated either way.
+
+---

@@ -251,3 +251,44 @@ describe("render-path wiring lock — student grades page (5.10.4)", () => {
     expect(pageSource).not.toMatch(/scores\[key\]/);
   });
 });
+
+/**
+ * Regression-lock guard for 5.10.5 teacher grading pages.
+ *
+ * These pages still use the legacy `getFrameworkCriterion` from
+ * `@/lib/constants`. These locks ensure the legacy wiring survives
+ * until a deliberate migration (FU-E) replaces them with FrameworkAdapter.
+ * If someone prematurely rips out the import, these tests break.
+ */
+describe("render-path wiring lock — teacher grading pages (5.10.5)", () => {
+  const GRADING_PAGE_1 = join(
+    process.cwd(),
+    "src/app/teacher/classes/[classId]/grading/[unitId]/page.tsx",
+  );
+  const GRADING_PAGE_2 = join(
+    process.cwd(),
+    "src/app/teacher/units/[unitId]/class/[classId]/page.tsx",
+  );
+  const gradingPage1 = readFileSync(GRADING_PAGE_1, "utf8");
+  const gradingPage2 = readFileSync(GRADING_PAGE_2, "utf8");
+
+  it("G1: grading/[unitId]/page.tsx imports getFrameworkCriterion from constants", () => {
+    expect(gradingPage1).toMatch(
+      /import\s*\{[^}]*getFrameworkCriterion[^}]*\}\s*from\s*["']@\/lib\/constants["']/,
+    );
+  });
+
+  it("G2: grading/[unitId]/page.tsx calls getFrameworkCriterion", () => {
+    expect(gradingPage1).toMatch(/getFrameworkCriterion\s*\(/);
+  });
+
+  it("G3: class/[classId]/page.tsx imports getFrameworkCriterion from constants", () => {
+    expect(gradingPage2).toMatch(
+      /import\s*\{[^}]*getFrameworkCriterion[^}]*\}\s*from\s*["']@\/lib\/constants["']/,
+    );
+  });
+
+  it("G4: class/[classId]/page.tsx calls getFrameworkCriterion", () => {
+    expect(gradingPage2).toMatch(/getFrameworkCriterion\s*\(/);
+  });
+});
