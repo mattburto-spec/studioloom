@@ -128,6 +128,7 @@ export function efficacyToProposals(
   evidence_count: number;
   evidence_summary: string;
   signal_breakdown: Record<string, number>;
+  reasoning: Record<string, number>;
   requires_manual_approval: boolean;
   guardrail_flags: string[];
   status: "pending";
@@ -143,6 +144,14 @@ export function efficacyToProposals(
       evidence_count: r.signals.evidenceCount,
       evidence_summary: buildEvidenceSummary(r),
       signal_breakdown: r.signals.signalBreakdown,
+      reasoning: {
+        keptRate: r.signals.keptRate,
+        completionRate: r.signals.completionRate,
+        timeAccuracy: r.signals.timeAccuracy,
+        deletionRate: r.signals.deletionRate,
+        paceScore: r.signals.paceScore,
+        editRate: r.signals.editRate,
+      },
       requires_manual_approval: !validation.valid || r.confidence === "low",
       guardrail_flags: validation.flags,
       status: "pending" as const,

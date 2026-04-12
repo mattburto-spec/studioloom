@@ -12,8 +12,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { runEfficacyBatch, efficacyToProposals } from "@/lib/feedback/efficacy";
 import { getBlockUsageStats } from "@/lib/feedback/signals";
 import { analyzeSelfHealing, healingToProposals } from "@/lib/feedback/self-healing";
-import { canAutoApprove, validateProposal } from "@/lib/feedback/guardrails";
-import { DEFAULT_GUARDRAIL_CONFIG } from "@/lib/feedback/types";
+import { validateProposal } from "@/lib/feedback/guardrails";
 
 // ─── GET: List proposals ───
 
@@ -117,54 +116,21 @@ export async function POST(request: NextRequest) {
 
       if (existing) continue; // Skip duplicate
 
-      // Check auto-approve
-      const scoreDelta = typeof row.proposed_value === "number" && typeof row.current_value === "number"
-        ? row.proposed_value - row.current_value
-        : 0;
-      const autoApprovable = canAutoApprove(
-        DEFAULT_GUARDRAIL_CONFIG,
-        row.field,
-        row.evidence_count,
-        scoreDelta
-      );
+      // §5.4: Skip blocks with a rejected proposal within the last 7 days
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      const { data: recentRejection } = await admin
+        .from("feedback_proposals")
+        .select("id")
+        .eq("block_id", row.block_id)
+        .eq("field", row.field)
+        .eq("status", "rejected")
+        .gte("updated_at", sevenDaysAgo)
+        .maybeSingle();
 
-      if (autoApprovable) {
-        // Auto-approve: insert as approved + audit log
-        const { data: proposal } = await admin
-          .from("feedback_proposals")
-          .insert({
-            ...row,
-            status: "approved",
-            resolved_by: user.id,
-            resolved_at: new Date().toISOString(),
-            resolved_value: row.proposed_value,
-            resolution_note: "Auto-approved by system",
-          })
-          .select("id")
-          .single();
+      if (recentRejection) continue; // 7-day rejection suppression
 
-        if (proposal) {
-          await admin.from("feedback_audit_log").insert({
-            proposal_id: proposal.id,
-            block_id: row.block_id,
-            action: "auto_approved",
-            field: row.field,
-            previous_value: row.current_value,
-            new_value: row.proposed_value,
-            evidence_count: row.evidence_count,
-            resolved_by: user.id,
-            note: "Auto-approved: met evidence and delta thresholds",
-          });
-
-          // Apply the change to the block
-          await admin
-            .from("activity_blocks")
-            .update({ [row.field]: row.proposed_value })
-            .eq("id", row.block_id);
-        }
-      } else {
-        await admin.from("feedback_proposals").insert(row);
-      }
+      // §5.4: No auto-accept anywhere — all proposals start as pending
+      await admin.from("feedback_proposals").insert(row);
       inserted++;
     }
 
