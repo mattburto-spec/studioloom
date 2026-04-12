@@ -309,3 +309,68 @@ tree.
 **Definition of done:** Spec §3.4 has explicit reverse table. Adapter matches spec (either confirming current heuristic or flipping to AO2). IGCSE comment in `igcse.ts` updated or removed.
 
 ---
+
+## FU-J — Framework-aware criterion scale on student grades page
+
+**Surfaced:** Sub-step 5.10.4 (12 Apr 2026)
+**Target phase:** 5.10.6 (cleanup sub-step) or MYPflex Phase 2
+**Priority:** P2
+
+**Symptom:** The student grades page at `src/app/(student)/unit/[unitId]/grades/page.tsx` hardcodes `/8` as the score denominator (`{score.level}/8`). MYP uses 0–8, GCSE uses a framework-dependent AO max, PLTW uses 0–4. After 5.10.4 the page iterates framework criteria correctly via `getCriterionLabels(framework)` but the displayed denominator is still MYP-specific.
+
+**What we know:**
+- `getCriterionLabels()` does not currently expose a max-level field on `CriterionDef`. MYPflex Phase 1 added `GradingScale.type` including `"percentage"` but grades render path wasn't wired through.
+- The teacher grading page already reads a per-framework scale via the MYPflex Phase 1 helpers — grades page should mirror.
+- Fix likely threads a `maxLevel` (number) or `scaleLabel` (string like "/8", "/4", "%") from the adapter through to the render site.
+
+**Investigation steps:**
+1. Decide whether scale metadata lives on `CriterionDef` or on a separate `getScale(framework)` call.
+2. Thread through grades page render. Remove `TODO FU-J` comment + `/8` hardcode.
+3. Verify against all 8 frameworks + percentage mode.
+
+**Definition of done:** Grades page shows correct denominator per framework. No `/8` hardcode. Test covers at least MYP (/8), GCSE (AO-max), PLTW (/4).
+
+---
+
+## FU-K — student-snapshot route still casts criterion_scores as Record<string, number>
+
+**Surfaced:** Sub-step 5.10.4 pre-flight audit (12 Apr 2026)
+**Target phase:** 5.10.6 (cleanup sub-step)
+**Priority:** P1 (latent dual-shape bug, same class as H.1)
+
+**Symptom:** `src/app/api/teacher/student-snapshot/route.ts:121` reads `assessment.criterion_scores` as `Record<string, number>`. The server canonical shape is `CriterionScore[]` (see Lesson #42). This is the same bug class H.1 fixed on the grades page — bracket access on an array returns undefined silently, so any feature consuming the snapshot's criterion data is getting empty/garbage results.
+
+**What we know:**
+- Server write site (`src/app/teacher/classes/[classId]/grading/[unitId]/page.tsx:342`) writes `CriterionScore[]`.
+- 5.10.4 built `src/lib/criterion-scores/normalize.ts` as the canonical 4-shape absorber. The student-snapshot route should adopt it.
+- The route's downstream consumers need checking — what happens when the shape flips from Record to array?
+
+**Investigation steps:**
+1. Replace the cast with `normalizeCriterionScores(assessment.criterion_scores)`.
+2. Grep consumers of the snapshot payload. Update any that assume `Record<string, number>` shape.
+3. Add a test with a real fixture (array shape) asserting snapshot output.
+
+**Definition of done:** Route uses the canonical normalizer. Consumers verified. Lesson #42 cross-referenced.
+
+---
+
+## FU-L — Collapse local grades-page types into canonical @/types/assessment imports
+
+**Surfaced:** Sub-step 5.10.4 (12 Apr 2026)
+**Target phase:** 5.10.6 (cleanup sub-step)
+**Priority:** P3
+
+**Symptom:** 5.10.4 deleted the local `CriterionScore` interface from the grades page (it shadowed the canonical type from `@/types/assessment`) but left `AssessmentData` as a local interface. `AssessmentData` is a subset of `AssessmentRecord` from `@/types/assessment` — it should either be derived (`Pick<AssessmentRecord, ...>`) or replaced with the canonical type.
+
+**What we know:**
+- Local `AssessmentData` has 7 optional fields (criterion_scores, overall_grade, teacher_comments, strengths, areas_for_improvement, targets, is_draft).
+- `AssessmentRecord` (line 64+ in `src/types/assessment.ts`) is the canonical shape written by the teacher grading route.
+- This is the same pattern that caused Lesson #42 — local interfaces for DB row shapes hide dual-shape bugs.
+
+**Investigation steps:**
+1. Replace `AssessmentData` with `Pick<AssessmentRecord, ...>` or direct canonical import.
+2. Check all other `(student)` routes for similar local shadow types.
+
+**Definition of done:** Grades page imports only canonical types for any field that round-trips through Supabase. Lesson #42 rule enforced as a pattern, not a one-off fix.
+
+---

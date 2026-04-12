@@ -216,3 +216,19 @@ Phase 1.7 ended up fixing both Pass A (`pass-a.ts`: 2000→8000, guard, `?? []`)
 - **This matters because NC is load-bearing.** If the revert mechanism silently fails, tests stay in their mutated state and "pass" on re-run gives a false green. The 5.9 NC had two directions (TS mutation + fixture mutation) and both needed manual revert — the fixture was also uncommitted.
 
 ---
+
+## Lesson #42 — Dual-shape persistence fields silently break consumers when frontend types diverge from server writers
+**Date:** 12 Apr 2026
+**Phase:** Dimensions3 v2 Phase 2, sub-step 5.10.4 (grades page render-path wiring)
+
+**What happened:** The student grades page typed `criterion_scores` as `Record<string, CriterionScore>` and read scores via `scores[key]` bracket access. The server write site in `src/app/teacher/classes/[classId]/grading/[unitId]/page.tsx:342` writes `Array.from(currentScores.values()).filter(...)` — a `CriterionScore[]`. TypeScript never flagged it because both sides used locally-defined `CriterionScore` interfaces rather than importing the canonical type from `@/types/assessment`. Runtime bracket access on an array returns `undefined` without throwing, so the grades page silently rendered "—" for every criterion on every real assessment. The bug had been latent across every teacher-published assessment.
+
+**Lesson:**
+- **Before touching any frontend type for a persistence field, grep the server write site and capture the exact shape in a test fixture.** A local interface is a claim about shape that is not enforced against the other end of the wire.
+- **Prefer canonical imports from `@/types/assessment`** (and equivalents) for anything that round-trips through Supabase. Local interfaces for DB row shapes are a smell — they're the exact place where dual-shape bugs hide.
+- **Runtime bracket access on mismatched shapes fails silently, not loudly.** `arr["AO1"]` is `undefined`, not an error. The absence of a crash is not evidence the code is working — you need to see the rendered value match the fixture.
+- **When fixing a dual-shape bug, write a normalizer module (not inline coercion)** so future consumers on other shapes have a single adoption path. 5.10.4 built `src/lib/criterion-scores/normalize.ts` as a 4-shape absorber (null/array/Record<string,CriterionScore>/Record<string,number>) precisely because FU-K flagged another site (`api/teacher/student-snapshot/route.ts`) still reading as `Record<string, number>`.
+
+**Corollary:** This is the same class of bug as Lesson #38 (verify = assert expected values, not just non-null). Both are about tests and types claiming "something is there" when the shape underneath is wrong.
+
+---

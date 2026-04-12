@@ -172,3 +172,82 @@ describe("render-path wiring lock — student lesson page (5.10.3)", () => {
     );
   });
 });
+
+/**
+ * Wiring-lock guard for 5.10.4 student grades page integration.
+ *
+ * Source-static greps asserting the grades page is wired to:
+ *   - the canonical criterion_scores normalizer (4-shape absorber)
+ *   - the canonical FrameworkAdapter import path (@/lib/frameworks/adapter)
+ *   - classInfo.framework with IB_MYP fallback (not the dead student var)
+ *   - getCriterionLabels(framework) iteration (not Object.keys(CRITERIA))
+ *
+ * These lock the H.1 dual-shape fix + the round-2 drift correction (5.10.4
+ * Pre-Edit Mini-Report caught a design-block typo pointing imports at the
+ * @/lib/frameworks barrel which is the Open Studio unit-types registry).
+ */
+describe("render-path wiring lock — student grades page (5.10.4)", () => {
+  const PAGE_PATH = join(
+    process.cwd(),
+    "src/app/(student)/unit/[unitId]/grades/page.tsx",
+  );
+  const pageSource = readFileSync(PAGE_PATH, "utf8");
+
+  it("L1: imports normalizeCriterionScores from @/lib/criterion-scores/normalize", () => {
+    expect(pageSource).toMatch(
+      /import\s*\{\s*normalizeCriterionScores\s*\}\s*from\s*["']@\/lib\/criterion-scores\/normalize["']/,
+    );
+  });
+
+  it("L2a: imports getCriterionLabels from @/lib/frameworks/adapter (canonical path)", () => {
+    expect(pageSource).toMatch(
+      /import\s*\{\s*getCriterionLabels\s*\}\s*from\s*["']@\/lib\/frameworks\/adapter["']/,
+    );
+  });
+
+  it("L2b: imports type FrameworkId from @/lib/frameworks/adapter (canonical path)", () => {
+    expect(pageSource).toMatch(
+      /import\s+type\s*\{\s*FrameworkId\s*\}\s*from\s*["']@\/lib\/frameworks\/adapter["']/,
+    );
+  });
+
+  it("L2c: does NOT import from @/lib/frameworks barrel (Open Studio registry collision)", () => {
+    expect(pageSource).not.toMatch(
+      /getCriterionLabels[^;]*from\s*["']@\/lib\/frameworks["']\s*;/,
+    );
+    expect(pageSource).not.toMatch(
+      /FrameworkId[^;]*from\s*["']@\/lib\/frameworks["']\s*;/,
+    );
+  });
+
+  it("L3: destructures classInfo from useStudent (not the dead student var)", () => {
+    expect(pageSource).toMatch(
+      /const\s*\{\s*classInfo\s*\}\s*=\s*useStudent\(\)/,
+    );
+    expect(pageSource).not.toMatch(/const\s+student\s*=\s*useStudent\(\)/);
+  });
+
+  it("L4: falls back to 'IB_MYP' when classInfo.framework is null/undefined", () => {
+    expect(pageSource).toMatch(
+      /classInfo\?\.framework as FrameworkId[^?]*\?\?\s*["']IB_MYP["']/,
+    );
+  });
+
+  it("L5: iterates getCriterionLabels(framework) instead of Object.keys(CRITERIA)", () => {
+    expect(pageSource).toMatch(/getCriterionLabels\(framework\)/);
+    expect(pageSource).not.toMatch(/Object\.keys\(CRITERIA\)/);
+  });
+
+  it("L6: no longer imports CRITERIA/CriterionKey from @/lib/constants", () => {
+    expect(pageSource).not.toMatch(
+      /import[^;]*\b(CRITERIA|CriterionKey)\b[^;]*from\s*["']@\/lib\/constants["']/,
+    );
+  });
+
+  it("L7: normalizes criterion_scores through the absorber (no bracket access)", () => {
+    expect(pageSource).toMatch(
+      /normalizeCriterionScores\(\s*assessment\.criterion_scores\s*,?\s*\)/,
+    );
+    expect(pageSource).not.toMatch(/scores\[key\]/);
+  });
+});

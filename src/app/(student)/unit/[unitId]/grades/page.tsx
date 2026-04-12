@@ -2,17 +2,13 @@
 
 import { useState, useEffect, use } from "react";
 import { useStudent } from "@/app/(student)/student-context";
-import { CRITERIA, type CriterionKey } from "@/lib/constants";
-
-interface CriterionScore {
-  criterion_key: string;
-  level: number;
-  comment?: string;
-  tags?: string[];
-}
+import type { CriterionScore } from "@/types/assessment";
+import { normalizeCriterionScores } from "@/lib/criterion-scores/normalize";
+import { getCriterionLabels } from "@/lib/frameworks/adapter";
+import type { FrameworkId } from "@/lib/frameworks/adapter";
 
 interface AssessmentData {
-  criterion_scores?: Record<string, CriterionScore>;
+  criterion_scores?: CriterionScore[];
   overall_grade?: number;
   teacher_comments?: string;
   strengths?: string[];
@@ -21,11 +17,12 @@ interface AssessmentData {
   is_draft?: boolean;
 }
 
-const CRITERION_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-  A: { bg: "bg-indigo-50", text: "text-indigo-700", border: "border-indigo-200" },
-  B: { bg: "bg-emerald-50", text: "text-emerald-700", border: "border-emerald-200" },
-  C: { bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200" },
-  D: { bg: "bg-violet-50", text: "text-violet-700", border: "border-violet-200" },
+// Neutral fallback styling — framework-agnostic. Per-criterion colors now
+// come from getCriterionDisplay() at a future polish step (FU-J).
+const FALLBACK_COLOR = {
+  bg: "bg-slate-50",
+  text: "text-slate-900",
+  border: "border-slate-200",
 };
 
 export default function StudentGradesPage({
@@ -34,7 +31,11 @@ export default function StudentGradesPage({
   params: Promise<{ unitId: string }>;
 }) {
   const { unitId } = use(params);
-  const student = useStudent();
+  // FU-I: fall back to IB_MYP when classInfo.framework is null/undefined so
+  // legacy classes without a framework ID keep rendering instead of crashing.
+  const { classInfo } = useStudent();
+  const framework: FrameworkId =
+    (classInfo?.framework as FrameworkId | null | undefined) ?? "IB_MYP";
   const [assessment, setAssessment] = useState<AssessmentData | null>(null);
   const [unitTitle, setUnitTitle] = useState("");
   const [loading, setLoading] = useState(true);
@@ -91,8 +92,10 @@ export default function StudentGradesPage({
     );
   }
 
-  const scores = assessment.criterion_scores || {};
-  const criteriaKeys = Object.keys(CRITERIA) as CriterionKey[];
+  const scores: CriterionScore[] = normalizeCriterionScores(
+    assessment.criterion_scores,
+  );
+  const labels = getCriterionLabels(framework);
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
@@ -113,24 +116,24 @@ export default function StudentGradesPage({
 
       {/* Criterion scores */}
       <div className="space-y-3 mb-6">
-        {criteriaKeys.map((key) => {
-          const score = scores[key];
-          const colors = CRITERION_COLORS[key] || CRITERION_COLORS.A;
-          const criterion = CRITERIA[key];
+        {labels.map((def) => {
+          const score = scores.find((cs) => cs.criterion_key === def.short);
+          const colors = FALLBACK_COLOR;
 
           return (
             <div
-              key={key}
+              key={def.short}
               className={`${colors.bg} border ${colors.border} rounded-xl p-4`}
             >
               <div className="flex items-center justify-between mb-1">
                 <div className={`text-sm font-semibold ${colors.text}`}>
-                  Criterion {key}: {criterion?.name || key}
+                  {def.short}: {def.name}
                 </div>
                 {score ? (
                   <div
                     className={`text-lg font-bold ${colors.text}`}
                   >
+                    {/* TODO FU-J: framework-aware scale (MYP /8, GCSE AO-max, PLTW /4) */}
                     {score.level}/8
                   </div>
                 ) : (
