@@ -6,7 +6,9 @@ import { usePathname } from "next/navigation";
 const TABS = [
   { label: "Dashboard", href: "/admin" },
   { label: "Pipeline", href: "/admin/pipeline" },
+  { label: "Pipeline Health", href: "/admin/pipeline/health" },
   { label: "Library", href: "/admin/library" },
+  { label: "Library Health", href: "/admin/library/health" },
   { label: "Ingestion Sandbox", href: "/admin/ingestion-sandbox" },
   { label: "Simulator", href: "/admin/simulator" },
   { label: "Feedback", href: "/admin/feedback" },
@@ -26,7 +28,9 @@ export default function AdminLayout({
 
   function isActive(href: string) {
     if (href === "/admin") return pathname === "/admin";
-    return pathname.startsWith(href);
+    // Exact match for sub-routes, startsWith for top-level tabs
+    if (href.split("/").length > 3) return pathname === href;
+    return pathname === href;
   }
 
   return (
