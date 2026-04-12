@@ -12,6 +12,8 @@ import {
 } from "@/lib/unit-adapter";
 import { computeLessonBoundaries } from "@/lib/timeline";
 import { CRITERIA, type CriterionKey } from "@/lib/constants";
+import { renderCriterionLabel, getCriterionColor } from "@/lib/frameworks/render-helpers";
+import type { FrameworkId } from "@/lib/frameworks/adapter";
 import type {
   Unit,
   UnitPage,
@@ -37,12 +39,7 @@ const PHASE_COLORS: Record<string, string> = {
   Presentation: "bg-pink-100 text-pink-700",
 };
 
-const CRITERION_COLORS: Record<string, string> = {
-  A: "bg-blue-500",
-  B: "bg-green-500",
-  C: "bg-orange-500",
-  D: "bg-purple-500",
-};
+// CRITERION_COLORS removed — now uses getCriterionColor() from render-helpers via FrameworkAdapter
 
 function getPhaseColor(label: string): string {
   // Try exact match first, then partial
@@ -390,10 +387,16 @@ export default function UnitDetailPage({
     let groupCounter = 0;
     for (let i = 0; i < pages.length; i++) {
       const page = pages[i];
+      // TODO FU-M: unit editor should derive framework from unit.curriculum_context or assigned classes
+      const editorFramework: FrameworkId = "IB_MYP";
       const label = isJourneyUnit
         ? "Lessons"
         : page.criterion
-          ? `Criterion ${page.criterion}`
+          ? (() => {
+              const r = renderCriterionLabel(page.criterion, editorFramework);
+              return r.kind === "label" || r.kind === "implicit"
+                ? `${r.short}: ${r.name}` : `Criterion ${page.criterion}`;
+            })()
           : "Pages";
       if (label !== currentCriterion) {
         currentCriterion = label;
@@ -649,8 +652,8 @@ export default function UnitDetailPage({
                     activityHints={getPageActivityHints(page)}
                     badgeId={!isJourneyUnit && page.criterion ? page.id : undefined}
                     badgeColor={
-                      page.criterion && (page.criterion as CriterionKey) in CRITERIA
-                        ? CRITERIA[page.criterion as CriterionKey].color
+                      page.criterion
+                        ? getCriterionColor(page.criterion, "IB_MYP" as FrameworkId)
                         : undefined
                     }
                     workshopPhases={(page.content as PageContent & { workshopPhases?: WorkshopPhases })?.workshopPhases || undefined}
@@ -1213,13 +1216,19 @@ function LessonCard({
           {/* Criterion pips */}
           {criterionTags.length > 0 && (
             <div className="flex items-center gap-0.5">
-              {criterionTags.map((tag) => (
-                <div
-                  key={tag}
-                  className={`w-4 h-1.5 rounded-full ${CRITERION_COLORS[tag] || "bg-gray-300"}`}
-                  title={`Criterion ${tag}`}
-                />
-              ))}
+              {criterionTags.map((tag) => {
+                const r = renderCriterionLabel(tag, "IB_MYP" as FrameworkId);
+                const tipLabel = r.kind === "label" || r.kind === "implicit"
+                  ? `${r.short}: ${r.name}` : tag;
+                return (
+                  <div
+                    key={tag}
+                    className="w-4 h-1.5 rounded-full"
+                    style={{ backgroundColor: getCriterionColor(tag, "IB_MYP" as FrameworkId) }}
+                    title={tipLabel}
+                  />
+                );
+              })}
             </div>
           )}
 

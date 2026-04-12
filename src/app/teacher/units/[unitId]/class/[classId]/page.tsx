@@ -10,8 +10,11 @@ import type { ScheduleOverrides } from "@/components/teacher/LessonSchedule";
 import type { NMUnitConfig } from "@/lib/nm/constants";
 import { DEFAULT_NM_CONFIG, AGENCY_ELEMENTS } from "@/lib/nm/constants";
 import { getPageList, isV3 } from "@/lib/unit-adapter";
-import { getCriterionKeys, getCriterion, getFrameworkCriteria, getFrameworkCriterion, getFrameworkCriterionKeys, getGradingScale } from "@/lib/constants";
+import { getCriterionKeys, getCriterion, getGradingScale } from "@/lib/constants";
 import { getPageColor, CRITERIA, GRADING_SCALES, type CriterionKey, type GradingScale } from "@/lib/constants";
+import { getCriterionLabels } from "@/lib/frameworks/adapter";
+import type { FrameworkId } from "@/lib/frameworks/adapter";
+import { getCriterionColor } from "@/lib/frameworks/render-helpers";
 import type { Unit, UnitPage, UnitContentData, Student, StudentProgress } from "@/types";
 import type { AssessmentRecordRow } from "@/types/assessment";
 import { resolveClassUnitContent } from "@/lib/units/resolve-content";
@@ -424,37 +427,29 @@ export default function ClassHubPage({
     setGradeLoading(true);
 
     try {
-      // Determine criteria to grade against.
-      // For non-MYP frameworks, ALWAYS use the framework's own criteria — unit content
-      // may contain MYP criterion keys (A/B/C/D) from legacy generation, which would
-      // display MYP names instead of the correct framework criteria.
-      const fwKeys = getFrameworkCriterionKeys(classFramework);
+      // Determine criteria to grade against — via FrameworkAdapter.
+      const gradeFwId: FrameworkId =
+        (classFramework as FrameworkId | null | undefined) ?? "IB_MYP";
+      const fwLabels = getCriterionLabels(gradeFwId);
       let criteria: string[];
 
-      if (classFramework !== "IB_MYP" && fwKeys.length > 0) {
-        // Non-MYP: always use framework criteria registry
-        criteria = fwKeys;
+      if (fwLabels.length > 0) {
+        criteria = fwLabels.map((l) => l.short);
       } else {
-        // MYP or unknown: extract from unit content with framework fallback
+        // Fallback: extract from unit content
         const uniqueCriteria = new Set<string>();
-        // Strategy 1: criterionTags in sections (v3/v4/timeline pages)
         unitPages.forEach((p) => {
           (p.content?.sections || []).forEach((s: any) => {
             (s.criterionTags || []).forEach((t: string) => uniqueCriteria.add(t));
           });
         });
-        // Strategy 2: strand pages with criterion field (v1/v2 pages)
         unitPages.filter((p) => p.type === "strand" && p.criterion).forEach((p) => {
           if (p.criterion) uniqueCriteria.add(p.criterion);
         });
-        // Strategy 3: phaseLabel-based criterion detection
         unitPages.forEach((p) => {
           if (p.criterion) uniqueCriteria.add(p.criterion);
         });
         criteria = Array.from(uniqueCriteria);
-        if (criteria.length === 0) {
-          criteria = fwKeys;
-        }
       }
       setUnitCriteriaForGrade(criteria);
 
@@ -1188,7 +1183,17 @@ export default function ClassHubPage({
                         {/* Criteria sections */}
                         <div className="space-y-4">
                           {unitCriteriaForGrade.map((criterionKey) => {
-                            const criterion = getFrameworkCriterion(criterionKey, classFramework, (unit as any)?.unit_type || "design");
+                            const gradeCriterion = (() => {
+                              const fwId: FrameworkId =
+                                (classFramework as FrameworkId | null | undefined) ?? "IB_MYP";
+                              const labels = getCriterionLabels(fwId);
+                              const match = labels.find((l) => l.short === criterionKey);
+                              const color = getCriterionColor(criterionKey, fwId);
+                              return match
+                                ? { key: criterionKey, name: match.name, color }
+                                : { key: criterionKey, name: criterionKey, color: "#6366F1" };
+                            })();
+                            const criterion = gradeCriterion;
                             if (!criterion) return null;
                             const score = getCriterionScore(criterionKey);
 

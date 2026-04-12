@@ -253,14 +253,14 @@ describe("render-path wiring lock — student grades page (5.10.4)", () => {
 });
 
 /**
- * Regression-lock guard for 5.10.5 teacher grading pages.
+ * Wiring-lock guard for teacher grading pages — adapter migration (§4.5c).
  *
- * These pages still use the legacy `getFrameworkCriterion` from
- * `@/lib/constants`. These locks ensure the legacy wiring survives
- * until a deliberate migration (FU-E) replaces them with FrameworkAdapter.
- * If someone prematurely rips out the import, these tests break.
+ * These pages have been migrated from legacy `getFrameworkCriterion` to
+ * FrameworkAdapter (`getCriterionLabels` + `getCriterionColor`). These locks
+ * ensure the adapter wiring survives. If someone reverts to legacy imports,
+ * these tests break.
  */
-describe("render-path wiring lock — teacher grading pages (5.10.5)", () => {
+describe("render-path wiring lock — teacher grading pages (§4.5c)", () => {
   const GRADING_PAGE_1 = join(
     process.cwd(),
     "src/app/teacher/classes/[classId]/grading/[unitId]/page.tsx",
@@ -272,44 +272,149 @@ describe("render-path wiring lock — teacher grading pages (5.10.5)", () => {
   const gradingPage1 = readFileSync(GRADING_PAGE_1, "utf8");
   const gradingPage2 = readFileSync(GRADING_PAGE_2, "utf8");
 
-  it("G1: grading/[unitId]/page.tsx imports getFrameworkCriterion from constants", () => {
+  it("G1: grading/[unitId]/page.tsx imports getCriterionLabels from adapter", () => {
     expect(gradingPage1).toMatch(
-      /import\s*\{[^}]*getFrameworkCriterion[^}]*\}\s*from\s*["']@\/lib\/constants["']/,
+      /import\s*\{\s*getCriterionLabels\s*\}\s*from\s*["']@\/lib\/frameworks\/adapter["']/,
     );
   });
 
-  it("G2: grading/[unitId]/page.tsx calls getFrameworkCriterion", () => {
-    expect(gradingPage1).toMatch(/getFrameworkCriterion\s*\(/);
+  it("G2: grading/[unitId]/page.tsx imports getCriterionColor from render-helpers", () => {
+    expect(gradingPage1).toMatch(
+      /import\s*\{\s*getCriterionColor\s*\}\s*from\s*["']@\/lib\/frameworks\/render-helpers["']/,
+    );
   });
 
-  it("G3: class/[classId]/page.tsx imports getFrameworkCriterion from constants", () => {
+  it("G3: class/[classId]/page.tsx imports getCriterionLabels from adapter", () => {
     expect(gradingPage2).toMatch(
-      /import\s*\{[^}]*getFrameworkCriterion[^}]*\}\s*from\s*["']@\/lib\/constants["']/,
+      /import\s*\{\s*getCriterionLabels\s*\}\s*from\s*["']@\/lib\/frameworks\/adapter["']/,
     );
   });
 
-  it("G4: class/[classId]/page.tsx calls getFrameworkCriterion", () => {
-    expect(gradingPage2).toMatch(/getFrameworkCriterion\s*\(/);
+  it("G4: class/[classId]/page.tsx imports getCriterionColor from render-helpers", () => {
+    expect(gradingPage2).toMatch(
+      /import\s*\{\s*getCriterionColor\s*\}\s*from\s*["']@\/lib\/frameworks\/render-helpers["']/,
+    );
+  });
+
+  it("G5: grading/[unitId]/page.tsx no longer imports getFrameworkCriterion from constants", () => {
+    expect(gradingPage1).not.toMatch(
+      /import[^;]*\bgetFrameworkCriterion\b[^;]*from\s*["']@\/lib\/constants["']/,
+    );
+  });
+
+  it("G6: class/[classId]/page.tsx no longer imports getFrameworkCriterion from constants", () => {
+    expect(gradingPage2).not.toMatch(
+      /import[^;]*\bgetFrameworkCriterion\b[^;]*from\s*["']@\/lib\/constants["']/,
+    );
   });
 });
 
 /**
- * Smoke test for 5.11 admin FrameworkAdapter test panel.
+ * Wiring-lock guard for §4.5a LessonSidebar adapter migration.
  */
-describe("admin/framework-adapter page smoke test (5.11)", () => {
+describe("render-path wiring lock — LessonSidebar (§4.5a)", () => {
+  const SIDEBAR_PATH = join(
+    process.cwd(),
+    "src/components/student/LessonSidebar.tsx",
+  );
+  const sidebarSource = readFileSync(SIDEBAR_PATH, "utf8");
+
+  it("S1: imports renderCriterionLabel + getCriterionColor from render-helpers", () => {
+    expect(sidebarSource).toMatch(
+      /import\s*\{[^}]*renderCriterionLabel[^}]*\}\s*from\s*["']@\/lib\/frameworks\/render-helpers["']/,
+    );
+    expect(sidebarSource).toMatch(
+      /import\s*\{[^}]*getCriterionColor[^}]*\}\s*from\s*["']@\/lib\/frameworks\/render-helpers["']/,
+    );
+  });
+
+  it("S2: imports FrameworkId from adapter", () => {
+    expect(sidebarSource).toMatch(
+      /import\s+type\s*\{[^}]*FrameworkId[^}]*\}\s*from\s*["']@\/lib\/frameworks\/adapter["']/,
+    );
+  });
+
+  it("S3: destructures classInfo from useStudent()", () => {
+    expect(sidebarSource).toMatch(/useStudent\(\)/);
+    expect(sidebarSource).toMatch(/classInfo/);
+  });
+
+  it("S4: no longer imports getCriterionDisplay from constants", () => {
+    expect(sidebarSource).not.toMatch(
+      /import[^;]*\bgetCriterionDisplay\b[^;]*from\s*["']@\/lib\/constants["']/,
+    );
+  });
+});
+
+/**
+ * Wiring-lock guard for §4.5b unit editor adapter migration.
+ */
+describe("render-path wiring lock — unit editor (§4.5b)", () => {
+  const EDITOR_PATH = join(
+    process.cwd(),
+    "src/app/teacher/units/[unitId]/page.tsx",
+  );
+  const editorSource = readFileSync(EDITOR_PATH, "utf8");
+
+  it("U1: imports renderCriterionLabel + getCriterionColor from render-helpers", () => {
+    expect(editorSource).toMatch(
+      /import\s*\{[^}]*renderCriterionLabel[^}]*\}\s*from\s*["']@\/lib\/frameworks\/render-helpers["']/,
+    );
+    expect(editorSource).toMatch(
+      /import\s*\{[^}]*getCriterionColor[^}]*\}\s*from\s*["']@\/lib\/frameworks\/render-helpers["']/,
+    );
+  });
+
+  it("U2: imports FrameworkId from adapter", () => {
+    expect(editorSource).toMatch(
+      /import\s+type\s*\{[^}]*FrameworkId[^}]*\}\s*from\s*["']@\/lib\/frameworks\/adapter["']/,
+    );
+  });
+
+  it("U3: no longer uses CRITERION_COLORS constant in executable code", () => {
+    // CRITERION_COLORS was removed in §4.5b; color now comes from getCriterionColor.
+    // A comment mentioning the removal is fine — only match non-comment usage.
+    const nonCommentLines = editorSource
+      .split("\n")
+      .filter((line: string) => !line.trim().startsWith("//") && !line.trim().startsWith("*"));
+    const hasUsage = nonCommentLines.some((line: string) => /\bCRITERION_COLORS\b/.test(line));
+    expect(hasUsage).toBe(false);
+  });
+});
+
+/**
+ * Smoke test for admin FrameworkAdapter test panel (§4.6).
+ */
+describe("admin/framework-adapter page smoke test (§4.6)", () => {
   const ADMIN_PAGE = join(
     process.cwd(),
     "src/app/admin/framework-adapter/page.tsx",
   );
   const adminSource = readFileSync(ADMIN_PAGE, "utf8");
 
-  it("imports getCriterionLabels + toLabel + FrameworkId from @/lib/frameworks/adapter", () => {
+  it("imports getCriterionLabels + toLabel + fromLabel from @/lib/frameworks/adapter", () => {
     expect(adminSource).toMatch(
       /import\s*\{[^}]*getCriterionLabels[^}]*\}\s*from\s*["']@\/lib\/frameworks\/adapter["']/,
     );
     expect(adminSource).toMatch(
-      /import\s+type\s*\{\s*FrameworkId\s*\}\s*from\s*["']@\/lib\/frameworks\/adapter["']/,
+      /import\s*\{[^}]*toLabel[^}]*\}\s*from\s*["']@\/lib\/frameworks\/adapter["']/,
     );
+    expect(adminSource).toMatch(
+      /import\s*\{[^}]*fromLabel[^}]*\}\s*from\s*["']@\/lib\/frameworks\/adapter["']/,
+    );
+  });
+
+  it("imports getCriterionColor from render-helpers", () => {
+    expect(adminSource).toMatch(
+      /import\s*\{\s*getCriterionColor\s*\}\s*from\s*["']@\/lib\/frameworks\/render-helpers["']/,
+    );
+  });
+
+  it("has all 4 tab components (Matrix, BatchValidation, RoundTrip, GradingSimulation)", () => {
+    expect(adminSource).toMatch(/function MatrixTab/);
+    expect(adminSource).toMatch(/function BatchValidationTab/);
+    expect(adminSource).toMatch(/function RoundTripTab/);
+    expect(adminSource).toMatch(/function GradingSimulationTab/);
   });
 });
 

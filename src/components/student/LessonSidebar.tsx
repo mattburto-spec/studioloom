@@ -2,7 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { getCriterionDisplay, type CriterionKey } from "@/lib/constants";
+import { useStudent } from "@/app/(student)/student-context";
+import { renderCriterionLabel, getCriterionColor } from "@/lib/frameworks/render-helpers";
+import type { FrameworkId } from "@/lib/frameworks/adapter";
 import { ProgressCircle } from "./ProgressCircle";
 import type { UnitNavData } from "@/contexts/UnitNavContext";
 import type { UnitPage, StudentProgress } from "@/types";
@@ -54,7 +56,7 @@ interface SidebarGroup {
   pages: UnitPage[];
 }
 
-function buildGroups(pages: UnitPage[]): SidebarGroup[] {
+function buildGroups(pages: UnitPage[], framework: FrameworkId): SidebarGroup[] {
   const groups: SidebarGroup[] = [];
   let lastPhase = "";
 
@@ -75,17 +77,22 @@ function buildGroups(pages: UnitPage[]): SidebarGroup[] {
       continue;
     }
 
-    // v2: group by criterion
+    // v2: group by criterion — resolve via FrameworkAdapter
     if (page.type === "strand" && page.criterion) {
       const existing = groups.find((g) => g.key === `crit-${page.criterion}`);
       if (existing) {
         existing.pages.push(page);
       } else {
-        const meta = getCriterionDisplay(page.criterion as string);
+        const rendered = renderCriterionLabel(page.criterion as string, framework);
+        const displayLabel =
+          rendered.kind === "label" || rendered.kind === "implicit"
+            ? `${rendered.short}: ${rendered.name}`
+            : page.criterion as string;
+        const color = getCriterionColor(page.criterion as string, framework);
         groups.push({
           key: `crit-${page.criterion}`,
-          label: `Criterion ${page.criterion}: ${meta.name}`,
-          color: meta.color,
+          label: displayLabel,
+          color,
           pages: [page],
         });
       }
@@ -122,6 +129,9 @@ interface LessonSidebarProps {
 export function LessonSidebar({ data, unitId, sidebarOpen, onClose }: LessonSidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const { classInfo } = useStudent();
+  const framework: FrameworkId =
+    (classInfo?.framework as FrameworkId | null | undefined) ?? "IB_MYP";
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
   // Current page ID from URL
@@ -130,7 +140,7 @@ export function LessonSidebar({ data, unitId, sidebarOpen, onClose }: LessonSide
     return parts[parts.length - 1] || "";
   }, [pathname]);
 
-  const groups = useMemo(() => buildGroups(data.enabledPages), [data.enabledPages]);
+  const groups = useMemo(() => buildGroups(data.enabledPages, framework), [data.enabledPages, framework]);
   const hasMultipleGroups = groups.length > 1 || (groups.length === 1 && groups[0].label !== "Lessons");
 
   // Progress stats

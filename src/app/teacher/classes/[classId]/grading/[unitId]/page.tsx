@@ -4,15 +4,14 @@ import { useState, useEffect, useCallback, use } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import {
-  CRITERIA,
   GRADING_SCALES,
   type CriterionKey,
   type GradingScale,
-  getFrameworkCriteria,
-  getFrameworkCriterion,
-  getFrameworkCriterionKeys,
   getGradingScale,
 } from "@/lib/constants";
+import { getCriterionLabels } from "@/lib/frameworks/adapter";
+import type { FrameworkId } from "@/lib/frameworks/adapter";
+import { getCriterionColor } from "@/lib/frameworks/render-helpers";
 import { getPageList, isV3 } from "@/lib/unit-adapter";
 import type { Student, Unit, UnitPage, StudentProgress } from "@/types";
 import type {
@@ -286,39 +285,30 @@ export default function GradingPage({
     setDirty(true);
   }
 
-  // Determine criteria to grade against.
-  // For non-MYP frameworks, ALWAYS use the framework's own criteria — unit content
-  // may contain MYP criterion keys (A/B/C/D) from legacy generation, which would
-  // display MYP names instead of the correct framework criteria.
+  // Determine criteria to grade against — via FrameworkAdapter.
+  // Always use framework's registered criteria so labels match the class framework,
+  // regardless of what criterion keys appear in the unit content (which may be MYP legacy).
+  const fwId: FrameworkId =
+    (classFramework as FrameworkId | null | undefined) ?? "IB_MYP";
   const unitCriteria: string[] = (() => {
-    const fwKeys = getFrameworkCriterionKeys(classFramework);
-
-    if (classFramework !== "IB_MYP" && fwKeys.length > 0) {
-      // Non-MYP: always use framework criteria registry
-      return fwKeys;
+    const labels = getCriterionLabels(fwId);
+    if (labels.length > 0) {
+      return labels.map((l) => l.short);
     }
-
-    // MYP or unknown: extract from unit content with framework fallback
+    // Fallback: extract from unit content (shouldn't happen if framework is valid)
     const uniqueCriteria = new Set<string>();
-    // Strategy 1: criterionTags in sections (v3/v4/timeline)
     unitPages.forEach((p) => {
       (p.content?.sections || []).forEach((s: any) => {
         (s.criterionTags || []).forEach((t: string) => uniqueCriteria.add(t));
       });
     });
-    // Strategy 2: strand pages with criterion field (v1/v2)
     unitPages.filter((p) => p.type === "strand" && p.criterion).forEach((p) => {
       if (p.criterion) uniqueCriteria.add(p.criterion);
     });
-    // Strategy 3: any page with direct criterion field
     unitPages.forEach((p) => {
       if ((p as any).criterion) uniqueCriteria.add((p as any).criterion);
     });
-    const criteria = Array.from(uniqueCriteria);
-    if (criteria.length === 0) {
-      return fwKeys;
-    }
-    return criteria;
+    return Array.from(uniqueCriteria);
   })();
 
   function getStudentStatus(studentId: string): "ungraded" | "draft" | "published" {
@@ -1013,7 +1003,20 @@ function CriterionSection({
   framework: string;
 }) {
   const [showStrands, setShowStrands] = useState(false);
-  const criterion = getFrameworkCriterion(criterionKey, framework) || { key: criterionKey, name: criterionKey, color: "#6366F1", bgClass: "bg-gray-100", textClass: "text-gray-700" };
+  // Resolve criterion display via FrameworkAdapter
+  const criterion = (() => {
+    const fwLabels = getCriterionLabels(
+      (framework as FrameworkId | null | undefined) ?? "IB_MYP"
+    );
+    const match = fwLabels.find((l) => l.short === criterionKey);
+    const color = getCriterionColor(
+      criterionKey,
+      (framework as FrameworkId | null | undefined) ?? "IB_MYP"
+    );
+    return match
+      ? { key: criterionKey, name: match.name, color }
+      : { key: criterionKey, name: criterionKey, color: "#6366F1" };
+  })();
   const fwTags = getFrameworkTags(framework);
   const criterionTags = fwTags[criterionKey] || [];
   const allTags = [...criterionTags, ...UNIVERSAL_TAGS];
