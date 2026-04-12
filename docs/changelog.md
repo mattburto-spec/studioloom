@@ -498,3 +498,38 @@
 **Systems affected:** `generation-pipeline` (Stages 3/4/5/6 now consume FormatProfile fields previously ignored), `framework-adapter` (new system — first consumer is 5.10 Admin panel), `format-profiles` (connectiveTissue + timingModifiers extended).
 
 **Session context:** Long session continuing Dimensions3 v2 Phase 2 build after context compaction. Phased-with-checkpoints methodology held throughout. Every sub-task followed pre-flight → design/lock → test → NC → commit cadence. Pre-flight audits caught 5 brief transcription slips in 5.9 alone (baseline drift, vitest glob trap, Group 4 function name, Group 3 length miscount, Group 3a MYP short/full mix-up) — none reached EDITS. Next session starts with 5.10 (Admin panel) pre-flight.
+
+## 12 Apr 2026 — Dimensions3 v2 Phase 2 COMPLETE: Sub-tasks 5.10.4–5.14 shipped + pushed
+
+**What changed:**
+- **5.10.4** closed — Student grades page H.1 dual-shape bug fixed (`criterion_scores` typed as array, not Record). New `normalizeCriterionScores` 4-shape absorber at `src/lib/criterion-scores/normalize.ts`. Grades page rewired to FrameworkAdapter (`getCriterionLabels` + `FrameworkId` from `@/lib/frameworks/adapter`). 9 wiring-lock tests (L1-L7 + barrel guards). Import path drift caught in Pre-Edit Mini-Report. Lesson #42 appended. FU-J/K/L filed. Commit `75080df`.
+- **5.10.5+5.10.6** combined — 4 teacher grading regression locks (G1-G4) ensuring legacy `getFrameworkCriterion` from `@/lib/constants` survives until FU-E migration. FU-E through FU-I filed. Commit `1353204`.
+- **5.11** closed — Admin FrameworkAdapter Test Panel at `/admin/framework-adapter`. 8×8 toLabel matrix + per-framework criterion list grid, color-coded by kind (label/implicit/not_assessed). 147 lines. 1 smoke test. Commit `39b8b9b`.
+- **5.13** closed — Model ID centralization. `src/lib/ai/models.ts` with `MODELS.SONNET` + `MODELS.HAIKU` constants. 42 hardcoded sites across 28 files replaced (spec said 12 — 3.5× stale). 2 wiring-lock tests. Commit `801f012`.
+- **5.14a** closed — Orchestrator integration tests. 7 tests using `runPipeline()` with `sandboxMode: true` + Proxy-based mock supabase. 3ms execution. Commit `8313eac`.
+- **5.14** closed — Checkpoint 2.2 E2E test suite. 1 α test (always runs) + 6 β tests (gated behind `RUN_E2E=1` + `ANTHROPIC_API_KEY`). Matt ran on local machine: 7/7 green, $0.16, 73 seconds. Commit `542e6e1`.
+- **Checkpoint 2.1 PASSED** — Full static audit (tests couldn't run in Cowork sandbox due to native rolldown binding). All 22 wiring locks, 139 adapter tests, 5 normalizer tests verified via file reads.
+- **Checkpoint 2.2 PASSED** — Matt ran `RUN_E2E=1 ANTHROPIC_API_KEY=... npm test` locally. All 7 E2E tests green. Pipeline produced valid TimedUnit, QualityReport with 5 dimensions, $0.16 cost, 73s wall time.
+- **Pushed to origin/main** — Matt pushed after both checkpoints passed.
+
+**Files created:**
+- `src/lib/criterion-scores/normalize.ts` (4-shape absorber)
+- `src/lib/criterion-scores/__tests__/normalize.test.ts` (5 tests)
+- `src/app/admin/framework-adapter/page.tsx` (147 lines)
+- `src/lib/ai/models.ts` (MODELS.SONNET + MODELS.HAIKU)
+- `tests/pipeline/orchestrator-integration.test.ts` (7 integration tests)
+- `tests/e2e/checkpoint-2-2-generation.test.ts` (234 lines, 7 E2E tests)
+
+**Files modified:** `src/app/(student)/unit/[unitId]/grades/page.tsx` (H.1 fix + FrameworkAdapter wiring), `src/lib/frameworks/__tests__/render-path-fixtures.test.ts` (22 total it-blocks across 5 describes), `docs/lessons-learned.md` (#42), `docs/projects/dimensions3-followups.md` (FU-E through FU-L), 28 production files (model ID replacement).
+
+**Followups filed:** FU-E (teacher grading FrameworkAdapter migration), FU-F (legacy CRITERIA cleanup), FU-G (getCriterionColor wrapper), FU-H (strand header FrameworkAdapter wiring), FU-I (null-framework fallback audit), FU-J (scale /8 hardcode), FU-K (student-snapshot shape), FU-L (local type collapse).
+
+**Auto-memory updated:** `project_dimensions3_phase2_progress.md` updated with Phase 2 complete status.
+
+**Test counts:** 812 → 891 (+79 this session). tsc baseline held at 80.
+
+**Commits:** 7 new commits this session (including prior sub-session). Pushed to origin/main after Checkpoint 2.2 sign-off.
+
+**Systems affected:** `framework-adapter` (render-helpers + admin panel + criterion-scores normalizer added), `generation-pipeline` (model ID centralization + E2E checkpoint gate), `student-grade-view` (H.1 dual-shape fix), `ai-provider` (model constants centralized).
+
+**Session context:** Two-part session (context compaction between parts). First part covered 5.5-5.9 (FormatProfile wiring + FrameworkAdapter build). Second part covered 5.10.4-5.14 (render path wiring + model centralization + E2E). Phase 2 is now fully complete. Next: Phase 3 (feedback loop) per completion spec.

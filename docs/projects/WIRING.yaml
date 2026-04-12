@@ -1,6 +1,6 @@
 # StudioLoom System Registry & Dependency Map
 # Machine-readable system registry for impact analysis
-# Last updated: 2026-04-07
+# Last updated: 2026-04-12
 # When a change is made to any system, trace affected systems via depends_on/affects
 
 systems:
@@ -797,7 +797,7 @@ systems:
     category: AI & Intelligence
     status: active
     currentVersion: 2
-    summary: "Dimensions3 ALL PHASES + WIRING COMPLETE (9 Apr 2026). 6-stage pipeline + feedback system + admin dashboard + wizard route integration. Input/output adapters bridge wizard UI ↔ pipeline. generate-unit route un-quarantined. 510+ tests. Migrations 060-064 applied."
+    summary: "Dimensions3 Phase 2 COMPLETE (12 Apr 2026). 6-stage pipeline + feedback system + admin dashboard + wizard route integration + FrameworkAdapter wired to 3 render paths (student lesson, student grades, teacher grading) + model ID centralization + E2E checkpoint gate. Input/output adapters bridge wizard UI ↔ pipeline. generate-unit route un-quarantined. 890+ tests. Migrations 060-064 applied."
     depends_on: [activity-blocks, knowledge-pipeline, timing-engine, framework-adapter, intelligence-profiles]
     affects: [unit-generation, unit-editor, lesson-pulse, activity-blocks, feedback-system]
     docs:
@@ -833,6 +833,7 @@ systems:
       - src/lib/feedback/self-healing.ts
       - src/lib/pipeline/adapters/input-adapter.ts
       - src/lib/pipeline/adapters/output-adapter.ts
+      - src/lib/ai/models.ts
       - src/app/api/teacher/generate-unit/route.ts
       - src/app/admin/feedback/page.tsx
       - src/app/api/admin/feedback/route.ts
@@ -1527,6 +1528,9 @@ systems:
     key_files:
       - src/lib/frameworks/adapter.ts
       - src/lib/frameworks/mappings.ts
+      - src/lib/frameworks/render-helpers.ts
+      - src/lib/criterion-scores/normalize.ts
+      - src/app/admin/framework-adapter/page.tsx
     future_needs: Teacher-customizable mapping, new framework support.
     adrs: []
     os_seam: ready

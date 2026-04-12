@@ -22,26 +22,26 @@ docs:
     title: "Project: Questerra (StudioLoom) — Instructions for Claude"
     purpose: "Master instructions for Claude, project tracking, key decisions, lessons learned, AI Brain reference table"
     category: root
-    last_verified: "2026-04-07"
+    last_verified: "2026-04-12"
     referenced_from: ["Master reference document"]
 
   - path: docs/changelog.md
     title: "Session Changelog"
     purpose: "Rolling log of changes across sessions for cross-session context"
     category: root
-    last_verified: "2026-04-11"
+    last_verified: "2026-04-12"
 
   - path: docs/decisions-log.md
     title: "Key Decisions Log"
-    purpose: "182 architectural and design decisions from 17 Mar – 6 Apr 2026"
+    purpose: "192+ architectural and design decisions from 17 Mar – 12 Apr 2026"
     category: root
-    last_verified: "2026-04-07"
+    last_verified: "2026-04-12"
 
   - path: docs/lessons-learned.md
     title: "Lessons Learned"
-    purpose: "39 hard-won lessons from production bugs, build disasters, Supabase/Vercel gotchas (Lessons #38 + #39 added 10–11 Apr 2026; #39 covers silent max_tokens truncation + 'fix all similar sites in same phase' rule)"
+    purpose: "42 hard-won lessons from production bugs, build disasters, Supabase/Vercel gotchas. #42 (12 Apr 2026): dual-shape persistence fields silently break consumers when frontend types diverge from server writers."
     category: root
-    last_verified: "2026-04-11"
+    last_verified: "2026-04-12"
 
   - path: docs/build-methodology.md
     title: "Build Methodology — Phased with Checkpoints"
@@ -336,16 +336,16 @@ docs:
 
   - path: docs/projects/dimensions3-completion-spec.md
     title: "Dimensions3 v2 Completion Spec (Canonical Build Plan)"
-    purpose: "v2 rewrite of the Dimensions3 build plan (~1,600 lines). Full audit of v1 gaps fixed: removed Stage 5b misconception (curriculum mapping is render-time via FrameworkAdapter), added Phase 5 Content Safety (§17), expanded Phase 4 to all 7 automation systems (§9.3), expanded Phase 7 to all 12 admin tabs + 5 sandboxes + Bug Reporting. 12 mandatory Matt Checkpoints, per-sub-task verification, rollback sections. 21–25 day estimate. §3.7 amended (11 Apr 2026): Checkpoint 1.2 promoted to automated E2E gate, manual smoke walkthrough demoted to optional pre-push. THIS IS THE BUILD PLAN TO FOLLOW."
+    purpose: "v2 rewrite of the Dimensions3 build plan (~1,600 lines). Full audit of v1 gaps fixed: removed Stage 5b misconception (curriculum mapping is render-time via FrameworkAdapter), added Phase 5 Content Safety (§17), expanded Phase 4 to all 7 automation systems (§9.3), expanded Phase 7 to all 12 admin tabs + 5 sandboxes + Bug Reporting. 12 mandatory Matt Checkpoints, per-sub-task verification, rollback sections. 21–25 day estimate. Phase 2 COMPLETE (12 Apr 2026). THIS IS THE BUILD PLAN TO FOLLOW."
     category: projects
-    last_verified: "2026-04-11"
+    last_verified: "2026-04-12"
     referenced_from: ["ALL-PROJECTS.md", "decisions-log.md", "changelog.md"]
 
   - path: docs/projects/dimensions3-followups.md
     title: "Dimensions3 Follow-Ups Tracker"
-    purpose: "Per-FU tracking for Dimensions3 phase follow-ups (FU-1 through FU-5). FU-1 /teacher/units render delay P1. FU-2 Unknown strand/level chips P2. FU-3 Migration 067 grandfather bug ✅ FIXED. FU-4 delete junk test units P2. FU-5 max_tokens silent truncation audit (Pass A + Pass B fixed in Phase 1.7, 9 sites remaining)."
+    purpose: "Per-FU tracking for Dimensions3 phase follow-ups (FU-1 through FU-L). FU-E through FU-I (teacher grading migration, legacy CRITERIA cleanup, getCriterionColor wrapper, strand headers, null-framework fallback). FU-J through FU-L (scale hardcode, student-snapshot shape, local type collapse). Phase 2 follow-ups filed 12 Apr 2026."
     category: projects
-    last_verified: "2026-04-11"
+    last_verified: "2026-04-12"
     referenced_from: ["ALL-PROJECTS.md Dimensions3 follow-ups", "CLAUDE.md current focus"]
 
   - path: docs/projects/dimensions2.md
