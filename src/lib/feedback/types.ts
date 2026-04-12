@@ -73,6 +73,12 @@ export interface EfficacyResult {
 }
 
 // ─── Proposals & Approval Queue ───
+//
+// Naming divergence from spec (documented, intentional):
+//   Spec §5.2 uses `requires_matt: true`     → code uses `requiresManualApproval` (scales to multi-admin)
+//   Spec §5.4 uses `action='accept'`         → code uses `action='approved'` (standard approval-queue vocabulary)
+//   Spec §5.4 uses `status='accepted'`       → code uses `status='approved'` (same reason)
+// These names are more correct long-term. The spec was written with Matt as sole admin.
 
 export type ProposalType = "efficacy_adjustment" | "self_healing" | "metadata_correction";
 export type ProposalStatus = "pending" | "approved" | "rejected" | "modified";
@@ -149,11 +155,15 @@ export interface SelfHealingProposal {
 // ─── Guardrails ───
 
 export interface GuardrailConfig {
-  /** Auto-approve OFF by default */
+  /**
+   * Auto-approve REMOVED from POST handler per spec §5.4 ("No auto-accept anywhere").
+   * These fields are retained for canAutoApprove() which is still exported from guardrails.ts
+   * for potential future use, but the POST handler no longer calls it.
+   */
   autoApproveEnabled: boolean;
-  /** Minimum evidence count for auto-approve */
+  /** Minimum evidence count for auto-approve (not currently used in POST handler) */
   minEvidenceForAutoApprove: number;
-  /** Max score change per cycle for auto-approve */
+  /** Max score change per cycle for auto-approve (not currently used in POST handler) */
   maxScoreChangeForAutoApprove: number;
 }
 

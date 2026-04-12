@@ -118,6 +118,7 @@ export default function AdjustmentCard({ proposal, onAction }: AdjustmentCardPro
               <ProposalReasoning
                 reasoning={proposal.reasoning}
                 evidenceCount={proposal.evidence_count}
+                signalBreakdown={proposal.signal_breakdown}
               />
             )}
 

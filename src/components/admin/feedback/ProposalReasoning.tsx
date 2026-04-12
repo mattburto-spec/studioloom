@@ -8,6 +8,7 @@
 interface ProposalReasoningProps {
   reasoning: Record<string, number> | null | undefined;
   evidenceCount: number;
+  signalBreakdown?: Record<string, number> | null;
 }
 
 const LABELS: Record<string, { label: string; format: (v: number) => string; weight: string }> = {
@@ -28,7 +29,54 @@ function getBarColor(key: string, value: number): string {
   return "bg-red-400";
 }
 
-export default function ProposalReasoning({ reasoning, evidenceCount }: ProposalReasoningProps) {
+/**
+ * Build a human-readable narrative like:
+ * "Kept in 6/8 units (75%). 85% student completion. Time accuracy 72%."
+ */
+function buildNarrative(
+  reasoning: Record<string, number>,
+  signalBreakdown?: Record<string, number> | null
+): string {
+  const parts: string[] = [];
+  const sb = signalBreakdown ?? {};
+
+  // Kept rate — use signal_breakdown for raw counts if available
+  const keptPct = Math.round((reasoning.keptRate ?? 0) * 100);
+  if (sb.teacherInteractions && sb.teacherInteractions > 0) {
+    const kept = Math.round((reasoning.keptRate ?? 0) * sb.teacherInteractions);
+    parts.push(`Kept in ${kept}/${sb.teacherInteractions} units (${keptPct}%)`);
+  } else if (keptPct !== 50) {
+    parts.push(`${keptPct}% kept rate`);
+  }
+
+  // Completion
+  const completionPct = Math.round((reasoning.completionRate ?? 0) * 100);
+  if (completionPct !== 50) {
+    parts.push(`${completionPct}% student completion`);
+  }
+
+  // Time accuracy
+  const timePct = Math.round((reasoning.timeAccuracy ?? 0) * 100);
+  if (timePct !== 50) {
+    parts.push(`Time accuracy ${timePct}%`);
+  }
+
+  // Deletion — only mention if notable
+  const deletionPct = Math.round((reasoning.deletionRate ?? 0) * 100);
+  if (deletionPct > 20) {
+    parts.push(`${deletionPct}% deletion rate`);
+  }
+
+  // Edit rate — only mention if notable
+  const editPct = Math.round((reasoning.editRate ?? 0) * 100);
+  if (editPct > 30) {
+    parts.push(`${editPct}% rewrite rate`);
+  }
+
+  return parts.length > 0 ? parts.join(". ") + "." : "Default signal values — insufficient real data.";
+}
+
+export default function ProposalReasoning({ reasoning, evidenceCount, signalBreakdown }: ProposalReasoningProps) {
   if (!reasoning || Object.keys(reasoning).length === 0) {
     return (
       <div className="text-xs text-gray-400 italic">
@@ -37,8 +85,13 @@ export default function ProposalReasoning({ reasoning, evidenceCount }: Proposal
     );
   }
 
+  const narrative = buildNarrative(reasoning, signalBreakdown);
+
   return (
     <div className="space-y-1.5">
+      {/* §5.4: Human-readable narrative explanation */}
+      <p className="text-xs text-gray-700 leading-relaxed">{narrative}</p>
+
       <div className="text-xs font-medium text-gray-600 mb-2">
         Formula breakdown ({evidenceCount} evidence points)
       </div>
