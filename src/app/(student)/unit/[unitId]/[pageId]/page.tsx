@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef, use } from "react";
 import { useRouter } from "next/navigation";
 import { CRITERIA, PAGE_TYPE_LABELS, type CriterionKey } from "@/lib/constants";
+import { collectCriterionChips } from "@/lib/frameworks/render-helpers";
+import type { FrameworkId } from "@/lib/frameworks/adapter";
 import { isV3 } from "@/lib/unit-adapter";
 import { usePageData } from "@/hooks/usePageData";
 import { usePageResponses } from "@/hooks/usePageResponses";
@@ -64,7 +66,7 @@ function UnitPageViewInner({
   const { responses, setResponses, saving, showSaveToast, saveProgress } =
     usePageResponses(unitId, pageId, currentPage, data, integrityMetadataRef, getTrackingPayload);
 
-  const { student } = useStudent();
+  const { student, classInfo } = useStudent();
   const openStudio = useOpenStudio(unitId);
   const [planOpen, setPlanOpen] = useState(false);
   const [portfolioOpen, setPortfolioOpen] = useState(false);
@@ -107,6 +109,9 @@ function UnitPageViewInner({
     ? CRITERIA[currentPage.criterion as CriterionKey]
     : null;
   const pageContent: PageContent | undefined = currentPage?.content;
+  // 5.10.3: null-framework classes render as MYP (behavior-preserving). See FU-I.
+  const framework: FrameworkId =
+    (classInfo?.framework as FrameworkId | null | undefined) ?? "IB_MYP";
 
   let sectionNum = 0;
   const hasContext = pageContent?.learningGoal || pageContent?.vocabWarmup || pageContent?.introduction;
@@ -179,24 +184,20 @@ function UnitPageViewInner({
 
           {/* Badges */}
           <div className="flex items-center gap-2 mt-5 flex-wrap">
-            {(journeyMode || currentPage.type === "lesson") && pageContent?.sections?.some(s => s.criterionTags?.length) && (
-              pageContent.sections
-                .flatMap(s => s.criterionTags || [])
-                .filter((v, i, a) => a.indexOf(v) === i)
-                .map(tag => {
-                  const criterionMeta = CRITERIA[tag as CriterionKey];
-                  return (
-                    <span
-                      key={tag}
-                      className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-white/20 text-white"
-                    >
-                      <span
-                        className="w-2 h-2 rounded-full bg-white/60"
-                      />
-                      {criterionMeta ? `${tag}: ${criterionMeta.name}` : tag}
-                    </span>
-                  );
-                })
+            {(journeyMode || currentPage.type === "lesson") && pageContent?.sections && (
+              collectCriterionChips(pageContent.sections, framework).map(chip => (
+                <span
+                  key={chip.key}
+                  className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-white/20 text-white"
+                >
+                  <span className="w-2 h-2 rounded-full bg-white/60" />
+                  {chip.kind === "label" || chip.kind === "implicit"
+                    ? `${chip.short}: ${chip.name}`
+                    : chip.kind === "unknown"
+                      ? chip.tag
+                      : "Not assessed"}
+                </span>
+              ))
             )}
             {!journeyMode && currentPage.type !== "lesson" && criterion && (
               <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-full bg-white/20 text-white">

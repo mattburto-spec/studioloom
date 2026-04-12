@@ -118,3 +118,57 @@ describe("render-path fixtures — shape lock (5.10.1)", () => {
     }
   });
 });
+
+/**
+ * Wiring-lock guard for 5.10.3 student lesson page integration.
+ *
+ * These are source-static greps that assert the badge-block wiring is
+ * actually in place. They fire if someone reverts the chip helper wiring
+ * back to the old `.flatMap().filter().map()` pipeline or forgets to thread
+ * `framework` through to collectCriterionChips.
+ *
+ * Not behavioral — they do not render the page or exercise the helper.
+ * The G9 describe block in render-helpers.test.ts covers behavior.
+ */
+describe("render-path wiring lock — student lesson page (5.10.3)", () => {
+  const PAGE_PATH = join(
+    process.cwd(),
+    "src/app/(student)/unit/[unitId]/[pageId]/page.tsx",
+  );
+  const pageSource = readFileSync(PAGE_PATH, "utf8");
+
+  it("imports collectCriterionChips from @/lib/frameworks/render-helpers", () => {
+    expect(pageSource).toMatch(
+      /import\s*\{\s*collectCriterionChips\s*\}\s*from\s*["']@\/lib\/frameworks\/render-helpers["']/,
+    );
+  });
+
+  it("destructures classInfo from useStudent()", () => {
+    expect(pageSource).toMatch(
+      /const\s*\{\s*student\s*,\s*classInfo\s*\}\s*=\s*useStudent\(\)/,
+    );
+  });
+
+  it("falls back to 'IB_MYP' when classInfo.framework is null/undefined", () => {
+    expect(pageSource).toMatch(/\?\?\s*["']IB_MYP["']/);
+  });
+
+  it("badge block no longer uses CRITERIA[tag as CriterionKey] lookup", () => {
+    // CRITERIA is still imported (strand header path at ~line 107 uses it),
+    // but the badge block inner pipeline must not.
+    const badgeBlockMatch = pageSource.match(
+      /\{\s*\/\*\s*Badges\s*\*\/\s*\}[\s\S]*?collectCriterionChips\([\s\S]*?\)\.map\(/,
+    );
+    expect(badgeBlockMatch).not.toBeNull();
+    // And the old pattern `CRITERIA[tag as CriterionKey]` must not appear
+    // inside the badge block segment.
+    const badgeSegment = badgeBlockMatch?.[0] ?? "";
+    expect(badgeSegment).not.toMatch(/CRITERIA\[tag\s+as\s+CriterionKey\]/);
+  });
+
+  it("calls collectCriterionChips with (pageContent.sections, framework)", () => {
+    expect(pageSource).toMatch(
+      /collectCriterionChips\s*\(\s*pageContent\.sections\s*,\s*framework\s*\)/,
+    );
+  });
+});

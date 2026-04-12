@@ -22,7 +22,9 @@ import { join } from "node:path";
 import {
   renderCriterionLabel,
   getCriterionColor,
+  collectCriterionChips,
   __resetWarnedLegacyTags,
+  type CriterionChip,
 } from "../render-helpers";
 import {
   toLabel,
@@ -195,6 +197,83 @@ describe("render-helpers — renderCriterionLabel + getCriterionColor (5.10.2)",
         expect(actual).toEqual(fixture.expectedLabels[tag]);
       });
     }
+  });
+
+  // ─── G9 — collectCriterionChips (5.10.3) ───────────────────────────────
+  describe("G9 — collectCriterionChips partition dedup", () => {
+    const fixture = loadFixture("render-paths-student-lesson.json") as {
+      pageContent: { sections: Array<{ criterionTags?: string[] }> };
+    };
+
+    it("GCSE fixture collapses 4 neutral tags → 3 chips (designing+creating both → AO2)", () => {
+      const chips = collectCriterionChips(
+        fixture.pageContent.sections,
+        "GCSE_DT",
+      );
+      expect(chips).toHaveLength(3);
+    });
+
+    it("preserves first-occurrence order [AO1, AO3, AO2]", () => {
+      const chips = collectCriterionChips(
+        fixture.pageContent.sections,
+        "GCSE_DT",
+      );
+      const shorts = chips
+        .filter((c): c is Extract<CriterionChip, { kind: "label" }> => c.kind === "label")
+        .map((c) => c.short);
+      expect(shorts).toEqual(["AO1", "AO3", "AO2"]);
+    });
+
+    it("first-occurrence wins: 'designing' chip keeps its name, 'creating' is dropped", () => {
+      const chips = collectCriterionChips(
+        fixture.pageContent.sections,
+        "GCSE_DT",
+      );
+      const ao2 = chips.find(
+        (c): c is Extract<CriterionChip, { kind: "label" }> =>
+          c.kind === "label" && c.short === "AO2",
+      );
+      expect(ao2).toBeDefined();
+      // designing and creating both map to AO2 with identical name in GCSE —
+      // the point of this test is that we end with exactly one AO2 chip, not two.
+      expect(ao2!.name).toBe(
+        "Design and make prototypes that are fit for purpose",
+      );
+      const ao2Count = chips.filter(
+        (c) => c.kind === "label" && c.short === "AO2",
+      ).length;
+      expect(ao2Count).toBe(1);
+    });
+
+    it("unknown tags pass through individually (no dedup)", () => {
+      const sections = [
+        { criterionTags: ["BOGUS_1", "BOGUS_2"] },
+      ];
+      const chips = collectCriterionChips(sections, "GCSE_DT");
+      expect(chips).toHaveLength(2);
+      expect(chips.every((c) => c.kind === "unknown")).toBe(true);
+      const tags = chips
+        .filter((c): c is Extract<CriterionChip, { kind: "unknown" }> => c.kind === "unknown")
+        .map((c) => c.tag);
+      expect(tags).toEqual(["BOGUS_1", "BOGUS_2"]);
+    });
+
+    it("labels appear before unknowns in output order", () => {
+      const sections = [
+        { criterionTags: ["BOGUS_TAG", "researching"] },
+      ];
+      const chips = collectCriterionChips(sections, "GCSE_DT");
+      expect(chips).toHaveLength(2);
+      expect(chips[0].kind).toBe("label");
+      expect(chips[1].kind).toBe("unknown");
+    });
+
+    it("empty sections and missing criterionTags are safe", () => {
+      expect(collectCriterionChips([], "GCSE_DT")).toEqual([]);
+      expect(
+        collectCriterionChips([{ criterionTags: [] }, {}], "GCSE_DT"),
+      ).toEqual([]);
+    });
   });
 
   // ─── G8 — getCriterionColor smoke ──────────────────────────────────────

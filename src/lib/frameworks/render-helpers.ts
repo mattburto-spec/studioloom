@@ -114,3 +114,91 @@ export function getCriterionColor(
 ): string {
   return getCriterionDisplay(short, unitType, framework).color;
 }
+
+// ─── Chip collection (5.10.3) ─────────────────────────────────────────────
+
+/**
+ * React-renderable chip produced by collectCriterionChips. Carries a stable
+ * `key` for React reconciliation plus a discriminated payload matching
+ * RenderedCriterion's shape.
+ */
+export type CriterionChip =
+  | { key: string; kind: "label"; short: string; full: string; name: string }
+  | {
+      key: string;
+      kind: "implicit";
+      short: string;
+      full: string;
+      name: string;
+      note: string;
+    }
+  | { key: string; kind: "not_assessed" }
+  | { key: string; kind: "unknown"; tag: string };
+
+/**
+ * Flatten a set of sections into a deduplicated, framework-aware chip list
+ * for badge rendering at the top of a lesson/page.
+ *
+ * Partition dedup rule (5.10.3 Q1):
+ *   - labels + implicits dedupe by resolved `short` (first-occurrence wins).
+ *     Cross-neutral-key collisions (e.g. GCSE "designing" + "creating" both →
+ *     AO2) collapse to one chip — this is a behavior change from the old
+ *     `.flatMap().filter()` pipeline which deduped on the neutral-key string.
+ *   - not_assessed + unknown chips pass through individually with indexed
+ *     keys and are appended AFTER labelLike, preserving the "known first,
+ *     unknown after" visual order.
+ *
+ * Structural input typing (`{ criterionTags?: string[] }`) deliberately loose
+ * so call sites can pass `ActivitySection[]` without cast.
+ */
+export function collectCriterionChips(
+  sections: ReadonlyArray<{ criterionTags?: string[] }>,
+  framework: FrameworkId,
+): CriterionChip[] {
+  const labelLike: CriterionChip[] = [];
+  const other: CriterionChip[] = [];
+  const seenShorts = new Set<string>();
+  let unknownIdx = 0;
+  let notAssessedIdx = 0;
+
+  for (const section of sections) {
+    for (const tag of section.criterionTags || []) {
+      const result = renderCriterionLabel(tag, framework);
+      if (result.kind === "label") {
+        if (seenShorts.has(result.short)) continue;
+        seenShorts.add(result.short);
+        labelLike.push({
+          key: result.short,
+          kind: "label",
+          short: result.short,
+          full: result.full,
+          name: result.name,
+        });
+      } else if (result.kind === "implicit") {
+        if (seenShorts.has(result.short)) continue;
+        seenShorts.add(result.short);
+        labelLike.push({
+          key: result.short,
+          kind: "implicit",
+          short: result.short,
+          full: result.full,
+          name: result.name,
+          note: result.note,
+        });
+      } else if (result.kind === "not_assessed") {
+        other.push({
+          key: `not_assessed:${notAssessedIdx++}`,
+          kind: "not_assessed",
+        });
+      } else {
+        other.push({
+          key: `unknown:${unknownIdx++}:${result.tag}`,
+          kind: "unknown",
+          tag: result.tag,
+        });
+      }
+    }
+  }
+
+  return [...labelLike, ...other];
+}
