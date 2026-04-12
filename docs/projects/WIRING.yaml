@@ -837,6 +837,15 @@ systems:
       - src/app/api/teacher/generate-unit/route.ts
       - src/app/admin/feedback/page.tsx
       - src/app/api/admin/feedback/route.ts
+      - src/app/api/admin/feedback/audit-log/route.ts
+      - src/components/admin/feedback/ProposalReasoning.tsx
+      - src/components/admin/feedback/FeedbackDiff.tsx
+      - src/components/admin/feedback/GuardrailWarning.tsx
+      - src/components/admin/feedback/BatchActions.tsx
+      - src/components/admin/feedback/AuditLogTab.tsx
+      - src/components/admin/feedback/AdjustmentCard.tsx
+      - src/components/admin/feedback/ApprovalQueue.tsx
+      - scripts/run-efficacy-update.ts
     future_needs: Learned sequence patterns replacing hardcoded skeletons, cross-teacher pattern sharing, real-time generation co-pilot.
     adrs: ["004", "005", "006", "009"]
     os_seam: designed

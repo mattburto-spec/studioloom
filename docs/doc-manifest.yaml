@@ -331,7 +331,7 @@ docs:
     title: "Project Dimensions3 — Generation Pipeline Rebuild (Master Spec)"
     purpose: "6-stage compartmentalized generation pipeline with typed contracts, 2-pass ingestion, Activity Block Library, sandbox debugger, feedback loop with approval queue + guardrails, admin dashboard with operational monitors, unit import, smoke tests. No hardcoded sequences — system learns from usage. 43 decisions logged. Master spec — see dimensions3-completion-spec.md for the v2 build plan."
     category: projects
-    last_verified: "2026-04-10"
+    last_verified: "2026-04-12"
     referenced_from: ["CLAUDE.md AI Brain table"]
 
   - path: docs/projects/dimensions3-completion-spec.md
@@ -347,6 +347,34 @@ docs:
     category: projects
     last_verified: "2026-04-12"
     referenced_from: ["ALL-PROJECTS.md Dimensions3 follow-ups", "CLAUDE.md current focus"]
+
+  - path: docs/projects/dimensions3-phase3-remediation.md
+    title: "Dimensions3 Phase 3R Remediation Brief"
+    purpose: "Full remediation brief for Phase 3 feedback loop: pre-flight, stop triggers, checkpoints, 5 remediation items (R1-R5), Code agent brief plan. Produced after methodology violation caught."
+    category: projects
+    last_verified: "2026-04-12"
+    referenced_from: ["ALL-PROJECTS.md"]
+
+  - path: docs/projects/phase3r-code-brief.md
+    title: "Phase 3R Code Agent Brief (R1+R2)"
+    purpose: "Detailed brief for Code agent: R1 signals.ts rewrite (student_progress indirect join), R2 CLI script rewrite (.mjs → .ts with library imports). Exact implementation code, pre-flight steps, NC requirements, commit plan, stop triggers."
+    category: projects
+    last_verified: "2026-04-12"
+    referenced_from: ["dimensions3-phase3-remediation.md"]
+
+  - path: docs/projects/phase3r-seed-sql.md
+    title: "Phase 3R Seed SQL & Cascade Delete Verification"
+    purpose: "SQL for seeding test signal data (3 blocks with different edit patterns) and cascade delete verification for migration 070."
+    category: projects
+    last_verified: "2026-04-12"
+    referenced_from: ["dimensions3-phase3-remediation.md"]
+
+  - path: docs/projects/dimensions3-phase3-gaps.md
+    title: "Dimensions3 Phase 3 Gap Audit"
+    purpose: "10 gaps found during Phase 3 honest audit — signal sources reading wrong tables, auto-approve present despite spec §5.4, CLI formula duplication, missing reasoning JSONB, naming divergence, missing ProposalReasoning narrative, cascade delete unverified."
+    category: projects
+    last_verified: "2026-04-12"
+    referenced_from: ["dimensions3-phase3-remediation.md"]
 
   - path: docs/projects/dimensions2.md
     title: "Project Dimensions2 — Platform Architecture Reset"

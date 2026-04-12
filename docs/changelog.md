@@ -4,6 +4,27 @@
 
 ---
 
+## 12 Apr 2026 — Dimensions3 Phase 3R Complete (Feedback Loop Remediation, Checkpoints 3.1 + 3.2 PASSED)
+
+**What changed:**
+- **Phase 3 Gap Audit:** Honest audit of rushed Phase 3 work identified 10 gaps. Full remediation brief written with pre-flight, stop triggers, checkpoints, per the build methodology that was violated in the initial rush.
+- **R1 (signals.ts rewrite):** `getStudentSignals()` now queries real `student_progress` rows via indirect join (`source_unit_id + source_page_id`), replacing dead pre-aggregated columns on `activity_blocks` that were always NULL/0. 3 new tests with NC verification. Page-level granularity documented as acceptable approximation.
+- **R2 (CLI script rewrite):** Deleted `run-efficacy-update.mjs` (180 lines, duplicated formula). Created `run-efficacy-update.ts` (88 lines) importing directly from library — single source of truth, zero formula duplication.
+- **R3 (ProposalReasoning narrative):** Added `buildNarrative()` to ProposalReasoning.tsx — human-readable explanations alongside bar charts ("5 teacher interactions (80% kept), 3 student uses (33% completion)").
+- **R4 (Naming divergence):** Documented spec-vs-code naming differences in types.ts header (requires_matt → requiresManualApproval, accept → approved). Decision: keep code names (scale to multi-admin).
+- **R5 (Cascade delete verification):** Migration 070 CASCADE DELETE confirmed working on prod — 0 orphaned proposals/audit rows after block deletion.
+- **Backend changes from earlier in session:** Removed auto-approve (spec §5.4), added 7-day rejection suppression, added reasoning JSONB column (migration 071), added audit-log API endpoint.
+- **Checkpoint 3.1:** CLI dry-run produced 3 proposals with correct directional ordering (kept 61.3 > deleted 44.3 > rewritten 40.3). completionRate 0.33 confirmed real student_progress join working.
+- **Checkpoint 3.2:** Full end-to-end cycle verified: CLI → proposals in DB with reasoning JSONB → UI rendering with narrative + diff → approve (score updated 65→40.3) + reject → audit log entries created.
+
+**Systems affected:** `feedback-system` (signals.ts, efficacy.ts, types.ts, 8 UI components, CLI script, audit-log API), `activity_blocks` (efficacy_score updated via approval). WIRING.yaml synced with 11 new key_files.
+
+**Push status:** 5 commits on main pushed to origin (R3+R4 commit + R1 commit + R2 commit + 2 pre-existing). Migrations 070 + 071 applied to prod.
+
+**Session context:** Continuation from compacted session. Phase 3 initially rushed without methodology — Matt caught it. Full remediation process: re-read build-methodology.md + lessons-learned.md, wrote remediation brief with pre-flight/stop triggers, executed properly with Code agent for R1+R2. Methodology held for remediation. Test suite: 902 → 905 (+3 signal tests).
+
+---
+
 ## 11 Apr 2026 — Dimensions3 Phases 1.6 + 1.7 Complete (Checkpoint 1.2 PASSED), Build Methodology Captured
 
 **What changed:**
