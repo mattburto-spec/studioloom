@@ -292,3 +292,23 @@ describe("render-path wiring lock — teacher grading pages (5.10.5)", () => {
     expect(gradingPage2).toMatch(/getFrameworkCriterion\s*\(/);
   });
 });
+
+/**
+ * Smoke test for 5.11 admin FrameworkAdapter test panel.
+ */
+describe("admin/framework-adapter page smoke test (5.11)", () => {
+  const ADMIN_PAGE = join(
+    process.cwd(),
+    "src/app/admin/framework-adapter/page.tsx",
+  );
+  const adminSource = readFileSync(ADMIN_PAGE, "utf8");
+
+  it("imports getCriterionLabels + toLabel + FrameworkId from @/lib/frameworks/adapter", () => {
+    expect(adminSource).toMatch(
+      /import\s*\{[^}]*getCriterionLabels[^}]*\}\s*from\s*["']@\/lib\/frameworks\/adapter["']/,
+    );
+    expect(adminSource).toMatch(
+      /import\s+type\s*\{\s*FrameworkId\s*\}\s*from\s*["']@\/lib\/frameworks\/adapter["']/,
+    );
+  });
+});
