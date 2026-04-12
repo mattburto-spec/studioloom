@@ -469,3 +469,27 @@ Both are regression-locked by 5.10.5 wiring tests (G1-G4 in `render-path-fixture
 **Definition of done:** Either (a) confirmed IB_MYP remains the safe default for v1, or (b) configurable default implemented if user base shifts. Inline FU-I comments in code updated either way.
 
 ---
+
+## FU-M — Live cost alert email test (Resend integration)
+**Surfaced:** Phase 4 Checkpoint 4.1 (12 Apr 2026)
+**Target phase:** Pre-launch or next ops pass
+**Priority:** P2
+
+**Symptom:** Cost alert delivery (`src/lib/monitoring/cost-alert-delivery.ts`) has full Resend API integration with debounce, but has only been verified via unit tests (9 passing) and console.log fallback. Live email delivery has not been tested end-to-end.
+
+**What we know:**
+- Code sends via direct `fetch()` to `https://api.resend.com/emails` — no npm package.
+- Debounce checks `system_alerts` for existing alert within 6 hours before sending.
+- Console fallback works when `RESEND_API_KEY` is not set (verified in Phase 4 script runs).
+- Free tier: 100 emails/day, sufficient for alerting.
+
+**Steps to verify:**
+1. Create a Resend account at resend.com, verify a sending domain.
+2. Add to `.env.local`: `RESEND_API_KEY=re_xxxxx`, `COST_ALERT_EMAIL=matt@yourdomain.com`.
+3. Temporarily set `COST_ALERT_DAILY_USD=0.01` (lowest threshold).
+4. Run a generation that costs > $0.01, then run: `npx tsx -r dotenv/config scripts/ops/run-cost-alert.ts dotenv_config_path=.env.local`
+5. Verify email arrives with correct subject/body.
+6. Run cost-alert again immediately — verify debounce suppresses the second send (check console output for "debounced: true").
+7. Restore `COST_ALERT_DAILY_USD` to production value ($10).
+
+**Definition of done:** Email received. Debounce verified (second run within 6h does NOT send). Both confirmed with screenshots or logs.

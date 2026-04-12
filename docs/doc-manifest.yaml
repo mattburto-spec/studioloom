@@ -343,7 +343,7 @@ docs:
 
   - path: docs/projects/dimensions3-followups.md
     title: "Dimensions3 Follow-Ups Tracker"
-    purpose: "Per-FU tracking for Dimensions3 phase follow-ups (FU-1 through FU-L). FU-E through FU-I (teacher grading migration, legacy CRITERIA cleanup, getCriterionColor wrapper, strand headers, null-framework fallback). FU-J through FU-L (scale hardcode, student-snapshot shape, local type collapse). Phase 2 follow-ups filed 12 Apr 2026."
+    purpose: "Per-FU tracking for Dimensions3 phase follow-ups (FU-1 through FU-M). FU-E through FU-I (teacher grading migration, legacy CRITERIA cleanup, getCriterionColor wrapper, strand headers, null-framework fallback). FU-J through FU-L (scale hardcode, student-snapshot shape, local type collapse). FU-M (live cost alert email test). Phase 2+4 follow-ups filed 12 Apr 2026."
     category: projects
     last_verified: "2026-04-12"
     referenced_from: ["ALL-PROJECTS.md Dimensions3 follow-ups", "CLAUDE.md current focus"]
@@ -375,6 +375,20 @@ docs:
     category: projects
     last_verified: "2026-04-12"
     referenced_from: ["dimensions3-phase3-remediation.md"]
+
+  - path: docs/projects/dimensions3-phase4-brief.md
+    title: "Dimensions3 Phase 4 Brief — Library Health & Operational Automation"
+    purpose: "Phase brief with pre-flight steps, stop triggers, sub-task breakdown for Phase 4. Migration 072, 8 health queries, 7 ops jobs, 2 hygiene jobs, 2 dashboards, cost alert delivery, runbook."
+    category: projects
+    last_verified: "2026-04-12"
+    referenced_from: ["dimensions3-completion-spec.md", "ALL-PROJECTS.md"]
+
+  - path: docs/projects/dimensions3-ops-runbook.md
+    title: "Dimensions3 Ops Runbook"
+    purpose: "Operational runbook for all 7 automation systems, 2 hygiene jobs, 2 health dashboards. Includes run commands, troubleshooting, environment variables."
+    category: projects
+    last_verified: "2026-04-12"
+    referenced_from: ["dimensions3-completion-spec.md", "ALL-PROJECTS.md", "WIRING.yaml"]
 
   - path: docs/projects/dimensions2.md
     title: "Project Dimensions2 — Platform Architecture Reset"

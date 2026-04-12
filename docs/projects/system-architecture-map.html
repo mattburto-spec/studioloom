@@ -1062,11 +1062,20 @@ const SYSTEMS = [
   {
     id: "admin-dashboard", name: "Admin Dashboard", category: "Admin & Operations",
     v1: "BUILT Phase E (9 Apr): Health strip (5 traffic lights), quick stats + sparklines, alerts feed. Tabs: Pipeline Health, Block Library, Sandbox, Cost & Usage, Settings + stubs. 6 operational monitors. Unit import flow.",
-    v2: "Automated alerting, cost anomaly detection, quality drift monitoring",
+    v2: "Phase 4 (12 Apr): Library Health dashboard (8 widgets), Pipeline Health dashboard (KPI + heatmap + alerts), cost alert delivery via Resend API, 7 ops automation jobs, 2 library hygiene jobs, ops runbook. Tabs: Pipeline Health + Library Health accessible from admin nav.",
     v3: null, v4: null, v5: null,
-    currentVersion: 1, status: "active",
+    currentVersion: 2, status: "active",
     deps: ["generation-pipeline", "activity-blocks"],
     osSeam: "partial", osNotes: "Admin shell reusable. Pipeline-specific tabs are product-specific."
+  },
+  {
+    id: "ops-automation", name: "Operational Automation", category: "Admin & Operations",
+    v1: "Phase 4 (12 Apr): 7 ops jobs (pipeline health, cost alert, quality drift, edit tracker, stale watchdog, smoke tests, usage analytics) + 2 hygiene jobs (weekly/monthly). Cost alert email via Resend API + 6h debounce. Migration 072 (system_alerts, library_health_flags, usage_rollups). All jobs write to system_alerts.",
+    v2: "Scheduled cron execution, automated hygiene runs, hygiene results dashboard",
+    v3: null, v4: null, v5: null,
+    currentVersion: 1, status: "active",
+    deps: ["generation-pipeline", "activity-blocks", "admin-dashboard"],
+    osSeam: "partial", osNotes: "Job runner pattern reusable. Job-specific queries are product-specific."
   },
   {
     id: "admin-journey-builder", name: "Admin Journey Builder", category: "Admin & Operations",

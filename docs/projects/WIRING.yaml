@@ -797,9 +797,9 @@ systems:
     category: AI & Intelligence
     status: active
     currentVersion: 2
-    summary: "Dimensions3 Phase 2 COMPLETE (12 Apr 2026). 6-stage pipeline + feedback system + admin dashboard + wizard route integration + FrameworkAdapter wired to 3 render paths (student lesson, student grades, teacher grading) + model ID centralization + E2E checkpoint gate. Input/output adapters bridge wizard UI ↔ pipeline. generate-unit route un-quarantined. 890+ tests. Migrations 060-064 applied."
+    summary: "Dimensions3 Phase 4 COMPLETE (12 Apr 2026). 6-stage pipeline + feedback system + admin dashboards (Library Health + Pipeline Health) + 7 ops jobs + 2 hygiene jobs + cost alert delivery + wizard route integration + FrameworkAdapter wired to 3 render paths + model ID centralization + E2E checkpoint gate. Migration 072 adds system_alerts, library_health_flags, usage_rollups. 948 tests."
     depends_on: [activity-blocks, knowledge-pipeline, timing-engine, framework-adapter, intelligence-profiles]
-    affects: [unit-generation, unit-editor, lesson-pulse, activity-blocks, feedback-system]
+    affects: [unit-generation, unit-editor, lesson-pulse, activity-blocks, feedback-system, ops-automation]
     docs:
       - path: docs/projects/dimensions3.md
         purpose: Master spec for Dimensions3 rebuild (quarantine spec)
@@ -1872,26 +1872,77 @@ systems:
     name: Admin Dashboard (Superuser Ops)
     category: Admin & Operations
     status: active
-    currentVersion: 1
-    summary: "BUILT Phase E (9 Apr 2026). Health strip (5 traffic lights), quick stats with sparklines, alerts feed. Tab navigation: Pipeline Health, Block Library, Sandbox, Cost & Usage, Settings (+ stub tabs for Quality, Wiring, Teachers, Students, Schools, Bugs, Audit). 6 operational monitors wired. Unit import flow."
-    depends_on: [generation-pipeline, activity-blocks, feedback-system]
+    currentVersion: 2
+    summary: "Phase 4 expanded (12 Apr 2026). v1 health strip + sparklines + alerts. v2 adds Library Health dashboard (8 widgets: source type, category distribution, stale blocks, duplicate suspects, low efficacy, orphans, embedding health, coverage heatmap) and Pipeline Health dashboard (KPI cards, stage failure heatmap, cost alert strip, error log, quality drift indicator, recent alerts). Tabs now include Pipeline Health + Library Health accessible from admin nav."
+    depends_on: [generation-pipeline, activity-blocks, feedback-system, ops-automation]
     affects: [generation-pipeline, ai-controls, testing-sandbox]
     docs:
       - path: docs/projects/dimensions3.md
         purpose: Admin dashboard spec (Section 14.7)
+      - path: docs/projects/dimensions3-ops-runbook.md
+        purpose: Ops runbook for all automation systems and dashboards
     key_files:
       - src/app/admin/page.tsx
       - src/app/admin/layout.tsx
       - src/lib/admin/health-checks.ts
       - src/lib/admin/monitors/
       - src/app/admin/pipeline/page.tsx
+      - src/app/admin/pipeline/health/page.tsx
       - src/app/admin/library/page.tsx
+      - src/app/admin/library/health/page.tsx
+      - src/app/api/admin/library/health/route.ts
+      - src/app/api/admin/pipeline/health/route.ts
+      - src/lib/admin/library-health-queries.ts
       - src/app/admin/costs/page.tsx
       - src/app/admin/settings/page.tsx
-    future_needs: Remaining stub tabs (Quality, Wiring, Teachers, Students, Schools, Bugs, Audit). Automated alerting. Per-teacher profitability.
+    future_needs: Remaining stub tabs (Quality, Wiring, Teachers, Students, Schools, Bugs, Audit). Per-teacher profitability.
     adrs: []
     os_seam: partial
-    change_impacts: Changes to monitors affect health strip. Changes to pipeline stages affect Pipeline Health tab. Changes to activity_blocks schema affect Library browser.
+    change_impacts: Changes to monitors affect health strip. Changes to pipeline stages affect Pipeline Health tab. Changes to activity_blocks schema affect Library browser and Library Health dashboard. Changes to system_alerts affect both health dashboards.
+
+  - id: ops-automation
+    name: Operational Automation (Dimensions3 Phase 4)
+    category: Admin & Operations
+    status: active
+    currentVersion: 1
+    summary: "Phase 4 (12 Apr 2026). 7 ops automation jobs (pipeline health, cost alert, quality drift, edit tracker, stale watchdog, smoke tests, usage analytics) + 2 library hygiene jobs (weekly staleness/dedup/low-efficacy, monthly consolidation/orphan-archival). All jobs write to system_alerts. Cost alert email delivery via Resend API with 6h debounce. Migration 072: system_alerts, library_health_flags, usage_rollups tables. Run via npx tsx scripts/ops/run-*.ts."
+    depends_on: [generation-pipeline, activity-blocks, admin-dashboard]
+    affects: [admin-dashboard, activity-blocks]
+    docs:
+      - path: docs/projects/dimensions3-ops-runbook.md
+        purpose: Full ops runbook for all 7 systems + 2 hygiene jobs
+      - path: docs/projects/dimensions3-phase4-brief.md
+        purpose: Phase 4 brief with pre-flight and stop triggers
+    data_fields:
+      - table: system_alerts
+        columns: [id, alert_type, severity, title, message, metadata, acknowledged, created_at]
+        notes: Universal output for all ops jobs. Every run writes at least one row.
+      - table: library_health_flags
+        columns: [id, block_id, flag_type, details, resolved, created_at]
+        notes: Flagged blocks from hygiene jobs (stale, duplicate, low_efficacy, missing_embedding)
+      - table: usage_rollups
+        columns: [id, period_start, period_end, period_type, metrics, created_at]
+        notes: Rolled-up usage stats (active teachers, total blocks, generation runs, etc.)
+      - table: activity_blocks
+        columns: [last_used_at, archived_at, embedding_generated_at, decay_applied_total]
+        notes: 4 new columns added by migration 072 for library health tracking
+    key_files:
+      - src/lib/jobs/pipeline-health-monitor.ts
+      - src/lib/jobs/cost-alert.ts
+      - src/lib/jobs/quality-drift-detector.ts
+      - src/lib/jobs/teacher-edit-tracker.ts
+      - src/lib/jobs/stale-data-watchdog.ts
+      - src/lib/jobs/smoke-tests.ts
+      - src/lib/jobs/usage-analytics.ts
+      - src/lib/jobs/library-hygiene-weekly.ts
+      - src/lib/jobs/library-hygiene-monthly.ts
+      - src/lib/monitoring/cost-alert-delivery.ts
+      - scripts/ops/
+      - scripts/run-hygiene.ts
+    future_needs: Scheduled cron execution (Vercel cron or external scheduler). Automated hygiene runs. Dashboard for hygiene job results.
+    adrs: []
+    os_seam: partial
+    change_impacts: Changes to generation_runs schema affect pipeline-health and cost-alert jobs. Changes to activity_blocks affect hygiene jobs and stale watchdog. Changes to system_alerts affect both dashboards.
 
   - id: admin-journey-builder
     name: Admin Journey Builder (Node-Graph Editor)
@@ -2126,14 +2177,14 @@ systems:
 
 # Summary Statistics
 meta:
-  total_systems: 92
+  total_systems: 93
   complete_systems: 35
-  active_systems: 11
+  active_systems: 12
   planned_systems: 8
   idea_systems: 19
   future_systems: 6
   quarantined_systems: 1
-  last_updated: 2026-04-07
+  last_updated: 2026-04-12
   notes: |
     This registry maps 92 systems across 8 categories.
     CRITICAL LINKS:

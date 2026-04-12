@@ -4,6 +4,41 @@
 
 ---
 
+## 12 Apr 2026 — Dimensions3 Phase 4 Complete (Library Health & Operational Automation, Checkpoint 4.1 PASSED)
+
+**What changed:**
+- **Edit tracker wiring (§5.5 gap fix from prior session):** `trackEdits()` now called fire-and-forget from the content save route (`src/app/api/teacher/units/[unitId]/content/route.ts`). Snapshots `previousContent` before overwrite, feeds edit-tracker job. Commit `445b1a9`.
+- **Migration 072:** 3 new tables (`system_alerts`, `library_health_flags`, `usage_rollups`), 4 new columns on `activity_blocks` (`last_used_at`, `archived_at`, `embedding_generated_at`, `decay_applied_total`), `find_duplicate_blocks()` RPC function using pgvector cosine similarity on halfvec embeddings. Commit `c8b6711`.
+- **Library health queries:** 8 typed query functions (`getBlocksBySourceType`, `getCategoryDistribution`, `getStaleBlocks`, `getDuplicateSuspects`, `getLowEfficacyBlocks`, `getOrphanBlocks`, `getEmbeddingHealth`, `getCoverageHeatmap`) with 7 TypeScript interfaces. 19 tests. Commit `10c46d8`.
+- **7 ops automation jobs:** Pipeline health monitor, cost alert, quality drift detector, teacher edit tracker, stale data watchdog, smoke tests (6 wiring checks), usage analytics. All write to `system_alerts`. All runnable via `npx tsx -r dotenv/config scripts/ops/run-*.ts dotenv_config_path=.env.local`. 7 tests. Commit `3d413a7`.
+- **2 library hygiene jobs:** Weekly (staleness decay capped at -6, duplicate flagging via RPC, low-efficacy flagging, stale embedding detection). Monthly (consolidation proposals >0.95 cosine, orphan archival — never deletes). CLI runner: `npx tsx scripts/run-hygiene.ts <weekly|monthly>`. 8 tests. Commit `aea737a`.
+- **Library Health dashboard** (`/admin/library/health`): 8 widgets (source type bars, category distribution, stale blocks table, duplicate suspect pairs, low efficacy table, orphan blocks, embedding health gauge, coverage heatmap). API route at `/api/admin/library/health`. Commit `18a7776`.
+- **Pipeline Health dashboard** (`/admin/pipeline/health`): KPI cards (success rate, avg timing, total cost, total runs), stage failure heatmap, cost alert strip, error log, quality drift indicator, recent alerts list. API route at `/api/admin/pipeline/health`. Commit `d4f5e66`.
+- **Cost alert email delivery:** `sendCostAlert()` via direct `fetch()` to Resend API (no npm package — Lesson #44). 6-hour debounce via `system_alerts` check. Console.log fallback when `RESEND_API_KEY` not set. 9 tests. Commit `5d6ddfb`.
+- **Admin nav update:** Pipeline Health and Library Health tabs added to admin layout. `isActive()` fixed for sub-route matching. Commit `c18c766`.
+- **Ops runbook + phase brief:** Full runbook at `docs/projects/dimensions3-ops-runbook.md`. Phase brief at `docs/projects/dimensions3-phase4-brief.md`. Commit `eccce92`.
+- **FU-M filed:** Live cost alert email test deferred — requires Resend account setup.
+
+**Verification (Checkpoint 4.1):**
+- All 7 ops scripts ran successfully with real data:
+  - pipeline-health: 100% success rate, 1 run
+  - cost-alert: $0 costs, no thresholds exceeded, debounce working
+  - quality-drift: insufficient data (expected with 1 run)
+  - edit-tracker: 15 total edits (7 kept, 5 rewritten, 3 deleted)
+  - stale-watchdog: 55 stale blocks (expected — `last_used_at` is new column, all NULL)
+  - smoke-tests: 6/6 passed
+  - usage-analytics: 1 active teacher, 55 blocks, 2 rollups written
+- Both dashboards reflect `system_alerts` data correctly
+- Email delivery deferred to FU-M (console fallback verified)
+
+**Systems affected:** `generation-pipeline` (edit tracker wired), `admin-dashboard` (leveled up v1→v2, 2 new dashboard pages), `ops-automation` (NEW system — 7 jobs + 2 hygiene + cost alert delivery), `activity_blocks` (4 new columns). WIRING.yaml synced with new `ops-automation` system entry.
+
+**Test suite:** 905 → 948 (+43 new, 0 failures)
+
+**Session context:** Continuation from compacted session where Phase 3R was completed. Edit tracker wiring gap (§5.5) fixed first, then all of Phase 4 built end-to-end. Pre-flight audit discovered `total_cost` is JSONB (not float) and `activity_blocks` missing 4 columns — informed migration design. Build methodology held throughout. Key design decision: Resend via direct `fetch()` instead of npm package (Lesson #44: simplicity first).
+
+---
+
 ## 12 Apr 2026 — Dimensions3 Phase 3R Complete (Feedback Loop Remediation, Checkpoints 3.1 + 3.2 PASSED)
 
 **What changed:**
