@@ -14,6 +14,7 @@ const TABS = [
   { label: "Settings", href: "/admin/settings" },
   { label: "Controls", href: "/admin/controls" },
   { label: "AI Model", href: "/admin/ai-model" },
+  { label: "Frameworks", href: "/admin/framework-adapter" },
 ];
 
 export default function AdminLayout({
