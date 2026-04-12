@@ -20,6 +20,7 @@ import type {
 } from "@/types/activity-blocks";
 import type { FormatProfile } from "@/lib/ai/unit-types";
 import { assertNotMaxTokens, MaxTokensError } from "./max-tokens-guard";
+import { MODELS } from "@/lib/ai/models";
 
 // ─── Types ───
 
@@ -217,7 +218,7 @@ export async function stage2_assembleSequence(
 ): Promise<AssembledSequence> {
   const startMs = Date.now();
   const { request, candidates } = retrieval;
-  const modelId = config.modelId || "claude-sonnet-4-20250514";
+  const modelId = config.modelId || MODELS.SONNET;
 
   // If no candidates, build a pure-gap sequence without AI call
   if (candidates.length === 0) {

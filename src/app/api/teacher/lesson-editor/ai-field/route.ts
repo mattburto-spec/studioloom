@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireTeacherAuth } from "@/lib/auth/verify-teacher-unit";
 import Anthropic from "@anthropic-ai/sdk";
+import { MODELS } from "@/lib/ai/models";
 
 // ─────────────────────────────────────────────────────────────────
 // AI Field Suggestion — generates 3 text suggestions for a
@@ -52,7 +53,7 @@ export async function POST(req: NextRequest) {
     const role = roleMap[unitType] || "design & technology teachers";
 
     const response = await anthropic.messages.create({
-      model: "claude-haiku-4-5-20251001",
+      model: MODELS.HAIKU,
       max_tokens: 500,
       system: `You are a lesson planning assistant for ${role}. You generate practical, specific suggestions for lesson planning fields. Always return valid JSON.`,
       messages: [

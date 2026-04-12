@@ -1,11 +1,12 @@
 "use client";
 
 import { HARD_GUARDRAILS, DEFAULT_GUARDRAIL_CONFIG } from "@/lib/feedback/types";
+import { MODELS } from "@/lib/ai/models";
 
 const MODEL_TIERS = [
-  { tier: "Tier 1 — Ingestion / Classification", model: "claude-haiku-4-5-20251001", desc: "Fast classification, PII scanning" },
-  { tier: "Tier 2 — Analysis / Enrichment", model: "claude-sonnet-4-20250514", desc: "Pedagogical analysis, block enrichment" },
-  { tier: "Tier 3 — Generation / Reconstruction", model: "claude-sonnet-4-20250514", desc: "Unit generation, lesson assembly" },
+  { tier: "Tier 1 — Ingestion / Classification", model: MODELS.HAIKU, desc: "Fast classification, PII scanning" },
+  { tier: "Tier 2 — Analysis / Enrichment", model: MODELS.SONNET, desc: "Pedagogical analysis, block enrichment" },
+  { tier: "Tier 3 — Generation / Reconstruction", model: MODELS.SONNET, desc: "Unit generation, lesson assembly" },
 ];
 
 export default function SettingsPage() {

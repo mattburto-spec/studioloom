@@ -28,6 +28,7 @@ import type {
 } from "@/types/lesson-intelligence";
 
 import type { PartialTeachingContext } from "@/types/lesson-intelligence";
+import { MODELS } from "@/lib/ai/models";
 
 import {
   ANALYSIS_PROMPT_VERSION,
@@ -72,8 +73,8 @@ async function callAI<T>(options: AICallOptions): Promise<T> {
   // Map model shorthand to actual model IDs
   const modelId =
     model === "haiku"
-      ? "claude-haiku-4-5-20251001"
-      : "claude-sonnet-4-20250514";
+      ? MODELS.HAIKU
+      : MODELS.SONNET;
 
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -539,7 +540,7 @@ function createPlaceholderProfile(
 
     // Provenance
     analysis_version: ANALYSIS_PROMPT_VERSION,
-    analysis_model: "claude-haiku-4-5-20251001", // lightweight pipeline uses Haiku
+    analysis_model: MODELS.HAIKU, // lightweight pipeline uses Haiku
     analysis_timestamp: new Date().toISOString(),
   };
 }
@@ -706,7 +707,7 @@ export async function analyseDocument(
     );
 
     onProgress?.("merging", "Building lesson intelligence profile...");
-    const analysisModel = "claude-sonnet-4-20250514";
+    const analysisModel = MODELS.SONNET;
     profile = mergeIntoProfile(pass1, pass2, pass3, analysisModel);
 
     // Apply per-section dimensions to lesson flow if available from Pass 2b

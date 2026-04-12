@@ -21,6 +21,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireStudentAuth } from "@/lib/auth/student";
 import { logUsage } from "@/lib/usage-tracking";
 import { rateLimit } from "@/lib/rate-limit";
+import { MODELS } from "@/lib/ai/models";
 
 // Rate limit: 10/min per student (generous for conversation)
 const DISCOVERY_LIMITS = [
@@ -531,7 +532,7 @@ export async function POST(request: NextRequest) {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
+        model: MODELS.HAIKU,
         max_tokens: 800,
         system: systemPrompt,
         messages,
@@ -636,7 +637,7 @@ export async function POST(request: NextRequest) {
     // Log usage
     logUsage({
       endpoint: "open-studio-discovery",
-      model: "claude-haiku-4-5-20251001",
+      model: MODELS.HAIKU,
       inputTokens: data.usage?.input_tokens,
       outputTokens: data.usage?.output_tokens,
       metadata: { step: currentStep, stepComplete: stepIsComplete },

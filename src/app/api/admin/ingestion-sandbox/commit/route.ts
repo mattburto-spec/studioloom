@@ -41,6 +41,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { embedText } from "@/lib/ai/embeddings";
 import { computeContentFingerprint } from "@/lib/ingestion/fingerprint";
+import { MODELS } from "@/lib/ai/models";
 
 export const maxDuration = 300;
 
@@ -240,7 +241,7 @@ export async function POST(request: NextRequest) {
           block_id: data.id,
           status: moderationStatus,
           reason: c.moderationFlags && c.moderationFlags[0]?.reason ? c.moderationFlags[0].reason : null,
-          model_id: c.moderationStatus ? "claude-haiku-4-5-20251001" : null,
+          model_id: c.moderationStatus ? MODELS.HAIKU : null,
           flags: c.moderationFlags && c.moderationFlags.length > 0 ? c.moderationFlags : [],
         });
       } catch (logErr) {

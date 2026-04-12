@@ -20,6 +20,7 @@ import type {
 } from "@/types/activity-blocks";
 import type { FormatProfile } from "@/lib/ai/unit-types";
 import { assertNotMaxTokens, MaxTokensError } from "./max-tokens-guard";
+import { MODELS } from "@/lib/ai/models";
 
 // ─── Types ───
 
@@ -165,7 +166,7 @@ export async function stage3_fillGaps(
   config: GenerationConfig
 ): Promise<FilledSequence> {
   const startMs = Date.now();
-  const modelId = config.modelId || "claude-sonnet-4-20250514";
+  const modelId = config.modelId || MODELS.SONNET;
   const maxConcurrency = config.maxConcurrency ?? 4;
   const { request } = assembled;
 

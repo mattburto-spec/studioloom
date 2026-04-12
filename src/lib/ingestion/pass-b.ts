@@ -20,7 +20,9 @@ import type {
   PassConfig,
 } from "./types";
 
-const DEFAULT_MODEL = "claude-sonnet-4-20250514";
+import { MODELS } from "@/lib/ai/models";
+
+const DEFAULT_MODEL = MODELS.SONNET;
 
 // Cost per token (Sonnet pricing, approximate)
 const INPUT_COST_PER_TOKEN = 0.003 / 1000;

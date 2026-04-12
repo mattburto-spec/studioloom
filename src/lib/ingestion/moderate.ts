@@ -21,7 +21,9 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { CostBreakdown } from "@/types/activity-blocks";
 import type { ExtractedBlock, ModeratedBlock, PassConfig } from "./types";
 
-const DEFAULT_MODEL = "claude-haiku-4-5-20251001";
+import { MODELS } from "@/lib/ai/models";
+
+const DEFAULT_MODEL = MODELS.HAIKU;
 
 // Haiku pricing (approximate, matches pass-a.ts convention).
 const INPUT_COST_PER_TOKEN = 0.001 / 1000;

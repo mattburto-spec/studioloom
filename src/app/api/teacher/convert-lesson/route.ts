@@ -13,6 +13,7 @@ import { chunkDocument, type ChunkMetadata } from "@/lib/knowledge/chunk";
 import { embedAll } from "@/lib/ai/embeddings";
 import type { ExtractedDoc } from "@/lib/knowledge/extract";
 import type { TimelineSkeleton, PageContent } from "@/types";
+import { MODELS } from "@/lib/ai/models";
 
 function createSupabaseServer(request: NextRequest) {
   return createServerClient(
@@ -237,7 +238,7 @@ async function handleGeneration(
     // creative generation. The teacher already wrote the content; we're reshaping
     // it into JSON + adding scaffolding. Haiku handles this well at ~10x lower cost.
     // Sonnet is reserved for the wizard (creative lesson generation from scratch).
-    const modelName = "claude-haiku-4-5-20251001";
+    const modelName = MODELS.HAIKU;
 
     // Generate ONE page per lesson using lightweight direct API calls.
     // The old approach used generateCriterionPages which generates 3-5 pages per call

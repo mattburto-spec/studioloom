@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireTeacherAuth } from "@/lib/auth/verify-teacher-unit";
 import Anthropic from "@anthropic-ai/sdk";
 import { BLOCK_LIBRARY } from "@/components/teacher/lesson-editor/BlockPalette";
+import { MODELS } from "@/lib/ai/models";
 
 // ─────────────────────────────────────────────────────────────────
 // POST /api/teacher/lesson-editor/suggest
@@ -9,7 +10,7 @@ import { BLOCK_LIBRARY } from "@/components/teacher/lesson-editor/BlockPalette";
 // Uses Haiku 4.5 for speed + low cost (~0.2s, ~$0.001)
 // ─────────────────────────────────────────────────────────────────
 
-const HAIKU_MODEL = "claude-haiku-4-5-20251001";
+const HAIKU_MODEL = MODELS.HAIKU;
 
 interface SuggestionRequest {
   unitId: string;

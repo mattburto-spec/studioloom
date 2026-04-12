@@ -6,6 +6,7 @@ import { onUnitCreated } from "@/lib/teacher-style/profile-service";
 import { runPipeline } from "@/lib/pipeline/orchestrator";
 import type { OrchestratorConfig } from "@/lib/pipeline/orchestrator";
 import { wizardInputToGenerationRequest } from "@/lib/pipeline/adapters/input-adapter";
+import { MODELS } from "@/lib/ai/models";
 import { timedUnitToContentData } from "@/lib/pipeline/adapters/output-adapter";
 
 function createSupabaseServer(request: NextRequest) {
@@ -57,7 +58,7 @@ export const POST = withErrorHandler("teacher/generate-unit:POST", async (reques
       teacherId: user.id,
       apiKey: process.env.ANTHROPIC_API_KEY!,
       sandboxMode: false,
-      modelId: "claude-sonnet-4-20250514",
+      modelId: MODELS.SONNET,
     };
 
     // Run the Dimensions3 pipeline

@@ -6,6 +6,7 @@
  */
 
 import { createAdminClient } from "@/lib/supabase/admin";
+import { MODELS } from "@/lib/ai/models";
 import type { DesignConversation, ConversationTurn } from "@/types";
 import {
   buildDesignAssistantSystemPrompt,
@@ -501,7 +502,7 @@ async function callDesignAssistantAI(
       "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify({
-      model: "claude-haiku-4-5-20251001",
+      model: MODELS.HAIKU,
       max_tokens: 300, // Short responses — mentor asks ONE question
       system: systemPrompt,
       messages,
@@ -528,7 +529,7 @@ async function callDesignAssistantAI(
   // Log usage (fire-and-forget)
   logUsage({
     endpoint: "design-assistant",
-    model: "claude-haiku-4-5-20251001",
+    model: MODELS.HAIKU,
     inputTokens: data.usage?.input_tokens,
     outputTokens: data.usage?.output_tokens,
     metadata: {

@@ -12,6 +12,7 @@ import { rateLimit, type RateLimitWindow } from "@/lib/rate-limit";
 import { logUsage } from "@/lib/usage-tracking";
 import * as Sentry from "@sentry/nextjs";
 import type { ToolkitAIResult, ToolkitRequestBody } from "./types";
+import { MODELS } from "@/lib/ai/models";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -23,7 +24,7 @@ export const TOOLKIT_RATE_LIMITS: RateLimitWindow[] = [
   { maxRequests: 500, windowMs: 60 * 60 * 1000 },
 ];
 
-const HAIKU_MODEL = "claude-haiku-4-5-20251001";
+const HAIKU_MODEL = MODELS.HAIKU;
 
 // ---------------------------------------------------------------------------
 // callHaiku — single implementation replaces 17 copies

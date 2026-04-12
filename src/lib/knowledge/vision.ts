@@ -57,6 +57,8 @@ export interface VisualExtractionResult {
    lesson plans, worksheets).
    ================================================================ */
 
+import { MODELS } from "@/lib/ai/models";
+
 const VISION_PROMPT = `You are analysing an educational document for its visual content. Describe ALL images, diagrams, charts, tables, flowcharts, and illustrations you can see.
 
 For each visual element, provide a structured description. Focus on EDUCATIONAL VALUE — what concept, process, or skill does this visual teach or demonstrate?
@@ -168,7 +170,7 @@ async function extractPDFVisuals(
       "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify({
-      model: "claude-haiku-4-5-20251001",
+      model: MODELS.HAIKU,
       max_tokens: 4096,
       messages: [
         {
@@ -381,7 +383,7 @@ async function describeImageSet(
       "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify({
-      model: "claude-haiku-4-5-20251001",
+      model: MODELS.HAIKU,
       max_tokens: 4096,
       messages: [{ role: "user", content }],
     }),

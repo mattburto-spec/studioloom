@@ -19,6 +19,7 @@ import type {
 import type { FormatProfile } from "@/lib/ai/unit-types";
 import { validateNeutralContent, NeutralValidationError } from "./stage4-neutral-validator";
 import { assertNotMaxTokens, MaxTokensError } from "./max-tokens-guard";
+import { MODELS } from "@/lib/ai/models";
 
 // ─── Types ───
 
@@ -156,7 +157,7 @@ export async function stage4_polish(
   config: PolishConfig
 ): Promise<PolishedSequence> {
   const startMs = Date.now();
-  const modelId = config.modelId || "claude-sonnet-4-20250514";
+  const modelId = config.modelId || MODELS.SONNET;
 
   let polishResult: AIPolishResult | null = null;
   let aiCost: CostBreakdown = { ...ZERO_COST };

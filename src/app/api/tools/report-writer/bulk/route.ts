@@ -14,6 +14,7 @@ import { logUsage } from "@/lib/usage-tracking";
 import type { BulkRequestBody, BulkReportResult } from "@/lib/tools/report-writer-types";
 import { REPORTING_PERIODS } from "@/lib/tools/report-writer-types";
 import * as Sentry from "@sentry/nextjs";
+import { MODELS } from "@/lib/ai/models";
 
 const VALID_TONES = ["formal", "friendly"] as const;
 const VALID_WORD_COUNTS = [50, 100, 150] as const;
@@ -173,7 +174,7 @@ export async function POST(request: NextRequest) {
             "anthropic-version": "2023-06-01",
           },
           body: JSON.stringify({
-            model: "claude-haiku-4-5-20251001",
+            model: MODELS.HAIKU,
             max_tokens: 768,
             system: systemPrompt,
             messages: [
@@ -226,7 +227,7 @@ export async function POST(request: NextRequest) {
         // Log usage (fire-and-forget)
         logUsage({
           endpoint: "tools/report-writer/bulk",
-          model: "claude-haiku-4-5-20251001",
+          model: MODELS.HAIKU,
           inputTokens: data.usage?.input_tokens,
           outputTokens: data.usage?.output_tokens,
           metadata: {

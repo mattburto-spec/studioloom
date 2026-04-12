@@ -1,9 +1,10 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { MODELS } from "@/lib/ai/models";
 
 // Cost per 1M tokens (USD) — updated 2026-03
 const MODEL_PRICING: Record<string, { input: number; output: number }> = {
-  "claude-haiku-4-5-20251001": { input: 0.80, output: 4.00 },
-  "claude-sonnet-4-20250514": { input: 3.00, output: 15.00 },
+  [MODELS.HAIKU]: { input: 0.80, output: 4.00 },
+  [MODELS.SONNET]: { input: 3.00, output: 15.00 },
   "claude-opus-4-20250514": { input: 15.00, output: 75.00 },
 };
 
@@ -12,7 +13,7 @@ function estimateCost(
   inputTokens: number,
   outputTokens: number
 ): number {
-  const pricing = MODEL_PRICING[model] ?? MODEL_PRICING["claude-haiku-4-5-20251001"];
+  const pricing = MODEL_PRICING[model] ?? MODEL_PRICING[MODELS.HAIKU];
   return (
     (inputTokens / 1_000_000) * pricing.input +
     (outputTokens / 1_000_000) * pricing.output

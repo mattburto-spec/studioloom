@@ -9,6 +9,7 @@ import { buildMarkingCommentsPrompt } from "@/lib/tools/marking-comments-prompt"
 import { getSupportedFrameworks } from "@/lib/ai/framework-vocabulary";
 import { logUsage } from "@/lib/usage-tracking";
 import * as Sentry from "@sentry/nextjs";
+import { MODELS } from "@/lib/ai/models";
 
 const VALID_FOCUS_LEVELS = ["below", "approaching", "meeting", "exceeding"] as const;
 type FocusLevel = (typeof VALID_FOCUS_LEVELS)[number];
@@ -105,7 +106,7 @@ export async function POST(request: NextRequest) {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
+        model: MODELS.HAIKU,
         max_tokens: 1024,
         system: systemPrompt,
         messages: [
@@ -161,7 +162,7 @@ export async function POST(request: NextRequest) {
     // --- Log usage (fire-and-forget) ---
     logUsage({
       endpoint: "tools/marking-comments",
-      model: "claude-haiku-4-5-20251001",
+      model: MODELS.HAIKU,
       inputTokens: data.usage?.input_tokens,
       outputTokens: data.usage?.output_tokens,
       metadata: {

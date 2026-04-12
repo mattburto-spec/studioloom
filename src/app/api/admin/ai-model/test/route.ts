@@ -5,6 +5,7 @@ import { buildSkeletonPrompt, getGradeTimingProfile, buildTimingBlock, SKELETON_
 import type { AIModelConfig } from "@/types/ai-model-config";
 import type { LessonJourneyInput, TimelineOutlineOption } from "@/types";
 import Anthropic from "@anthropic-ai/sdk";
+import { MODELS } from "@/lib/ai/models";
 
 const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "mattburto@gmail.com")
   .split(",")
@@ -116,7 +117,7 @@ export async function POST(request: NextRequest) {
     const startTime = Date.now();
 
     const response = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: MODELS.SONNET,
       max_tokens: 16000,
       thinking: {
         type: "enabled",

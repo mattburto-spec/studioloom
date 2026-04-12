@@ -5,6 +5,7 @@ import { rateLimit } from '@/lib/rate-limit';
 import { getMentor } from '@/lib/quest/mentors';
 import { buildQuestPrompt } from '@/lib/quest/build-quest-prompt';
 import type { MentorId, QuestInteractionType } from '@/lib/quest/types';
+import { MODELS } from '@/lib/ai/models';
 
 /**
  * PATCH — Select a mentor for the quest journey
@@ -168,7 +169,7 @@ export async function POST(request: NextRequest) {
     });
 
     const aiResponse = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model: MODELS.HAIKU,
       max_tokens: 400,
       system: systemPrompt,
       messages: [

@@ -17,7 +17,9 @@ import type {
   PassConfig,
 } from "./types";
 
-const DEFAULT_MODEL = "claude-haiku-4-5-20251001";
+import { MODELS } from "@/lib/ai/models";
+
+const DEFAULT_MODEL = MODELS.HAIKU;
 
 // Cost per token (Haiku pricing, approximate)
 const INPUT_COST_PER_TOKEN = 0.001 / 1000;

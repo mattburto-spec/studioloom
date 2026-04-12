@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { MODELS } from "@/lib/ai/models";
 import {
   QUICK_MODIFY_SYSTEM_PROMPT,
   buildQuickModifyPrompt,
@@ -86,7 +87,7 @@ export async function POST(request: NextRequest) {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
+        model: MODELS.SONNET,
         max_tokens: 4096,
         system: QUICK_MODIFY_SYSTEM_PROMPT,
         messages: [{ role: "user", content: userPrompt }],

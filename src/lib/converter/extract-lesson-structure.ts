@@ -16,6 +16,7 @@
  */
 
 import { detectFramework, buildFrameworkContextForExtraction, type FrameworkDetection } from "./detect-framework";
+import { MODELS } from "@/lib/ai/models";
 
 /* ─── Types ─── */
 
@@ -277,7 +278,7 @@ async function detectDocumentLayout(text: string): Promise<DocumentLayout> {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
+        model: MODELS.HAIKU,
         max_tokens: 1024,
         system: LAYOUT_DETECTION_PROMPT,
         messages: [{
@@ -519,7 +520,7 @@ export async function extractLessonStructure(
       "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
+      model: MODELS.SONNET,
       max_tokens: 12288,
       system: systemPrompt,
       messages: [{ role: "user", content: userPrompt }],

@@ -312,3 +312,39 @@ describe("admin/framework-adapter page smoke test (5.11)", () => {
     );
   });
 });
+
+/**
+ * Wiring-lock guard for 5.13: no hardcoded model IDs in production code.
+ *
+ * Scans all .ts/.tsx files in src/ (excluding tests, models.ts itself,
+ * and markdown docs) for raw model ID strings. If any site re-hardcodes
+ * a model string instead of using MODELS.SONNET / MODELS.HAIKU, this
+ * test fails.
+ */
+describe("no hardcoded model IDs in production code (5.13)", () => {
+  const { execSync } = require("child_process");
+  const cwd = process.cwd();
+
+  function countHardcoded(modelId: string): number {
+    try {
+      // grep production .ts/.tsx files, excluding tests, models.ts, and docs
+      const result = execSync(
+        `grep -rn '"${modelId}"' src/ --include="*.ts" --include="*.tsx" | ` +
+          `grep -v __tests__ | grep -v ".test." | grep -v "models.ts" | grep -v "API-DOCS" | wc -l`,
+        { cwd, encoding: "utf8" },
+      );
+      return parseInt(result.trim(), 10);
+    } catch {
+      // grep returns exit 1 when no matches — that's the success case
+      return 0;
+    }
+  }
+
+  it("no hardcoded claude-sonnet-4-20250514 outside models.ts and tests", () => {
+    expect(countHardcoded("claude-sonnet-4-20250514")).toBe(0);
+  });
+
+  it("no hardcoded claude-haiku-4-5-20251001 outside models.ts and tests", () => {
+    expect(countHardcoded("claude-haiku-4-5-20251001")).toBe(0);
+  });
+});

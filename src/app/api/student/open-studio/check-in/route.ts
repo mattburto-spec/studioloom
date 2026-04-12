@@ -5,6 +5,7 @@ import { buildOpenStudioSystemPrompt } from "@/lib/ai/open-studio-prompt";
 import type { OpenStudioInteraction } from "@/lib/ai/open-studio-prompt";
 import { logUsage } from "@/lib/usage-tracking";
 import { rateLimit } from "@/lib/rate-limit";
+import { MODELS } from "@/lib/ai/models";
 
 /**
  * POST /api/student/open-studio/check-in
@@ -214,7 +215,7 @@ export async function POST(request: NextRequest) {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
+        model: MODELS.HAIKU,
         max_tokens: 200, // Check-ins should be very brief
         system: systemPrompt,
         messages,
@@ -240,7 +241,7 @@ export async function POST(request: NextRequest) {
     // Log usage (fire-and-forget)
     logUsage({
       endpoint: "open-studio-check-in",
-      model: "claude-haiku-4-5-20251001",
+      model: MODELS.HAIKU,
       inputTokens: data.usage?.input_tokens,
       outputTokens: data.usage?.output_tokens,
       metadata: { interactionType },

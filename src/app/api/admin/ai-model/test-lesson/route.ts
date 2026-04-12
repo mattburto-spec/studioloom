@@ -20,6 +20,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { buildUnitTypeSystemPrompt, UNIT_TYPES } from "@/lib/ai/unit-types";
 import type { UnitType } from "@/lib/ai/unit-types";
 import { getCriterionKeys } from "@/lib/constants";
+import { MODELS } from "@/lib/ai/models";
 
 const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "mattburto@gmail.com")
   .split(",")
@@ -149,7 +150,7 @@ export async function POST(request: NextRequest) {
 
     // Note: thinking cannot be used with tool_choice, so we disable it here
     const response = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: MODELS.SONNET,
       max_tokens: 16000,
       system: systemPrompt + "\n\n" + timingBlock,
       messages: [{ role: "user", content: userPrompt }],
