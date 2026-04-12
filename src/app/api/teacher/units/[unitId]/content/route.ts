@@ -68,7 +68,7 @@ async function PATCH(
     // Diffs old vs new content_data, writes per-activity edit events
     // to generation_feedback (kept/deleted/rewritten/reordered/scaffolding_changed)
     if (previousContent) {
-      trackEdits(supabase, unitId, unitId, previousContent, content_data).catch(
+      trackEdits(supabase, unitId, unitId, previousContent as unknown as Record<string, unknown>, content_data as unknown as Record<string, unknown>).catch(
         (err) => console.error("[units/[unitId]/content PATCH] edit tracking error:", err)
       );
     }

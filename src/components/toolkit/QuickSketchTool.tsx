@@ -136,19 +136,23 @@ export function QuickSketchTool({
 
   useEffect(() => {
     if (toolSession?.state) {
-      setState(toolSession.state);
+      setState(toolSession.state as unknown as ToolState);
     }
   }, [toolSession]);
 
   const saveState = useCallback(() => {
     if (mode === 'public') return;
     setSaveStatus('saving');
-    updateToolSession(state)
-      .then(() => {
-        setSaveStatus('saved');
-        setTimeout(() => setSaveStatus('idle'), 2000);
-      })
-      .catch(() => setSaveStatus('error'));
+    const result = updateToolSession(state as unknown as Record<string, unknown>);
+    if (result !== undefined && result !== null && typeof result === 'object' && 'then' in result) {
+      const promise = result as unknown as Promise<void>;
+      promise
+        .then(() => {
+          setSaveStatus('saved');
+          setTimeout(() => setSaveStatus('idle'), 2000);
+        })
+        .catch(() => setSaveStatus('error'));
+    }
   }, [state, updateToolSession, mode]);
 
   // Timer effect

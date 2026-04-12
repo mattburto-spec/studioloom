@@ -553,7 +553,7 @@ export default function GradingPage({
                         const progress = progressMap[selectedStudent.id]?.[page.id];
                         const hasResponses = progress?.responses && typeof progress.responses === "object" && Object.keys(progress.responses as Record<string, unknown>).length > 0;
                         const rawP = progress as unknown as Record<string, unknown>;
-                        const hasIntegrity = rawP?.integrity_metadata && typeof rawP.integrity_metadata === "object" && Object.keys(rawP.integrity_metadata as Record<string, unknown>).length > 0;
+                        const hasIntegrity: boolean = !!(rawP?.integrity_metadata && typeof rawP.integrity_metadata === "object" && Object.keys(rawP.integrity_metadata as Record<string, unknown>).length > 0);
                         const isActive = evidencePageId === page.id;
                         return (
                           <button

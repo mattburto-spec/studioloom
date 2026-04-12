@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
   return QUARANTINE_RESPONSE;
   const supabase = createSupabaseServer(request);
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user?.email || !ADMIN_EMAILS.includes(user.email.toLowerCase())) {
+  if (!user! || !user!.email || !ADMIN_EMAILS.includes(user!.email!.toLowerCase())) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -130,21 +130,28 @@ export async function POST(request: NextRequest) {
     const elapsed = Date.now() - startTime;
 
     // Extract thinking and text content
-    const thinkingContent = response.content.find(c => c.type === "thinking");
-    const thinking = thinkingContent && thinkingContent.type === "thinking" ? thinkingContent.thinking : null;
-
-    const textContent = response.content.find(c => c.type === "text");
-    let skeleton = null;
-    if (textContent && textContent.type === "text") {
-      let raw = textContent.text.trim();
-      // Strip ```json ... ``` wrapping
-      if (raw.startsWith("```")) {
-        raw = raw.replace(/^```(?:json)?\s*\n?/, "").replace(/\n?```\s*$/, "").trim();
+    let thinking: string | null = null;
+    {
+      const thinkingContent = response.content.find(c => c.type === "thinking");
+      if (thinkingContent && "thinking" in (thinkingContent as any)) {
+        thinking = ((thinkingContent!) as any as { thinking: string }).thinking;
       }
-      try {
-        skeleton = JSON.parse(raw);
-      } catch {
-        skeleton = raw;
+    }
+
+    let skeleton = null;
+    {
+      const textContent = response.content.find(c => c.type === "text");
+      if (textContent && "text" in (textContent as any)) {
+        let raw = ((textContent!) as any as { text: string }).text.trim();
+        // Strip ```json ... ``` wrapping
+        if (raw.startsWith("```")) {
+          raw = raw.replace(/^```(?:json)?\s*\n?/, "").replace(/\n?```\s*$/, "").trim();
+        }
+        try {
+          skeleton = JSON.parse(raw);
+        } catch {
+          skeleton = raw;
+        }
       }
     }
 
@@ -158,10 +165,16 @@ export async function POST(request: NextRequest) {
         generationEmphasis: resolvedConfig.generationEmphasis,
       },
     });
-  } catch (err) {
+  } catch (err: unknown) {
     console.error("[admin/ai-model/test] Error:", err);
+    let errorMessage = "Test generation failed";
+    if (err instanceof Error) {
+      errorMessage = (err as Error).message;
+    } else if (err) {
+      errorMessage = String(err);
+    }
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Test generation failed" },
+      { error: errorMessage },
       { status: 500 }
     );
   }

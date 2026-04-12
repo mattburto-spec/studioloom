@@ -72,9 +72,9 @@ export const POST = withErrorHandler("teacher/convert-lesson:POST", async (reque
   const isFormData = contentType.includes("multipart/form-data");
 
   if (isFormData) {
-    return handleExtraction(request, user.id);
+    return handleExtraction(request, user!.id);
   } else {
-    return handleGeneration(request, user.id);
+    return handleGeneration(request, user!.id);
   }
 });
 

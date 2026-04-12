@@ -142,8 +142,8 @@ export async function GET(request: NextRequest) {
           for (const badgeId of Array.from(pendingBadges).slice(0, 3)) {
             const badge = requirements.find(
               (r: any) => (r.badges as any)?.id === badgeId
-            )?.badges;
-            if (badge) {
+            )?.badges as any;
+            if (badge && badge.name) {
               insights.push({
                 type: "safety_test",
                 title: `Safety: ${badge.name}`,

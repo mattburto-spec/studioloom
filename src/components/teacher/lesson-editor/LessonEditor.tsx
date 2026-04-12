@@ -731,7 +731,7 @@ export default function LessonEditor({
                         workshopPhases: {
                           opening: { durationMinutes: 5, hook: "" },
                           miniLesson: { durationMinutes: 10, focus: "" },
-                          workTime: { durationMinutes: 22, activities: [] as string[], checkpoints: [] as string[] },
+                          workTime: { durationMinutes: 22, checkpoints: [] as string[] },
                           debrief: { durationMinutes: 8, protocol: "", prompt: "" },
                         },
                       });

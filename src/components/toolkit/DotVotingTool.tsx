@@ -98,9 +98,9 @@ export function DotVotingTool({
   // Load persisted state
   useEffect(() => {
     if (toolSession?.state && typeof toolSession.state === 'object') {
-      setState(toolSession.state as DotVotingState);
+      setState(toolSession.state as unknown as DotVotingState);
     }
-  }, [toolSession?.id]);
+  }, [toolSession?.state]);
 
   // Save state
   const saveState = (newState: DotVotingState) => {
@@ -110,7 +110,7 @@ export function DotVotingTool({
     saveTimeoutRef.current = setTimeout(async () => {
       try {
         if (mode !== 'public' && updateToolSession) {
-          await updateToolSession(newState);
+          await updateToolSession(newState as unknown as Record<string, unknown>);
         }
         setSaveStatus('saved');
         setTimeout(() => setSaveStatus('idle'), 2000);

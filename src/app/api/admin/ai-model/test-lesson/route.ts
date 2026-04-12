@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
   return QUARANTINE_RESPONSE;
   const supabase = createSupabaseServer(request);
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user?.email || !ADMIN_EMAILS.includes(user.email.toLowerCase())) {
+  if (!user! || !user!.email || !ADMIN_EMAILS.includes(user!.email!.toLowerCase())) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -112,9 +112,9 @@ export async function POST(request: NextRequest) {
           lessonPlan: [
             {
               lessonId,
-              title: `${testInput.topic} — ${testInput.lessonType}`,
-              summary: `A ${testInput.lessonType} lesson exploring ${testInput.topic}`,
-              primaryFocus: testInput.lessonType.charAt(0).toUpperCase() + testInput.lessonType.slice(1),
+              title: `${testInput.topic} — ${testInput.lessonType || ""}`,
+              summary: `A ${testInput.lessonType || ""} lesson exploring ${testInput.topic}`,
+              primaryFocus: (testInput.lessonType || "").charAt(0).toUpperCase() + (testInput.lessonType || "").slice(1),
               criterionTags: criteria,
             },
           ],
@@ -161,15 +161,22 @@ export async function POST(request: NextRequest) {
     const elapsed = Date.now() - startTime;
 
     // Extract thinking
-    const thinkingContent = response.content.find(c => c.type === "thinking");
-    const thinking = thinkingContent && thinkingContent.type === "thinking" ? thinkingContent.thinking : null;
+    let thinking: string | null = null;
+    {
+      const thinkingContent = response.content.find(c => c.type === "thinking");
+      if (thinkingContent && "thinking" in (thinkingContent as any)) {
+        thinking = ((thinkingContent!) as any as { thinking: string }).thinking;
+      }
+    }
 
     // Extract tool use result (structured JSON)
-    const toolUseContent = response.content.find(c => c.type === "tool_use");
     let lesson = null;
-    if (toolUseContent && toolUseContent.type === "tool_use") {
-      const toolInput = toolUseContent.input as Record<string, unknown>;
-      lesson = toolInput[lessonId] || toolInput;
+    {
+      const toolUseContent = response.content.find(c => c.type === "tool_use");
+      if (toolUseContent && "input" in (toolUseContent as any)) {
+        const toolInput = ((toolUseContent!) as any as { input: Record<string, unknown> }).input;
+        lesson = toolInput[lessonId] || toolInput;
+      }
     }
 
     // --- Timing validation + auto-repair ---
@@ -203,9 +210,11 @@ export async function POST(request: NextRequest) {
     let pulseScore = null;
     try {
       const lessonObj = repairedLesson as Record<string, unknown> | null;
-      const sections = lessonObj && Array.isArray(lessonObj.sections) ? lessonObj.sections : null;
-      if (sections && sections.length > 0) {
-        pulseScore = computeLessonPulse(sections as PulseActivity[]);
+      if (lessonObj && typeof lessonObj === "object") {
+        const sections = (lessonObj as any).sections;
+        if (Array.isArray(sections) && sections.length > 0) {
+          pulseScore = computeLessonPulse(sections as PulseActivity[]);
+        }
       }
     } catch {
       // Pulse scoring is enhancement, not requirement
@@ -226,10 +235,16 @@ export async function POST(request: NextRequest) {
         generationEmphasis: resolvedConfig.generationEmphasis,
       },
     });
-  } catch (err) {
+  } catch (err: unknown) {
     console.error("[admin/ai-model/test-lesson] Error:", err);
+    let errorMessage = "Test lesson generation failed";
+    if (err instanceof Error) {
+      errorMessage = (err as Error).message;
+    } else if (err) {
+      errorMessage = String(err);
+    }
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Test lesson generation failed" },
+      { error: errorMessage },
       { status: 500 }
     );
   }

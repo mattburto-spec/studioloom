@@ -192,7 +192,7 @@ async function PATCH(request: NextRequest) {
 
     // Fire-and-forget: track teacher edits for feedback loop
     if (previousContent) {
-      trackEdits(supabase, unitId, unitId, previousContent, content_data).catch(
+      trackEdits(supabase, unitId, unitId, previousContent as unknown as Record<string, unknown>, content_data as unknown as Record<string, unknown>).catch(
         (err) => console.error("[class-units/content PATCH] edit tracking error:", err)
       );
     }

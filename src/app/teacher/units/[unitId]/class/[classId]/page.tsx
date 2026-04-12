@@ -1034,7 +1034,7 @@ export default function ClassHubPage({
                               </div>
                               {integrityMeta && (
                                 <div className="mt-2">
-                                  <IntegrityReport metadata={integrityMeta} analysis={analyzeIntegrity(integrityMeta)} />
+                                  <IntegrityReport metadata={integrityMeta} />
                                 </div>
                               )}
                             </div>
@@ -1155,7 +1155,7 @@ export default function ClassHubPage({
                             <div className="flex flex-wrap gap-1.5">
                               {unitPages.map((page) => {
                                 const progress = progressMap[selectedStudentForGrading]?.[page.id];
-                                const hasResponses = progress?.responses && typeof progress.responses === "object" && Object.keys(progress.responses as Record<string, unknown>).length > 0;
+                                const hasResponses = progress?.hasResponses ?? false;
                                 const rawP = progress as unknown as Record<string, unknown>;
                                 const hasIntegrity = rawP?.integrity_metadata && typeof rawP.integrity_metadata === "object" && Object.keys(rawP.integrity_metadata as Record<string, unknown>).length > 0;
                                 return (
@@ -1170,9 +1170,9 @@ export default function ClassHubPage({
                                     title={`${page.title || page.id}${hasIntegrity ? " • Has integrity data" : ""}`}
                                   >
                                     {page.title ? (page.title.length > 20 ? page.title.slice(0, 18) + "…" : page.title) : page.id}
-                                    {hasIntegrity && (
+                                    {hasIntegrity ? (
                                       <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-blue-500 ring-1 ring-white" />
-                                    )}
+                                    ) : null}
                                   </button>
                                 );
                               })}

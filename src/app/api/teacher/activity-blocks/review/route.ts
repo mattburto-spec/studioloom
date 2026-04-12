@@ -137,14 +137,14 @@ export async function POST(request: NextRequest) {
       case "edit":
         // Allow editing specific safe fields before approving
         updateData = {
-          ...(edits?.title && { title: edits.title }),
-          ...(edits?.description && { description: edits.description }),
-          ...(edits?.prompt && { prompt: edits.prompt }),
-          ...(edits?.bloom_level && { bloom_level: edits.bloom_level }),
-          ...(edits?.time_weight && { time_weight: edits.time_weight }),
-          ...(edits?.grouping && { grouping: edits.grouping }),
-          ...(edits?.phase && { phase: edits.phase }),
-          ...(edits?.activity_category && { activity_category: edits.activity_category }),
+          ...(edits && "title" in edits && edits.title ? { title: edits.title } : {}),
+          ...(edits && "description" in edits && edits.description ? { description: edits.description } : {}),
+          ...(edits && "prompt" in edits && edits.prompt ? { prompt: edits.prompt } : {}),
+          ...(edits && "bloom_level" in edits && edits.bloom_level ? { bloom_level: edits.bloom_level } : {}),
+          ...(edits && "time_weight" in edits && edits.time_weight ? { time_weight: edits.time_weight } : {}),
+          ...(edits && "grouping" in edits && edits.grouping ? { grouping: edits.grouping } : {}),
+          ...(edits && "phase" in edits && edits.phase ? { phase: edits.phase } : {}),
+          ...(edits && "activity_category" in edits && edits.activity_category ? { activity_category: edits.activity_category } : {}),
           teacher_verified: true,
           is_archived: false,
         };

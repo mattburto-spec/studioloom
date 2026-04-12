@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
+import type { JSX } from "react";
 import Link from "next/link";
 import { useStudent } from "../student-context";
 import { CRITERIA, type CriterionKey } from "@/lib/constants";

@@ -80,10 +80,9 @@ export function TrophyShelf({ badges, themeStyles }: TrophyShelfProps) {
               style={{
                 background: `${b.badge_color}25`,
                 color: b.badge_color,
-                ringColor: themeStyles["--st-surface"],
                 zIndex: 5 - i,
                 boxShadow: `0 0 0 2px ${themeStyles["--st-surface"]}`,
-              }}
+              } as any}
             >
               <BadgeIcon iconName={b.badge_icon} size={14} color={b.badge_color} />
             </motion.div>

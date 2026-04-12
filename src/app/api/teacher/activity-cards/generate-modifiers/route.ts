@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await request.json();
+  const body = await request.json() as { name?: string; description?: string; template?: Record<string, unknown> };
   const { name, description, template } = body;
 
   if (!name || !description) {
@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Resolve AI credentials
-  const credentials = await resolveCredentials(supabase, user.id);
+  const credentials = await resolveCredentials(supabase, user!.id);
   if (!credentials) {
     return NextResponse.json(
       { error: "No AI provider configured" },
@@ -61,10 +61,10 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const provider = createAIProvider(credentials.provider, {
-    apiEndpoint: credentials.apiEndpoint,
-    apiKey: credentials.apiKey,
-    modelName: credentials.modelName,
+  const provider = createAIProvider(credentials!.provider, {
+    apiEndpoint: credentials!.apiEndpoint,
+    apiKey: credentials!.apiKey,
+    modelName: credentials!.modelName,
   });
 
   const systemPrompt = `You are an expert design education specialist. Your task is to generate meaningful "modifier axes" for a design thinking activity card.
@@ -101,11 +101,16 @@ Rules:
 - Make modifiers pedagogically meaningful — they should change HOW the activity runs
 - Return ONLY the JSON — no markdown fences, no explanatory text`;
 
+  let templateSection = "";
+  if (template! && "sections" in template! && Array.isArray((template as any).sections)) {
+    templateSection = `**Template sections:**\n${JSON.stringify(((template as any).sections as any[]).slice(0, 2), null, 2)}`;
+  }
+
   const userPrompt = `Generate modifier axes for this activity card:
 
 **Name:** ${name}
 **Description:** ${description}
-${template ? `**Template sections:**\n${JSON.stringify(template.sections?.slice(0, 2), null, 2)}` : ""}
+${templateSection}
 
 Think about what a Design teacher would want to vary when running this specific activity. Consider:
 - How students record/present their work (medium)
@@ -119,7 +124,7 @@ Generate 2-3 axes that are highly specific to "${name}".`;
   try {
     let responseText: string;
     if (provider.generateText) {
-      responseText = await provider.generateText(systemPrompt, userPrompt, {
+      responseText = await provider!.generateText!(systemPrompt, userPrompt, {
         maxTokens: 2048,
         temperature: 0.7,
       });
@@ -133,8 +138,8 @@ Generate 2-3 axes that are highly specific to "${name}".`;
     // Parse response
     let jsonStr = responseText.trim();
     const fenceMatch = jsonStr.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
-    if (fenceMatch) {
-      jsonStr = fenceMatch[1].trim();
+    if (fenceMatch && fenceMatch![1]) {
+      jsonStr = fenceMatch![1].trim();
     }
 
     const parsed = JSON.parse(jsonStr);
