@@ -232,3 +232,82 @@ Phase 1.7 ended up fixing both Pass A (`pass-a.ts`: 2000→8000, guard, `?? []`)
 **Corollary:** This is the same class of bug as Lesson #38 (verify = assert expected values, not just non-null). Both are about tests and types claiming "something is there" when the shape underneath is wrong.
 
 ---
+
+## Lessons #43-46 — Karpathy's LLM Coding Discipline (adopted 12 Apr 2026)
+**Source:** `karpathy/CLAUDE.md` — behavioral guidelines to reduce common LLM coding mistakes. These codify patterns we've already learned the hard way (Framer Motion disaster = violated #45, Migration 067 = violated #43, Pass A/B max_tokens = violated #44).
+
+---
+
+### Lesson #43 — Think before coding: surface assumptions, don't hide confusion
+**Date:** 12 Apr 2026
+
+Before implementing anything:
+- State assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them — don't pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Name what's confusing. Ask.
+
+**Why this matters for us:** The Migration 067 grandfather bug happened because an assumption about backfill scope was never surfaced. The Pass A/B `max_tokens` truncation happened because the AI silently picked a default instead of asking whether the parameter was intentional. Both would have been caught by a 30-second "here's what I'm assuming" pause.
+
+**How to apply:** Before writing any code — especially in a new phase or unfamiliar system — write a 2-3 line assumptions block. If any assumption feels shaky, stop and ask Matt rather than guessing.
+
+---
+
+### Lesson #44 — Simplicity first: minimum code that solves the problem, nothing speculative
+**Date:** 12 Apr 2026
+
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No "flexibility" or "configurability" that wasn't requested.
+- No error handling for impossible scenarios.
+- If you write 200 lines and it could be 50, rewrite it.
+
+**Litmus test:** "Would a senior engineer say this is overcomplicated?" If yes, simplify.
+
+**Why this matters for us:** The Loominary OS ADR-001 says the same thing: "Build for StudioLoom with OS seams. Extract shared services only when product #2 forces it. Do NOT build abstract platform services." Speculative abstraction is the #1 source of wasted code in this project.
+
+**How to apply:** After writing code, re-read it and ask whether every line traces to the request. If a function has one caller, it probably shouldn't be generic. If a config has one value, it should be a constant.
+
+---
+
+### Lesson #45 — Surgical changes: touch only what you must, clean up only your own mess
+**Date:** 12 Apr 2026
+
+When editing existing code:
+- Don't "improve" adjacent code, comments, or formatting.
+- Don't refactor things that aren't broken.
+- Match existing style, even if you'd do it differently.
+- If you notice unrelated dead code, mention it — don't delete it.
+
+When your changes create orphans:
+- Remove imports/variables/functions that YOUR changes made unused.
+- Don't remove pre-existing dead code unless asked.
+
+**The test:** Every changed line should trace directly to the user's request.
+
+**Why this matters for us:** The Framer Motion disaster (Lesson #1) was a batch "improvement" that touched 23 files unnecessarily. The build methodology's "audit-before-touch" principle exists for the same reason — understand the blast radius before changing anything.
+
+**How to apply:** Before committing, review the diff. If any hunk doesn't trace to the task, revert it. File unrelated observations as FU items, don't fix them inline.
+
+---
+
+### Lesson #46 — Goal-driven execution: define success criteria, loop until verified
+**Date:** 12 Apr 2026
+
+Transform tasks into verifiable goals:
+- "Add validation" → "Write tests for invalid inputs, then make them pass"
+- "Fix the bug" → "Write a test that reproduces it, then make it pass"
+- "Refactor X" → "Ensure tests pass before and after"
+
+For multi-step tasks, state a brief plan with verification at each step:
+```
+1. [Step] → verify: [check]
+2. [Step] → verify: [check]
+3. [Step] → verify: [check]
+```
+
+**Why this matters for us:** This is exactly what the build methodology's checkpoint system does at the phase level. Lesson #38 ("verify = assert expected values, not just non-null") is the micro version. Strong success criteria let you loop independently; weak criteria ("make it work") require constant clarification.
+
+**How to apply:** Every phase brief already has this via stop triggers and named checkpoints. Apply the same pattern at the sub-step level — before writing code, state what "done" looks like in terms of a test or assertion, not just "it compiles."
+
+---
