@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireTeacherAuth } from "@/lib/auth/verify-teacher-unit";
+import { trackEdits } from "@/lib/feedback/edit-tracker";
 import type { UnitContentData } from "@/types";
 
 // ─────────────────────────────────────────────────────────────────
@@ -37,7 +38,7 @@ async function PATCH(
     // Verify teacher owns this unit
     const { data: unit, error: unitErr } = await supabase
       .from("units")
-      .select("id, author_teacher_id")
+      .select("id, author_teacher_id, content_data")
       .eq("id", unitId)
       .eq("author_teacher_id", auth.teacherId)
       .single();
@@ -45,6 +46,9 @@ async function PATCH(
     if (unitErr || !unit) {
       return NextResponse.json({ error: "Unit not found" }, { status: 404 });
     }
+
+    // Snapshot previous content for edit tracking (before overwrite)
+    const previousContent = unit.content_data as UnitContentData | null;
 
     // Update master content directly
     const { error: updateErr } = await supabase
@@ -57,6 +61,15 @@ async function PATCH(
       return NextResponse.json(
         { error: "Failed to update master content" },
         { status: 500 }
+      );
+    }
+
+    // Fire-and-forget: track teacher edits for feedback loop
+    // Diffs old vs new content_data, writes per-activity edit events
+    // to generation_feedback (kept/deleted/rewritten/reordered/scaffolding_changed)
+    if (previousContent) {
+      trackEdits(supabase, unitId, unitId, previousContent, content_data).catch(
+        (err) => console.error("[units/[unitId]/content PATCH] edit tracking error:", err)
       );
     }
 
