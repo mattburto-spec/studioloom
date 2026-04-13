@@ -1949,7 +1949,7 @@ systems:
     category: Student Experience
     status: active
     currentVersion: 1
-    summary: "Phase 5 (13 Apr 2026). Two-layer moderation: Layer 1 client-side text filter (LDNOOBW blocklist EN+ZH, self-harm supplement, PII regex) + Layer 1 image filter (NSFW.js, planned 5C) + Layer 2 server-side Haiku moderation (planned 5D). Teacher safety alert feed (planned 5G). Migration 073: student_progress moderation columns + student_content_moderation_log table."
+    summary: "Phase 5 COMPLETE (13 Apr 2026). Two-layer moderation: Layer 1 client-side text filter (LDNOOBW blocklist EN+ZH, self-harm supplement, PII regex) + client image filter (NSFW.js MobileNet v2, lazy-loaded, 0.6 threshold). Layer 2 server-side Haiku moderation (moderateContent() for text+images, bilingual prompt, failures→pending). Shared wrapper moderate-and-log.ts wired into 15 API endpoints (fire-and-forget for private, synchronous gate for peer-visible). Migration 073: student_progress moderation columns + student_content_moderation_log table. 1103 tests."
     depends_on: [auth-system, student-experience]
     affects: [student-experience, teacher-dashboard, design-assistant]
     docs:
@@ -1967,6 +1967,9 @@ systems:
     key_files:
       - src/lib/content-safety/types.ts
       - src/lib/content-safety/client-filter.ts
+      - src/lib/content-safety/client-image-filter.ts
+      - src/lib/content-safety/server-moderation.ts
+      - src/lib/content-safety/moderate-and-log.ts
       - src/lib/content-safety/blocklists/
       - src/app/api/safety/log-client-block/route.ts
       - supabase/migrations/073_content_safety.sql
@@ -1994,7 +1997,7 @@ systems:
         - file: src/components/quest/EvidenceCapture.tsx
           role: "Quest photo evidence. Wire checkClientImage() for photo type before fetch."
       notes: "Wire checkClientSide() into 7 text choke points and checkClientImage() into 3 image choke points in Phase 5E. ResponseInput.tsx is a renderer that delegates to usePageResponses — not a direct choke point. GalleryFeedbackView.tsx is a reader (GET only) — peer review POST is in GalleryBrowser.tsx."
-    future_needs: "5E (wire client filters), then server-side endpoint wiring, ingestion safety scan, teacher safety feed, rollback controls. Self-harm list expansion. Additional language support."
+    future_needs: "5G teacher safety feed, 5H rollback controls, 5I ingestion safety scan. Self-harm list expansion. Additional language support. Configurable blocklists per school."
     adrs: []
     os_seam: ready
     change_impacts: "Changes to student submission hooks/components must route through checkClientSide(). Changes to moderation severity→action map affect teacher alert feed. New student input components must be added to wiring_map. Changes to blocklists require re-vendoring."

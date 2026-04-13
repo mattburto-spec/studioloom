@@ -639,3 +639,34 @@
 **Test counts:** 948 → 980 (after 5A, +32). 5B count pending Code report.
 
 **Systems affected:** `content-safety` (new), `student-experience` (downstream), `admin-dashboard` (wiring-dashboard updated), WIRING.yaml meta (93→94 systems, 12→13 active).
+
+---
+
+### 13 April 2026 — Dimensions3 Phase 5 COMPLETE (5C–5F, Vercel Fix, saveme)
+
+**What changed:**
+- Phase 5C COMPLETE (via Code): NSFW.js client image filter — `client-image-filter.ts` with lazy-loaded MobileNet v2, 0.6 combined threshold (porn+hentai+sexy), `fileToImage()` helper, defence-in-depth (model failure → pass to server).
+- Phase 5D COMPLETE (via Code): Server Haiku moderation — `server-moderation.ts` with `moderateContent()` for text+images, bilingual prompt (EN+ZH), tool_choice structured output, `deriveStatus()` override logic, all failures→pending.
+- Phase 5E COMPLETE (via Code): Client-side wiring — `checkClientSide()` wired into 7 text choke points (usePageResponses, useToolSession, DesignAssistantWidget, GallerySubmitPrompt, GalleryBrowser, EvidenceCapture, useOpenStudio) + `checkClientImage()` into 3 image upload points (UploadInput, QuickCaptureFAB, EvidenceCapture). 1037→1037 tests (wiring, no new tests).
+- Phase 5F COMPLETE (via Code, two sub-phases):
+  - 5F-a: Created `moderate-and-log.ts` shared wrapper (moderateContent → log non-clean → return allow/deny). Wired into 6 endpoints: progress (fire-and-forget + student_progress columns), tool-sessions POST/PATCH (fire-and-forget), gallery/submit (sync gate), gallery/review (sync gate), upload (sync image gate with Buffer pattern). 1094 tests (+14 from 5F-a NC).
+  - 5F-b: Wired remaining 9 endpoints: design-assistant (fire-and-forget), avatar (fire-and-forget image), quest/sharing POST (sync gate), open-studio/session POST+PATCH (fire-and-forget), portfolio (fire-and-forget), quest/evidence (fire-and-forget), quest/milestones (fire-and-forget), quest/contract (fire-and-forget), planning POST+PATCH (fire-and-forget). 1103 tests (+9 from 5F-b NC).
+- **Vercel build fix**: nsfwjs ESM entry statically imports model shard files with non-standard `require()`. webpack minifier crashed with `_webpack.WebpackError is not a constructor` (meta-error masking real problem). Fix: `config.module.noParse = /nsfwjs\/dist\/models/;` in next.config.ts. Also pinned next@15.3.9 (CVE fix), @sentry/nextjs@10.43.0. Vercel deploy GREEN.
+- Full saveme sync: ALL-PROJECTS.md, dashboard.html, CLAUDE.md (Next.js version 15.3.3→15.3.9), WIRING.yaml (content-safety summary + key_files + future_needs), wiring-dashboard.html, system-architecture-map.html (content-safety v2→v3), doc-manifest.yaml, changelog.md.
+
+**Files created (via Code):**
+- `src/lib/content-safety/client-image-filter.ts` (5C)
+- `src/lib/content-safety/server-moderation.ts` (5D)
+- `src/lib/content-safety/moderate-and-log.ts` (5F-a)
+- Associated test files for each
+
+**Files modified (via Code):**
+- 15 API route files wired with moderation (5F-a + 5F-b)
+- 7 hooks/components wired with client text filter (5E)
+- 3 upload components wired with client image filter (5E)
+- `next.config.ts` — noParse for nsfwjs, pinned versions
+- `package.json` — next@15.3.9, @sentry/nextjs@10.43.0
+
+**Test counts:** 1037 → 1103 (+66 across 5C–5F).
+
+**Systems affected:** `content-safety` (v2→v3, all sub-phases complete), `student-experience` (all submission endpoints now moderated), build config (next.config.ts noParse + version pins).
