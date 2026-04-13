@@ -4,6 +4,25 @@
 
 ---
 
+## 13 Apr 2026 (session 2) — Checkpoint 5.1 Verification + Bug Fixes + Cost Optimization
+
+**What changed:**
+- **Checkpoint 5.1 verification:** 7/11 steps pass. Steps 1-5 verified end-to-end (clean EN/ZH → 'clean', profanity EN/ZH → client block with localized banner, Haiku threat detection → 'flagged'). Steps 10-11 code-verified (failure→pending, NSFW.js fallback). Steps 6-7 deferred (need test images). Steps 8-9 deferred (need Phase 6 Teacher Safety Feed).
+- **Bug fix: moderation_status stuck at 'pending'** — `progress/route.ts` had `if (result.moderation.status !== 'clean')` guard that prevented clean results from updating `student_progress`. Removed guard so ALL results write back. Commit `7c73c3a`.
+- **Bug fix: missing moderationError banner** — `usePageResponses` returned `moderationError` but student page didn't destructure or render it. Added red banner with localized messages. Commit `532ba47`.
+- **Bug fix: NM CompetencyPulse unmoderated** — Reflection text in Melbourne Metrics competency pulse had no client or server moderation. Added `checkClientSide()` before submit + `moderateAndLog()` on `nm-assessment` API route. Commit `80afb61`.
+- **Optimization: hash-and-skip** — Autosave fires every ~2s on typing pauses, each triggering Haiku. Added SHA-256 hash comparison — only calls Haiku when content actually changed. Eliminates ~80-90% redundant calls. In-memory cache, resets on server restart (one extra call). Commit `353d366`.
+- **FU-6 tracked:** CI lint cleanup added to ALL-PROJECTS.md as P3 follow-up.
+- **Framework fix (Supabase):** `UPDATE classes SET framework = 'IB_MYP'` for classes with old `myp_design` / `service_learning` values not in FrameworkAdapter.
+
+**Files modified:** `src/app/api/student/progress/route.ts`, `src/app/(student)/unit/[unitId]/[pageId]/page.tsx`, `src/hooks/usePageResponses.ts`, `src/components/nm/CompetencyPulse.tsx`, `src/app/api/student/nm-assessment/route.ts`
+
+**Systems affected:** content-safety (checkpoint verification, 3 bugs fixed, cost optimization), student-experience (moderation banner visible), nm-assessment (new moderation coverage)
+
+**Session context:** Checkpoint 5.1 verification session. Student-facing testing revealed 3 bugs in Phase 5 wiring that passed code review but failed real-world use. Hash-and-skip added after realizing autosave × Haiku = expensive at classroom scale (30 students × 20-50 saves/textbox/lesson).
+
+---
+
 ## 13 Apr 2026 — Dimensions3 Phase 5 Progress: 5A-5D Complete (Content Safety & Moderation), 5E Prep Done
 
 **What changed:**

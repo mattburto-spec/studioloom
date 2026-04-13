@@ -1949,7 +1949,7 @@ systems:
     category: Student Experience
     status: active
     currentVersion: 1
-    summary: "Phase 5 COMPLETE (13 Apr 2026). Two-layer moderation: Layer 1 client-side text filter (LDNOOBW blocklist EN+ZH, self-harm supplement, PII regex) + client image filter (NSFW.js MobileNet v2, lazy-loaded, 0.6 threshold). Layer 2 server-side Haiku moderation (moderateContent() for text+images, bilingual prompt, failures→pending). Shared wrapper moderate-and-log.ts wired into 15 API endpoints (fire-and-forget for private, synchronous gate for peer-visible). Migration 073: student_progress moderation columns + student_content_moderation_log table. 1103 tests."
+    summary: "Phase 5 COMPLETE + Checkpoint 5.1 partial (13 Apr 2026). 7/11 verification pass, 4 deferred. 3 bugs fixed: moderation_status stuck pending (progress route clean-status guard), missing student UI banner (moderationError not rendered), NM CompetencyPulse unmoderated choke point (added client+server). Hash-and-skip optimization (SHA-256 dedup eliminates ~80-90% redundant Haiku calls from autosave). Two-layer moderation: Layer 1 client-side text filter + NSFW.js image filter. Layer 2 server-side Haiku moderation via moderate-and-log.ts wired into 16 API endpoints."
     depends_on: [auth-system, student-experience]
     affects: [student-experience, teacher-dashboard, design-assistant]
     docs:

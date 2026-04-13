@@ -336,7 +336,7 @@ docs:
 
   - path: docs/projects/dimensions3-completion-spec.md
     title: "Dimensions3 v2 Completion Spec (Canonical Build Plan)"
-    purpose: "v2 rewrite of the Dimensions3 build plan (~1,600 lines). Full audit of v1 gaps fixed: removed Stage 5b misconception (curriculum mapping is render-time via FrameworkAdapter), added Phase 5 Content Safety (§17), expanded Phase 4 to all 7 automation systems (§9.3), expanded Phase 7 to all 12 admin tabs + 5 sandboxes + Bug Reporting. 12 mandatory Matt Checkpoints, per-sub-task verification, rollback sections. 21–25 day estimate. Phase 5 COMPLETE (13 Apr 2026): 5A-5F all done, 1103 tests. Checkpoint 5.1 next. THIS IS THE BUILD PLAN TO FOLLOW."
+    purpose: "v2 rewrite of the Dimensions3 build plan (~1,600 lines). 12 mandatory Matt Checkpoints. Phase 5 COMPLETE + Checkpoint 5.1 partial (7/11 pass, 4 deferred). Next: Phase 6 (Teacher Safety Feed). THIS IS THE BUILD PLAN TO FOLLOW."
     category: projects
     last_verified: "2026-04-13"
     referenced_from: ["ALL-PROJECTS.md", "decisions-log.md", "changelog.md"]
