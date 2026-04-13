@@ -4,6 +4,28 @@
 
 ---
 
+## 14 Apr 2026 — Phase 7-Pre COMPLETE: Registry Infrastructure Sprint
+
+**What changed:**
+- **3 machine-readable registries created** to prevent spec-vs-reality drift:
+  - `docs/schema-registry.yaml` — backfilled from 74 migration files to 69 table entries (columns, RLS, writers, readers, spec drift). 3 dropped tables marked. 3 tables flagged "No RLS" (FU-X). Cross-validated all `.from('table')` calls in src/.
+  - `docs/api-registry.yaml` — 266 (path, method) entries scanned from `src/app/api/**/route.ts`. Auth breakdown: teacher 126, student 70, public 33, service-role 12, admin 10, mixed 8, unknown 7. 3 unknown table refs: assessments, on_the_fly_activities, responses.
+  - `docs/ai-call-sites.yaml` — 47 LLM call sites via 3-layer detection (20 direct SDK imports, 11 wrapper consumers, 16 HTTP-based). Providers: anthropic 35, voyage 12. FU-5 stop_reason seeded (2 true, 6 false, 39 unknown).
+- **3 scanner scripts created** in `scripts/registry/`: `sync-schema-registry.py`, `scan-api-routes.py`, `scan-ai-calls.py`. All support `--apply` flag (dry-run by default) with gate checks.
+- **FU-X appended** (P1 — 3 tables unprotected: usage_rollups, system_alerts, library_health_flags).
+- **FU-Y appended** (P2 — Groq + Gemini fallbacks never shipped, doc-vs-reality drift).
+- **FU-5 expanded** from 13 → 47 call sites, 9 remaining unknown.
+
+**Files created:** `docs/schema-registry.yaml`, `docs/api-registry.yaml`, `docs/ai-call-sites.yaml`, `scripts/registry/sync-schema-registry.py`, `scripts/registry/scan-api-routes.py`, `scripts/registry/scan-ai-calls.py`
+
+**Files modified:** `CLAUDE.md` (Registries section + saveme step 11 + FU-X/FU-Y), `docs/projects/dimensions3-followups.md` (FU-X, FU-Y, FU-5 expansion), `docs/projects/ALL-PROJECTS.md` (Phase 7-Pre status), `docs/changelog.md`, `docs/doc-manifest.yaml`
+
+**Systems affected:** documentation (3 new registries), build-methodology (registry sync baked into saveme), schema-registry (backfilled), api-registry (created), ai-call-sites (created)
+
+**Session context:** Infrastructure sprint before Phase 7 to lock down the "what exists" baseline. Prevents the recurring pattern of discovering spec-vs-reality drift mid-build (e.g., Groq/Gemini listed in Stack but never shipped). All 3 registries now auto-syncable via their scanner scripts during saveme.
+
+---
+
 ## 14 Apr 2026 — Phase 6 COMPLETE + Checkpoint 5.1 CLOSED + Architectural Limitations Filing + Cleanup
 
 **What changed:**

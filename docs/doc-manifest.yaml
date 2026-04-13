@@ -306,6 +306,45 @@ docs:
     last_verified: "2026-04-14"
     referenced_from: ["CLAUDE.md impact analysis section"]
 
+  - path: docs/schema-registry.yaml
+    title: "Schema Registry — Table-Level Truth"
+    purpose: "~69 tables with columns, RLS policies, writers, readers, spec drift. Backfilled from 74 migration files. 3 flagged No RLS (FU-X). Sync: scripts/registry/sync-schema-registry.py"
+    category: root
+    last_verified: "2026-04-14"
+    referenced_from: ["CLAUDE.md registries section"]
+
+  - path: docs/api-registry.yaml
+    title: "API Registry — Route-Level Truth"
+    purpose: "~266 (path, method) entries from src/app/api/**/route.ts. Auth type, tables read/written, AI call sites per endpoint. Sync: scripts/registry/scan-api-routes.py"
+    category: root
+    last_verified: "2026-04-14"
+    referenced_from: ["CLAUDE.md registries section"]
+
+  - path: docs/ai-call-sites.yaml
+    title: "AI Call Sites Registry — LLM Call-Level Truth"
+    purpose: "~47 LLM call sites via 3-layer detection (direct SDK, wrapper consumers, HTTP-based). Provider, model, max_tokens, stop_reason, cost category. Sync: scripts/registry/scan-ai-calls.py"
+    category: root
+    last_verified: "2026-04-14"
+    referenced_from: ["CLAUDE.md registries section"]
+
+  - path: scripts/registry/sync-schema-registry.py
+    title: "Schema Registry Sync Script"
+    purpose: "Parses migration SQL files for table definitions, columns, indexes, RLS policies. Greps src/ for readers/writers. Merges with existing entries. --apply to write."
+    category: automation
+    last_verified: "2026-04-14"
+
+  - path: scripts/registry/scan-api-routes.py
+    title: "API Registry Scanner Script"
+    purpose: "Walks src/app/api/**/route.ts, detects HTTP methods (3 patterns), infers auth type, extracts table access, cross-validates against schema-registry. --apply to write."
+    category: automation
+    last_verified: "2026-04-14"
+
+  - path: scripts/registry/scan-ai-calls.py
+    title: "AI Call Sites Scanner Script"
+    purpose: "3-layer LLM call detection: direct SDK imports, wrapper function consumers, HTTP-based calls. Seeds FU-5 stop_reason_handled. --apply to write."
+    category: automation
+    last_verified: "2026-04-14"
+
   - path: docs/projects/dashboard.html
     title: "Project Dashboard"
     purpose: "Interactive dashboard with PROJECTS array in sync with ALL-PROJECTS.md"

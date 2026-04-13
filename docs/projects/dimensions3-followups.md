@@ -73,7 +73,23 @@ knowledge UI (since we'll be touching the unit data model anyway).
 
 ---
 
-## FU-5 — Systemic max_tokens truncation audit
+## FU-5 — AI call sites stop_reason handling audit (P2, expanded scope)
+
+**Original scope (closed):** 13 generation sites. 2 fixed in Phase 1.7 (Pass A, Pass B). 11 remaining per original audit.
+
+**Revised scope (2026-04-14, post-7-Pre.3):** The ai-call-sites.yaml scan found **47 total call sites** — the original FU-5 audit missed toolkit and embedding sites.
+
+**Current state:**
+- `stop_reason_handled: true` — 2 (Pass A, Pass B)
+- `stop_reason_handled: false` — 6 (originally audited, not yet fixed)
+- `stop_reason_handled: unknown` — 39 (never audited; toolkit + embedding + misc)
+
+**Machine-readable:** Work against `docs/ai-call-sites.yaml` directly. Filter by `stop_reason_handled: false` or `unknown` to see the live list.
+
+**Decision:** Resolve in two passes — (1) fix the 6 known `false` sites, (2) audit the 39 unknown sites and mark them true/false. Both tracked against ai-call-sites.yaml.
+
+**Original audit detail preserved below for reference.**
+
 **Surfaced:** Phase 1.7 Checkpoint 1.2 truth-capture (11 Apr 2026)
 **Target phase:** Phase 1.8 (or earlier if any of the listed sites turn out to crash on real input)
 **Entries #1 (Pass B) and the Pass A site that spawned this audit BOTH landed in Phase 1.7** — see Lesson #39 "fix all similar sites in same phase" rule. The remaining 8 sites below are outside the ingestion-pipeline critical path and remain as FU-5 backlog.
@@ -816,3 +832,17 @@ No current feature exposes this, but Dimensions3 feedback loop ("how is this stu
 **Verification:** grep migration 07X for CREATE POLICY on all 3 tables; attempt a teacher-token query against `system_alerts` and confirm it returns 0 rows.
 
 **Definition of done:** RLS enabled on all 3 tables. Policies applied. Teacher-token query against `system_alerts` returns 0 rows. `usage_rollups` query returns only own rows.
+
+---
+
+## FU-Y — Groq + Gemini fallbacks never shipped (P2 doc-vs-reality drift)
+
+**Discovered:** 2026-04-14 (Phase 7-Pre.3 ai-call-sites scan).
+
+**Issue:** CLAUDE.md lists "Groq + Gemini fallbacks" as part of the AI stack. The scanner found zero SDK imports, zero HTTP calls, and zero consumers of these providers. `src/lib/ai/openai-compatible.ts` exists as a wrapper class with no active consumers.
+
+**Impact:** Low — no runtime effect, but it's documentation drift. Anyone reading CLAUDE.md will assume a resilience layer exists that doesn't.
+
+**Decision:** Two options — (1) actually wire Groq/Gemini fallbacks into the has_fallback: false call sites (adds real resilience), OR (2) delete `openai-compatible.ts` and fix CLAUDE.md to reflect the current single-provider reality. No action required for Phase 7; revisit when fallback resilience becomes a priority.
+
+**Definition of done:** Either fallbacks wired and tested, or dead code deleted and docs updated.
