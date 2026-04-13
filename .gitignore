@@ -39,3 +39,6 @@ yarn-error.log*
 next-env.d.ts
 past context files/
 .claude/
+
+# Karpathy's LLM coding discipline reference (local only)
+karpathy/
