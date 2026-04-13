@@ -223,16 +223,16 @@ tables:
   - src/lib/activity-cards/index.ts
   spec_drift: []
 - name: admin_settings
-  status: planned
+  status: written
   source_migration: 077_admin_settings.sql
   applied_date: null
   purpose: 'Singleton key/value store for admin-controlled pipeline settings (spec §9.15). Wires the /admin/controls page
-    backend (currently TODO). Examples: pipeline.stage_enabled, pipeline.cost_ceiling_per_day_usd, pipeline.model_override
+    backend (Phase 7I). Examples: pipeline.stage_enabled, pipeline.cost_ceiling_per_day_usd, pipeline.model_override
     per stage.
 
     '
   columns:
-    id: SERIAL PRIMARY KEY
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
     key: TEXT UNIQUE NOT NULL
     value: JSONB NOT NULL
     updated_by: UUID REFERENCES auth.users(id) ON DELETE SET NULL
@@ -420,7 +420,7 @@ tables:
   - src/app/api/teacher/badges/list/route.ts
   spec_drift: []
 - name: bug_reports
-  status: planned
+  status: written
   source_migration: 076_bug_reports.sql
   applied_date: null
   purpose: 'Bug Reporting System (spec §9.13). Floating button on student + teacher surfaces (only visible when class has
@@ -828,8 +828,8 @@ tables:
   readers: []
   spec_drift: []
 - name: cost_rollups
-  status: planned
-  source_migration: 075_cost_rollups.sql
+  status: written
+  source_migration: 075_cost_rollups_and_rls_fix.sql
   applied_date: null
   purpose: 'Per-teacher cost attribution across 4 categories (ingestion, generation, student_api, teacher_api) with day/week/
     month granularity. Feeds /admin/cost-usage tab (Phase 7E). Distinct from usage_rollups (counts, Phase 4) — this one is
@@ -1473,8 +1473,8 @@ tables:
   - idx_health_flags_block ON (block_id)
   - idx_health_flags_unresolved ON (resolved_at) WHERE resolved_at IS NULL
   rls:
-    read: No RLS — table not protected
-    write: No RLS — table not protected
+    read: service_role only (migration 075 FU-X fix)
+    write: service_role only (migration 075 FU-X fix)
   writers:
   - src/lib/jobs/library-hygiene-weekly.ts
   readers: []
@@ -1483,6 +1483,9 @@ tables:
     finding: No RLS enabled in migration source. Ops-internal table, but still readable by any authenticated
       user via PostgREST.
     decision: P1 follow-up FU-X. Bundle with usage_rollups RLS fix in Phase 7A.
+  - date: 2026-04-14
+    finding: FU-X FIXED — migration 075 enables RLS + service_role-only policy.
+    decision: Closed.
 - name: open_studio_profiles
   source_migration: 031_open_studio_profiles.sql
   status: applied
@@ -2270,8 +2273,8 @@ tables:
   - idx_system_alerts_type ON (alert_type)
   - idx_system_alerts_created ON (created_at DESC)
   rls:
-    read: No RLS — table not protected
-    write: No RLS — table not protected
+    read: service_role only (migration 075 FU-X fix)
+    write: service_role only (migration 075 FU-X fix)
   writers:
   - src/lib/jobs/cost-alert.ts
   - src/lib/jobs/library-hygiene-monthly.ts
@@ -2290,6 +2293,9 @@ tables:
     finding: No RLS enabled in migration source. Ops-internal table, but still readable by any authenticated
       user via PostgREST.
     decision: P1 follow-up FU-X. Bundle with usage_rollups RLS fix in Phase 7A.
+  - date: 2026-04-14
+    finding: FU-X FIXED — migration 075 enables RLS + service_role-only policy.
+    decision: Closed.
 - name: teacher_integrations
   source_migration: 005_lms_integration.sql
   status: applied
@@ -2567,12 +2573,15 @@ tables:
   indexes:
   - idx_usage_rollups_period ON (period_type, period_start)
   rls:
-    read: No RLS — table not protected
-    write: No RLS — table not protected
+    read: teacher reads own rows (teacher_id = auth.uid()); service_role full (migration 075 FU-X fix)
+    write: service_role only (migration 075 FU-X fix)
   writers:
   - src/lib/jobs/usage-analytics.ts
   readers: []
   spec_drift:
+  - date: 2026-04-14
+    finding: FU-X FIXED — migration 075 enables RLS + teacher-reads-own + service_role-full policies.
+    decision: Closed.
   - date: 2026-04-14
     source_doc: docs/projects/dimensions3-completion-spec.md §9.9
     spec_says: 'usage_rollups(id, teacher_id, category CHECK IN (''ingestion'',''generation'',''student_api'',''teacher_api''),
