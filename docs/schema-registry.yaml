@@ -1486,6 +1486,11 @@ tables:
   - date: 2026-04-14
     finding: FU-X FIXED — migration 075 enables RLS + service_role-only policy.
     decision: Closed.
+  - date: 2026-04-14
+    finding: FU-X RLS fix landed as part of migration 075 (bundled with cost_rollups creation), not
+      as a separate migration 078 as originally planned in the 7A assumptions block.
+    decision: Bundled approach accepted — no re-split. Future searches for the FU-X fix should look
+      at migration 075, not 078.
 - name: open_studio_profiles
   source_migration: 031_open_studio_profiles.sql
   status: applied
@@ -2296,6 +2301,11 @@ tables:
   - date: 2026-04-14
     finding: FU-X FIXED — migration 075 enables RLS + service_role-only policy.
     decision: Closed.
+  - date: 2026-04-14
+    finding: FU-X RLS fix landed as part of migration 075 (bundled with cost_rollups creation), not
+      as a separate migration 078 as originally planned in the 7A assumptions block.
+    decision: Bundled approach accepted — no re-split. Future searches for the FU-X fix should look
+      at migration 075, not 078.
 - name: teacher_integrations
   source_migration: 005_lms_integration.sql
   status: applied
@@ -2599,10 +2609,15 @@ tables:
 
       '
     decided_by: Matt
-    commits: TBD (Phase 7A commit)
+    commits: 9ff1a38 (Phase 7A — migration 075)
   - date: 2026-04-14
     finding: No RLS enabled in migration source (found by scripts/registry/sync-schema-registry.py). Table
       is teacher-partitioned (teacher_id column) but readable by any authenticated user via PostgREST default-allow
       behaviour.
     decision: P1 follow-up FU-X. Fix in Phase 7A migration alongside cost_rollups RLS. Do not add cost_rollups
       writer until this is addressed to avoid replicating the hole.
+  - date: 2026-04-14
+    finding: FU-X RLS fix landed as part of migration 075 (bundled with cost_rollups creation), not
+      as a separate migration 078 as originally planned in the 7A assumptions block.
+    decision: Bundled approach accepted — no re-split. Future searches for the FU-X fix should look
+      at migration 075, not 078.
