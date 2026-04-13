@@ -24,7 +24,7 @@
     "jszip": "^3.10.1",
     "mammoth": "^1.11.0",
     "nanoid": "^5.1.5",
-    "next": "^15.3.3",
+    "next": "15.3.9",
     "nsfwjs": "^4.3.0",
     "officeparser": "^6.0.4",
     "pdf-parse": "^2.4.5",
