@@ -4,6 +4,7 @@ import React, { useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QuestEvidence, QuestMilestone, EvidenceType } from '@/lib/quest/types';
 import { checkClientSide, MODERATION_MESSAGES, detectLanguage } from '@/lib/content-safety/client-filter';
+import { checkClientImage, IMAGE_MODERATION_MESSAGES } from '@/lib/content-safety/client-image-filter';
 
 interface EvidenceCaptureProps {
   journeyId: string;
@@ -58,6 +59,7 @@ export function EvidenceCapture({
   const [url, setUrl] = useState('');
   const [selectedMilestoneId, setSelectedMilestoneId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [moderationError, setModerationError] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -115,6 +117,7 @@ export function EvidenceCapture({
 
   const handleFileSelection = (file: File) => {
     setFileName(file.name);
+    setSelectedFile(file);
 
     // Create preview for images
     if (file.type.startsWith('image/')) {
@@ -141,6 +144,8 @@ export function EvidenceCapture({
     setContent('');
     setFileName('');
     setFilePreview(null);
+    setSelectedFile(null);
+    setModerationError(null);
     setUrl('');
   };
 
@@ -165,6 +170,25 @@ export function EvidenceCapture({
         return;
       }
     }
+
+    // Image safety check for photo uploads
+    if (selectedFile && selectedFile.type.startsWith('image/')) {
+      const imageCheck = await checkClientImage(selectedFile);
+      if (!imageCheck.ok) {
+        setModerationError(IMAGE_MODERATION_MESSAGES.en);
+        fetch('/api/safety/log-client-block', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            source: 'quest_evidence',
+            flags: imageCheck.flags,
+            layer: 'client_image',
+          }),
+        }).catch(() => {});
+        return;
+      }
+    }
+
     setModerationError(null);
 
     setIsSubmitting(true);
@@ -193,6 +217,7 @@ export function EvidenceCapture({
       setContent('');
       setFileName('');
       setFilePreview(null);
+      setSelectedFile(null);
       setUrl('');
       setSelectedMilestoneId(null);
       setSelectedType('text');
@@ -221,7 +246,7 @@ export function EvidenceCapture({
     } finally {
       setIsSubmitting(false);
     }
-  }, [journeyId, selectedType, content, selectedMilestoneId, filePreview, onEvidenceSubmitted, mentorColor]);
+  }, [journeyId, selectedType, content, selectedMilestoneId, filePreview, selectedFile, onEvidenceSubmitted, mentorColor]);
 
   const dragZoneAccepts = selectedType === 'photo' ? 'image/*' : selectedType === 'voice' ? 'audio/*' : undefined;
 

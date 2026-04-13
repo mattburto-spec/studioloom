@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { compressImage } from "@/lib/compress-image";
+import { checkClientImage, IMAGE_MODERATION_MESSAGES } from "@/lib/content-safety/client-image-filter";
 
 interface QuickCaptureFABProps {
   unitId?: string;
@@ -19,6 +20,7 @@ export function QuickCaptureFAB({
   const [open, setOpen] = useState(false);
   const [selectedUnitId, setSelectedUnitId] = useState(unitId || "");
   const [submitting, setSubmitting] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
   // Form state
@@ -87,6 +89,26 @@ export function QuickCaptureFAB({
 
   async function handleSubmit() {
     if (!effectiveUnitId || !hasContent) return;
+    setUploadError(null);
+
+    // Image safety check — before compression + upload
+    if (photoFile) {
+      const imageCheck = await checkClientImage(photoFile);
+      if (!imageCheck.ok) {
+        setUploadError(IMAGE_MODERATION_MESSAGES.en);
+        fetch("/api/safety/log-client-block", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            source: "portfolio",
+            flags: imageCheck.flags,
+            layer: "client_image",
+          }),
+        }).catch(() => {});
+        return;
+      }
+    }
+
     setSubmitting(true);
 
     try {
@@ -290,6 +312,13 @@ export function QuickCaptureFAB({
                 </button>
               )}
             </div>
+
+            {/* Upload error */}
+            {uploadError && (
+              <div className="px-4 pb-2">
+                <p className="text-red-500 text-sm">{uploadError}</p>
+              </div>
+            )}
 
             {/* Submit */}
             <div className="px-4 pb-4">

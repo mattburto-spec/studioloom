@@ -1,6 +1,7 @@
 /**
- * Source-static wiring test — Phase 5E-TEXT
- * Verifies that checkClientSide() is imported and called in all 7 text choke points.
+ * Source-static wiring test — Phase 5E-TEXT + 5E-IMAGE
+ * Verifies that checkClientSide() and checkClientImage() are imported and called
+ * in all text/image choke points.
  * Uses grep-style source assertions (not runtime mocking) to ensure wiring survives refactors.
  */
 import { describe, it, expect } from "vitest";
@@ -109,5 +110,62 @@ describe("client-filter wiring — 7 text choke points", () => {
     for (const cp of CHOKE_POINTS) {
       expect(validSources.has(cp.source)).toBe(true);
     }
+  });
+});
+
+// --- Phase 5E-IMAGE: client image filter wiring ---
+
+interface ImageChokePoint {
+  file: string;
+  source: string;
+  description: string;
+}
+
+const IMAGE_CHOKE_POINTS: ImageChokePoint[] = [
+  {
+    file: "src/components/student/UploadInput.tsx",
+    source: "upload_image",
+    description: "UploadInput — handleFile()",
+  },
+  {
+    file: "src/components/portfolio/QuickCaptureFAB.tsx",
+    source: "portfolio",
+    description: "QuickCaptureFAB — handleSubmit()",
+  },
+  {
+    file: "src/components/quest/EvidenceCapture.tsx",
+    source: "quest_evidence",
+    description: "EvidenceCapture — handleSubmit() (image)",
+  },
+];
+
+describe("client-image-filter wiring — 3 image choke points", () => {
+  for (const cp of IMAGE_CHOKE_POINTS) {
+    describe(cp.description, () => {
+      const src = readSrc(cp.file);
+
+      it("imports checkClientImage from content-safety/client-image-filter", () => {
+        expect(src).toContain("checkClientImage");
+        expect(src).toMatch(/from\s+["']@\/lib\/content-safety\/client-image-filter["']/);
+      });
+
+      it("calls checkClientImage()", () => {
+        expect(src).toMatch(/checkClientImage\(/);
+      });
+
+      it(`logs with source: '${cp.source}'`, () => {
+        const hasDoubleQuote = src.includes(`source: "${cp.source}"`);
+        const hasSingleQuote = src.includes(`source: '${cp.source}'`);
+        expect(hasDoubleQuote || hasSingleQuote).toBe(true);
+      });
+
+      it("posts to /api/safety/log-client-block", () => {
+        expect(src).toContain("/api/safety/log-client-block");
+      });
+    });
+  }
+
+  it("covers exactly 3 image choke points", () => {
+    expect(IMAGE_CHOKE_POINTS).toHaveLength(3);
   });
 });

@@ -2,6 +2,7 @@
 
 import { useState, useRef } from "react";
 import { compressImage } from "@/lib/compress-image";
+import { checkClientImage, IMAGE_MODERATION_MESSAGES } from "@/lib/content-safety/client-image-filter";
 
 interface UploadInputProps {
   value: string;
@@ -19,6 +20,7 @@ export function UploadInput({
   sectionIndex,
 }: UploadInputProps) {
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -36,6 +38,26 @@ export function UploadInput({
 
   async function handleFile(file: File) {
     if (!unitId || !pageId) return;
+    setUploadError(null);
+
+    // Image safety check — before compression to save CPU
+    if (file.type.startsWith("image/")) {
+      const imageCheck = await checkClientImage(file);
+      if (!imageCheck.ok) {
+        setUploadError(IMAGE_MODERATION_MESSAGES.en);
+        fetch("/api/safety/log-client-block", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            source: "upload_image",
+            flags: imageCheck.flags,
+            layer: "client_image",
+          }),
+        }).catch(() => {});
+        return;
+      }
+    }
+
     setUploading(true);
 
     // Compress images before upload (5-8MB → ~400KB)
@@ -151,6 +173,9 @@ export function UploadInput({
             }}
           />
         </div>
+      )}
+      {uploadError && (
+        <p className="text-red-500 text-sm mt-2">{uploadError}</p>
       )}
     </div>
   );
