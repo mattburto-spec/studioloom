@@ -25,6 +25,8 @@ import { passB } from "./pass-b";
 import { extractBlocks } from "./extract";
 import { checkBlocksForCopyright } from "./copyright-check";
 import { moderateExtractedBlocks } from "./moderate";
+import { moderateContent } from "@/lib/content-safety/server-moderation";
+import type { ModerationContext } from "@/lib/content-safety/types";
 
 /**
  * Sum a list of CostBreakdown objects into a single aggregate. Exported
@@ -110,6 +112,60 @@ export async function runIngestionPipeline(
 
   // Stage I-1: Deterministic Parse
   const parse: ParseResult = parseDocument(input.rawText);
+
+  // Phase 6C: Upload-level safety pre-check
+  // Scans full extracted text BEFORE AI analysis. If flagged/blocked, sets
+  // processing_status = 'moderation_hold' and returns early.
+  // API failure (status='pending') → proceed normally (teacher uploads get benefit of doubt).
+  if (!config.sandboxMode && config.apiKey) {
+    const textSample = input.rawText.slice(0, 5000);
+    const safetyContext: ModerationContext = {
+      classId: config.teacherId || "system",
+      studentId: config.teacherId || "system",
+      source: "upload_image", // closest valid source for teacher uploads
+    };
+    try {
+      const safetyResult = await moderateContent(textSample, safetyContext, config.apiKey);
+      if (safetyResult.moderation.status === "blocked" || safetyResult.moderation.status === "flagged") {
+        // Return early with moderationHold flag — the API route sets
+        // processing_status='moderation_hold' on the content_items insert.
+        const zeroCost: CostBreakdown = {
+          inputTokens: 0, outputTokens: 0, modelId: "none",
+          estimatedCostUSD: 0, timeMs: Date.now() - startTime,
+        };
+        return {
+          dedup,
+          parse,
+          classification: {
+            documentType: "unknown", confidence: 0,
+            confidences: { documentType: 0 }, topic: "", sections: [], cost: zeroCost,
+          },
+          analysis: {
+            classification: {
+              documentType: "unknown", confidence: 0,
+              confidences: { documentType: 0 }, topic: "", sections: [], cost: zeroCost,
+            },
+            enrichedSections: [], cost: zeroCost,
+          },
+          extraction: {
+            blocks: [], totalSectionsProcessed: 0, activitySectionsFound: 0,
+            piiDetected: false, cost: zeroCost,
+          },
+          moderation: {
+            blocks: [], cost: zeroCost,
+            approvedCount: 0, flaggedCount: 0, pendingCount: 0,
+          },
+          totalCost: sumCosts(dedup.cost, parse.cost, safetyResult.cost),
+          totalTimeMs: Date.now() - startTime,
+          moderationHold: true,
+          moderationHoldReason: `Upload held: content ${safetyResult.moderation.status} (${safetyResult.moderation.flags.map(f => f.type).join(", ")})`,
+        } as IngestionPipelineResult;
+      }
+    } catch (err) {
+      // Safety scan failure → proceed (teacher uploads get benefit of doubt)
+      console.error("[pipeline] Safety pre-check failed, proceeding:", err instanceof Error ? err.message : err);
+    }
+  }
 
   // Stage I-2: Pass A — Classify + Tag
   const classification: IngestionClassification = await passA.run(parse, config);

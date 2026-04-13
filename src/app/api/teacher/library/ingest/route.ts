@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
             content_type: result.classification.documentType,
             subject: result.classification.detectedSubject,
             file_hash: result.dedup.fileHash,
-            processing_status: "completed",
+            processing_status: result.moderationHold ? "moderation_hold" : "completed",
             raw_extracted_text: rawText,
             parsed_sections: result.parse.sections,
             classification: result.classification,

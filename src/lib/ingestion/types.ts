@@ -256,4 +256,8 @@ export interface IngestionPipelineResult {
   moderation: ModerationStageResult;
   totalCost: CostBreakdown;
   totalTimeMs: number;
+  /** Phase 6C: true when upload-level safety scan flagged/blocked the content */
+  moderationHold?: boolean;
+  /** Phase 6C: human-readable reason for the hold */
+  moderationHoldReason?: string;
 }
