@@ -1,0 +1,230 @@
+# ============================================================
+# Schema Registry — Source of Truth for Database Schema State
+# ============================================================
+#
+# Purpose: Per-table record of what actually exists in the StudioLoom
+# database, how it got there, who writes to it, who reads from it, and
+# any drift between the spec and reality. Prevents re-doing the same
+# audit every time a new phase touches a table.
+#
+# Scope: Tables and columns that have been touched by any phase of work,
+# or are planned for an upcoming phase. This is NOT a full mirror of the
+# Supabase schema — it's a curated record of decisions and drift.
+#
+# Relationship to other docs:
+# - WIRING.yaml tracks SYSTEMS (82 of them, e.g. "content-safety").
+# - schema-registry.yaml tracks TABLES (the DB shape under those systems).
+# - resolved-issues-archive.md has the historical prose log of applied
+#   migrations — this YAML supersedes it for tables going forward.
+#
+# How to use:
+# - Before any migration, check whether the target table already has an
+#   entry here. If yes, read the drift field before assuming the spec is
+#   the ground truth.
+# - After a migration is applied, update applied=true + applied_date.
+# - When a spec conflict is resolved, append to the drift field with a
+#   dated decision entry.
+# - Sync this file in saveme step 11.
+#
+# Status key:
+# - planned      — migration written but not applied to prod
+# - applied      — migration confirmed applied in prod via probe query
+# - deprecated   — table exists but is being phased out
+# - historical   — in prod but not actively written (archive data)
+#
+# ============================================================
+
+last_updated: 2026-04-14
+last_updated_by: Phase 7A audit (Matt + Claude)
+
+# ============================================================
+# TABLES TOUCHED BY PHASE 7A
+# ============================================================
+
+tables:
+
+  # ─────────────────────────────────────────────────────────
+  # Phase 4 usage count rollup (existing, preserved)
+  # ─────────────────────────────────────────────────────────
+  - name: usage_rollups
+    status: applied
+    source_migration: 072_library_health_ops.sql
+    applied_date: unknown  # predates registry; probe confirms presence 2026-04-14
+    purpose: >
+      Phase 4 daily/weekly/monthly count rollups. Stores
+      { generation_runs, total_blocks } counts per teacher per day.
+      NOT for cost attribution — see cost_rollups (migration 075).
+    columns:
+      id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+      period_type: TEXT NOT NULL  # no CHECK
+      period_start: DATE NOT NULL
+      teacher_id: UUID (nullable)
+      student_id: UUID (nullable)
+      metrics: JSONB NOT NULL DEFAULT '{}'
+      created_at: TIMESTAMPTZ DEFAULT now()
+    unique_constraints:
+      - "(period_type, period_start, teacher_id, student_id)"
+    indexes:
+      - idx_usage_rollups_period ON (period_type, period_start)
+    rls: none
+    writers:
+      - src/lib/jobs/usage-analytics.ts — UPSERT in run()
+    readers:
+      - TODO audit — unknown at time of registry creation
+    spec_drift:
+      - date: 2026-04-14
+        source_doc: docs/projects/dimensions3-completion-spec.md §9.9
+        spec_says: >
+          usage_rollups(id, teacher_id, category CHECK IN
+          ('ingestion','generation','student_api','teacher_api'),
+          period CHECK IN ('day','week','month'), period_start,
+          cost_usd NUMERIC, call_count INT, token_count INT,
+          rolled_up_at TIMESTAMPTZ)
+        reality: >
+          Table already exists with different purpose (counts, not cost)
+          and different shape (metrics JSONB, not structured columns).
+          Phase 4 job src/lib/jobs/usage-analytics.ts writes to it daily
+          with { generation_runs, total_blocks } — no cost data.
+        decision: >
+          Option C — keep usage_rollups as-is (Phase 4 Job 7 is live and
+          writing to it). Create new table cost_rollups (migration 075)
+          for Phase 7 §9.9 cost attribution. Patch the spec to rename
+          the §9.9 table cost_rollups.
+        decided_by: Matt
+        commits: TBD (Phase 7A commit)
+
+  # ─────────────────────────────────────────────────────────
+  # Phase 7A new tables (planned)
+  # ─────────────────────────────────────────────────────────
+  - name: cost_rollups
+    status: planned
+    source_migration: 075_cost_rollups.sql  # to be created in Phase 7A
+    applied_date: null
+    purpose: >
+      Per-teacher cost attribution across 4 categories
+      (ingestion, generation, student_api, teacher_api) with day/week/
+      month granularity. Feeds /admin/cost-usage tab (Phase 7E).
+      Distinct from usage_rollups (counts, Phase 4) — this one is
+      cost-only.
+    columns:
+      id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+      teacher_id: UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE
+      category: TEXT NOT NULL CHECK IN ('ingestion','generation','student_api','teacher_api')
+      period: TEXT NOT NULL CHECK IN ('day','week','month')
+      period_start: DATE NOT NULL
+      cost_usd: NUMERIC(10,4) NOT NULL DEFAULT 0
+      call_count: INT NOT NULL DEFAULT 0
+      token_count: INT NOT NULL DEFAULT 0
+      rolled_up_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+    unique_constraints:
+      - "(teacher_id, category, period, period_start)"
+    indexes:
+      - idx_cost_rollups_teacher_period ON (teacher_id, period, period_start DESC)
+      - idx_cost_rollups_category ON (category, period_start DESC)
+    rls:
+      read: teacher reads own rows; admin reads all
+      write: service_role only (nightly job)
+    writers:
+      - planned — nightly cost rollup job (Phase 7E)
+    readers:
+      - planned — /admin/cost-usage page (Phase 7E)
+
+  - name: bug_reports
+    status: planned
+    source_migration: 076_bug_reports.sql  # to be created in Phase 7A
+    applied_date: null
+    purpose: >
+      Bug Reporting System (spec §9.13). Floating button on student +
+      teacher surfaces (only visible when class has bug_reporting_enabled).
+      Captures context auto-magically (URL, browser, console errors).
+      Admin triage in /admin/bug-reports (Phase 7H).
+    columns:
+      id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+      reporter_id: UUID NOT NULL  # teacher auth uid OR student.id
+      reporter_role: TEXT NOT NULL CHECK IN ('teacher','student','admin')
+      class_id: UUID REFERENCES classes(id) ON DELETE SET NULL
+      category: TEXT NOT NULL CHECK IN ('broken','visual','confused','feature_request')
+      description: TEXT NOT NULL
+      screenshot_url: TEXT
+      page_url: TEXT
+      console_errors: JSONB DEFAULT '[]'::jsonb
+      status: TEXT NOT NULL DEFAULT 'new' CHECK IN ('new','investigating','fixed','closed')
+      admin_notes: TEXT
+      response: TEXT
+      created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+      updated_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+    indexes:
+      - idx_bug_reports_status ON (status, created_at DESC)
+      - idx_bug_reports_class ON (class_id, created_at DESC)
+      - idx_bug_reports_reporter ON (reporter_id, created_at DESC)
+    rls:
+      read: teacher reads reports from their classes; student reads own; admin all
+      write: teacher/student can INSERT own; admin can UPDATE (status/response)
+    writers:
+      - planned — floating BugReportButton component (Phase 7H)
+      - planned — /admin/bug-reports status workflow (Phase 7H)
+    readers:
+      - planned — /admin/bug-reports (Phase 7H)
+      - planned — "My reports" user view (Phase 7H)
+    notes:
+      - class_id is SET NULL on class delete (not CASCADE) to preserve audit trail
+
+  - name: classes
+    status: applied  # existing table; 7A adds one column
+    source_migration: pre-registry  # originating migration
+    changes_in_phase_7a:
+      - migration: 076_bug_reports.sql
+        add_column: bug_reporting_enabled BOOLEAN NOT NULL DEFAULT false
+        purpose: Per-class toggle for bug reporter visibility. Default OFF.
+
+  - name: admin_settings
+    status: planned
+    source_migration: 077_admin_settings.sql  # to be created in Phase 7A
+    applied_date: null
+    purpose: >
+      Singleton key/value store for admin-controlled pipeline settings
+      (spec §9.15). Wires the /admin/controls page backend (currently TODO).
+      Examples: pipeline.stage_enabled, pipeline.cost_ceiling_per_day_usd,
+      pipeline.model_override per stage.
+    columns:
+      id: SERIAL PRIMARY KEY
+      key: TEXT UNIQUE NOT NULL
+      value: JSONB NOT NULL
+      updated_by: UUID REFERENCES auth.users(id) ON DELETE SET NULL
+      updated_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+    indexes:
+      - (key is UNIQUE, implicit index)
+    rls:
+      read: admin only
+      write: admin only
+    seed_rows:
+      - key: pipeline.stage_enabled
+        value: '{ "retrieve": true, "assemble": true, "gap_fill": true, "polish": true, "timing": true, "score": true }'
+      - key: pipeline.cost_ceiling_per_run_usd
+        value: '5.00'
+      - key: pipeline.cost_ceiling_per_day_usd
+        value: '50.00'
+      - key: pipeline.model_override
+        value: '{}'  # empty = use defaults per stage
+      - key: pipeline.starter_patterns_enabled
+        value: 'true'
+    writers:
+      - planned — /admin/controls mutation endpoint (Phase 7I)
+    readers:
+      - planned — pipeline orchestrator reads at start of each run (Phase 7I)
+
+# ============================================================
+# REGISTRY BACKFILL QUEUE
+# ============================================================
+# Tables that exist in prod but don't yet have entries here.
+# Populate opportunistically when touched by a phase.
+#
+# Known high-priority tables (touched by Phase 7 later phases):
+# - generation_runs (Phase 7C Generation Sandbox)
+# - ai_usage_log (Phase 7E cost rollup reader)
+# - activity_blocks (Phase 7D Block Interaction Viz)
+# - content_moderation_log (Phase 7 audit log reader)
+# - student_content_moderation_log (Phase 7 audit log reader)
+# - classes, students, units, class_students, class_units (Phase 7G browse tabs)
+# - feedback_proposals (Phase 7 feedback audit)
+# ============================================================

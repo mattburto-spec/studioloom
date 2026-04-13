@@ -1,6 +1,9 @@
 # StudioLoom System Registry & Dependency Map
-# Machine-readable system registry for impact analysis
-# Last updated: 2026-04-12
+# Machine-readable system registry for impact analysis.
+# Scope: SYSTEMS (e.g. "content-safety", "framework-adapter") — 82+ systems.
+# For per-TABLE schema state (columns, CHECK constraints, RLS, writers/readers,
+# spec drift), see docs/schema-registry.yaml — different scope, same spirit.
+# Last updated: 2026-04-14
 # When a change is made to any system, trace affected systems via depends_on/affects
 
 systems:
