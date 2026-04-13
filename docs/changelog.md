@@ -4,6 +4,32 @@
 
 ---
 
+## 14 Apr 2026 — Phase 6 + Checkpoint 5.1 Step 9 + Architectural Limitations Filing
+
+**What changed:**
+- **Phase 6 COMPLETE** (landed in prior conversation, committed but pre-saveme): 6A teacher safety alert feed at `/teacher/safety/alerts` (commit `5e26d55`), 6B critical alert nav badge on teacher layout (commit `fc115d0`), 6C ingestion pipeline upload-level safety scan with `moderation_hold` processing_status (commit `b59752f`). Migration 074 partial index on content_items. Moderation hold UI messaging on both library ingestion pages (commit `c904329`).
+- **Checkpoint 5.1 Step 8 VERIFIED:** content_items.processing_status = 'moderation_hold' after ingestion safety scan flags content. Dedup short-circuit caveat documented (same file_hash skips safety scan — by design).
+- **Checkpoint 5.1 Step 9 DEBUGGING** revealed two compounding bugs: (1) `class_id = NULL` on all 19 moderation_logs rows (source code used `resolvedClassId || ''` fallback passing empty string, RLS silently filtered); (2) after UPDATE to set class_id, test class's `teacher_id` didn't match Matt's auth.uid, RLS still blocked. Manual UPDATE applied to fix test ownership.
+- **10 architectural limitations filed as FU-N through FU-W** in dimensions3-followups.md and summarized in ALL-PROJECTS.md:
+  - FU-N: NULL class_id silent safety gap (P1 — live safety hole)
+  - FU-O: No co-teacher/dept head/admin access model (P1)
+  - FU-P: No school/organization entity (P1)
+  - FU-Q: Dual student identity class_students vs students.class_id (P2)
+  - FU-R: Auth model split teacher Supabase vs student custom tokens (P1)
+  - FU-S: Moderation log class-scoped vs ingestion upload-scoped (P2)
+  - FU-T: No content ownership transfer (P2)
+  - FU-U: Single-tenant URL structure (P3)
+  - FU-V: Cross-class student analytics double-counting (P2)
+  - FU-W: No immutable audit log (P2)
+
+**Files modified:** `docs/projects/ALL-PROJECTS.md` (Phase 6 follow-ups section added), `docs/projects/dimensions3-followups.md` (FU-N through FU-W appended, ~230 lines), `docs/doc-manifest.yaml` (followups purpose updated to include FU-N..W summary, last_verified dates updated)
+
+**Systems affected:** content-safety (Phase 6 shipped), teacher-dashboard (alert feed + nav badge), ingestion-pipeline (upload-level safety scan), moderation_logs (silent-filter bug FU-N surfaced), class-membership (FU-O surfaced), rls-policies (FU-O,FU-N surfaced as systemic issues), auth-model (FU-R surfaced as split-lane debt)
+
+**Session context:** Continuation of Phase 6 Teacher Safety Feed build. Phase 6A/6B/6C committed in the lead-up to this saveme. Step 8 passed quickly. Step 9 debugging uncovered the RLS × NULL class_id silent-filter pattern (Lesson #29 instance) AND a teacher-auth mismatch in test data. Together they prompted a wider architectural audit: what other limitations of the "solo teacher, flat hierarchy, single auth lane" design will bite when StudioLoom expands to co-taught classes, department deployments, school/MAT tenants, and cross-teacher content sharing. 10 limitations filed as FU-N through FU-W with design sketches. Sequencing call: FU-N is the only one that needs an immediate hotfix (live safety gap); FU-O+FU-P+FU-R are the "Access Model v2" cluster that gates school-level deployments.
+
+---
+
 ## 13 Apr 2026 (session 3) — Grading System Overhaul Spec Expansion
 
 **What changed:**

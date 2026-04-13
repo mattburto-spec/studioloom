@@ -493,3 +493,301 @@ Both are regression-locked by 5.10.5 wiring tests (G1-G4 in `render-path-fixture
 7. Restore `COST_ALERT_DAILY_USD` to production value ($10).
 
 **Definition of done:** Email received. Debounce verified (second run within 6h does NOT send). Both confirmed with screenshots or logs.
+
+---
+
+## FU-N — NULL class_id silent safety gap (RLS filters NULL rows)
+
+**Surfaced:** Phase 6 Checkpoint 5.1 Step 9 (14 Apr 2026)
+**Target phase:** Phase 6 cleanup or Phase 7
+**Priority:** P1 (silent safety hole — moderation events invisible to teachers)
+
+**Symptom:** Teacher-facing safety alert feed at `/teacher/safety/alerts` showed zero rows despite `moderation_logs` having 19 flagged rows for Matt's test class. Root cause: all 19 rows had `class_id = NULL`, and the RLS policy filters `class_id IN (SELECT id FROM classes WHERE teacher_id = auth.uid())` — NULL fails the IN check silently. Fix applied was a UPDATE to set `class_id`, but the underlying pattern remains: any moderation event logged from a non-class context (Discovery Engine onboarding before enrollment, Open Studio planning phase, library uploads, standalone tool use, Kit conversations) writes `class_id = NULL` and becomes invisible.
+
+**What we know:**
+- Lesson #29 documented this RLS-NULL silent-filter pattern; FU-N is the moderation-specific instance.
+- The source-side fix attempted in Phase 6C was `resolvedClassId || ''` which passes empty string, not NULL — still failed RLS.
+- Content safety scan in `src/lib/ingestion/pipeline.ts` runs on uploads before they're ever assigned to a class.
+- Discovery Engine and Open Studio planning happen before a student is confirmed in a specific class context.
+
+**Two ways to fix — pick one:**
+
+**Option A — Reject NULL at write time.**
+- Add a CHECK constraint or application-level guard: `class_id IS NOT NULL` on `moderation_logs`.
+- Every writer must resolve a class_id, even if it's a synthetic "admin-intake" class per teacher.
+- Downside: forces every non-class context to invent a class_id. Fragile.
+
+**Option B — Route NULL class_id to an admin queue.**
+- Add a separate RLS policy allowing rows WHERE `class_id IS NULL` to be visible to users with an `admin` or `safety_lead` role.
+- UI: `/admin/safety/orphan-alerts` for NULL-class events.
+- Better long-term answer but requires roles system (see FU-O).
+
+**Option C — Dual-visibility: show NULL rows to ALL of a teacher's class views.**
+- Add `OR class_id IS NULL AND student_id IN (SELECT id FROM students WHERE class_id IN (teacher's classes))` to the RLS policy.
+- Catches the common case (NULL rows from a context where student was identified but class wasn't).
+- Downside: fan-out if a student is in multiple teachers' classes.
+
+**Recommendation:** Option A as an immediate hotfix for moderation_logs (require class_id), then Option B as the proper long-term solution once the role system (FU-O) lands.
+
+**Definition of done:** Zero moderation events with `class_id = NULL` reach production. Writers that can't resolve a class_id either fail loudly or route to an admin queue. Lesson #29 cross-referenced.
+
+---
+
+## FU-O — No co-teacher / dept head / school admin access model
+
+**Surfaced:** Phase 6 Checkpoint 5.1 Step 9 (14 Apr 2026)
+**Target phase:** Post-Dimensions3 architecture phase ("Loominary OS Access Model")
+**Priority:** P1 (hard blocker for school deployments — no sales past first teacher)
+
+**Symptom:** Every RLS policy in the codebase hardcodes `teacher_id = auth.uid()` as the ownership predicate. Concrete blockers this creates:
+- Co-taught classes (two teachers sharing a class) — one teacher is invisible to their own class data.
+- Department heads needing to see all DT classes across their department — no path.
+- Substitute teachers covering a class for a week — must masquerade as the owner.
+- School admin/principal viewing safety alerts across the school — no path.
+- Teacher leaves school; replacement teacher can't be granted access without a DB surgery.
+
+**What we know:**
+- Pattern is repeated in ~40+ RLS policies across migrations 001-074.
+- `classes.teacher_id` is a single FK, not a junction.
+- Students use a `class_students` junction; teachers do not have an equivalent.
+
+**Design sketch:**
+1. New table `class_memberships(class_id, user_id, role)` where role ∈ {`owner`, `co_teacher`, `viewer`, `substitute`}.
+2. Migration to backfill: for each class, insert one `owner` row from the existing `teacher_id`.
+3. Keep `classes.teacher_id` as "primary owner" for now (backward compat); phase out later.
+4. Rewrite all RLS policies to use `class_id IN (SELECT class_id FROM class_memberships WHERE user_id = auth.uid() AND role IN ('owner','co_teacher','viewer'))`.
+5. For school-wide admin access, introduce `school_memberships(school_id, user_id, role)` (depends on FU-P).
+
+**Investigation steps:**
+1. Grep all RLS policies for `teacher_id = auth.uid()` — expected ~40+ sites.
+2. Decide write vs read differentiation (co-teachers can write? viewers read-only?).
+3. Spec role semantics: who can grade, who can moderate, who can change class settings.
+
+**Definition of done:** Every RLS policy uses a membership join instead of direct ownership. Backfill migration preserves current access. Co-teacher flow tested with 2-teacher class.
+
+---
+
+## FU-P — No school / organization entity (flat teacher→class→student hierarchy)
+
+**Surfaced:** Phase 6 Checkpoint 5.1 review (14 Apr 2026)
+**Target phase:** Post-Dimensions3 architecture phase (pairs with FU-O)
+**Priority:** P1 (table stakes for MAT/district deployments)
+
+**Symptom:** Data model has no `schools` or `organizations` table. Concrete blockers:
+- Can't share a curriculum library across teachers in the same school.
+- Can't enforce school-level branding, framework defaults, or content policy.
+- No district rollout — every teacher sign-up is an island.
+- No "school-wide safety report" for safeguarding leads.
+- Can't bill per-school; every license is per-teacher.
+- Can't surface "teachers in your school are using this unit" social proof.
+
+**What we know:**
+- Loominary OS vision explicitly calls out multi-tenant school/org as an extraction target (`../Loominary/docs/os/master-architecture.md`).
+- No current column in any table points to a school.
+- Auth domain matching (e.g., `@britishschool.edu.cn`) could seed initial school inference.
+
+**Design sketch:**
+1. New tables: `schools(id, name, domain, framework_default, ...)`, `school_memberships(school_id, user_id, role)` where role ∈ {`admin`, `dept_head`, `teacher`, `student`}.
+2. Add nullable `school_id` to `classes`, `units`, `content_items`, `activity_blocks` — rows with school_id are school-scoped; NULL means teacher-private.
+3. "Share to school library" button on unit/block — sets `school_id`.
+4. Pairs with FU-O role system: school-level roles (admin sees everything in their school) layer on top of class-level roles.
+
+**Investigation steps:**
+1. Decide whether a teacher can belong to multiple schools (Matt teaches at 2 schools? substitute covering multiple schools?). Probably yes → many-to-many.
+2. Decide school_id resolution at sign-up: (a) admin invites, (b) auth-domain inference, (c) self-declaration with admin verification.
+3. Decide content forking model: school library unit forked by teacher — does the fork stay school-scoped or become teacher-private? (ties to ADR-010 content forking.)
+
+**Definition of done:** Schools table exists. School memberships join works. At least one end-to-end flow tested: school admin creates school, invites 2 teachers, one teacher shares a unit to the school library, other teacher forks it.
+
+---
+
+## FU-Q — Dual student identity (class_students junction AND students.class_id)
+
+**Surfaced:** Phase 6 Checkpoint 5.1 review (14 Apr 2026); pattern is Lesson #22
+**Target phase:** Post-Dimensions3 cleanup phase
+**Priority:** P2 (slow-bleed defensive-code tax on every teacher API)
+
+**Symptom:** Students have both `class_students(student_id, class_id)` junction (from multi-class enrollment work) AND `students.class_id` (legacy single-class column). Lesson #22 documented the "junction-first, legacy-fallback" pattern every teacher API now carries. Downsides:
+- Every teacher API has ~20 lines of defensive joining to cover both shapes.
+- Easy to forget the fallback → phantom students missing from a view.
+- Writes have to update both places → easy to get out of sync.
+- New features default-copy the defensive pattern, compounding the debt.
+
+**What we know:**
+- `class_students` is the canonical source per recent decisions; `students.class_id` is legacy.
+- Some queries use junction-only, some use class_id-only, some use both.
+- Not causing incidents today but every new teacher-facing feature pays the tax.
+
+**Investigation steps:**
+1. Grep all `.from('students')` and `.from('class_students')` call sites — expected 50+.
+2. Audit: for each call site, is it junction-first-fallback, junction-only, or class_id-only?
+3. Migration: backfill any class_id-only rows into `class_students`.
+4. Drop `students.class_id` column once backfill verified.
+5. Remove legacy fallback branches from all API code.
+
+**Definition of done:** `students.class_id` column removed. All student lookups go through `class_students`. Lesson #22 marked obsolete.
+
+---
+
+## FU-R — Auth model split (teacher Supabase Auth vs student custom token sessions)
+
+**Surfaced:** Phase 6 Checkpoint 5.1 review (14 Apr 2026)
+**Target phase:** Post-Dimensions3 architecture phase
+**Priority:** P1 (every new cross-role feature has to bridge)
+
+**Symptom:** Teachers authenticate via Supabase Auth (`auth.uid()` works, RLS works). Students authenticate via a custom token session system (Migration 028, `student_tool_sessions`). Every feature that spans both roles — peer review, class gallery, group work, safety alerts citing a student, parent portal — needs bridging code. The bridge is fragile: teacher APIs use `createServerClient().auth.getUser()`, student APIs use custom `validateStudentToken()` middleware. Features that want to accept either have to detect-and-fork.
+
+**What we know:**
+- Decision to use custom tokens for students was driven by no-email-required sign-up (students get teacher-issued login codes).
+- Supabase Auth anonymous sign-in has matured since that decision was made — worth re-evaluating.
+- The split also causes: no unified session table, no unified audit log, two password-reset flows, two rate-limit surfaces.
+
+**Design sketch:**
+1. Evaluate Supabase Anonymous Auth for students — does it support teacher-issued login codes?
+2. If yes, migrate students to Supabase Auth with an "anonymous" flag. Keep email as optional.
+3. If no, build a proper bridge library: `getAuthenticatedUser()` that returns `{kind: 'teacher' | 'student', id, metadata}` regardless of source.
+4. Deprecate `student_tool_sessions` in favor of the bridge.
+
+**Investigation steps:**
+1. Pilot Supabase Anonymous Auth on one student flow. Verify: RLS works with anon session, token persists across visits, teacher can link anon student to a class.
+2. Spec the migration path: existing student tokens → Supabase sessions without students noticing.
+
+**Definition of done:** Either (a) students migrated to Supabase Auth with feature parity, or (b) explicit bridge library adopted across all cross-role features. No new feature should need to choose a lane.
+
+---
+
+## FU-S — Moderation log is class-scoped but ingestion is upload-scoped
+
+**Surfaced:** Phase 6 Checkpoint 5.1 review (14 Apr 2026)
+**Target phase:** Phase 7 or post-Dimensions3
+**Priority:** P2 (safeguarding traceability gap)
+
+**Symptom:** `content_items.processing_status = 'moderation_hold'` has no `class_id` — uploads are teacher-scoped, not class-scoped. Later, when a held block is approved and assigned to multiple classes, there's no audit link between the held upload and the classes/students that would have been exposed. For a safeguarding lead answering "which students saw content flagged as X on date Y," the trail is broken.
+
+**What we know:**
+- `moderation_logs` has `class_id` (per FU-N).
+- `content_items` does not have class_id (intentional — content is reusable across classes).
+- Link between content_items and class usage is implicit (via units → blocks → content).
+
+**Design sketch:**
+1. New table `content_moderation_events(content_item_id, moderation_status, flagged_at, flagged_by_system, context)` that attaches to uploads.
+2. New table `content_class_exposure(content_item_id, class_id, student_id, exposed_at)` — log every time a student views a piece of content.
+3. Safeguarding query: for a flagged content_item, JOIN to exposure log to see who saw it.
+
+**Investigation steps:**
+1. Spec with safeguarding lead — what's the query they actually need?
+2. Exposure logging is high-volume — needs partitioning or aggregate roll-ups.
+
+**Definition of done:** Safeguarding lead can answer "which students saw content X" for any moderated item, within policy-defined retention window.
+
+---
+
+## FU-T — No content ownership transfer (teacher leaves, content stranded)
+
+**Surfaced:** Phase 6 Checkpoint 5.1 review (14 Apr 2026)
+**Target phase:** Post-FU-P school entity (requires school destination)
+**Priority:** P2 (concrete pain point the first time a teacher leaves a school mid-year)
+
+**Symptom:** `units`, `activity_blocks`, `content_items`, and `classes` all hardcode `teacher_id`. When a teacher leaves the school, their entire content library is stranded. No way to:
+- Hand units to a replacement teacher mid-year.
+- Archive content to a school library for future teachers.
+- Transfer ownership of a class to a co-teacher.
+
+**What we know:**
+- Simple UPDATE of `teacher_id` would work schema-wise but breaks RLS mid-flight (the new owner needs access before the old owner loses it).
+- Depends on FU-P (school library destination) for "archive to school" flow.
+
+**Design sketch:**
+1. Add `previous_teacher_ids UUID[]` to preserve audit trail on transfer.
+2. Admin UI: "Transfer ownership" action on class/unit/block, with confirmation.
+3. Bulk transfer: "Move all of teacher X's content to teacher Y" admin function.
+4. School archive: "Archive all of teacher X's content to school library" (requires FU-P).
+
+**Definition of done:** Admin can transfer any content entity to a new teacher or the school library. Audit trail preserved. RLS doesn't flap during transfer.
+
+---
+
+## FU-U — Single-tenant URL structure (no /school/*, /org/* namespace)
+
+**Surfaced:** Phase 6 Checkpoint 5.1 review (14 Apr 2026)
+**Target phase:** Post-FU-P (driven by school entity design)
+**Priority:** P3 (cosmetic until multi-tenant ships, then hard retrofit)
+
+**Symptom:** Routes are `/teacher/*`, `/student/*`, `/admin/*` with no organization namespace. When FU-P lands, school-scoped routes (`/school/[schoolId]/library`, `/school/[schoolId]/safety`) will need to be added. Retrofitting means either (a) adding a new namespace and migrating existing routes, or (b) keeping flat and encoding school context in URL params (ugly, hard to share links).
+
+**What we know:**
+- Next.js App Router makes the retrofit cheaper than a full path rewrite (route groups, parallel routes).
+- Concrete smell already: `/teacher/safety/alerts` shows one teacher's alerts, but there's no obvious path to "safety alerts for my whole school."
+
+**Design sketch:**
+1. Introduce `/school/[schoolSlug]/*` as the namespace for school-scoped views.
+2. Dept-head and school-admin views live at `/school/[schoolSlug]/dept/[deptSlug]/*` and `/school/[schoolSlug]/admin/*`.
+3. Individual teacher routes stay at `/teacher/*` (personal library, personal classes).
+4. Cross-link: school library view links to teachers' class views.
+
+**Investigation steps:**
+1. Decide schoolSlug format (human-readable? UUID?). Affects shareability and security.
+2. Audit all current `/teacher/*` routes — which need a school-scoped equivalent?
+
+**Definition of done:** Namespace pattern documented. First school-scoped route (`/school/[slug]/library`) shipped as proof-of-concept alongside FU-P rollout.
+
+---
+
+## FU-V — Cross-class student analytics double-counting / under-counting
+
+**Surfaced:** Phase 6 Checkpoint 5.1 review (14 Apr 2026)
+**Target phase:** Dimensions3 feedback loop (Phase 7+) or Journey Engine integration
+**Priority:** P2 (silent data bug waiting for first analytics feature)
+
+**Symptom:** `discovery_profiles` and `learning_profile` (JSONB on `students`) are one-per-student globally. But teachers access students via `class_students` junction — one student can appear in 3 of a teacher's classes. Analytics aggregated per-class will either:
+- Double-count a student (student in 3 classes counted 3×).
+- Under-count if query uses DISTINCT student_id at teacher-level.
+- Show stale per-class metrics if the profile-update event doesn't know which class triggered it.
+
+No current feature exposes this, but Dimensions3 feedback loop ("how is this student progressing?") will hit it immediately.
+
+**What we know:**
+- Scope question: is "progress" a per-student or per-student-per-class concept? Probably per-student-per-class (student may be strong in Grade 8 DT but new in Grade 8 Makerspace).
+- Current schema has no per-class progress table.
+
+**Design sketch:**
+1. New table `student_class_progress(student_id, class_id, metric, value, updated_at)` — one row per (student, class, metric) tuple.
+2. Profile updates dual-write: global `learning_profile` gets a merged view, `student_class_progress` gets the per-class snapshot.
+3. Analytics queries explicitly state join direction (per-class or per-student-global).
+
+**Investigation steps:**
+1. Spec the feedback loop data model with Dimensions3 Phase 7 in mind.
+2. Decide what's global vs per-class (interests, learning style — global; specific unit progress — per-class).
+
+**Definition of done:** Per-class progress table exists. Analytics queries specify their grain. Feedback loop features don't double-count.
+
+---
+
+## FU-W — No immutable audit log on RLS-writable tables
+
+**Surfaced:** Phase 6 Checkpoint 5.1 review (14 Apr 2026) — triggered by manual `UPDATE classes SET teacher_id = ...` with no trail
+**Target phase:** Quick-add, any future safety/compliance pass
+**Priority:** P2 (cheap insurance against first "why did my unit change" support ticket)
+
+**Symptom:** RLS allows teachers to UPDATE their own classes, students, units, blocks. No table captures a history of who changed what, when. Specific incidents already foreshadowed:
+- Manually UPDATE'd a class's `teacher_id` during Step 9 debugging — no record that happened.
+- If content is moderated then edited, no trail.
+- No way to answer "this unit was different yesterday, what changed?"
+
+**What we know:**
+- Supabase supports `pg_audit` extension but it's heavy.
+- Common pattern: per-table `*_history` table populated by AFTER UPDATE/DELETE trigger.
+- Should at minimum cover: `classes` (teacher_id, name, framework), `units` (content_data, criterion_tags), `activity_blocks` (content, moderation_status), `moderation_logs` (status changes — critical for safety).
+
+**Design sketch:**
+1. New table `audit_log(id, table_name, row_id, action, changed_by, changed_at, old_values JSONB, new_values JSONB)`.
+2. AFTER UPDATE/DELETE triggers on critical tables write to audit_log.
+3. RLS on audit_log: teachers see their own rows; admins see all.
+4. Retention policy: 12 months default, longer for safety-flagged rows.
+
+**Investigation steps:**
+1. Pick 3-5 highest-risk tables to cover first (classes, units, activity_blocks, moderation_logs, assessments).
+2. Write trigger function, apply as one migration.
+3. Build a minimal "history" UI slot on unit detail page.
+
+**Definition of done:** AFTER triggers in place on 5+ tables. Audit log queryable. First demo: show history of a unit.

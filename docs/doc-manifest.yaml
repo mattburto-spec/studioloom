@@ -248,7 +248,7 @@ docs:
     title: "StudioLoom — Master Project Index"
     purpose: "CANONICAL project tracker. ALL project status, new projects, completions. Single source of truth."
     category: projects
-    last_verified: "2026-04-13"
+    last_verified: "2026-04-14"
     referenced_from: ["CLAUDE.md project tracking section"]
 
   - path: docs/projects/discovery-engine-cognitive-layer.md
@@ -343,9 +343,9 @@ docs:
 
   - path: docs/projects/dimensions3-followups.md
     title: "Dimensions3 Follow-Ups Tracker"
-    purpose: "Per-FU tracking for Dimensions3 phase follow-ups (FU-1 through FU-M). FU-E through FU-I (teacher grading migration, legacy CRITERIA cleanup, getCriterionColor wrapper, strand headers, null-framework fallback). FU-J through FU-L (scale hardcode, student-snapshot shape, local type collapse). FU-M (live cost alert email test). Phase 2+4 follow-ups filed 12 Apr 2026."
+    purpose: "Per-FU tracking for Dimensions3 phase follow-ups (FU-1 through FU-W). FU-E through FU-I (teacher grading migration, legacy CRITERIA cleanup, getCriterionColor wrapper, strand headers, null-framework fallback). FU-J through FU-L (scale hardcode, student-snapshot shape, local type collapse). FU-M (live cost alert email test). FU-N through FU-W (architectural limitations surfaced during Checkpoint 5.1 Step 9: NULL class_id silent safety gap, no co-teacher access, no school entity, dual student identity, auth model split, moderation-ingestion scope mismatch, no content transfer, single-tenant URLs, cross-class analytics, no audit log) filed 14 Apr 2026."
     category: projects
-    last_verified: "2026-04-12"
+    last_verified: "2026-04-14"
     referenced_from: ["ALL-PROJECTS.md Dimensions3 follow-ups", "CLAUDE.md current focus"]
 
   - path: docs/projects/dimensions3-phase3-remediation.md
