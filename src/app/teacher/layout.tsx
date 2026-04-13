@@ -35,6 +35,13 @@ const NAV_ITEMS = [
       <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
     </svg>
   )},
+  { href: "/teacher/safety/alerts", label: "Alerts", icon: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+      <line x1="12" y1="9" x2="12" y2="13" />
+      <line x1="12" y1="17" x2="12.01" y2="17" />
+    </svg>
+  )},
   { href: "/teacher/students", label: "Students", icon: (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
@@ -56,6 +63,7 @@ export default function TeacherLayout({
   const pathname = usePathname();
   const [teacher, setTeacher] = useState<Teacher | null>(null);
   const [loading, setLoading] = useState(true);
+  const [criticalAlertCount, setCriticalAlertCount] = useState(0);
 
   useEffect(() => {
     async function loadTeacher() {
@@ -86,6 +94,14 @@ export default function TeacherLayout({
         }
 
         setTeacher(teacherData);
+
+        // Phase 6B: count unreviewed critical alerts for nav badge
+        const { count } = await supabase
+          .from("student_content_moderation_log")
+          .select("id", { count: "exact", head: true })
+          .eq("teacher_reviewed", false)
+          .eq("severity", "critical");
+        setCriticalAlertCount(count || 0);
       } catch (err) {
         console.error("[TeacherLayout] Unexpected error:", err);
       } finally {
@@ -170,6 +186,26 @@ export default function TeacherLayout({
                     >
                       <span style={{ opacity: isActive ? 1 : 0.6 }}>{item.icon}</span>
                       {item.label}
+                      {item.href === "/teacher/safety/alerts" && criticalAlertCount > 0 && (
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            minWidth: "18px",
+                            height: "18px",
+                            padding: "0 5px",
+                            borderRadius: "9px",
+                            fontSize: "11px",
+                            fontWeight: 700,
+                            lineHeight: 1,
+                            color: "#fff",
+                            background: "#DC2626",
+                          }}
+                        >
+                          {criticalAlertCount}
+                        </span>
+                      )}
                     </Link>
                   );
                 })}
