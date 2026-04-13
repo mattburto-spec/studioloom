@@ -160,9 +160,15 @@ export default function TeacherLayout({
               </Link>
 
               <nav className="flex items-center gap-1">
-                {NAV_ITEMS.map((item) => {
-                  const isActive = pathname.startsWith(item.href);
-                  return (
+                {(() => {
+                  // Longest-prefix match so nested routes (e.g. /teacher/safety/alerts)
+                  // don't also activate their parent (e.g. /teacher/safety for Badges).
+                  const activeHref = NAV_ITEMS
+                    .filter((item) => pathname === item.href || pathname.startsWith(item.href + "/"))
+                    .sort((a, b) => b.href.length - a.href.length)[0]?.href;
+                  return NAV_ITEMS.map((item) => {
+                    const isActive = item.href === activeHref;
+                    return (
                     <Link
                       key={item.href}
                       href={item.href}
@@ -207,8 +213,9 @@ export default function TeacherLayout({
                         </span>
                       )}
                     </Link>
-                  );
-                })}
+                    );
+                  });
+                })()}
               </nav>
             </div>
 
