@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
-    "@sentry/nextjs": "^10.43.0",
+    "@sentry/nextjs": "10.43.0",
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.49.4",
     "@tensorflow/tfjs": "^4.22.0",
@@ -24,7 +24,7 @@
     "jszip": "^3.10.1",
     "mammoth": "^1.11.0",
     "nanoid": "^5.1.5",
-    "next": "15.3.9",
+    "next": "15.3.3",
     "nsfwjs": "^4.3.0",
     "officeparser": "^6.0.4",
     "pdf-parse": "^2.4.5",
