@@ -35,196 +35,2551 @@
 # ============================================================
 
 last_updated: 2026-04-14
-last_updated_by: Phase 7A audit (Matt + Claude)
-
-# ============================================================
-# TABLES TOUCHED BY PHASE 7A
-# ============================================================
-
+last_updated_by: sync-schema-registry.py backfill
 tables:
+- name: activity_blocks
+  source_migration: 060_activity_blocks.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    teacher_id: UUID REFERENCES auth.users(id)
+    title: TEXT NOT NULL
+    description: TEXT
+    prompt: TEXT NOT NULL
+    source_type: TEXT NOT NULL
+    source_upload_id: UUID
+    source_unit_id: UUID
+    source_page_id: TEXT
+    source_activity_index: INT
+    bloom_level: TEXT
+    time_weight: TEXT DEFAULT 'moderate'
+    grouping: TEXT DEFAULT 'individual'
+    phase: TEXT
+    activity_category: TEXT
+    ai_rules: JSONB
+    udl_checkpoints: TEXT[]
+    success_look_fors: TEXT[]
+    output_type: TEXT
+    prerequisite_tags: TEXT[]
+    lesson_structure_role: TEXT
+    response_type: TEXT
+    toolkit_tool_id: TEXT
+    materials_needed: TEXT[]
+    tech_requirements: TEXT[]
+    scaffolding: JSONB
+    example_response: TEXT
+    efficacy_score: FLOAT DEFAULT 50
+    times_used: INT DEFAULT 0
+    times_skipped: INT DEFAULT 0
+    times_edited: INT DEFAULT 0
+    avg_time_spent: FLOAT
+    avg_completion_rate: FLOAT
+    source_format_hint: TEXT
+    embedding: halfvec(1024)
+    fts: tsvector
+    tags: TEXT[]
+    is_assessable: BOOLEAN DEFAULT false
+    assessment_config: JSONB
+    interactive_config: JSONB
+    supports_visual_assessment: BOOLEAN DEFAULT false
+    pii_scanned: BOOLEAN DEFAULT false
+    pii_flags: JSONB
+    copyright_flag: TEXT DEFAULT 'own'
+    teacher_verified: BOOLEAN DEFAULT false
+    module: TEXT DEFAULT 'studioloom'
+    media_asset_ids: UUID[]
+    is_public: BOOLEAN DEFAULT false
+    is_archived: BOOLEAN DEFAULT false
+    created_at: TIMESTAMPTZ DEFAULT now()
+    updated_at: TIMESTAMPTZ DEFAULT now()
+    moderation_status: TEXT
+    content_fingerprint: TEXT
+    last_used_at: TIMESTAMPTZ
+    archived_at: TIMESTAMPTZ
+    embedding_generated_at: TIMESTAMPTZ
+    decay_applied_total: INT DEFAULT 0
+  unique_constraints:
+  - - content_fingerprint
+  indexes:
+  - idx_blocks_teacher ON (teacher_id)
+  - idx_blocks_bloom ON (bloom_level)
+  - idx_blocks_phase ON (phase)
+  - idx_blocks_category ON (activity_category)
+  - idx_blocks_time ON (time_weight)
+  - idx_blocks_efficacy ON (efficacy_score)
+  - idx_blocks_source ON (source_type)
+  - idx_blocks_module ON (module)
+  - idx_blocks_embedding ON USING ivfflat (embedding halfvec_cosine_ops)
+  - idx_blocks_fts ON USING gin (fts)
+  - idx_activity_blocks_moderation_status ON (moderation_status)
+  - idx_activity_blocks_content_fingerprint ON (content_fingerprint)
+  rls:
+    read: activity_blocks_select (unknown); activity_blocks_select (unknown)
+    write: activity_blocks_insert (unknown); activity_blocks_update (unknown); activity_blocks_delete (unknown)
+  writers:
+  - src/app/api/admin/feedback/route.ts
+  - src/app/api/admin/ingestion-sandbox/commit/route.ts
+  - src/app/api/teacher/activity-blocks/[id]/route.ts
+  - src/app/api/teacher/activity-blocks/review/route.ts
+  - src/lib/activity-blocks/store.ts
+  - src/lib/jobs/library-hygiene-monthly.ts
+  - src/lib/jobs/library-hygiene-weekly.ts
+  readers:
+  - src/app/api/admin/library/route.ts
+  - src/lib/admin/library-health-queries.ts
+  - src/lib/admin/monitors/stale-watchdog.ts
+  - src/lib/admin/monitors/usage-analytics.ts
+  - src/lib/feedback/signals.ts
+  - src/lib/ingestion/copyright-check.ts
+  - src/lib/ingestion/dedup.ts
+  - src/lib/jobs/smoke-tests.ts
+  - src/lib/jobs/stale-data-watchdog.ts
+  - src/lib/jobs/usage-analytics.ts
+  - src/lib/pipeline/stages/__tests__/stage1-retrieval.test.ts
+  - src/lib/pipeline/stages/stage1-retrieval.ts
+  spec_drift: []
+- name: activity_card_usage
+  source_migration: 015_activity_cards.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    card_id: UUID REFERENCES activity_cards(id) ON DELETE CASCADE NOT NULL
+    teacher_id: UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL
+    unit_id: UUID
+    page_id: TEXT
+    criterion: TEXT CHECK (criterion IN ('A', 'B', 'C', 'D'))
+    modifiers_applied: JSONB
+    custom_prompt: TEXT
+    sections_before: JSONB
+    sections_after: JSONB
+    teacher_rating: SMALLINT CHECK (teacher_rating BETWEEN 1 AND 5)
+    created_at: TIMESTAMPTZ DEFAULT now()
+  indexes:
+  - activity_card_usage_card_idx ON (card_id)
+  - activity_card_usage_teacher_idx ON (teacher_id)
+  rls:
+    read: Teachers manage own usage records (unknown); Service role full access usage (unknown)
+    write: Teachers manage own usage records (unknown); Service role full access usage (unknown)
+  writers:
+  - src/lib/activity-cards/index.ts
+  readers: []
+  spec_drift: []
+- name: activity_cards
+  source_migration: 015_activity_cards.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    slug: TEXT UNIQUE NOT NULL
+    name: TEXT NOT NULL
+    description: TEXT NOT NULL
+    category: TEXT NOT NULL CHECK (category IN ( 'design-thinking', 'visible-thinking', 'evaluation', 'brainstorming', 'analysis',
+      'skills' ))
+    criteria: TEXT[] DEFAULT '{}'
+    phases: TEXT[] DEFAULT '{}'
+    thinking_type: TEXT CHECK (thinking_type IN ( 'creative', 'critical', 'analytical', 'metacognitive' ))
+    duration_minutes: INT
+    group_size: TEXT CHECK (group_size IN ( 'individual', 'pairs', 'small-group', 'whole-class', 'flexible' ))
+    materials: TEXT[] DEFAULT '{}'
+    tools: TEXT[] DEFAULT '{}'
+    resources_needed: TEXT
+    teacher_notes: TEXT
+    template: JSONB NOT NULL DEFAULT '{}'
+    ai_hints: JSONB NOT NULL DEFAULT '{}'
+    curriculum_frameworks: TEXT[] DEFAULT '{IB_MYP}'
+    source: TEXT NOT NULL DEFAULT 'system' CHECK (source IN ( 'system', 'teacher', 'community', 'ai_generated' ))
+    created_by: UUID REFERENCES auth.users(id) ON DELETE SET NULL
+    parent_card_id: UUID REFERENCES activity_cards(id) ON DELETE SET NULL
+    times_used: INT DEFAULT 0
+    avg_edit_distance: FLOAT
+    embedding: vector(1024)
+    fts: tsvector GENERATED ALWAYS AS ( to_tsvector('english', name || ' ' || description) ) STORED
+    is_public: BOOLEAN DEFAULT true
+    created_at: TIMESTAMPTZ DEFAULT now()
+    updated_at: TIMESTAMPTZ DEFAULT now()
+  indexes:
+  - activity_cards_embedding_idx ON USING hnsw (embedding vector_cosine_ops)
+  - activity_cards_fts_idx ON USING gin (fts)
+  - activity_cards_category_idx ON (category)
+  - activity_cards_criteria_idx ON USING gin (criteria)
+  - activity_cards_source_idx ON (source)
+  - activity_cards_thinking_type_idx ON (thinking_type)
+  - activity_cards_curriculum_idx ON USING gin (curriculum_frameworks)
+  - activity_cards_slug_idx ON (slug)
+  rls:
+    read: Anyone can read public activity cards (unknown); Teachers read own cards (unknown); Teachers manage own cards (unknown);
+      Service role full access activity cards (unknown)
+    write: Teachers manage own cards (unknown); Service role full access activity cards (unknown)
+  writers:
+  - src/app/api/teacher/activity-cards/manage/route.ts
+  - src/lib/activity-cards/import-cards.ts
+  - src/lib/activity-cards/seed.ts
+  readers:
+  - src/lib/activity-cards/index.ts
+  spec_drift: []
+- name: admin_settings
+  status: planned
+  source_migration: 077_admin_settings.sql
+  applied_date: null
+  purpose: 'Singleton key/value store for admin-controlled pipeline settings (spec §9.15). Wires the /admin/controls page
+    backend (currently TODO). Examples: pipeline.stage_enabled, pipeline.cost_ceiling_per_day_usd, pipeline.model_override
+    per stage.
 
-  # ─────────────────────────────────────────────────────────
-  # Phase 4 usage count rollup (existing, preserved)
-  # ─────────────────────────────────────────────────────────
-  - name: usage_rollups
-    status: applied
-    source_migration: 072_library_health_ops.sql
-    applied_date: unknown  # predates registry; probe confirms presence 2026-04-14
-    purpose: >
-      Phase 4 daily/weekly/monthly count rollups. Stores
-      { generation_runs, total_blocks } counts per teacher per day.
-      NOT for cost attribution — see cost_rollups (migration 075).
-    columns:
-      id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
-      period_type: TEXT NOT NULL  # no CHECK
-      period_start: DATE NOT NULL
-      teacher_id: UUID (nullable)
-      student_id: UUID (nullable)
-      metrics: JSONB NOT NULL DEFAULT '{}'
-      created_at: TIMESTAMPTZ DEFAULT now()
-    unique_constraints:
-      - "(period_type, period_start, teacher_id, student_id)"
-    indexes:
-      - idx_usage_rollups_period ON (period_type, period_start)
-    rls: none
-    writers:
-      - src/lib/jobs/usage-analytics.ts — UPSERT in run()
-    readers:
-      - TODO audit — unknown at time of registry creation
-    spec_drift:
-      - date: 2026-04-14
-        source_doc: docs/projects/dimensions3-completion-spec.md §9.9
-        spec_says: >
-          usage_rollups(id, teacher_id, category CHECK IN
-          ('ingestion','generation','student_api','teacher_api'),
-          period CHECK IN ('day','week','month'), period_start,
-          cost_usd NUMERIC, call_count INT, token_count INT,
-          rolled_up_at TIMESTAMPTZ)
-        reality: >
-          Table already exists with different purpose (counts, not cost)
-          and different shape (metrics JSONB, not structured columns).
-          Phase 4 job src/lib/jobs/usage-analytics.ts writes to it daily
-          with { generation_runs, total_blocks } — no cost data.
-        decision: >
-          Option C — keep usage_rollups as-is (Phase 4 Job 7 is live and
-          writing to it). Create new table cost_rollups (migration 075)
-          for Phase 7 §9.9 cost attribution. Patch the spec to rename
-          the §9.9 table cost_rollups.
-        decided_by: Matt
-        commits: TBD (Phase 7A commit)
+    '
+  columns:
+    id: SERIAL PRIMARY KEY
+    key: TEXT UNIQUE NOT NULL
+    value: JSONB NOT NULL
+    updated_by: UUID REFERENCES auth.users(id) ON DELETE SET NULL
+    updated_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+  indexes:
+  - (key is UNIQUE, implicit index)
+  rls:
+    read: admin only
+    write: admin only
+  seed_rows:
+  - key: pipeline.stage_enabled
+    value: '{ "retrieve": true, "assemble": true, "gap_fill": true, "polish": true, "timing": true, "score": true }'
+  - key: pipeline.cost_ceiling_per_run_usd
+    value: '5.00'
+  - key: pipeline.cost_ceiling_per_day_usd
+    value: '50.00'
+  - key: pipeline.model_override
+    value: '{}'
+  - key: pipeline.starter_patterns_enabled
+    value: 'true'
+  writers:
+  - planned — /admin/controls mutation endpoint (Phase 7I)
+  readers:
+  - planned — pipeline orchestrator reads at start of each run (Phase 7I)
+- name: ai_model_config
+  source_migration: 024_ai_model_config.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: TEXT PRIMARY KEY DEFAULT 'default'
+    config: JSONB NOT NULL DEFAULT '{}'
+    updated_by: TEXT
+    updated_at: TIMESTAMPTZ DEFAULT NOW()
+  rls:
+    read: RLS enabled but no policies found in migrations
+    write: RLS enabled but no policies found in migrations
+  writers:
+  - src/lib/ai/model-config.ts
+  readers: []
+  spec_drift: []
+- name: ai_model_config_history
+  source_migration: 024_ai_model_config.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    config: JSONB NOT NULL
+    changed_by: TEXT
+    changed_at: TIMESTAMPTZ DEFAULT NOW()
+    change_note: TEXT
+  rls:
+    read: RLS enabled but no policies found in migrations
+    write: RLS enabled but no policies found in migrations
+  writers:
+  - src/lib/ai/model-config.ts
+  readers: []
+  spec_drift: []
+- name: ai_settings
+  source_migration: 007_ai_unit_creator.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    teacher_id: UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE
+    provider: TEXT NOT NULL DEFAULT 'openai-compatible'
+    api_endpoint: TEXT NOT NULL DEFAULT 'https://api.openai.com/v1'
+    model_name: TEXT NOT NULL DEFAULT 'gpt-4o-mini'
+    encrypted_api_key: TEXT NOT NULL
+    created_at: TIMESTAMPTZ DEFAULT now()
+    updated_at: TIMESTAMPTZ DEFAULT now()
+  rls:
+    read: Teachers manage own AI settings (unknown)
+    write: Teachers manage own AI settings (unknown)
+  writers:
+  - src/app/api/teacher/ai-settings/route.ts
+  readers:
+  - src/app/api/teacher/regenerate-page/route.ts
+  - src/lib/ai/resolve-credentials.ts
+  spec_drift: []
+- name: ai_usage_log
+  source_migration: 025_usage_tracking.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: uuid DEFAULT gen_random_uuid() PRIMARY KEY
+    user_id: uuid
+    student_id: uuid
+    endpoint: text NOT NULL
+    model: text NOT NULL
+    input_tokens: int
+    output_tokens: int
+    estimated_cost_usd: numeric(10,6)
+    metadata: jsonb DEFAULT '{}'
+    created_at: timestamptz DEFAULT now()
+  indexes:
+  - idx_usage_user ON (user_id, created_at DESC)
+  - idx_usage_student ON (student_id, created_at DESC)
+  - idx_usage_endpoint ON (endpoint, created_at DESC)
+  - idx_usage_created ON (created_at DESC)
+  rls:
+    read: Service role full access (unknown)
+    write: Service role full access (unknown)
+  writers:
+  - src/lib/usage-tracking.ts
+  readers: []
+  spec_drift: []
+- name: assessment_records
+  source_migration: 019_assessments.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    student_id: UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE
+    unit_id: UUID NOT NULL REFERENCES units(id) ON DELETE CASCADE
+    class_id: UUID NOT NULL REFERENCES classes(id) ON DELETE CASCADE
+    teacher_id: UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE
+    data: JSONB NOT NULL
+    overall_grade: SMALLINT
+    is_draft: BOOLEAN NOT NULL DEFAULT true
+    assessed_at: TIMESTAMPTZ DEFAULT now()
+    created_at: TIMESTAMPTZ DEFAULT now()
+    updated_at: TIMESTAMPTZ DEFAULT now()
+  indexes:
+  - idx_assessment_records_student_unit ON (student_id, unit_id)
+  - idx_assessment_records_class_unit ON (class_id, unit_id)
+  - idx_assessment_records_teacher ON (teacher_id)
+  - idx_assessment_records_draft ON (is_draft) WHERE is_draft = true
+  rls:
+    read: Teachers manage assessments for their students (unknown); Service role full access assessments (unknown)
+    write: Teachers manage assessments for their students (unknown); Service role full access assessments (unknown)
+  writers:
+  - src/app/api/teacher/assessments/route.ts
+  readers:
+  - src/app/api/student/grades/route.ts
+  spec_drift: []
+- name: badges
+  source_migration: 035_safety_badges.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: TEXT PRIMARY KEY
+    slug: TEXT UNIQUE NOT NULL
+    name: TEXT NOT NULL
+    description: TEXT
+    category: TEXT NOT NULL DEFAULT 'safety' CHECK (category IN ('safety', 'skill', 'software'))
+    tier: INTEGER NOT NULL DEFAULT 1 CHECK (tier >= 1 AND tier <= 4)
+    icon_name: TEXT NOT NULL DEFAULT 'shield'
+    color: TEXT NOT NULL DEFAULT '#7C3AED'
+    is_built_in: BOOLEAN NOT NULL DEFAULT false
+    created_by_teacher_id: UUID REFERENCES auth.users(id) ON DELETE SET NULL
+    pass_threshold: INTEGER NOT NULL DEFAULT 80 CHECK (pass_threshold >= 0 AND pass_threshold <= 100)
+    expiry_months: INTEGER
+    retake_cooldown_minutes: INTEGER NOT NULL DEFAULT 10 CHECK (retake_cooldown_minutes >= 0)
+    question_count: INTEGER NOT NULL DEFAULT 10 CHECK (question_count >= 1)
+    question_pool: JSONB NOT NULL DEFAULT '[]'::jsonb
+    learn_content: JSONB NOT NULL DEFAULT '[]'::jsonb
+    topics: TEXT[] NOT NULL DEFAULT '{}'
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at: TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  indexes:
+  - idx_badges_slug ON (slug)
+  - idx_badges_category ON (category)
+  - idx_badges_created_by ON (created_by_teacher_id)
+  - idx_badges_is_built_in ON (is_built_in)
+  rls:
+    read: badges_readable (unknown)
+    write: badges_teacher_insert (unknown); badges_teacher_update (unknown)
+  writers:
+  - src/app/api/teacher/badges/[id]/assign/route.ts
+  - src/app/api/teacher/badges/[id]/route.ts
+  - src/app/api/teacher/badges/route.ts
+  - src/app/api/teacher/badges/seed/route.ts
+  readers:
+  - src/app/api/public/safety-badges/[badgeId]/route.ts
+  - src/app/api/public/safety-badges/route.ts
+  - src/app/api/student/safety/badges/[badgeId]/route.ts
+  - src/app/api/student/safety/badges/[badgeId]/submit/route.ts
+  - src/app/api/student/safety/badges/route.ts
+  - src/app/api/teacher/badges/[id]/results/route.ts
+  - src/app/api/teacher/badges/list/route.ts
+  spec_drift: []
+- name: bug_reports
+  status: planned
+  source_migration: 076_bug_reports.sql
+  applied_date: null
+  purpose: 'Bug Reporting System (spec §9.13). Floating button on student + teacher surfaces (only visible when class has
+    bug_reporting_enabled). Captures context auto-magically (URL, browser, console errors). Admin triage in /admin/bug-reports
+    (Phase 7H).
 
-  # ─────────────────────────────────────────────────────────
-  # Phase 7A new tables (planned)
-  # ─────────────────────────────────────────────────────────
-  - name: cost_rollups
-    status: planned
-    source_migration: 075_cost_rollups.sql  # to be created in Phase 7A
-    applied_date: null
-    purpose: >
-      Per-teacher cost attribution across 4 categories
-      (ingestion, generation, student_api, teacher_api) with day/week/
-      month granularity. Feeds /admin/cost-usage tab (Phase 7E).
-      Distinct from usage_rollups (counts, Phase 4) — this one is
-      cost-only.
-    columns:
-      id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
-      teacher_id: UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE
-      category: TEXT NOT NULL CHECK IN ('ingestion','generation','student_api','teacher_api')
-      period: TEXT NOT NULL CHECK IN ('day','week','month')
-      period_start: DATE NOT NULL
-      cost_usd: NUMERIC(10,4) NOT NULL DEFAULT 0
-      call_count: INT NOT NULL DEFAULT 0
-      token_count: INT NOT NULL DEFAULT 0
-      rolled_up_at: TIMESTAMPTZ NOT NULL DEFAULT now()
-    unique_constraints:
-      - "(teacher_id, category, period, period_start)"
-    indexes:
-      - idx_cost_rollups_teacher_period ON (teacher_id, period, period_start DESC)
-      - idx_cost_rollups_category ON (category, period_start DESC)
-    rls:
-      read: teacher reads own rows; admin reads all
-      write: service_role only (nightly job)
-    writers:
-      - planned — nightly cost rollup job (Phase 7E)
-    readers:
-      - planned — /admin/cost-usage page (Phase 7E)
+    '
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    reporter_id: UUID NOT NULL
+    reporter_role: TEXT NOT NULL CHECK IN ('teacher','student','admin')
+    class_id: UUID REFERENCES classes(id) ON DELETE SET NULL
+    category: TEXT NOT NULL CHECK IN ('broken','visual','confused','feature_request')
+    description: TEXT NOT NULL
+    screenshot_url: TEXT
+    page_url: TEXT
+    console_errors: JSONB DEFAULT '[]'::jsonb
+    status: TEXT NOT NULL DEFAULT 'new' CHECK IN ('new','investigating','fixed','closed')
+    admin_notes: TEXT
+    response: TEXT
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+    updated_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+  indexes:
+  - idx_bug_reports_status ON (status, created_at DESC)
+  - idx_bug_reports_class ON (class_id, created_at DESC)
+  - idx_bug_reports_reporter ON (reporter_id, created_at DESC)
+  rls:
+    read: teacher reads reports from their classes; student reads own; admin all
+    write: teacher/student can INSERT own; admin can UPDATE (status/response)
+  writers:
+  - planned — floating BugReportButton component (Phase 7H)
+  - planned — /admin/bug-reports status workflow (Phase 7H)
+  readers:
+  - planned — /admin/bug-reports (Phase 7H)
+  - planned — "My reports" user view (Phase 7H)
+  notes:
+  - class_id is SET NULL on class delete (not CASCADE) to preserve audit trail
+- name: class_meetings
+  source_migration: 038_timetable.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    timetable_id: UUID REFERENCES school_timetable(id) ON DELETE CASCADE NOT NULL
+    class_id: TEXT NOT NULL
+    cycle_day: INT NOT NULL CHECK (cycle_day >= 1)
+    period_number: INT
+    room: TEXT
+    created_at: TIMESTAMPTZ DEFAULT now()
+  indexes:
+  - idx_class_meetings_timetable ON (timetable_id)
+  - idx_class_meetings_class ON (timetable_id, class_id)
+  rls:
+    read: Teachers read own class meetings (unknown); Service role full access class meetings (unknown)
+    write: Teachers create own class meetings (unknown); Teachers update own class meetings (unknown); Teachers delete own
+      class meetings (unknown); Service role full access class meetings (unknown)
+  writers:
+  - src/app/api/teacher/timetable/route.ts
+  readers:
+  - src/app/api/student/next-class/route.ts
+  - src/app/api/teacher/schedule/lessons/route.ts
+  - src/app/api/teacher/schedule/today/route.ts
+  spec_drift: []
+- name: class_students
+  source_migration: 041_student_class_junction.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    student_id: UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE
+    class_id: UUID NOT NULL REFERENCES classes(id) ON DELETE CASCADE
+    enrolled_at: TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    unenrolled_at: TIMESTAMPTZ
+    is_active: BOOLEAN NOT NULL DEFAULT true
+    ell_level_override: INTEGER CHECK (ell_level_override BETWEEN 1 AND 3)
+    notes: TEXT
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at: TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    term_id: UUID REFERENCES school_calendar_terms(id) ON DELETE SET NULL
+  indexes:
+  - idx_class_students_class ON (class_id) WHERE is_active = true
+  - idx_class_students_student ON (student_id) WHERE is_active = true
+  - idx_class_students_active ON (class_id, is_active)
+  - idx_class_students_term ON (term_id) WHERE term_id IS NOT NULL
+  - idx_class_students_class_term ON (class_id, term_id)
+  rls:
+    read: Teachers manage class_students (unknown); Students read own enrollments (include)
+    write: Teachers manage class_students (unknown)
+  writers:
+  - src/app/api/teacher/class-students/route.ts
+  - src/app/teacher/classes/[classId]/page.tsx
+  - src/app/teacher/students/[studentId]/page.tsx
+  - src/app/teacher/students/page.tsx
+  - src/app/teacher/units/[unitId]/class/[classId]/page.tsx
+  - src/lib/students/class-enrollment.ts
+  readers:
+  - src/app/api/auth/student-login/route.ts
+  - src/app/api/auth/student-session/route.ts
+  - src/app/api/student/design-assistant/route.ts
+  - src/app/api/student/gallery/feedback/route.ts
+  - src/app/api/student/gallery/review/route.ts
+  - src/app/api/student/gallery/rounds/route.ts
+  - src/app/api/student/gallery/submissions/route.ts
+  - src/app/api/student/gallery/submit/route.ts
+  - src/app/api/student/grades/route.ts
+  - src/app/api/student/insights/route.ts
+  - src/app/api/student/nm-assessment/route.ts
+  - src/app/api/student/nm-checkpoint/[pageId]/route.ts
+  - src/app/api/student/open-studio/check-in/route.ts
+  - src/app/api/student/progress/route.ts
+  - src/app/api/student/safety/pending/route.ts
+  - src/app/api/student/unit/route.ts
+  - src/app/api/student/units/route.ts
+  - src/app/api/teacher/badges/[id]/results/route.ts
+  - src/app/api/teacher/badges/class-status/route.ts
+  - src/app/api/teacher/badges/classes-students/route.ts
+  - src/app/api/teacher/class-profiles/route.ts
+  - src/app/api/teacher/dashboard/route.ts
+  - src/app/api/teacher/nm-observation/route.ts
+  - src/app/api/teacher/nm-results/route.ts
+  - src/app/api/teacher/open-studio/status/route.ts
+  - src/app/api/teacher/teach/live-status/route.ts
+  - src/app/teacher/classes/[classId]/grading/[unitId]/page.tsx
+  - src/app/teacher/classes/[classId]/progress/[unitId]/page.tsx
+  - src/app/teacher/classes/page.tsx
+  - src/app/teacher/units/[unitId]/page.tsx
+  - src/lib/design-assistant/conversation.ts
+  spec_drift: []
+- name: class_units
+  source_migration: 001_initial_schema.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    class_id: UUID NOT NULL REFERENCES classes(id) ON DELETE CASCADE
+    unit_id: UUID NOT NULL REFERENCES units(id) ON DELETE CASCADE
+    is_active: BOOLEAN DEFAULT true
+    locked_pages: INTEGER[] DEFAULT '{}'
+    final_due_date: DATE, ADD COLUMN strand_a_due_date DATE, ADD COLUMN strand_b_due_date DATE, ADD COLUMN strand_c_due_date
+      DATE, ADD COLUMN strand_d_due_date DATE
+    page_settings: JSONB NOT NULL DEFAULT '{}'
+    page_due_dates: JSONB NOT NULL DEFAULT '{}'
+    locked_page_ids: TEXT[] DEFAULT '{}'
+    nm_config: JSONB DEFAULT NULL
+    created_at: TIMESTAMPTZ DEFAULT NOW()
+    updated_at: TIMESTAMPTZ DEFAULT NOW()
+    term_id: UUID REFERENCES school_calendar_terms(id) ON DELETE SET NULL
+    schedule_overrides: JSONB DEFAULT '{}'
+    content_data: JSONB DEFAULT NULL
+    forked_at: TIMESTAMPTZ DEFAULT NULL
+    forked_from_version: INTEGER DEFAULT NULL
+  indexes:
+  - idx_class_units_due_dates ON (class_id, final_due_date)
+  - idx_class_units_term ON (term_id) WHERE term_id IS NOT NULL
+  rls:
+    read: Teachers manage class units (unknown); Read class units (unknown)
+    write: Teachers manage class units (unknown)
+  writers:
+  - src/app/api/teacher/class-units/content/route.ts
+  - src/app/api/teacher/class-units/route.ts
+  - src/app/api/teacher/nm-config/route.ts
+  - src/app/api/teacher/units/[unitId]/promote-fork/route.ts
+  - src/app/teacher/classes/[classId]/page.tsx
+  - src/app/teacher/classes/[classId]/settings/[unitId]/page.tsx
+  - src/app/teacher/units/[unitId]/page.tsx
+  - src/lib/units/resolve-content.ts
+  readers:
+  - src/app/api/student/design-assistant/route.ts
+  - src/app/api/student/insights/route.ts
+  - src/app/api/student/nm-assessment/route.ts
+  - src/app/api/student/nm-checkpoint/[pageId]/route.ts
+  - src/app/api/student/open-studio/check-in/route.ts
+  - src/app/api/student/progress/route.ts
+  - src/app/api/student/safety/pending/route.ts
+  - src/app/api/student/unit/route.ts
+  - src/app/api/student/units/route.ts
+  - src/app/api/teacher/dashboard/route.ts
+  - src/app/api/teacher/nm-results/route.ts
+  - src/app/api/teacher/schedule/today/route.ts
+  - src/app/api/teacher/student-snapshot/route.ts
+  - src/app/api/teacher/units/versions/route.ts
+  - src/app/teacher/classes/[classId]/grading/[unitId]/page.tsx
+  - src/app/teacher/classes/[classId]/progress/[unitId]/page.tsx
+  - src/app/teacher/classes/page.tsx
+  - src/app/teacher/students/[studentId]/page.tsx
+  - src/app/teacher/teach/[unitId]/page.tsx
+  - src/app/teacher/teach/[unitId]/projector/page.tsx
+  - src/app/teacher/units/[unitId]/class/[classId]/page.tsx
+  - src/app/teacher/units/[unitId]/edit/page.tsx
+  - src/app/teacher/units/page.tsx
+  - src/lib/auth/verify-teacher-unit.ts
+  - src/lib/design-assistant/conversation.ts
+  spec_drift: []
+- name: classes
+  source_migration: 001_initial_schema.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    teacher_id: UUID NOT NULL REFERENCES teachers(id) ON DELETE CASCADE
+    name: TEXT NOT NULL
+    code: TEXT NOT NULL UNIQUE
+    created_at: TIMESTAMPTZ DEFAULT now()
+    external_class_id: TEXT, ADD COLUMN IF NOT EXISTS external_provider TEXT, ADD COLUMN IF NOT EXISTS last_synced_at TIMESTAMPTZ
+    academic_year: TEXT
+    is_archived: BOOLEAN NOT NULL DEFAULT false
+    grade_level: TEXT
+    subject: TEXT
+    framework: TEXT DEFAULT 'IB_MYP'
+    instruction_language: TEXT DEFAULT 'en'
+    additional_languages: TEXT[] DEFAULT NULL
+  indexes:
+  - idx_classes_code ON (code)
+  - idx_classes_teacher ON (teacher_id)
+  - idx_classes_archived ON (is_archived)
+  - idx_classes_academic_year ON (academic_year)
+  - idx_classes_grade_level ON (grade_level)
+  - idx_classes_framework ON (framework)
+  - idx_classes_instruction_language ON (instruction_language)
+  rls:
+    read: Teachers manage own classes (unknown)
+    write: Teachers manage own classes (unknown)
+  writers:
+  - src/app/api/teacher/integrations/sync/route.ts
+  - src/app/teacher/classes/[classId]/page.tsx
+  - src/app/teacher/classes/page.tsx
+  - src/app/teacher/dashboard/page.tsx
+  - src/app/teacher/settings/page.tsx
+  readers:
+  - src/app/api/auth/lti/launch/route.ts
+  - src/app/api/auth/student-login/route.ts
+  - src/app/api/auth/student-session/route.ts
+  - src/app/api/student/open-studio/check-in/route.ts
+  - src/app/api/student/units/route.ts
+  - src/app/api/teacher/assessments/route.ts
+  - src/app/api/teacher/badges/[id]/results/route.ts
+  - src/app/api/teacher/badges/class-status/route.ts
+  - src/app/api/teacher/badges/classes-students/route.ts
+  - src/app/api/teacher/class-students/route.ts
+  - src/app/api/teacher/class-units/content/route.ts
+  - src/app/api/teacher/class-units/route.ts
+  - src/app/api/teacher/dashboard/route.ts
+  - src/app/api/teacher/own-time/approve/route.ts
+  - src/app/api/teacher/safety-certs/route.ts
+  - src/app/api/teacher/schedule/today/route.ts
+  - src/app/api/teacher/student-snapshot/route.ts
+  - src/app/api/teacher/teach/live-status/route.ts
+  - src/app/api/teacher/timetable/import-ical/route.ts
+  - src/app/api/teacher/units/versions/route.ts
+  - src/app/teacher/classes/[classId]/grading/[unitId]/page.tsx
+  - src/app/teacher/classes/[classId]/progress/[unitId]/page.tsx
+  - src/app/teacher/classes/[classId]/settings/[unitId]/page.tsx
+  - src/app/teacher/safety/alerts/page.tsx
+  - src/app/teacher/students/[studentId]/page.tsx
+  - src/app/teacher/students/page.tsx
+  - src/app/teacher/units/[unitId]/class/[classId]/page.tsx
+  - src/app/teacher/units/[unitId]/page.tsx
+  - src/lib/auth/verify-teacher-unit.ts
+  - src/lib/design-assistant/conversation.ts
+  spec_drift: []
+  changes_in_phase_7a:
+  - migration: 076_bug_reports.sql
+    add_column: bug_reporting_enabled BOOLEAN NOT NULL DEFAULT false
+    purpose: Per-class toggle for bug reporter visibility. Default OFF.
+- name: competency_assessments
+  source_migration: 030_new_metrics.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    student_id: UUID NOT NULL
+    unit_id: UUID NOT NULL
+    page_id: UUID
+    competency: TEXT NOT NULL
+    element: TEXT NOT NULL
+    source: TEXT NOT NULL CHECK (source IN ('student_self', 'teacher_observation'))
+    rating: INTEGER NOT NULL
+    comment: TEXT
+    context: JSONB DEFAULT '{}'
+    created_at: TIMESTAMPTZ DEFAULT NOW()
+    class_id: UUID REFERENCES classes(id)
+  indexes:
+  - idx_ca_student ON (student_id)
+  - idx_ca_unit ON (unit_id)
+  - idx_ca_student_unit ON (student_id, unit_id)
+  - idx_ca_source ON (source)
+  - idx_ca_competency ON (competency)
+  - idx_ca_page ON (page_id) WHERE page_id IS NOT NULL
+  - idx_competency_assessments_class ON (class_id)
+  - idx_competency_assessments_student_unit_source ON (student_id, unit_id, source)
+  rls:
+    read: teachers_manage_observations (unknown); students_read_own (unknown); teachers_manage_observations (unknown); students_read_own
+      (unknown)
+    write: teachers_manage_observations (unknown); students_create_self (units); teachers_manage_observations (unknown); students_create_self
+      (unknown)
+  writers:
+  - src/app/api/student/nm-assessment/route.ts
+  - src/app/api/teacher/nm-observation/route.ts
+  readers:
+  - src/app/api/student/insights/route.ts
+  - src/app/api/teacher/nm-results/route.ts
+  - src/app/api/teacher/student-snapshot/route.ts
+  spec_drift: []
+- name: content_assets
+  source_migration: 063_content_items.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    content_item_id: UUID REFERENCES content_items(id) ON DELETE CASCADE
+    asset_type: TEXT NOT NULL
+    storage_path: TEXT NOT NULL
+    thumbnail_path: TEXT
+    mime_type: TEXT
+    file_size_bytes: BIGINT
+    extracted_text: TEXT
+    page_number: INT
+    section_index: INT
+    ai_description: TEXT
+    created_at: TIMESTAMPTZ DEFAULT now()
+  indexes:
+  - idx_content_assets_item ON (content_item_id)
+  rls:
+    read: content_assets_select (unknown)
+    write: content_assets_insert (unknown)
+  writers: []
+  readers: []
+  spec_drift: []
+- name: content_items
+  source_migration: 063_content_items.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    teacher_id: UUID REFERENCES auth.users(id)
+    school_id: UUID
+    module: TEXT DEFAULT 'studioloom'
+    title: TEXT
+    content_type: TEXT NOT NULL DEFAULT 'unknown'
+    subject: TEXT
+    strand: TEXT
+    level: TEXT
+    file_hash: TEXT
+    storage_path: TEXT
+    mime_type: TEXT
+    file_size_bytes: BIGINT
+    processing_status: TEXT DEFAULT 'pending'
+    pass_results: JSONB
+    raw_extracted_text: TEXT
+    parsed_sections: JSONB
+    classification: JSONB
+    enrichment: JSONB
+    blocks_extracted: INT DEFAULT 0
+    copyright_flag: TEXT DEFAULT 'unknown'
+    created_at: TIMESTAMPTZ DEFAULT now()
+    updated_at: TIMESTAMPTZ DEFAULT now()
+  indexes:
+  - idx_content_items_teacher ON (teacher_id)
+  - idx_content_items_hash ON (file_hash)
+  - idx_content_items_status ON (processing_status)
+  - idx_content_items_module ON (module)
+  - idx_content_items_type ON (content_type)
+  - idx_content_items_moderation_hold ON (created_at DESC) WHERE processing_status = 'moderation_hold'
+  rls:
+    read: content_items_select_own (unknown)
+    write: content_items_insert_own (unknown); content_items_update_own (unknown); content_items_delete_own (unknown)
+  writers:
+  - src/app/api/admin/ingestion-sandbox/commit/route.ts
+  - src/app/api/admin/ingestion-sandbox/upload/route.ts
+  - src/app/api/teacher/library/ingest/route.ts
+  readers:
+  - src/lib/ingestion/dedup.ts
+  spec_drift: []
+- name: content_moderation_log
+  source_migration: 067_content_moderation.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    block_id: UUID REFERENCES activity_blocks(id) ON DELETE CASCADE
+    content_fingerprint: TEXT
+    status: TEXT NOT NULL CHECK (status IN ('approved','flagged','rejected','pending','grandfathered'))
+    reason: TEXT
+    model_id: TEXT
+    flags: JSONB DEFAULT '[]'::jsonb
+    cost: JSONB
+    overridden_by: UUID REFERENCES teachers(id)
+    overridden_at: TIMESTAMPTZ
+    created_at: TIMESTAMPTZ DEFAULT now()
+  indexes:
+  - idx_content_moderation_log_block ON (block_id, created_at DESC)
+  - idx_content_moderation_log_status ON (status, created_at DESC)
+  - idx_content_moderation_log_fingerprint ON (content_fingerprint)
+  rls:
+    read: content_moderation_log_service_only (any)
+    write: content_moderation_log_service_only (any)
+  writers:
+  - src/app/api/admin/ingestion-sandbox/commit/route.ts
+  readers: []
+  spec_drift: []
+- name: cost_rollups
+  status: planned
+  source_migration: 075_cost_rollups.sql
+  applied_date: null
+  purpose: 'Per-teacher cost attribution across 4 categories (ingestion, generation, student_api, teacher_api) with day/week/
+    month granularity. Feeds /admin/cost-usage tab (Phase 7E). Distinct from usage_rollups (counts, Phase 4) — this one is
+    cost-only.
 
-  - name: bug_reports
-    status: planned
-    source_migration: 076_bug_reports.sql  # to be created in Phase 7A
-    applied_date: null
-    purpose: >
-      Bug Reporting System (spec §9.13). Floating button on student +
-      teacher surfaces (only visible when class has bug_reporting_enabled).
-      Captures context auto-magically (URL, browser, console errors).
-      Admin triage in /admin/bug-reports (Phase 7H).
-    columns:
-      id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
-      reporter_id: UUID NOT NULL  # teacher auth uid OR student.id
-      reporter_role: TEXT NOT NULL CHECK IN ('teacher','student','admin')
-      class_id: UUID REFERENCES classes(id) ON DELETE SET NULL
-      category: TEXT NOT NULL CHECK IN ('broken','visual','confused','feature_request')
-      description: TEXT NOT NULL
-      screenshot_url: TEXT
-      page_url: TEXT
-      console_errors: JSONB DEFAULT '[]'::jsonb
-      status: TEXT NOT NULL DEFAULT 'new' CHECK IN ('new','investigating','fixed','closed')
-      admin_notes: TEXT
-      response: TEXT
-      created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
-      updated_at: TIMESTAMPTZ NOT NULL DEFAULT now()
-    indexes:
-      - idx_bug_reports_status ON (status, created_at DESC)
-      - idx_bug_reports_class ON (class_id, created_at DESC)
-      - idx_bug_reports_reporter ON (reporter_id, created_at DESC)
-    rls:
-      read: teacher reads reports from their classes; student reads own; admin all
-      write: teacher/student can INSERT own; admin can UPDATE (status/response)
-    writers:
-      - planned — floating BugReportButton component (Phase 7H)
-      - planned — /admin/bug-reports status workflow (Phase 7H)
-    readers:
-      - planned — /admin/bug-reports (Phase 7H)
-      - planned — "My reports" user view (Phase 7H)
-    notes:
-      - class_id is SET NULL on class delete (not CASCADE) to preserve audit trail
+    '
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    teacher_id: UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE
+    category: TEXT NOT NULL CHECK IN ('ingestion','generation','student_api','teacher_api')
+    period: TEXT NOT NULL CHECK IN ('day','week','month')
+    period_start: DATE NOT NULL
+    cost_usd: NUMERIC(10,4) NOT NULL DEFAULT 0
+    call_count: INT NOT NULL DEFAULT 0
+    token_count: INT NOT NULL DEFAULT 0
+    rolled_up_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+  unique_constraints:
+  - (teacher_id, category, period, period_start)
+  indexes:
+  - idx_cost_rollups_teacher_period ON (teacher_id, period, period_start DESC)
+  - idx_cost_rollups_category ON (category, period_start DESC)
+  rls:
+    read: teacher reads own rows; admin reads all
+    write: service_role only (nightly job)
+  writers:
+  - planned — nightly cost rollup job (Phase 7E)
+  readers:
+  - planned — /admin/cost-usage page (Phase 7E)
+- name: design_conversation_turns
+  source_migration: 022_design_assistant.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    conversation_id: UUID NOT NULL REFERENCES design_conversations(id) ON DELETE CASCADE
+    turn_number: INT NOT NULL
+    role: TEXT NOT NULL CHECK (role IN ('student', 'assistant'))
+    content: TEXT NOT NULL
+    question_type: TEXT
+    bloom_level: SMALLINT
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+  indexes:
+  - idx_design_conversation_turns_conversation ON (conversation_id, turn_number)
+  rls:
+    read: Students can manage own conversation turns (unknown); Teachers can read conversation turns (unknown)
+    write: Students can manage own conversation turns (unknown)
+  writers:
+  - src/lib/design-assistant/conversation.ts
+  readers: []
+  spec_drift: []
+- name: design_conversations
+  source_migration: 022_design_assistant.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    student_id: UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE
+    unit_id: UUID NOT NULL REFERENCES units(id) ON DELETE CASCADE
+    page_id: TEXT
+    started_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+    ended_at: TIMESTAMPTZ
+    turn_count: INT NOT NULL DEFAULT 0
+    bloom_level: SMALLINT NOT NULL DEFAULT 1
+    effort_score: SMALLINT NOT NULL DEFAULT 5
+    summary: TEXT
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+  indexes:
+  - idx_design_conversations_student ON (student_id, unit_id)
+  - idx_design_conversations_page ON (unit_id, page_id)
+  rls:
+    read: Students can manage own conversations (unknown); Teachers can read student conversations (unknown)
+    write: Students can manage own conversations (unknown)
+  writers:
+  - src/lib/design-assistant/conversation.ts
+  readers:
+  - src/app/api/student/design-assistant/route.ts
+  spec_drift: []
+- name: discovery_sessions
+  source_migration: 047_discovery_sessions.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    student_id: TEXT NOT NULL
+    unit_id: TEXT NOT NULL
+    class_id: TEXT
+    state: TEXT NOT NULL DEFAULT 'station_0'
+    profile: JSONB NOT NULL DEFAULT '{}'
+    mode: TEXT NOT NULL DEFAULT 'mode_1'
+    started_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+    completed_at: TIMESTAMPTZ
+    last_saved_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+    version: INTEGER NOT NULL DEFAULT 1
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+    updated_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+  indexes:
+  - idx_discovery_sessions_student_unit ON (student_id, unit_id)
+  - idx_discovery_sessions_class ON (class_id) WHERE class_id IS NOT NULL
+  - idx_discovery_sessions_state ON (state) WHERE state != 'completed'
+  rls:
+    read: discovery_sessions_student_select (unknown); discovery_sessions_service_all (unknown)
+    write: discovery_sessions_service_all (unknown)
+  writers:
+  - src/app/api/discovery/session/route.ts
+  readers:
+  - src/app/teacher/students/[studentId]/page.tsx
+  - src/components/teacher/StudentDiscoveryProfile.tsx
+  spec_drift: []
+- name: feedback_audit_log
+  source_migration: 064_feedback_proposals.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    proposal_id: UUID REFERENCES feedback_proposals(id)
+    block_id: UUID REFERENCES activity_blocks(id)
+    action: TEXT NOT NULL
+    field: TEXT NOT NULL
+    previous_value: JSONB
+    new_value: JSONB
+    evidence_count: INT DEFAULT 0
+    resolved_by: UUID REFERENCES auth.users(id)
+    note: TEXT
+    created_at: TIMESTAMPTZ DEFAULT now()
+  indexes:
+  - idx_audit_proposal ON (proposal_id)
+  - idx_audit_block ON (block_id)
+  - idx_audit_created ON (created_at DESC)
+  rls:
+    read: audit_select (unknown)
+    write: audit_insert (unknown)
+  writers:
+  - src/app/api/admin/feedback/route.ts
+  readers:
+  - src/app/api/admin/feedback/audit-log/route.ts
+  - src/lib/jobs/smoke-tests.ts
+  spec_drift: []
+- name: feedback_proposals
+  source_migration: 064_feedback_proposals.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    block_id: UUID REFERENCES activity_blocks(id)
+    proposal_type: TEXT NOT NULL
+    status: TEXT NOT NULL DEFAULT 'pending'
+    field: TEXT NOT NULL
+    current_value: JSONB
+    proposed_value: JSONB
+    evidence_count: INT DEFAULT 0
+    evidence_summary: TEXT
+    signal_breakdown: JSONB
+    requires_manual_approval: BOOLEAN DEFAULT true
+    guardrail_flags: TEXT[]
+    resolved_by: UUID REFERENCES auth.users(id)
+    resolved_at: TIMESTAMPTZ
+    resolved_value: JSONB
+    resolution_note: TEXT
+    created_at: TIMESTAMPTZ DEFAULT now()
+    updated_at: TIMESTAMPTZ DEFAULT now()
+    reasoning: JSONB
+  indexes:
+  - idx_proposals_block ON (block_id)
+  - idx_proposals_status ON (status)
+  - idx_proposals_type ON (proposal_type)
+  - idx_proposals_created ON (created_at DESC)
+  rls:
+    read: proposals_select (unknown)
+    write: proposals_insert (unknown); proposals_update (unknown)
+  writers:
+  - src/app/api/admin/feedback/route.ts
+  - src/lib/jobs/library-hygiene-monthly.ts
+  readers:
+  - src/lib/jobs/smoke-tests.ts
+  spec_drift: []
+- name: gallery_reviews
+  source_migration: 049_class_gallery.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    submission_id: UUID NOT NULL REFERENCES gallery_submissions(id) ON DELETE CASCADE
+    round_id: UUID NOT NULL REFERENCES gallery_rounds(id) ON DELETE CASCADE
+    reviewer_id: TEXT NOT NULL
+    review_data: JSONB NOT NULL DEFAULT '{}'
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+  indexes:
+  - idx_gallery_reviews_unique ON (submission_id, reviewer_id)
+  - idx_gallery_reviews_submission ON (submission_id)
+  - idx_gallery_reviews_reviewer ON (reviewer_id, round_id)
+  - idx_gallery_reviews_round ON (round_id)
+  rls:
+    read: Students read reviews (unknown); Teachers read all reviews (unknown)
+    write: Students insert reviews (unknown)
+  writers:
+  - src/app/api/student/gallery/review/route.ts
+  readers:
+  - src/app/api/student/gallery/feedback/route.ts
+  - src/app/api/student/gallery/rounds/route.ts
+  - src/app/api/student/insights/route.ts
+  - src/app/api/teacher/gallery/[roundId]/route.ts
+  spec_drift: []
+- name: gallery_rounds
+  source_migration: 049_class_gallery.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    unit_id: TEXT NOT NULL
+    class_id: TEXT NOT NULL
+    teacher_id: UUID NOT NULL REFERENCES auth.users(id)
+    title: TEXT NOT NULL
+    description: TEXT DEFAULT ''
+    page_ids: TEXT[] NOT NULL DEFAULT '{}'
+    review_format: TEXT NOT NULL DEFAULT 'comment'
+    min_reviews: INTEGER NOT NULL DEFAULT 3
+    anonymous: BOOLEAN NOT NULL DEFAULT true
+    status: TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'closed'))
+    deadline: TIMESTAMPTZ
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+    updated_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+  indexes:
+  - idx_gallery_rounds_class ON (class_id, status)
+  - idx_gallery_rounds_unit ON (unit_id)
+  - idx_gallery_rounds_teacher ON (teacher_id)
+  rls:
+    read: Teachers manage own gallery rounds (unknown); Students read open gallery rounds (a)
+    write: Teachers manage own gallery rounds (unknown)
+  writers:
+  - src/app/api/teacher/gallery/[roundId]/route.ts
+  - src/app/api/teacher/gallery/route.ts
+  readers:
+  - src/app/api/student/gallery/feedback/route.ts
+  - src/app/api/student/gallery/review/route.ts
+  - src/app/api/student/gallery/rounds/route.ts
+  - src/app/api/student/gallery/submissions/route.ts
+  - src/app/api/student/gallery/submit/route.ts
+  - src/app/api/student/insights/route.ts
+  spec_drift: []
+- name: gallery_submissions
+  source_migration: 049_class_gallery.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    round_id: UUID NOT NULL REFERENCES gallery_rounds(id) ON DELETE CASCADE
+    student_id: TEXT NOT NULL
+    context_note: TEXT DEFAULT ''
+    content: JSONB NOT NULL DEFAULT '{}'
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+  indexes:
+  - idx_gallery_submissions_round ON (round_id)
+  - idx_gallery_submissions_student ON (student_id)
+  - idx_gallery_submissions_round_student ON (round_id, student_id)
+  rls:
+    read: Students read gallery submissions (unknown); Teachers read all submissions (unknown)
+    write: Students insert own submissions (unknown)
+  writers:
+  - src/app/api/student/gallery/submit/route.ts
+  readers:
+  - src/app/api/student/gallery/feedback/route.ts
+  - src/app/api/student/gallery/review/route.ts
+  - src/app/api/student/gallery/rounds/route.ts
+  - src/app/api/student/gallery/submissions/route.ts
+  - src/app/api/student/insights/route.ts
+  - src/app/api/teacher/gallery/[roundId]/route.ts
+  - src/app/api/teacher/gallery/route.ts
+  spec_drift: []
+- name: generation_feedback
+  source_migration: 064_feedback_proposals.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    generation_run_id: UUID REFERENCES generation_runs(id)
+    unit_id: UUID
+    activity_id: TEXT NOT NULL
+    source_block_id: UUID
+    edit_type: TEXT NOT NULL
+    diff_percentage: FLOAT DEFAULT 0
+    before_snapshot: JSONB
+    after_snapshot: JSONB
+    position_before: INT
+    position_after: INT
+    created_at: TIMESTAMPTZ DEFAULT now()
+  indexes:
+  - idx_gen_feedback_run ON (generation_run_id)
+  - idx_gen_feedback_block ON (source_block_id)
+  - idx_gen_feedback_type ON (edit_type)
+  rls:
+    read: gen_feedback_select (unknown)
+    write: gen_feedback_insert (unknown)
+  writers:
+  - src/lib/feedback/edit-tracker.ts
+  readers:
+  - src/lib/admin/monitors/edit-tracker-summary.ts
+  - src/lib/feedback/signals.ts
+  - src/lib/jobs/smoke-tests.ts
+  - src/lib/jobs/teacher-edit-tracker.ts
+  spec_drift: []
+- name: generation_runs
+  source_migration: 061_generation_runs.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    teacher_id: UUID REFERENCES auth.users(id)
+    request: JSONB NOT NULL
+    format_id: TEXT NOT NULL
+    framework: TEXT NOT NULL
+    status: TEXT NOT NULL DEFAULT 'pending'
+    current_stage: INT DEFAULT 0
+    stage_results: JSONB DEFAULT '{}'
+    output_unit_id: UUID
+    quality_report: JSONB
+    total_cost: JSONB
+    total_time_ms: INT
+    error_message: TEXT
+    error_stage: INT
+    model_config: JSONB
+    sandbox_mode: BOOLEAN DEFAULT false
+    created_at: TIMESTAMPTZ DEFAULT now()
+    updated_at: TIMESTAMPTZ DEFAULT now()
+    is_sandbox: BOOLEAN NOT NULL DEFAULT false
+  indexes:
+  - idx_gen_runs_teacher ON (teacher_id)
+  - idx_gen_runs_status ON (status)
+  - idx_gen_runs_created ON (created_at DESC)
+  - idx_generation_runs_sandbox ON (is_sandbox, created_at DESC)
+  rls:
+    read: gen_runs_select (unknown)
+    write: gen_runs_insert (unknown); gen_runs_update (unknown)
+  writers:
+  - src/lib/pipeline/generation-log.ts
+  readers:
+  - src/app/api/admin/pipeline/health/route.ts
+  - src/app/api/admin/pipeline/route.ts
+  - src/lib/admin/monitors/cost-alerts.ts
+  - src/lib/admin/monitors/pipeline-health.ts
+  - src/lib/admin/monitors/quality-drift.ts
+  - src/lib/admin/monitors/stale-watchdog.ts
+  - src/lib/admin/monitors/usage-analytics.ts
+  - src/lib/jobs/cost-alert.ts
+  - src/lib/jobs/pipeline-health-monitor.ts
+  - src/lib/jobs/quality-drift-detector.ts
+  - src/lib/jobs/smoke-tests.ts
+  - src/lib/jobs/stale-data-watchdog.ts
+  - src/lib/jobs/usage-analytics.ts
+  spec_drift: []
+- name: knowledge_chunks
+  source_migration: 010_knowledge_base.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    source_type: TEXT NOT NULL CHECK (source_type IN ('uploaded_plan', 'created_unit', 'activity_template'))
+    source_id: TEXT
+    source_filename: TEXT
+    teacher_id: UUID REFERENCES auth.users(id) ON DELETE CASCADE
+    content: TEXT NOT NULL
+    context_preamble: TEXT
+    criterion: TEXT CHECK (criterion IN ('A', 'B', 'C', 'D'))
+    page_id: TEXT
+    grade_level: TEXT
+    subject_area: TEXT
+    topic: TEXT
+    global_context: TEXT
+    key_concept: TEXT
+    content_type: TEXT CHECK (content_type IN ('activity', 'instruction', 'assessment', 'vocabulary', 'overview', 'reflection'))
+    quality_score: FLOAT DEFAULT 0.5
+    fork_count: INT DEFAULT 0
+    teacher_rating: FLOAT
+    times_retrieved: INT DEFAULT 0
+    times_used: INT DEFAULT 0
+    embedding: halfvec(1024)
+    fts: tsvector GENERATED ALWAYS AS (to_tsvector('english', content)) STORED
+    is_public: BOOLEAN DEFAULT false
+    created_at: TIMESTAMPTZ DEFAULT now()
+    updated_at: TIMESTAMPTZ DEFAULT now()
+    item_id: UUID REFERENCES knowledge_items(id) ON DELETE SET NULL
+    bloom_level: TEXT, ADD COLUMN IF NOT EXISTS grouping TEXT, ADD COLUMN IF NOT EXISTS udl_checkpoints TEXT[] DEFAULT '{}'
+  indexes:
+  - knowledge_chunks_embedding_idx ON USING hnsw (embedding halfvec_cosine_ops)
+  - knowledge_chunks_fts_idx ON USING gin (fts)
+  - knowledge_chunks_criterion_idx ON (criterion)
+  - knowledge_chunks_grade_idx ON (grade_level)
+  - knowledge_chunks_teacher_idx ON (teacher_id)
+  - knowledge_chunks_source_idx ON (source_type, source_id)
+  - knowledge_chunks_public_idx ON (is_public) WHERE is_public = true
+  - knowledge_chunks_item_idx ON (item_id) WHERE item_id IS NOT NULL
+  - idx_chunks_bloom ON (bloom_level) WHERE bloom_level IS NOT NULL
+  - idx_chunks_grouping ON (grouping) WHERE grouping IS NOT NULL
+  rls:
+    read: Teachers read own and public chunks (unknown); Teachers manage own chunks (unknown); Service role full access chunks
+      (unknown)
+    write: Teachers manage own chunks (unknown); Service role full access chunks (unknown)
+  writers:
+  - src/app/api/teacher/convert-lesson/route.ts
+  - src/lib/knowledge-library/index.ts
+  - src/lib/knowledge/feedback.ts
+  readers: []
+  spec_drift: []
+- name: knowledge_item_curricula
+  source_migration: 017_knowledge_library.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    item_id: UUID REFERENCES knowledge_items(id) ON DELETE CASCADE NOT NULL
+    framework: TEXT NOT NULL
+    criteria: TEXT[] DEFAULT '{}'
+    strand: TEXT
+    topic: TEXT
+    year_group: TEXT
+    textbook_ref: TEXT
+  indexes:
+  - knowledge_item_curricula_item_idx ON (item_id)
+  - knowledge_item_curricula_framework_idx ON (framework)
+  rls:
+    read: Curricula follow item read access (unknown); Teachers manage own item curricula (unknown); Service role full access
+      curricula (unknown)
+    write: Teachers manage own item curricula (unknown); Service role full access curricula (unknown)
+  writers:
+  - src/lib/knowledge-library/index.ts
+  readers: []
+  spec_drift: []
+- name: knowledge_item_links
+  source_migration: 017_knowledge_library.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    item_id: UUID REFERENCES knowledge_items(id) ON DELETE CASCADE NOT NULL
+    unit_id: UUID NOT NULL
+    page_id: TEXT NOT NULL
+    link_type: TEXT NOT NULL DEFAULT 'reference' CHECK (link_type IN ( 'reference', 'activity', 'resource', 'extension' ))
+    display_mode: TEXT NOT NULL DEFAULT 'sidebar' CHECK (display_mode IN ( 'sidebar', 'inline', 'choice-board' ))
+    sort_order: INT DEFAULT 0
+    teacher_id: UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL
+    created_at: TIMESTAMPTZ DEFAULT now()
+  unique_constraints:
+  - - item_id
+    - unit_id
+    - page_id
+  indexes:
+  - knowledge_item_links_unit_page_idx ON (unit_id, page_id)
+  - knowledge_item_links_item_idx ON (item_id)
+  rls:
+    read: Teachers read own links (unknown); Teachers manage own links (unknown); Service role full access links (unknown)
+    write: Teachers manage own links (unknown); Service role full access links (unknown)
+  writers:
+  - src/lib/knowledge-library/index.ts
+  readers: []
+  spec_drift: []
+- name: knowledge_items
+  source_migration: 017_knowledge_library.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    title: TEXT NOT NULL
+    slug: TEXT NOT NULL
+    description: TEXT NOT NULL DEFAULT ''
+    item_type: TEXT NOT NULL CHECK (item_type IN ( 'tutorial', 'choice-board', 'reference', 'skill-guide', 'textbook-section',
+      'lesson-resource', 'image', 'video', 'audio', 'other' ))
+    tags: TEXT[] DEFAULT '{}'
+    content: JSONB NOT NULL DEFAULT '{}'
+    source_type: TEXT NOT NULL DEFAULT 'manual' CHECK (source_type IN ( 'manual', 'upload', 'unit', 'ai_generated' ))
+    source_upload_id: UUID
+    source_unit_id: UUID
+    teacher_id: UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL
+    counters: JSONB NOT NULL DEFAULT '{"times_linked":0
+    thumbnail_url: TEXT
+    media_url: TEXT
+    embedding: halfvec(1024)
+    fts: tsvector
+    is_public: BOOLEAN DEFAULT false
+    is_archived: BOOLEAN DEFAULT false
+    created_at: TIMESTAMPTZ DEFAULT now()
+    updated_at: TIMESTAMPTZ DEFAULT now()
+    collection: TEXT
+  indexes:
+  - knowledge_items_teacher_slug_idx ON (teacher_id, slug)
+  - knowledge_items_embedding_idx ON USING hnsw (embedding halfvec_cosine_ops)
+  - knowledge_items_fts_idx ON USING gin (fts)
+  - knowledge_items_teacher_idx ON (teacher_id)
+  - knowledge_items_type_idx ON (item_type)
+  - knowledge_items_tags_idx ON USING gin (tags)
+  - knowledge_items_public_idx ON (is_public) WHERE is_public = true
+  - knowledge_items_not_archived_idx ON (is_archived) WHERE is_archived = false
+  - knowledge_items_updated_idx ON (updated_at DESC)
+  - idx_knowledge_items_collection ON (collection) WHERE collection IS NOT NULL
+  rls:
+    read: Teachers read own items (unknown); Anyone reads public items (unknown); Teachers manage own items (unknown); Service
+      role full access items (unknown)
+    write: Teachers manage own items (unknown); Service role full access items (unknown)
+  writers:
+  - src/lib/knowledge-library/index.ts
+  readers: []
+  spec_drift: []
+- name: knowledge_uploads
+  source_migration: 010_knowledge_base.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    teacher_id: UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL
+    filename: TEXT NOT NULL
+    file_type: TEXT NOT NULL
+    file_size: INT
+    chunk_count: INT DEFAULT 0
+    status: TEXT DEFAULT 'processing' CHECK (status IN ('processing', 'complete', 'failed'))
+    error_message: TEXT
+    created_at: TIMESTAMPTZ DEFAULT now()
+    analysis_stage: TEXT, ADD COLUMN IF NOT EXISTS raw_extracted_text TEXT, ADD COLUMN IF NOT EXISTS lesson_profile_id UUID
+    source_category: TEXT NOT NULL DEFAULT 'lesson_plan'
+    original_file_path: TEXT
+    collection: TEXT
+  indexes:
+  - knowledge_uploads_teacher_idx ON (teacher_id)
+  - idx_knowledge_uploads_source_category ON (source_category)
+  - idx_knowledge_uploads_collection ON (collection) WHERE collection IS NOT NULL
+  rls:
+    read: Teachers manage own uploads (unknown); Service role full access uploads (unknown)
+    write: Teachers manage own uploads (unknown); Service role full access uploads (unknown)
+  writers: []
+  readers:
+  - src/lib/activity-blocks/store.ts
+  spec_drift: []
+- name: lesson_feedback
+  source_migration: 018_lesson_intelligence.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    lesson_profile_id: UUID REFERENCES lesson_profiles(id) ON DELETE CASCADE NOT NULL
+    teacher_id: UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL
+    unit_id: UUID
+    page_id: TEXT
+    class_id: TEXT
+    feedback_type: TEXT NOT NULL CHECK (feedback_type IN ('teacher', 'student'))
+    feedback_data: JSONB NOT NULL
+    created_at: TIMESTAMPTZ DEFAULT now()
+  indexes:
+  - lesson_feedback_profile_idx ON (lesson_profile_id)
+  - lesson_feedback_teacher_idx ON (teacher_id)
+  - lesson_feedback_unit_idx ON (unit_id) WHERE unit_id IS NOT NULL
+  - lesson_feedback_page_idx ON (page_id) WHERE page_id IS NOT NULL
+  rls:
+    read: Teachers manage own feedback (unknown); Service role full access feedback (unknown)
+    write: Teachers manage own feedback (unknown); Service role full access feedback (unknown)
+  writers:
+  - src/app/api/student/pace-feedback/route.ts
+  readers:
+  - src/app/api/teacher/knowledge/feedback/route.ts
+  - src/app/api/teacher/pace-feedback/route.ts
+  - src/app/api/teacher/student-snapshot/route.ts
+  - src/lib/knowledge/feedback.ts
+  spec_drift: []
+- name: lesson_profiles
+  source_migration: 018_lesson_intelligence.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    teacher_id: UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL
+    upload_id: UUID REFERENCES knowledge_uploads(id) ON DELETE SET NULL
+    title: TEXT NOT NULL
+    subject_area: TEXT
+    grade_level: TEXT
+    estimated_duration_minutes: INT
+    lesson_type: TEXT DEFAULT 'single_lesson'
+    pedagogical_approach: TEXT
+    scaffolding_model: TEXT
+    complexity_level: TEXT
+    criteria_covered: TEXT[] DEFAULT '{}'
+    profile_data: JSONB NOT NULL
+    raw_extracted_text: TEXT NOT NULL
+    analysis_version: TEXT NOT NULL
+    analysis_model: TEXT NOT NULL
+    embedding: halfvec(1024)
+    fts: tsvector GENERATED ALWAYS AS ( to_tsvector('english', coalesce(title, '') || ' ' || coalesce(subject_area, '') ||
+      ' ' || coalesce(grade_level, '') || ' ' || coalesce(pedagogical_approach, '') || ' ' || coalesce(scaffolding_model,
+      '') ) ) STORED
+    teacher_verified: BOOLEAN DEFAULT false
+    teacher_corrections: JSONB
+    times_referenced: INT DEFAULT 0
+    teacher_quality_rating: SMALLINT CHECK (teacher_quality_rating BETWEEN 1 AND 5)
+    created_at: TIMESTAMPTZ DEFAULT now()
+    updated_at: TIMESTAMPTZ DEFAULT now()
+  indexes:
+  - lesson_profiles_embedding_idx ON USING hnsw (embedding halfvec_cosine_ops)
+  - lesson_profiles_fts_idx ON USING gin (fts)
+  - lesson_profiles_teacher_idx ON (teacher_id)
+  - lesson_profiles_subject_idx ON (subject_area)
+  - lesson_profiles_grade_idx ON (grade_level)
+  - lesson_profiles_approach_idx ON (pedagogical_approach)
+  - lesson_profiles_criteria_idx ON USING gin (criteria_covered)
+  - lesson_profiles_upload_idx ON (upload_id)
+  - lesson_profiles_verified_idx ON (teacher_verified) WHERE teacher_verified = true
+  rls:
+    read: Teachers manage own profiles (unknown); Service role full access profiles (unknown)
+    write: Teachers manage own profiles (unknown); Service role full access profiles (unknown)
+  writers:
+  - src/lib/knowledge/retrieve-lesson-profiles.ts
+  readers:
+  - src/app/api/teacher/knowledge/items/route.ts
+  - src/app/api/teacher/knowledge/lesson-profiles/[id]/route.ts
+  spec_drift: []
+- name: library_health_flags
+  source_migration: 072_library_health_ops.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    block_id: UUID NOT NULL REFERENCES activity_blocks(id) ON DELETE CASCADE
+    flag_type: TEXT NOT NULL
+    severity: TEXT NOT NULL
+    reason: TEXT
+    resolved_at: TIMESTAMPTZ
+    created_at: TIMESTAMPTZ DEFAULT now()
+  indexes:
+  - idx_health_flags_block ON (block_id)
+  - idx_health_flags_unresolved ON (resolved_at) WHERE resolved_at IS NULL
+  rls:
+    read: No RLS — table not protected
+    write: No RLS — table not protected
+  writers:
+  - src/lib/jobs/library-hygiene-weekly.ts
+  readers: []
+  spec_drift: []
+- name: open_studio_profiles
+  source_migration: 031_open_studio_profiles.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    student_id: UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE
+    unit_id: UUID NOT NULL REFERENCES units(id) ON DELETE CASCADE
+    strengths: JSONB NOT NULL DEFAULT '[]'::jsonb
+    interests: JSONB NOT NULL DEFAULT '[]'::jsonb
+    needs_identified: JSONB NOT NULL DEFAULT '[]'::jsonb
+    project_statement: TEXT
+    archetype: TEXT CHECK (archetype IS NULL OR archetype IN ( 'make', 'research', 'lead', 'serve', 'create', 'solve', 'entrepreneurship'
+      ))
+    discovery_conversation: JSONB NOT NULL DEFAULT '[]'::jsonb
+    discovery_step: TEXT NOT NULL DEFAULT 'strengths' CHECK (discovery_step IN ('strengths', 'interests', 'needs', 'narrowing',
+      'commitment', 'complete'))
+    completed_at: TIMESTAMPTZ
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at: TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  indexes:
+  - idx_os_profiles_student ON (student_id)
+  - idx_os_profiles_unit ON (unit_id)
+  - idx_os_profiles_discovery_step ON (discovery_step)
+  rls:
+    read: Service role full access on open_studio_profiles (unknown)
+    write: Service role full access on open_studio_profiles (unknown)
+  writers:
+  - src/app/api/student/open-studio/discovery/route.ts
+  readers: []
+  spec_drift: []
+- name: open_studio_sessions
+  source_migration: 029_open_studio.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    student_id: UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE
+    unit_id: UUID NOT NULL REFERENCES units(id) ON DELETE CASCADE
+    status_id: UUID NOT NULL REFERENCES open_studio_status(id) ON DELETE CASCADE
+    session_number: SMALLINT NOT NULL DEFAULT 1
+    focus_area: TEXT
+    started_at: TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    ended_at: TIMESTAMPTZ
+    activity_log: JSONB NOT NULL DEFAULT '[]'
+    ai_interactions: SMALLINT NOT NULL DEFAULT 0
+    drift_flags: JSONB NOT NULL DEFAULT '[]'
+    productivity_score: TEXT CHECK (productivity_score IS NULL OR productivity_score IN ('low', 'medium', 'high'))
+    ai_summary: TEXT
+    reflection: TEXT
+  indexes:
+  - idx_open_studio_sessions_student_unit ON (student_id, unit_id)
+  - idx_open_studio_sessions_status ON (status_id)
+  rls:
+    read: open_studio_sessions_teacher (unknown); open_studio_sessions_read (unknown)
+    write: open_studio_sessions_teacher (unknown)
+  writers:
+  - src/app/api/student/open-studio/check-in/route.ts
+  - src/app/api/student/open-studio/session/route.ts
+  readers:
+  - src/app/api/student/open-studio/status/route.ts
+  - src/lib/design-assistant/conversation.ts
+  spec_drift: []
+- name: open_studio_status
+  source_migration: 029_open_studio.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    student_id: UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE
+    unit_id: UUID NOT NULL REFERENCES units(id) ON DELETE CASCADE
+    class_id: UUID NOT NULL REFERENCES classes(id) ON DELETE CASCADE
+    status: TEXT NOT NULL DEFAULT 'locked' CHECK (status IN ('locked', 'unlocked', 'revoked'))
+    unlocked_by: TEXT NOT NULL DEFAULT 'teacher' CHECK (unlocked_by IN ('teacher', 'auto', 'criteria'))
+    teacher_note: TEXT
+    carry_forward: BOOLEAN NOT NULL DEFAULT false
+    unlocked_at: TIMESTAMPTZ
+    revoked_at: TIMESTAMPTZ
+    revoked_reason: TEXT CHECK (revoked_reason IS NULL OR revoked_reason IN ( 'teacher_manual', 'drift_detected', 'recalibrate'
+      ))
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at: TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    quest_journey_id: UUID REFERENCES quest_journeys(id) ON DELETE SET NULL
+  indexes:
+  - idx_open_studio_student_active ON (student_id) WHERE status = 'unlocked'
+  - idx_open_studio_class_unit ON (class_id, unit_id)
+  rls:
+    read: open_studio_status_teacher (unknown); open_studio_status_read (unknown)
+    write: open_studio_status_teacher (unknown)
+  writers:
+  - src/app/api/student/open-studio/check-in/route.ts
+  - src/app/api/teacher/open-studio/status/route.ts
+  readers:
+  - src/app/api/student/open-studio/session/route.ts
+  - src/app/api/student/open-studio/status/route.ts
+  - src/app/api/teacher/dashboard/route.ts
+  - src/app/api/teacher/student-snapshot/route.ts
+  - src/app/teacher/classes/[classId]/page.tsx
+  - src/app/teacher/students/page.tsx
+  - src/lib/design-assistant/conversation.ts
+  spec_drift: []
+- name: own_time_approvals
+  source_migration: 028_own_time.sql
+  status: dropped
+  applied_date: null
+  purpose: null
+  columns: {}
+  spec_drift: []
+- name: own_time_projects
+  source_migration: 028_own_time.sql
+  status: dropped
+  applied_date: null
+  purpose: null
+  columns: {}
+  spec_drift: []
+- name: own_time_sessions
+  source_migration: 028_own_time.sql
+  status: dropped
+  applied_date: null
+  purpose: null
+  columns: {}
+  spec_drift: []
+- name: planning_tasks
+  source_migration: 001_initial_schema.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    student_id: UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE
+    unit_id: UUID NOT NULL REFERENCES units(id) ON DELETE CASCADE
+    title: TEXT NOT NULL
+    status: TEXT NOT NULL DEFAULT 'todo' CHECK (status IN ('todo', 'in_progress', 'done'))
+    target_date: DATE
+    actual_date: DATE
+    time_logged: INTEGER DEFAULT 0
+    page_number: INTEGER CHECK (page_number BETWEEN 1 AND 16)
+    sort_order: INTEGER DEFAULT 0
+    created_at: TIMESTAMPTZ DEFAULT now()
+    start_date: DATE
+    page_id: TEXT
+  indexes:
+  - idx_planning_tasks_student_unit ON (student_id, unit_id)
+  rls:
+    read: Teachers read planning tasks (unknown); Teachers read planning tasks (unknown)
+    write: RLS enabled, no write policy
+  writers:
+  - src/app/api/student/planning/route.ts
+  readers: []
+  spec_drift: []
+- name: portfolio_entries
+  source_migration: 006_portfolio_entries.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    student_id: UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE
+    unit_id: UUID NOT NULL REFERENCES units(id) ON DELETE CASCADE
+    type: TEXT NOT NULL DEFAULT 'entry' CHECK (type IN ('entry', 'photo', 'link', 'note', 'mistake'))
+    content: TEXT
+    media_url: TEXT
+    link_url: TEXT
+    link_title: TEXT
+    created_at: TIMESTAMPTZ DEFAULT now()
+    page_id: TEXT
+    section_index: INTEGER
+  indexes:
+  - idx_portfolio_entries_student_unit ON (student_id, unit_id)
+  - idx_portfolio_entries_student_created ON (student_id, created_at DESC)
+  - idx_portfolio_auto_capture_unique ON (student_id, unit_id, page_id, section_index) WHERE page_id IS NOT NULL AND section_index
+    IS NOT NULL
+  rls:
+    read: Teachers read portfolio entries (unknown)
+    write: RLS enabled, no write policy
+  writers:
+  - src/app/api/student/portfolio/route.ts
+  readers:
+  - src/app/(student)/unit/[unitId]/narrative/page.tsx
+  spec_drift: []
+- name: quest_evidence
+  source_migration: 046_quest_journey_system.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    journey_id: UUID NOT NULL REFERENCES quest_journeys(id) ON DELETE CASCADE
+    milestone_id: UUID REFERENCES quest_milestones(id) ON DELETE SET NULL
+    type: TEXT NOT NULL
+    content: TEXT
+    file_url: TEXT
+    file_type: TEXT
+    thumbnail_url: TEXT
+    ai_analysis: JSONB DEFAULT NULL
+    approved_by_teacher: BOOLEAN DEFAULT FALSE
+    approved_at: TIMESTAMPTZ
+    teacher_feedback: TEXT
+    phase: TEXT NOT NULL
+    framework_phase_id: TEXT
+    session_id: UUID
+    created_at: TIMESTAMPTZ DEFAULT NOW()
+  indexes:
+  - idx_quest_evidence_journey ON (journey_id)
+  - idx_quest_evidence_milestone ON (milestone_id)
+  - idx_quest_evidence_type ON (type)
+  rls:
+    read: quest_evidence_student (unknown)
+    write: quest_evidence_student (unknown)
+  writers:
+  - src/app/api/student/quest/evidence/route.ts
+  - src/app/api/student/quest/sharing/route.ts
+  - src/app/api/teacher/quest/detail/route.ts
+  - src/app/api/teacher/quest/route.ts
+  readers:
+  - src/app/api/student/quest/mentor/route.ts
+  - src/app/api/student/quest/route.ts
+  spec_drift: []
+- name: quest_journeys
+  source_migration: 046_quest_journey_system.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    student_id: UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE
+    unit_id: UUID NOT NULL REFERENCES units(id) ON DELETE CASCADE
+    class_id: UUID REFERENCES classes(id) ON DELETE SET NULL
+    framework_id: TEXT NOT NULL DEFAULT 'myp_design'
+    mentor_id: TEXT
+    phase: TEXT NOT NULL DEFAULT 'not_started'
+    phase_entered_at: TIMESTAMPTZ DEFAULT NOW()
+    discovery_profile: JSONB DEFAULT NULL
+    contract: JSONB DEFAULT NULL
+    help_intensity: TEXT NOT NULL DEFAULT 'guided'
+    health_score: JSONB DEFAULT '{"momentum":"green"
+    total_sessions: INTEGER DEFAULT 0
+    total_evidence_count: INTEGER DEFAULT 0
+    sessions_remaining: INTEGER
+    started_at: TIMESTAMPTZ DEFAULT NOW()
+    completed_at: TIMESTAMPTZ
+    created_at: TIMESTAMPTZ DEFAULT NOW()
+    updated_at: TIMESTAMPTZ DEFAULT NOW()
+  unique_constraints:
+  - - student_id
+    - unit_id
+  indexes:
+  - idx_quest_journeys_student ON (student_id)
+  - idx_quest_journeys_unit ON (unit_id)
+  - idx_quest_journeys_class ON (class_id)
+  - idx_quest_journeys_phase ON (phase)
+  rls:
+    read: quest_journeys_student_select (unknown)
+    write: quest_journeys_student_update (unknown)
+  writers:
+  - src/app/api/student/quest/contract/route.ts
+  - src/app/api/student/quest/discovery/route.ts
+  - src/app/api/student/quest/evidence/route.ts
+  - src/app/api/student/quest/mentor/route.ts
+  - src/app/api/student/quest/phase/route.ts
+  - src/app/api/student/quest/route.ts
+  - src/app/api/student/quest/sharing/route.ts
+  - src/app/api/teacher/quest/route.ts
+  readers:
+  - src/app/api/student/quest/milestones/[id]/route.ts
+  - src/app/api/student/quest/milestones/route.ts
+  - src/app/api/teacher/quest/detail/route.ts
+  spec_drift: []
+- name: quest_mentor_interactions
+  source_migration: 046_quest_journey_system.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    journey_id: UUID NOT NULL REFERENCES quest_journeys(id) ON DELETE CASCADE
+    interaction_type: TEXT NOT NULL
+    phase: TEXT NOT NULL
+    mentor_id: TEXT NOT NULL
+    student_message: TEXT
+    mentor_response: TEXT
+    structured_data: JSONB DEFAULT NULL
+    student_effort_level: TEXT
+    created_at: TIMESTAMPTZ DEFAULT NOW()
+  indexes:
+  - idx_quest_mentor_journey ON (journey_id)
+  rls:
+    read: quest_mentor_interactions_student (unknown)
+    write: RLS enabled, no write policy
+  writers:
+  - src/app/api/student/quest/mentor/route.ts
+  readers:
+  - src/app/api/teacher/quest/detail/route.ts
+  spec_drift: []
+- name: quest_milestones
+  source_migration: 046_quest_journey_system.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    journey_id: UUID NOT NULL REFERENCES quest_journeys(id) ON DELETE CASCADE
+    title: TEXT NOT NULL
+    description: TEXT
+    phase: TEXT NOT NULL
+    framework_phase_id: TEXT
+    sort_order: INTEGER NOT NULL DEFAULT 0
+    specific: TEXT
+    measurable: TEXT
+    target_date: DATE
+    status: TEXT NOT NULL DEFAULT 'upcoming'
+    completed_at: TIMESTAMPTZ
+    completion_note: TEXT
+    teacher_note: TEXT
+    teacher_adjusted_date: DATE
+    approved_by_teacher: BOOLEAN DEFAULT FALSE
+    approved_at: TIMESTAMPTZ
+    source: TEXT NOT NULL DEFAULT 'student'
+    created_at: TIMESTAMPTZ DEFAULT NOW()
+    updated_at: TIMESTAMPTZ DEFAULT NOW()
+  indexes:
+  - idx_quest_milestones_journey ON (journey_id)
+  - idx_quest_milestones_status ON (status)
+  rls:
+    read: quest_milestones_student (unknown)
+    write: quest_milestones_student (unknown)
+  writers:
+  - src/app/api/student/quest/milestones/[id]/route.ts
+  - src/app/api/student/quest/milestones/route.ts
+  - src/app/api/student/quest/sharing/route.ts
+  - src/app/api/teacher/quest/route.ts
+  readers:
+  - src/app/api/student/quest/mentor/route.ts
+  - src/app/api/student/quest/route.ts
+  - src/app/api/teacher/quest/detail/route.ts
+  spec_drift: []
+- name: safety_certifications
+  source_migration: 034_safety_certifications.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: uuid PRIMARY KEY DEFAULT gen_random_uuid()
+    student_id: text NOT NULL
+    class_id: text NOT NULL
+    cert_type: text NOT NULL
+    granted_by: uuid NOT NULL
+    granted_at: timestamptz NOT NULL DEFAULT now()
+    expires_at: timestamptz
+    notes: text
+    created_at: timestamptz NOT NULL DEFAULT now()
+  indexes:
+  - idx_safety_certs_student ON (student_id)
+  - idx_safety_certs_class ON (class_id)
+  - idx_safety_certs_granted_by ON (granted_by)
+  rls:
+    read: Students can read own certs (unknown); Teachers can read class certs (unknown)
+    write: Teachers can grant certs (unknown); Teachers can revoke certs (unknown)
+  writers:
+  - src/app/api/teacher/safety-certs/route.ts
+  readers:
+  - src/app/api/student/safety-certs/route.ts
+  - src/app/teacher/students/[studentId]/page.tsx
+  spec_drift: []
+- name: safety_results
+  source_migration: 035_safety_badges.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: TEXT PRIMARY KEY
+    session_id: TEXT NOT NULL REFERENCES safety_sessions(id) ON DELETE CASCADE
+    student_name: TEXT NOT NULL
+    badge_id: TEXT NOT NULL REFERENCES badges(id) ON DELETE CASCADE
+    score: INTEGER NOT NULL CHECK (score >= 0 AND score <= 100)
+    passed: BOOLEAN NOT NULL
+    answers: JSONB NOT NULL DEFAULT '[]'::jsonb
+    time_taken_seconds: INTEGER CHECK (time_taken_seconds >= 0)
+    attempt_number: INTEGER NOT NULL DEFAULT 1 CHECK (attempt_number >= 1)
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  indexes:
+  - idx_safety_results_session ON (session_id)
+  - idx_safety_results_badge ON (badge_id)
+  - idx_safety_results_student_name ON (student_name)
+  - idx_safety_results_created_at ON (created_at)
+  rls:
+    read: safety_results_read (unknown)
+    write: safety_results_insert (unknown)
+  writers:
+  - src/app/api/tools/safety/submit-test/route.ts
+  readers:
+  - src/app/api/student/safety/badges/route.ts
+  - src/app/api/teacher/badges/[id]/results/route.ts
+  - src/app/api/teacher/badges/class-status/route.ts
+  - src/app/api/tools/safety/results/route.ts
+  - src/app/api/tools/safety/session/route.ts
+  - src/app/api/tools/safety/start-test/route.ts
+  spec_drift: []
+- name: safety_sessions
+  source_migration: 035_safety_badges.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: TEXT PRIMARY KEY
+    teacher_email: TEXT NOT NULL
+    teacher_name: TEXT
+    class_code: TEXT UNIQUE NOT NULL
+    class_name: TEXT
+    required_badges: TEXT[] NOT NULL DEFAULT '{}'
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    expires_at: TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '90 days')
+  indexes:
+  - idx_safety_sessions_class_code ON (class_code)
+  - idx_safety_sessions_teacher_email ON (teacher_email)
+  - idx_safety_sessions_expires_at ON (expires_at)
+  rls:
+    read: safety_sessions_creator (join); safety_sessions_read_by_code (unknown)
+    write: safety_sessions_creator (join)
+  writers:
+  - src/app/api/tools/safety/session/route.ts
+  readers:
+  - src/app/api/tools/safety/results/route.ts
+  spec_drift: []
+- name: school_calendar_terms
+  source_migration: 037_school_calendar.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    teacher_id: UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL
+    academic_year: TEXT NOT NULL
+    term_name: TEXT NOT NULL
+    term_order: INT NOT NULL DEFAULT 1
+    start_date: DATE
+    end_date: DATE
+    created_at: TIMESTAMPTZ DEFAULT now()
+    updated_at: TIMESTAMPTZ DEFAULT now()
+  unique_constraints:
+  - - teacher_id
+    - academic_year
+    - term_name
+  indexes:
+  - idx_school_calendar_teacher_year ON (teacher_id, academic_year)
+  rls:
+    read: Teachers read own calendar (unknown); Service role full access calendar (the); Teachers read own calendar (unknown);
+      Service role full access calendar (unknown)
+    write: Teachers create own calendar terms (unknown); Teachers update own calendar terms (class_units); Teachers delete
+      own calendar terms (unknown); Service role full access calendar (the); Teachers create own calendar terms (unknown);
+      Teachers update own calendar terms (unknown); Teachers delete own calendar terms (unknown); Service role full access
+      calendar (unknown)
+  writers:
+  - src/app/api/teacher/school-calendar/route.ts
+  - src/app/teacher/classes/[classId]/page.tsx
+  readers: []
+  spec_drift: []
+- name: school_timetable
+  source_migration: 038_timetable.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    teacher_id: UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL
+    cycle_length: INT NOT NULL DEFAULT 5 CHECK (cycle_length BETWEEN 2 AND 20)
+    cycle_type: TEXT NOT NULL DEFAULT 'weekday' CHECK (cycle_type IN ('weekday', 'calendar'))
+    anchor_date: DATE NOT NULL DEFAULT CURRENT_DATE
+    anchor_cycle_day: INT NOT NULL DEFAULT 1
+    reset_each_term: BOOLEAN NOT NULL DEFAULT false
+    periods: JSONB DEFAULT '[]'::jsonb
+    excluded_dates: JSONB DEFAULT '[]'::jsonb
+    source: TEXT NOT NULL DEFAULT 'manual' CHECK (source IN ('manual', 'ical'))
+    ical_url: TEXT
+    last_synced_at: TIMESTAMPTZ
+    created_at: TIMESTAMPTZ DEFAULT now()
+    updated_at: TIMESTAMPTZ DEFAULT now()
+    cycle_day_events: JSONB DEFAULT '[]'
+  indexes:
+  - idx_school_timetable_teacher ON (teacher_id)
+  rls:
+    read: Teachers read own timetable (unknown); Service role full access timetable (unknown)
+    write: Teachers create own timetable (unknown); Teachers update own timetable (unknown); Teachers delete own timetable
+      (unknown); Service role full access timetable (unknown)
+  writers:
+  - src/app/api/teacher/timetable/route.ts
+  readers:
+  - src/app/api/student/next-class/route.ts
+  - src/app/api/teacher/schedule/lessons/route.ts
+  - src/app/api/teacher/schedule/today/route.ts
+  spec_drift: []
+- name: student_badges
+  source_migration: 035_safety_badges.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: TEXT PRIMARY KEY
+    student_id: TEXT NOT NULL
+    badge_id: TEXT NOT NULL REFERENCES badges(id) ON DELETE CASCADE
+    score: INTEGER CHECK (score IS NULL OR (score >= 0 AND score <= 100))
+    attempt_number: INTEGER NOT NULL DEFAULT 1 CHECK (attempt_number >= 1)
+    granted_by: TEXT NOT NULL DEFAULT 'test'
+    teacher_note: TEXT
+    status: TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'expired', 'revoked'))
+    answers: JSONB NOT NULL DEFAULT '[]'::jsonb
+    time_taken_seconds: INTEGER CHECK (time_taken_seconds IS NULL OR time_taken_seconds >= 0)
+    awarded_at: TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    expires_at: TIMESTAMPTZ
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  indexes:
+  - idx_student_badges_student ON (student_id)
+  - idx_student_badges_badge ON (badge_id)
+  - idx_student_badges_status ON (status)
+  - idx_student_badges_awarded_at ON (awarded_at)
+  rls:
+    read: student_badges_read_own (their); student_badges_teacher_read (unknown)
+    write: student_badges_teacher_insert (unknown)
+  writers:
+  - src/app/api/student/safety/badges/[badgeId]/submit/route.ts
+  - src/app/api/teacher/badges/[id]/assign/route.ts
+  - src/app/api/tools/safety/submit-test/route.ts
+  readers:
+  - src/app/api/student/insights/route.ts
+  - src/app/api/student/safety/badges/[badgeId]/route.ts
+  - src/app/api/student/safety/badges/route.ts
+  - src/app/api/student/safety/check-requirements/route.ts
+  - src/app/api/student/safety/pending/route.ts
+  - src/app/api/teacher/badges/[id]/results/route.ts
+  - src/app/api/teacher/badges/class-status/route.ts
+  - src/app/api/teacher/student-snapshot/route.ts
+  - src/app/teacher/classes/[classId]/page.tsx
+  - src/app/teacher/students/page.tsx
+  spec_drift: []
+- name: student_content_moderation_log
+  source_migration: 073_content_safety.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    class_id: UUID REFERENCES classes(id) ON DELETE CASCADE
+    student_id: UUID NOT NULL
+    content_source: TEXT NOT NULL CHECK (content_source IN ( 'student_progress', 'tool_session', 'gallery_post', 'peer_review',
+      'quest_evidence', 'quest_sharing', 'portfolio', 'upload_image' ))
+    content_hash: TEXT
+    moderation_layer: TEXT NOT NULL CHECK (moderation_layer IN ('client_text', 'client_image', 'server_haiku'))
+    flags: JSONB NOT NULL DEFAULT '[]'::jsonb
+    overall_result: TEXT NOT NULL CHECK (overall_result IN ('clean', 'flagged', 'blocked'))
+    severity: TEXT NOT NULL CHECK (severity IN ('info', 'warning', 'critical'))
+    action_taken: TEXT
+    teacher_reviewed: BOOLEAN DEFAULT false
+    teacher_action: TEXT
+    teacher_reviewed_at: TIMESTAMPTZ
+    raw_ai_response: JSONB
+    created_at: TIMESTAMPTZ DEFAULT now()
+  indexes:
+  - idx_student_moderation_log_class_severity ON (class_id, severity, created_at DESC)
+  - idx_student_moderation_log_student ON (student_id, created_at DESC)
+  - idx_student_moderation_log_unreviewed ON (teacher_reviewed, created_at DESC) WHERE teacher_reviewed = false
+  rls:
+    read: student_moderation_log_teacher_select (unknown); student_moderation_log_service_all (unknown)
+    write: student_moderation_log_teacher_update (unknown); student_moderation_log_service_all (unknown)
+  writers:
+  - src/app/api/safety/log-client-block/route.ts
+  - src/app/api/teacher/safety/alerts/route.ts
+  - src/lib/content-safety/moderate-and-log.ts
+  readers:
+  - src/app/teacher/layout.tsx
+  spec_drift: []
+- name: student_progress
+  source_migration: 001_initial_schema.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    student_id: UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE
+    unit_id: UUID NOT NULL REFERENCES units(id) ON DELETE CASCADE
+    page_number: INTEGER NOT NULL CHECK (page_number BETWEEN 1 AND 16)
+    status: TEXT NOT NULL DEFAULT 'not_started' CHECK (status IN ('not_started', 'in_progress', 'complete'))
+    responses: JSONB DEFAULT '{}'
+    time_spent: INTEGER DEFAULT 0
+    updated_at: TIMESTAMPTZ DEFAULT now()
+    page_id: TEXT
+    created_at: TIMESTAMPTZ
+    integrity_metadata: JSONB DEFAULT NULL
+    class_id: UUID REFERENCES classes(id) ON DELETE SET NULL
+    moderation_status: TEXT DEFAULT 'pending' CHECK (moderation_status IN ('clean', 'pending', 'flagged', 'blocked'))
+    moderation_flags: JSONB DEFAULT '[]'::jsonb
+  unique_constraints:
+  - - student_id
+    - unit_id
+    - page_number
+  indexes:
+  - idx_student_progress_student_unit ON (student_id, unit_id)
+  - idx_student_progress_unique_v2 ON (student_id, unit_id, page_id)
+  - idx_student_progress_page_id ON (student_id, unit_id, page_id)
+  - idx_student_progress_integrity ON (student_id, unit_id) WHERE integrity_metadata IS NOT NULL
+  - idx_student_progress_class ON (class_id, student_id)
+  rls:
+    read: Teachers read student progress (unknown); Teachers read student progress (unknown)
+    write: RLS enabled, no write policy
+  writers:
+  - src/app/api/student/progress/route.ts
+  readers:
+  - src/app/(student)/unit/[unitId]/narrative/page.tsx
+  - src/app/api/student/insights/route.ts
+  - src/app/api/student/unit/route.ts
+  - src/app/api/student/units/route.ts
+  - src/app/api/teacher/dashboard/route.ts
+  - src/app/api/teacher/student-snapshot/route.ts
+  - src/app/api/teacher/teach/live-status/route.ts
+  - src/app/teacher/classes/[classId]/grading/[unitId]/page.tsx
+  - src/app/teacher/classes/[classId]/page.tsx
+  - src/app/teacher/classes/[classId]/progress/[unitId]/page.tsx
+  - src/app/teacher/students/[studentId]/page.tsx
+  - src/app/teacher/students/page.tsx
+  - src/app/teacher/units/[unitId]/class/[classId]/page.tsx
+  - src/lib/feedback/signals.ts
+  - src/lib/jobs/usage-analytics.ts
+  spec_drift: []
+- name: student_sessions
+  source_migration: 001_initial_schema.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    student_id: UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE
+    token: TEXT NOT NULL UNIQUE
+    expires_at: TIMESTAMPTZ NOT NULL
+    created_at: TIMESTAMPTZ DEFAULT now()
+  indexes:
+  - idx_student_sessions_token ON (token)
+  - idx_student_sessions_expires ON (expires_at)
+  rls:
+    read: RLS enabled but no policies found in migrations
+    write: RLS enabled but no policies found in migrations
+  writers:
+  - src/app/api/auth/lti/launch/route.ts
+  - src/app/api/auth/student-login/route.ts
+  - src/app/api/auth/student-session/route.ts
+  - src/app/api/teacher/class-students/route.ts
+  readers:
+  - src/app/(student)/unit/[unitId]/narrative/page.tsx
+  - src/app/api/teacher/teach/live-status/route.ts
+  - src/lib/auth/student.ts
+  spec_drift: []
+- name: student_tool_sessions
+  source_migration: 026_student_tool_sessions.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    student_id: UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE
+    tool_id: TEXT NOT NULL
+    challenge: TEXT NOT NULL
+    mode: TEXT NOT NULL DEFAULT 'standalone' CHECK (mode IN ('embedded', 'standalone'))
+    unit_id: UUID REFERENCES units(id) ON DELETE CASCADE
+    page_id: TEXT
+    section_index: INT
+    state: JSONB NOT NULL DEFAULT '{}'
+    summary: JSONB
+    version: INT NOT NULL DEFAULT 1
+    status: TEXT NOT NULL DEFAULT 'in_progress' CHECK (status IN ('in_progress', 'completed'))
+    started_at: TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    completed_at: TIMESTAMPTZ
+    updated_at: TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    portfolio_entry_id: UUID REFERENCES portfolio_entries(id) ON DELETE SET NULL
+  indexes:
+  - idx_tool_sessions_student ON (student_id)
+  - idx_tool_sessions_unit ON (unit_id, page_id) WHERE unit_id IS NOT NULL
+  - idx_tool_sessions_tool ON (tool_id)
+  - idx_tool_sessions_status ON (status)
+  - idx_tool_sessions_student_tool ON (student_id, tool_id)
+  - idx_tool_sessions_unit_page_tool ON (unit_id, page_id, tool_id) WHERE unit_id IS NOT NULL
+  - idx_tool_sessions_student_tool_status ON (student_id, tool_id, status)
+  rls:
+    read: service_role_all (unknown)
+    write: service_role_all (unknown)
+  writers:
+  - src/app/api/student/tool-sessions/[id]/route.ts
+  - src/app/api/student/tool-sessions/route.ts
+  readers: []
+  spec_drift: []
+- name: students
+  source_migration: 001_initial_schema.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    username: TEXT NOT NULL
+    display_name: TEXT
+    class_id: UUID NOT NULL REFERENCES classes(id) ON DELETE CASCADE
+    ell_level: INTEGER NOT NULL DEFAULT 3 CHECK (ell_level BETWEEN 1 AND 3)
+    created_at: TIMESTAMPTZ DEFAULT now()
+    external_id: TEXT, ADD COLUMN IF NOT EXISTS external_provider TEXT
+    avatar_url: TEXT
+    author_teacher_id: UUID REFERENCES teachers(id)
+    graduation_year: INTEGER
+    learning_profile: JSONB DEFAULT NULL
+    mentor_id: TEXT DEFAULT NULL, ADD COLUMN IF NOT EXISTS theme_id TEXT DEFAULT NULL
+  unique_constraints:
+  - - username
+    - class_id
+  indexes:
+  - idx_students_class ON (class_id)
+  - idx_students_external_id ON (external_id)
+  - idx_students_author_teacher ON (author_teacher_id)
+  - idx_students_username_teacher ON (username, author_teacher_id) WHERE author_teacher_id IS NOT NULL
+  - idx_students_graduation_year ON (graduation_year) WHERE graduation_year IS NOT NULL
+  - idx_students_teacher_grad_year ON (author_teacher_id, graduation_year)
+  rls:
+    read: Teachers manage students in their classes (unknown); Teachers manage students (unknown)
+    write: Teachers manage students in their classes (unknown); Teachers manage students (unknown)
+  writers:
+  - src/app/api/auth/lti/launch/route.ts
+  - src/app/api/auth/student-login/route.ts
+  - src/app/api/student/avatar/route.ts
+  - src/app/api/student/learning-profile/route.ts
+  - src/app/api/student/studio-preferences/route.ts
+  - src/app/api/teacher/integrations/sync/route.ts
+  - src/app/teacher/classes/[classId]/page.tsx
+  - src/app/teacher/students/[studentId]/page.tsx
+  - src/app/teacher/students/page.tsx
+  - src/app/teacher/units/[unitId]/class/[classId]/page.tsx
+  - src/lib/students/class-enrollment.ts
+  readers:
+  - src/app/(student)/unit/[unitId]/narrative/page.tsx
+  - src/app/api/auth/student-session/route.ts
+  - src/app/api/discovery/reflect/route.ts
+  - src/app/api/discovery/session/route.ts
+  - src/app/api/health/route.ts
+  - src/app/api/student/design-assistant/route.ts
+  - src/app/api/student/gallery/feedback/route.ts
+  - src/app/api/student/gallery/review/route.ts
+  - src/app/api/student/gallery/rounds/route.ts
+  - src/app/api/student/gallery/submissions/route.ts
+  - src/app/api/student/gallery/submit/route.ts
+  - src/app/api/student/insights/route.ts
+  - src/app/api/student/next-class/route.ts
+  - src/app/api/student/nm-assessment/route.ts
+  - src/app/api/student/nm-checkpoint/[pageId]/route.ts
+  - src/app/api/student/open-studio/check-in/route.ts
+  - src/app/api/student/progress/route.ts
+  - src/app/api/student/safety/pending/route.ts
+  - src/app/api/student/unit/route.ts
+  - src/app/api/student/units/route.ts
+  - src/app/api/teacher/badges/[id]/results/route.ts
+  - src/app/api/teacher/class-profiles/route.ts
+  - src/app/api/teacher/class-students/route.ts
+  - src/app/api/teacher/gallery/[roundId]/route.ts
+  - src/app/api/teacher/nm-observation/route.ts
+  - src/app/api/teacher/nm-results/route.ts
+  - src/app/api/teacher/open-studio/status/route.ts
+  - src/app/api/teacher/own-time/approve/route.ts
+  - src/app/api/teacher/teach/live-status/route.ts
+  - src/app/teacher/classes/[classId]/grading/[unitId]/page.tsx
+  - src/app/teacher/classes/[classId]/progress/[unitId]/page.tsx
+  - src/app/teacher/safety/alerts/page.tsx
+  - src/app/teacher/units/[unitId]/page.tsx
+  - src/lib/admin/monitors/usage-analytics.ts
+  - src/lib/design-assistant/conversation.ts
+  spec_drift: []
+- name: system_alerts
+  source_migration: 072_library_health_ops.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    alert_type: TEXT NOT NULL
+    severity: TEXT NOT NULL DEFAULT 'info'
+    payload: JSONB NOT NULL DEFAULT '{}'
+    acknowledged: BOOLEAN DEFAULT false
+    acknowledged_at: TIMESTAMPTZ
+    created_at: TIMESTAMPTZ DEFAULT now()
+  indexes:
+  - idx_system_alerts_type ON (alert_type)
+  - idx_system_alerts_created ON (created_at DESC)
+  rls:
+    read: No RLS — table not protected
+    write: No RLS — table not protected
+  writers:
+  - src/lib/jobs/cost-alert.ts
+  - src/lib/jobs/library-hygiene-monthly.ts
+  - src/lib/jobs/library-hygiene-weekly.ts
+  - src/lib/jobs/pipeline-health-monitor.ts
+  - src/lib/jobs/quality-drift-detector.ts
+  - src/lib/jobs/smoke-tests.ts
+  - src/lib/jobs/stale-data-watchdog.ts
+  - src/lib/jobs/teacher-edit-tracker.ts
+  - src/lib/jobs/usage-analytics.ts
+  - src/lib/monitoring/cost-alert-delivery.ts
+  readers:
+  - src/app/api/admin/pipeline/health/route.ts
+  spec_drift: []
+- name: teacher_integrations
+  source_migration: 005_lms_integration.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    teacher_id: UUID NOT NULL REFERENCES teachers(id) ON DELETE CASCADE UNIQUE
+    provider: TEXT NOT NULL DEFAULT 'managebac'
+    subdomain: TEXT
+    encrypted_api_token: TEXT
+    lti_consumer_key: TEXT UNIQUE
+    lti_consumer_secret: TEXT
+    created_at: TIMESTAMPTZ DEFAULT now()
+    updated_at: TIMESTAMPTZ DEFAULT now()
+  indexes:
+  - idx_teacher_integrations_lti_key ON (lti_consumer_key)
+  rls:
+    read: Teachers manage own integrations (unknown)
+    write: Teachers manage own integrations (unknown)
+  writers:
+  - src/app/api/teacher/integrations/route.ts
+  readers:
+  - src/app/api/auth/lti/launch/route.ts
+  - src/app/api/teacher/integrations/classes/route.ts
+  - src/app/api/teacher/integrations/sync/route.ts
+  spec_drift: []
+- name: teacher_profiles
+  source_migration: 021_pre_bulk_upload.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    teacher_id: UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE
+    school_context: JSONB NOT NULL DEFAULT '{}'
+    teacher_preferences: JSONB NOT NULL DEFAULT '{}'
+    school_name: TEXT
+    country: TEXT
+    curriculum_framework: TEXT
+    typical_period_minutes: INTEGER
+    subjects_taught: TEXT[] NOT NULL DEFAULT '{}'
+    grade_levels_taught: TEXT[] NOT NULL DEFAULT '{}'
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+    updated_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+    tier: TEXT DEFAULT 'free'
+  unique_constraints:
+  - - teacher_id
+  indexes:
+  - idx_teacher_profiles_teacher_id ON (teacher_id)
+  - idx_teacher_profiles_tier ON (tier)
+  rls:
+    read: Teachers can view own profile (unknown)
+    write: Teachers can insert own profile (unknown); Teachers can update own profile (unknown)
+  writers:
+  - src/app/api/teacher/profile/route.ts
+  readers:
+  - src/app/api/teacher/dashboard/route.ts
+  - src/app/api/teacher/generate-journey-outlines/route.ts
+  - src/app/api/teacher/generate-journey/route.ts
+  - src/app/api/teacher/generate-timeline-outline-single/route.ts
+  - src/app/api/teacher/generate-timeline-outlines/route.ts
+  - src/app/api/teacher/generate-timeline-skeleton/route.ts
+  - src/app/api/teacher/generate-timeline/route.ts
+  - src/app/api/teacher/nm-config/route.ts
+  - src/lib/admin/monitors/stale-watchdog.ts
+  - src/lib/admin/monitors/usage-analytics.ts
+  - src/lib/ai/teacher-context.ts
+  spec_drift: []
+- name: teachers
+  source_migration: 001_initial_schema.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE
+    name: TEXT NOT NULL
+    email: TEXT NOT NULL UNIQUE
+    created_at: TIMESTAMPTZ DEFAULT now()
+    style_profile: JSONB DEFAULT NULL
+  indexes:
+  - idx_teachers_style_confidence ON ((style_profile->>'confidenceLevel'))
+  rls:
+    read: Teachers read own profile (unknown)
+    write: Teachers update own profile (unknown)
+  writers:
+  - src/lib/teacher-style/profile-service.ts
+  readers:
+  - src/app/teacher/dashboard/page.tsx
+  - src/app/teacher/layout.tsx
+  spec_drift: []
+- name: unit_badge_requirements
+  source_migration: 035_safety_badges.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: TEXT PRIMARY KEY
+    unit_id: UUID NOT NULL REFERENCES units(id) ON DELETE CASCADE
+    badge_id: TEXT NOT NULL REFERENCES badges(id) ON DELETE CASCADE
+    is_required: BOOLEAN NOT NULL DEFAULT true
+    display_order: INTEGER NOT NULL DEFAULT 0
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    class_id: TEXT
+    target_student_ids: JSONB DEFAULT NULL
+  unique_constraints:
+  - - unit_id
+    - badge_id
+    - class_id
+  indexes:
+  - idx_unit_badge_reqs_unit ON (unit_id)
+  - idx_unit_badge_reqs_badge ON (badge_id)
+  - idx_unit_badge_reqs_class ON (class_id)
+  rls:
+    read: unit_badge_reqs_read (show); unit_badge_reqs_teacher (unknown)
+    write: unit_badge_reqs_teacher (unknown)
+  writers:
+  - src/app/api/teacher/badges/[id]/assign/route.ts
+  - src/app/api/teacher/badges/unit-requirements/route.ts
+  readers:
+  - src/app/api/student/insights/route.ts
+  - src/app/api/student/safety/check-requirements/route.ts
+  - src/app/api/student/safety/pending/route.ts
+  - src/app/api/teacher/badges/class-status/route.ts
+  - src/app/api/teacher/dashboard/route.ts
+  spec_drift: []
+- name: unit_versions
+  source_migration: 040_unit_forking.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    unit_id: UUID NOT NULL REFERENCES units(id) ON DELETE CASCADE
+    version_number: INTEGER NOT NULL
+    label: TEXT
+    content_data: JSONB NOT NULL
+    source_class_id: TEXT DEFAULT NULL
+    created_at: TIMESTAMPTZ DEFAULT now()
+  unique_constraints:
+  - - unit_id
+    - version_number
+  indexes:
+  - idx_unit_versions_unit ON (unit_id, version_number)
+  rls:
+    read: Teachers can read own unit versions (unknown)
+    write: Teachers can insert own unit versions (unknown)
+  writers:
+  - src/app/api/teacher/units/[unitId]/promote-fork/route.ts
+  - src/lib/units/resolve-content.ts
+  readers: []
+  spec_drift: []
+- name: units
+  source_migration: 001_initial_schema.sql
+  status: applied
+  applied_date: null
+  purpose: null
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    title: TEXT NOT NULL
+    description: TEXT
+    thumbnail_url: TEXT DEFAULT NULL
+    content_data: JSONB NOT NULL DEFAULT '{}'
+    created_at: TIMESTAMPTZ DEFAULT now()
+    is_published: BOOLEAN DEFAULT false
+    author_teacher_id: UUID REFERENCES auth.users(id)
+    author_name: TEXT
+    school_name: TEXT
+    tags: TEXT[] DEFAULT '{}'
+    grade_level: TEXT
+    duration_weeks: INTEGER
+    topic: TEXT
+    global_context: TEXT
+    key_concept: TEXT
+    fork_count: INTEGER DEFAULT 0
+    forked_from: UUID REFERENCES units(id)
+    quality_report: JSONB
+    teacher_id: UUID REFERENCES auth.users(id)
+    nm_config: JSONB DEFAULT NULL
+    versions: JSONB DEFAULT '[]'
+    current_version: INTEGER DEFAULT 1
+    unit_type: TEXT NOT NULL DEFAULT 'design'
+    curriculum_context: TEXT
+    content_language: TEXT DEFAULT 'en'
+    inclusivity_notes: JSONB DEFAULT NULL
+    materials_list: JSONB DEFAULT NULL
+    learning_outcomes: JSONB DEFAULT NULL
+    sdg_tags: TEXT[] DEFAULT NULL
+    cross_curricular_links: TEXT[] DEFAULT NULL
+    prerequisite_knowledge: TEXT[] DEFAULT NULL
+  indexes:
+  - idx_units_published ON (is_published) WHERE is_published = true
+  - idx_units_tags ON USING GIN(tags)
+  - idx_units_grade_level ON (grade_level)
+  - idx_units_author ON (author_teacher_id)
+  - idx_units_quality_report ON ((quality_report IS NOT NULL))
+  - idx_units_unit_type ON (unit_type)
+  - idx_units_thumbnail ON (id) WHERE thumbnail_url IS NOT NULL
+  - idx_units_content_language ON (content_language)
+  - idx_units_sdg_tags ON USING GIN(sdg_tags)
+  rls:
+    read: Anyone can read units (unknown); Service role manages units (unknown); Teachers read published units (unknown)
+    write: Service role manages units (unknown); Teachers insert units (unknown); Authors update own units (unknown); Authors
+      delete own units (unknown)
+  writers:
+  - src/app/api/teacher/convert-lesson/route.ts
+  - src/app/api/teacher/nm-config/route.ts
+  - src/app/api/teacher/teach/quick-edit/route.ts
+  - src/app/api/teacher/unit-thumbnail/route.ts
+  - src/app/api/teacher/units/[unitId]/content/route.ts
+  - src/app/api/teacher/units/[unitId]/promote-fork/route.ts
+  - src/app/api/teacher/units/route.ts
+  - src/app/api/teacher/upload-unit-image/route.ts
+  - src/app/teacher/units/[unitId]/edit/page.tsx
+  - src/app/teacher/units/[unitId]/page.tsx
+  - src/app/teacher/units/create/page.tsx
+  - src/app/teacher/units/page.tsx
+  - src/lib/units/resolve-content.ts
+  readers:
+  - src/app/(student)/unit/[unitId]/narrative/page.tsx
+  - src/app/api/student/grades/route.ts
+  - src/app/api/student/insights/route.ts
+  - src/app/api/student/next-class/route.ts
+  - src/app/api/student/nm-assessment/route.ts
+  - src/app/api/student/nm-checkpoint/[pageId]/route.ts
+  - src/app/api/student/open-studio/check-in/route.ts
+  - src/app/api/student/open-studio/discovery/route.ts
+  - src/app/api/student/safety/pending/route.ts
+  - src/app/api/student/unit/route.ts
+  - src/app/api/student/units/route.ts
+  - src/app/api/teacher/badges/unit-requirements/route.ts
+  - src/app/api/teacher/class-units/content/route.ts
+  - src/app/api/teacher/class-units/route.ts
+  - src/app/api/teacher/dashboard/route.ts
+  - src/app/api/teacher/nm-observation/route.ts
+  - src/app/api/teacher/nm-results/route.ts
+  - src/app/api/teacher/quest/route.ts
+  - src/app/api/teacher/regenerate-page/route.ts
+  - src/app/api/teacher/student-snapshot/route.ts
+  - src/app/api/teacher/units/versions/route.ts
+  - src/app/teacher/classes/[classId]/grading/[unitId]/page.tsx
+  - src/app/teacher/classes/[classId]/page.tsx
+  - src/app/teacher/classes/[classId]/progress/[unitId]/page.tsx
+  - src/app/teacher/classes/[classId]/settings/[unitId]/page.tsx
+  - src/app/teacher/students/[studentId]/page.tsx
+  - src/app/teacher/teach/[unitId]/page.tsx
+  - src/app/teacher/teach/[unitId]/projector/page.tsx
+  - src/app/teacher/units/[unitId]/class/[classId]/page.tsx
+  - src/components/teacher/StudentDiscoveryProfile.tsx
+  - src/lib/admin/monitors/usage-analytics.ts
+  - src/lib/auth/verify-teacher-unit.ts
+  - src/lib/design-assistant/conversation.ts
+  spec_drift: []
+- name: usage_rollups
+  source_migration: 072_library_health_ops.sql
+  status: applied
+  applied_date: null
+  purpose: 'Phase 4 daily/weekly/monthly count rollups. Stores { generation_runs, total_blocks } counts per teacher per day.
+    NOT for cost attribution — see cost_rollups (migration 075).
 
-  - name: classes
-    status: applied  # existing table; 7A adds one column
-    source_migration: pre-registry  # originating migration
-    changes_in_phase_7a:
-      - migration: 076_bug_reports.sql
-        add_column: bug_reporting_enabled BOOLEAN NOT NULL DEFAULT false
-        purpose: Per-class toggle for bug reporter visibility. Default OFF.
+    '
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    period_type: TEXT NOT NULL
+    period_start: DATE NOT NULL
+    teacher_id: UUID
+    student_id: UUID
+    metrics: JSONB NOT NULL DEFAULT '{}'
+    created_at: TIMESTAMPTZ DEFAULT now()
+  unique_constraints:
+  - - period_type
+    - period_start
+    - teacher_id
+    - student_id
+  indexes:
+  - idx_usage_rollups_period ON (period_type, period_start)
+  rls:
+    read: No RLS — table not protected
+    write: No RLS — table not protected
+  writers:
+  - src/lib/jobs/usage-analytics.ts
+  readers: []
+  spec_drift:
+  - date: 2026-04-14
+    source_doc: docs/projects/dimensions3-completion-spec.md §9.9
+    spec_says: 'usage_rollups(id, teacher_id, category CHECK IN (''ingestion'',''generation'',''student_api'',''teacher_api''),
+      period CHECK IN (''day'',''week'',''month''), period_start, cost_usd NUMERIC, call_count INT, token_count INT, rolled_up_at
+      TIMESTAMPTZ)
 
-  - name: admin_settings
-    status: planned
-    source_migration: 077_admin_settings.sql  # to be created in Phase 7A
-    applied_date: null
-    purpose: >
-      Singleton key/value store for admin-controlled pipeline settings
-      (spec §9.15). Wires the /admin/controls page backend (currently TODO).
-      Examples: pipeline.stage_enabled, pipeline.cost_ceiling_per_day_usd,
-      pipeline.model_override per stage.
-    columns:
-      id: SERIAL PRIMARY KEY
-      key: TEXT UNIQUE NOT NULL
-      value: JSONB NOT NULL
-      updated_by: UUID REFERENCES auth.users(id) ON DELETE SET NULL
-      updated_at: TIMESTAMPTZ NOT NULL DEFAULT now()
-    indexes:
-      - (key is UNIQUE, implicit index)
-    rls:
-      read: admin only
-      write: admin only
-    seed_rows:
-      - key: pipeline.stage_enabled
-        value: '{ "retrieve": true, "assemble": true, "gap_fill": true, "polish": true, "timing": true, "score": true }'
-      - key: pipeline.cost_ceiling_per_run_usd
-        value: '5.00'
-      - key: pipeline.cost_ceiling_per_day_usd
-        value: '50.00'
-      - key: pipeline.model_override
-        value: '{}'  # empty = use defaults per stage
-      - key: pipeline.starter_patterns_enabled
-        value: 'true'
-    writers:
-      - planned — /admin/controls mutation endpoint (Phase 7I)
-    readers:
-      - planned — pipeline orchestrator reads at start of each run (Phase 7I)
+      '
+    reality: 'Table already exists with different purpose (counts, not cost) and different shape (metrics JSONB, not structured
+      columns). Phase 4 job src/lib/jobs/usage-analytics.ts writes to it daily with { generation_runs, total_blocks } — no
+      cost data.
 
-# ============================================================
-# REGISTRY BACKFILL QUEUE
-# ============================================================
-# Tables that exist in prod but don't yet have entries here.
-# Populate opportunistically when touched by a phase.
-#
-# Known high-priority tables (touched by Phase 7 later phases):
-# - generation_runs (Phase 7C Generation Sandbox)
-# - ai_usage_log (Phase 7E cost rollup reader)
-# - activity_blocks (Phase 7D Block Interaction Viz)
-# - content_moderation_log (Phase 7 audit log reader)
-# - student_content_moderation_log (Phase 7 audit log reader)
-# - classes, students, units, class_students, class_units (Phase 7G browse tabs)
-# - feedback_proposals (Phase 7 feedback audit)
-# ============================================================
+      '
+    decision: 'Option C — keep usage_rollups as-is (Phase 4 Job 7 is live and writing to it). Create new table cost_rollups
+      (migration 075) for Phase 7 §9.9 cost attribution. Patch the spec to rename the §9.9 table cost_rollups.
+
+      '
+    decided_by: Matt
+    commits: TBD (Phase 7A commit)
