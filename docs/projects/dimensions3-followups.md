@@ -791,3 +791,28 @@ No current feature exposes this, but Dimensions3 feedback loop ("how is this stu
 3. Build a minimal "history" UI slot on unit detail page.
 
 **Definition of done:** AFTER triggers in place on 5+ tables. Audit log queryable. First demo: show history of a unit.
+
+---
+
+## FU-X — 3 tables unprotected (P1 live data leak)
+
+**Surfaced:** Phase 7-Pre.1 schema-registry backfill (14 Apr 2026)
+**Target phase:** Phase 7A (bundle with migration 075)
+**Priority:** P1
+
+**Issue:** `usage_rollups`, `system_alerts`, and `library_health_flags` have no RLS enabled in migration source. Any authenticated user can read all rows via PostgREST. `usage_rollups` is teacher-partitioned (teacher_id column) → authenticated user can see all teachers' usage metrics.
+
+**Impact:**
+- `usage_rollups`: teacher privacy leak (not catastrophic — it's count data, not content — but still not what's intended).
+- `system_alerts` and `library_health_flags`: ops data exposure; low impact but violates least-privilege.
+
+**Decision:** Fix in Phase 7A — bundle an RLS-enable migration alongside migration 075 (cost_rollups). Do NOT land cost_rollups writer until these three tables are protected, to avoid the same pattern in a new table.
+
+**Fix shape (for Phase 7A planning):**
+- Enable RLS on all 3 tables.
+- Add policy to `usage_rollups`: teachers see own rows where teacher_id = auth.uid(); service role has full access (for the rollup job writer).
+- `system_alerts` and `library_health_flags`: admin-only access (teacher_tier = 'admin' OR service role).
+
+**Verification:** grep migration 07X for CREATE POLICY on all 3 tables; attempt a teacher-token query against `system_alerts` and confirm it returns 0 rows.
+
+**Definition of done:** RLS enabled on all 3 tables. Policies applied. Teacher-token query against `system_alerts` returns 0 rows. `usage_rollups` query returns only own rows.
