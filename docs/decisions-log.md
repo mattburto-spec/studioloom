@@ -224,5 +224,16 @@
 - **Sandbox mode routes to simulator pipeline (12 Apr 2026)** — `runPipeline()` with `sandboxMode: true` routes to `runSimulatorPipeline()` which produces deterministic output without AI calls. α tests always run; β tests gated behind `RUN_E2E=1` + `ANTHROPIC_API_KEY`.
 - **criterion_tags gap documented, not fixed (12 Apr 2026)** — Simulator pipeline doesn't populate `criterion_tags` on generated blocks. Documented as a known gap in orchestrator-integration tests and E2E checkpoint. Fix deferred to Phase 3 when real pipeline stages populate them.
 
+- **Grading Overhaul: 3 new pillars added (13 Apr 2026)** — Expanded grading spec from data model + report writing into three additional areas: (1) Teacher Marking Experience (marking queue, split-view, batch marking, criteria heatmap), (2) AI Role in Grading (pre-scoring, consistency checker, feedback drafts, class insights, integrity synthesis — all opt-in), (3) Student Feedback Experience (notifications, inline anchored comments, growth trajectory, AI nudges, formative vs summative framing). Estimated effort increased from ~8-12 to ~14-18 days, phases from 5 to 7.
+- **AI pre-scoring uses Haiku 4.5 for cost (13 Apr 2026)** — Marking happens at volume (24 students × 4 criteria × multiple tasks). Haiku handles rubric + student work + exemplar in a single prompt at ~$0.002/student/task. Teacher sees ghost scores to confirm/override, not auto-grading.
+- **AI grading features opt-in per class (13 Apr 2026)** — Some teachers want to mark without AI. Toggle at class level with per-task override. System must respect teacher autonomy.
+- **Inline feedback over separate grades page (13 Apr 2026)** — Student feedback should appear where work happened (anchored to activities on lesson pages), not just on a disconnected grades page. Grades page becomes an overview; primary feedback is in-context.
+- **Formative vs summative UI framing (13 Apr 2026)** — Formative feedback = coaching cards, no prominent score. Summative = milestone layout with scores and trajectory. Formative grades hidden from students by default (teacher override available).
+- **Marking queue is cross-class by default (13 Apr 2026)** — Teacher's real question is "what do I need to mark?" not "what in this specific unit?" Aggregates all pending work across all classes, sortable by due date, class, AI confidence.
+- **Feedback receipt tracking (13 Apr 2026)** — `student_viewed_at` on grades lets teachers see who has read feedback. Displayed as information ("8/24 viewed"), not compliance. No automated "read your feedback" reminders.
+- **Consistency checker is on-demand, not automatic (13 Apr 2026)** — "Check my marking" button, not background surveillance. Teachers should feel in control, not monitored.
+- **Start with activity-level feedback anchoring (13 Apr 2026)** — Paragraph-level anchoring (pinning comments to specific sentences) adds significant complexity. Start with activity-level anchors; paragraph-level in a future pass.
+- **AI "what to do next" derived from teacher feedback (13 Apr 2026)** — Nudge primarily generated from teacher's actual feedback comment, with rubric gap as fallback. AI doesn't give independent assessment — always references teacher's words.
+
 ---
-*Last updated: 12 Apr 2026*
+*Last updated: 13 Apr 2026*

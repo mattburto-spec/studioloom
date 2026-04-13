@@ -4,6 +4,21 @@
 
 ---
 
+## 13 Apr 2026 (session 3) — Grading System Overhaul Spec Expansion
+
+**What changed:**
+- **Grading spec expanded with 3 new pillars:** (1) Teacher Marking Experience — `/teacher/marking` queue, split-view in-context marking, batch marking flow, criteria coverage heatmap. (2) AI Role in Grading — Haiku pre-scoring with ghost scores, consistency checker, feedback draft generation, class-level insights, integrity-informed grading. All opt-in per class. (3) Student Feedback Experience — notification cards, inline feedback anchored to activities on lesson pages, growth trajectory charts, AI "what to do next" nudges, formative vs summative UI framing.
+- **Phases revised:** 5 → 7 phases, estimate 8-12d → 14-18d. New phases: AI-Assisted Grading (Phase 4), Student Feedback Experience (Phase 5). Report Writing → Phase 6, Moderation → Phase 7.
+- **10 key decisions added** (up from 5): AI opt-in per class, cross-class marking queue, inline over separate grades page, formative vs summative framing, activity-level anchoring first, AI nudges from teacher feedback, feedback receipt tracking, consistency checker on-demand.
+- **ALL-PROJECTS.md updated:** Grading Overhaul added to Planned section with full entry.
+- **10 new decisions logged** in decisions-log.md.
+
+**Files modified:** `docs/projects/grading.md`, `docs/projects/ALL-PROJECTS.md`, `docs/projects/dashboard.html`, `docs/projects/WIRING.yaml`, `docs/decisions-log.md`, `docs/doc-manifest.yaml`, `docs/changelog.md`
+
+**Systems affected:** teacher-grading (major spec expansion), student-grade-view (inline feedback design), smart-insights (class-level post-marking insights)
+
+---
+
 ## 13 Apr 2026 (session 2) — Checkpoint 5.1 Verification + Bug Fixes + Cost Optimization
 
 **What changed:**

@@ -551,9 +551,9 @@ docs:
 
   - path: docs/projects/grading.md
     title: "Project: Grading System Overhaul"
-    purpose: "Grading and assessment system redesign"
+    purpose: "Grading and assessment system redesign — multi-task model, marking queue, AI-assisted grading, student feedback experience"
     category: projects
-    last_verified: "2026-03-31"
+    last_verified: "2026-04-13"
 
   - path: docs/projects/lessons.md
     title: "Project: Student Lesson Content UX"

@@ -1221,10 +1221,10 @@ systems:
     key_files:
       - src/app/teacher/grading/[unitId]/[classId]/page.tsx
       - src/components/teacher/grading/GradingPanel.tsx
-    future_needs: Auto-generated grade comments via AI, progress tracking, target setting.
+    future_needs: "Grading System Overhaul (planned, P1): multi-task assessment model (assessment_tasks table), marking queue (/teacher/marking), split-view in-context marking, batch marking flow, AI pre-scoring (Haiku) with ghost scores, consistency checker, feedback draft generation, class-level insights, student inline feedback (feedback_anchors), growth trajectory, AI 'what to do next' nudges, formative vs summative UI framing, report writing from grade data, cross-teacher moderation. 7 phases, ~14-18 days."
     adrs: ["007", "010"]
     os_seam: ready
-    change_impacts: Changes to grades schema affect grading UI. Changes to IntegrityReport affect evidence display.
+    change_impacts: "Grading Overhaul will add assessment_tasks + student_grades tables, new fields (submitted_at, ai_pre_score, feedback_anchors, returned_at, student_viewed_at). Affects student-grade-view (inline feedback), lesson-view (anchored comments), smart-insights (class-level post-marking insights), integrity-monitor-student (synthesis into grading context). AI cost: ~$0.002/student/task for Haiku pre-scoring."
 
   - id: timetable
     name: Timetable & Scheduling
