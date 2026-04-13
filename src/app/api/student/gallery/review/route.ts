@@ -21,6 +21,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireStudentAuth } from "@/lib/auth/student";
 import { rateLimit } from "@/lib/rate-limit";
+import { moderateAndLog } from "@/lib/content-safety/moderate-and-log";
 
 export async function POST(request: NextRequest) {
   const auth = await requireStudentAuth(request);
@@ -155,6 +156,28 @@ export async function POST(request: NextRequest) {
         { error: "You have already reviewed this submission" },
         { status: 400, headers: { "Cache-Control": "private" } }
       );
+    }
+
+    // Phase 5F: Synchronous moderation gate — peer-visible content
+    const textToModerate = typeof reviewData === 'string'
+      ? reviewData
+      : JSON.stringify(reviewData);
+    if (textToModerate.length > 2) {
+      try {
+        const { allow } = await moderateAndLog(textToModerate, {
+          classId: round.class_id || '',
+          studentId,
+          source: 'peer_review' as const,
+        }, { gate: true });
+        if (!allow) {
+          return NextResponse.json(
+            { error: "This review can't be shared right now. Please revise and try again." },
+            { status: 403, headers: { "Cache-Control": "private" } }
+          );
+        }
+      } catch (modErr) {
+        console.error('[gallery-review] moderation failed, allowing through:', modErr);
+      }
     }
 
     // 6. Insert review

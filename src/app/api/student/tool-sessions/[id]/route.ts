@@ -22,6 +22,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import * as Sentry from "@sentry/nextjs";
 import { requireStudentAuth } from "@/lib/auth/student";
+import { moderateAndLog } from "@/lib/content-safety/moderate-and-log";
 
 /**
  * GET: Retrieve a specific session by ID.
@@ -135,6 +136,20 @@ export async function PATCH(
         { error: "Failed to update session" },
         { status: 500 }
       );
+    }
+
+    // Phase 5F: Fire-and-forget server moderation on state updates
+    if (state && Object.keys(state).length > 0) {
+      const textToModerate = JSON.stringify(state);
+      if (textToModerate.length > 2) {
+        moderateAndLog(textToModerate, {
+          classId: '',
+          studentId,
+          source: 'tool_session' as const,
+        }).catch((err) => {
+          console.error('[tool-sessions PATCH] fire-and-forget moderation failed:', err);
+        });
+      }
     }
 
     return NextResponse.json(updated);

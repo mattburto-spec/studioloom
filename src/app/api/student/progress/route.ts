@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { withErrorHandler } from "@/lib/api/error-handler";
 import { requireStudentAuth } from "@/lib/auth/student";
+import { moderateAndLog } from "@/lib/content-safety/moderate-and-log";
 
 // Mappings for pre-migration-011 fallback
 const PAGE_ID_TO_NUMBER: Record<string, number> = {
@@ -193,6 +194,36 @@ export const POST = withErrorHandler("student/progress:POST", async (request: Ne
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // Phase 5F: Fire-and-forget server moderation (non-blocking for auto-save)
+  if (responses && data?.id) {
+    const textToModerate = typeof responses === 'string'
+      ? responses
+      : JSON.stringify(responses);
+    if (textToModerate.length > 2) { // skip empty objects '{}'
+      const moderationCtx = {
+        classId: resolvedClassId || '',
+        studentId,
+        source: 'student_progress' as const,
+      };
+      moderateAndLog(textToModerate, moderationCtx).then(({ result }) => {
+        if (result.moderation.status !== 'clean') {
+          createAdminClient()
+            .from('student_progress')
+            .update({
+              moderation_status: result.moderation.status,
+              moderation_flags: result.moderation.flags,
+            })
+            .eq('id', data.id)
+            .then(({ error: updateErr }) => {
+              if (updateErr) console.error('[progress] moderation status update failed:', updateErr);
+            });
+        }
+      }).catch((err) => {
+        console.error('[progress] fire-and-forget moderation failed:', err);
+      });
+    }
   }
 
   return NextResponse.json({ progress: data });

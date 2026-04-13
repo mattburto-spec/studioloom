@@ -25,6 +25,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import * as Sentry from "@sentry/nextjs";
 import { requireStudentAuth } from "@/lib/auth/student";
+import { moderateAndLog } from "@/lib/content-safety/moderate-and-log";
 
 /**
  * POST: Create a new tool session (lazy creation).
@@ -122,6 +123,20 @@ export async function POST(request: NextRequest) {
         { error: "Failed to create session" },
         { status: 500 }
       );
+    }
+
+    // Phase 5F: Fire-and-forget server moderation on initial state
+    if (state && Object.keys(state).length > 0) {
+      const textToModerate = JSON.stringify(state);
+      if (textToModerate.length > 2) {
+        moderateAndLog(textToModerate, {
+          classId: '',
+          studentId,
+          source: 'tool_session' as const,
+        }).catch((err) => {
+          console.error('[tool-sessions POST] fire-and-forget moderation failed:', err);
+        });
+      }
     }
 
     return NextResponse.json({

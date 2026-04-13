@@ -22,6 +22,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireStudentAuth } from "@/lib/auth/student";
 import { rateLimit } from "@/lib/rate-limit";
+import { moderateAndLog } from "@/lib/content-safety/moderate-and-log";
 
 export async function POST(request: NextRequest) {
   const auth = await requireStudentAuth(request);
@@ -133,6 +134,27 @@ export async function POST(request: NextRequest) {
         { error: "You have already submitted to this round" },
         { status: 400, headers: { "Cache-Control": "private" } }
       );
+    }
+
+    // Phase 5F: Synchronous moderation gate — peer-visible content
+    const textToModerate = contextNote || '';
+    if (textToModerate.length > 0) {
+      try {
+        const { allow } = await moderateAndLog(textToModerate, {
+          classId: round.class_id || '',
+          studentId,
+          source: 'gallery_post' as const,
+        }, { gate: true });
+        if (!allow) {
+          return NextResponse.json(
+            { error: "This content can't be shared right now. Please revise and try again." },
+            { status: 403, headers: { "Cache-Control": "private" } }
+          );
+        }
+      } catch (modErr) {
+        // Moderation failure → allow through (defence in depth, teacher reviews pending)
+        console.error('[gallery-submit] moderation failed, allowing through:', modErr);
+      }
     }
 
     // 4. Insert submission
