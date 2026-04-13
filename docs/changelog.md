@@ -4,6 +4,28 @@
 
 ---
 
+## 13 Apr 2026 — Dimensions3 Phase 5 Progress: 5A-5D Complete (Content Safety & Moderation), 5E Prep Done
+
+**What changed:**
+- **5A (Migration 073):** `student_progress` moderation columns (`moderation_status`, `moderation_flags`, `moderated_at`, `moderation_layer`) + `student_content_moderation_log` table. Shared types with cross-reference tests verifying TypeScript const arrays match SQL CHECK constraints. NC verified. Commit `1e3ba47`.
+- **5B (Client text filter):** `checkClientSide()` in `src/lib/content-safety/client-filter.ts`. LDNOOBW blocklists (EN 403 words + ZH 319 words), self-harm supplements (EN 15 + ZH 11), PII regex (email, phone, ID patterns), word-boundary EN matching / substring ZH matching. Log endpoint at `/api/safety/log-client-block`. Defence in depth: client passes through on failure, server catches. 1008 tests. Commit `6584c10`.
+- **5C (NSFW.js client image filter):** `checkClientImage()` in `src/lib/content-safety/client-image-filter.ts`. MobileNet v2 via nsfwjs (~4MB WASM), lazy-loaded singleton. Block threshold: `porn + hentai + sexy > 0.6` (configurable via `NEXT_PUBLIC_NSFW_BLOCK_THRESHOLD`). Defence in depth: model load/classify failures → ok:true (passes to server). 11 tests with mocked nsfwjs + browser APIs. NC verified (4 failures on reversed threshold). 1019 tests. Commit `c4200b0`.
+- **5D (Server Haiku moderation):** `moderateContent()` in `src/lib/content-safety/server-moderation.ts`. Uses `MODELS.HAIKU` from models.ts, `tool_choice` without `thinking` (API constraint). Bilingual system prompt (EN + ZH-Hans) in `prompts/moderation-system.ts`. `mapFlags()` validates types/severities, maps unknowns to 'other'/'warning'. `deriveStatus()` overrides Haiku's 'overall' field (defence in depth). `pendingResult()` returns status:'pending' on ANY failure — NEVER 'clean'. Lesson #39 applied: stop_reason === 'max_tokens' guard + `parsed.flags ?? []`. 18 tests. NC verified (4 failures). 1037 tests. Commit `87a88d9`.
+- **5E Prep (build-phase-prep skill):** Full audit of 8 choke points from WIRING.yaml discovered 4 path errors: GallerySubmitPrompt wrong directory, GalleryFeedbackView wrong component entirely (peer review POST is in GalleryBrowser.tsx), EvidenceCapture wrong directory, ResponseInput not a choke point (renderer that delegates to usePageResponses). Corrected to 7 text + 3 image choke points. Recommended split: 5E-text + 5E-image.
+- **WIRING.yaml major corrections:** `wiring_map` rewritten — split into `client_text_choke_points` (7 entries) and `client_image_choke_points` (3 entries) with verified file paths and roles. 4 path errors fixed. ResponseInput removed.
+- **Rolldown binding issue (recurring):** `npm install nsfwjs @tensorflow/tfjs` corrupts `@rolldown/binding-linux-arm64-gnu`. Fix: `rm -rf node_modules && npm install`. Recurred 3 times during session.
+- **TypeScript fix:** Removed `as const` from `MODERATION_TOOL_SCHEMA` — readonly tuple incompatible with Anthropic SDK mutable `string[]` type.
+
+**Files created:** `src/lib/content-safety/client-image-filter.ts`, `src/lib/content-safety/server-moderation.ts`, `src/lib/content-safety/prompts/moderation-system.ts`, `src/lib/content-safety/__tests__/client-image-filter.test.ts`, `src/lib/content-safety/__tests__/server-moderation.test.ts`
+
+**Systems affected:** `content-safety` (leveled up v1→v2: 3 layers now built — client text, client image, server moderation). WIRING.yaml `wiring_map` corrected (4 path fixes, structural split). `wiring-dashboard.html` and `system-architecture-map.html` synced.
+
+**Test suite:** 948 → 1037 (+89 new across 5A-5D, 0 failures)
+
+**Session context:** Continuation from Phase 4 completion session. Followed build methodology throughout — build-phase-prep skill run before 5D and 5E, pre-flight audits caught wiring path errors before they reached instruction blocks. Key finding: WIRING.yaml wiring_map had 4 incorrect paths that would have caused 5E instruction block to reference non-existent files. Defence-in-depth pattern consistent across all layers: client failures pass through, server failures go to 'pending', never 'clean'.
+
+---
+
 ## 12 Apr 2026 — Dimensions3 Phase 4 Complete (Library Health & Operational Automation, Checkpoint 4.1 PASSED)
 
 **What changed:**
@@ -589,3 +611,31 @@
 **Systems affected:** `framework-adapter` (render-helpers + admin panel + criterion-scores normalizer added), `generation-pipeline` (model ID centralization + E2E checkpoint gate), `student-grade-view` (H.1 dual-shape fix), `ai-provider` (model constants centralized).
 
 **Session context:** Two-part session (context compaction between parts). First part covered 5.5-5.9 (FormatProfile wiring + FrameworkAdapter build). Second part covered 5.10.4-5.14 (render path wiring + model centralization + E2E). Phase 2 is now fully complete. Next: Phase 3 (feedback loop) per completion spec.
+
+---
+
+### 13 April 2026 — Dimensions3 Phase 5 Start (Content Safety & Moderation)
+
+**What changed:**
+- Phase 4 Checkpoint 4.1 formally passed. FU-M filed for deferred Resend email test.
+- CI fix: created `tsconfig.check.json` excluding test/script files from CI typecheck, fixed 54 source-level TS strict-mode errors (null guards, type casts — no logic changes), bumped Node 20→22. Commits `968cb86` + `c7b4ce7`.
+- Phase 5A COMPLETE: migration 073 (`student_content_moderation_log` table + `student_progress` moderation columns), shared types in `src/lib/content-safety/types.ts`, 32 new tests including cross-reference (types vs CHECK constraints) + NC verification. Commit `1e3ba47`.
+- Phase 5B COMPLETE (via Claude Code): client-side text filter (`src/lib/content-safety/client-filter.ts`), LDNOOBW blocklists vendored (EN+ZH), self-harm supplement lists, PII regex (phone EN/CN + email), word-boundary matching for EN, log endpoint at `/api/safety/log-client-block`. Tests pending final count from Code report.
+- Created `build-phase-prep` skill at `.claude/skills/build-phase-prep/SKILL.md` — automates the 4 non-negotiable prep steps (test baseline, read spec, read lessons, audit code) plus new Step 5b (full wiring trace with choke point identification).
+- Content-safety system added to WIRING.yaml with `wiring_map.client_choke_points` — 8 specific files where `checkClientSide()` needs to be called in Phase 5E. This was a gap: previous audits found 26 API endpoints but didn't trace upstream to the React components/hooks that are the actual wiring targets.
+- Full saveme sync: ALL-PROJECTS.md, dashboard.html, wiring-dashboard.html, system-architecture-map.html, WIRING.yaml (94 systems), doc-manifest.yaml, CLAUDE.md, changelog.md.
+
+**Files created:**
+- `.claude/skills/build-phase-prep/SKILL.md`
+- `tsconfig.check.json`
+- `supabase/migrations/073_content_safety.sql` (via Code)
+- `src/lib/content-safety/types.ts` (via Code)
+- `src/lib/content-safety/__tests__/types.test.ts` (via Code)
+- `src/lib/content-safety/__tests__/migration-073.test.ts` (via Code)
+- `src/lib/content-safety/client-filter.ts` (via Code)
+- `src/lib/content-safety/blocklists/` (via Code)
+- `src/app/api/safety/log-client-block/route.ts` (via Code)
+
+**Test counts:** 948 → 980 (after 5A, +32). 5B count pending Code report.
+
+**Systems affected:** `content-safety` (new), `student-experience` (downstream), `admin-dashboard` (wiring-dashboard updated), WIRING.yaml meta (93→94 systems, 12→13 active).

@@ -2,7 +2,7 @@
 
 > **Single source of truth for all projects, features, and ideas.**
 > Visual dashboard: [projects/dashboard.html](dashboard.html)
-> Last updated: 12 April 2026 (Dimensions3 Phase 4 COMPLETE — Checkpoint 4.1 passed. Library health + pipeline ops dashboards, 7 automation jobs, 2 hygiene jobs, cost alert delivery, migration 072. 948 tests.)
+> Last updated: 13 April 2026 (Dimensions3 Phase 5 IN PROGRESS — 5A migration 073 complete, 5B client text filter complete, 5C NSFW.js image filter complete, 5D server Haiku moderation complete. Content safety system in WIRING.yaml with corrected wiring map. 1037 tests.)
 
 ---
 
@@ -30,7 +30,7 @@
 
 **v2 Completion Spec:** [`dimensions3-completion-spec.md`](dimensions3-completion-spec.md) — 8 phases, 12 mandatory Matt checkpoints, ~21–25 days estimated. Execution discipline section, per-sub-task verification, rollback protocols per phase. All 12 open questions from this session resolved (model ID, system teacher, cost alerts, journey blocks, retention, blocklist, bug reporting default, ZH-Hans moderation, class_id gap, proposal notifications, NSFW classifier, is_sandbox flag).
 
-**Status (12 Apr 2026):** Phases 0, 1.1, 1.5, 1.6, 1.7, 2, 3R, 4 all COMPLETE. Checkpoints 1.2, 2.1, 2.2, 3.1, 3.2, 4.1 all PASSED. **Phase 4 COMPLETE (12 Apr 2026):** Library Health & Operational Automation — migration 072 (3 new tables: system_alerts, library_health_flags, usage_rollups + 4 new columns on activity_blocks), 8 typed library health queries, 7 ops automation jobs (pipeline health, cost alert, quality drift, edit tracker, stale watchdog, smoke tests, usage analytics), 2 library hygiene jobs (weekly staleness/dedup/low-efficacy, monthly consolidation/orphan-archival), Library Health dashboard (8 widgets), Pipeline Health dashboard (KPI cards + heatmap + alert strip + error log), cost alert email delivery (Resend API + debounce), ops runbook. 905→948 tests (+43). Edit tracker wired to content save route. FU-M filed for live email test (deferred). Critical path: 0 ✅ → 1 ✅ → 2 ✅ → 3R ✅ → 4 ✅ → 5 → 6 → 7. **Next:** Phase 5 (Content Safety & Moderation) or Phase 6 (Integrity & Versioning).
+**Status (13 Apr 2026):** Phases 0, 1.1, 1.5, 1.6, 1.7, 2, 3R, 4 all COMPLETE. Checkpoints 1.2, 2.1, 2.2, 3.1, 3.2, 4.1 all PASSED. **Phase 4 COMPLETE (12 Apr 2026):** Library Health & Operational Automation — migration 072, 7 ops jobs, 2 hygiene jobs, 2 dashboards, cost alert delivery. 948 tests. **Phase 5 IN PROGRESS (13 Apr 2026):** Content Safety & Moderation — 5A COMPLETE (migration 073: student_progress moderation columns + student_content_moderation_log table, shared types, 32 cross-reference + NC tests). 5B COMPLETE (client text filter: LDNOOBW EN+ZH, self-harm supplement, PII regex, log endpoint). 5C COMPLETE (NSFW.js client image filter: lazy-loaded MobileNet v2, threshold logic, defence-in-depth fallback). 5D COMPLETE (server Haiku moderation module: moderateContent() for text + images, bilingual prompt, all failures → pending never clean, Lesson #39 guards). Content-safety system in WIRING.yaml — corrected wiring map with 4 path fixes from 5E prep audit. 1037 tests. Critical path: 0 ✅ → 1 ✅ → 2 ✅ → 3R ✅ → 4 ✅ → 5 🔴 → 6 → 7. **Next:** 5E (wire filters into choke points — split into 5E-text + 5E-image), then 5F (server endpoint wiring).
 
 **Post-Dimensions3 priority order:** [`post-dimensions3-priority-order.md`](post-dimensions3-priority-order.md) — 6-tier dependency-sequenced build plan for everything after D3 ships (11 Apr 2026).
 

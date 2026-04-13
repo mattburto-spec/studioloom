@@ -665,13 +665,12 @@ const SYSTEMS = [
     osSeam: "partial", osNotes: "Timing validation engine reusable. Workshop Model phases are design-teaching specific — FormatProfile makes it adaptable."
   },
   {
-    id: "content-safety", name: "Content Safety & Moderation", category: "AI & Intelligence",
-    v1: "Centralised appropriate content filter for all AI inputs/outputs, PII scanning, notifications, log of flagged content, school-configurable policies",
-    v2: "ML-based content classification, moderation queue with teacher review",
-    v3: null, v4: null, v5: null,
-    currentVersion: 0, status: "planned",
+    id: "content-safety-old", name: "Content Safety (Legacy Placeholder)", category: "AI & Intelligence",
+    v1: "Superseded by content-safety entry in Student Experience category.",
+    v2: null, v3: null, v4: null, v5: null,
+    currentVersion: 0, status: "complete",
     deps: ["ai-provider"],
-    osSeam: "ready", osNotes: "Content moderation is a top-priority OS service."
+    osSeam: "ready", osNotes: "See Student Experience content-safety entry for current status."
   },
   {
     id: "teacher-style", name: "Teacher Style Learning", category: "AI & Intelligence",
@@ -1076,6 +1075,17 @@ const SYSTEMS = [
     currentVersion: 1, status: "active",
     deps: ["generation-pipeline", "activity-blocks", "admin-dashboard"],
     osSeam: "partial", osNotes: "Job runner pattern reusable. Job-specific queries are product-specific."
+  },
+  {
+    id: "content-safety", name: "Content Safety & Moderation", category: "Student Experience",
+    v1: "Phase 5 (13 Apr): Migration 073 (moderation cols + log table). Client text filter (LDNOOBW EN+ZH, self-harm, PII). Log endpoint. Choke points mapped.",
+    v2: "NSFW.js client image filter (MobileNet v2, lazy-loaded, 0.6 threshold). Server Haiku moderation (moderateContent(), bilingual prompt, defence-in-depth, failures→pending). 7 text + 3 image choke points. 5E wiring NEXT.",
+    v3: "Endpoint wiring (all choke points) + teacher safety feed + rollback controls",
+    v4: "Configurable blocklists per school, additional languages, ML-based detection",
+    v5: null,
+    currentVersion: 2, status: "active",
+    deps: ["auth-system", "student-experience"],
+    osSeam: "ready", osNotes: "Moderation types, client filters, and server moderation are product-agnostic. Blocklists configurable. Defence-in-depth pattern reusable."
   },
   {
     id: "admin-journey-builder", name: "Admin Journey Builder", category: "Admin & Operations",

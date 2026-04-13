@@ -22,7 +22,7 @@ docs:
     title: "Project: Questerra (StudioLoom) — Instructions for Claude"
     purpose: "Master instructions for Claude, project tracking, key decisions, lessons learned, AI Brain reference table"
     category: root
-    last_verified: "2026-04-12"
+    last_verified: "2026-04-13"
     referenced_from: ["Master reference document"]
 
   - path: docs/changelog.md
@@ -248,7 +248,7 @@ docs:
     title: "StudioLoom — Master Project Index"
     purpose: "CANONICAL project tracker. ALL project status, new projects, completions. Single source of truth."
     category: projects
-    last_verified: "2026-04-11"
+    last_verified: "2026-04-13"
     referenced_from: ["CLAUDE.md project tracking section"]
 
   - path: docs/projects/discovery-engine-cognitive-layer.md
@@ -303,7 +303,7 @@ docs:
     title: "WIRING — Machine-Readable System Registry"
     purpose: "82+ systems with dependencies, affects relationships, data fields, docs, change impacts. CRITICAL: check before making changes."
     category: projects
-    last_verified: "2026-04-11"
+    last_verified: "2026-04-13"
     referenced_from: ["CLAUDE.md impact analysis section"]
 
   - path: docs/projects/dashboard.html
@@ -336,9 +336,9 @@ docs:
 
   - path: docs/projects/dimensions3-completion-spec.md
     title: "Dimensions3 v2 Completion Spec (Canonical Build Plan)"
-    purpose: "v2 rewrite of the Dimensions3 build plan (~1,600 lines). Full audit of v1 gaps fixed: removed Stage 5b misconception (curriculum mapping is render-time via FrameworkAdapter), added Phase 5 Content Safety (§17), expanded Phase 4 to all 7 automation systems (§9.3), expanded Phase 7 to all 12 admin tabs + 5 sandboxes + Bug Reporting. 12 mandatory Matt Checkpoints, per-sub-task verification, rollback sections. 21–25 day estimate. Phase 2 COMPLETE (12 Apr 2026). THIS IS THE BUILD PLAN TO FOLLOW."
+    purpose: "v2 rewrite of the Dimensions3 build plan (~1,600 lines). Full audit of v1 gaps fixed: removed Stage 5b misconception (curriculum mapping is render-time via FrameworkAdapter), added Phase 5 Content Safety (§17), expanded Phase 4 to all 7 automation systems (§9.3), expanded Phase 7 to all 12 admin tabs + 5 sandboxes + Bug Reporting. 12 mandatory Matt Checkpoints, per-sub-task verification, rollback sections. 21–25 day estimate. Phase 5 IN PROGRESS (13 Apr 2026): 5A-5D complete, 5E wiring next. THIS IS THE BUILD PLAN TO FOLLOW."
     category: projects
-    last_verified: "2026-04-12"
+    last_verified: "2026-04-13"
     referenced_from: ["ALL-PROJECTS.md", "decisions-log.md", "changelog.md"]
 
   - path: docs/projects/dimensions3-followups.md
@@ -381,6 +381,13 @@ docs:
     purpose: "Phase brief with pre-flight steps, stop triggers, sub-task breakdown for Phase 4. Migration 072, 8 health queries, 7 ops jobs, 2 hygiene jobs, 2 dashboards, cost alert delivery, runbook."
     category: projects
     last_verified: "2026-04-12"
+    referenced_from: ["dimensions3-completion-spec.md", "ALL-PROJECTS.md"]
+
+  - path: docs/projects/dimensions3-phase5-brief.md
+    title: "Dimensions3 Phase 5 Brief — Content Safety & Moderation"
+    purpose: "Phase brief with 9 sub-tasks (5A-5I), pre-flight checklist, stop triggers, commit plan. LDNOOBW blocklist, NSFW.js, Haiku moderation, teacher safety feed, rollback controls."
+    category: projects
+    last_verified: "2026-04-13"
     referenced_from: ["dimensions3-completion-spec.md", "ALL-PROJECTS.md"]
 
   - path: docs/projects/dimensions3-ops-runbook.md

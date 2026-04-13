@@ -1944,6 +1944,61 @@ systems:
     os_seam: partial
     change_impacts: Changes to generation_runs schema affect pipeline-health and cost-alert jobs. Changes to activity_blocks affect hygiene jobs and stale watchdog. Changes to system_alerts affect both dashboards.
 
+  - id: content-safety
+    name: Content Safety & Moderation (Dimensions3 Phase 5)
+    category: Student Experience
+    status: active
+    currentVersion: 1
+    summary: "Phase 5 (13 Apr 2026). Two-layer moderation: Layer 1 client-side text filter (LDNOOBW blocklist EN+ZH, self-harm supplement, PII regex) + Layer 1 image filter (NSFW.js, planned 5C) + Layer 2 server-side Haiku moderation (planned 5D). Teacher safety alert feed (planned 5G). Migration 073: student_progress moderation columns + student_content_moderation_log table."
+    depends_on: [auth-system, student-experience]
+    affects: [student-experience, teacher-dashboard, design-assistant]
+    docs:
+      - path: docs/projects/dimensions3-phase5-brief.md
+        purpose: Phase 5 brief with sub-tasks 5A-5I
+      - path: docs/projects/dimensions3-completion-spec.md
+        purpose: "Spec section 7 (lines 1051-1198): schema, filter logic, moderation prompts, checkpoint"
+    data_fields:
+      - table: student_progress
+        columns: [moderation_status, moderation_flags]
+        notes: "Added by migration 073. Status: clean/pending/flagged/blocked. Flags: JSONB array."
+      - table: student_content_moderation_log
+        columns: [id, class_id, student_id, content_source, content_hash, moderation_layer, flags, overall_result, severity, action_taken, teacher_reviewed, teacher_action, teacher_reviewed_at, raw_ai_response, created_at]
+        notes: "Separate from content_moderation_log (migration 067, ingestion-side). Named to avoid collision."
+    key_files:
+      - src/lib/content-safety/types.ts
+      - src/lib/content-safety/client-filter.ts
+      - src/lib/content-safety/blocklists/
+      - src/app/api/safety/log-client-block/route.ts
+      - supabase/migrations/073_content_safety.sql
+    wiring_map:
+      client_text_choke_points:
+        - file: src/hooks/usePageResponses.ts
+          role: "Auto-saves all lesson responses + toolkit tool state. All 27 toolkit tools flow through here. Wire checkClientSide() before fetch in saveProgress()."
+        - file: src/hooks/useToolSession.ts
+          role: "Toolkit tool session persistence (debounced 500ms save). Extract string values from state, check before save."
+        - file: src/components/student/DesignAssistantWidget.tsx
+          role: "AI mentor chat — student message input. Wire checkClientSide() in sendMessage() before fetch."
+        - file: src/components/gallery/GallerySubmitPrompt.tsx
+          role: "Gallery submission (contextNote text). Wire before /api/student/gallery/submit fetch."
+        - file: src/components/gallery/GalleryBrowser.tsx
+          role: "Peer review submission — review text fields. Wire before /api/student/gallery/review POST (~line 171)."
+        - file: src/components/quest/EvidenceCapture.tsx
+          role: "Quest evidence submission (text, reflection). Wire before /api/student/quest/evidence fetch in handleSubmit()."
+        - file: src/hooks/useOpenStudio.ts
+          role: "Open Studio sessions — focusArea + reflection text. Wire before /api/student/open-studio/* fetches."
+      client_image_choke_points:
+        - file: src/components/student/UploadInput.tsx
+          role: "Main student file upload. Wire checkClientImage() in handleFile() before fetch. Accepts image/*."
+        - file: src/components/portfolio/QuickCaptureFAB.tsx
+          role: "Portfolio quick capture — photoFile state. Wire checkClientImage() before submit."
+        - file: src/components/quest/EvidenceCapture.tsx
+          role: "Quest photo evidence. Wire checkClientImage() for photo type before fetch."
+      notes: "Wire checkClientSide() into 7 text choke points and checkClientImage() into 3 image choke points in Phase 5E. ResponseInput.tsx is a renderer that delegates to usePageResponses — not a direct choke point. GalleryFeedbackView.tsx is a reader (GET only) — peer review POST is in GalleryBrowser.tsx."
+    future_needs: "5E (wire client filters), then server-side endpoint wiring, ingestion safety scan, teacher safety feed, rollback controls. Self-harm list expansion. Additional language support."
+    adrs: []
+    os_seam: ready
+    change_impacts: "Changes to student submission hooks/components must route through checkClientSide(). Changes to moderation severity→action map affect teacher alert feed. New student input components must be added to wiring_map. Changes to blocklists require re-vendoring."
+
   - id: admin-journey-builder
     name: Admin Journey Builder (Node-Graph Editor)
     category: Admin & Operations
@@ -2177,14 +2232,14 @@ systems:
 
 # Summary Statistics
 meta:
-  total_systems: 93
+  total_systems: 94
   complete_systems: 35
-  active_systems: 12
+  active_systems: 13
   planned_systems: 8
   idea_systems: 19
   future_systems: 6
   quarantined_systems: 1
-  last_updated: 2026-04-12
+  last_updated: 2026-04-13
   notes: |
     This registry maps 92 systems across 8 categories.
     CRITICAL LINKS:
