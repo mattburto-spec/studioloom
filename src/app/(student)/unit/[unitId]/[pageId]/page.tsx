@@ -63,7 +63,7 @@ function UnitPageViewInner({
     getTrackingPayload,
   } = useActivityTracking(pageId, {});
 
-  const { responses, setResponses, saving, showSaveToast, saveProgress } =
+  const { responses, setResponses, saving, showSaveToast, saveProgress, moderationError } =
     usePageResponses(unitId, pageId, currentPage, data, integrityMetadataRef, getTrackingPayload);
 
   const { student, classInfo } = useStudent();
@@ -549,6 +549,12 @@ function UnitPageViewInner({
         <div className="fixed top-[3.25rem] right-4 z-50 flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-600 text-xs font-medium rounded-full shadow-sm">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
           Saved
+        </div>
+      )}
+      {moderationError && (
+        <div className="fixed top-[3.25rem] left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2 bg-red-50 border border-red-200 text-red-700 text-sm font-medium rounded-lg shadow-md max-w-md text-center">
+          <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd"/></svg>
+          {moderationError}
         </div>
       )}
 
