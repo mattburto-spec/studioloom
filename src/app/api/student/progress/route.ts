@@ -208,18 +208,16 @@ export const POST = withErrorHandler("student/progress:POST", async (request: Ne
         source: 'student_progress' as const,
       };
       moderateAndLog(textToModerate, moderationCtx).then(({ result }) => {
-        if (result.moderation.status !== 'clean') {
-          createAdminClient()
-            .from('student_progress')
-            .update({
-              moderation_status: result.moderation.status,
-              moderation_flags: result.moderation.flags,
-            })
-            .eq('id', data.id)
-            .then(({ error: updateErr }) => {
-              if (updateErr) console.error('[progress] moderation status update failed:', updateErr);
-            });
-        }
+        createAdminClient()
+          .from('student_progress')
+          .update({
+            moderation_status: result.moderation.status,
+            moderation_flags: result.moderation.flags,
+          })
+          .eq('id', data.id)
+          .then(({ error: updateErr }) => {
+            if (updateErr) console.error('[progress] moderation status update failed:', updateErr);
+          });
       }).catch((err) => {
         console.error('[progress] fire-and-forget moderation failed:', err);
       });
