@@ -3,6 +3,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { QuestEvidence, QuestMilestone, EvidenceType } from '@/lib/quest/types';
+import { checkClientSide, MODERATION_MESSAGES, detectLanguage } from '@/lib/content-safety/client-filter';
 
 interface EvidenceCaptureProps {
   journeyId: string;
@@ -57,6 +58,7 @@ export function EvidenceCapture({
   const [url, setUrl] = useState('');
   const [selectedMilestoneId, setSelectedMilestoneId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [moderationError, setModerationError] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -144,6 +146,26 @@ export function EvidenceCapture({
 
   const handleSubmit = useCallback(async () => {
     if (!canSubmit()) return;
+
+    // Content safety check for text/reflection types
+    if ((selectedType === 'text' || selectedType === 'reflection') && content.trim()) {
+      const moderationCheck = checkClientSide(content);
+      if (!moderationCheck.ok) {
+        const lang = detectLanguage(content);
+        setModerationError(MODERATION_MESSAGES[lang === 'zh' ? 'zh' : 'en']);
+        fetch('/api/safety/log-client-block', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            source: 'quest_evidence',
+            flags: moderationCheck.flags,
+            snippet: content.slice(0, 200),
+          }),
+        }).catch(() => {});
+        return;
+      }
+    }
+    setModerationError(null);
 
     setIsSubmitting(true);
     try {
@@ -485,6 +507,13 @@ export function EvidenceCapture({
           </motion.div>
         )}
       </motion.div>
+
+      {/* Moderation error */}
+      {moderationError && (
+        <div style={{ marginTop: '16px', padding: '12px', backgroundColor: '#7f1d1d', borderRadius: '8px', color: '#fca5a5', fontSize: '14px' }}>
+          {moderationError}
+        </div>
+      )}
 
       {/* Submit Button */}
       <motion.button

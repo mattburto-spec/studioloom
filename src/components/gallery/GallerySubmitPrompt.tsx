@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { formatDate } from "@/lib/utils";
+import { checkClientSide, MODERATION_MESSAGES, detectLanguage } from "@/lib/content-safety/client-filter";
 
 interface GalleryRound {
   id: string;
@@ -31,6 +32,23 @@ export function GallerySubmitPrompt({
   const handleSubmit = async () => {
     if (!context.trim()) {
       setError("Please share something about your work");
+      return;
+    }
+
+    // Content safety check — block before submission
+    const moderationCheck = checkClientSide(context);
+    if (!moderationCheck.ok) {
+      const lang = detectLanguage(context);
+      setError(MODERATION_MESSAGES[lang === "zh" ? "zh" : "en"]);
+      fetch("/api/safety/log-client-block", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          source: "gallery_post",
+          flags: moderationCheck.flags,
+          snippet: context.slice(0, 200),
+        }),
+      }).catch(() => {});
       return;
     }
 

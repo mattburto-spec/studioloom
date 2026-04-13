@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import type { UnitPage, ActivitySection, StudentProgress } from "@/types";
 import type { UnitPageData } from "./usePageData";
 import type { ActivityTrackingData } from "./useActivityTracking";
+import { checkClientSide, MODERATION_MESSAGES, detectLanguage } from "@/lib/content-safety/client-filter";
 
 interface UsePageResponsesReturn {
   responses: Record<string, string>;
@@ -11,6 +12,7 @@ interface UsePageResponsesReturn {
   saving: boolean;
   showSaveToast: boolean;
   saveProgress: (newStatus?: string, opts?: { silent?: boolean }) => Promise<void>;
+  moderationError: string | null;
 }
 
 export function usePageResponses(
@@ -24,6 +26,7 @@ export function usePageResponses(
   const [responses, setResponses] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [showSaveToast, setShowSaveToast] = useState(false);
+  const [moderationError, setModerationError] = useState<string | null>(null);
 
   // Keep a ref to the latest responses so saveProgress doesn't need
   // responses in its dependency array (prevents re-creation on every keystroke)
@@ -100,6 +103,28 @@ export function usePageResponses(
     async (newStatus?: string, { silent = false }: { silent?: boolean } = {}) => {
       if (!currentPage) return;
       const currentResponses = responsesRef.current;
+
+      // Content safety check — concatenate all text responses
+      const allText = Object.values(currentResponses).filter((v) => typeof v === "string").join(" ");
+      if (allText.trim()) {
+        const moderationCheck = checkClientSide(allText);
+        if (!moderationCheck.ok) {
+          const lang = detectLanguage(allText);
+          setModerationError(MODERATION_MESSAGES[lang === "zh" ? "zh" : "en"]);
+          fetch("/api/safety/log-client-block", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              source: "student_progress",
+              flags: moderationCheck.flags,
+              snippet: allText.slice(0, 200),
+            }),
+          }).catch(() => {});
+          return;
+        }
+      }
+      setModerationError(null);
+
       setSaving(true);
       try {
         // Merge activity tracking data into responses (stored alongside response values in JSONB)
@@ -167,5 +192,5 @@ export function usePageResponses(
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, currentPage]);
 
-  return { responses, setResponses, saving, showSaveToast, saveProgress };
+  return { responses, setResponses, saving, showSaveToast, saveProgress, moderationError };
 }

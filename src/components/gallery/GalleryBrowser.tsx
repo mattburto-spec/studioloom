@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { checkClientSide, MODERATION_MESSAGES, detectLanguage } from "@/lib/content-safety/client-filter";
 
 interface Submission {
   id: string;
@@ -142,6 +143,28 @@ export function GalleryBrowser({
       hasContent = !!(twoStarOne.trim() || twoStarTwo.trim() || twoWish.trim());
       if (!hasContent) {
         setError("Please add at least one star or wish");
+        return;
+      }
+    }
+
+    // Content safety check — combine all review text fields
+    const reviewText = [commentText, pmiPlus, pmiMinus, pmiInteresting, twoStarOne, twoStarTwo, twoWish]
+      .filter(Boolean)
+      .join(" ");
+    if (reviewText.trim()) {
+      const moderationCheck = checkClientSide(reviewText);
+      if (!moderationCheck.ok) {
+        const lang = detectLanguage(reviewText);
+        setError(MODERATION_MESSAGES[lang === "zh" ? "zh" : "en"]);
+        fetch("/api/safety/log-client-block", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            source: "peer_review",
+            flags: moderationCheck.flags,
+            snippet: reviewText.slice(0, 200),
+          }),
+        }).catch(() => {});
         return;
       }
     }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { checkClientSide } from "@/lib/content-safety/client-filter";
 
 /**
  * useOpenStudio — manages Open Studio state for a student within a unit.
@@ -182,6 +183,23 @@ export function useOpenStudio(unitId: string | null): UseOpenStudioReturn {
     async (focusArea?: string) => {
       if (!unitId) return;
 
+      // Content safety check on focus area text
+      if (focusArea?.trim()) {
+        const moderationCheck = checkClientSide(focusArea);
+        if (!moderationCheck.ok) {
+          fetch("/api/safety/log-client-block", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              source: "student_progress",
+              flags: moderationCheck.flags,
+              snippet: focusArea.slice(0, 200),
+            }),
+          }).catch(() => {});
+          return;
+        }
+      }
+
       try {
         const res = await fetch("/api/student/open-studio/session", {
           method: "POST",
@@ -206,6 +224,23 @@ export function useOpenStudio(unitId: string | null): UseOpenStudioReturn {
     async (reflection?: string) => {
       if (!state?.activeSession) return;
 
+      // Content safety check on reflection text
+      if (reflection?.trim()) {
+        const moderationCheck = checkClientSide(reflection);
+        if (!moderationCheck.ok) {
+          fetch("/api/safety/log-client-block", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              source: "student_progress",
+              flags: moderationCheck.flags,
+              snippet: reflection.slice(0, 200),
+            }),
+          }).catch(() => {});
+          return;
+        }
+      }
+
       try {
         await fetch("/api/student/open-studio/session", {
           method: "PATCH",
@@ -229,6 +264,23 @@ export function useOpenStudio(unitId: string | null): UseOpenStudioReturn {
   const updateFocusArea = useCallback(
     async (focusArea: string) => {
       if (!state?.activeSession) return;
+
+      // Content safety check on focus area text
+      if (focusArea.trim()) {
+        const moderationCheck = checkClientSide(focusArea);
+        if (!moderationCheck.ok) {
+          fetch("/api/safety/log-client-block", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              source: "student_progress",
+              flags: moderationCheck.flags,
+              snippet: focusArea.slice(0, 200),
+            }),
+          }).catch(() => {});
+          return;
+        }
+      }
 
       try {
         await fetch("/api/student/open-studio/session", {

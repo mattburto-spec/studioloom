@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { checkClientSide, MODERATION_MESSAGES, detectLanguage } from "@/lib/content-safety/client-filter";
 
 /**
  * Configuration for creating or resuming a tool session.
@@ -380,6 +381,29 @@ export function useToolSession(config: ToolSessionConfig): UseToolSessionReturn 
    */
   const updateState = useCallback(
     (newState: Record<string, unknown>) => {
+      // Content safety check — extract string values from state update
+      const textValues = Object.values(newState).filter((v) => typeof v === "string").join(" ");
+      if (textValues.trim()) {
+        const moderationCheck = checkClientSide(textValues);
+        if (!moderationCheck.ok) {
+          const lang = detectLanguage(textValues);
+          setSessionState((prev) => ({
+            ...prev,
+            error: MODERATION_MESSAGES[lang === "zh" ? "zh" : "en"],
+          }));
+          fetch("/api/safety/log-client-block", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              source: "tool_session",
+              flags: moderationCheck.flags,
+              snippet: textValues.slice(0, 200),
+            }),
+          }).catch(() => {});
+          return;
+        }
+      }
+
       setSessionState((prev) => {
         const mergedState = { ...prev.state, ...newState };
         pendingStateRef.current = mergedState;

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { getToolMetadata } from "@/lib/tools/toolkit-metadata";
+import { checkClientSide, MODERATION_MESSAGES, detectLanguage } from "@/lib/content-safety/client-filter";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -90,6 +91,23 @@ export default function DesignAssistantWidget({
   async function sendMessage() {
     const text = input.trim();
     if (!text || sending) return;
+
+    // Content safety check — block before sending to AI
+    const moderationCheck = checkClientSide(text);
+    if (!moderationCheck.ok) {
+      const lang = detectLanguage(text);
+      setError(MODERATION_MESSAGES[lang === "zh" ? "zh" : "en"]);
+      fetch("/api/safety/log-client-block", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          source: "student_progress",
+          flags: moderationCheck.flags,
+          snippet: text.slice(0, 200),
+        }),
+      }).catch(() => {});
+      return;
+    }
 
     setError("");
     setSending(true);
