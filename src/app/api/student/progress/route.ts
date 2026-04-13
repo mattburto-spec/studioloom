@@ -3,6 +3,12 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { withErrorHandler } from "@/lib/api/error-handler";
 import { requireStudentAuth } from "@/lib/auth/student";
 import { moderateAndLog } from "@/lib/content-safety/moderate-and-log";
+import { createHash } from "crypto";
+
+// In-memory hash cache: progressRowId → last moderated content hash.
+// Prevents duplicate Haiku calls when autosave fires with unchanged text.
+// Resets on server restart (acceptable: one extra call per row after cold start).
+const lastModeratedHash = new Map<string, string>();
 
 // Mappings for pre-migration-011 fallback
 const PAGE_ID_TO_NUMBER: Record<string, number> = {
@@ -197,30 +203,37 @@ export const POST = withErrorHandler("student/progress:POST", async (request: Ne
   }
 
   // Phase 5F: Fire-and-forget server moderation (non-blocking for auto-save)
+  // Hash-and-skip: only call Haiku when content actually changed (saves $$)
   if (responses && data?.id) {
     const textToModerate = typeof responses === 'string'
       ? responses
       : JSON.stringify(responses);
     if (textToModerate.length > 2) { // skip empty objects '{}'
-      const moderationCtx = {
-        classId: resolvedClassId || '',
-        studentId,
-        source: 'student_progress' as const,
-      };
-      moderateAndLog(textToModerate, moderationCtx).then(({ result }) => {
-        createAdminClient()
-          .from('student_progress')
-          .update({
-            moderation_status: result.moderation.status,
-            moderation_flags: result.moderation.flags,
-          })
-          .eq('id', data.id)
-          .then(({ error: updateErr }) => {
-            if (updateErr) console.error('[progress] moderation status update failed:', updateErr);
-          });
-      }).catch((err) => {
-        console.error('[progress] fire-and-forget moderation failed:', err);
-      });
+      const hash = createHash('sha256').update(textToModerate).digest('hex').slice(0, 16);
+      const prevHash = lastModeratedHash.get(data.id);
+
+      if (hash !== prevHash) {
+        lastModeratedHash.set(data.id, hash);
+        const moderationCtx = {
+          classId: resolvedClassId || '',
+          studentId,
+          source: 'student_progress' as const,
+        };
+        moderateAndLog(textToModerate, moderationCtx).then(({ result }) => {
+          createAdminClient()
+            .from('student_progress')
+            .update({
+              moderation_status: result.moderation.status,
+              moderation_flags: result.moderation.flags,
+            })
+            .eq('id', data.id)
+            .then(({ error: updateErr }) => {
+              if (updateErr) console.error('[progress] moderation status update failed:', updateErr);
+            });
+        }).catch((err) => {
+          console.error('[progress] fire-and-forget moderation failed:', err);
+        });
+      }
     }
   }
 
