@@ -117,11 +117,29 @@ export default function ReviewQueuePage() {
               className={`mt-3 p-3 rounded-lg text-sm ${
                 uploadResult.error
                   ? "bg-red-50 text-red-700"
+                  : uploadResult.moderationHold
+                  ? "bg-amber-50 text-amber-700"
                   : "bg-green-50 text-green-700"
               }`}
             >
               {uploadResult.error ? (
                 <p>Error: {uploadResult.error}</p>
+              ) : uploadResult.moderationHold ? (
+                <div className="space-y-1">
+                  <p className="font-medium">
+                    Content held for safety review
+                  </p>
+                  <p className="text-xs opacity-75">
+                    This document was flagged by our content safety system and has been
+                    held for review. No blocks were extracted. If you believe this is an
+                    error, please check the content and try again.
+                  </p>
+                  {uploadResult.moderationHoldReason && (
+                    <p className="text-xs opacity-75">
+                      Reason: {uploadResult.moderationHoldReason}
+                    </p>
+                  )}
+                </div>
               ) : (
                 <div className="space-y-1">
                   <p className="font-medium">

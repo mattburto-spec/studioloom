@@ -81,6 +81,17 @@ export async function POST(request: NextRequest) {
       config
     );
 
+    // Phase 6C: If content was held for safety review, return early
+    if (ingestion.moderationHold) {
+      return NextResponse.json(
+        {
+          moderationHold: true,
+          moderationHoldReason: ingestion.moderationHoldReason || "Content flagged by safety system",
+        },
+        { status: 200, headers: { "Cache-Control": "private, no-cache" } }
+      );
+    }
+
     const reconstruction = reconstructUnit(ingestion);
     const contentData = reconstructionToContentData(reconstruction);
 

@@ -78,7 +78,13 @@ export default function ImportPage() {
       }
 
       const data = await res.json();
-      setResult(data);
+      if (data.moderationHold) {
+        setError(
+          "This document was flagged by our content safety system and has been held for review. No unit was created. Please check the content and try again."
+        );
+      } else {
+        setResult(data);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Import failed");
     } finally {
