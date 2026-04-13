@@ -22,14 +22,14 @@ docs:
     title: "Project: Questerra (StudioLoom) — Instructions for Claude"
     purpose: "Master instructions for Claude, project tracking, key decisions, lessons learned, AI Brain reference table"
     category: root
-    last_verified: "2026-04-13"
+    last_verified: "2026-04-14"
     referenced_from: ["Master reference document"]
 
   - path: docs/changelog.md
     title: "Session Changelog"
     purpose: "Rolling log of changes across sessions for cross-session context"
     category: root
-    last_verified: "2026-04-12"
+    last_verified: "2026-04-14"
 
   - path: docs/decisions-log.md
     title: "Key Decisions Log"
@@ -303,28 +303,28 @@ docs:
     title: "WIRING — Machine-Readable System Registry"
     purpose: "82+ systems with dependencies, affects relationships, data fields, docs, change impacts. CRITICAL: check before making changes."
     category: projects
-    last_verified: "2026-04-13"
+    last_verified: "2026-04-14"
     referenced_from: ["CLAUDE.md impact analysis section"]
 
   - path: docs/projects/dashboard.html
     title: "Project Dashboard"
     purpose: "Interactive dashboard with PROJECTS array in sync with ALL-PROJECTS.md"
     category: projects
-    last_verified: "2026-04-11"
+    last_verified: "2026-04-14"
     referenced_from: ["CLAUDE.md project tracking section"]
 
   - path: docs/projects/wiring-dashboard.html
     title: "Wiring Dashboard"
     purpose: "Interactive visual view of system dependencies. Click system to see upstream/downstream."
     category: projects
-    last_verified: "2026-04-11"
+    last_verified: "2026-04-14"
     referenced_from: ["CLAUDE.md impact analysis section"]
 
   - path: docs/projects/system-architecture-map.html
     title: "System Architecture Map"
     purpose: "Tracks v1-v5 maturity evolution per system. Update currentVersion/status when systems level up."
     category: projects
-    last_verified: "2026-04-07"
+    last_verified: "2026-04-14"
     referenced_from: ["CLAUDE.md impact analysis section"]
 
   - path: docs/projects/dimensions3.md

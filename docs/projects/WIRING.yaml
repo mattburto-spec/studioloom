@@ -1945,11 +1945,11 @@ systems:
     change_impacts: Changes to generation_runs schema affect pipeline-health and cost-alert jobs. Changes to activity_blocks affect hygiene jobs and stale watchdog. Changes to system_alerts affect both dashboards.
 
   - id: content-safety
-    name: Content Safety & Moderation (Dimensions3 Phase 5)
+    name: Content Safety & Moderation (Dimensions3 Phases 5 + 6)
     category: Student Experience
     status: active
-    currentVersion: 1
-    summary: "Phase 5 COMPLETE + Checkpoint 5.1 partial (13 Apr 2026). 7/11 verification pass, 4 deferred. 3 bugs fixed: moderation_status stuck pending (progress route clean-status guard), missing student UI banner (moderationError not rendered), NM CompetencyPulse unmoderated choke point (added client+server). Hash-and-skip optimization (SHA-256 dedup eliminates ~80-90% redundant Haiku calls from autosave). Two-layer moderation: Layer 1 client-side text filter + NSFW.js image filter. Layer 2 server-side Haiku moderation via moderate-and-log.ts wired into 16 API endpoints."
+    currentVersion: 2
+    summary: "Phases 5 + 6 COMPLETE. Checkpoint 5.1 CLOSED at 9/11 (14 Apr 2026) — Steps 1–5, 8, 9 passed; Steps 6–7 deferred (need test image fixtures). Phase 6A teacher safety alert feed (/teacher/safety/alerts with filters, severity grouping, acknowledge/escalate/false-positive actions), 6B nav badge (unreviewed critical count), 6C ingestion pipeline safety scan (upload-level moderate-and-log producing moderation_hold). Step 9 surfaced NULL class_id × RLS silent-filter bug (FU-N) — resolved for test data but FU-N remains open as P1 live safety gap. Nav longest-prefix fix so Alerts/Badges don't both highlight. Two-layer moderation: Layer 1 client-side text filter + NSFW.js image filter. Layer 2 server-side Haiku moderation via moderate-and-log.ts wired into 15 API endpoints + ingestion."
     depends_on: [auth-system, student-experience]
     affects: [student-experience, teacher-dashboard, design-assistant]
     docs:
@@ -1997,7 +1997,7 @@ systems:
         - file: src/components/quest/EvidenceCapture.tsx
           role: "Quest photo evidence. Wire checkClientImage() for photo type before fetch."
       notes: "Wire checkClientSide() into 7 text choke points and checkClientImage() into 3 image choke points in Phase 5E. ResponseInput.tsx is a renderer that delegates to usePageResponses — not a direct choke point. GalleryFeedbackView.tsx is a reader (GET only) — peer review POST is in GalleryBrowser.tsx."
-    future_needs: "5G teacher safety feed, 5H rollback controls, 5I ingestion safety scan. Self-harm list expansion. Additional language support. Configurable blocklists per school."
+    future_needs: "FU-N fix: backfill NULL class_id on moderation rows + add NOT NULL constraint once safe. Rollback controls (5H). Self-harm list expansion. Additional language support. Configurable blocklists per school. Steps 6–7 image moderation verification (needs test image fixtures). Cross-cutting: FU-O/P/R Access Model v2 refactor would change RLS predicates on student_content_moderation_log."
     adrs: []
     os_seam: ready
     change_impacts: "Changes to student submission hooks/components must route through checkClientSide(). Changes to moderation severity→action map affect teacher alert feed. New student input components must be added to wiring_map. Changes to blocklists require re-vendoring."
