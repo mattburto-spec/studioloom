@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireStudentAuth } from "@/lib/auth/student";
 import { v4 as uuid } from "uuid";
+import { moderateAndLog } from "@/lib/content-safety/moderate-and-log";
 
 /**
  * Student NM Assessment Submission API
@@ -170,6 +171,19 @@ export async function POST(request: NextRequest) {
       { error: "Failed to save assessment", detail: error.message },
       { status: 500 }
     );
+  }
+
+  // Fire-and-forget server-side moderation on comment text
+  const allComments = assessments
+    .filter((a) => a.comment)
+    .map((a) => a.comment)
+    .join(" ");
+  if (allComments.trim()) {
+    moderateAndLog(allComments, {
+      studentId,
+      classId: classId || "unknown",
+      source: "student_progress" as const,
+    }).catch((err) => console.error("[nm-assessment] moderation error:", err));
   }
 
   return NextResponse.json({ success: true, count: rows.length });

@@ -57,6 +57,18 @@ export function CompetencyPulse({
 
   const handleSubmit = async () => {
     if (!allRated) return;
+
+    // Client-side content safety check on reflection text
+    if (reflection.trim()) {
+      const { checkClientSide, MODERATION_MESSAGES, detectLanguage } = await import("@/lib/content-safety/client-filter");
+      const check = checkClientSide(reflection);
+      if (!check.ok) {
+        const lang = detectLanguage(reflection);
+        setError(MODERATION_MESSAGES[lang === "zh" ? "zh" : "en"]);
+        return;
+      }
+    }
+
     setLoading(true);
     setError(null);
     try {
