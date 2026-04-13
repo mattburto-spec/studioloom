@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { withErrorHandler } from "@/lib/api/error-handler";
 import { requireStudentAuth } from "@/lib/auth/student";
+import { moderateAndLog } from "@/lib/content-safety/moderate-and-log";
 
 /**
  * Open Studio Session API
@@ -87,6 +88,15 @@ export const POST = withErrorHandler("student/open-studio/session:POST", async (
     );
   }
 
+  // Phase 5F: Fire-and-forget moderation — private session content
+  if (focusArea && focusArea.length > 0) {
+    moderateAndLog(focusArea, {
+      classId: '',
+      studentId,
+      source: 'tool_session' as const,
+    }).catch((err: unknown) => console.error('[open-studio/session] moderation error:', err));
+  }
+
   return NextResponse.json({ session });
 });
 
@@ -155,6 +165,16 @@ export const PATCH = withErrorHandler("student/open-studio/session:PATCH", async
 
   if (end) {
     updates.ended_at = new Date().toISOString();
+  }
+
+  // Phase 5F: Fire-and-forget moderation — private session content
+  const textToModerate = [reflection, activityEntry?.description].filter(Boolean).join(' ');
+  if (textToModerate.length > 0) {
+    moderateAndLog(textToModerate, {
+      classId: '',
+      studentId,
+      source: 'tool_session' as const,
+    }).catch((err: unknown) => console.error('[open-studio/session] moderation error:', err));
   }
 
   const { data: updated, error } = await supabase

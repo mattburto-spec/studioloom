@@ -9,6 +9,7 @@ import {
 } from "@/lib/design-assistant/conversation";
 import { rateLimit, DESIGN_ASSISTANT_LIMITS } from "@/lib/rate-limit";
 import { requireStudentAuth } from "@/lib/auth/student";
+import { moderateAndLog } from "@/lib/content-safety/moderate-and-log";
 
 /**
  * POST /api/student/design-assistant
@@ -131,6 +132,13 @@ export const POST = withErrorHandler("student/design-assistant:POST", async (req
       const conversation = await createConversation(studentId, unitId, pageId);
       activeConversationId = conversation.id;
     }
+
+    // Phase 5F: Fire-and-forget moderation — private AI conversation
+    moderateAndLog(message.trim(), {
+      classId: '',
+      studentId,
+      source: 'tool_session' as const,
+    }).catch((err: unknown) => console.error('[design-assistant] moderation error:', err));
 
     // Generate Socratic response
     const result = await generateResponse(

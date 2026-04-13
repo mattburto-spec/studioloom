@@ -30,6 +30,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireStudentAuth } from "@/lib/auth/student";
 import { rateLimit } from "@/lib/rate-limit";
 import * as Sentry from "@sentry/nextjs";
+import { moderateAndLog } from "@/lib/content-safety/moderate-and-log";
 
 interface StudentContract {
   what: string;
@@ -187,6 +188,19 @@ export async function PATCH(request: NextRequest) {
         { error: "Failed to update contract" },
         { status: 500 }
       );
+    }
+
+    // Phase 5F: Fire-and-forget moderation — private contract content
+    const contractText = [
+      mergedContract.what, mergedContract.who_for, mergedContract.done_looks_like,
+      mergedContract.milestones_summary, mergedContract.help_needed, mergedContract.success_criteria,
+    ].filter(Boolean).join(' ');
+    if (contractText.length > 0) {
+      moderateAndLog(contractText, {
+        classId: '',
+        studentId,
+        source: 'quest_evidence' as const,
+      }).catch((err: unknown) => console.error('[quest/contract] moderation error:', err));
     }
 
     return NextResponse.json(updated);

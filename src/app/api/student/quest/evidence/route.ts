@@ -3,6 +3,7 @@ import { requireStudentAuth } from '@/lib/auth/student';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { rateLimit } from '@/lib/rate-limit';
 import type { EvidenceType } from '@/lib/quest/types';
+import { moderateAndLog } from '@/lib/content-safety/moderate-and-log';
 
 /**
  * GET — List evidence for a quest journey
@@ -168,6 +169,15 @@ export async function POST(request: NextRequest) {
         { error: 'Failed to submit evidence' },
         { status: 500 }
       );
+    }
+
+    // Phase 5F: Fire-and-forget moderation — private quest evidence
+    if (content && typeof content === 'string' && content.length > 0) {
+      moderateAndLog(content, {
+        classId: '',
+        studentId,
+        source: 'quest_evidence' as const,
+      }).catch((err: unknown) => console.error('[quest/evidence] moderation error:', err));
     }
 
     // Increment evidence count on journey

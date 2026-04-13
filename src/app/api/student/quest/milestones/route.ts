@@ -36,6 +36,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireStudentAuth } from "@/lib/auth/student";
 import { rateLimit } from "@/lib/rate-limit";
 import * as Sentry from "@sentry/nextjs";
+import { moderateAndLog } from "@/lib/content-safety/moderate-and-log";
 
 export interface Milestone {
   id: string;
@@ -226,6 +227,16 @@ export async function POST(request: NextRequest) {
         { error: "Failed to create milestone" },
         { status: 500 }
       );
+    }
+
+    // Phase 5F: Fire-and-forget moderation — private milestone content
+    const textToModerate = [title, description].filter(Boolean).join(' ');
+    if (textToModerate.length > 0) {
+      moderateAndLog(textToModerate, {
+        classId: '',
+        studentId,
+        source: 'quest_evidence' as const,
+      }).catch((err: unknown) => console.error('[quest/milestones] moderation error:', err));
     }
 
     return NextResponse.json(newMilestone, { status: 201 });

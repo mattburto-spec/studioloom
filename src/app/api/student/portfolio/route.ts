@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { withErrorHandler } from "@/lib/api/error-handler";
 import { requireStudentAuth } from "@/lib/auth/student";
+import { moderateAndLog } from "@/lib/content-safety/moderate-and-log";
 
 // GET: List portfolio entries
 export const GET = withErrorHandler("student/portfolio:GET", async (request: NextRequest) => {
@@ -54,6 +55,16 @@ export const POST = withErrorHandler("student/portfolio:POST", async (request: N
       { error: "Invalid entry type" },
       { status: 400 }
     );
+  }
+
+  // Phase 5F: Fire-and-forget moderation — private portfolio content
+  const textToModerate = [content, linkTitle].filter(Boolean).join(' ');
+  if (textToModerate.length > 0) {
+    moderateAndLog(textToModerate, {
+      classId: '',
+      studentId,
+      source: 'portfolio' as const,
+    }).catch((err: unknown) => console.error('[portfolio] moderation error:', err));
   }
 
   const supabase = createAdminClient();

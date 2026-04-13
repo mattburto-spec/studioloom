@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireStudentAuth } from '@/lib/auth/student';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { rateLimit } from '@/lib/rate-limit';
+import { moderateAndLog } from '@/lib/content-safety/moderate-and-log';
 
 /**
  * POST — Submit final reflection as evidence
@@ -54,6 +55,28 @@ export async function POST(request: NextRequest) {
         { error: `Cannot submit reflection in ${journey.phase} phase` },
         { status: 400 }
       );
+    }
+
+    // Phase 5F: Synchronous moderation gate — peer-visible reflection
+    const textToModerate = typeof reflection === 'string'
+      ? reflection
+      : JSON.stringify(reflection);
+    if (textToModerate.length > 2) {
+      try {
+        const { allow } = await moderateAndLog(textToModerate, {
+          classId: '',
+          studentId,
+          source: 'quest_sharing' as const,
+        }, { gate: true });
+        if (!allow) {
+          return NextResponse.json(
+            { error: "This reflection can't be shared right now. Please revise and try again." },
+            { status: 403 }
+          );
+        }
+      } catch (modErr) {
+        console.error('[quest/sharing] moderation failed, allowing through:', modErr);
+      }
     }
 
     // Store reflection as evidence

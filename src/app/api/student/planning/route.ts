@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireStudentAuth } from "@/lib/auth/student";
+import { moderateAndLog } from "@/lib/content-safety/moderate-and-log";
 
 // Reverse mapping for pre-migration-011 fallback
 const PAGE_ID_TO_NUMBER: Record<string, number> = {
@@ -60,6 +61,15 @@ export async function POST(request: NextRequest) {
       { error: "unitId and title required" },
       { status: 400 }
     );
+  }
+
+  // Phase 5F: Fire-and-forget moderation — private planning content
+  if (title.length > 0) {
+    moderateAndLog(title, {
+      classId: '',
+      studentId,
+      source: 'student_progress' as const,
+    }).catch((err: unknown) => console.error('[planning] moderation error:', err));
   }
 
   const supabase = createAdminClient();
@@ -165,6 +175,15 @@ export async function PATCH(request: NextRequest) {
   if (title) updates.title = title;
   if (startDate !== undefined) updates.start_date = startDate || null;
   if (targetDate !== undefined) updates.target_date = targetDate || null;
+
+  // Phase 5F: Fire-and-forget moderation — private planning content
+  if (title && title.length > 0) {
+    moderateAndLog(title, {
+      classId: '',
+      studentId,
+      source: 'student_progress' as const,
+    }).catch((err: unknown) => console.error('[planning] moderation error:', err));
+  }
 
   const { error } = await supabase
     .from("planning_tasks")
