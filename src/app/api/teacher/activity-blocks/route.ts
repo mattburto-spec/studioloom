@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
   const offset = parseInt(url.searchParams.get("offset") || "0", 10);
   const sourceType = url.searchParams.get("source_type") || undefined;
   const archived = url.searchParams.get("archived") === "true";
+  const status = url.searchParams.get("status") || undefined;
 
   try {
     const { blocks, count } = await listActivityBlocks(db, auth.teacherId, {
@@ -31,6 +32,7 @@ export async function GET(request: NextRequest) {
       offset,
       sourceType,
       isArchived: archived,
+      verified: status === "verified" ? true : undefined,
     });
 
     return NextResponse.json({ blocks, count, limit, offset });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, type DragEvent } from "react";
+import { useState, useEffect, useCallback, type DragEvent } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { nanoid } from "nanoid";
 import type { ActivitySection, ResponseType } from "@/types";
@@ -86,6 +86,71 @@ const CATEGORIES: Record<BlockCategory, CategoryMeta> = {
     borderColor: "border-rose-200",
   },
 };
+
+// ─────────────────────────────────────────────────────────────────
+// "My Blocks" helpers — convert DB activity_blocks to BlockDefinitions
+// ─────────────────────────────────────────────────────────────────
+
+/** Map activity_category → BlockCategory for accordion grouping */
+function mapActivityCategory(cat: string | null): BlockCategory {
+  switch (cat) {
+    case "assessment": return "assessment";
+    case "making": case "planning": case "journey": return "response";
+    case "discussion": case "critique": return "collaboration";
+    default: return "custom";
+  }
+}
+
+/** Map phase string from DB → editor phase */
+function mapPhase(phase: string | null): BlockDefinition["defaultPhase"] {
+  switch (phase) {
+    case "plan": case "investigate": return "miniLesson";
+    case "develop": case "create": return "workTime";
+    case "evaluate": case "reflect": return "debrief";
+    default: return "workTime";
+  }
+}
+
+/** Map time_weight → approximate duration in minutes */
+function timeWeightToMinutes(tw: string | null): number {
+  switch (tw) {
+    case "quick": return 5;
+    case "moderate": return 10;
+    case "extended": return 20;
+    default: return 10;
+  }
+}
+
+interface ActivityBlockRow {
+  id: string;
+  title: string;
+  description: string | null;
+  prompt: string;
+  bloom_level: string | null;
+  time_weight: string | null;
+  grouping: string | null;
+  phase: string | null;
+  activity_category: string | null;
+  materials_needed: string[] | null;
+}
+
+function activityBlockToDefinition(block: ActivityBlockRow): BlockDefinition {
+  return {
+    id: `myblock-${block.id}`,
+    label: block.title,
+    icon: "",
+    category: mapActivityCategory(block.activity_category),
+    description: block.description || block.prompt.slice(0, 80),
+    defaultPhase: mapPhase(block.phase),
+    source: "custom",
+    create: () => ({
+      activityId: nanoid(8),
+      prompt: block.prompt,
+      responseType: "text" as ResponseType,
+      durationMinutes: timeWeightToMinutes(block.time_weight),
+    }),
+  };
+}
 
 export const BLOCK_LIBRARY: BlockDefinition[] = [
   // ── Student Response ──
@@ -459,19 +524,41 @@ export default function BlockPalette({
 }: BlockPaletteProps) {
   const [search, setSearch] = useState("");
   const [expandedCategory, setExpandedCategory] = useState<BlockCategory | null>("response");
+  const [activeTab, setActiveTab] = useState<"templates" | "my-blocks">("templates");
+  const [myBlocks, setMyBlocks] = useState<BlockDefinition[]>([]);
+  const [myBlocksLoading, setMyBlocksLoading] = useState(false);
+  const [myBlocksFetched, setMyBlocksFetched] = useState(false);
+
+  // Fetch teacher's blocks when "My Blocks" tab is first opened
+  useEffect(() => {
+    if (activeTab !== "my-blocks" || myBlocksFetched) return;
+    setMyBlocksLoading(true);
+    fetch("/api/teacher/activity-blocks?status=verified&limit=100")
+      .then((r) => (r.ok ? r.json() : { blocks: [] }))
+      .then(({ blocks }) => {
+        setMyBlocks(
+          (blocks || []).map((b: ActivityBlockRow) => activityBlockToDefinition(b))
+        );
+        setMyBlocksFetched(true);
+      })
+      .catch(() => setMyBlocks([]))
+      .finally(() => setMyBlocksLoading(false));
+  }, [activeTab, myBlocksFetched]);
 
   // Merge custom blocks if provided
   const allBlocks = customBlocks
     ? mergeBlocks(BLOCK_LIBRARY, customBlocks)
     : BLOCK_LIBRARY;
 
+  const displayBlocks = activeTab === "templates" ? allBlocks : myBlocks;
+
   const filteredBlocks = search
-    ? allBlocks.filter(
+    ? displayBlocks.filter(
         (b) =>
           b.label.toLowerCase().includes(search.toLowerCase()) ||
           b.description.toLowerCase().includes(search.toLowerCase())
       )
-    : allBlocks;
+    : displayBlocks;
 
   const handleAdd = useCallback(
     (block: BlockDefinition) => {
@@ -498,7 +585,7 @@ export default function BlockPalette({
             Blocks
           </h3>
           <span className="text-[10px] text-gray-400 tabular-nums">
-            {allBlocks.length}
+            {displayBlocks.length}
           </span>
         </div>
 
@@ -524,12 +611,64 @@ export default function BlockPalette({
             className="w-full pl-8 pr-3 py-1.5 text-xs bg-white border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-transparent"
           />
         </div>
+
+        {/* Tab bar */}
+        <div className="flex gap-1 mt-2">
+          <button
+            onClick={() => setActiveTab("templates")}
+            className={`flex-1 px-2 py-1.5 text-[11px] font-semibold rounded-md transition-all ${
+              activeTab === "templates"
+                ? "bg-indigo-50 text-indigo-600 border border-indigo-200"
+                : "text-gray-500 hover:bg-gray-100 border border-transparent"
+            }`}
+          >
+            Templates
+          </button>
+          <button
+            onClick={() => setActiveTab("my-blocks")}
+            className={`flex-1 px-2 py-1.5 text-[11px] font-semibold rounded-md transition-all ${
+              activeTab === "my-blocks"
+                ? "bg-rose-50 text-rose-600 border border-rose-200"
+                : "text-gray-500 hover:bg-gray-100 border border-transparent"
+            }`}
+          >
+            My Blocks
+            {myBlocksFetched && myBlocks.length > 0 && (
+              <span className="ml-1 text-[10px] tabular-nums opacity-70">
+                {myBlocks.length}
+              </span>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto px-3 pb-3">
-        {/* AI Suggested blocks */}
-        {suggestedBlocks.length > 0 && !search && (
+        {/* My Blocks loading / empty state */}
+        {activeTab === "my-blocks" && myBlocksLoading && (
+          <div className="flex items-center justify-center py-8">
+            <div className="w-4 h-4 border-2 border-rose-400 border-t-transparent rounded-full animate-spin" />
+            <span className="ml-2 text-xs text-gray-400">Loading...</span>
+          </div>
+        )}
+        {activeTab === "my-blocks" && !myBlocksLoading && myBlocksFetched && myBlocks.length === 0 && !search && (
+          <div className="text-center py-8 px-4">
+            <div className="text-2xl mb-2">📚</div>
+            <p className="text-xs text-gray-500 mb-2">
+              No blocks in your library yet.
+            </p>
+            <p className="text-[11px] text-gray-400">
+              Upload documents at{" "}
+              <a href="/teacher/library" className="text-rose-500 hover:underline">
+                Library
+              </a>{" "}
+              to extract reusable activity blocks.
+            </p>
+          </div>
+        )}
+
+        {/* AI Suggested blocks — templates tab only */}
+        {activeTab === "templates" && suggestedBlocks.length > 0 && !search && (
           <div className="mb-3">
             <div className="flex items-center gap-1.5 mb-1.5">
               <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />

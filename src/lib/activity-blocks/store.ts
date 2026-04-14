@@ -133,9 +133,11 @@ export async function listActivityBlocks(
     offset?: number;
     sourceType?: string;
     isArchived?: boolean;
+    /** When true, only return teacher_verified blocks OR manual blocks */
+    verified?: boolean;
   } = {}
 ): Promise<{ blocks: ActivityBlock[]; count: number }> {
-  const { limit = 50, offset = 0, sourceType, isArchived = false } = options;
+  const { limit = 50, offset = 0, sourceType, isArchived = false, verified } = options;
 
   let query = supabase
     .from("activity_blocks")
@@ -147,6 +149,11 @@ export async function listActivityBlocks(
 
   if (sourceType) {
     query = query.eq("source_type", sourceType);
+  }
+
+  if (verified) {
+    // Include manually created blocks (always trusted) + teacher-verified extracted blocks
+    query = query.or("teacher_verified.eq.true,source_type.eq.manual");
   }
 
   const { data, error, count } = await query;
