@@ -181,7 +181,7 @@ export async function POST(request: NextRequest) {
   if (allComments.trim()) {
     moderateAndLog(allComments, {
       studentId,
-      classId: classId || "unknown",
+      classId: classId || '',
       source: "student_progress" as const,
     }).catch((err) => console.error("[nm-assessment] moderation error:", err));
   }
