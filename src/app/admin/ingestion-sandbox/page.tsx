@@ -167,7 +167,7 @@ export default function IngestionSandboxPage() {
         });
         const data = await res.json();
         if (!res.ok) {
-          alert(`Upload failed: ${data.error || data.message || "unknown"}`);
+          alert(`Upload failed: ${data.error || "unknown"}${data.message ? `\n\nDetail: ${data.message}` : ""}`);
           return;
         }
         setState({

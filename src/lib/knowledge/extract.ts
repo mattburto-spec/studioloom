@@ -16,17 +16,35 @@ export interface ExtractedDoc {
 
 /**
  * Extract text from a PDF buffer.
+ *
+ * Uses pdfjs-dist legacy build directly (no canvas dependency) so it works
+ * in Vercel serverless. pdf-parse v2 depends on @napi-rs/canvas which only
+ * ships darwin-arm64 binaries locally and crashes on Linux.
  */
 export async function extractFromPDF(
   buffer: Buffer,
   filename: string
 ): Promise<ExtractedDoc> {
-  const { PDFParse } = await import("pdf-parse");
-  const parser = new PDFParse({ data: new Uint8Array(buffer) });
-  const result = await parser.getText();
-  await parser.destroy();
+  const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const data = new Uint8Array(buffer);
+  const loadingTask = pdfjsLib.getDocument({
+    data,
+    useWorkerFetch: false,
+    isEvalSupported: false,
+    useSystemFonts: true,
+    disableFontFace: true,
+  });
+  const doc = await loadingTask.promise;
 
-  const text = result.text;
+  const pageTexts: string[] = [];
+  for (let i = 1; i <= doc.numPages; i++) {
+    const page = await doc.getPage(i);
+    const content = await page.getTextContent();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pageText = content.items.map((item: any) => item.str).join(" ");
+    pageTexts.push(pageText);
+  }
+  const text = pageTexts.join("\n\n");
 
   // Split by double newlines to approximate sections
   const paragraphs = text
