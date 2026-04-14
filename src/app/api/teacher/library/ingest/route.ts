@@ -13,7 +13,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { runIngestionPipeline } from "@/lib/ingestion/pipeline";
+import { extractDocument } from "@/lib/knowledge/extract";
 import type { PassConfig, CopyrightFlag } from "@/lib/ingestion/types";
+
+const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
+const ACCEPTED_EXTENSIONS = ["pdf", "docx", "pptx", "txt", "md"];
 
 async function getTeacherId(request: NextRequest): Promise<string | null> {
   const supabase = createServerClient(
@@ -40,20 +44,71 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  let body: { rawText?: string; copyrightFlag?: CopyrightFlag; sandboxMode?: boolean };
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
-  }
+  const contentType = request.headers.get("content-type") || "";
+  const isMultipart = contentType.includes("multipart/form-data");
 
-  const { rawText, copyrightFlag, sandboxMode } = body;
+  let rawText: string;
+  let copyrightFlag: CopyrightFlag | undefined;
+  let sandboxMode = false;
 
-  if (!rawText || typeof rawText !== "string" || rawText.trim().length === 0) {
-    return NextResponse.json(
-      { error: "rawText is required and must be non-empty" },
-      { status: 400 }
-    );
+  if (isMultipart) {
+    // ── Multipart: extract text from uploaded file ──
+    const formData = await request.formData();
+    const file = formData.get("file") as File | null;
+    copyrightFlag = (formData.get("copyrightFlag") as CopyrightFlag) || undefined;
+    sandboxMode = formData.get("sandboxMode") === "true";
+
+    if (!file) {
+      return NextResponse.json({ error: "No file provided" }, { status: 400 });
+    }
+    if (file.size > MAX_FILE_SIZE) {
+      return NextResponse.json({ error: "File too large (max 20MB)" }, { status: 413 });
+    }
+    const ext = file.name.toLowerCase().split(".").pop() || "";
+    if (!ACCEPTED_EXTENSIONS.includes(ext)) {
+      return NextResponse.json(
+        { error: `Unsupported file type: .${ext}. Accepted: ${ACCEPTED_EXTENSIONS.map(e => `.${e}`).join(", ")}` },
+        { status: 400 }
+      );
+    }
+
+    try {
+      const buffer = Buffer.from(await file.arrayBuffer());
+      if (ext === "txt" || ext === "md") {
+        rawText = buffer.toString("utf-8");
+      } else {
+        const extracted = await extractDocument(buffer, file.name, file.type);
+        rawText = extracted.rawText;
+      }
+    } catch (e) {
+      return NextResponse.json(
+        { error: "Failed to extract text from file", message: e instanceof Error ? e.message : "Unknown error" },
+        { status: 422 }
+      );
+    }
+
+    if (!rawText || rawText.trim().length === 0) {
+      return NextResponse.json({ error: "Could not extract any text from the uploaded file" }, { status: 400 });
+    }
+  } else {
+    // ── JSON: existing path (unchanged) ──
+    let body: { rawText?: string; copyrightFlag?: CopyrightFlag; sandboxMode?: boolean };
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    }
+
+    rawText = body.rawText || "";
+    copyrightFlag = body.copyrightFlag;
+    sandboxMode = body.sandboxMode === true;
+
+    if (!rawText || typeof rawText !== "string" || rawText.trim().length === 0) {
+      return NextResponse.json(
+        { error: "rawText is required and must be non-empty" },
+        { status: 400 }
+      );
+    }
   }
 
   if (rawText.length > 500_000) {
@@ -68,7 +123,7 @@ export async function POST(request: NextRequest) {
     supabaseClient: adminClient,
     teacherId,
     apiKey: process.env.ANTHROPIC_API_KEY,
-    sandboxMode: sandboxMode === true,
+    sandboxMode,
   };
 
   try {
@@ -108,7 +163,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json(result, {
+    // Pass 0 intent-guard: suggest redirect to import when document is a scheme of work
+    const response: Record<string, unknown> = { ...result };
+    if (result.classification.documentType === "scheme_of_work") {
+      response.suggestedRedirect = "import";
+    }
+
+    return NextResponse.json(response, {
       headers: { "Cache-Control": "private, no-cache" },
     });
   } catch (e) {
