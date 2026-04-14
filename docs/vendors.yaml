@@ -1,0 +1,179 @@
+# Vendor / DPA registry — canonical list of third-party services StudioLoom sends data to.
+# Update convention: any new vendor added to the codebase MUST get an entry here before the code
+# that integrates it is marked production-ready. Verified quarterly.
+#
+# owner is always Matt for now (solo-dev era). Review_date is the next quarterly check.
+
+owner: matt
+last_reviewed: 2026-04-14
+next_review: 2026-07-14
+
+vendors:
+
+  anthropic:
+    name: Anthropic
+    role: LLM provider — Claude Sonnet 4 (generation), Haiku 4.5 (mentoring, moderation)
+    status: integrated
+    region: us
+    data_sent:
+      - category: teacher_content
+        fields: [units.content_data, lessons.content, knowledge_uploads.content]
+        basis: legitimate_interest
+      - category: student_voice_text
+        fields: [design_conversation_turns.content, student_responses.response_text]
+        basis: coppa_art_6
+      - category: safety_sensitive_text
+        fields: [moderation_reports.content, design_conversation_turns.content]
+        basis: coppa_art_6
+      - category: system_metadata
+        fields: [unit_type, framework, class_id]
+        basis: pseudonymous
+    dpa_signed: null
+    subprocessors: [aws]
+    student_data_eligible: true
+    certifications: [soc2_type2]
+    contract_type: standard
+    notes: "DPA pending — Anthropic offers Zero Data Retention addendum; needs signing"
+
+  supabase:
+    name: Supabase
+    role: Database + auth + storage
+    status: integrated
+    region: us
+    data_sent:
+      - category: pii_identifiers
+        fields: [auth.users.email, students.display_name, teacher_profiles.full_name]
+        basis: coppa_art_6
+      - category: student_voice_text
+        fields: [design_conversation_turns.content, student_responses.response_text]
+        basis: coppa_art_6
+      - category: student_voice_images
+        fields: [portfolio_snapshots.image_url, gallery_submissions.image_url]
+        basis: coppa_art_6
+      - category: teacher_content
+        fields: [units.content_data, lessons.content, knowledge_uploads.content]
+        basis: contract
+      - category: auth_sessions
+        fields: [auth.sessions, auth.refresh_tokens]
+        basis: contract
+    dpa_signed: null
+    subprocessors: [aws, cloudflare]
+    student_data_eligible: true
+    certifications: [soc2_type2, iso27001]
+    contract_type: standard
+    notes: "DPA pending — Supabase offers standard DPA at supabase.com/legal/dpa"
+
+  voyage:
+    name: Voyage AI
+    role: Embeddings — voyage-3.5 (1024-dim vectors) for RAG retrieval and semantic search
+    status: integrated
+    region: us
+    data_sent:
+      - category: teacher_content
+        fields: [knowledge_uploads.content, activity_blocks.instruction_text]
+        basis: legitimate_interest
+    dpa_signed: null
+    subprocessors: []
+    student_data_eligible: false
+    certifications: []
+    contract_type: standard
+    notes: "DPA pending — no student text sent today; only teacher-uploaded knowledge base content"
+
+  vercel:
+    name: Vercel
+    role: Hosting + edge compute + build + logs
+    status: integrated
+    region: multi
+    data_sent:
+      - category: system_metadata
+        fields: [request paths, response status codes, deployment metadata]
+        basis: pseudonymous
+      - category: error_reports
+        fields: [stack traces, request context]
+        basis: legitimate_interest
+    dpa_signed: null
+    subprocessors: [aws, cloudflare]
+    student_data_eligible: false
+    certifications: [soc2_type2]
+    contract_type: standard
+    notes: "DPA pending — Vercel offers DPA at vercel.com/legal/dpa; no payloads stored, only infra logs"
+
+  groq:
+    name: Groq
+    role: Fallback LLM — intended primary fallback for Anthropic
+    status: not_integrated
+    region: us
+    data_sent: []
+    dpa_signed: null
+    subprocessors: []
+    student_data_eligible: false
+    certifications: []
+    contract_type: free_tier
+    notes: "FU-Y — integration never shipped; credential resolution code exists but no call sites"
+
+  gemini:
+    name: Google Gemini
+    role: Fallback LLM — intended secondary fallback after Groq
+    status: not_integrated
+    region: us
+    data_sent: []
+    dpa_signed: null
+    subprocessors: [gcp]
+    student_data_eligible: false
+    certifications: []
+    contract_type: free_tier
+    notes: "FU-Y — integration never shipped; credential resolution code exists but no call sites"
+
+  resend:
+    name: Resend
+    role: Transactional email — cost alert notifications to admin
+    status: integrated
+    region: us
+    data_sent:
+      - category: email_content
+        fields: [cost alert subject, cost alert body]
+        basis: contract
+      - category: pii_identifiers
+        fields: [teacher email address as recipient]
+        basis: contract
+    dpa_signed: null
+    subprocessors: [aws]
+    student_data_eligible: false
+    certifications: []
+    contract_type: standard
+    notes: "DPA pending — teacher-only comms; FU-M notes live test not yet performed"
+
+  sentry:
+    name: Sentry
+    role: Error tracking + performance monitoring
+    status: integrated
+    region: us
+    data_sent:
+      - category: error_reports
+        fields: [stack traces, error messages, breadcrumbs]
+        basis: legitimate_interest
+      - category: system_metadata
+        fields: [request URLs, browser metadata, performance traces]
+        basis: pseudonymous
+    dpa_signed: null
+    subprocessors: [gcp, cloudflare]
+    student_data_eligible: false
+    certifications: [soc2_type2]
+    contract_type: standard
+    notes: "DPA pending — PII scrubbing should be enabled in dashboard; verify quarterly"
+
+  elevenlabs:
+    name: ElevenLabs
+    role: Text-to-speech — reads lesson content aloud for student accessibility
+    status: integrated
+    region: us
+    data_sent:
+      - category: teacher_content
+        fields: [lesson prompts, learning goals, introduction text]
+        basis: legitimate_interest
+    dpa_signed: null
+    subprocessors: []
+    student_data_eligible: false
+    certifications: []
+    contract_type: standard
+    notes: "TTS route sends teacher-authored content only; no student-authored text reaches ElevenLabs"

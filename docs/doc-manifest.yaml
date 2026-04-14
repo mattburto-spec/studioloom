@@ -1600,6 +1600,36 @@ docs:
     category: open-studio
     last_verified: "2026-04-11"
 
+  - path: docs/data-classification-taxonomy.md
+    title: "Data Classification Taxonomy"
+    purpose: "6-axis data classification system (pii, student_voice, safety_sensitive, ai_exportable, retention_days, basis) feeding schema-registry.yaml"
+    category: root
+    last_verified: "2026-04-14"
+
+  - path: docs/feature-flags.yaml
+    title: "Feature Flag & Secret Registry"
+    purpose: "Runtime feature-flag + secret registry — 15 flags, 12 secrets"
+    category: root
+    last_verified: "2026-04-14"
+
+  - path: docs/feature-flags-taxonomy.md
+    title: "Feature Flag & Secret Taxonomy"
+    purpose: "Field definitions and classification rules for feature-flags.yaml"
+    category: root
+    last_verified: "2026-04-14"
+
+  - path: docs/vendors.yaml
+    title: "Vendor / DPA Registry"
+    purpose: "Third-party vendor / DPA registry — 9 vendors with data categories and legal bases"
+    category: root
+    last_verified: "2026-04-14"
+
+  - path: docs/vendors-taxonomy.md
+    title: "Vendor / DPA Registry Taxonomy"
+    purpose: "Field definitions, canonical enums, and update convention for vendors.yaml"
+    category: root
+    last_verified: "2026-04-14"
+
 # --- SUMMARY STATISTICS ---
 summary:
   total_documents: 233
