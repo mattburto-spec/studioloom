@@ -238,7 +238,7 @@ Partial / adjacent:
 - Referenced from privacy policy (once written)
 - Referenced from DSR runbook (GOV-2) — must notify sub-processors on delete
 
-**Effort:** 2 hours. 4 vendors today, maybe 6 once Resend/Sentry land.
+**Effort:** 2 hours. 9 vendors today (2026-04-14 audit): anthropic, supabase, voyage, vercel, groq, gemini, resend, sentry, elevenlabs.
 
 **Why now:** Zero code change. Unblocks conversations with any interested school.
 
