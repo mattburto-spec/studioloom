@@ -1046,3 +1046,48 @@ RLS-coverage scanner (`scan-rls-coverage.py`) added to prevent recurrence.
 4. If some values must remain admin-tunable: document which in schema-registry with "load-bearing — do not remove" note; decide if they belong in `admin_settings` (operational) or a new `scoring_weights` table (quality-tuning).
 
 **Definition of done:** Either full deletion of the ai_model_config UI/table with quality-evaluator refactored to use frozen/FormatProfile inputs, OR a documented explanation of what's still load-bearing and why.
+
+---
+
+## FU-Library-B1 — Wire `/teacher/library/import/page.tsx` stub `handleAccept` (P1)
+**Surfaced:** Library Card File Upload Phase A (14 Apr 2026)
+**Target phase:** Library Phase B
+
+**Issue:** The import page has a stub `handleAccept` callback that displays the reconstructed unit preview but does not persist it. After a teacher uploads a scheme of work and the pipeline returns `{ reconstruction, contentData, ingestion }`, the teacher can review the result but cannot save it as a real unit.
+
+**Suggested investigation:**
+1. Wire `handleAccept` to POST to a new or existing unit-creation endpoint that accepts `contentData` and creates a `units` row + `unit_pages` rows.
+2. Decide whether the created unit should be a draft or immediately published.
+3. After save, redirect to the unit detail page (`/teacher/units/[unitId]`).
+
+**Definition of done:** Teacher can upload a document on the library import card, review the reconstructed unit, click Accept, and land on a saved unit detail page.
+
+---
+
+## FU-Library-B2 — Retire legacy `/teacher/units/import` + `/api/teacher/convert-lesson` (P2)
+**Surfaced:** Library Card File Upload Phase A (14 Apr 2026)
+**Target phase:** Library Phase B (depends on FU-Library-B1)
+
+**Issue:** The old import flow at `/teacher/units/import` and its backing API at `/api/teacher/convert-lesson` (currently returns 410 Gone) are superseded by the new `/teacher/library/import` flow. Once FU-Library-B1 lands and the new import path is end-to-end functional, the old routes should be deleted to avoid confusion.
+
+**Suggested investigation:**
+1. Confirm no other code references `/teacher/units/import` or `/api/teacher/convert-lesson`.
+2. Delete the page and API route files.
+3. Remove any nav links or redirects pointing to the old paths.
+
+**Definition of done:** Old import routes deleted, no references remain, no 404s in nav.
+
+---
+
+## FU-Library-B3 — Relocate `extractDocument` to shared location (P3)
+**Surfaced:** Library Card File Upload Phase A (14 Apr 2026)
+**Target phase:** Post-Library Phase B
+
+**Issue:** `extractDocument` lives in `src/lib/knowledge/extract.ts` but is now consumed by both the knowledge/ingestion pipeline AND the unit-conversion/import pipeline. Its current location implies it belongs to the knowledge subsystem, but it's a general-purpose utility.
+
+**Suggested investigation:**
+1. Move `extractDocument` to `src/lib/extract/` or `src/lib/shared/extract.ts`.
+2. Update all import sites (ingest route, import route, knowledge pipeline).
+3. Verify tests still pass.
+
+**Definition of done:** `extractDocument` lives in a location that doesn't imply ownership by knowledge subsystem. All consumers updated.

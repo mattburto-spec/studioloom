@@ -886,6 +886,8 @@ systems:
       - src/lib/knowledge/analysis-prompts.ts
       - src/lib/knowledge/search.ts
     future_needs: Pass C (deep UDL), Pass D (cognitive load curves), cross-teacher knowledge sharing.
+    capabilities_added:
+      - "Phase A (14 Apr 2026): Multipart file upload on /api/teacher/library/ingest — accepts .pdf/.docx/.pptx/.txt/.md up to 20MB. Reuses extractDocument from @/lib/knowledge/extract. Pass 0 intent-guard: scheme_of_work classification triggers suggestedRedirect: 'import' for client-side redirect prompt."
     adrs: ["004"]
     os_seam: designed
     change_impacts: Ingestion pipeline rebuilt (Phase B), hardened (1.5), truncation-fixed (1.7). Changes to pass registry affect all ingestion. Changes to Pass A or Pass B max_tokens require updating Checkpoint 1.2 E2E test baselines. When fixing a stop_reason/defensive-destructure bug at one AI call site, audit FU-5 sites and fix all similar sites in the same phase (Lesson #39).
@@ -1202,10 +1204,12 @@ systems:
     docs:
       - path: docs/projects/dimensions3.md
         purpose: Ingestion to unit conversion
-    future_needs: Batch conversion, format autodetection (PDF/DOC/PPT).
+    future_needs: Batch conversion. Legacy `/teacher/units/import` + `/api/teacher/convert-lesson` (currently 410) retirement tracked as FU-Library-B2; stub `handleAccept` wiring tracked as FU-Library-B1.
+    capabilities_added:
+      - "Phase A (14 Apr 2026): Multipart file upload on /api/teacher/library/import — accepts .pdf/.docx/.pptx/.txt/.md up to 20MB (format autodetection DONE). Reuses extractDocument from @/lib/knowledge/extract. Chains reconstructUnit() after ingestion pipeline. 50-char minimum on extracted text."
     adrs: ["004"]
     os_seam: designed
-    change_impacts: Will require new extraction pipeline stage and content validation.
+    change_impacts: Changes to reconstructUnit() or reconstructionToContentData() affect import output. extractDocument location may move (FU-Library-B3).
 
   - id: teacher-grading
     name: Teacher Grading Dashboard
