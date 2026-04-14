@@ -23,6 +23,9 @@ import {
   completeGenerationRun,
   failGenerationRun,
 } from "./generation-log";
+import { loadAdminSettings, shouldEnforceCostCeilings, ADMIN_SETTINGS_DEFAULTS } from "@/lib/admin/settings";
+import type { AdminSettings } from "@/lib/admin/settings";
+import { AdminSettingKey } from "@/types/admin";
 
 // Stage imports — live implementations
 import { stage1_retrieveBlocks } from "./stages/stage1-retrieval";
@@ -94,6 +97,35 @@ export async function runPipeline(
   timings["stage0"] = Date.now() - t0;
   stageCosts["0"] = { ...ZERO_COST, timeMs: timings["stage0"] };
 
+  // Load admin settings (feature-flag fallback: defaults if table unreachable)
+  const adminSettings = await loadAdminSettings(config.supabase);
+  const stageEnabled = adminSettings[AdminSettingKey.STAGE_ENABLED] as Record<string, boolean>;
+  const costCeilingPerRun = adminSettings[AdminSettingKey.COST_CEILING_PER_RUN] as number;
+  const costCeilingPerDay = adminSettings[AdminSettingKey.COST_CEILING_PER_DAY] as number;
+  const modelOverride = adminSettings[AdminSettingKey.MODEL_OVERRIDE] as Record<string, string | null>;
+  const starterPatternsEnabled = adminSettings[AdminSettingKey.STARTER_PATTERNS_ENABLED] as boolean;
+  const enforceCostCeilings = shouldEnforceCostCeilings({ sandboxMode: config.sandboxMode });
+
+  // Check daily cost ceiling before starting (non-sandbox only)
+  if (enforceCostCeilings && costCeilingPerDay > 0) {
+    try {
+      const today = new Date().toISOString().split("T")[0];
+      const { data: rollups } = await config.supabase
+        .from("cost_rollups")
+        .select("cost_usd")
+        .eq("period", "day")
+        .eq("period_start", today);
+      const dailyTotal = (rollups ?? []).reduce((sum: number, r: { cost_usd: number }) => sum + r.cost_usd, 0);
+      if (dailyTotal >= costCeilingPerDay) {
+        throw new Error(`Daily cost ceiling exceeded: $${dailyTotal.toFixed(2)} >= $${costCeilingPerDay.toFixed(2)}`);
+      }
+    } catch (err) {
+      // If it's our ceiling error, rethrow; otherwise log and continue (feature-flag fallback)
+      if (err instanceof Error && err.message.startsWith("Daily cost ceiling exceeded")) throw err;
+      console.warn("[orchestrator] Failed to check daily cost ceiling, continuing:", err instanceof Error ? err.message : err);
+    }
+  }
+
   // Create generation run log
   const runId = await createGenerationRun(
     config.supabase,
@@ -109,16 +141,37 @@ export async function runPipeline(
       return await runSimulatorPipeline(request, profile, runId, config, timings, stageCosts);
     }
 
+    // Helper: resolve model ID for a stage (admin override > config > undefined)
+    const resolveModel = (stageKey: string): string | undefined => {
+      const override = modelOverride[stageKey];
+      if (override) return override;
+      return config.modelId;
+    };
+
+    // Helper: check per-run cost ceiling after each AI-calling stage
+    const checkRunCeiling = () => {
+      if (enforceCostCeilings && costCeilingPerRun > 0 && totalCost.estimatedCostUSD >= costCeilingPerRun) {
+        throw new Error(
+          `Per-run cost ceiling exceeded: $${totalCost.estimatedCostUSD.toFixed(2)} >= $${costCeilingPerRun.toFixed(2)}`
+        );
+      }
+    };
+
     // ── Stage 1: Block Retrieval ──
+    if (stageEnabled["retrieve"] === false) {
+      throw new Error("Stage 1 (retrieve) is disabled by admin settings");
+    }
     t0 = Date.now();
     const retrieval: BlockRetrievalResult = await stage1_retrieveBlocks(request, profile, {
       supabase: config.supabase,
       teacherId: config.teacherId,
       visibility: "private",
+      starterPatternsEnabled: starterPatternsEnabled,
     });
     timings["stage1"] = Date.now() - t0;
     stageCosts["1"] = retrieval.retrievalMetrics.retrievalCost;
     totalCost = addCosts(totalCost, stageCosts["1"]);
+    checkRunCeiling();
 
     if (runId) {
       await updateGenerationStage(config.supabase, runId, 1, {
@@ -129,14 +182,18 @@ export async function runPipeline(
     }
 
     // ── Stage 2: Sequence Assembly ──
+    if (stageEnabled["assemble"] === false) {
+      throw new Error("Stage 2 (assemble) is disabled by admin settings");
+    }
     t0 = Date.now();
     const assembled: AssembledSequence = await stage2_assembleSequence(retrieval, profile, {
       apiKey: config.apiKey,
-      modelId: config.modelId,
+      modelId: resolveModel("assemble"),
     });
     timings["stage2"] = Date.now() - t0;
     stageCosts["2"] = assembled.sequenceMetrics.sequenceCost;
     totalCost = addCosts(totalCost, stageCosts["2"]);
+    checkRunCeiling();
 
     if (runId) {
       await updateGenerationStage(config.supabase, runId, 2, {
@@ -150,15 +207,19 @@ export async function runPipeline(
     }
 
     // ── Stage 3: Gap Generation ──
+    if (stageEnabled["gap_fill"] === false) {
+      throw new Error("Stage 3 (gap_fill) is disabled by admin settings");
+    }
     t0 = Date.now();
     const filled: FilledSequence = await stage3_fillGaps(assembled, profile, {
       apiKey: config.apiKey,
-      modelId: config.modelId,
+      modelId: resolveModel("gap_fill"),
       maxConcurrency: config.maxConcurrency ?? 4,
     });
     timings["stage3"] = Date.now() - t0;
     stageCosts["3"] = filled.generationMetrics.totalCost;
     totalCost = addCosts(totalCost, stageCosts["3"]);
+    checkRunCeiling();
 
     if (runId) {
       await updateGenerationStage(config.supabase, runId, 3, {
@@ -169,14 +230,18 @@ export async function runPipeline(
     }
 
     // ── Stage 4: Polish ──
+    if (stageEnabled["polish"] === false) {
+      throw new Error("Stage 4 (polish) is disabled by admin settings");
+    }
     t0 = Date.now();
     const polished: PolishedSequence = await stage4_polish(filled, profile, {
       apiKey: config.apiKey,
-      modelId: config.modelId,
+      modelId: resolveModel("polish"),
     });
     timings["stage4"] = Date.now() - t0;
     stageCosts["4"] = polished.polishMetrics.totalCost;
     totalCost = addCosts(totalCost, stageCosts["4"]);
+    checkRunCeiling();
 
     if (runId) {
       await updateGenerationStage(config.supabase, runId, 4, {
@@ -187,6 +252,9 @@ export async function runPipeline(
     }
 
     // ── Stage 5: Timing ──
+    if (stageEnabled["timing"] === false) {
+      throw new Error("Stage 5 (timing) is disabled by admin settings");
+    }
     t0 = Date.now();
     const timedUnit: TimedUnit = stage5_applyTiming(polished, profile);
     timings["stage5"] = Date.now() - t0;
@@ -202,6 +270,9 @@ export async function runPipeline(
     }
 
     // ── Stage 6: Quality Scoring ──
+    if (stageEnabled["score"] === false) {
+      throw new Error("Stage 6 (score) is disabled by admin settings");
+    }
     t0 = Date.now();
     const qualityReport: QualityReport = stage6_scoreQuality(timedUnit, profile, stageCosts);
     timings["stage6"] = Date.now() - t0;

@@ -30,6 +30,7 @@ interface RetrievalConfig {
   maxCandidates?: number;
   minScore?: number;
   visibility?: "private" | "public" | "all";
+  starterPatternsEnabled?: boolean;
 }
 
 // ─── Helpers ───
