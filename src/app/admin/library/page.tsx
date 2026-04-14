@@ -10,6 +10,7 @@ export default function LibraryPage() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("");
   const [phase, setPhase] = useState("");
+  const [format, setFormat] = useState("");
   const [sort, setSort] = useState("created_at");
 
   const load = useCallback(() => {
@@ -18,6 +19,7 @@ export default function LibraryPage() {
     if (search) params.set("search", search);
     if (category) params.set("category", category);
     if (phase) params.set("phase", phase);
+    if (format) params.set("format", format);
     params.set("sort", sort);
 
     fetch(`/api/admin/library?${params}`)
@@ -31,7 +33,7 @@ export default function LibraryPage() {
         setTotal(0);
       })
       .finally(() => setLoading(false));
-  }, [search, category, phase, sort]);
+  }, [search, category, phase, format, sort]);
 
   useEffect(() => {
     const timer = setTimeout(load, 300);
@@ -41,6 +43,29 @@ export default function LibraryPage() {
   return (
     <div className="max-w-7xl mx-auto px-6 py-6">
       <h2 className="text-lg font-bold text-gray-900 mb-4">Block Library</h2>
+
+      {/* Format tabs */}
+      <div className="flex gap-1 mb-4">
+        {[
+          { value: "", label: "All" },
+          { value: "design", label: "Design" },
+          { value: "service", label: "Service" },
+          { value: "personal_project", label: "Personal Project" },
+          { value: "inquiry", label: "Inquiry" },
+        ].map((tab) => (
+          <button
+            key={tab.value}
+            onClick={() => setFormat(tab.value)}
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition ${
+              format === tab.value
+                ? "bg-purple-100 text-purple-700"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
       <div className="flex flex-wrap gap-3 mb-4">
         <input

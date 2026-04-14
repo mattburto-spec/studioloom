@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { TeacherContext } from "./teacher-context";
 import TeacherAIFAB from "@/components/teacher/TeacherAIFAB";
+import { BugReportButton } from "@/components/shared/BugReportButton";
 import type { Teacher } from "@/types";
 
 const NAV_ITEMS = [
@@ -253,6 +254,7 @@ export default function TeacherLayout({
 
         {children}
         <TeacherAIFAB />
+        <BugReportButton role="teacher" />
       </div>
     </TeacherContext.Provider>
   );

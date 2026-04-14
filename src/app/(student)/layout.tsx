@@ -7,6 +7,7 @@ import { StudentContext } from "./student-context";
 import { StudentAvatar } from "@/components/student/StudentAvatar";
 import { QuickToolFAB } from "@/components/toolkit/QuickToolFAB";
 import { StudioSetup } from "@/components/student/StudioSetup";
+import { BugReportButton } from "@/components/shared/BugReportButton";
 import { getThemeStyles, type ThemeId, THEMES } from "@/lib/student/themes";
 import { MENTORS, type MentorId } from "@/lib/student/mentors";
 import type { Student, Class } from "@/types";
@@ -205,6 +206,9 @@ export default function StudentLayout({
 
         {/* QuickToolFAB — available on all student pages except dashboard */}
         {pathname !== "/dashboard" && <QuickToolFAB />}
+
+        {/* Bug report button — always available for students */}
+        <BugReportButton role="student" classId={classInfo?.id} />
 
         {/* Settings modal — quick mentor/theme switcher */}
         {showSettings && student && (

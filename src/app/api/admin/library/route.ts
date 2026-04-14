@@ -11,6 +11,7 @@ export async function GET(req: NextRequest) {
     const search = req.nextUrl.searchParams.get("search") || "";
     const category = req.nextUrl.searchParams.get("category") || "";
     const phase = req.nextUrl.searchParams.get("phase") || "";
+    const format = req.nextUrl.searchParams.get("format") || "";
     const sort = req.nextUrl.searchParams.get("sort") || "created_at";
     const limit = parseInt(req.nextUrl.searchParams.get("limit") || "50");
     const offset = parseInt(req.nextUrl.searchParams.get("offset") || "0");
@@ -23,6 +24,7 @@ export async function GET(req: NextRequest) {
     if (search) query = query.ilike("title", `%${search}%`);
     if (category) query = query.eq("activity_category", category);
     if (phase) query = query.eq("phase", phase);
+    if (format) query = query.eq("source_format_hint", format);
 
     // Sort
     if (sort === "efficacy") {
