@@ -17,7 +17,7 @@ import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { runIngestionPipeline } from "@/lib/ingestion/pipeline";
 import { reconstructUnit, reconstructionToContentData } from "@/lib/ingestion/unit-import";
-import { extractDocument } from "@/lib/knowledge/extract";
+import { extractDocument, sectionsToMarkdown } from "@/lib/knowledge/extract";
 import type { PassConfig, CopyrightFlag } from "@/lib/ingestion/types";
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
         rawText = buffer.toString("utf-8");
       } else {
         const extracted = await extractDocument(buffer, file.name, file.type);
-        rawText = extracted.rawText;
+        rawText = sectionsToMarkdown(extracted.sections);
       }
     } catch (e) {
       return NextResponse.json(

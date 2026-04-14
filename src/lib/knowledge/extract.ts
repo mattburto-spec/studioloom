@@ -212,6 +212,23 @@ export async function extractDocument(
   throw new Error(`Unsupported file type: ${mimeType || filename}`);
 }
 
+/**
+ * Rebuild markdown text from structured sections so downstream consumers
+ * (parseDocument) can detect heading boundaries. extractFromDOCX/PDF populate
+ * sections correctly but their rawText field strips headings.
+ */
+export function sectionsToMarkdown(sections: ExtractedSection[]): string {
+  return sections
+    .map((s) => {
+      const heading = s.heading?.trim();
+      const content = s.content?.trim() ?? "";
+      if (!heading) return content;
+      return `# ${heading}\n\n${content}`;
+    })
+    .filter((block) => block.length > 0)
+    .join("\n\n");
+}
+
 /** Strip HTML tags from a string */
 function stripHtml(html: string): string {
   return html

@@ -12,7 +12,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { createHash } from "crypto";
-import { extractDocument } from "@/lib/knowledge/extract";
+import { extractDocument, sectionsToMarkdown } from "@/lib/knowledge/extract";
 import { extractImages } from "@/lib/ingestion/image-extraction";
 
 export const maxDuration = 300;
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
     if (ext === "pdf" || ext === "docx" || ext === "pptx") {
       const doc = await extractDocument(buffer, filename, file.type || "");
       title = doc.title || title;
-      rawText = doc.rawText;
+      rawText = sectionsToMarkdown(doc.sections);
     } else if (ext === "txt" || ext === "md") {
       rawText = buffer.toString("utf8");
     } else {

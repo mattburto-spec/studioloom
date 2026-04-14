@@ -13,7 +13,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { runIngestionPipeline } from "@/lib/ingestion/pipeline";
-import { extractDocument } from "@/lib/knowledge/extract";
+import { extractDocument, sectionsToMarkdown } from "@/lib/knowledge/extract";
 import type { PassConfig, CopyrightFlag } from "@/lib/ingestion/types";
 import { persistModeratedBlocks } from "@/lib/ingestion/persist-blocks";
 
@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
         rawText = buffer.toString("utf-8");
       } else {
         const extracted = await extractDocument(buffer, file.name, file.type);
-        rawText = extracted.rawText;
+        rawText = sectionsToMarkdown(extracted.sections);
       }
     } catch (e) {
       return NextResponse.json(
