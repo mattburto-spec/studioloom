@@ -3,21 +3,35 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+// Primary nav — 12 tabs per spec §9.8
 const TABS = [
   { label: "Dashboard", href: "/admin" },
   { label: "Pipeline", href: "/admin/pipeline" },
-  { label: "Pipeline Health", href: "/admin/pipeline/health" },
   { label: "Library", href: "/admin/library" },
+  { label: "Controls", href: "/admin/controls" },
+  { label: "Cost & Usage", href: "/admin/cost-usage" },
+  { label: "Quality", href: "/admin/quality" },
+  { label: "Wiring", href: "/admin/wiring" },
+  { label: "Teachers", href: "/admin/teachers" },
+  { label: "Students", href: "/admin/students" },
+  { label: "Schools", href: "/admin/schools" },
+  { label: "Bug Reports", href: "/admin/bug-reports" },
+  { label: "Audit Log", href: "/admin/audit-log" },
+];
+
+// Secondary nav — legacy/tool routes
+const TOOLS_TABS = [
+  { label: "Pipeline Health", href: "/admin/pipeline/health" },
   { label: "Library Health", href: "/admin/library/health" },
   { label: "Ingestion Sandbox", href: "/admin/ingestion-sandbox" },
   { label: "Simulator", href: "/admin/simulator" },
   { label: "Feedback", href: "/admin/feedback" },
   { label: "Costs", href: "/admin/costs" },
   { label: "Settings", href: "/admin/settings" },
-  { label: "Controls", href: "/admin/controls" },
   { label: "Registries", href: "/admin/controls/registries" },
   { label: "AI Model", href: "/admin/ai-model" },
   { label: "Frameworks", href: "/admin/framework-adapter" },
+  { label: "Sandbox Hub", href: "/admin/test-sandbox" },
 ];
 
 export default function AdminLayout({
@@ -75,7 +89,7 @@ export default function AdminLayout({
           </Link>
         </div>
 
-        {/* Tab navigation */}
+        {/* Primary tab navigation — 12 spec tabs */}
         <div className="max-w-7xl mx-auto px-6">
           <nav className="flex gap-1 overflow-x-auto pb-px -mb-px">
             {TABS.map((tab) => (
@@ -86,6 +100,25 @@ export default function AdminLayout({
                   isActive(tab.href)
                     ? "text-purple-700 bg-purple-50 border-b-2 border-purple-600"
                     : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                }`}
+              >
+                {tab.label}
+              </Link>
+            ))}
+          </nav>
+        </div>
+
+        {/* Secondary nav — tools & legacy routes */}
+        <div className="max-w-7xl mx-auto px-6 border-t border-gray-100">
+          <nav className="flex gap-1 overflow-x-auto py-1">
+            {TOOLS_TABS.map((tab) => (
+              <Link
+                key={tab.href}
+                href={tab.href}
+                className={`px-2.5 py-1 text-[10px] font-medium rounded whitespace-nowrap transition-colors ${
+                  isActive(tab.href)
+                    ? "text-purple-600 bg-purple-50"
+                    : "text-gray-400 hover:text-gray-600 hover:bg-gray-50"
                 }`}
               >
                 {tab.label}
