@@ -846,3 +846,21 @@ No current feature exposes this, but Dimensions3 feedback loop ("how is this stu
 **Decision:** Two options — (1) actually wire Groq/Gemini fallbacks into the has_fallback: false call sites (adds real resilience), OR (2) delete `openai-compatible.ts` and fix CLAUDE.md to reflect the current single-provider reality. No action required for Phase 7; revisit when fallback resilience becomes a priority.
 
 **Definition of done:** Either fallbacks wired and tested, or dead code deleted and docs updated.
+
+---
+
+## FU-Z — `bug_reports` author-split migration (P3)
+
+**Discovered:** 2026-04-14 (GOV-1.1a data classification checkpoint).
+
+**Issue:** `bug_reports.description` is a mixed-author column — `reporter_role` determines whether the row was written by a student or a teacher. The classification taxonomy can't assign a single clean `basis:` value because the legal basis depends on the row's `reporter_role`. GOV-1.1a resolved this conservatively by classifying the column under the stricter basis (`coppa_art_6`) and leaving a YAML comment on the ambiguity.
+
+**Similarly affected:** `bug_reports.screenshot_url` (screenshots from a student vs a teacher have different PII implications).
+
+**Impact:** Low — the conservative classification is safe (we over-protect rather than under-protect). But it means any automated policy that reads the classification can't distinguish between student-authored rows (which need extra safeguarding) and teacher-authored rows (which don't).
+
+**Fix:** Schema migration that splits the column into `student_description` and `teacher_description` (only one of the two is populated per row, governed by `reporter_role`). Same for `screenshot_url`. Lets each column get a deterministic classification. Requires a backfill to redistribute existing rows.
+
+**Definition of done:** Migration applied, existing rows backfilled, classification updated to remove the "mixed author" YAML comment, and the bug report submission UI updated to write to the correct column based on the submitter's role.
+
+**Priority:** P3 — not blocking any feature; picks up only when the bug report UI is next edited or when an automated policy needs the deterministic classification.

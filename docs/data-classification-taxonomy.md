@@ -103,6 +103,23 @@ created_at:
   basis: pseudonymous    # no personal data
 ```
 
+## Derived rules
+
+### Rule D1 — URL/path columns inherit the referenced asset's classification
+
+Any column whose value is a pointer (URL, storage path, storage key, signed URL, CDN URL) to a separate asset **inherits the classification of the asset it references**, not the classification of "a short text string."
+
+**Rationale:** A column like `bug_reports.screenshot_url` is a string, but the thing it points to is a screenshot that can contain faces, student work, other students in frame, or UI disclosing a student's name. Treating the URL as "just metadata" understates the risk. Classify the URL as if it were the asset.
+
+**Decision shortcuts:**
+- Screenshot URLs → `pii: true` (screenshots may capture identifiable people or content)
+- Portfolio / gallery / work image URLs → inherit from portfolio entry (usually `pii: true, student_voice: true, safety_sensitive: true` because the image IS the student's work)
+- Teacher-uploaded asset URLs (reference images, rubric PDFs) → `pii: false, student_voice: false` unless the file itself is known to contain student content
+- Audio clip URLs → treat like screenshots when authored by or capturing students
+- Signed/expiring URLs are still PII — the URL expiring doesn't change the classification of the thing it pointed to
+
+**Applies during classification:** whenever you see a column name ending in `_url`, `_path`, `_key`, `_href`, or containing `screenshot`, `image`, `photo`, `audio`, `file`, `attachment`, ask "what does this point to?" and classify accordingly.
+
 ## Update convention
 
 Any new column added by a migration **MUST** have a classification entry in `schema-registry.yaml` before the migration is marked `applied: true`. This is enforced by:
