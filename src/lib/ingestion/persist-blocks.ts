@@ -10,6 +10,7 @@
  */
 
 import type { ModeratedBlock } from "./types";
+import { computeContentFingerprint } from "./fingerprint";
 
 const BATCH_SIZE = 50;
 
@@ -38,12 +39,13 @@ export async function persistModeratedBlocks(
   }
 
   // Map ModeratedBlock[] → activity_blocks rows
+  const sourceType = "extracted" as const;
   const rows = blocks.map((b, i) => ({
     teacher_id: teacherId,
     title: b.title,
     description: b.description || null,
     prompt: b.prompt,
-    source_type: "extracted" as const,
+    source_type: sourceType,
     source_upload_id: contentItemId || null,
     bloom_level: b.bloom_level || null,
     time_weight: b.time_weight || "moderate",
@@ -59,6 +61,11 @@ export async function persistModeratedBlocks(
     is_public: false,
     is_archived: false,
     embedding: embeddings?.[i] ? JSON.stringify(embeddings[i]) : null,
+    content_fingerprint: computeContentFingerprint({
+      title: b.title,
+      prompt: b.prompt,
+      sourceType,
+    }),
   }));
 
   // Insert in batches of 50

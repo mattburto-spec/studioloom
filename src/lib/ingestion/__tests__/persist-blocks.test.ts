@@ -103,6 +103,9 @@ describe("persistModeratedBlocks", () => {
     expect(row.teacher_verified).toBe(false);
     expect(row.is_public).toBe(false);
     expect(row.is_archived).toBe(false);
+    // content_fingerprint is a SHA-256 hex digest over normalised(title + prompt + source_type)
+    expect(typeof row.content_fingerprint).toBe("string");
+    expect(row.content_fingerprint).toHaveLength(64); // SHA-256 hex = 64 chars
     // embedding is JSON-stringified for pgvector
     expect(typeof row.embedding).toBe("string");
     expect(JSON.parse(row.embedding)).toHaveLength(1024);
