@@ -7227,15 +7227,24 @@ tables:
   - idx_student_moderation_log_student ON (student_id, created_at DESC)
   - idx_student_moderation_log_unreviewed ON (teacher_reviewed, created_at DESC) WHERE teacher_reviewed = false
   rls:
-    read: student_moderation_log_teacher_select (unknown); student_moderation_log_service_all (unknown)
-    write: student_moderation_log_teacher_update (unknown); student_moderation_log_service_all (unknown)
+    read: 'student_moderation_log_teacher_select: class_id-owned OR (class_id IS NULL → student_id
+      routed via class_students junction UNION legacy students.class_id, Lesson #29 pattern, migration
+      078); student_moderation_log_service_all: service_role full access'
+    write: 'student_moderation_log_teacher_update: same dual-visibility as SELECT (migration 078);
+      student_moderation_log_service_all: service_role full access'
   writers:
   - src/app/api/safety/log-client-block/route.ts
   - src/app/api/teacher/safety/alerts/route.ts
   - src/lib/content-safety/moderate-and-log.ts
   readers:
   - src/app/teacher/layout.tsx
-  spec_drift: []
+  spec_drift:
+  - date: 2026-04-14
+    finding: FU-N Option C applied via migration 078 — Lesson #29 UNION pattern. SELECT + UPDATE
+      policies now handle NULL class_id by routing through student_id → class_students junction UNION
+      legacy students.class_id. 14 of 17 writer sites pass NULL class_id by design.
+    decision: Closed. FU-N-followup (P2) filed to migrate to Option B admin queue when FU-O roles
+      land.
 - name: student_progress
   source_migration: 001_initial_schema.sql
   status: applied

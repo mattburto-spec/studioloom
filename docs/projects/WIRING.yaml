@@ -1046,20 +1046,24 @@ systems:
     change_impacts: Changes to timing rules affect generation. Changes to 1+age rule affect mini-lesson constraints.
 
   - id: content-safety
-    name: Content Safety (PII & Copyright Scanning)
+    name: Content Safety & Moderation
     category: AI & Intelligence
-    status: planned
-    currentVersion: 0
-    summary: Pipeline stage that scans generated content for PII, copyright concerns, and offensive language. Flags for review before publication. Planned in Dimensions3 Phase B.
+    status: complete
+    currentVersion: 2
+    summary: 3-layer content moderation (client text filter, NSFW.js image filter, server Haiku moderation) with student_content_moderation_log, teacher safety alert feed, nav badge, ingestion pipeline scan. Migration 078 adds dual-visibility RLS (FU-N Option C, Lesson #29 UNION pattern) so NULL-class_id moderation events are visible to the student's teacher.
     depends_on: [ai-provider]
     affects: [generation-pipeline, knowledge-pipeline]
     docs:
       - path: docs/projects/dimensions3.md
         purpose: Content safety stage spec
-    future_needs: Teacher override workflow, corpus learning from flagged items.
+      - path: docs/specs/moderation-log-writer-audit.md
+        purpose: Writer audit — 17 sites, 4 categories, NULL-class_id behavior
+      - path: docs/specs/fu-n-manual-smoke-protocol.md
+        purpose: Manual RLS verification protocol for migration 078
+    future_needs: Option B admin queue (FU-N-followup, depends on FU-O roles). FU-GG nm-assessment fix.
     adrs: ["007"]
     os_seam: none
-    change_impacts: Will require new content_safety_flags table and admin review queue.
+    change_impacts: Migration 078 changes RLS on student_content_moderation_log. Any new writer must decide whether to pass class_id or rely on dual-visibility NULL path.
 
   - id: teacher-style
     name: Teacher Style Profile (Pedagogical Learning)
