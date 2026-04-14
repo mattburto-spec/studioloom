@@ -1052,9 +1052,9 @@ systems:
     category: AI & Intelligence
     status: complete
     currentVersion: 2
-    summary: 3-layer content moderation (client text filter, NSFW.js image filter, server Haiku moderation) with student_content_moderation_log, teacher safety alert feed, nav badge, ingestion pipeline scan. Migration 078 adds dual-visibility RLS (FU-N Option C, Lesson #29 UNION pattern) so NULL-class_id moderation events are visible to the student's teacher.
-    depends_on: [ai-provider]
-    affects: [generation-pipeline, knowledge-pipeline]
+    summary: "Phases 5 + 6 COMPLETE. Checkpoint 5.1 CLOSED at 9/11 (14 Apr 2026). 3-layer content moderation: Layer 1 client-side text filter + NSFW.js image filter, Layer 2 server-side Haiku moderation via moderate-and-log.ts wired into 15 API endpoints + ingestion. Teacher safety alert feed (/teacher/safety/alerts with filters, severity grouping, acknowledge/escalate/false-positive actions), nav badge (unreviewed critical count), ingestion pipeline safety scan (upload-level moderate-and-log producing moderation_hold). Migration 078 adds dual-visibility RLS (FU-N Option C, Lesson #29 UNION pattern) so NULL-class_id moderation events are visible to the student's teacher."
+    depends_on: [ai-provider, auth-system, student-experience]
+    affects: [generation-pipeline, knowledge-pipeline, student-experience, teacher-dashboard, design-assistant]
     docs:
       - path: docs/projects/dimensions3.md
         purpose: Content safety stage spec
@@ -1062,10 +1062,54 @@ systems:
         purpose: Writer audit — 17 sites, 4 categories, NULL-class_id behavior
       - path: docs/specs/fu-n-manual-smoke-protocol.md
         purpose: Manual RLS verification protocol for migration 078
-    future_needs: Option B admin queue (FU-N-followup, depends on FU-O roles). FU-GG nm-assessment fix.
+      - path: docs/projects/dimensions3-phase5-brief.md
+        purpose: Phase 5 brief with sub-tasks 5A-5I
+      - path: docs/projects/dimensions3-completion-spec.md
+        purpose: "Spec section 7 (lines 1051-1198): schema, filter logic, moderation prompts, checkpoint"
+    data_fields:
+      - table: student_progress
+        columns: [moderation_status, moderation_flags]
+        notes: "Added by migration 073. Status: clean/pending/flagged/blocked. Flags: JSONB array."
+      - table: student_content_moderation_log
+        columns: [id, class_id, student_id, content_source, content_hash, moderation_layer, flags, overall_result, severity, action_taken, teacher_reviewed, teacher_action, teacher_reviewed_at, raw_ai_response, created_at]
+        notes: "Separate from content_moderation_log (migration 067, ingestion-side). Named to avoid collision."
+    key_files:
+      - src/lib/content-safety/types.ts
+      - src/lib/content-safety/client-filter.ts
+      - src/lib/content-safety/client-image-filter.ts
+      - src/lib/content-safety/server-moderation.ts
+      - src/lib/content-safety/moderate-and-log.ts
+      - src/lib/content-safety/blocklists/
+      - src/app/api/safety/log-client-block/route.ts
+      - supabase/migrations/073_content_safety.sql
+    wiring_map:
+      client_text_choke_points:
+        - file: src/hooks/usePageResponses.ts
+          role: "Auto-saves all lesson responses + toolkit tool state. All 27 toolkit tools flow through here. Wire checkClientSide() before fetch in saveProgress()."
+        - file: src/hooks/useToolSession.ts
+          role: "Toolkit tool session persistence (debounced 500ms save). Extract string values from state, check before save."
+        - file: src/components/student/DesignAssistantWidget.tsx
+          role: "AI mentor chat — student message input. Wire checkClientSide() in sendMessage() before fetch."
+        - file: src/components/gallery/GallerySubmitPrompt.tsx
+          role: "Gallery submission (contextNote text). Wire before /api/student/gallery/submit fetch."
+        - file: src/components/gallery/GalleryBrowser.tsx
+          role: "Peer review submission — review text fields. Wire before /api/student/gallery/review POST (~line 171)."
+        - file: src/components/quest/EvidenceCapture.tsx
+          role: "Quest evidence submission (text, reflection). Wire before /api/student/quest/evidence fetch in handleSubmit()."
+        - file: src/hooks/useOpenStudio.ts
+          role: "Open Studio sessions — focusArea + reflection text. Wire before /api/student/open-studio/* fetches."
+      client_image_choke_points:
+        - file: src/components/student/UploadInput.tsx
+          role: "Main student file upload. Wire checkClientImage() in handleFile() before fetch. Accepts image/*."
+        - file: src/components/portfolio/QuickCaptureFAB.tsx
+          role: "Portfolio quick capture — photoFile state. Wire checkClientImage() before submit."
+        - file: src/components/quest/EvidenceCapture.tsx
+          role: "Quest photo evidence. Wire checkClientImage() for photo type before fetch."
+      notes: "Wire checkClientSide() into 7 text choke points and checkClientImage() into 3 image choke points in Phase 5E. ResponseInput.tsx is a renderer that delegates to usePageResponses — not a direct choke point. GalleryFeedbackView.tsx is a reader (GET only) — peer review POST is in GalleryBrowser.tsx."
+    future_needs: "Option B admin queue (FU-N-followup, depends on FU-O roles). FU-GG nm-assessment fix. FU-N fix: backfill NULL class_id on moderation rows + add NOT NULL constraint once safe. Rollback controls (5H). Self-harm list expansion. Additional language support. Configurable blocklists per school. Steps 6–7 image moderation verification (needs test image fixtures). Cross-cutting: FU-O/P/R Access Model v2 refactor would change RLS predicates on student_content_moderation_log."
     adrs: ["007"]
-    os_seam: none
-    change_impacts: Migration 078 changes RLS on student_content_moderation_log. Any new writer must decide whether to pass class_id or rely on dual-visibility NULL path.
+    os_seam: ready
+    change_impacts: "Migration 078 changes RLS on student_content_moderation_log. Any new writer must decide whether to pass class_id or rely on dual-visibility NULL path. Changes to student submission hooks/components must route through checkClientSide(). Changes to moderation severity→action map affect teacher alert feed. New student input components must be added to wiring_map. Changes to blocklists require re-vendoring."
 
   - id: teacher-style
     name: Teacher Style Profile (Pedagogical Learning)
@@ -1954,64 +1998,6 @@ systems:
     adrs: []
     os_seam: partial
     change_impacts: Changes to generation_runs schema affect pipeline-health and cost-alert jobs. Changes to activity_blocks affect hygiene jobs and stale watchdog. Changes to system_alerts affect both dashboards.
-
-  - id: content-safety
-    name: Content Safety & Moderation (Dimensions3 Phases 5 + 6)
-    category: Student Experience
-    status: active
-    currentVersion: 2
-    summary: "Phases 5 + 6 COMPLETE. Checkpoint 5.1 CLOSED at 9/11 (14 Apr 2026) — Steps 1–5, 8, 9 passed; Steps 6–7 deferred (need test image fixtures). Phase 6A teacher safety alert feed (/teacher/safety/alerts with filters, severity grouping, acknowledge/escalate/false-positive actions), 6B nav badge (unreviewed critical count), 6C ingestion pipeline safety scan (upload-level moderate-and-log producing moderation_hold). Step 9 surfaced NULL class_id × RLS silent-filter bug (FU-N) — resolved for test data but FU-N remains open as P1 live safety gap. Nav longest-prefix fix so Alerts/Badges don't both highlight. Two-layer moderation: Layer 1 client-side text filter + NSFW.js image filter. Layer 2 server-side Haiku moderation via moderate-and-log.ts wired into 15 API endpoints + ingestion."
-    depends_on: [auth-system, student-experience]
-    affects: [student-experience, teacher-dashboard, design-assistant]
-    docs:
-      - path: docs/projects/dimensions3-phase5-brief.md
-        purpose: Phase 5 brief with sub-tasks 5A-5I
-      - path: docs/projects/dimensions3-completion-spec.md
-        purpose: "Spec section 7 (lines 1051-1198): schema, filter logic, moderation prompts, checkpoint"
-    data_fields:
-      - table: student_progress
-        columns: [moderation_status, moderation_flags]
-        notes: "Added by migration 073. Status: clean/pending/flagged/blocked. Flags: JSONB array."
-      - table: student_content_moderation_log
-        columns: [id, class_id, student_id, content_source, content_hash, moderation_layer, flags, overall_result, severity, action_taken, teacher_reviewed, teacher_action, teacher_reviewed_at, raw_ai_response, created_at]
-        notes: "Separate from content_moderation_log (migration 067, ingestion-side). Named to avoid collision."
-    key_files:
-      - src/lib/content-safety/types.ts
-      - src/lib/content-safety/client-filter.ts
-      - src/lib/content-safety/client-image-filter.ts
-      - src/lib/content-safety/server-moderation.ts
-      - src/lib/content-safety/moderate-and-log.ts
-      - src/lib/content-safety/blocklists/
-      - src/app/api/safety/log-client-block/route.ts
-      - supabase/migrations/073_content_safety.sql
-    wiring_map:
-      client_text_choke_points:
-        - file: src/hooks/usePageResponses.ts
-          role: "Auto-saves all lesson responses + toolkit tool state. All 27 toolkit tools flow through here. Wire checkClientSide() before fetch in saveProgress()."
-        - file: src/hooks/useToolSession.ts
-          role: "Toolkit tool session persistence (debounced 500ms save). Extract string values from state, check before save."
-        - file: src/components/student/DesignAssistantWidget.tsx
-          role: "AI mentor chat — student message input. Wire checkClientSide() in sendMessage() before fetch."
-        - file: src/components/gallery/GallerySubmitPrompt.tsx
-          role: "Gallery submission (contextNote text). Wire before /api/student/gallery/submit fetch."
-        - file: src/components/gallery/GalleryBrowser.tsx
-          role: "Peer review submission — review text fields. Wire before /api/student/gallery/review POST (~line 171)."
-        - file: src/components/quest/EvidenceCapture.tsx
-          role: "Quest evidence submission (text, reflection). Wire before /api/student/quest/evidence fetch in handleSubmit()."
-        - file: src/hooks/useOpenStudio.ts
-          role: "Open Studio sessions — focusArea + reflection text. Wire before /api/student/open-studio/* fetches."
-      client_image_choke_points:
-        - file: src/components/student/UploadInput.tsx
-          role: "Main student file upload. Wire checkClientImage() in handleFile() before fetch. Accepts image/*."
-        - file: src/components/portfolio/QuickCaptureFAB.tsx
-          role: "Portfolio quick capture — photoFile state. Wire checkClientImage() before submit."
-        - file: src/components/quest/EvidenceCapture.tsx
-          role: "Quest photo evidence. Wire checkClientImage() for photo type before fetch."
-      notes: "Wire checkClientSide() into 7 text choke points and checkClientImage() into 3 image choke points in Phase 5E. ResponseInput.tsx is a renderer that delegates to usePageResponses — not a direct choke point. GalleryFeedbackView.tsx is a reader (GET only) — peer review POST is in GalleryBrowser.tsx."
-    future_needs: "FU-N fix: backfill NULL class_id on moderation rows + add NOT NULL constraint once safe. Rollback controls (5H). Self-harm list expansion. Additional language support. Configurable blocklists per school. Steps 6–7 image moderation verification (needs test image fixtures). Cross-cutting: FU-O/P/R Access Model v2 refactor would change RLS predicates on student_content_moderation_log."
-    adrs: []
-    os_seam: ready
-    change_impacts: "Changes to student submission hooks/components must route through checkClientSide(). Changes to moderation severity→action map affect teacher alert feed. New student input components must be added to wiring_map. Changes to blocklists require re-vendoring."
 
   - id: admin-journey-builder
     name: Admin Journey Builder (Node-Graph Editor)

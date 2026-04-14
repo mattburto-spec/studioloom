@@ -79,7 +79,7 @@ export const SEARCH_RULES: { keywords: string[]; tools: string[] }[] = [
   { keywords: ['prioritize', 'rank', 'vote', 'effort', 'impact'], tools: ['dot-voting', 'impact-effort', 'decision-matrix', 'comparison'] },
 ];
 
-// All 48 tools
+// All 42 tools (28 interactive + 14 catalog)
 export const tools: ToolkitTool[] = [
   // ── DISCOVER ──
   { id: 'mind-map', name: 'Mind Map', phase: 'discover', difficulty: 'beginner', time: '15-30m', group: 'ideation', desc: 'Branch ideas from a central topic to explore connections and discover patterns.', interactive: true, slug: 'mind-map' },

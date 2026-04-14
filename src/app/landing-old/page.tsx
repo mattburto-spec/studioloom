@@ -350,7 +350,7 @@ export default function Home() {
 
           {/* Stats bar */}
           <div className="flex items-center justify-center gap-6 mt-12 text-xs text-white/30">
-            <span>8+ Frameworks</span>
+            <span>6 Frameworks</span>
             <span className="text-white/15">|</span>
             <span>42 Thinking Tools</span>
             <span className="text-white/15">|</span>

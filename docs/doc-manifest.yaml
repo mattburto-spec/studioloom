@@ -1,6 +1,6 @@
 # StudioLoom Documentation Manifest
 # Auto-maintained: `saveme` updates last_verified date and syncs with CLAUDE.md
-# Last full scan: 7 Apr 2026
+# Last full scan: 15 Apr 2026
 #
 # This is the canonical index of ALL documentation files in the project.
 # Categories: brain (AI intelligence), specs (feature specs), projects (project plans),
@@ -17,15 +17,6 @@ docs:
     purpose: "Directory structure and overview of all documentation folders"
     category: root
     last_verified: "2026-04-05"
-    max_age_days: 90
-    last_scanned: null
-
-  - path: CLAUDE.md
-    title: "Project: Questerra (StudioLoom) — Instructions for Claude"
-    purpose: "Master instructions for Claude, project tracking, key decisions, lessons learned, AI Brain reference table"
-    category: root
-    last_verified: "2026-04-14"
-    referenced_from: ["Master reference document"]
     max_age_days: 90
     last_scanned: null
 
@@ -425,38 +416,6 @@ docs:
     max_age_days: 30
     last_scanned: null
 
-  - path: scripts/registry/sync-schema-registry.py
-    title: "Schema Registry Sync Script"
-    purpose: "Parses migration SQL files for table definitions, columns, indexes, RLS policies. Greps src/ for readers/writers. Merges with existing entries. --apply to write."
-    category: automation
-    last_verified: "2026-04-14"
-    max_age_days: 90
-    last_scanned: null
-
-  - path: scripts/registry/scan-api-routes.py
-    title: "API Registry Scanner Script"
-    purpose: "Walks src/app/api/**/route.ts, detects HTTP methods (3 patterns), infers auth type, extracts table access, cross-validates against schema-registry. --apply to write."
-    category: automation
-    last_verified: "2026-04-14"
-    max_age_days: 90
-    last_scanned: null
-
-  - path: scripts/registry/scan-ai-calls.py
-    title: "AI Call Sites Scanner Script"
-    purpose: "3-layer LLM call detection: direct SDK imports, wrapper function consumers, HTTP-based calls. Seeds FU-5 stop_reason_handled. --apply to write."
-    category: automation
-    last_verified: "2026-04-14"
-    max_age_days: 90
-    last_scanned: null
-
-  - path: scripts/registry/scan-rls-coverage.py
-    title: "RLS Coverage Scanner Script"
-    purpose: "Checks every CREATE TABLE has ENABLE ROW LEVEL SECURITY + at least one CREATE POLICY. Emits JSON report. Read-only (no --apply)."
-    category: automation
-    last_verified: "2026-04-14"
-    max_age_days: 90
-    last_scanned: null
-
   - path: docs/projects/dashboard.html
     title: "Project Dashboard"
     purpose: "Interactive dashboard with PROJECTS array in sync with ALL-PROJECTS.md"
@@ -508,6 +467,70 @@ docs:
     category: projects
     last_verified: "2026-04-14"
     referenced_from: ["ALL-PROJECTS.md Dimensions3 follow-ups", "CLAUDE.md current focus"]
+    max_age_days: 90
+    last_scanned: null
+
+  - path: docs/projects/dimensions3-audit.md
+    title: "Dimensions3 Audit"
+    purpose: "Audit findings for Dimensions3 pipeline implementation"
+    category: projects
+    last_verified: "2026-04-15"
+    max_age_days: 90
+    last_scanned: null
+
+  - path: docs/projects/dimensions3-phase-0-instructions.md
+    title: "Dimensions3 Phase 0 Instructions"
+    purpose: "Build instructions for Dimensions3 Phase 0"
+    category: projects
+    last_verified: "2026-04-15"
+    max_age_days: 90
+    last_scanned: null
+
+  - path: docs/projects/dimensions3-phase-2-brief.md
+    title: "Dimensions3 Phase 2 Brief"
+    purpose: "Phase brief for Dimensions3 Phase 2"
+    category: projects
+    last_verified: "2026-04-15"
+    max_age_days: 90
+    last_scanned: null
+
+  - path: docs/projects/dimensions3-phase-b-instructions.md
+    title: "Dimensions3 Phase B Instructions"
+    purpose: "Build instructions for Dimensions3 Phase B"
+    category: projects
+    last_verified: "2026-04-15"
+    max_age_days: 90
+    last_scanned: null
+
+  - path: docs/projects/dimensions3-phase-c-instructions.md
+    title: "Dimensions3 Phase C Instructions"
+    purpose: "Build instructions for Dimensions3 Phase C"
+    category: projects
+    last_verified: "2026-04-15"
+    max_age_days: 90
+    last_scanned: null
+
+  - path: docs/projects/dimensions3-phase-d-instructions.md
+    title: "Dimensions3 Phase D Instructions"
+    purpose: "Build instructions for Dimensions3 Phase D"
+    category: projects
+    last_verified: "2026-04-15"
+    max_age_days: 90
+    last_scanned: null
+
+  - path: docs/projects/dimensions3-phase-e-instructions.md
+    title: "Dimensions3 Phase E Instructions"
+    purpose: "Build instructions for Dimensions3 Phase E"
+    category: projects
+    last_verified: "2026-04-15"
+    max_age_days: 90
+    last_scanned: null
+
+  - path: docs/projects/dimensions3-phase7-brief.md
+    title: "Dimensions3 Phase 7 Brief"
+    purpose: "Phase brief for Dimensions3 Phase 7"
+    category: projects
+    last_verified: "2026-04-15"
     max_age_days: 90
     last_scanned: null
 
@@ -705,30 +728,6 @@ docs:
     category: projects
     last_verified: "2026-04-07"
     referenced_from: ["docs/projects/3delements.md Section 7A"]
-    max_age_days: 90
-    last_scanned: null
-
-  - path: 3delements/discovery-rooms-prototype.html
-    title: "Discovery Rooms Prototype v1 — Floating Platforms (rejected)"
-    purpose: "Raw Three.js prototype with floating platform approach. Rejected — felt like space not real locations. Kept as lighting/particle code reference."
-    category: prototypes
-    last_verified: "2026-04-07"
-    max_age_days: 90
-    last_scanned: null
-
-  - path: 3delements/discovery-rooms-v2.html
-    title: "Discovery Rooms v2 — Grounded Room Templates (approved direction)"
-    purpose: "4 room templates (IndoorRoom, Clearing, Overlook, Passage) with Kenney GLB props, 3-point lighting, fog, emissive accents, particles. Approved design direction."
-    category: prototypes
-    last_verified: "2026-04-07"
-    max_age_days: 90
-    last_scanned: null
-
-  - path: 3delements/discovery-rooms-prototype.jsx
-    title: "Discovery Rooms React Component (v1)"
-    purpose: "React component version of v1 prototype. For production R3F integration reference."
-    category: prototypes
-    last_verified: "2026-04-07"
     max_age_days: 90
     last_scanned: null
 
@@ -963,6 +962,62 @@ docs:
     purpose: "Code quality, testing, and refactoring initiatives"
     category: projects
     last_verified: "2026-03-28"
+    max_age_days: 90
+    last_scanned: null
+
+  - path: docs/projects/governance-systems-plan.md
+    title: "Governance Systems Plan"
+    purpose: "Plan for governance systems implementation (registries, taxonomies, drift detection)"
+    category: projects
+    last_verified: "2026-04-15"
+    max_age_days: 90
+    last_scanned: null
+
+  - path: docs/projects/phase-7a-safety-1-brief.md
+    title: "Phase 7A Safety 1 Brief"
+    purpose: "Phase brief for Phase 7A Safety sub-phase 1"
+    category: projects
+    last_verified: "2026-04-15"
+    max_age_days: 90
+    last_scanned: null
+
+  - path: docs/projects/phase-7a-safety-2-brief.md
+    title: "Phase 7A Safety 2 Brief"
+    purpose: "Phase brief for Phase 7A Safety sub-phase 2"
+    category: projects
+    last_verified: "2026-04-15"
+    max_age_days: 90
+    last_scanned: null
+
+  - path: docs/projects/phase6-instruction-block.md
+    title: "Phase 6 Instruction Block"
+    purpose: "Build instructions for Dimensions3 Phase 6"
+    category: projects
+    last_verified: "2026-04-15"
+    max_age_days: 90
+    last_scanned: null
+
+  - path: docs/projects/post-dimensions3-priority-order.md
+    title: "Post-Dimensions3 Priority Order"
+    purpose: "Priority ordering of projects and features after Dimensions3 completion"
+    category: projects
+    last_verified: "2026-04-15"
+    max_age_days: 90
+    last_scanned: null
+
+  - path: docs/projects/profile-consumers.md
+    title: "Profile Consumers"
+    purpose: "Map of systems that consume student/teacher profile data"
+    category: projects
+    last_verified: "2026-04-15"
+    max_age_days: 90
+    last_scanned: null
+
+  - path: docs/projects/SYNC-AUDIT-2026-04-07.md
+    title: "Sync Audit — 7 April 2026"
+    purpose: "Audit of documentation and registry sync status"
+    category: projects
+    last_verified: "2026-04-15"
     max_age_days: 90
     last_scanned: null
 
@@ -1534,6 +1589,14 @@ docs:
     max_age_days: 90
     last_scanned: null
 
+  - path: "docs/open studio/discovery-prototype.html"
+    title: "Discovery Engine Prototype"
+    purpose: "HTML prototype of Discovery Engine interaction flow"
+    category: open-studio
+    last_verified: "2026-04-15"
+    max_age_days: 90
+    last_scanned: null
+
   - path: "docs/open studio/discovery-comic-strip-spec.md"
     title: "Open Studio Discovery — Comic Strip Narrative Spec"
     purpose: "Comic strip narrative specification for Discovery Engine"
@@ -1609,65 +1672,9 @@ docs:
     max_age_days: 90
     last_scanned: null
 
-  - path: .github/workflows/ci.yml
-    title: "CI Workflow"
-    purpose: "GitHub Actions: lint + typecheck + build + test + dashboard sync check on push/PR to main"
-    category: automation
-    last_verified: "2026-04-07"
-    max_age_days: 90
-    last_scanned: null
-
-  - path: .github/workflows/nightly.yml
-    title: "Nightly Audit Workflow"
-    purpose: "GitHub Actions: dep audit + typecheck + build + test + dashboard sync + doc freshness + WIRING health at 2am Nanjing"
-    category: automation
-    last_verified: "2026-04-07"
-    max_age_days: 90
-    last_scanned: null
-
-  - path: src/app/api/health/route.ts
-    title: "Health Endpoint"
-    purpose: "Public /api/health endpoint — pings Supabase, returns ok/db/responseTime for uptime monitoring"
-    category: automation
-    last_verified: "2026-04-07"
-    max_age_days: 90
-    last_scanned: null
-
   - path: docs/automation/studioloom-automation-handoff.md
     title: "StudioLoom Automation & Bug Squash — Handoff Doc"
     purpose: "Handoff document for automation and bug fix work"
-    category: automation
-    last_verified: "2026-04-07"
-    max_age_days: 90
-    last_scanned: null
-
-  - path: scripts/check-dashboard-sync.ts
-    title: "Dashboard Sync Checker"
-    purpose: "Validates ALL-PROJECTS.md and dashboard.html PROJECTS array are in sync. Fuzzy name matching, exit code 1 on drift."
-    category: automation
-    last_verified: "2026-04-07"
-    max_age_days: 90
-    last_scanned: null
-
-  - path: scripts/check-doc-freshness.ts
-    title: "Doc Freshness Checker"
-    purpose: "Validates doc-manifest.yaml — reports broken paths, unknown dates, stale (>30d). --fix sets unknown dates from file mtime."
-    category: automation
-    last_verified: "2026-04-07"
-    max_age_days: 90
-    last_scanned: null
-
-  - path: scripts/check-wiring-health.py
-    title: "WIRING Health Checker"
-    purpose: "Validates WIRING.yaml — parseable YAML, no dangling refs, no orphans. --trace shows full impact cascade for a system."
-    category: automation
-    last_verified: "2026-04-07"
-    max_age_days: 90
-    last_scanned: null
-
-  - path: scripts/check-session-changes.sh
-    title: "Session Changes Checker"
-    purpose: "Counts modified/staged/untracked files via git. Outputs SAVEME RECOMMENDED if thresholds met."
     category: automation
     last_verified: "2026-04-07"
     max_age_days: 90
@@ -1679,6 +1686,14 @@ docs:
     purpose: "End-to-end audit of safety badges, pace feedback, and timetabling features"
     category: audits
     last_verified: "2026-03-24"
+    max_age_days: 90
+    last_scanned: null
+
+  - path: docs/audit-sentry-setup-2026-04-07.md
+    title: "Sentry Setup Audit — 7 April 2026"
+    purpose: "Audit of Sentry error monitoring setup and configuration"
+    category: audits
+    last_verified: "2026-04-15"
     max_age_days: 90
     last_scanned: null
 
@@ -1844,6 +1859,14 @@ docs:
     max_age_days: 90
     last_scanned: null
 
+  - path: docs/prototypes/unit-type-concepts.jsx
+    title: "Unit Type Concepts Prototype"
+    purpose: "JSX prototype exploring unit type visual concepts"
+    category: prototypes
+    last_verified: "2026-04-15"
+    max_age_days: 90
+    last_scanned: null
+
   - path: docs/prototypes/OPTION-A-NOTES.md
     title: "Option A Design Notes"
     purpose: "Design notes and analysis for Option A UI"
@@ -1858,6 +1881,15 @@ docs:
     purpose: "Interactive showcase of Discovery Intelligence system"
     category: prototypes
     last_verified: "2026-03-26"
+    max_age_days: 90
+    last_scanned: null
+
+  # --- STRATEGY ---
+  - path: docs/strategy/north-star.md
+    title: "North Star"
+    purpose: "Strategic north star vision and guiding principles"
+    category: root
+    last_verified: "2026-04-15"
     max_age_days: 90
     last_scanned: null
 
@@ -2170,6 +2202,14 @@ docs:
     max_age_days: 365
     last_scanned: null
 
+  - path: docs/migrations-applied.md
+    title: "Migrations Applied Log"
+    purpose: "Log of applied database migrations and their status"
+    category: root
+    last_verified: "2026-04-15"
+    max_age_days: 90
+    last_scanned: null
+
   - path: docs/change-triggers.yaml
     title: "Change Triggers Registry"
     purpose: "Machine-readable map of 6 change-type triggers → required registry updates (GOV-1.4)"
@@ -2204,23 +2244,23 @@ docs:
 
 # --- SUMMARY STATISTICS ---
 summary:
-  total_documents: 238
+  total_documents: 270
   by_category:
-    root: 20
-    brain: 8
-    projects: 63
-    specs: 53
+    root: 40
+    brain: 9
+    projects: 85
+    specs: 50
     research: 7
-    testing: 7
-    ideas: 7
-    open-studio: 10
+    testing: 8
+    ideas: 8
+    open-studio: 11
     components: 3
     design: 2
-    automation: 4
-    audits: 2
-    prototypes: 17
-    archive: 20
+    automation: 5
+    audits: 3
+    prototypes: 18
+    archive: 19
     marketing: 1
     safety: 1
-  last_updated: "2026-04-14"
+  last_updated: "2026-04-15"
   referenced_in_claude_md: 17
