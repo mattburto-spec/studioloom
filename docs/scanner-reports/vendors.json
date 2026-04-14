@@ -1,0 +1,109 @@
+{
+  "registry": "vendors.yaml",
+  "timestamp": "2026-04-14T03:11:34.241587+00:00",
+  "version": 1,
+  "drift": {
+    "orphaned": [],
+    "missing": []
+  },
+  "evidence": {
+    "anthropic": {
+      "sdk_found": [
+        "@anthropic-ai/sdk"
+      ],
+      "env_found": [
+        "ANTHROPIC_API_KEY"
+      ],
+      "http_found": [
+        "api.anthropic.com"
+      ],
+      "has_evidence": true
+    },
+    "supabase": {
+      "sdk_found": [
+        "@supabase/supabase-js",
+        "@supabase/ssr"
+      ],
+      "env_found": [
+        "SUPABASE_SERVICE_ROLE_KEY",
+        "NEXT_PUBLIC_SUPABASE_URL",
+        "NEXT_PUBLIC_SUPABASE_ANON_KEY"
+      ],
+      "http_found": [
+        "supabase.co"
+      ],
+      "has_evidence": true
+    },
+    "voyage": {
+      "sdk_found": [],
+      "env_found": [
+        "VOYAGE_API_KEY"
+      ],
+      "http_found": [
+        "api.voyageai.com"
+      ],
+      "has_evidence": true
+    },
+    "vercel": {
+      "sdk_found": [],
+      "env_found": [],
+      "http_found": [],
+      "has_evidence": false
+    },
+    "groq": {
+      "sdk_found": [],
+      "env_found": [
+        "GROQ_API_KEY"
+      ],
+      "http_found": [
+        "api.groq.com"
+      ],
+      "has_evidence": true
+    },
+    "gemini": {
+      "sdk_found": [],
+      "env_found": [
+        "GEMINI_API_KEY"
+      ],
+      "http_found": [
+        "generativelanguage.googleapis.com"
+      ],
+      "has_evidence": true
+    },
+    "resend": {
+      "sdk_found": [],
+      "env_found": [
+        "RESEND_API_KEY"
+      ],
+      "http_found": [
+        "api.resend.com"
+      ],
+      "has_evidence": true
+    },
+    "sentry": {
+      "sdk_found": [
+        "@sentry/nextjs"
+      ],
+      "env_found": [
+        "NEXT_PUBLIC_SENTRY_DSN"
+      ],
+      "http_found": [],
+      "has_evidence": true
+    },
+    "elevenlabs": {
+      "sdk_found": [],
+      "env_found": [
+        "ELEVENLABS_API_KEY"
+      ],
+      "http_found": [
+        "api.elevenlabs.io"
+      ],
+      "has_evidence": true
+    }
+  },
+  "stats": {
+    "registered_vendors": 9,
+    "vendors_with_evidence": 8
+  },
+  "status": "ok"
+}
