@@ -1,0 +1,60 @@
+version: 1
+
+# Change Triggers — codifies which registries must be updated when specific code changes happen.
+# Consult before any code change. Each trigger lists what MUST be updated and which scanner (if any)
+# can verify compliance.
+#
+# owner: matt
+# last_reviewed: 2026-04-14
+
+triggers:
+
+  - id: new_migration
+    description: A new SQL migration file is added to supabase/migrations/
+    pattern: "supabase/migrations/*.sql"
+    must_update:
+      - docs/schema-registry.yaml
+      - docs/data-classification-taxonomy.md (if new column added — verify classification exists)
+    scanner: scripts/registry/sync-schema-registry.py
+    rationale: Every table and column must be registered with RLS, writers/readers, and classification before migration is marked applied.
+
+  - id: new_api_route
+    description: A new route.ts file is added under src/app/api/
+    pattern: "src/app/api/**/route.ts"
+    must_update:
+      - docs/api-registry.yaml
+    scanner: scripts/registry/scan-api-routes.py
+    rationale: All HTTP endpoints must be registered with auth type, tables read/written, and AI call sites.
+
+  - id: new_ai_call
+    description: A new LLM or embedding API call is added (SDK, wrapper, or HTTP)
+    pattern: "messages.create|messages.stream|fetch.*api.anthropic|fetch.*api.voyageai|callHaiku|callSonnet"
+    must_update:
+      - docs/ai-call-sites.yaml
+    scanner: scripts/registry/scan-ai-calls.py
+    rationale: All AI calls must be registered with provider, model, max_tokens, stop_reason handling, and cost category.
+
+  - id: new_env_var_or_flag
+    description: A new process.env.X reference or admin_settings key is added
+    pattern: "process.env.[A-Z_]+"
+    must_update:
+      - docs/feature-flags.yaml
+    scanner: scripts/registry/scan-feature-flags.py
+    rationale: All runtime flags and secrets must be registered with type, default, scope, and consumers.
+
+  - id: new_vendor_sdk
+    description: A new third-party SDK is added to package.json or a new vendor API domain is called
+    pattern: "package.json dependencies|fetch.*api.<vendor>"
+    must_update:
+      - docs/vendors.yaml
+    scanner: scripts/registry/scan-vendors.py
+    rationale: All vendors that receive user data must be registered with data categories, legal basis, and DPA status.
+
+  - id: new_classification_basis_or_category
+    description: A new legal basis or data_sent category value is needed
+    pattern: "Manual — no code pattern"
+    must_update:
+      - docs/data-classification-taxonomy.md
+      - docs/vendors-taxonomy.md (if new data_sent category)
+    scanner: null
+    rationale: Canonical enum values must be defined in taxonomy docs before use in registries.

@@ -7,6 +7,8 @@
 # Last synced: 2026-04-14
 # Total call sites: 47
 
+version: 1
+
 call_sites:
 - id: ai_app_api_admin_ai_model_test_lesson_route_buildUnitTypeSystemPrompt
   file: src/app/api/admin/ai-model/test-lesson/route.ts

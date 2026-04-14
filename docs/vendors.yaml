@@ -4,6 +4,8 @@
 #
 # owner is always Matt for now (solo-dev era). Review_date is the next quarterly check.
 
+version: 1
+
 owner: matt
 last_reviewed: 2026-04-14
 next_review: 2026-07-14

@@ -7,6 +7,8 @@
 # Last synced: 2026-04-14
 # Total routes: 266
 
+version: 1
+
 routes:
 - path: /api/admin/ai-model
   method: GET

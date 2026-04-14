@@ -11,6 +11,8 @@
 # FLAGS — values that change application behaviour
 # ────────────────────────────────────────────────────────────────────────────
 
+version: 1
+
 flags:
 
   # ── DB-sourced flags (admin_settings table, managed via /admin/controls) ──

@@ -17,6 +17,8 @@ docs:
     purpose: "Directory structure and overview of all documentation folders"
     category: root
     last_verified: "2026-04-05"
+    max_age_days: 90
+    last_scanned: null
 
   - path: CLAUDE.md
     title: "Project: Questerra (StudioLoom) — Instructions for Claude"
@@ -24,60 +26,80 @@ docs:
     category: root
     last_verified: "2026-04-14"
     referenced_from: ["Master reference document"]
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/changelog.md
     title: "Session Changelog"
     purpose: "Rolling log of changes across sessions for cross-session context"
     category: root
     last_verified: "2026-04-14"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/decisions-log.md
     title: "Key Decisions Log"
     purpose: "192+ architectural and design decisions from 17 Mar – 12 Apr 2026"
     category: root
     last_verified: "2026-04-12"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/lessons-learned.md
     title: "Lessons Learned"
     purpose: "42 hard-won lessons from production bugs, build disasters, Supabase/Vercel gotchas. #42 (12 Apr 2026): dual-shape persistence fields silently break consumers when frontend types diverge from server writers."
     category: root
     last_verified: "2026-04-12"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/build-methodology.md
     title: "Build Methodology — Phased with Checkpoints"
     purpose: "Canonical build discipline for non-trivial work. Phased-with-checkpoints model, sandbox/sim baked in as first-class spec components, pre-flight ritual, stop triggers, verify=expected values, audit-then-fix patterns. Default discipline; prefer it even when not explicitly asked."
     category: root
     last_verified: "2026-04-11"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/quarantine.md
     title: "Quarantine Status"
     purpose: "Registry of quarantined systems and pipelines under rebuild"
     category: root
     last_verified: "2026-04-02"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/roadmap.md
     title: "Roadmap"
     purpose: "Strategic 5-phase feature plan with phase specs, feature details, UX philosophy. ~950 lines."
     category: root
     last_verified: "2026-04-06"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/idea-tracker.md
     title: "Idea Tracker"
     purpose: "Backlog of feature ideas (points to ALL-PROJECTS.md for canonical tracking)"
     category: root
     last_verified: "2026-04-05"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/resolved-issues-archive.md
     title: "Resolved Issues Archive"
     purpose: "Historical record of fixed bugs and migration status log"
     category: root
     last_verified: "2026-04-07"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/typescript-and-auth-audit.md
     title: "TypeScript and Auth Audit"
     purpose: "Audit of TypeScript types and authentication patterns"
     category: root
     last_verified: "2026-03-20"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/timing-reference.md
     title: "StudioLoom Timing Reference"
@@ -85,6 +107,8 @@ docs:
     category: root
     last_verified: "2026-04-07"
     referenced_from: ["CLAUDE.md AI Brain table"]
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/design-guidelines.md
     title: "StudioLoom Design Guidelines"
@@ -92,6 +116,8 @@ docs:
     category: root
     last_verified: "2026-04-07"
     referenced_from: ["CLAUDE.md AI Brain table"]
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/design-teaching-corpus.md
     title: "Design Teaching Corpus — Layer 1"
@@ -99,6 +125,8 @@ docs:
     category: root
     last_verified: "2026-04-07"
     referenced_from: ["CLAUDE.md AI Brain table"]
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/education-ai-patterns.md
     title: "Education AI Patterns — Questerra Toolkit Standard"
@@ -106,6 +134,8 @@ docs:
     category: root
     last_verified: "2026-04-07"
     referenced_from: ["CLAUDE.md AI Brain table"]
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/lesson-timing-research-report.md
     title: "Lesson Timing Research & Architecture"
@@ -113,78 +143,104 @@ docs:
     category: root
     last_verified: "2026-04-07"
     referenced_from: ["CLAUDE.md AI Brain table"]
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/admin-controls-redesign.md
     title: "Admin Controls Redesign"
     purpose: "Admin interface architecture for macro/micro AI tuning"
     category: root
     last_verified: "2026-03-19"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/ai-competitive-analysis.md
     title: "StudioLoom AI Model — Competitive Analysis vs World's Best Practice"
     purpose: "Feature comparison vs MagicSchool, Eduaide, Almanack, Diffit, Shiksha Copilot, AIA-PAL"
     category: root
     last_verified: "2026-03-14"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/architecture.md
     title: "Architecture"
     purpose: "System architecture overview"
     category: root
     last_verified: "2026-03-11"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/TOOLKIT-TOOL-SUGGESTIONS-GUIDE.md
     title: "Toolkit Tool Suggestions Guide"
     purpose: "Guide for suggesting toolkit tools to students"
     category: root
     last_verified: "2026-03-18"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/optimization-plan.md
     title: "Optimization Plan"
     purpose: "Performance optimization strategies"
     category: root
     last_verified: "2026-03-28"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/planning-tools-ux-spec.md
     title: "Planning Tools UX Spec"
     purpose: "UX specification for planning tools"
     category: root
     last_verified: "2026-03-18"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/full-site-audit-2026-03-24.md
     title: "Full Site Audit — 24 March 2026"
     purpose: "Comprehensive site-wide audit"
     category: root
     last_verified: "2026-03-24"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/studioloom-feature-audit-2026-03-20.md
     title: "StudioLoom Feature Audit — 20 March 2026"
     purpose: "Feature-by-feature audit"
     category: root
     last_verified: "2026-03-19"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/studioloom-ib-project-companion-roadmap.md
     title: "StudioLoom IB Project Companion Roadmap"
     purpose: "Roadmap for IB Personal Project companion feature"
     category: root
     last_verified: "2026-03-24"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/safety-badge-path-integration.md
     title: "Safety Badge Path Integration"
     purpose: "Integration of safety badge system into lesson paths"
     category: root
     last_verified: "2026-03-23"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/safety-badge-path-spec.md
     title: "Safety Badge Path Spec"
     purpose: "Specification for safety badge paths in lessons"
     category: root
     last_verified: "2026-03-23"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/safety-badge-tree-visual-reference.md
     title: "Safety Badge Tree Visual Reference"
     purpose: "Visual reference for safety badge tree structure"
     category: root
     last_verified: "2026-03-23"
+    max_age_days: 90
+    last_scanned: null
 
   # --- BRAIN (AI Intelligence Layer) ---
   - path: docs/brain/ai-intelligence-architecture.md
@@ -193,42 +249,56 @@ docs:
     category: brain
     last_verified: "2026-04-07"
     referenced_from: ["CLAUDE.md AI Brain table"]
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/brain/ai-systems-audit-2026-03.md
     title: "Expert AI-in-Education Systems Audit"
     purpose: "File-by-file audit of all AI systems, touchpoints, integration points, quality gaps"
     category: brain
     last_verified: "2026-04-07"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/brain/ai-touchpoints-summary.md
     title: "StudioLoom AI Reasoning Model — Touchpoint Summary"
     purpose: "Document ingestion, analysis, generation, student delivery, teaching dashboard AI touchpoints"
     category: brain
     last_verified: "2026-04-05"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/brain/design-guidelines.md
     title: "StudioLoom Design Guidelines"
     purpose: "Design principles reference (duplicate of root copy)"
     category: brain
     last_verified: "2026-04-07"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/brain/design-teaching-corpus.md
     title: "Design Teaching Corpus — Layer 1 (Universal)"
     purpose: "AI training material for great design teaching (duplicate of root copy)"
     category: brain
     last_verified: "2026-04-07"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/brain/education-ai-patterns.md
     title: "Education AI Patterns — Questerra Toolkit Standard"
     purpose: "5 core patterns for student-facing AI (duplicate of root copy)"
     category: brain
     last_verified: "2026-04-07"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/brain/lesson-timing-research-report.md
     title: "Lesson Timing Research & Architecture"
     purpose: "Workshop Model and timing research (duplicate of root copy)"
     category: brain
     last_verified: "2026-04-07"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/brain/student-learning-intelligence.md
     title: "Student Learning Intelligence Architecture"
@@ -236,12 +306,16 @@ docs:
     category: brain
     last_verified: "2026-04-07"
     referenced_from: ["CLAUDE.md AI Brain table"]
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/brain/timing-reference.md
     title: "StudioLoom Timing Reference"
     purpose: "Learning-based timing model (duplicate of root copy)"
     category: brain
     last_verified: "2026-04-07"
+    max_age_days: 90
+    last_scanned: null
 
   # --- PROJECTS ---
   - path: docs/projects/ALL-PROJECTS.md
@@ -250,6 +324,8 @@ docs:
     category: projects
     last_verified: "2026-04-14"
     referenced_from: ["CLAUDE.md project tracking section"]
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/discovery-engine-cognitive-layer.md
     title: "Discovery Engine — Cognitive Layer (MindPrint-Informed)"
@@ -257,6 +333,8 @@ docs:
     category: projects
     last_verified: "2026-04-10"
     referenced_from: ["ALL-PROJECTS.md Discovery Engine Cognitive Layer project", "WIRING.yaml discovery-engine docs"]
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/studentdash.md
     title: "StudentDash — Student Dashboard Reimagination"
@@ -264,6 +342,8 @@ docs:
     category: projects
     last_verified: "2026-04-10"
     referenced_from: ["ALL-PROJECTS.md StudentDash project"]
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/dashboard/studio-desk-session-summary.docx
     title: "Student Dashboard — Studio Desk Session Summary"
@@ -271,6 +351,8 @@ docs:
     category: projects
     last_verified: "2026-04-10"
     referenced_from: ["ALL-PROJECTS.md Student Dashboard project"]
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/dashboard/studio-desk-references.docx
     title: "Studio Desk Dashboard — Design References"
@@ -278,6 +360,8 @@ docs:
     category: projects
     last_verified: "2026-04-10"
     referenced_from: ["ALL-PROJECTS.md Student Dashboard project"]
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/dashboard/student-workspace.jsx
     title: "Student Workspace Prototype v1 — Dark Studio Desk"
@@ -285,6 +369,8 @@ docs:
     category: projects
     last_verified: "2026-04-10"
     referenced_from: ["ALL-PROJECTS.md Student Dashboard project"]
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/dashboard/r3f-motion-sample.html
     title: "Student Workspace Prototype v2 — Miro-Bench Variant"
@@ -292,12 +378,16 @@ docs:
     category: projects
     last_verified: "2026-04-10"
     referenced_from: ["ALL-PROJECTS.md StudentDash project", "studentdash.md Prototype v2 section"]
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/README.md
     title: "StudioLoom Projects"
     purpose: "Projects directory overview"
     category: projects
     last_verified: "2026-03-28"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/WIRING.yaml
     title: "WIRING — Machine-Readable System Registry"
@@ -305,6 +395,8 @@ docs:
     category: projects
     last_verified: "2026-04-14"
     referenced_from: ["CLAUDE.md impact analysis section"]
+    max_age_days: 30
+    last_scanned: null
 
   - path: docs/schema-registry.yaml
     title: "Schema Registry — Table-Level Truth"
@@ -312,6 +404,8 @@ docs:
     category: root
     last_verified: "2026-04-14"
     referenced_from: ["CLAUDE.md registries section"]
+    max_age_days: 30
+    last_scanned: null
 
   - path: docs/api-registry.yaml
     title: "API Registry — Route-Level Truth"
@@ -319,6 +413,8 @@ docs:
     category: root
     last_verified: "2026-04-14"
     referenced_from: ["CLAUDE.md registries section"]
+    max_age_days: 30
+    last_scanned: null
 
   - path: docs/ai-call-sites.yaml
     title: "AI Call Sites Registry — LLM Call-Level Truth"
@@ -326,24 +422,32 @@ docs:
     category: root
     last_verified: "2026-04-14"
     referenced_from: ["CLAUDE.md registries section"]
+    max_age_days: 30
+    last_scanned: null
 
   - path: scripts/registry/sync-schema-registry.py
     title: "Schema Registry Sync Script"
     purpose: "Parses migration SQL files for table definitions, columns, indexes, RLS policies. Greps src/ for readers/writers. Merges with existing entries. --apply to write."
     category: automation
     last_verified: "2026-04-14"
+    max_age_days: 90
+    last_scanned: null
 
   - path: scripts/registry/scan-api-routes.py
     title: "API Registry Scanner Script"
     purpose: "Walks src/app/api/**/route.ts, detects HTTP methods (3 patterns), infers auth type, extracts table access, cross-validates against schema-registry. --apply to write."
     category: automation
     last_verified: "2026-04-14"
+    max_age_days: 90
+    last_scanned: null
 
   - path: scripts/registry/scan-ai-calls.py
     title: "AI Call Sites Scanner Script"
     purpose: "3-layer LLM call detection: direct SDK imports, wrapper function consumers, HTTP-based calls. Seeds FU-5 stop_reason_handled. --apply to write."
     category: automation
     last_verified: "2026-04-14"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/dashboard.html
     title: "Project Dashboard"
@@ -351,6 +455,8 @@ docs:
     category: projects
     last_verified: "2026-04-14"
     referenced_from: ["CLAUDE.md project tracking section"]
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/wiring-dashboard.html
     title: "Wiring Dashboard"
@@ -358,6 +464,8 @@ docs:
     category: projects
     last_verified: "2026-04-14"
     referenced_from: ["CLAUDE.md impact analysis section"]
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/system-architecture-map.html
     title: "System Architecture Map"
@@ -365,6 +473,8 @@ docs:
     category: projects
     last_verified: "2026-04-14"
     referenced_from: ["CLAUDE.md impact analysis section"]
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/dimensions3.md
     title: "Project Dimensions3 — Generation Pipeline Rebuild (Master Spec)"
@@ -372,6 +482,8 @@ docs:
     category: projects
     last_verified: "2026-04-12"
     referenced_from: ["CLAUDE.md AI Brain table"]
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/dimensions3-completion-spec.md
     title: "Dimensions3 v2 Completion Spec (Canonical Build Plan)"
@@ -379,6 +491,8 @@ docs:
     category: projects
     last_verified: "2026-04-13"
     referenced_from: ["ALL-PROJECTS.md", "decisions-log.md", "changelog.md"]
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/dimensions3-followups.md
     title: "Dimensions3 Follow-Ups Tracker"
@@ -386,6 +500,8 @@ docs:
     category: projects
     last_verified: "2026-04-14"
     referenced_from: ["ALL-PROJECTS.md Dimensions3 follow-ups", "CLAUDE.md current focus"]
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/dimensions3-phase3-remediation.md
     title: "Dimensions3 Phase 3R Remediation Brief"
@@ -393,6 +509,8 @@ docs:
     category: projects
     last_verified: "2026-04-12"
     referenced_from: ["ALL-PROJECTS.md"]
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/phase3r-code-brief.md
     title: "Phase 3R Code Agent Brief (R1+R2)"
@@ -400,6 +518,8 @@ docs:
     category: projects
     last_verified: "2026-04-12"
     referenced_from: ["dimensions3-phase3-remediation.md"]
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/phase3r-seed-sql.md
     title: "Phase 3R Seed SQL & Cascade Delete Verification"
@@ -407,6 +527,8 @@ docs:
     category: projects
     last_verified: "2026-04-12"
     referenced_from: ["dimensions3-phase3-remediation.md"]
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/dimensions3-phase3-gaps.md
     title: "Dimensions3 Phase 3 Gap Audit"
@@ -414,6 +536,8 @@ docs:
     category: projects
     last_verified: "2026-04-12"
     referenced_from: ["dimensions3-phase3-remediation.md"]
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/dimensions3-phase4-brief.md
     title: "Dimensions3 Phase 4 Brief — Library Health & Operational Automation"
@@ -421,6 +545,8 @@ docs:
     category: projects
     last_verified: "2026-04-12"
     referenced_from: ["dimensions3-completion-spec.md", "ALL-PROJECTS.md"]
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/dimensions3-phase5-brief.md
     title: "Dimensions3 Phase 5 Brief — Content Safety & Moderation"
@@ -428,6 +554,8 @@ docs:
     category: projects
     last_verified: "2026-04-13"
     referenced_from: ["dimensions3-completion-spec.md", "ALL-PROJECTS.md"]
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/dimensions3-ops-runbook.md
     title: "Dimensions3 Ops Runbook"
@@ -435,6 +563,8 @@ docs:
     category: projects
     last_verified: "2026-04-12"
     referenced_from: ["dimensions3-completion-spec.md", "ALL-PROJECTS.md", "WIRING.yaml"]
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/dimensions2.md
     title: "Project Dimensions2 — Platform Architecture Reset"
@@ -442,42 +572,56 @@ docs:
     category: projects
     last_verified: "2026-04-02"
     referenced_from: ["CLAUDE.md AI Brain table (deprecated)"]
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/dimensions.md
     title: "Project Dimensions — Data Architecture Future-Proofing"
     purpose: "Early data architecture planning"
     category: projects
     last_verified: "2026-03-31"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/dimensions3-matt-questions.md
     title: "Matt's Spec Review Questions — Dimensions3"
     purpose: "Matt's questions and clarifications on Dimensions3 spec"
     category: projects
     last_verified: "2026-04-03"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/dimensions3-review-notes.md
     title: "Dimensions3 Spec Review — Matt's Notes + Responses"
     purpose: "Review notes with responses to clarifications"
     category: projects
     last_verified: "2026-04-03"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/dimensions3-testing-plan.md
     title: "Dimensions3 — Testing Plan"
     purpose: "Testing strategy for Dimensions3 pipeline rebuild"
     category: projects
     last_verified: "2026-04-03"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/dimensions3-wiring-instructions.md
     title: "Dimensions3 — Wire Pipeline to Wizard Routes"
     purpose: "Instructions for connecting Dimensions3 pipeline to wizard UI — 8 tasks (W1-W8): input/output adapters, route un-quarantine, button re-enable, edit tracking, tests"
     category: projects
     last_verified: "2026-04-09"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/PIPELINE-AUDIT-2026-04-02.md
     title: "Unit Generation Pipeline Audit — 2 April 2026"
     purpose: "Detailed audit of generation pipeline gaps and recommendations"
     category: projects
     last_verified: "2026-04-01"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/Studioloom Platform Architecture.docx
     title: "StudioLoom Platform Architecture v1"
@@ -485,12 +629,16 @@ docs:
     category: projects
     last_verified: "2026-04-07"
     referenced_from: ["CLAUDE.md AI Brain table"]
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/Studioloom Platform Architecture v2.docx
     title: "StudioLoom Platform Architecture v2"
     purpose: "Updated platform architecture blueprint"
     category: projects
     last_verified: "2026-04-02"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/lesson-pulse.md
     title: "Project: Lesson Pulse — Composite Quality Scoring"
@@ -498,18 +646,24 @@ docs:
     category: projects
     last_verified: "2026-04-07"
     referenced_from: ["CLAUDE.md AI Brain table"]
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/lesson-pulse-test-run.md
     title: "Lesson Pulse Test Run — TeachEngineering MIS-2926"
     purpose: "Test run results for lesson pulse algorithm"
     category: projects
     last_verified: "2026-04-01"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/lesson-pulse-validation-report.md
     title: "Lesson Pulse Validation Report"
     purpose: "Validation results for lesson pulse scoring"
     category: projects
     last_verified: "2026-04-01"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/openstudio-v2.md
     title: "Project: Open Studio v2 — Mentor-Guided Project Planning"
@@ -517,12 +671,16 @@ docs:
     category: projects
     last_verified: "2026-04-07"
     referenced_from: ["CLAUDE.md AI Brain table"]
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/openstudio.md
     title: "Project: Open Studio v2 — Journey-Based Self-Directed Learning"
     purpose: "Open Studio v2 feature specification"
     category: projects
     last_verified: "2026-04-03"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/3delements.md
     title: "Project 3D Elements — Visual & Gamification Layer"
@@ -530,6 +688,8 @@ docs:
     category: projects
     last_verified: "2026-04-07"
     referenced_from: ["CLAUDE.md AI Brain table"]
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/StudioLoom-3D-Render-Modes-Plan.docx
     title: "StudioLoom 3D Render Modes Plan"
@@ -537,24 +697,32 @@ docs:
     category: projects
     last_verified: "2026-04-07"
     referenced_from: ["docs/projects/3delements.md Section 7A"]
+    max_age_days: 90
+    last_scanned: null
 
   - path: 3delements/discovery-rooms-prototype.html
     title: "Discovery Rooms Prototype v1 — Floating Platforms (rejected)"
     purpose: "Raw Three.js prototype with floating platform approach. Rejected — felt like space not real locations. Kept as lighting/particle code reference."
     category: prototypes
     last_verified: "2026-04-07"
+    max_age_days: 90
+    last_scanned: null
 
   - path: 3delements/discovery-rooms-v2.html
     title: "Discovery Rooms v2 — Grounded Room Templates (approved direction)"
     purpose: "4 room templates (IndoorRoom, Clearing, Overlook, Passage) with Kenney GLB props, 3-point lighting, fog, emissive accents, particles. Approved design direction."
     category: prototypes
     last_verified: "2026-04-07"
+    max_age_days: 90
+    last_scanned: null
 
   - path: 3delements/discovery-rooms-prototype.jsx
     title: "Discovery Rooms React Component (v1)"
     purpose: "React component version of v1 prototype. For production R3F integration reference."
     category: prototypes
     last_verified: "2026-04-07"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/studentwork.md
     title: "Student Work Pipeline (OS Pipeline 2)"
@@ -562,6 +730,8 @@ docs:
     category: projects
     last_verified: "2026-04-07"
     referenced_from: ["CLAUDE.md AI Brain table"]
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/specs/journey-engine-spec.md
     title: "Journey Engine — Architecture Specification"
@@ -569,174 +739,232 @@ docs:
     category: projects
     last_verified: "2026-04-07"
     referenced_from: ["CLAUDE.md AI Brain table"]
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/new-metrics.md
     title: "Project: New Metrics (Melbourne Metrics)"
     purpose: "Melbourne Metrics competency assessment system with pop art visual identity"
     category: projects
     last_verified: "2026-03-29"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/badges.md
     title: "Project: Badges — Safety Test Improvements & Skills Badges"
     purpose: "Safety and Skills badge system"
     category: projects
     last_verified: "2026-03-29"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/toolkit.md
     title: "Project: Toolkit"
     purpose: "Design Thinking Toolkit (27 interactive + 21 catalog tools)"
     category: projects
     last_verified: "2026-03-29"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/grading.md
     title: "Project: Grading System Overhaul"
     purpose: "Grading and assessment system redesign — multi-task model, marking queue, AI-assisted grading, student feedback experience"
     category: projects
     last_verified: "2026-04-13"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/lessons.md
     title: "Project: Student Lesson Content UX"
     purpose: "Student lesson experience design"
     category: projects
     last_verified: "2026-03-31"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/uniteditor.md
     title: "Project: Unit Editor"
     purpose: "Unit content editor (Phase 0.5 lesson editor)"
     category: projects
     last_verified: "2026-03-29"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/pm-tools.md
     title: "Project: PM Tools"
     purpose: "Project management and planning tools"
     category: projects
     last_verified: "2026-03-31"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/miniskills.md
     title: "Project: MiniSkills"
     purpose: "Bite-sized skill units (1-3 lessons) with completion badges. Natural extension of Safety Badge + unit architecture. Post-Dimensions3 build."
     category: projects
     last_verified: "2026-04-03"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/mypflex.md
     title: "Project: MYPflex — Framework-Flexible Assessment & Grading"
     purpose: "Framework-flexible assessment system"
     category: projects
     last_verified: "2026-03-29"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/studioloom-designer-mentor-spec.md
     title: "StudioLoom Designer Mentor Spec"
     purpose: "Designer Mentor System Spec — 20 real designers as AI mentors with matching, personas, themes, 3D characters"
     category: projects
     last_verified: "2026-04-06"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/studioloom-mentor-model-prompts.md
     title: "Designer Mentor System Prompts"
     purpose: "3D model and personality prompts for 20 designer mentors"
     category: projects
     last_verified: "2026-04-06"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/studioloom-work-capture-spec.md
     title: "Work Capture Pipeline Spec"
     purpose: "Composable WorkCapture component for AI mentor feedback on student photos"
     category: projects
     last_verified: "2026-04-06"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/ai-safety.md
     title: "AI Safety & Content Guardrails"
     purpose: "AI safety and content filtering system"
     category: projects
     last_verified: "2026-04-07"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/bug-button.md
     title: "Bug Button — In-App Issue Reporting"
     purpose: "Bug reporting button and workflow"
     category: projects
     last_verified: "2026-04-04"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/graphics.md
     title: "Graphics — Another World-Style Discovery Engine Animations"
     purpose: "Animated graphics for Discovery Engine using Another World-style visuals"
     category: projects
     last_verified: "2026-03-30"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/howtovideos.md
     title: "Project: How-To Videos & Teaching Resources"
     purpose: "Video tutorial and teaching resource library"
     category: projects
     last_verified: "2026-04-04"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/i18n.md
     title: "Multi-Language Support (i18n)"
     purpose: "Internationalization and multi-language support strategy"
     category: projects
     last_verified: "2026-04-04"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/ell.md
     title: "Project: ELL — Language Support for Multilingual Learners"
     purpose: "Per-student language scaffolding strategy + Medley Learning research"
     category: projects
     last_verified: "2026-04-10"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/inclusive.md
     title: "Project: Inclusive"
     purpose: "Inclusivity and accessibility features"
     category: projects
     last_verified: "2026-03-29"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/monetisation.md
     title: "Project: Monetisation & Tier Management"
     purpose: "Pricing tiers and monetization strategy"
     category: projects
     last_verified: "2026-04-03"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/monitored-textarea.md
     title: "Project: MonitoredTextarea Pipeline"
     purpose: "Academic integrity monitoring through textarea tracking"
     category: projects
     last_verified: "2026-03-30"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/parent-updates.md
     title: "Parent Weekly Updates"
     purpose: "Parent communication and weekly update system"
     category: projects
     last_verified: "2026-04-04"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/realclient.md
     title: "Project: Real Client"
     purpose: "Real-world client deployment and feedback"
     category: projects
     last_verified: "2026-04-03"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/school-readiness.md
     title: "Project: School Readiness"
     purpose: "School deployment and readiness checklist"
     category: projects
     last_verified: "2026-04-04"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/self-help-library.md
     title: "Project: Self-Help Library"
     purpose: "Teacher self-help and knowledge base system"
     category: projects
     last_verified: "2026-04-04"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/studentchoice.md
     title: "Project: Student Choice"
     purpose: "Student agency and choice in learning pathways"
     category: projects
     last_verified: "2026-04-01"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/qualitycode.md
     title: "Project: Quality Code"
     purpose: "Code quality, testing, and refactoring initiatives"
     category: projects
     last_verified: "2026-03-28"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/projects/platform-architecture-dataflow.html
     title: "Platform Architecture — Dataflow Visualization"
     purpose: "Interactive dataflow diagram of platform architecture"
     category: projects
     last_verified: "2026-04-02"
+    max_age_days: 90
+    last_scanned: null
 
   # --- SPECS (Feature Specifications) ---
   - path: docs/specs/discovery-engine-build-plan.md
@@ -745,6 +973,8 @@ docs:
     category: specs
     last_verified: "2026-04-07"
     referenced_from: ["CLAUDE.md AI Brain table"]
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/specs/discovery-engine-spec.md
     title: "Discovery Engine — Design Specification"
@@ -752,6 +982,8 @@ docs:
     category: specs
     last_verified: "2026-04-07"
     referenced_from: ["CLAUDE.md AI Brain table"]
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/specs/discovery-engine-ai-integration.md
     title: "Discovery Engine — AI Integration Touchpoint Map"
@@ -759,6 +991,8 @@ docs:
     category: specs
     last_verified: "2026-04-07"
     referenced_from: ["CLAUDE.md AI Brain table"]
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/specs/discovery-engine-ux-design.md
     title: "Discovery Engine — UX & Visual Design Specification"
@@ -766,30 +1000,40 @@ docs:
     category: specs
     last_verified: "2026-04-07"
     referenced_from: ["CLAUDE.md AI Brain table"]
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/specs/discovery-engine-image-prompts.md
     title: "Discovery Engine — Image Generation Prompts"
     purpose: "DALL-E and other image generation prompts for Discovery Engine assets"
     category: specs
     last_verified: "2026-03-26"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/specs/discovery-engine-research-audit.md
     title: "Discovery Engine — Research Audit & Recommendations"
     purpose: "Research findings and recommendations for Discovery Engine design"
     category: specs
     last_verified: "2026-03-25"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/specs/discovery-engine-v2.md
     title: "Discovery Engine v2 — Framework Mapping, Stealth Layer, Visualizations & Ongoing Journey"
     purpose: "Version 2 enhancement with framework mapping and stealth student profiling"
     category: specs
     last_verified: "2026-03-25"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/specs/discovery-engine-v3-intelligence.md
     title: "Discovery Engine v3 — The AI Intelligence Layer"
     purpose: "Version 3 with advanced AI profiling and adaptive flow"
     category: specs
     last_verified: "2026-03-26"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/specs/discovery-intelligence-layer-spec.md
     title: "Discovery Intelligence Layer — Architecture Spec"
@@ -797,12 +1041,16 @@ docs:
     category: specs
     last_verified: "2026-03-26"
     superseded_by: "docs/specs/student-learning-profile-schema.md"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/specs/student-learning-profile-schema.md
     title: "Student Learning Profile — Unified Schema Spec"
     purpose: "Canonical unified profile schema. 7 sections (identity incl. creative_voice + trajectory_snapshots, cognitive, current_state incl. motivational_state SDT, wellbeing, passive_signals, social incl. group work, custom via dimension registry) + computed pedagogy_preferences. 7 writer classes via SECURITY DEFINER. profile_dimensions registry enables future journey blocks to declare new dimensions without migrations. 1024-d aesthetic_embedding unblocks Designer Mentor matching. 4-phase build plan (21-25d). Option 2 stress-test extension 10 Apr 2026 added 5 structural gaps (SDT motivation, social/peer + group work, dimension registry, creative_voice, trajectory snapshots). Consolidates 3 prior overlapping specs."
     category: specs
     last_verified: "2026-04-10"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/specs/neutral-criterion-taxonomy.md
     title: "Neutral Criterion Taxonomy"
@@ -810,6 +1058,8 @@ docs:
     category: specs
     last_verified: "2026-04-07"
     referenced_from: ["CLAUDE.md AI Brain table"]
+    max_age_days: 365
+    last_scanned: null
 
   - path: docs/specs/format-profile-definitions.md
     title: "FormatProfile Definitions"
@@ -817,6 +1067,8 @@ docs:
     category: specs
     last_verified: "2026-04-07"
     referenced_from: ["CLAUDE.md AI Brain table"]
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/specs/block-library-bootstrap-strategy.md
     title: "Block Library Bootstrap Strategy"
@@ -824,6 +1076,8 @@ docs:
     category: specs
     last_verified: "2026-04-07"
     referenced_from: ["CLAUDE.md AI Brain table"]
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/specs/lesson-layer-architecture.md
     title: "Lesson Layer Architecture"
@@ -831,198 +1085,264 @@ docs:
     category: specs
     last_verified: "2026-04-07"
     referenced_from: ["CLAUDE.md AI Brain table"]
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/specs/lesson-editor-phase-0.5.md
     title: "Phase 0.5: Lesson Editor — Best Lesson Planning Experience in the World"
     purpose: "Drag-and-drop lesson editor with 12 modular components, undo/redo, auto-save, activity reordering, AI field assistance"
     category: specs
     last_verified: "2026-03-25"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/specs/unit-editing-navigation-spec.md
     title: "Unit Editing, Versioning & Navigation — Feature Spec"
     purpose: "Edit Mode Toggle (All Classes vs This Class Only), version history, Apply to All Classes button"
     category: specs
     last_verified: "2026-03-25"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/specs/class-gallery-peer-review.md
     title: "Class Gallery & Peer Review — Feature Spec"
     purpose: "Gallery rounds, structured peer review (comment/PMI/Two Stars), portfolio snapshots, effort-gated feedback"
     category: specs
     last_verified: "2026-03-21"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/specs/class-hub-spec.md
     title: "Class Hub + Student Drawer — Spec"
     purpose: "Tabbed class management: Overview, Progress, Grade, Safety, NM, Students, Open Studio tabs"
     category: specs
     last_verified: "2026-03-25"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/specs/teaching-mode-quick-access.md
     title: "Teaching Mode Quick-Access Toolbar — Feature Spec"
     purpose: "Quick-edit slide-out panel, classroom tools (picker, timer, groups, noise meter)"
     category: specs
     last_verified: "2026-03-25"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/specs/student-dashboard-spec.md
     title: "Student Dashboard Redesign — My Design Journey"
     purpose: "Multi-class card grid with subject detection, unit type icons, Open Studio cards, floating toolkit launcher"
     category: specs
     last_verified: "2026-03-20"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/specs/timetable-scheduling-spec.md
     title: "Timetable & Scheduling System"
     purpose: "Cycle day engine, term assignment, schedule overrides, iCal import, lesson scheduling"
     category: specs
     last_verified: "2026-03-21"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/specs/student-toolkit-access.md
     title: "Student Toolkit Access — Feature Spec"
     purpose: "Embedded vs Standalone modes, session persistence, version history, response storage"
     category: specs
     last_verified: "2026-03-18"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/specs/student-gallery-api.md
     title: "Student Gallery API Specification"
     purpose: "Gallery submission and peer review API"
     category: specs
     last_verified: "2026-03-26"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/specs/grading-assessment-ecosystem.md
     title: "StudioLoom Grading & Assessment Ecosystem"
     purpose: "Grading rubrics, evidence panels, integrity reports, criterion-based assessment"
     category: specs
     last_verified: "2026-03-24"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/specs/new-metrics-integration.md
     title: "New Metrics (Melbourne Metrics) Integration Spec"
     purpose: "Melbourne Metrics competency assessment integration into lesson checkpoints"
     category: specs
     last_verified: "2026-03-20"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/specs/nm-reporting-synthesis.md
     title: "New Metrics Reporting — Full Synthesis & Build Plan"
     purpose: "Melbourne Metrics reporting dashboard, competency progress tracking, visualizations"
     category: specs
     last_verified: "2026-03-28"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/specs/unit-type-framework-architecture.md
     title: "Unit Type Framework Architecture"
     purpose: "4-dimension model (Unit Type × Programme × Curriculum × Standards) with framework-agnostic content"
     category: specs
     last_verified: "2026-03-27"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/specs/wizard-lanes-spec.md
     title: "Unit Builder Wizard — 3-Lane Spec"
     purpose: "3-lane wizard (Express 3 clicks / Guided 5-7 steps / Architect 1 form) with data carry-forward"
     category: specs
     last_verified: "2026-03-27"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/specs/unit-forking-spec.md
     title: "Unit Forking Spec"
     purpose: "Copy-on-write per-class content editing with inheritance chain resolution"
     category: specs
     last_verified: "2026-03-22"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/specs/data-architecture-v2.md
     title: "StudioLoom Data Architecture v2 — Full Entity Hierarchy"
     purpose: "Complete data model with UDL checkpoints, activity categories, time weights, Dimensions metadata"
     category: specs
     last_verified: "2026-04-01"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/specs/design-hardcoding-deep-audit.md
     title: "Design-Specific Hardcoding — Deep Audit Report"
     purpose: "Identifies all design-specific hardcoded values that need framework neutralization"
     category: specs
     last_verified: "2026-03-27"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/specs/fan-menu-design-brief.md
     title: "Fan Menu Design Brief — QuickToolFAB"
     purpose: "Floating action button with phase pill stack and tool slide-out menu"
     category: specs
     last_verified: "2026-03-18"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/specs/quest-journey-architecture.md
     title: "Quest Journey System — Complete Technical Architecture"
     purpose: "Technical architecture for quest-based student journey system"
     category: specs
     last_verified: "2026-03-25"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/specs/quest-journey-vision.md
     title: "Quest Journey System — Vision & Architecture"
     purpose: "Vision and high-level design for quest journey system"
     category: specs
     last_verified: "2026-03-25"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/specs/phase-d-ai-tool-suggestions-implementation.md
     title: "Phase D: AI Design Assistant Tool Suggestions — Implementation Guide"
     purpose: "Implementation of contextual AI tool suggestions in Design Assistant"
     category: specs
     last_verified: "2026-03-18"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/specs/scamper-v2-spec.md
     title: "SCAMPER v2 — Make the Thinking Visible"
     purpose: "SCAMPER tool reference implementation for effort-gating patterns"
     category: specs
     last_verified: "2026-03-20"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/specs/safety-and-skill-badges.md
     title: "Safety & Skill Badges — Feature Spec"
     purpose: "Safety test badges and skill progression badges"
     category: specs
     last_verified: "2026-03-21"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/specs/safety-skills-upgrade-plan.md
     title: "Safety & Skills System — World-Class Upgrade Plan"
     purpose: "Comprehensive upgrade plan for safety and skills systems"
     category: specs
     last_verified: "2026-03-23"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/specs/safety-training-materials.md
     title: "Safety Training Materials — PRD"
     purpose: "Product spec for safety training content and delivery"
     category: specs
     last_verified: "2026-03-22"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/specs/service-learning-framework.md
     title: "Service Learning Framework — StudioLoom Extension"
     purpose: "Framework for Service learning unit type support"
     category: specs
     last_verified: "2026-03-25"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/specs/unified-upload-architecture.md
     title: "Unified Upload Architecture — Feature Spec"
     purpose: "Architecture for document upload, analysis, and content extraction"
     category: specs
     last_verified: "2026-03-30"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/specs/lesson-plan-converter.md
     title: "Lesson Plan Converter — Feature Spec"
     purpose: "Convert uploaded lesson plans into StudioLoom units and activity blocks"
     category: specs
     last_verified: "2026-03-25"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/specs/unit-generation-phase1-plan.md
     title: "Unit Generation Phase 1 Plan"
     purpose: "Initial unit generation feature roadmap"
     category: specs
     last_verified: "2026-03-27"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/specs/year-planner-spec.md
     title: "Year Planner Spec"
     purpose: "Teacher year planning calendar interface"
     category: specs
     last_verified: "2026-03-24"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/specs/system-architecture.md
     title: "LoomOS — StudioLoom System Architecture"
     purpose: "System architecture overview"
     category: specs
     last_verified: "2026-04-05"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/specs/StudioLoom-Project-Direction.docx
     title: "StudioLoom Project Direction"
     purpose: "Strategic project direction document"
     category: specs
     last_verified: "2026-03-30"
+    max_age_days: 90
+    last_scanned: null
 
   # --- RESEARCH (Research Papers & Data) ---
   - path: docs/research/student-influence-factors.md
@@ -1031,42 +1351,56 @@ docs:
     category: research
     last_verified: "2026-04-07"
     referenced_from: ["CLAUDE.md AI Brain table"]
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/research/design-thinking-tools-research.md
     title: "Design Thinking Tools: World's Best Examples & UX Research"
     purpose: "Research on design thinking tools from IDEO, d.school, and global examples"
     category: research
     last_verified: "2026-03-29"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/research/research-synthesis-lesson-timing.md
     title: "Real-World Design & Technology Lesson Timing Research"
     purpose: "Research synthesis from 25+ sources on lesson timing in design education"
     category: research
     last_verified: "2026-03-19"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/research/lesson-timing-data-tables.md
     title: "Lesson Timing Data Tables"
     purpose: "Data tables from lesson timing research with activity durations, phase times"
     category: research
     last_verified: "2026-03-19"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/research/QUICK-REFERENCE-TIMING-CARD.md
     title: "Design Lesson Timing: Quick Reference Card"
     purpose: "Quick reference for lesson timing norms and formulas"
     category: research
     last_verified: "2026-03-19"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/research/timing-research-to-questerra-integration.md
     title: "Timing Research → Questerra Integration Roadmap"
     purpose: "Roadmap for integrating timing research into Questerra"
     category: research
     last_verified: "2026-03-19"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/research/toolkit-expansion-research.md
     title: "Toolkit Expansion Categories: Research & UX Patterns"
     purpose: "Research on design toolkit categories and UX patterns"
     category: research
     last_verified: "2026-03-29"
+    max_age_days: 90
+    last_scanned: null
 
   # --- TESTING (QA & Test Checklists) ---
   - path: docs/testing/testing-checklist-19-mar-2026.md
@@ -1074,48 +1408,64 @@ docs:
     purpose: "QA checklist for toolkit extraction and safety badges"
     category: testing
     last_verified: "2026-04-05"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/testing/testing-checklist-21-mar-2026-session2.md
     title: "Testing Checklist — 21 March 2026 (Session 2)"
     purpose: "QA checklist for Open Studio and timing validation"
     category: testing
     last_verified: "2026-04-05"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/testing/timing-engine-test-checklist.md
     title: "Lesson Timing Engine — Test Checklist"
     purpose: "QA checklist for lesson timing engine and validation"
     category: testing
     last_verified: "2026-04-05"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/testing/nm-test-checklist.md
     title: "New Metrics (Melbourne Metrics) — Test Checklist"
     purpose: "QA checklist for Melbourne Metrics system"
     category: testing
     last_verified: "2026-04-05"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/testing/open-studio-test-checklist.md
     title: "Open Studio — Test Checklist"
     purpose: "QA checklist for Open Studio feature"
     category: testing
     last_verified: "2026-04-05"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/testing/toolkit-testing-quick-start.md
     title: "Toolkit Tools Testing — Quick Start Guide"
     purpose: "Quick guide for testing toolkit interactive tools"
     category: testing
     last_verified: "2026-04-05"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/testing/testing-dashboard.html
     title: "Testing Dashboard"
     purpose: "Interactive dashboard for test tracking"
     category: testing
     last_verified: "2026-04-05"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/testing/test-coverage-map.md
     title: "Test Coverage Map"
     purpose: "Maps all 17 test files with assertion counts, Dimensions3 criticality ratings, and critical gap inventory"
     category: testing
     last_verified: "2026-04-07"
+    max_age_days: 90
+    last_scanned: null
 
   # --- OPEN STUDIO (Open Studio Feature Docs) ---
   - path: "docs/open studio/open-studio-spec.md"
@@ -1124,6 +1474,8 @@ docs:
     category: open-studio
     last_verified: "2026-04-07"
     referenced_from: ["CLAUDE.md AI Brain table"]
+    max_age_days: 90
+    last_scanned: null
 
   - path: "docs/open studio/open-studio-experience-design.md"
     title: "Open Studio — Experience Design"
@@ -1131,42 +1483,56 @@ docs:
     category: open-studio
     last_verified: "2026-04-07"
     referenced_from: ["CLAUDE.md AI Brain table"]
+    max_age_days: 90
+    last_scanned: null
 
   - path: "docs/open studio/open-studio-feature-spec.md"
     title: "Open Studio — Feature Spec for StudioLoom"
     purpose: "Feature specification for Open Studio (duplicate of open-studio-spec.md)"
     category: open-studio
     last_verified: "2026-03-19"
+    max_age_days: 90
+    last_scanned: null
 
   - path: "docs/open studio/open-studio-design.md"
     title: "Open Studio — Design Spec"
     purpose: "Design specification for Open Studio UI"
     category: open-studio
     last_verified: "2026-03-19"
+    max_age_days: 90
+    last_scanned: null
 
   - path: "docs/open studio/open-studio-implementation-plan.md"
     title: "Open Studio — Implementation Plan"
     purpose: "Implementation roadmap for Open Studio"
     category: open-studio
     last_verified: "2026-03-19"
+    max_age_days: 90
+    last_scanned: null
 
   - path: "docs/open studio/discovery-comic-strip-spec.md"
     title: "Open Studio Discovery — Comic Strip Narrative Spec"
     purpose: "Comic strip narrative specification for Discovery Engine"
     category: open-studio
     last_verified: "2026-03-19"
+    max_age_days: 90
+    last_scanned: null
 
   - path: "docs/open studio/discovery-mentor-system.md"
     title: "Open Studio Discovery — Choose Your Mentor"
     purpose: "Mentor selection system for Discovery Engine (Kit, Sage, Spark)"
     category: open-studio
     last_verified: "2026-03-19"
+    max_age_days: 90
+    last_scanned: null
 
   - path: "docs/open studio/discovery-voiceover-script.md"
     title: "Open Studio Discovery — Voiceover Script"
     purpose: "Voiceover and narration script for Discovery Engine panels"
     category: open-studio
     last_verified: "2026-03-19"
+    max_age_days: 90
+    last_scanned: null
 
   # --- COMPONENTS (Component Documentation) ---
   - path: docs/components/TEACHING-DNA.md
@@ -1174,18 +1540,24 @@ docs:
     purpose: "TeachingDNA system for modeling teacher personality and style in AI"
     category: components
     last_verified: "2026-03-19"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/components/TEACHING-DNA-QUICK-REF.md
     title: "TeachingDNA — Quick Reference Card"
     purpose: "Quick reference for TeachingDNA components and usage"
     category: components
     last_verified: "2026-03-19"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/components/teaching-dna-integration.md
     title: "TeachingDNA Integration Guide"
     purpose: "Guide for integrating TeachingDNA into AI systems"
     category: components
     last_verified: "2026-03-19"
+    max_age_days: 90
+    last_scanned: null
 
   # --- DESIGN (Design Patterns & Guidelines) ---
   - path: docs/design/ai-lesson-analysis.md
@@ -1193,12 +1565,16 @@ docs:
     purpose: "System for analyzing lessons and extracting pedagogical intelligence"
     category: design
     last_verified: "2026-03-10"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/design/hits-gap-analysis.md
     title: "High Impact Teaching Strategies — Gap Analysis for Design"
     purpose: "Gap analysis mapping HITS to design education context"
     category: design
     last_verified: "2026-03-13"
+    max_age_days: 90
+    last_scanned: null
 
   # --- AUTOMATION (Automation & Handoff) ---
   - path: docs/automation/automation-build-plan.md
@@ -1206,54 +1582,72 @@ docs:
     purpose: "Plan for building automation — Sprints 1-2 COMPLETE (CI, nightly, health, Sentry). Sprints 3-4 pending."
     category: automation
     last_verified: "2026-04-07"
+    max_age_days: 90
+    last_scanned: null
 
   - path: .github/workflows/ci.yml
     title: "CI Workflow"
     purpose: "GitHub Actions: lint + typecheck + build + test + dashboard sync check on push/PR to main"
     category: automation
     last_verified: "2026-04-07"
+    max_age_days: 90
+    last_scanned: null
 
   - path: .github/workflows/nightly.yml
     title: "Nightly Audit Workflow"
     purpose: "GitHub Actions: dep audit + typecheck + build + test + dashboard sync + doc freshness + WIRING health at 2am Nanjing"
     category: automation
     last_verified: "2026-04-07"
+    max_age_days: 90
+    last_scanned: null
 
   - path: src/app/api/health/route.ts
     title: "Health Endpoint"
     purpose: "Public /api/health endpoint — pings Supabase, returns ok/db/responseTime for uptime monitoring"
     category: automation
     last_verified: "2026-04-07"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/automation/studioloom-automation-handoff.md
     title: "StudioLoom Automation & Bug Squash — Handoff Doc"
     purpose: "Handoff document for automation and bug fix work"
     category: automation
     last_verified: "2026-04-07"
+    max_age_days: 90
+    last_scanned: null
 
   - path: scripts/check-dashboard-sync.ts
     title: "Dashboard Sync Checker"
     purpose: "Validates ALL-PROJECTS.md and dashboard.html PROJECTS array are in sync. Fuzzy name matching, exit code 1 on drift."
     category: automation
     last_verified: "2026-04-07"
+    max_age_days: 90
+    last_scanned: null
 
   - path: scripts/check-doc-freshness.ts
     title: "Doc Freshness Checker"
     purpose: "Validates doc-manifest.yaml — reports broken paths, unknown dates, stale (>30d). --fix sets unknown dates from file mtime."
     category: automation
     last_verified: "2026-04-07"
+    max_age_days: 90
+    last_scanned: null
 
   - path: scripts/check-wiring-health.py
     title: "WIRING Health Checker"
     purpose: "Validates WIRING.yaml — parseable YAML, no dangling refs, no orphans. --trace shows full impact cascade for a system."
     category: automation
     last_verified: "2026-04-07"
+    max_age_days: 90
+    last_scanned: null
 
   - path: scripts/check-session-changes.sh
     title: "Session Changes Checker"
     purpose: "Counts modified/staged/untracked files via git. Outputs SAVEME RECOMMENDED if thresholds met."
     category: automation
     last_verified: "2026-04-07"
+    max_age_days: 90
+    last_scanned: null
 
   # --- AUDITS (Audit Reports) ---
   - path: docs/audits/safety-pace-timetable-e2e-audit-2026-03-24.md
@@ -1261,12 +1655,16 @@ docs:
     purpose: "End-to-end audit of safety badges, pace feedback, and timetabling features"
     category: audits
     last_verified: "2026-03-24"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/generation-pipeline-audit.html
     title: "Generation Pipeline Audit"
     purpose: "Interactive audit of generation pipeline"
     category: audits
     last_verified: "2026-04-01"
+    max_age_days: 90
+    last_scanned: null
 
   # --- IDEAS (Brainstorm & Backlog) ---
   - path: docs/ideas/README.md
@@ -1274,48 +1672,64 @@ docs:
     purpose: "Index of idea tracking documents"
     category: ideas
     last_verified: "2026-03-17"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/ideas/ranked-ideas.md
     title: "Matt's Ranked Idea Tracker"
     purpose: "Ideas ranked by priority and impact"
     category: ideas
     last_verified: "2026-03-17"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/ideas/toolkit-interactive-tools-plan.md
     title: "Interactive Toolkit Tools — Master Build Plan"
     purpose: "Master plan for 27 interactive toolkit tools with interaction shapes and component reuse"
     category: ideas
     last_verified: "2026-03-17"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/ideas/toolkit-design-spec.md
     title: "Design Thinking Toolkit — Design Spec"
     purpose: "Comprehensive design spec for the Design Thinking Toolkit"
     category: ideas
     last_verified: "2026-03-17"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/ideas/design-toolkit-browser.html
     title: "Design Toolkit Browser"
     purpose: "Interactive HTML browser of all toolkit tools"
     category: ideas
     last_verified: "2026-03-17"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/ideas/toolkit-v2.html
     title: "Toolkit v2 Prototype"
     purpose: "HTML prototype for toolkit v2 redesign"
     category: ideas
     last_verified: "2026-03-17"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/ideas/unit-card-redesign-mockup.html
     title: "Unit Card Redesign Mockup"
     purpose: "HTML mockup of unit card redesign"
     category: ideas
     last_verified: "2026-03-27"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/ideas/trade-intelligence-map.html
     title: "Trade Intelligence Map"
     purpose: "Interactive map of design trade skills and knowledge"
     category: ideas
     last_verified: "2026-03-17"
+    max_age_days: 90
+    last_scanned: null
 
   # --- PROTOTYPES (UI Prototypes) ---
   - path: docs/prototypes/toolkit-redesign-v3.html
@@ -1323,72 +1737,96 @@ docs:
     purpose: "HTML prototype of toolkit redesign iteration 3"
     category: prototypes
     last_verified: "2026-03-28"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/prototypes/toolkit-redesign-v4.html
     title: "Toolkit Redesign v4"
     purpose: "HTML prototype of toolkit redesign iteration 4"
     category: prototypes
     last_verified: "2026-03-29"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/prototypes/toolkit-redesign-v5.html
     title: "Toolkit Redesign v5"
     purpose: "HTML prototype of toolkit redesign iteration 5"
     category: prototypes
     last_verified: "2026-03-29"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/prototypes/toolkit-filter-option-a.html
     title: "Toolkit Filter Option A"
     purpose: "HTML prototype of toolkit filter UI option A"
     category: prototypes
     last_verified: "2026-03-29"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/prototypes/toolkit-filter-option-b.html
     title: "Toolkit Filter Option B"
     purpose: "HTML prototype of toolkit filter UI option B"
     category: prototypes
     last_verified: "2026-03-29"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/prototypes/toolkit-filter-option-c.html
     title: "Toolkit Filter Option C"
     purpose: "HTML prototype of toolkit filter UI option C"
     category: prototypes
     last_verified: "2026-03-29"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/prototypes/toolkit-filter-option-d.html
     title: "Toolkit Filter Option D"
     purpose: "HTML prototype of toolkit filter UI option D"
     category: prototypes
     last_verified: "2026-03-29"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/prototypes/own-time-prototype.html
     title: "Own Time Prototype"
     purpose: "HTML prototype of Own Time feature (superseded by Open Studio)"
     category: prototypes
     last_verified: "2026-03-19"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/prototypes/own-time-live.html
     title: "Own Time Live Prototype"
     purpose: "Live version of Own Time prototype"
     category: prototypes
     last_verified: "2026-03-19"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/prototypes/nm-results-mockups.html
     title: "New Metrics Results Mockups"
     purpose: "HTML mockups of New Metrics reporting interface"
     category: prototypes
     last_verified: "2026-03-31"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/prototypes/another-world-transitions.html
     title: "Another World-Style Transitions"
     purpose: "HTML prototype of Another World-style animation transitions for Discovery"
     category: prototypes
     last_verified: "2026-03-28"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/prototypes/OPTION-A-NOTES.md
     title: "Option A Design Notes"
     purpose: "Design notes and analysis for Option A UI"
     category: prototypes
     last_verified: "2026-03-29"
+    max_age_days: 90
+    last_scanned: null
 
   # --- SHOWCASE (Showcase & Interactive Demos) ---
   - path: docs/showcase/discovery-intelligence-showcase.html
@@ -1396,6 +1834,8 @@ docs:
     purpose: "Interactive showcase of Discovery Intelligence system"
     category: prototypes
     last_verified: "2026-03-26"
+    max_age_days: 90
+    last_scanned: null
 
   # --- MARKETING (Marketing & Communications) ---
   - path: docs/marketing/landing-page-ideas.md
@@ -1403,6 +1843,8 @@ docs:
     purpose: "Brainstorm and concepts for marketing landing page"
     category: marketing
     last_verified: "2026-03-10"
+    max_age_days: 90
+    last_scanned: null
 
   # --- SAFETY (Safety-Specific Documentation) ---
   - path: "docs/safety/TAS Workshop Safety Contract.docx"
@@ -1410,6 +1852,8 @@ docs:
     purpose: "Workshop safety contract template from TAS"
     category: safety
     last_verified: "2026-03-19"
+    max_age_days: 90
+    last_scanned: null
 
   # --- ARCHIVE (Old/Superseded Documentation) ---
   - path: docs/archive/idea-tracker-2026-03.md
@@ -1417,114 +1861,152 @@ docs:
     purpose: "Archived idea tracker from March 2026"
     category: archive
     last_verified: "2026-04-05"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/archive/superseded/own-time-concept.md
     title: "Own Time Concept"
     purpose: "SUPERSEDED by Open Studio. Original concept document."
     category: archive
     last_verified: "2026-04-05"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/archive/superseded/engine-overhaul-plan.md
     title: "Engine Overhaul Plan"
     purpose: "SUPERSEDED. Old generation engine redesign plan."
     category: archive
     last_verified: "2026-04-05"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/archive/superseded/ai-reasoning-status.md
     title: "AI Reasoning Status"
     purpose: "SUPERSEDED. Old AI reasoning system status."
     category: archive
     last_verified: "2026-04-05"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/archive/superseded/ai-reasoning-summary.md
     title: "AI Reasoning Summary"
     purpose: "SUPERSEDED. Old AI reasoning system summary."
     category: archive
     last_verified: "2026-04-05"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/archive/superseded/phase-c-quick-reference.md
     title: "Phase C Quick Reference"
     purpose: "SUPERSEDED. Old Phase C quick reference."
     category: archive
     last_verified: "2026-04-05"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/archive/superseded/priority-todo.md
     title: "Priority Todo"
     purpose: "SUPERSEDED. Old priority todo list."
     category: archive
     last_verified: "2026-04-05"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/archive/superseded/gemini-activity-cards-prompt.md
     title: "Gemini Activity Cards Prompt"
     purpose: "SUPERSEDED. Old Gemini integration prompt."
     category: archive
     last_verified: "2026-04-05"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/archive/toolkit-audit-19mar.md
     title: "Toolkit Audit — 19 March 2026"
     purpose: "Archived audit of toolkit from 19 March"
     category: archive
     last_verified: "2026-04-05"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/archive/session-reports/PHASE-A-BUILD-SUMMARY.md
     title: "Phase A Build Summary"
     purpose: "Summary of Phase A build work"
     category: archive
     last_verified: "2026-04-05"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/archive/session-reports/LESSON-EDITOR-BUILD-NOTES.md
     title: "Lesson Editor Build Notes"
     purpose: "Build notes for Phase 0.5 lesson editor"
     category: archive
     last_verified: "2026-04-05"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/archive/session-reports/current-status-27-mar-2026.md
     title: "Current Status — 27 March 2026"
     purpose: "Project status snapshot from 27 March"
     category: archive
     last_verified: "2026-04-05"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/archive/session-reports/safety-badge-path-deployment.md
     title: "Safety Badge Path Deployment"
     purpose: "Deployment report for safety badge path feature"
     category: archive
     last_verified: "2026-04-05"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/archive/session-reports/test-report-19-mar-2026.md
     title: "Test Report — 19 March 2026"
     purpose: "QA test report from 19 March"
     category: archive
     last_verified: "2026-04-05"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/archive/session-reports/toolkit-extraction-batch2-completion.md
     title: "Toolkit Extraction Batch 2 Completion"
     purpose: "Completion report for toolkit extraction batch 2"
     category: archive
     last_verified: "2026-04-05"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/archive/session-reports/toolkit-extraction-completion.md
     title: "Toolkit Extraction Completion"
     purpose: "Completion report for toolkit extraction"
     category: archive
     last_verified: "2026-04-05"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/archive/session-reports/toolkit-phase-c-completion.md
     title: "Toolkit Phase C Completion"
     purpose: "Completion report for toolkit Phase C"
     category: archive
     last_verified: "2026-04-05"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/archive/session-reports/toolkit-phase-c-testing.md
     title: "Toolkit Phase C Testing"
     purpose: "Test report for toolkit Phase C"
     category: archive
     last_verified: "2026-04-05"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/archive/session-reports/toolkit-session-layer-completion.md
     title: "Toolkit Session Layer Completion"
     purpose: "Completion report for toolkit session layer"
     category: archive
     last_verified: "2026-04-05"
+    max_age_days: 90
+    last_scanned: null
 
   # --- LESSON PLANS (Example Lesson Documents) ---
   - path: "docs/lesson plans/Product Design_Unit Plan_Biomimicry[95].docx"
@@ -1532,12 +2014,16 @@ docs:
     purpose: "Example lesson plan for biomimicry product design unit"
     category: root
     last_verified: "2026-03-19"
+    max_age_days: 90
+    last_scanned: null
 
   - path: "docs/lesson plans/mburton packaging redesign unit.docx"
     title: "Packaging Redesign Unit Plan"
     purpose: "Example lesson plan for packaging redesign unit"
     category: root
     last_verified: "2026-03-19"
+    max_age_days: 90
+    last_scanned: null
 
   # --- SKILLS LIBRARY + OPEN STUDIO MODE (added 11 Apr 2026) ---
   - path: "docs/projects/skills-library.md"
@@ -1545,90 +2031,120 @@ docs:
     purpose: "P1 project: canonical skill cards, state ladder, freshness, context-aware gating, radar chart. Supersedes self-help-library.md"
     category: projects
     last_verified: "2026-04-11"
+    max_age_days: 90
+    last_scanned: null
 
   - path: "docs/projects/open-studio-mode.md"
     title: "Open Studio Mode — Studio Desk, Three-Touch Pattern"
     purpose: "P1 project: runtime open studio (studio desk, arrival intent, passive evidence, departure reflection, 5-rung escalation). Contains MANDATORY required-reading block"
     category: projects
     last_verified: "2026-04-11"
+    max_age_days: 90
+    last_scanned: null
 
   - path: "docs/specs/skills-library-spec.md"
     title: "Skills Library Spec (base)"
     purpose: "Canonical spec: skill card anatomy, schema, embed contexts, quizzes, badges, authoring phases, cross-school sharing"
     category: specs
     last_verified: "2026-04-11"
+    max_age_days: 90
+    last_scanned: null
 
   - path: "docs/specs/skills-library-completion-addendum.md"
     title: "Skills Library Completion Addendum"
     purpose: "Completion state model, freshness layer, context-aware gating, categories, strength radar chart formula, privacy rules"
     category: specs
     last_verified: "2026-04-11"
+    max_age_days: 90
+    last_scanned: null
 
   - path: "docs/open studio/open-studio-mode-spec.md"
     title: "Open Studio Mode Spec"
     purpose: "Principles, three-touch pattern, AI behaviour, 5-rung escalation, UX wireframe, Wayfinder/Stones/Recalibration integration"
     category: open-studio
     last_verified: "2026-04-11"
+    max_age_days: 90
+    last_scanned: null
 
   - path: "docs/prototypes/strength-chart-prototype.html"
     title: "Strength Radar Chart Prototype"
     purpose: "Interactive prototype of skill strength radar chart (state × freshness × category weight)"
     category: prototypes
     last_verified: "2026-04-11"
+    max_age_days: 90
+    last_scanned: null
 
   - path: "docs/open studio/prototypes/open-studio-wireframe.html"
     title: "Open Studio Wireframe"
     purpose: "Studio desk wireframe for Open Studio Mode"
     category: prototypes
     last_verified: "2026-04-11"
+    max_age_days: 90
+    last_scanned: null
 
   - path: "docs/open studio/prototypes/open-studio-reference-prototypes.html"
     title: "Open Studio Reference Prototypes"
     purpose: "Reference layouts for Open Studio Mode UI patterns"
     category: prototypes
     last_verified: "2026-04-11"
+    max_age_days: 90
+    last_scanned: null
 
   - path: "docs/open studio/prototypes/student-dashboard-composed.html"
     title: "Student Dashboard Composed"
     purpose: "Student dashboard with greyscale unit card + colourful Studio card pattern"
     category: prototypes
     last_verified: "2026-04-11"
+    max_age_days: 90
+    last_scanned: null
 
   - path: "docs/open studio/prototypes/SESSION-SUMMARY-apr-2026.md"
     title: "Skills + Open Studio Workshop Session Summary (April 2026)"
     purpose: "Orientation doc listing all workshop artifacts, decisions, scope tiers, open questions"
     category: open-studio
     last_verified: "2026-04-11"
+    max_age_days: 90
+    last_scanned: null
 
   - path: docs/data-classification-taxonomy.md
     title: "Data Classification Taxonomy"
     purpose: "6-axis data classification system (pii, student_voice, safety_sensitive, ai_exportable, retention_days, basis) feeding schema-registry.yaml"
     category: root
     last_verified: "2026-04-14"
+    max_age_days: 365
+    last_scanned: null
 
   - path: docs/feature-flags.yaml
     title: "Feature Flag & Secret Registry"
     purpose: "Runtime feature-flag + secret registry — 15 flags, 12 secrets"
     category: root
     last_verified: "2026-04-14"
+    max_age_days: 30
+    last_scanned: null
 
   - path: docs/feature-flags-taxonomy.md
     title: "Feature Flag & Secret Taxonomy"
     purpose: "Field definitions and classification rules for feature-flags.yaml"
     category: root
     last_verified: "2026-04-14"
+    max_age_days: 365
+    last_scanned: null
 
   - path: docs/vendors.yaml
     title: "Vendor / DPA Registry"
     purpose: "Third-party vendor / DPA registry — 9 vendors with data categories and legal bases"
     category: root
     last_verified: "2026-04-14"
+    max_age_days: 30
+    last_scanned: null
 
   - path: docs/vendors-taxonomy.md
     title: "Vendor / DPA Registry Taxonomy"
     purpose: "Field definitions, canonical enums, and update convention for vendors.yaml"
     category: root
     last_verified: "2026-04-14"
+    max_age_days: 365
+    last_scanned: null
 
 # --- SUMMARY STATISTICS ---
 summary:
