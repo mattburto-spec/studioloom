@@ -554,6 +554,28 @@ Migrate moderation log visibility from Option C (student_id cross-join) to Optio
 
 ---
 
+## FU-KK — ingestion/pipeline.ts writes "system" sentinel to UUID FK columns (P2)
+
+**Filed:** 14 Apr 2026
+**Priority:** P2 (silent failure but lower volume than FU-GG — only fires on teacher uploads with missing teacherId)
+
+**Symptom:** `src/lib/ingestion/pipeline.ts` lines 122-125 build a `ModerationContext` with two sentinel fallbacks:
+- `classId: config.teacherId || "system"` — `class_id` is `UUID REFERENCES classes(id)`, "system" fails FK constraint
+- `studentId: config.teacherId || "system"` — `student_id` is `UUID NOT NULL`, "system" fails type/FK constraint
+
+Same silent-data-loss pattern as FU-GG: the FK rejection error is swallowed by the `try/catch` on line 127, and the ingestion moderation event is silently lost.
+
+**Question to answer before fixing:** Why is this row writing a classId at all if the context is ingestion (teacher-scoped, not class-scoped)? Three options:
+- **(a)** Set `classId` to `''` and `studentId` to the teacher's UUID (hacky but matches the current schema — teacher content moderation routed via the same table as student moderation). FU-N policy handles NULL class_id visibility.
+- **(b)** Don't log ingestion moderation events in `student_content_moderation_log` at all — they belong in `content_moderation_log` (the existing per-block table from migration 067, service-role-only). This is the architecturally correct answer but requires wiring changes.
+- **(c)** Pass through a real class_id from the upload context if one exists (ingestion is always teacher-scoped, never class-scoped — so this option doesn't apply).
+
+**Full sentinel audit (14 Apr 2026):** Grepped `|| "(system|unknown|default|none|null)"` across all `.ts` files. 30+ hits, but only `pipeline.ts:123-124` land in UUID FK columns. All others are in-memory Map keys for aggregation, display strings, error messages, or TEXT columns.
+
+**Definition of done:** `pipeline.ts` moderation write either succeeds with valid values (NULL or real UUID for class_id, real UUID for student_id), or routes to a different table entirely. Test proving the insert doesn't silently fail.
+
+---
+
 ## FU-HH — No live Supabase RLS test harness (P2)
 
 **Filed:** 14 Apr 2026
