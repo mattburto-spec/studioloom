@@ -1240,6 +1240,22 @@ docs:
     max_age_days: 90
     last_scanned: null
 
+  - path: docs/specs/fu-n-manual-smoke-protocol.md
+    title: "FU-N Manual Smoke Protocol"
+    purpose: "4-test manual RLS verification protocol for migration 078 dual-visibility policy"
+    category: specs
+    last_verified: "2026-04-14"
+    max_age_days: 90
+    last_scanned: null
+
+  - path: docs/specs/moderation-log-writer-audit.md
+    title: "Moderation Log Writer Audit"
+    purpose: "17 call sites across 14 routes categorized by class_id behavior (Phase 7A-Safety-2)"
+    category: specs
+    last_verified: "2026-04-14"
+    max_age_days: 90
+    last_scanned: null
+
   - path: docs/specs/quest-journey-architecture.md
     title: "Quest Journey System — Complete Technical Architecture"
     purpose: "Technical architecture for quest-based student journey system"
@@ -2188,12 +2204,12 @@ docs:
 
 # --- SUMMARY STATISTICS ---
 summary:
-  total_documents: 236
+  total_documents: 238
   by_category:
     root: 20
     brain: 8
     projects: 63
-    specs: 51
+    specs: 53
     research: 7
     testing: 7
     ideas: 7

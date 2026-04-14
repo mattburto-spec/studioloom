@@ -1082,8 +1082,8 @@ const SYSTEMS = [
     v2: "NSFW.js client image filter (MobileNet v2, lazy-loaded, 0.6 threshold). Server Haiku moderation (moderateContent(), bilingual prompt, defence-in-depth, failures→pending). 7 text + 3 image choke points. 5E wiring NEXT.",
     v3: "5E client wiring (7 text + 3 image choke points). 5F server wiring (15 endpoints, moderate-and-log.ts shared wrapper, fire-and-forget + sync gate patterns). nsfwjs noParse webpack fix. 1103 tests.",
     v4: "Phase 6 (14 Apr): Teacher safety feed at /teacher/safety/alerts + nav critical badge + ingestion upload-level safety scan with moderation_hold. Checkpoint 5.1 CLOSED at 9/11 (Steps 6–7 deferred need test images). FU-N NULL class_id × RLS silent-filter bug filed as P1 live safety gap. Nav longest-prefix fix. 1119 tests.",
-    v5: "FU-N fix + rollback controls + configurable blocklists per school + Steps 6–7 image moderation verification + Access Model v2 RLS refactor",
-    currentVersion: 4, status: "active",
+    v5: "Phase 7A-Safety-2 (14 Apr): FU-N Option C dual-visibility RLS (migration 078, Lesson #29 UNION). 17 writer sites audited. Manual smoke protocol. FU-GG (nm-assessment data loss) filed. Next: rollback controls, configurable blocklists, Steps 6-7 image verification, Access Model v2.",
+    currentVersion: 5, status: "active",
     deps: ["auth-system", "student-experience"],
     osSeam: "ready", osNotes: "Moderation types, client filters, and server moderation are product-agnostic. Blocklists configurable. Defence-in-depth pattern reusable."
   },

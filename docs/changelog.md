@@ -4,6 +4,38 @@
 
 ---
 
+## 14 Apr 2026 — Path B COMPLETE — FU-X + FU-N closed (Phase 7A-Safety-1 + 7A-Safety-2)
+
+**What changed:**
+- **Phase 7A-Safety-1 — FU-X closeout + RLS-coverage scanner** (6 commits):
+  - Migration 075 idempotent guards: 6 `DROP POLICY IF EXISTS` added before each `CREATE POLICY`
+  - Schema-registry: `applied_date: 2026-04-14` set on `cost_rollups`, `usage_rollups`, `system_alerts`, `library_health_flags`; stale `# FU-X: this table lacks RLS` inline comments removed
+  - New scanner `scripts/registry/scan-rls-coverage.py` — parses all migrations for CREATE TABLE, checks each has ENABLE ROW LEVEL SECURITY + at least one CREATE POLICY. Emits `docs/scanner-reports/rls-coverage.json`. 69 tables, all have RLS enabled, 3 with RLS-as-deny-all (no explicit policies: `ai_model_config`, `ai_model_config_history`, `student_sessions`)
+  - `docs/change-triggers.yaml`: new `before_creating_a_new_table` trigger requiring RLS + policy on every new table
+  - Saveme step 11(g) added for RLS scanner
+  - WIRING + doc-manifest wired for scan-rls-coverage.py
+- **Phase 7A-Safety-2 — FU-N Option C dual-visibility** (5 commits):
+  - Migration 078: dual-visibility RLS on `student_content_moderation_log` — Lesson #29 UNION pattern. SELECT + UPDATE policies now use `class_id IN (teacher's classes) OR (class_id IS NULL AND student_id IN (junction UNION legacy))`. Drop-if-exists guards from day one.
+  - 11 SQL-parse tests (`moderation-log-rls-078.test.ts`) asserting policy structure: DROP guards, exactly 2 policies, both UNION arms, WITH CHECK on UPDATE, provenance comment, no destructive ops
+  - Manual smoke protocol (`docs/specs/fu-n-manual-smoke-protocol.md`) for prod verification
+  - Writer audit (`docs/specs/moderation-log-writer-audit.md`): 17 call sites across 14 routes categorized — 14 always-NULL by design, 3 usually have class_id, 1 garbage-by-bug (nm-assessment "unknown"), 1 direct-insert pattern inconsistency
+  - Peer table `content_moderation_log` (migration 067) confirmed unaffected — no class_id column, service-role-only
+  - Content-safety WIRING entry bumped from planned/v0 to complete/v2
+
+**Migrations applied to prod:** 074, 076, 077, 078; plus 075 RLS portion (FU-X) earlier on 14 Apr. 075 cost_rollups table NOT applied (deferred).
+
+**Follow-ups filed:** FU-N-followup (P2, Option B admin queue when FU-O lands), FU-GG (P1, nm-assessment "unknown" classId data loss), FU-HH (P2, no live RLS test harness), FU-II (P3, log-client-block direct insert pattern)
+
+**Test baseline:** 1150 → 1161 (+11 new SQL-parse tests)
+
+**Files created:** `supabase/migrations/078_moderation_log_dual_visibility.sql`, `src/lib/content-safety/__tests__/moderation-log-rls-078.test.ts`, `docs/specs/fu-n-manual-smoke-protocol.md`, `docs/specs/moderation-log-writer-audit.md`, `scripts/registry/scan-rls-coverage.py`, `docs/scanner-reports/rls-coverage.json`
+
+**Files modified:** `supabase/migrations/075_cost_rollups_and_rls_fix.sql` (idempotent guards), `docs/schema-registry.yaml` (applied_dates, RLS descriptions, spec_drift entries), `docs/projects/dimensions3-followups.md` (FU-X/FU-N resolved + 4 new follow-ups), `CLAUDE.md` (follow-ups updated, test baseline, saveme step 11g), `docs/projects/ALL-PROJECTS.md` (FU-X/FU-N resolved), `docs/change-triggers.yaml` (new table trigger), `docs/doc-manifest.yaml` (scanner report + script entries), `docs/projects/WIRING.yaml` (scan-rls-coverage.py, content-safety bump)
+
+**Systems affected:** content-safety (dual-visibility RLS), governance-registries (RLS scanner added), schema-registry (applied_dates + spec_drift)
+
+---
+
 ## 14 Apr 2026 — GOV-1 Governance Foundation COMPLETE (all 4 sub-phases shipped)
 
 **What changed:**
