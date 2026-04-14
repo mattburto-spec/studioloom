@@ -11,6 +11,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { createServerClient } from "@supabase/ssr";
 import { createHash } from "crypto";
 import { extractDocument, sectionsToMarkdown } from "@/lib/knowledge/extract";
 import { extractImages } from "@/lib/ingestion/image-extraction";
@@ -26,6 +27,20 @@ function supabase() {
 }
 
 export async function POST(request: NextRequest) {
+  // Resolve teacher ID: (1) Supabase Auth session, (2) form field, (3) env var
+  let teacherId: string | null = null;
+  try {
+    const authClient = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { cookies: { getAll() { return request.cookies.getAll(); }, setAll() {} } }
+    );
+    const { data: { user } } = await authClient.auth.getUser();
+    if (user) teacherId = user.id;
+  } catch {
+    // Auth check is best-effort — fall through to other methods
+  }
+
   let form: FormData;
   try {
     form = await request.formData();
@@ -34,14 +49,16 @@ export async function POST(request: NextRequest) {
   }
 
   const file = form.get("file");
-  const teacherId = (form.get("teacherId") as string | null) || process.env.SYSTEM_TEACHER_ID || null;
+  if (!teacherId) {
+    teacherId = (form.get("teacherId") as string | null) || process.env.SYSTEM_TEACHER_ID || null;
+  }
   if (!(file instanceof File)) {
     return NextResponse.json({ error: "Missing 'file' field" }, { status: 400 });
   }
   if (!teacherId) {
     return NextResponse.json(
-      { error: "No teacherId provided and SYSTEM_TEACHER_ID env var unset" },
-      { status: 400 }
+      { error: "Not authenticated. Please log in as a teacher first." },
+      { status: 401 }
     );
   }
 
