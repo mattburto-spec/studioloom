@@ -100,6 +100,406 @@ tables:
     archived_at: TIMESTAMPTZ
     embedding_generated_at: TIMESTAMPTZ
     decay_applied_total: INT DEFAULT 0
+  classification:
+    id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    teacher_id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: indefinite
+      basis: contract
+    title:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    description:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    prompt:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    source_type:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    source_upload_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    source_unit_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    source_page_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    source_activity_index:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    bloom_level:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    time_weight:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    grouping:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    phase:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    activity_category:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    ai_rules:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    udl_checkpoints:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    success_look_fors:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    output_type:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    prerequisite_tags:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    lesson_structure_role:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    response_type:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    toolkit_tool_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    materials_needed:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    tech_requirements:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    scaffolding:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    example_response:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    efficacy_score:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    times_used:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    times_skipped:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    times_edited:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    avg_time_spent:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    avg_completion_rate:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    source_format_hint:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    embedding:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    fts:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    tags:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    is_assessable:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    assessment_config:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    interactive_config:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    supports_visual_assessment:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    pii_scanned:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    pii_flags:
+      pii: false
+      student_voice: false
+      safety_sensitive: true
+      ai_exportable: none
+      retention_days: indefinite
+      basis: legitimate_interest
+    copyright_flag:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    teacher_verified:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    module:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    media_asset_ids:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    is_public:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    is_archived:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    updated_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    moderation_status:
+      pii: false
+      student_voice: false
+      safety_sensitive: true
+      ai_exportable: none
+      retention_days: indefinite
+      basis: legitimate_interest
+    content_fingerprint:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    last_used_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    archived_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    embedding_generated_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    decay_applied_total:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
   unique_constraints:
   - - content_fingerprint
   indexes:
@@ -158,6 +558,91 @@ tables:
     sections_after: JSONB
     teacher_rating: SMALLINT CHECK (teacher_rating BETWEEN 1 AND 5)
     created_at: TIMESTAMPTZ DEFAULT now()
+  classification:
+    id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    card_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    teacher_id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: indefinite
+      basis: contract
+    unit_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    page_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    criterion:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    modifiers_applied:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    custom_prompt:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    sections_before:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    sections_after:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    teacher_rating:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
   indexes:
   - activity_card_usage_card_idx ON (card_id)
   - activity_card_usage_teacher_idx ON (teacher_id)
@@ -202,6 +687,196 @@ tables:
     is_public: BOOLEAN DEFAULT true
     created_at: TIMESTAMPTZ DEFAULT now()
     updated_at: TIMESTAMPTZ DEFAULT now()
+  classification:
+    id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    slug:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    name:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    description:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    category:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    criteria:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    phases:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    thinking_type:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    duration_minutes:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    group_size:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    materials:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    tools:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    resources_needed:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    teacher_notes:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    template:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    ai_hints:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    curriculum_frameworks:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    source:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    created_by:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: indefinite
+      basis: contract
+    parent_card_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    times_used:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    avg_edit_distance:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    embedding:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    fts:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    is_public:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    updated_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
   indexes:
   - activity_cards_embedding_idx ON USING hnsw (embedding vector_cosine_ops)
   - activity_cards_fts_idx ON USING gin (fts)
@@ -237,6 +912,42 @@ tables:
     value: JSONB NOT NULL
     updated_by: UUID REFERENCES auth.users(id) ON DELETE SET NULL
     updated_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+  classification:
+    id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    key:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    value:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    updated_by:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: indefinite
+      basis: contract
+    updated_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
   indexes:
   - (key is UNIQUE, implicit index)
   rls:
@@ -267,6 +978,35 @@ tables:
     config: JSONB NOT NULL DEFAULT '{}'
     updated_by: TEXT
     updated_at: TIMESTAMPTZ DEFAULT NOW()
+  classification:
+    id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    config:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    updated_by:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    updated_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
   rls:
     read: RLS enabled but no policies found in migrations
     write: RLS enabled but no policies found in migrations
@@ -285,6 +1025,42 @@ tables:
     changed_by: TEXT
     changed_at: TIMESTAMPTZ DEFAULT NOW()
     change_note: TEXT
+  classification:
+    id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    config:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    changed_by:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    changed_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    change_note:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
   rls:
     read: RLS enabled but no policies found in migrations
     write: RLS enabled but no policies found in migrations
@@ -305,6 +1081,56 @@ tables:
     encrypted_api_key: TEXT NOT NULL
     created_at: TIMESTAMPTZ DEFAULT now()
     updated_at: TIMESTAMPTZ DEFAULT now()
+  classification:
+    teacher_id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: indefinite
+      basis: contract
+    provider:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    api_endpoint:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    model_name:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    encrypted_api_key:
+      pii: false
+      student_voice: false
+      safety_sensitive: true
+      ai_exportable: none
+      retention_days: indefinite
+      basis: contract
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    updated_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
   rls:
     read: Teachers manage own AI settings (unknown)
     write: Teachers manage own AI settings (unknown)
@@ -330,6 +1156,77 @@ tables:
     estimated_cost_usd: numeric(10,6)
     metadata: jsonb DEFAULT '{}'
     created_at: timestamptz DEFAULT now()
+  classification:
+    id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 2555
+      basis: coppa_art_6
+    user_id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: indefinite
+      basis: contract
+    student_id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 2555
+      basis: coppa_art_6
+    endpoint:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    model:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    input_tokens:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    output_tokens:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    estimated_cost_usd:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    metadata:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
   indexes:
   - idx_usage_user ON (user_id, created_at DESC)
   - idx_usage_student ON (student_id, created_at DESC)
@@ -359,6 +1256,84 @@ tables:
     assessed_at: TIMESTAMPTZ DEFAULT now()
     created_at: TIMESTAMPTZ DEFAULT now()
     updated_at: TIMESTAMPTZ DEFAULT now()
+  classification:
+    id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 2555
+      basis: coppa_art_6
+    student_id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 2555
+      basis: coppa_art_6
+    unit_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    class_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    teacher_id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: indefinite
+      basis: contract
+    data:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    overall_grade:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    is_draft:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    assessed_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    updated_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
   indexes:
   - idx_assessment_records_student_unit ON (student_id, unit_id)
   - idx_assessment_records_class_unit ON (class_id, unit_id)
@@ -397,6 +1372,140 @@ tables:
     topics: TEXT[] NOT NULL DEFAULT '{}'
     created_at: TIMESTAMPTZ NOT NULL DEFAULT NOW()
     updated_at: TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  classification:
+    id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    slug:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    name:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    description:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    category:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    tier:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    icon_name:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    color:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    is_built_in:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    created_by_teacher_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    pass_threshold:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    expiry_months:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    retake_cooldown_minutes:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    question_count:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    question_pool:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    learn_content:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    topics:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    updated_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
   indexes:
   - idx_badges_slug ON (slug)
   - idx_badges_category ON (category)
@@ -571,6 +1680,56 @@ tables:
     period_number: INT
     room: TEXT
     created_at: TIMESTAMPTZ DEFAULT now()
+  classification:
+    id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    timetable_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    class_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    cycle_day:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    period_number:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    room:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
   indexes:
   - idx_class_meetings_timetable ON (timetable_id)
   - idx_class_meetings_class ON (timetable_id, class_id)
@@ -745,6 +1904,119 @@ tables:
     content_data: JSONB DEFAULT NULL
     forked_at: TIMESTAMPTZ DEFAULT NULL
     forked_from_version: INTEGER DEFAULT NULL
+  classification:
+    class_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    unit_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    is_active:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    locked_pages:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    final_due_date:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    page_settings:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    page_due_dates:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    locked_page_ids:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    nm_config:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    updated_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    term_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    schedule_overrides:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    content_data:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    forked_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    forked_from_version:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
   indexes:
   - idx_class_units_due_dates ON (class_id, final_due_date)
   - idx_class_units_term ON (term_id) WHERE term_id IS NOT NULL
@@ -969,6 +2241,92 @@ tables:
     context: JSONB DEFAULT '{}'
     created_at: TIMESTAMPTZ DEFAULT NOW()
     class_id: UUID REFERENCES classes(id)
+  classification:
+    id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 2555
+      basis: coppa_art_6
+    student_id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 2555
+      basis: coppa_art_6
+    unit_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    page_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    competency:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    element:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    source:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    rating:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    # UNSURE: comment could be teacher-authored observation or student self-assessment — marking safety_sensitive conservatively
+    comment:
+      pii: false
+      student_voice: false
+      safety_sensitive: true
+      ai_exportable: none
+      retention_days: 2555
+      basis: ferpa_educational
+    context:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    class_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
   indexes:
   - idx_ca_student ON (student_id)
   - idx_ca_unit ON (unit_id)
@@ -1009,6 +2367,91 @@ tables:
     section_index: INT
     ai_description: TEXT
     created_at: TIMESTAMPTZ DEFAULT now()
+  classification:
+    id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    content_item_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    asset_type:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    storage_path:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: none
+      retention_days: indefinite
+      basis: legitimate_interest
+    thumbnail_path:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: none
+      retention_days: indefinite
+      basis: legitimate_interest
+    mime_type:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    file_size_bytes:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    extracted_text:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    page_number:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    section_index:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    ai_description:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
   indexes:
   - idx_content_assets_item ON (content_item_id)
   rls:
@@ -1350,6 +2793,70 @@ tables:
     call_count: INT NOT NULL DEFAULT 0
     token_count: INT NOT NULL DEFAULT 0
     rolled_up_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+  classification:
+    id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    teacher_id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: indefinite
+      basis: contract
+    category:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    period:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    period_start:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    cost_usd:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    call_count:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    token_count:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    rolled_up_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
   unique_constraints:
   - (teacher_id, category, period, period_start)
   indexes:
@@ -1805,6 +3312,140 @@ tables:
     created_at: TIMESTAMPTZ DEFAULT now()
     updated_at: TIMESTAMPTZ DEFAULT now()
     reasoning: JSONB
+  classification:
+    id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    block_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    proposal_type:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    status:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    field:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    current_value:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    proposed_value:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    evidence_count:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    evidence_summary:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    signal_breakdown:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    requires_manual_approval:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    guardrail_flags:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    resolved_by:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: indefinite
+      basis: legitimate_interest
+    resolved_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    resolved_value:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    resolution_note:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    updated_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    reasoning:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
   indexes:
   - idx_proposals_block ON (block_id)
   - idx_proposals_status ON (status)
@@ -1831,6 +3472,49 @@ tables:
     reviewer_id: TEXT NOT NULL
     review_data: JSONB NOT NULL DEFAULT '{}'
     created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+  classification:
+    id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 2555
+      basis: coppa_art_6
+    submission_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    round_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    reviewer_id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 2555
+      basis: coppa_art_6
+    review_data:
+      pii: false
+      student_voice: true
+      safety_sensitive: true
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
   indexes:
   - idx_gallery_reviews_unique ON (submission_id, reviewer_id)
   - idx_gallery_reviews_submission ON (submission_id)
@@ -1867,6 +3551,105 @@ tables:
     deadline: TIMESTAMPTZ
     created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
     updated_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+  classification:
+    id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    unit_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    class_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    teacher_id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: indefinite
+      basis: contract
+    title:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    description:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    page_ids:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    review_format:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    min_reviews:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    anonymous:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    status:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    deadline:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    updated_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
   indexes:
   - idx_gallery_rounds_class ON (class_id, status)
   - idx_gallery_rounds_unit ON (unit_id)
@@ -1976,6 +3759,91 @@ tables:
     position_before: INT
     position_after: INT
     created_at: TIMESTAMPTZ DEFAULT now()
+  classification:
+    id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    generation_run_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    unit_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    activity_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    source_block_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    edit_type:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    diff_percentage:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    before_snapshot:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    after_snapshot:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    position_before:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    position_after:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
   indexes:
   - idx_gen_feedback_run ON (generation_run_id)
   - idx_gen_feedback_block ON (source_block_id)
@@ -2016,6 +3884,140 @@ tables:
     created_at: TIMESTAMPTZ DEFAULT now()
     updated_at: TIMESTAMPTZ DEFAULT now()
     is_sandbox: BOOLEAN NOT NULL DEFAULT false
+  classification:
+    id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    teacher_id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: indefinite
+      basis: contract
+    request:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    format_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    framework:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    status:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    current_stage:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    stage_results:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    output_unit_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    quality_report:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    total_cost:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    total_time_ms:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    error_message:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    error_stage:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    model_config:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    sandbox_mode:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    updated_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    is_sandbox:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
   indexes:
   - idx_gen_runs_teacher ON (teacher_id)
   - idx_gen_runs_status ON (status)
@@ -2074,6 +4076,196 @@ tables:
     updated_at: TIMESTAMPTZ DEFAULT now()
     item_id: UUID REFERENCES knowledge_items(id) ON DELETE SET NULL
     bloom_level: TEXT, ADD COLUMN IF NOT EXISTS grouping TEXT, ADD COLUMN IF NOT EXISTS udl_checkpoints TEXT[] DEFAULT '{}'
+  classification:
+    id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    source_type:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    source_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    source_filename:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    teacher_id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: indefinite
+      basis: contract
+    content:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    context_preamble:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    criterion:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    page_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    grade_level:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    subject_area:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    topic:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    global_context:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    key_concept:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    content_type:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    quality_score:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    fork_count:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    teacher_rating:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    times_retrieved:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    times_used:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    embedding:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    fts:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    is_public:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    updated_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    item_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    bloom_level:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
   indexes:
   - knowledge_chunks_embedding_idx ON USING hnsw (embedding halfvec_cosine_ops)
   - knowledge_chunks_fts_idx ON USING gin (fts)
@@ -2109,6 +4301,63 @@ tables:
     topic: TEXT
     year_group: TEXT
     textbook_ref: TEXT
+  classification:
+    id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    item_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    framework:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    criteria:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    strand:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    topic:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    year_group:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    textbook_ref:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
   indexes:
   - knowledge_item_curricula_item_idx ON (item_id)
   - knowledge_item_curricula_framework_idx ON (framework)
@@ -2135,6 +4384,70 @@ tables:
     sort_order: INT DEFAULT 0
     teacher_id: UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL
     created_at: TIMESTAMPTZ DEFAULT now()
+  classification:
+    id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    item_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    unit_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    page_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    link_type:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    display_mode:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    sort_order:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    teacher_id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: indefinite
+      basis: contract
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
   unique_constraints:
   - - item_id
     - unit_id
@@ -2177,6 +4490,154 @@ tables:
     created_at: TIMESTAMPTZ DEFAULT now()
     updated_at: TIMESTAMPTZ DEFAULT now()
     collection: TEXT
+  classification:
+    id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    title:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    slug:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    description:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    item_type:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    tags:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    content:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    source_type:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    source_upload_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    source_unit_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    teacher_id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: indefinite
+      basis: contract
+    counters:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    thumbnail_url:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    media_url:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    embedding:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    fts:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    is_public:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    is_archived:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    updated_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    collection:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
   indexes:
   - knowledge_items_teacher_slug_idx ON (teacher_id, slug)
   - knowledge_items_embedding_idx ON USING hnsw (embedding halfvec_cosine_ops)
@@ -2215,6 +4676,98 @@ tables:
     source_category: TEXT NOT NULL DEFAULT 'lesson_plan'
     original_file_path: TEXT
     collection: TEXT
+  classification:
+    id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    teacher_id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: indefinite
+      basis: contract
+    filename:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    file_type:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    file_size:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    chunk_count:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    status:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    error_message:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    analysis_stage:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    source_category:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    original_file_path:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: none
+      retention_days: indefinite
+      basis: legitimate_interest
+    collection:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
   indexes:
   - knowledge_uploads_teacher_idx ON (teacher_id)
   - idx_knowledge_uploads_source_category ON (source_category)
@@ -2241,6 +4794,70 @@ tables:
     feedback_type: TEXT NOT NULL CHECK (feedback_type IN ('teacher', 'student'))
     feedback_data: JSONB NOT NULL
     created_at: TIMESTAMPTZ DEFAULT now()
+  classification:
+    id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 2555
+      basis: coppa_art_6
+    lesson_profile_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    teacher_id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: indefinite
+      basis: contract
+    unit_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    page_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    class_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    feedback_type:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    feedback_data:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
   indexes:
   - lesson_feedback_profile_idx ON (lesson_profile_id)
   - lesson_feedback_teacher_idx ON (teacher_id)
@@ -2289,6 +4906,175 @@ tables:
     teacher_quality_rating: SMALLINT CHECK (teacher_quality_rating BETWEEN 1 AND 5)
     created_at: TIMESTAMPTZ DEFAULT now()
     updated_at: TIMESTAMPTZ DEFAULT now()
+  classification:
+    id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    teacher_id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: indefinite
+      basis: contract
+    upload_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    title:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    subject_area:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    grade_level:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    estimated_duration_minutes:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    lesson_type:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    pedagogical_approach:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    scaffolding_model:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    complexity_level:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    criteria_covered:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    profile_data:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    raw_extracted_text:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    analysis_version:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    analysis_model:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    embedding:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    fts:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    teacher_verified:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    teacher_corrections:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    times_referenced:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    teacher_quality_rating:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    updated_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
   indexes:
   - lesson_profiles_embedding_idx ON USING hnsw (embedding halfvec_cosine_ops)
   - lesson_profiles_fts_idx ON USING gin (fts)
@@ -2321,6 +5107,57 @@ tables:
     reason: TEXT
     resolved_at: TIMESTAMPTZ
     created_at: TIMESTAMPTZ DEFAULT now()
+  # FU-X: this table lacks RLS — classification does not substitute for policy
+  classification:
+    id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    block_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    flag_type:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    severity:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    reason:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    resolved_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
   indexes:
   - idx_health_flags_block ON (block_id)
   - idx_health_flags_unresolved ON (resolved_at) WHERE resolved_at IS NULL
@@ -2364,6 +5201,98 @@ tables:
     completed_at: TIMESTAMPTZ
     created_at: TIMESTAMPTZ NOT NULL DEFAULT NOW()
     updated_at: TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  classification:
+    id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 2555
+      basis: coppa_art_6
+    student_id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 2555
+      basis: coppa_art_6
+    unit_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    strengths:
+      pii: false
+      student_voice: true
+      safety_sensitive: true
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    interests:
+      pii: false
+      student_voice: true
+      safety_sensitive: true
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    needs_identified:
+      pii: false
+      student_voice: true
+      safety_sensitive: true
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    project_statement:
+      pii: false
+      student_voice: true
+      safety_sensitive: true
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    archetype:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    discovery_conversation:
+      pii: false
+      student_voice: true
+      safety_sensitive: true
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    discovery_step:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    completed_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    updated_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
   indexes:
   - idx_os_profiles_student ON (student_id)
   - idx_os_profiles_unit ON (unit_id)
@@ -2395,6 +5324,105 @@ tables:
     productivity_score: TEXT CHECK (productivity_score IS NULL OR productivity_score IN ('low', 'medium', 'high'))
     ai_summary: TEXT
     reflection: TEXT
+  classification:
+    id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 2555
+      basis: coppa_art_6
+    student_id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 2555
+      basis: coppa_art_6
+    unit_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    status_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    session_number:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    focus_area:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    started_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    ended_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    activity_log:
+      pii: false
+      student_voice: true
+      safety_sensitive: true
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    ai_interactions:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    drift_flags:
+      pii: false
+      student_voice: false
+      safety_sensitive: true
+      ai_exportable: none
+      retention_days: 2555
+      basis: legitimate_interest
+    productivity_score:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    ai_summary:
+      pii: false
+      student_voice: false
+      safety_sensitive: true
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    reflection:
+      pii: false
+      student_voice: true
+      safety_sensitive: true
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
   indexes:
   - idx_open_studio_sessions_student_unit ON (student_id, unit_id)
   - idx_open_studio_sessions_status ON (status_id)
@@ -2429,6 +5457,105 @@ tables:
     created_at: TIMESTAMPTZ NOT NULL DEFAULT NOW()
     updated_at: TIMESTAMPTZ NOT NULL DEFAULT NOW()
     quest_journey_id: UUID REFERENCES quest_journeys(id) ON DELETE SET NULL
+  classification:
+    id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 2555
+      basis: coppa_art_6
+    student_id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 2555
+      basis: coppa_art_6
+    unit_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    class_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    status:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    unlocked_by:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    teacher_note:
+      pii: false
+      student_voice: false
+      safety_sensitive: true
+      ai_exportable: none
+      retention_days: 2555
+      basis: legitimate_interest
+    carry_forward:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    unlocked_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    revoked_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    revoked_reason:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    updated_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    quest_journey_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
   indexes:
   - idx_open_studio_student_active ON (student_id) WHERE status = 'unlocked'
   - idx_open_studio_class_unit ON (class_id, unit_id)
@@ -2453,6 +5580,7 @@ tables:
   applied_date: null
   purpose: null
   columns: {}
+  classification: {}
   spec_drift: []
 - name: own_time_projects
   source_migration: 028_own_time.sql
@@ -2460,6 +5588,7 @@ tables:
   applied_date: null
   purpose: null
   columns: {}
+  classification: {}
   spec_drift: []
 - name: own_time_sessions
   source_migration: 028_own_time.sql
@@ -2467,6 +5596,7 @@ tables:
   applied_date: null
   purpose: null
   columns: {}
+  classification: {}
   spec_drift: []
 - name: planning_tasks
   source_migration: 001_initial_schema.sql
@@ -2487,6 +5617,98 @@ tables:
     created_at: TIMESTAMPTZ DEFAULT now()
     start_date: DATE
     page_id: TEXT
+  classification:
+    id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 2555
+      basis: coppa_art_6
+    student_id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 2555
+      basis: coppa_art_6
+    unit_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    title:
+      pii: false
+      student_voice: true
+      safety_sensitive: true
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    status:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    target_date:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    actual_date:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    time_logged:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    page_number:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    sort_order:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    start_date:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    page_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
   indexes:
   - idx_planning_tasks_student_unit ON (student_id, unit_id)
   rls:
@@ -2513,6 +5735,84 @@ tables:
     created_at: TIMESTAMPTZ DEFAULT now()
     page_id: TEXT
     section_index: INTEGER
+  classification:
+    id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 2555
+      basis: coppa_art_6
+    student_id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 2555
+      basis: coppa_art_6
+    unit_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    type:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    content:
+      pii: false
+      student_voice: true
+      safety_sensitive: true
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    media_url:
+      pii: true
+      student_voice: true
+      safety_sensitive: true
+      ai_exportable: none
+      retention_days: 2555
+      basis: ferpa_educational
+    link_url:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    link_title:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    page_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    section_index:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
   indexes:
   - idx_portfolio_entries_student_unit ON (student_id, unit_id)
   - idx_portfolio_entries_student_created ON (student_id, created_at DESC)
@@ -2548,6 +5848,119 @@ tables:
     framework_phase_id: TEXT
     session_id: UUID
     created_at: TIMESTAMPTZ DEFAULT NOW()
+  classification:
+    id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 2555
+      basis: coppa_art_6
+    journey_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    milestone_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    type:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    content:
+      pii: false
+      student_voice: true
+      safety_sensitive: true
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    file_url:
+      pii: true
+      student_voice: true
+      safety_sensitive: true
+      ai_exportable: none
+      retention_days: 2555
+      basis: ferpa_educational
+    file_type:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    thumbnail_url:
+      pii: true
+      student_voice: true
+      safety_sensitive: true
+      ai_exportable: none
+      retention_days: 2555
+      basis: ferpa_educational
+    ai_analysis:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    approved_by_teacher:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    approved_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    teacher_feedback:
+      pii: false
+      student_voice: false
+      safety_sensitive: true
+      ai_exportable: none
+      retention_days: 2555
+      basis: legitimate_interest
+    phase:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    framework_phase_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    session_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
   indexes:
   - idx_quest_evidence_journey ON (journey_id)
   - idx_quest_evidence_milestone ON (milestone_id)
@@ -2589,6 +6002,140 @@ tables:
     completed_at: TIMESTAMPTZ
     created_at: TIMESTAMPTZ DEFAULT NOW()
     updated_at: TIMESTAMPTZ DEFAULT NOW()
+  classification:
+    id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 2555
+      basis: coppa_art_6
+    student_id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 2555
+      basis: coppa_art_6
+    unit_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    class_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    framework_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    mentor_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    phase:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    phase_entered_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    discovery_profile:
+      pii: false
+      student_voice: true
+      safety_sensitive: true
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    contract:
+      pii: false
+      student_voice: true
+      safety_sensitive: true
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    help_intensity:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    health_score:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    total_sessions:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    total_evidence_count:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    sessions_remaining:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    started_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    completed_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    updated_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
   unique_constraints:
   - - student_id
     - unit_id
@@ -2630,6 +6177,77 @@ tables:
     structured_data: JSONB DEFAULT NULL
     student_effort_level: TEXT
     created_at: TIMESTAMPTZ DEFAULT NOW()
+  classification:
+    id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 2555
+      basis: coppa_art_6
+    journey_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    interaction_type:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    phase:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    mentor_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    student_message:
+      pii: false
+      student_voice: true
+      safety_sensitive: true
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    mentor_response:
+      pii: false
+      student_voice: false
+      safety_sensitive: true
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    structured_data:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    student_effort_level:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
   indexes:
   - idx_quest_mentor_journey ON (journey_id)
   rls:
@@ -2666,6 +6284,147 @@ tables:
     source: TEXT NOT NULL DEFAULT 'student'
     created_at: TIMESTAMPTZ DEFAULT NOW()
     updated_at: TIMESTAMPTZ DEFAULT NOW()
+  classification:
+    id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 2555
+      basis: coppa_art_6
+    journey_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    title:
+      pii: false
+      student_voice: true
+      safety_sensitive: true
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    description:
+      pii: false
+      student_voice: true
+      safety_sensitive: true
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    phase:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    framework_phase_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    sort_order:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    specific:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    measurable:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    target_date:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    status:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    completed_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    completion_note:
+      pii: false
+      student_voice: true
+      safety_sensitive: true
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    teacher_note:
+      pii: false
+      student_voice: false
+      safety_sensitive: true
+      ai_exportable: none
+      retention_days: 2555
+      basis: legitimate_interest
+    teacher_adjusted_date:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: legitimate_interest
+    approved_by_teacher:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    approved_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    source:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    updated_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
   indexes:
   - idx_quest_milestones_journey ON (journey_id)
   - idx_quest_milestones_status ON (status)
@@ -2697,6 +6456,70 @@ tables:
     expires_at: timestamptz
     notes: text
     created_at: timestamptz NOT NULL DEFAULT now()
+  classification:
+    id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 2555
+      basis: coppa_art_6
+    student_id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 2555
+      basis: coppa_art_6
+    class_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    cert_type:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    granted_by:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 2555
+      basis: contract
+    granted_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    expires_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    notes:
+      pii: false
+      student_voice: false
+      safety_sensitive: true
+      ai_exportable: none
+      retention_days: 2555
+      basis: legitimate_interest
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
   indexes:
   - idx_safety_certs_student ON (student_id)
   - idx_safety_certs_class ON (class_id)
@@ -2726,6 +6549,77 @@ tables:
     time_taken_seconds: INTEGER CHECK (time_taken_seconds >= 0)
     attempt_number: INTEGER NOT NULL DEFAULT 1 CHECK (attempt_number >= 1)
     created_at: TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  classification:
+    id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 2555
+      basis: coppa_art_6
+    session_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    student_name:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: none
+      retention_days: 2555
+      basis: coppa_art_6
+    badge_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    score:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    passed:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    answers:
+      pii: false
+      student_voice: true
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    time_taken_seconds:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    attempt_number:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
   indexes:
   - idx_safety_results_session ON (session_id)
   - idx_safety_results_badge ON (badge_id)
@@ -2758,6 +6652,63 @@ tables:
     required_badges: TEXT[] NOT NULL DEFAULT '{}'
     created_at: TIMESTAMPTZ NOT NULL DEFAULT NOW()
     expires_at: TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '90 days')
+  classification:
+    id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    teacher_email:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: none
+      retention_days: indefinite
+      basis: contract
+    teacher_name:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: none
+      retention_days: indefinite
+      basis: contract
+    class_code:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    class_name:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    required_badges:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    expires_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
   indexes:
   - idx_safety_sessions_class_code ON (class_code)
   - idx_safety_sessions_teacher_email ON (teacher_email)
@@ -2785,6 +6736,70 @@ tables:
     end_date: DATE
     created_at: TIMESTAMPTZ DEFAULT now()
     updated_at: TIMESTAMPTZ DEFAULT now()
+  classification:
+    id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    teacher_id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: indefinite
+      basis: contract
+    academic_year:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    term_name:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    term_order:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    start_date:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    end_date:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    updated_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
   unique_constraints:
   - - teacher_id
     - academic_year
@@ -2824,6 +6839,112 @@ tables:
     created_at: TIMESTAMPTZ DEFAULT now()
     updated_at: TIMESTAMPTZ DEFAULT now()
     cycle_day_events: JSONB DEFAULT '[]'
+  classification:
+    id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    teacher_id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: indefinite
+      basis: contract
+    cycle_length:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    cycle_type:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    anchor_date:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    anchor_cycle_day:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    reset_each_term:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    periods:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    excluded_dates:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    source:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    ical_url:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: none
+      retention_days: indefinite
+      basis: contract
+    last_synced_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    updated_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    cycle_day_events:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
   indexes:
   - idx_school_timetable_teacher ON (teacher_id)
   rls:
@@ -2856,6 +6977,98 @@ tables:
     awarded_at: TIMESTAMPTZ NOT NULL DEFAULT NOW()
     expires_at: TIMESTAMPTZ
     created_at: TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  classification:
+    id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 2555
+      basis: coppa_art_6
+    student_id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 2555
+      basis: coppa_art_6
+    badge_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    score:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    attempt_number:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    granted_by:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 2555
+      basis: contract
+    teacher_note:
+      pii: false
+      student_voice: false
+      safety_sensitive: true
+      ai_exportable: none
+      retention_days: 2555
+      basis: legitimate_interest
+    status:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    answers:
+      pii: false
+      student_voice: true
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    time_taken_seconds:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    awarded_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    expires_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
   indexes:
   - idx_student_badges_student ON (student_id)
   - idx_student_badges_badge ON (badge_id)
@@ -2902,6 +7115,112 @@ tables:
     teacher_reviewed_at: TIMESTAMPTZ
     raw_ai_response: JSONB
     created_at: TIMESTAMPTZ DEFAULT now()
+  classification:
+    id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 2555
+      basis: coppa_art_6
+    class_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    student_id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 2555
+      basis: coppa_art_6
+    content_source:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    content_hash:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    moderation_layer:
+      pii: false
+      student_voice: false
+      safety_sensitive: true
+      ai_exportable: none
+      retention_days: 2555
+      basis: legitimate_interest
+    flags:
+      pii: false
+      student_voice: false
+      safety_sensitive: true
+      ai_exportable: none
+      retention_days: 2555
+      basis: legitimate_interest
+    overall_result:
+      pii: false
+      student_voice: false
+      safety_sensitive: true
+      ai_exportable: none
+      retention_days: 2555
+      basis: legitimate_interest
+    severity:
+      pii: false
+      student_voice: false
+      safety_sensitive: true
+      ai_exportable: none
+      retention_days: 2555
+      basis: legitimate_interest
+    action_taken:
+      pii: false
+      student_voice: false
+      safety_sensitive: true
+      ai_exportable: none
+      retention_days: 2555
+      basis: legitimate_interest
+    teacher_reviewed:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    teacher_action:
+      pii: false
+      student_voice: false
+      safety_sensitive: true
+      ai_exportable: none
+      retention_days: 2555
+      basis: legitimate_interest
+    teacher_reviewed_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    raw_ai_response:
+      pii: false
+      student_voice: false
+      safety_sensitive: true
+      ai_exportable: none
+      retention_days: 2555
+      basis: legitimate_interest
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
   indexes:
   - idx_student_moderation_log_class_severity ON (class_id, severity, created_at DESC)
   - idx_student_moderation_log_student ON (student_id, created_at DESC)
@@ -3078,6 +7397,42 @@ tables:
     token: TEXT NOT NULL UNIQUE
     expires_at: TIMESTAMPTZ NOT NULL
     created_at: TIMESTAMPTZ DEFAULT now()
+  classification:
+    id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 2555
+      basis: coppa_art_6
+    student_id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 2555
+      basis: coppa_art_6
+    token:
+      pii: true
+      student_voice: false
+      safety_sensitive: true
+      ai_exportable: none
+      retention_days: 2555
+      basis: coppa_art_6
+    expires_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
   indexes:
   - idx_student_sessions_token ON (token)
   - idx_student_sessions_expires ON (expires_at)
@@ -3116,6 +7471,119 @@ tables:
     completed_at: TIMESTAMPTZ
     updated_at: TIMESTAMPTZ NOT NULL DEFAULT NOW()
     portfolio_entry_id: UUID REFERENCES portfolio_entries(id) ON DELETE SET NULL
+  classification:
+    id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 2555
+      basis: coppa_art_6
+    student_id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 2555
+      basis: coppa_art_6
+    tool_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    challenge:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    mode:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    unit_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    page_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    section_index:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    state:
+      pii: false
+      student_voice: true
+      safety_sensitive: true
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    summary:
+      pii: false
+      student_voice: true
+      safety_sensitive: true
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    version:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    status:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    started_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    completed_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    updated_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    portfolio_entry_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
   indexes:
   - idx_tool_sessions_student ON (student_id)
   - idx_tool_sessions_unit ON (unit_id, page_id) WHERE unit_id IS NOT NULL
@@ -3150,6 +7618,91 @@ tables:
     graduation_year: INTEGER
     learning_profile: JSONB DEFAULT NULL
     mentor_id: TEXT DEFAULT NULL, ADD COLUMN IF NOT EXISTS theme_id TEXT DEFAULT NULL
+  classification:
+    id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 2555
+      basis: coppa_art_6
+    username:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: none
+      retention_days: 2555
+      basis: coppa_art_6
+    display_name:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: none
+      retention_days: 2555
+      basis: coppa_art_6
+    class_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    ell_level:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: pseudonymous
+    external_id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: none
+      retention_days: 2555
+      basis: coppa_art_6
+    avatar_url:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: none
+      retention_days: 2555
+      basis: coppa_art_6
+    author_teacher_id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: indefinite
+      basis: contract
+    graduation_year:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    learning_profile:
+      pii: false
+      student_voice: true
+      safety_sensitive: true
+      ai_exportable: full
+      retention_days: 2555
+      basis: coppa_art_6
+    mentor_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
   unique_constraints:
   - - username
     - class_id
@@ -3225,6 +7778,57 @@ tables:
     acknowledged: BOOLEAN DEFAULT false
     acknowledged_at: TIMESTAMPTZ
     created_at: TIMESTAMPTZ DEFAULT now()
+  # FU-X: this table lacks RLS — classification does not substitute for policy
+  classification:
+    id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    alert_type:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    severity:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    payload:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    acknowledged:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    acknowledged_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
   indexes:
   - idx_system_alerts_type ON (alert_type)
   - idx_system_alerts_created ON (created_at DESC)
@@ -3272,6 +7876,70 @@ tables:
     lti_consumer_secret: TEXT
     created_at: TIMESTAMPTZ DEFAULT now()
     updated_at: TIMESTAMPTZ DEFAULT now()
+  classification:
+    id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    teacher_id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: indefinite
+      basis: contract
+    provider:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    subdomain:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    encrypted_api_token:
+      pii: false
+      student_voice: false
+      safety_sensitive: true
+      ai_exportable: none
+      retention_days: indefinite
+      basis: contract
+    lti_consumer_key:
+      pii: false
+      student_voice: false
+      safety_sensitive: true
+      ai_exportable: none
+      retention_days: indefinite
+      basis: contract
+    lti_consumer_secret:
+      pii: false
+      student_voice: false
+      safety_sensitive: true
+      ai_exportable: none
+      retention_days: indefinite
+      basis: contract
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    updated_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
   indexes:
   - idx_teacher_integrations_lti_key ON (lti_consumer_key)
   rls:
@@ -3429,6 +8097,42 @@ tables:
     email: TEXT NOT NULL UNIQUE
     created_at: TIMESTAMPTZ DEFAULT now()
     style_profile: JSONB DEFAULT NULL
+  classification:
+    id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    name:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: none
+      retention_days: indefinite
+      basis: contract
+    email:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: none
+      retention_days: indefinite
+      basis: contract
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    style_profile:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
   indexes:
   - idx_teachers_style_confidence ON ((style_profile->>'confidenceLevel'))
   rls:
@@ -3454,6 +8158,63 @@ tables:
     created_at: TIMESTAMPTZ NOT NULL DEFAULT NOW()
     class_id: TEXT
     target_student_ids: JSONB DEFAULT NULL
+  classification:
+    id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    unit_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    badge_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    is_required:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    display_order:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    class_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    target_student_ids:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
   unique_constraints:
   - - unit_id
     - badge_id
@@ -3488,6 +8249,56 @@ tables:
     content_data: JSONB NOT NULL
     source_class_id: TEXT DEFAULT NULL
     created_at: TIMESTAMPTZ DEFAULT now()
+  classification:
+    id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    unit_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    version_number:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    label:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    content_data:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    source_class_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
   unique_constraints:
   - - unit_id
     - version_number
@@ -3539,6 +8350,231 @@ tables:
     sdg_tags: TEXT[] DEFAULT NULL
     cross_curricular_links: TEXT[] DEFAULT NULL
     prerequisite_knowledge: TEXT[] DEFAULT NULL
+  classification:
+    id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    title:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    description:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    thumbnail_url:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    content_data:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    is_published:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    author_teacher_id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: indefinite
+      basis: contract
+    author_name:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    school_name:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    tags:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    grade_level:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    duration_weeks:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    topic:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    global_context:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    key_concept:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    fork_count:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    forked_from:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    quality_report:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    teacher_id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: indefinite
+      basis: contract
+    nm_config:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    versions:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    current_version:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    unit_type:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    curriculum_context:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    content_language:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    inclusivity_notes:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    materials_list:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    learning_outcomes:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    sdg_tags:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    cross_curricular_links:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    prerequisite_knowledge:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
   indexes:
   - idx_units_published ON (is_published) WHERE is_published = true
   - idx_units_tags ON USING GIN(tags)
@@ -3618,6 +8654,57 @@ tables:
     student_id: UUID
     metrics: JSONB NOT NULL DEFAULT '{}'
     created_at: TIMESTAMPTZ DEFAULT now()
+  # FU-X: this table lacks RLS — classification does not substitute for policy
+  classification:
+    id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    period_type:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    period_start:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    teacher_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    student_id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: 2555
+      basis: coppa_art_6
+    metrics:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
   unique_constraints:
   - - period_type
     - period_start
