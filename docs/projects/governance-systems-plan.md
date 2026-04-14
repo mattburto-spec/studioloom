@@ -244,7 +244,37 @@ Partial / adjacent:
 
 ---
 
-**GOV-1 Total:** ~8–10 hours = 1–1.5 days.
+### 4. Admin read-only panel + scanner infrastructure (GOV-1.4)
+
+**Purpose:** Close the governance loop with live drift detection. Schools can't audit what they can't see — this phase adds the tooling that keeps the registries honest over time.
+
+**Scope (9 files):**
+- 2 new scanners (`scan-feature-flags.py`, `scan-vendors.py`) — read-only JSON drift reports
+- `change-triggers.yaml` — codifies which registries must update when code changes
+- `doc-manifest.yaml` schema bump — `max_age_days` + `last_scanned` per entry
+- `version: 1` field on all 5 registry YAMLs
+- CLAUDE.md registries block expansion (4→6 registries + taxonomies, saveme step 11 d/e/f)
+- WIRING system entry: `governance-registries`
+- Admin registries page (`/admin/controls/registries`) — staleness chips, scanner drift summaries
+- Quarterly scheduled task — self-silencing staleness check
+
+**Shape:**
+- Scanner JSON: `{ registry, timestamp, version, drift: { orphaned, missing }, status }`
+- Change triggers: 6 entries mapping code patterns to required registry updates
+- Admin page: 9 cards with GREEN/AMBER/RED chips based on `(now - last_verified) / max_age_days`
+
+**Integration:**
+- saveme step 11 expanded from (a/b/c) to (a/b/c/d/e/f)
+- CLAUDE.md registries block references all 6 registries + 3 taxonomies + change-triggers
+- Quarterly cron notifies Matt only when staleness or drift is found
+
+**Effort:** ~6 hours.
+
+**Why now:** Registries without drift detection decay silently. This closes the feedback loop while GOV-1 knowledge is fresh.
+
+---
+
+**GOV-1 Total:** ~14–16 hours = 2 days.
 **Recommended insertion:** Between Phase 7A and 7B, OR parallel to 7B (Claude-Code-friendly since they're all YAML).
 
 ---
