@@ -849,13 +849,18 @@ No current feature exposes this, but Dimensions3 feedback loop ("how is this stu
 
 ---
 
-## FU-Z — `bug_reports` author-split migration (P3)
+## FU-Z — Author-ambiguous free-text column split (P3)
 
-**Discovered:** 2026-04-14 (GOV-1.1a data classification checkpoint).
+**Discovered:** 2026-04-14 (GOV-1.1a + 1.1b data classification checkpoints).
 
-**Issue:** `bug_reports.description` is a mixed-author column — `reporter_role` determines whether the row was written by a student or a teacher. The classification taxonomy can't assign a single clean `basis:` value because the legal basis depends on the row's `reporter_role`. GOV-1.1a resolved this conservatively by classifying the column under the stricter basis (`coppa_art_6`) and leaving a YAML comment on the ambiguity.
+**Issue:** Several free-text columns are "mixed-author" — a row-level flag determines whether the current row was written by a student or a teacher. The classification taxonomy can't assign a single clean `basis:` value because the legal basis depends on the row's author flag. GOV-1.1a and 1.1b resolved this conservatively by classifying each column under the stricter basis (`coppa_art_6`) and leaving a YAML comment on the ambiguity.
 
-**Similarly affected:** `bug_reports.screenshot_url` (screenshots from a student vs a teacher have different PII implications).
+**Known instances:**
+- `bug_reports.description` — governed by `reporter_role` (student | teacher)
+- `bug_reports.screenshot_url` — governed by the same `reporter_role`
+- `competency_assessments.comment` — could be teacher observation OR student self-assessment, no author flag on the row at all
+
+**Likely more exist.** Before implementing the fix, do a one-off scan: `grep -l "free-form" docs/schema-registry.yaml` / look for any `free_text` or comment-style columns on tables that serve both student and teacher UI. Expect 2–4 additional cases.
 
 **Impact:** Low — the conservative classification is safe (we over-protect rather than under-protect). But it means any automated policy that reads the classification can't distinguish between student-authored rows (which need extra safeguarding) and teacher-authored rows (which don't).
 
@@ -864,3 +869,29 @@ No current feature exposes this, but Dimensions3 feedback loop ("how is this stu
 **Definition of done:** Migration applied, existing rows backfilled, classification updated to remove the "mixed author" YAML comment, and the bug report submission UI updated to write to the correct column based on the submitter's role.
 
 **Priority:** P3 — not blocking any feature; picks up only when the bug report UI is next edited or when an automated policy needs the deterministic classification.
+
+---
+
+## FU-AA — Drop deprecated `own_time_*` tables from schema-registry (P3)
+
+**Discovered:** 2026-04-14 (GOV-1.1b classification pass).
+
+**Issue:** `own_time_approvals`, `own_time_projects`, `own_time_sessions` still have entries in `docs/schema-registry.yaml` with 0 columns each. The feature was replaced by Open Studio. GOV-1.1b added empty classification blocks to stay consistent with R2 (all tables classified), but these registry entries are dead weight.
+
+**Impact:** Low — cosmetic. Any automated policy that iterates the registry will skip zero-column tables naturally.
+
+**Definition of done:** Either (a) delete the three entries from `schema-registry.yaml` AND drop the tables from the database in a migration, or (b) drop the tables in a migration first, then the registry scanner will remove the entries on next saveme sync. CLAUDE.md's "Old unused code safe to delete" note already flags the Own Time components for removal; this registry cleanup should ride along with that work.
+
+---
+
+## FU-BB — schema-registry scanner misparses compound `ADD COLUMN` migrations (P3)
+
+**Discovered:** 2026-04-14 (GOV-1.1b classification pass).
+
+**Issue:** Several columns in `docs/schema-registry.yaml` have compound type strings that leaked from a migration's `ADD COLUMN x TYPE, ADD COLUMN y TYPE, ...` pattern — the scanner captured the entire trailing SQL instead of just the first column's type.
+
+**Example observed:** a column shows `type: "DATE, ADD COLUMN strand_a_due_date DATE, ..."` instead of `type: DATE`.
+
+**Impact:** Low for classification (column names are still correct). But any future tool that reads the `type:` field (migration generators, typed-client generators) will break on these.
+
+**Definition of done:** Fix `scripts/registry/` (or the equivalent scanner) to handle compound `ADD COLUMN` statements correctly, rerun the sync, and validate the affected entries.
