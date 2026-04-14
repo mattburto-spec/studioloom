@@ -540,18 +540,17 @@ Migrate moderation log visibility from Option C (student_id cross-join) to Optio
 
 ---
 
-## FU-GG — nm-assessment "unknown" classId causes silent moderation data loss (P1)
+## FU-GG — nm-assessment "unknown" classId causes silent moderation data loss ✅ RESOLVED
 
 **Filed:** 14 Apr 2026
-**Priority:** P1 (active data-loss bug — moderation events silently dropped)
+**Resolved:** 14 Apr 2026
+**Priority:** P1 (was: active data-loss bug — moderation events silently dropped)
 
-**Issue:** `src/app/api/student/nm-assessment/route.ts` line 184 uses `classId || "unknown"` as the fallback when class lookup fails. `"unknown"` is not a valid UUID — the FK constraint `REFERENCES classes(id)` rejects the insert, and the try/catch in `moderateAndLog()` (line 44) swallows the error. **The moderation event is silently lost.**
+**Issue:** `src/app/api/student/nm-assessment/route.ts` line 184 used `classId || "unknown"` as the fallback when class lookup failed. `"unknown"` is not a valid UUID — the FK constraint `REFERENCES classes(id)` rejected the insert, and the `.catch()` in `moderateAndLog()` swallowed the error. **The moderation event was silently lost.**
 
-**Impact:** NM self-assessment moderation events where the student's class lookup fails (e.g., student enrolled only via junction but class_units lookup misses) are never logged. Teacher never sees the safety flag.
+**Resolution:** Changed `classId || "unknown"` → `classId || ''`. Empty string is falsy, so `moderateAndLog`'s `context.classId || null` coerces to NULL. FU-N dual-visibility policy (migration 078) picks up the NULL-class_id row. 3 regression tests added + NC-verified. No data backfill possible — lost events were never written (FK rejection prevented insert).
 
-**Fix:** One-line change — line 184: `classId || "unknown"` → `classId || ''`. The empty string coerces to NULL via `context.classId || null` in `moderateAndLog()`, and Option C's dual-visibility policy catches the NULL-class_id row.
-
-**Reproduction:** Create a student enrolled via class_students junction (not legacy), submit an NM assessment with flagged content, check `student_content_moderation_log` — row should be missing.
+**Peer audit (14 Apr 2026):** Found 1 additional broken peer — `src/lib/ingestion/pipeline.ts:123` uses `classId: config.teacherId || "system"` (same FK-rejection pattern). Not fixed in this phase — different writer category (teacher ingestion, not student moderation). Noted for future cleanup.
 
 ---
 
