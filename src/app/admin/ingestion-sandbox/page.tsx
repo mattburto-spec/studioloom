@@ -420,8 +420,27 @@ export default function IngestionSandboxPage() {
       {/* Upload */}
       <section className="rounded-xl border bg-white p-5">
         <h2 className="text-sm font-semibold text-text-primary mb-3">1. Upload document</h2>
-        <div className="flex items-center gap-4 flex-wrap">
+
+        {/* Drop zone + file picker */}
+        <div
+          className="relative border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer hover:border-purple-400 hover:bg-purple-50/30"
+          style={{ borderColor: isUploading ? "#9CA3AF" : "#D1D5DB" }}
+          onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.borderColor = "#7B2FF2"; e.currentTarget.style.background = "rgba(123,47,242,0.04)"; }}
+          onDragLeave={(e) => { e.currentTarget.style.borderColor = "#D1D5DB"; e.currentTarget.style.background = ""; }}
+          onDrop={(e) => {
+            e.preventDefault();
+            e.currentTarget.style.borderColor = "#D1D5DB";
+            e.currentTarget.style.background = "";
+            const f = e.dataTransfer.files?.[0];
+            if (f) handleUpload(f);
+          }}
+          onClick={() => {
+            const input = document.getElementById("sandbox-file-input") as HTMLInputElement;
+            input?.click();
+          }}
+        >
           <input
+            id="sandbox-file-input"
             type="file"
             accept=".pdf,.docx,.pptx,.txt,.md"
             disabled={isUploading}
@@ -429,8 +448,23 @@ export default function IngestionSandboxPage() {
               const f = e.target.files?.[0];
               if (f) handleUpload(f);
             }}
-            className="text-sm"
+            className="hidden"
           />
+          <div className="text-3xl mb-2">
+            {isUploading ? (
+              <div className="w-8 h-8 mx-auto border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <span>+</span>
+            )}
+          </div>
+          <p className="text-sm font-medium text-gray-700">
+            {isUploading ? "Uploading..." : "Click to choose a file or drag & drop"}
+          </p>
+          <p className="text-xs text-gray-400 mt-1">PDF, DOCX, PPTX, TXT, MD</p>
+        </div>
+
+        {/* Controls row */}
+        <div className="flex items-center gap-4 flex-wrap mt-3">
           <label className="text-xs text-text-secondary flex items-center gap-2">
             Copyright flag:
             <select
@@ -449,7 +483,6 @@ export default function IngestionSandboxPage() {
               <option value="creative_commons">creative_commons</option>
             </select>
           </label>
-          {isUploading && <span className="text-xs text-text-secondary">Uploading…</span>}
           <button
             onClick={reset}
             className="ml-auto text-xs text-text-secondary hover:text-text-primary underline"
