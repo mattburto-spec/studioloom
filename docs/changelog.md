@@ -4,6 +4,19 @@
 
 ---
 
+## 15 Apr 2026 — Fix PDF extraction on Vercel (ingestion sandbox)
+
+**What changed:**
+- **`src/lib/knowledge/extract.ts`** — Replaced `pdf-parse` v2 (`PDFParse` class) with `pdfjs-dist/legacy/build/pdf.mjs` direct usage. pdf-parse v2 depends on `@napi-rs/canvas` which only has darwin-arm64 binaries; crashes on Vercel's Linux serverless runtime. pdfjs-dist legacy build works headless without canvas.
+- **`next.config.ts`** — Added `pdfjs-dist` to `serverExternalPackages`.
+- **`src/app/admin/ingestion-sandbox/page.tsx`** — Improved upload error alert to show both `data.error` and `data.message` detail.
+
+**Systems affected:** ingestion-pipeline (upload stage PDF extraction).
+**Tests:** 1254 passing (no change).
+**Commit:** `b9208d4`. Pushed to origin/main.
+
+---
+
 ## 14 Apr 2026 — Sub-phases 7A-7C: Integrity, Admin Tabs, Sandbox, Bug Reports (3 commits)
 
 **What changed:**

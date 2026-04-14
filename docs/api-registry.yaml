@@ -56,7 +56,7 @@ routes:
   tables_written: []
   ai_call_sites: []
   cost_ceiling_usd: null
-  notes: Reference to unknown table 'data_removal_log' — not in schema-registry
+  notes: null
 - path: /api/admin/bug-reports
   method: GET
   file: src/app/api/admin/bug-reports/route.ts
@@ -171,7 +171,7 @@ routes:
 - path: /api/admin/ingestion-sandbox/commit
   method: POST
   file: src/app/api/admin/ingestion-sandbox/commit/route.ts
-  auth: admin
+  auth: mixed
   tables_read:
   - activity_blocks
   tables_written:
@@ -180,27 +180,27 @@ routes:
   - content_moderation_log
   ai_call_sites: []
   cost_ceiling_usd: null
-  notes: null
+  notes: 'Multiple auth patterns detected: admin, teacher'
 - path: /api/admin/ingestion-sandbox/run-stage
   method: POST
   file: src/app/api/admin/ingestion-sandbox/run-stage/route.ts
-  auth: admin
+  auth: mixed
   tables_read: []
   tables_written: []
   ai_call_sites: []
   cost_ceiling_usd: null
-  notes: null
+  notes: 'Multiple auth patterns detected: admin, teacher'
 - path: /api/admin/ingestion-sandbox/upload
   method: POST
   file: src/app/api/admin/ingestion-sandbox/upload/route.ts
-  auth: admin
+  auth: mixed
   tables_read:
   - content_items
   tables_written:
   - content_items
   ai_call_sites: []
   cost_ceiling_usd: null
-  notes: null
+  notes: 'Multiple auth patterns detected: admin, teacher'
 - path: /api/admin/library
   method: GET
   file: src/app/api/admin/library/route.ts
