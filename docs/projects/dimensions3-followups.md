@@ -512,40 +512,72 @@ Both are regression-locked by 5.10.5 wiring tests (G1-G4 in `render-path-fixture
 
 ---
 
-## FU-N — NULL class_id silent safety gap (RLS filters NULL rows)
+## FU-N — NULL class_id silent safety gap (RLS filters NULL rows) ✅ RESOLVED
 
 **Surfaced:** Phase 6 Checkpoint 5.1 Step 9 (14 Apr 2026)
-**Target phase:** Phase 6 cleanup or Phase 7
-**Priority:** P1 (silent safety hole — moderation events invisible to teachers)
+**Resolved:** Phase 7A-Safety-2 (14 Apr 2026) via Option C
+**Priority:** P1 (was: silent safety hole — moderation events invisible to teachers)
 
-**Symptom:** Teacher-facing safety alert feed at `/teacher/safety/alerts` showed zero rows despite `moderation_logs` having 19 flagged rows for Matt's test class. Root cause: all 19 rows had `class_id = NULL`, and the RLS policy filters `class_id IN (SELECT id FROM classes WHERE teacher_id = auth.uid())` — NULL fails the IN check silently. Fix applied was a UPDATE to set `class_id`, but the underlying pattern remains: any moderation event logged from a non-class context (Discovery Engine onboarding before enrollment, Open Studio planning phase, library uploads, standalone tool use, Kit conversations) writes `class_id = NULL` and becomes invisible.
+**Symptom:** Teacher-facing safety alert feed at `/teacher/safety/alerts` showed zero rows despite flagged rows existing. Root cause: 14 of 17 writer call sites pass `class_id = NULL`, and the RLS policy `class_id IN (...)` silently filtered NULL rows (SQL NULL IN (...) = NULL, not TRUE).
 
-**What we know:**
-- Lesson #29 documented this RLS-NULL silent-filter pattern; FU-N is the moderation-specific instance.
-- The source-side fix attempted in Phase 6C was `resolvedClassId || ''` which passes empty string, not NULL — still failed RLS.
-- Content safety scan in `src/lib/ingestion/pipeline.ts` runs on uploads before they're ever assigned to a class.
-- Discovery Engine and Open Studio planning happen before a student is confirmed in a specific class context.
+**Resolution:** Migration 078 — Lesson #29 UNION pattern. SELECT + UPDATE policies now use:
+- Primary path: `class_id IN (SELECT id FROM classes WHERE teacher_id = auth.uid())`
+- Fallback: `OR (class_id IS NULL AND student_id IN (junction UNION legacy))`
 
-**Two ways to fix — pick one:**
+Both student→teacher paths (class_students junction + legacy students.class_id) are in the UNION. Writer audit documented 17 sites across 14 routes in `docs/specs/moderation-log-writer-audit.md`.
 
-**Option A — Reject NULL at write time.**
-- Add a CHECK constraint or application-level guard: `class_id IS NOT NULL` on `moderation_logs`.
-- Every writer must resolve a class_id, even if it's a synthetic "admin-intake" class per teacher.
-- Downside: forces every non-class context to invent a class_id. Fragile.
+**Peer table:** content_moderation_log (migration 067) confirmed unaffected — no class_id column, service-role-only policy.
 
-**Option B — Route NULL class_id to an admin queue.**
-- Add a separate RLS policy allowing rows WHERE `class_id IS NULL` to be visible to users with an `admin` or `safety_lead` role.
-- UI: `/admin/safety/orphan-alerts` for NULL-class events.
-- Better long-term answer but requires roles system (see FU-O).
+---
 
-**Option C — Dual-visibility: show NULL rows to ALL of a teacher's class views.**
-- Add `OR class_id IS NULL AND student_id IN (SELECT id FROM students WHERE class_id IN (teacher's classes))` to the RLS policy.
-- Catches the common case (NULL rows from a context where student was identified but class wasn't).
-- Downside: fan-out if a student is in multiple teachers' classes.
+## FU-N-followup — Migrate to Option B admin queue (P2)
 
-**Recommendation:** Option A as an immediate hotfix for moderation_logs (require class_id), then Option B as the proper long-term solution once the role system (FU-O) lands.
+**Filed:** 14 Apr 2026
+**Depends on:** FU-O (roles system)
+**Priority:** P2
 
-**Definition of done:** Zero moderation events with `class_id = NULL` reach production. Writers that can't resolve a class_id either fail loudly or route to an admin queue. Lesson #29 cross-referenced.
+Migrate moderation log visibility from Option C (student_id cross-join) to Option B (admin queue) when FU-O roles system lands. This removes the student_id cross-join from the hot path and adds an explicit safety_lead role for NULL-class events. UI: `/admin/safety/orphan-alerts`.
+
+---
+
+## FU-GG — nm-assessment "unknown" classId causes silent moderation data loss (P1)
+
+**Filed:** 14 Apr 2026
+**Priority:** P1 (active data-loss bug — moderation events silently dropped)
+
+**Issue:** `src/app/api/student/nm-assessment/route.ts` line 184 uses `classId || "unknown"` as the fallback when class lookup fails. `"unknown"` is not a valid UUID — the FK constraint `REFERENCES classes(id)` rejects the insert, and the try/catch in `moderateAndLog()` (line 44) swallows the error. **The moderation event is silently lost.**
+
+**Impact:** NM self-assessment moderation events where the student's class lookup fails (e.g., student enrolled only via junction but class_units lookup misses) are never logged. Teacher never sees the safety flag.
+
+**Fix:** One-line change — line 184: `classId || "unknown"` → `classId || ''`. The empty string coerces to NULL via `context.classId || null` in `moderateAndLog()`, and Option C's dual-visibility policy catches the NULL-class_id row.
+
+**Reproduction:** Create a student enrolled via class_students junction (not legacy), submit an NM assessment with flagged content, check `student_content_moderation_log` — row should be missing.
+
+---
+
+## FU-HH — No live Supabase RLS test harness (P2)
+
+**Filed:** 14 Apr 2026
+**Priority:** P2 (testing infrastructure gap)
+
+**Issue:** RLS policies are only verified by SQL-structure parsing tests + manual smoke protocols. No live Supabase JWT test harness exists — cannot programmatically test per-teacher visibility in CI.
+
+**Impact:** RLS bugs are caught by manual testing or production incidents, not automated tests. Three RLS-related bugs have surfaced so far (Lesson #29 student_progress, FU-X 3 tables, FU-N moderation log).
+
+**Decision:** Build a real harness (pgTAP tests or Supabase CLI-driven integration tests) when a 4th RLS bug surfaces. Avoid building speculatively — "don't build abstract platform services" principle.
+
+---
+
+## FU-II — log-client-block uses direct insert instead of moderateAndLog (P3)
+
+**Filed:** 14 Apr 2026
+**Priority:** P3 (pattern inconsistency)
+
+**Issue:** `src/app/api/safety/log-client-block/route.ts` writes directly to `student_content_moderation_log` via `.from(...).insert(...)` instead of using the shared `moderateAndLog()` helper (16 other call sites use the helper). It also uses a zero-UUID fallback for `student_id` (`"00000000-0000-0000-0000-000000000000"`).
+
+**Possibly intentional:** The client-block logger runs in a fire-and-forget path — no server-side moderation call needed (client already blocked content), so `moderateAndLog()` would add unnecessary AI call overhead. Audit whether this was a deliberate optimization or drift.
+
+**Action:** Audit intent; if unintentional, unify to `moderateAndLog()` with a `skipModeration` option.
 
 ---
 
