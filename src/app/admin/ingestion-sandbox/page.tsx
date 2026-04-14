@@ -198,13 +198,14 @@ export default function IngestionSandboxPage() {
   // ---------------------------------------------------------------------------
 
   const runStage = useCallback(
-    async (stage: StageId) => {
+    async (stage: StageId, prevOutput?: unknown) => {
       if (!state.upload) {
         alert("Upload a document first");
         return;
       }
 
-      // Resolve input from the previous stage's output
+      // Resolve input: use prevOutput if provided (from runAll chain),
+      // otherwise read from state (manual single-stage run).
       let input: unknown;
       switch (stage) {
         case "dedup":
@@ -212,32 +213,20 @@ export default function IngestionSandboxPage() {
           input = state.upload.rawText;
           break;
         case "passA":
-          if (state.parse.status !== "done") {
-            alert("Run Parse first");
-            return;
-          }
-          input = state.parse.output;
+          input = prevOutput ?? state.parse.output;
+          if (!input) { alert("Run Parse first"); return; }
           break;
         case "passB":
-          if (state.passA.status !== "done") {
-            alert("Run Pass A first");
-            return;
-          }
-          input = state.passA.output;
+          input = prevOutput ?? state.passA.output;
+          if (!input) { alert("Run Pass A first"); return; }
           break;
         case "extract":
-          if (state.passB.status !== "done") {
-            alert("Run Pass B first");
-            return;
-          }
-          input = state.passB.output;
+          input = prevOutput ?? state.passB.output;
+          if (!input) { alert("Run Pass B first"); return; }
           break;
         case "moderate":
-          if (state.extract.status !== "done") {
-            alert("Run Extract first");
-            return;
-          }
-          input = state.extract.output;
+          input = prevOutput ?? state.extract.output;
+          if (!input) { alert("Run Extract first"); return; }
           break;
       }
 
@@ -262,8 +251,9 @@ export default function IngestionSandboxPage() {
               durationMs: data.durationMs,
             },
           }));
-          return;
+          return undefined;
         }
+        const output = data.output;
         setState((s) => {
           const next: SandboxState = {
             ...s,
@@ -317,6 +307,7 @@ export default function IngestionSandboxPage() {
           }
           return next;
         });
+        return output;
       } catch (e) {
         setState((s) => ({
           ...s,
@@ -325,18 +316,23 @@ export default function IngestionSandboxPage() {
             error: e instanceof Error ? e.message : String(e),
           },
         }));
+        return undefined;
       }
     },
     [state]
   );
 
   const runAll = useCallback(async () => {
-    await runStage("dedup");
-    await runStage("parse");
-    await runStage("passA");
-    await runStage("passB");
-    await runStage("extract");
-    await runStage("moderate");
+    const dedupOut = await runStage("dedup");
+    const parseOut = await runStage("parse");
+    if (!parseOut) return;
+    const passAOut = await runStage("passA", parseOut);
+    if (!passAOut) return;
+    const passBOut = await runStage("passB", passAOut);
+    if (!passBOut) return;
+    const extractOut = await runStage("extract", passBOut);
+    if (!extractOut) return;
+    await runStage("moderate", extractOut);
   }, [runStage]);
 
   // ---------------------------------------------------------------------------
