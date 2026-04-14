@@ -1,10 +1,14 @@
 {
   "registry": "rls-coverage",
-  "timestamp": "2026-04-14T06:04:15.853288+00:00",
+  "timestamp": "2026-04-14T14:56:36.031766+00:00",
   "version": 1,
   "drift": {
     "no_rls": [],
     "rls_enabled_no_policy": [
+      {
+        "table": "admin_audit_log",
+        "source_migration": "079_admin_audit_log.sql"
+      },
       {
         "table": "ai_model_config",
         "source_migration": "024_ai_model_config.sql"
@@ -20,11 +24,11 @@
     ]
   },
   "stats": {
-    "total_tables": 69,
-    "rls_enabled": 69,
-    "with_policies": 66,
+    "total_tables": 72,
+    "rls_enabled": 72,
+    "with_policies": 68,
     "no_rls_count": 0,
-    "rls_no_policy_count": 3
+    "rls_no_policy_count": 4
   },
   "status": "drift_detected"
 }

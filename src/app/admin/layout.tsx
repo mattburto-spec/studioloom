@@ -31,6 +31,7 @@ const TOOLS_TABS = [
   { label: "Registries", href: "/admin/controls/registries" },
   { label: "AI Model", href: "/admin/ai-model" },
   { label: "Frameworks", href: "/admin/framework-adapter" },
+  { label: "Generation Sandbox", href: "/admin/generation-sandbox" },
   { label: "Sandbox Hub", href: "/admin/test-sandbox" },
 ];
 
