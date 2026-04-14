@@ -50,6 +50,17 @@ triggers:
     scanner: scripts/registry/scan-vendors.py
     rationale: All vendors that receive user data must be registered with data categories, legal basis, and DPA status.
 
+  - id: before_creating_a_new_table
+    description: Any migration with CREATE TABLE must include RLS + at least one policy
+    pattern: "CREATE TABLE"
+    must_update:
+      - "Enable RLS: ALTER TABLE <name> ENABLE ROW LEVEL SECURITY"
+      - "Define at least one CREATE POLICY ON <name>"
+      - "Update schema-registry.yaml via sync-schema-registry.py"
+    scanner: scripts/registry/scan-rls-coverage.py
+    enforcement: planned  # becomes 'automated' when scan-rls-coverage runs in CI
+    rationale: FU-X proved that tables without RLS silently expose all rows via PostgREST. Every new table must have RLS enabled and at least one policy before migration is applied.
+
   - id: new_classification_basis_or_category
     description: A new legal basis or data_sent category value is needed
     pattern: "Manual — no code pattern"
