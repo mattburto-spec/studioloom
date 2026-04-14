@@ -42,3 +42,6 @@ past context files/
 
 # Karpathy's LLM coding discipline reference (local only)
 karpathy/
+
+# Supabase temp files
+supabase/.temp/

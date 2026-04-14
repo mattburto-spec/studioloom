@@ -967,9 +967,96 @@ tables:
   - key: pipeline.starter_patterns_enabled
     value: 'true'
   writers:
-  - planned — /admin/controls mutation endpoint (Phase 7I)
+  - src/lib/admin/settings.ts (updateAdminSetting)
+  - src/app/api/admin/settings/route.ts (PATCH)
   readers:
-  - planned — pipeline orchestrator reads at start of each run (Phase 7I)
+  - src/lib/admin/settings.ts (loadAdminSettings)
+  - src/app/api/admin/settings/route.ts (GET)
+  - src/lib/pipeline/orchestrator.ts (runPipeline)
+  spec_drift: []
+- name: admin_audit_log
+  status: written
+  source_migration: 079_admin_audit_log.sql
+  applied_date: null
+  purpose: General audit table for admin actions. Records who changed what, with old/new values. RLS enabled with no policies (deny-all pattern — service_role only).
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    actor_id: UUID REFERENCES auth.users(id) ON DELETE SET NULL
+    action: TEXT NOT NULL
+    target_table: TEXT
+    target_key: TEXT
+    old_value: JSONB
+    new_value: JSONB
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+  classification:
+    id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    actor_id:
+      pii: true
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: hash_only
+      retention_days: indefinite
+      basis: contract
+    action:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    target_table:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    target_key:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    old_value:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    new_value:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+  indexes:
+  - idx_admin_audit_log_actor (actor_id)
+  - idx_admin_audit_log_action (action)
+  - idx_admin_audit_log_created (created_at DESC)
+  rls:
+    read: deny-all (service_role only)
+    write: deny-all (service_role only)
+  writers:
+  - src/lib/admin/settings.ts (updateAdminSetting — writes audit row after each setting change)
+  readers:
+  - none yet (Phase 7 Audit Log page will read)
+  spec_drift: []
 - name: ai_model_config
   source_migration: 024_ai_model_config.sql
   status: applied

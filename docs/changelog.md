@@ -4,6 +4,27 @@
 
 ---
 
+## 14 Apr 2026 — Phase 7A BUILD: Admin Landing + Settings Backend (6 commits)
+
+**What changed:**
+- **Migration 079** (`admin_audit_log`) — audit table for admin actions, RLS deny-all pattern.
+- **Settings helper** (`src/lib/admin/settings.ts`) — `loadAdminSettings`, `updateAdminSetting`, `shouldEnforceCostCeilings`, `ADMIN_SETTINGS_DEFAULTS`. Custom error classes for validation.
+- **API routes** GET/PATCH `/api/admin/settings` — service_role Supabase client, validates key/value, writes audit row.
+- **`/admin/controls` rewritten** — pipeline settings backed by `admin_settings` table (5 controls: stage toggles, cost ceilings, model override, starter patterns). Was AIControlPanel with noop console.log.
+- **Pipeline orchestrator** wired to `admin_settings` — `loadAdminSettings()` at run start, stage-disable checks, per-run + daily cost ceilings, model override per stage, starter patterns to Stage 1, sandbox guard, feature-flag fallback.
+- **Bug report count** added to admin landing QuickStats via `checkUsageAnalytics()`.
+- **12-tab admin nav** scaffold per spec §9.8 + secondary TOOLS_TABS for legacy routes. 8 stub pages created.
+- **FU-LL filed** — ai_model_config system redundancy assessment (P2, 17 files).
+- `.gitignore` — added `supabase/.temp/`.
+- `schema-registry.yaml` — admin_audit_log entry added, admin_settings readers/writers updated.
+- Tests: 25 new tests across 5 files, NC verified on 4 tests.
+
+**Systems affected:** orchestrator, admin_settings, admin_audit_log, admin landing, admin layout, usage-analytics, health-checks, stage1-retrieval, schema-registry, gitignore
+
+**Commits:** `4e462df` (FU-LL), `2f982fe` (migration 079 + types), `03ed6d9` (settings helper + API + tests), `8e49cf1` (controls page), `dce6ea3` (orchestrator), `953a987` (bug report count), `871f810` (12-tab nav)
+
+---
+
 ## 14 Apr 2026 — Path B closeout: FU-EE + FU-FF filed, migration 074 annotated
 
 **What changed:**
