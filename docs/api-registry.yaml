@@ -5,9 +5,7 @@
 # Cross-referenced with docs/schema-registry.yaml (tables) and docs/ai-call-sites.yaml (AI calls).
 #
 # Last synced: 2026-04-14
-# Total routes: 266
-
-version: 1
+# Total routes: 279
 
 routes:
 - path: /api/admin/ai-model
@@ -46,6 +44,53 @@ routes:
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: 'Multiple auth patterns detected: admin, teacher'
+- path: /api/admin/audit-log
+  method: GET
+  file: src/app/api/admin/audit-log/route.ts
+  auth: admin
+  tables_read:
+  - admin_audit_log
+  - data_removal_log
+  - feedback_audit_log
+  - student_content_moderation_log
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: Reference to unknown table 'data_removal_log' — not in schema-registry
+- path: /api/admin/bug-reports
+  method: GET
+  file: src/app/api/admin/bug-reports/route.ts
+  auth: admin
+  tables_read:
+  - bug_reports
+  tables_written:
+  - bug_reports
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/admin/bug-reports
+  method: PATCH
+  file: src/app/api/admin/bug-reports/route.ts
+  auth: admin
+  tables_read:
+  - bug_reports
+  tables_written:
+  - bug_reports
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/admin/cost-usage
+  method: GET
+  file: src/app/api/admin/cost-usage/route.ts
+  auth: admin
+  tables_read:
+  - admin_settings
+  - cost_rollups
+  - generation_runs
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
 - path: /api/admin/feedback
   method: GET
   file: src/app/api/admin/feedback/route.ts
@@ -95,6 +140,25 @@ routes:
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: 'Multiple auth patterns detected: admin, teacher'
+- path: /api/admin/generation-sandbox/[runId]
+  method: GET
+  file: src/app/api/admin/generation-sandbox/[runId]/route.ts
+  auth: admin
+  tables_read:
+  - generation_runs
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/admin/generation-sandbox/run
+  method: POST
+  file: src/app/api/admin/generation-sandbox/run/route.ts
+  auth: admin
+  tables_read: []
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
 - path: /api/admin/health
   method: GET
   file: src/app/api/admin/health/route.ts
@@ -147,6 +211,16 @@ routes:
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
+- path: /api/admin/library/block-interactions
+  method: GET
+  file: src/app/api/admin/library/block-interactions/route.ts
+  auth: admin
+  tables_read:
+  - activity_blocks
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
 - path: /api/admin/library/health
   method: GET
   file: src/app/api/admin/library/health/route.ts
@@ -186,11 +260,66 @@ routes:
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
+- path: /api/admin/schools
+  method: GET
+  file: src/app/api/admin/schools/route.ts
+  auth: admin
+  tables_read:
+  - class_students
+  - classes
+  - teachers
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/admin/settings
+  method: GET
+  file: src/app/api/admin/settings/route.ts
+  auth: admin
+  tables_read: []
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/admin/settings
+  method: PATCH
+  file: src/app/api/admin/settings/route.ts
+  auth: admin
+  tables_read: []
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
 - path: /api/admin/smoke-tests
   method: POST
   file: src/app/api/admin/smoke-tests/route.ts
   auth: admin
   tables_read: []
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/admin/students
+  method: GET
+  file: src/app/api/admin/students/route.ts
+  auth: admin
+  tables_read:
+  - class_students
+  - student_progress
+  - students
+  tables_written:
+  - student_progress
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/admin/teachers
+  method: GET
+  file: src/app/api/admin/teachers/route.ts
+  auth: admin
+  tables_read:
+  - classes
+  - teachers
+  - units
   tables_written: []
   ai_call_sites: []
   cost_ceiling_usd: null
@@ -250,6 +379,19 @@ routes:
   tables_written:
   - student_sessions
   - students
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/bug-reports
+  method: POST
+  file: src/app/api/bug-reports/route.ts
+  auth: teacher
+  tables_read:
+  - bug_reports
+  - student_sessions
+  tables_written:
+  - bug_reports
+  - student_sessions
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null

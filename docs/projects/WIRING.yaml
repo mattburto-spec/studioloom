@@ -1883,8 +1883,8 @@ systems:
     name: Admin Dashboard (Superuser Ops)
     category: Admin & Operations
     status: active
-    currentVersion: 2
-    summary: "Phase 4 expanded (12 Apr 2026). v1 health strip + sparklines + alerts. v2 adds Library Health dashboard (8 widgets: source type, category distribution, stale blocks, duplicate suspects, low efficacy, orphans, embedding health, coverage heatmap) and Pipeline Health dashboard (KPI cards, stage failure heatmap, cost alert strip, error log, quality drift indicator, recent alerts). Tabs now include Pipeline Health + Library Health accessible from admin nav."
+    currentVersion: 3
+    summary: "Phase 7C expanded (14 Apr 2026). v2→v3: all 12 admin tabs now live with real data. Cost & Usage (per-teacher profitability), Quality (efficacy + drift), Wiring (6 E2E flow tests), Teachers, Students, Schools, Bug Reports (triage), Audit Log (4-source combined). Generation Sandbox with real pipeline step-through. Block interaction viz. Per-format library tabs. v2: Library Health dashboard (8 widgets) + Pipeline Health dashboard. v1: health strip + sparklines + alerts."
     depends_on: [generation-pipeline, activity-blocks, feedback-system, ops-automation]
     affects: [generation-pipeline, ai-controls, testing-sandbox]
     docs:
@@ -1906,7 +1906,7 @@ systems:
       - src/lib/admin/library-health-queries.ts
       - src/app/admin/costs/page.tsx
       - src/app/admin/settings/page.tsx
-    future_needs: Remaining stub tabs (Quality, Wiring, Teachers, Students, Schools, Bugs, Audit). Per-teacher profitability.
+    future_needs: All 12 tabs now live. Future: drill-down on per-teacher cost, block interaction graph improvements.
     adrs: []
     os_seam: partial
     change_impacts: Changes to monitors affect health strip. Changes to pipeline stages affect Pipeline Health tab. Changes to activity_blocks schema affect Library browser and Library Health dashboard. Changes to system_alerts affect both health dashboards.
@@ -2162,16 +2162,22 @@ systems:
   - id: bug-reporting
     name: Bug Reporting (Issue Tracking)
     category: Admin & Operations
-    status: idea
-    currentVersion: 0
-    summary: "Per-class toggle for bug report button. Captures screenshot, console errors, class context. Admin workflow: New → Investigating → Fixed → Closed."
-    depends_on: []
-    affects: [teacher-dashboard]
+    status: active
+    currentVersion: 1
+    summary: "Phase 7C (14 Apr 2026). Floating BugReportButton in teacher + student layouts. 4-category quick picker (broken/visual/confused/feature_request). Auto-captures page URL, console errors, class context. Dual auth (Supabase Auth for teachers, token session for students). Admin triage at /admin/bug-reports with status workflow (New→Investigating→Fixed→Closed). Migration 076: bug_reports table + classes.bug_reporting_enabled toggle."
+    depends_on: [admin-dashboard]
+    affects: [teacher-dashboard, admin-dashboard]
     docs: []
-    future_needs: Automatic duplicate detection, priority classification.
+    key_files:
+      - src/components/shared/BugReportButton.tsx
+      - src/app/api/bug-reports/route.ts
+      - src/app/api/admin/bug-reports/route.ts
+      - src/app/admin/bug-reports/page.tsx
+      - supabase/migrations/076_bug_reports.sql
+    future_needs: Automatic duplicate detection, priority classification, per-class toggle UI in teacher settings.
     adrs: []
     os_seam: none
-    change_impacts: Will require bug_reports and admin_workflow tables.
+    change_impacts: Changes to bug_reports schema affect admin triage UI and BugReportButton. Changes to class settings affect button visibility.
 
   - id: format-support
     name: Format Support (Unit Type Registry)

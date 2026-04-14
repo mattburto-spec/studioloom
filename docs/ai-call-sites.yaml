@@ -5,9 +5,7 @@
 # docs/projects/dimensions3-followups.md FU-5 (stop_reason_handled seeding).
 #
 # Last synced: 2026-04-14
-# Total call sites: 47
-
-version: 1
+# Total call sites: 48
 
 call_sites:
 - id: ai_app_api_admin_ai_model_test_lesson_route_buildUnitTypeSystemPrompt
@@ -451,6 +449,18 @@ call_sites:
   - /api/admin/ingestion-sandbox/run-stage
   cost_category: ingestion
   notes: null
+- id: ai_lib_ingestion_persist_blocks_embedAll
+  file: src/lib/ingestion/persist-blocks.ts
+  function: embedAll
+  provider: voyage
+  model: voyage-3.5
+  max_tokens: null
+  stop_reason_handled: unknown
+  has_fallback: false
+  called_from_routes:
+  - /api/teacher/library/ingest
+  cost_category: ingestion
+  notes: Uses wrapper src/lib/ai/embeddings.ts
 - id: ai_lib_knowledge_library_index_embedAll
   file: src/lib/knowledge-library/index.ts
   function: embedAll

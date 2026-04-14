@@ -4,6 +4,26 @@
 
 ---
 
+## 14 Apr 2026 — Sub-phases 7A-7C: Integrity, Admin Tabs, Sandbox, Bug Reports (3 commits)
+
+**What changed:**
+- **Migration 080** (`activity_block_versions`) — auto-snapshot trigger on block UPDATE, version history table with RLS.
+- **Migration 081** (`unit_version_trigger`) — auto-snapshot on unit UPDATE when `content_data IS DISTINCT FROM`.
+- **Migration 082** (`data_removal_log`) — audit table for GDPR-style student data removal.
+- **Student data removal script** (`scripts/remove-student-data.ts` + `src/lib/integrity/remove-student-data.ts`) — enumerates 21 tables, dry-run + confirm modes, writes audit row.
+- **8 admin tab stubs → real implementations:** Cost & Usage, Quality, Wiring, Teachers, Students, Schools, Bug Reports, Audit Log. Each with dedicated API route using `createAdminClient`.
+- **Floating BugReportButton** — mounted in teacher + student layouts, 4-category picker, auto-captures URL + console errors, dual auth (Supabase Auth + student token).
+- **Generation Sandbox** (`/admin/generation-sandbox`) — real pipeline or simulator, step-through stage view, timing bars, cost summary, run history.
+- **Block interaction viz** (`/admin/library/[blockId]/interactions`) — prerequisite/dependent/same-phase/tag-overlap relationships.
+- **Per-format library tabs** (Design/Service/PP/Inquiry) on library page.
+- **6 new API routes:** bug-reports (public), admin/cost-usage, admin/teachers, admin/students, admin/schools, admin/audit-log, admin/generation-sandbox/run, admin/generation-sandbox/[runId], admin/library/block-interactions.
+
+**Systems affected:** admin-dashboard (v2→v3), bug-reporting (idea→active v1), activity-blocks (versioning triggers), generation-pipeline (sandbox mode).
+**Tests:** 1254 passing (baseline maintained), 0 new TS errors.
+**Commits:** `356ff55` (7A), `3500d04` (7B), `4990c6f` (7C). All pushed to origin/main.
+
+---
+
 ## 14 Apr 2026 — Phase 7A BUILD: Admin Landing + Settings Backend (6 commits)
 
 **What changed:**

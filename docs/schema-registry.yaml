@@ -8846,3 +8846,58 @@ tables:
       as a separate migration 078 as originally planned in the 7A assumptions block.
     decision: Bundled approach accepted — no re-split. Future searches for the FU-X fix should look
       at migration 075, not 078.
+
+# ============================================================
+# Tables added 14 Apr 2026 — Dimensions3 Sub-phase 7A (migrations 080-082)
+# ============================================================
+
+- name: activity_block_versions
+  source_migration: 080_block_versioning.sql
+  status: pending
+  applied_date: null
+  purpose: "Auto-versioned snapshots of activity_blocks before each UPDATE. Preserves edit history."
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    block_id: UUID NOT NULL REFERENCES activity_blocks(id) ON DELETE CASCADE
+    version_number: INT NOT NULL
+    title: TEXT
+    prompt: TEXT
+    description: TEXT
+    efficacy_score: NUMERIC
+    bloom_level: TEXT
+    time_weight: TEXT
+    phase: TEXT
+    grouping: TEXT
+    activity_category: TEXT
+    metadata: JSONB
+    edited_by: UUID
+    edit_reason: TEXT
+    created_at: TIMESTAMPTZ DEFAULT now()
+  indexes:
+    - idx_block_versions_block ON (block_id, version_number DESC)
+  unique_constraints:
+    - (block_id, version_number)
+  rls:
+    read: "Teachers read own block versions; service_role full access"
+    write: "Trigger-only inserts; service_role full access"
+  writers: ["snapshot_block_version() trigger"]
+  readers: ["admin library UI", "version history API"]
+
+- name: data_removal_log
+  source_migration: 082_data_removal_log.sql
+  status: pending
+  applied_date: null
+  purpose: "Audit trail for GDPR-style student data removal/anonymization."
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    removed_student_ref: TEXT NOT NULL
+    removed_by: UUID
+    reason: TEXT
+    row_counts: JSONB
+    dry_run: BOOLEAN DEFAULT false
+    created_at: TIMESTAMPTZ DEFAULT now()
+  rls:
+    read: "service_role only"
+    write: "service_role only"
+  writers: ["remove-student-data.ts"]
+  readers: ["admin audit-log page"]
