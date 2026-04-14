@@ -1018,3 +1018,31 @@ RLS-coverage scanner (`scan-rls-coverage.py`) added to prevent recurrence.
 **Definition of done:** Both scanners (a) read the existing yaml first if it exists, (b) capture any top-level scalar fields other than `routes`/`call_sites` into a preserved dict, and (c) write those back on top of the regenerated content. Round-trip test: re-run the scanner twice in a row, confirm second run produces zero diff. Add the round-trip test to the scanner harness if one exists, or log as a manual check.
 
 **Priority:** P2 — doesn't cause production harm but actively undermines the registry-version contract we just established. Fix before the next major registry change or the first time `registry.version` is actually consumed.
+
+---
+
+## FU-LL — ai_model_config system redundancy assessment (P2)
+
+**Filed:** 14 Apr 2026
+**Target phase:** Next cleanup pass
+**Priority:** P2 (technical debt — vestigial system with one live consumer)
+
+**Issue:** The `/admin/ai-model` UI (macro dials → micro sliders → `ai_model_config` table via `PUT /api/admin/ai-model`) appears vestigial — it's from week 1 of StudioLoom, predates Dimensions3, and Matt hasn't adjusted it since. Pre-delete audit (14 Apr 2026) confirmed the component (`AIControlPanel`) is purely presentational (zero internal DB writes), the macro values never leave React state until the parent saves, and no pipeline/prompt/generation code references "macro" values or `schoolProfile`. However, `src/lib/ai/quality-evaluator.ts` reads from `ai_model_config` at runtime during Stage 6 scoring. Direct deletion would break scoring silently.
+
+**File inventory (17 files):**
+- Component: `src/components/admin/AIControlPanel.tsx` (680 lines)
+- Page: `src/app/admin/ai-model/page.tsx`
+- Supporting: `src/components/admin/ai-model/{config-helpers.ts, CategoryPanel.tsx, TimingPanel.tsx, SliderRow.tsx, TestSandbox.tsx}`
+- API: `src/app/api/admin/ai-model/{route.ts, test/route.ts, test-lesson/route.ts}`
+- Data: `src/lib/ai/{model-config-defaults.ts, model-config.ts}`
+- Runtime consumer: `src/lib/ai/quality-evaluator.ts`
+- Types: `src/types/ai-model-config.ts`
+- Test sandbox: `src/app/admin/test-sandbox/page.tsx`
+
+**Suggested investigation:**
+1. Audit what values from `ai_model_config` quality-evaluator actually reads. Are any of them now covered by FormatProfile, block efficacy, or Lesson Pulse weights?
+2. For each value still load-bearing: can its default be frozen into `model-config-defaults.ts` as a constant, removing the need for the table + UI?
+3. If ALL values can be frozen or moved: delete `/admin/ai-model` route, delete AIControlPanel + supporting files, drop `ai_model_config` table in a new migration.
+4. If some values must remain admin-tunable: document which in schema-registry with "load-bearing — do not remove" note; decide if they belong in `admin_settings` (operational) or a new `scoring_weights` table (quality-tuning).
+
+**Definition of done:** Either full deletion of the ai_model_config UI/table with quality-evaluator refactored to use frozen/FormatProfile inputs, OR a documented explanation of what's still load-bearing and why.
