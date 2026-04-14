@@ -117,6 +117,9 @@ export default function LibraryLandingPage() {
       } else {
         setReviewResult(data);
         setReviewState("done");
+        if (typeof window !== "undefined") {
+          sessionStorage.setItem("pendingImportResult", JSON.stringify(data));
+        }
         router.push("/teacher/library/import");
       }
     } catch (e) {

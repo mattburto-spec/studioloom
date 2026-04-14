@@ -104,4 +104,20 @@ describe("/teacher/library page — cards + upload", () => {
   it("stops propagation on upload button clicks to prevent Link navigation", () => {
     expect(src).toContain("e.stopPropagation()");
   });
+
+  // ── sessionStorage handoff (Commit 4) ──
+  it("handleRedirectYes stashes result in sessionStorage before navigation", () => {
+    expect(src).toContain('sessionStorage.setItem("pendingImportResult"');
+    expect(src).toContain("JSON.stringify(data)");
+    // SSR guard
+    expect(src).toContain('typeof window !== "undefined"');
+  });
+
+  it("sessionStorage write happens before router.push", () => {
+    const storageIdx = src.indexOf("sessionStorage.setItem");
+    const pushIdx = src.indexOf('router.push("/teacher/library/import")');
+    expect(storageIdx).toBeGreaterThan(-1);
+    expect(pushIdx).toBeGreaterThan(-1);
+    expect(storageIdx).toBeLessThan(pushIdx);
+  });
 });

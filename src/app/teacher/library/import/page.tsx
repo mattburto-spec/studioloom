@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import MatchReport from "@/components/teacher/library/MatchReport";
 
 interface ImportResult {
@@ -54,6 +54,23 @@ export default function ImportPage() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [accepted, setAccepted] = useState(false);
+
+  // Pick up result stashed by library landing page redirect handoff
+  useEffect(() => {
+    try {
+      const stashed = sessionStorage.getItem("pendingImportResult");
+      if (stashed) {
+        sessionStorage.removeItem("pendingImportResult");
+        const parsed = JSON.parse(stashed) as ImportResult;
+        if (parsed?.reconstruction && parsed?.ingestion) {
+          setResult(parsed);
+        }
+      }
+    } catch (e) {
+      console.error("[import] Failed to parse pendingImportResult:", e);
+      sessionStorage.removeItem("pendingImportResult");
+    }
+  }, []);
 
   const handleImport = async () => {
     if (rawText.length < 50) {
