@@ -32,6 +32,8 @@ export interface PassConfig {
   apiKey?: string;
   /** Whether we're in sandbox/test mode (no real AI calls) */
   sandboxMode?: boolean;
+  /** Skip dedup check — used by import route where re-processing is expected */
+  skipDedup?: boolean;
 }
 
 export interface IngestionPass<TInput, TOutput> {

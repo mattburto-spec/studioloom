@@ -128,6 +128,7 @@ export async function POST(request: NextRequest) {
     teacherId,
     apiKey: process.env.ANTHROPIC_API_KEY,
     sandboxMode: sandboxMode === true,
+    skipDedup: true, // Import always re-processes — dedup would return empty blocks
   };
 
   try {

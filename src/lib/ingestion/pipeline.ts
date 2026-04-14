@@ -62,8 +62,10 @@ export async function runIngestionPipeline(
 ): Promise<IngestionPipelineResult> {
   const startTime = Date.now();
 
-  // Stage I-0: Dedup
-  const dedup: DedupResult = await dedupCheck(input.rawText, config);
+  // Stage I-0: Dedup (skippable for import route where re-processing is expected)
+  const dedup: DedupResult = config.skipDedup
+    ? { isDuplicate: false, fileHash: "", cost: { inputTokens: 0, outputTokens: 0, modelId: "none", estimatedCostUSD: 0, timeMs: 0 } }
+    : await dedupCheck(input.rawText, config);
 
   if (dedup.isDuplicate) {
     const zeroCost: CostBreakdown = {

@@ -69,6 +69,15 @@ export default function LibraryLandingPage() {
       formData.append("file", file);
 
       const res = await fetch(endpoint, { method: "POST", body: formData });
+
+      // Vercel may return non-JSON for 413 (body too large) before the route handler runs
+      const ct = res.headers.get("content-type") || "";
+      if (!ct.includes("application/json")) {
+        setError(res.status === 413 ? "File too large for server (max ~4.5MB)" : `Upload failed (${res.status})`);
+        setCardState("error");
+        return null;
+      }
+
       const data: UploadResult = await res.json();
 
       if (!res.ok || data.error) {
