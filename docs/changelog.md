@@ -4,6 +4,35 @@
 
 ---
 
+## 14 Apr 2026 — GOV-1 Governance Foundation COMPLETE (all 4 sub-phases shipped)
+
+**What changed:**
+- **GOV-1.1 — Data-classification taxonomy**: 6-axis per-column classification (`pii`, `student_voice`, `safety_sensitive`, `ai_exportable`, `retention_days`, `basis`) applied to all 69 tables in `schema-registry.yaml`. `docs/data-classification-taxonomy.md` codifies the decision rules.
+- **GOV-1.2 — Feature-flag / secret registry**: `docs/feature-flags.yaml` (15 flags + 12 secrets) + `feature-flags-taxonomy.md`. Scanner `scripts/registry/scan-feature-flags.py` diffs against live env var usage.
+- **GOV-1.3 — Vendor registry**: `docs/vendors.yaml` (9 vendors — Anthropic, Supabase, Voyage, Vercel, Groq, Gemini, Resend, Sentry, ElevenLabs) with DPA status + 11-category canonical `data_sent` + 8 legal bases. `vendors-taxonomy.md` codifies the enums. Scanner `scripts/registry/scan-vendors.py` diffs against package.json + code.
+- **GOV-1.4 — Live drift-detection loop**:
+  - 2 new scanners (READ-ONLY, never auto-write): `scan-feature-flags.py`, `scan-vendors.py` → JSON reports in `docs/scanner-reports/`
+  - `docs/change-triggers.yaml` (6 triggers mapping change types → required registry updates)
+  - `doc-manifest.yaml` schema bump: per-entry `max_age_days` + `last_scanned`
+  - `version: 1` field on all 5 registries (schema/api/ai-call-sites/feature-flags/vendors)
+  - Admin read-only panel at `/admin/controls/registries` with RED/AMBER/GREEN staleness chips
+  - `governance-registries` system added to WIRING.yaml
+  - Quarterly self-silencing scheduled task (cron `0 9 1 */3 *`, notifies only if drift)
+- **11 commits pushed** to origin/main. Test baseline 1119 → 1150.
+- **2 follow-ups filed**: FU-CC (P3, annotate SENTRY_AUTH_TOKEN as build-time-only), FU-DD (P2, scan-api-routes.py + scan-ai-calls.py strip top-level `version: 1` field on rewrite — caught + reverted mid-saveme).
+- **1 new lesson logged**: Lesson #47 — adding schema to existing yaml = audit every writer first.
+- **8 new decisions logged** covering: per-column 6-axis classification, canonical `data_sent` + legal bases, scanners verify-never-auto-write, change-triggers codified, manifest schema bump, registry version field, scanner JSON shape, SENTRY build-time exception.
+
+**Files created:** `docs/data-classification-taxonomy.md`, `docs/feature-flags.yaml`, `docs/feature-flags-taxonomy.md`, `docs/vendors.yaml`, `docs/vendors-taxonomy.md`, `docs/change-triggers.yaml`, `docs/scanner-reports/feature-flags.json`, `docs/scanner-reports/vendors.json`, `scripts/registry/scan-feature-flags.py`, `scripts/registry/scan-vendors.py`, admin panel at `src/app/admin/controls/registries/`
+
+**Files modified:** `CLAUDE.md` (registries section expanded to 6 registries + saveme step 11 expanded + FU-AA/BB/CC/DD added), `docs/projects/ALL-PROJECTS.md` (GOV-1 marked complete under Core Platform, feature count 40→41), `docs/projects/dashboard.html` (GOV-1 status ready→complete), `docs/projects/dimensions3-followups.md` (FU-CC, FU-DD), `docs/decisions-log.md` (8 new entries + footer to 14 Apr), `docs/lessons-learned.md` (Lesson #47), `docs/doc-manifest.yaml` (4 new entries + summary stats), `docs/projects/WIRING.yaml` (governance-registries system), `docs/schema-registry.yaml` / `api-registry.yaml` / `ai-call-sites.yaml` / `feature-flags.yaml` / `vendors.yaml` (top-level `version: 1` added)
+
+**Systems affected:** governance-registries (new), feature-flags registry, vendors registry, schema-registry (classified), doc-manifest (schema bump), admin panel (registries tab), build-methodology (change-triggers authoritative)
+
+**Session context:** Matt raised the concern that new registry docs were being created without ownership — "where are all these new documents being tracked? I don't want them created then never used." Chose option (b): GOV-1.4 expanded to ship the full automation loop — scanners, change-triggers, manifest schema bump, admin panel, scheduled task — rather than leave registries as orphaned yaml. Adopted all 14 assumptions (A1-A14) including categorized `data_sent`, scanner JSON shape, per-entry `max_age_days`, self-silencing quarterly cron. FU-DD surfaced during saveme when the pre-existing api-routes/ai-calls scanners stripped the new `version: 1` field on rewrite — caught by git diff, reverted with `git checkout`, logged as a P2 follow-up. Lesson #47 codifies the general principle: shared-schema bumps require auditing every writer.
+
+---
+
 ## 14 Apr 2026 — Phase 7-Pre COMPLETE: Registry Infrastructure Sprint
 
 **What changed:**

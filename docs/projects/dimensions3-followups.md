@@ -895,3 +895,36 @@ No current feature exposes this, but Dimensions3 feedback loop ("how is this stu
 **Impact:** Low for classification (column names are still correct). But any future tool that reads the `type:` field (migration generators, typed-client generators) will break on these.
 
 **Definition of done:** Fix `scripts/registry/` (or the equivalent scanner) to handle compound `ADD COLUMN` statements correctly, rerun the sync, and validate the affected entries.
+
+---
+
+## FU-CC — Annotate build-time-only secrets in `feature-flags.yaml` (P3)
+
+**Discovered:** 2026-04-14 (GOV-1.4 — `scan-feature-flags.py` flagged `SENTRY_AUTH_TOKEN` as orphaned on first run).
+
+**Issue:** `SENTRY_AUTH_TOKEN` is consumed by the `@sentry/nextjs` webpack plugin at build time (via `next.config.*` / Sentry config files), not at runtime via `process.env.SENTRY_AUTH_TOKEN`. The scanner — which greps `src/` for `process.env.X` — correctly doesn't find it and reports it as orphaned. This is expected behaviour, not drift.
+
+**Impact:** Every scanner run will report `status: drift` with one known-legitimate orphan. False-positive noise will erode signal.
+
+**Definition of done:** Add a one-line YAML comment next to `SENTRY_AUTH_TOKEN` in `docs/feature-flags.yaml` — e.g. `# consumed by @sentry/nextjs build plugin, not process.env — scanner orphan is expected`. Optionally extend `scan-feature-flags.py` to recognize a per-entry `ignore_orphan: build_time` flag so the scanner returns `status: ok` when all drift items are marked. One-line comment now; scanner enhancement later if a second build-time-only secret appears.
+
+**Priority:** P3 — cosmetic; scanner still works correctly, just emits a known false-positive. Pick up during the next GOV-related session or next time `feature-flags.yaml` is touched.
+
+---
+
+## FU-DD — Legacy scanners strip `version:` field on rewrite (P2)
+
+**Discovered:** 2026-04-14 (first saveme after GOV-1.4 shipped).
+
+**Issue:** `scripts/registry/scan-api-routes.py --apply` and `scripts/registry/scan-ai-calls.py --apply` both overwrite their target YAMLs without preserving the new top-level `version: 1` field that GOV-1.4 added. Running either scanner removes the field; next saveme round-trips it back — creating churn and violating the version-bump contract (A13).
+
+**Impact:** P2 — silent. The version field is erased on every saveme and manually re-added only if the diff is inspected closely. Any future code that checks `registry.version` will see undefined after a scanner run.
+
+**Reproduction:**
+1. Confirm `version: 1` is at the top of `docs/api-registry.yaml` and `docs/ai-call-sites.yaml`.
+2. Run `python3 scripts/registry/scan-api-routes.py --apply`.
+3. `git diff` shows the version line removed.
+
+**Definition of done:** Both scanners (a) read the existing yaml first if it exists, (b) capture any top-level scalar fields other than `routes`/`call_sites` into a preserved dict, and (c) write those back on top of the regenerated content. Round-trip test: re-run the scanner twice in a row, confirm second run produces zero diff. Add the round-trip test to the scanner harness if one exists, or log as a manual check.
+
+**Priority:** P2 — doesn't cause production harm but actively undermines the registry-version contract we just established. Fix before the next major registry change or the first time `registry.version` is actually consumed.

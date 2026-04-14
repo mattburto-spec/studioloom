@@ -311,3 +311,14 @@ For multi-step tasks, state a brief plan with verification at each step:
 **How to apply:** Every phase brief already has this via stop triggers and named checkpoints. Apply the same pattern at the sub-step level — before writing code, state what "done" looks like in terms of a test or assertion, not just "it compiles."
 
 ---
+
+### Lesson #47 — Adding schema to an existing yaml = audit every writer first
+**Date:** 14 Apr 2026
+
+GOV-1.4 added `version: 1` as a new top-level field to all 5 registry yamls. Two pre-existing scanners (`scan-api-routes.py`, `scan-ai-calls.py`) load the yaml, mutate their own block (`routes`, `call_sites`), and rewrite the file — silently dropping the new `version` field because they only know about their own keys. Caught at the saveme `git diff` step; reverted with `git checkout`. Logged FU-DD.
+
+**Why this matters for us:** Any shared schema bump has blast-radius = every writer. It's not enough to update the consumer (admin panel) and the spec — you have to audit everything that writes the file. YAML preservation across rewrites is fragile: the default load-mutate-dump cycle silently drops anything outside the mutated block.
+
+**How to apply:** Before adding a new top-level field to a shared yaml, grep for every script that writes it (`git grep -l 'yaml.dump.*REGISTRY_NAME'` or equivalent). Either (a) update each writer to preserve top-level scalars in the same PR, or (b) file an FU and ban the consumer until all writers are fixed. The safer long-term fix is a `read_registry()` / `write_registry()` helper that captures + restores unknown top-level fields.
+
+---

@@ -1180,6 +1180,16 @@ const SYSTEMS = [
     deps: ["framework-adapter", "format-profiles"],
     osSeam: "ready", osNotes: "Format system is the OS extensibility mechanism."
   },
+  {
+    id: "governance-registries", name: "Governance Registries", category: "Admin & Operations",
+    v1: "Six machine-readable registries (schema, API, AI calls, feature flags, vendors, WIRING) with taxonomy docs, drift scanners (JSON reports), change-triggers.yaml, per-entry staleness tracking (max_age_days + last_scanned), admin read-only panel with RED/AMBER/GREEN chips, quarterly self-silencing scheduled task.",
+    v2: "Pre-commit hook enforces change-triggers. CI fails builds on critical drift. Auto-apply mode for low-risk registry edits.",
+    v3: "Cross-product registry sharing — Loominary OS level. Vendor-change alerts propagate across all Loominary apps.",
+    v4: null, v5: null,
+    currentVersion: 1, status: "complete",
+    deps: [],
+    osSeam: "ready", osNotes: "Registry pattern is product-agnostic — every Loominary app benefits from the same drift-detection loop."
+  },
 
   // ═══════════════════════════════════════════════════
   // MARKETING & PUBLIC

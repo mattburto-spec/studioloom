@@ -2146,11 +2146,35 @@ docs:
     max_age_days: 365
     last_scanned: null
 
+  - path: docs/change-triggers.yaml
+    title: "Change Triggers Registry"
+    purpose: "Machine-readable map of 6 change-type triggers → required registry updates (GOV-1.4)"
+    category: root
+    last_verified: "2026-04-14"
+    max_age_days: 90
+    last_scanned: null
+
+  - path: docs/scanner-reports/feature-flags.json
+    title: "Feature-Flag Scanner Report"
+    purpose: "Latest scan-feature-flags.py output — orphaned/missing flags + stats (automation-written)"
+    category: automation
+    last_verified: "2026-04-14"
+    max_age_days: 7
+    last_scanned: "2026-04-14"
+
+  - path: docs/scanner-reports/vendors.json
+    title: "Vendor Scanner Report"
+    purpose: "Latest scan-vendors.py output — orphaned/missing vendors + stats (automation-written)"
+    category: automation
+    last_verified: "2026-04-14"
+    max_age_days: 7
+    last_scanned: "2026-04-14"
+
 # --- SUMMARY STATISTICS ---
 summary:
-  total_documents: 233
+  total_documents: 236
   by_category:
-    root: 19
+    root: 20
     brain: 8
     projects: 63
     specs: 51
@@ -2160,11 +2184,11 @@ summary:
     open-studio: 10
     components: 3
     design: 2
-    automation: 2
+    automation: 4
     audits: 2
     prototypes: 17
     archive: 20
     marketing: 1
     safety: 1
-  last_updated: "2026-04-11"
+  last_updated: "2026-04-14"
   referenced_in_claude_md: 17
