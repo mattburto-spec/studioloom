@@ -504,7 +504,7 @@ docs:
 
   - path: docs/projects/dimensions3-followups.md
     title: "Dimensions3 Follow-Ups Tracker"
-    purpose: "Per-FU tracking for Dimensions3 phase follow-ups (FU-1 through FU-W). FU-E through FU-I (teacher grading migration, legacy CRITERIA cleanup, getCriterionColor wrapper, strand headers, null-framework fallback). FU-J through FU-L (scale hardcode, student-snapshot shape, local type collapse). FU-M (live cost alert email test). FU-N through FU-W (architectural limitations surfaced during Checkpoint 5.1 Step 9: NULL class_id silent safety gap, no co-teacher access, no school entity, dual student identity, auth model split, moderation-ingestion scope mismatch, no content transfer, single-tenant URLs, cross-class analytics, no audit log) filed 14 Apr 2026."
+    purpose: "Per-FU tracking for Dimensions3 phase follow-ups (FU-1 through FU-W, FU-AA through FU-II). FU-E through FU-I (teacher grading migration, legacy CRITERIA cleanup, getCriterionColor wrapper, strand headers, null-framework fallback). FU-J through FU-L (scale hardcode, student-snapshot shape, local type collapse). FU-M (live cost alert email test). FU-N through FU-W (architectural limitations surfaced during Checkpoint 5.1 Step 9). FU-AA through FU-DD (schema-registry cleanup, scanner bugs). FU-EE (no migration-applied log, P2). FU-FF (undocumented RLS-as-deny-all on 3 tables, P3). FU-GG (nm-assessment data loss, P1). FU-HH (no RLS test harness, P2). FU-II (log-client-block pattern, P3)."
     category: projects
     last_verified: "2026-04-14"
     referenced_from: ["ALL-PROJECTS.md Dimensions3 follow-ups", "CLAUDE.md current focus"]

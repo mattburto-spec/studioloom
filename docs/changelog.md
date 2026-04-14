@@ -4,6 +4,19 @@
 
 ---
 
+## 14 Apr 2026 — Path B closeout: FU-EE + FU-FF filed, migration 074 annotated
+
+**What changed:**
+- Filed **FU-EE** (P2): no canonical migration-applied log — pre-flight checks rely on probing for migration-created objects directly.
+- Filed **FU-FF** (P3): 3 tables with RLS-as-deny-all pattern undocumented in schema-registry — scanner reports as drift.
+- Migration 074 (`074_ingestion_moderation_hold.sql`) annotated in schema-registry indexes list with applied date.
+- CLAUDE.md saveme step 5 updated: `refresh-project-dashboard` is a CWORK-level task, not questerra-scoped.
+- doc-manifest purpose updated on dimensions3-followups.md to reflect FU-AA..FU-II range.
+
+**Systems affected:** schema-registry, doc-manifest, changelog, followups tracker
+
+---
+
 ## 14 Apr 2026 — Path B COMPLETE — FU-X + FU-N closed (Phase 7A-Safety-1 + 7A-Safety-2)
 
 **What changed:**
