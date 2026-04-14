@@ -449,6 +449,14 @@ docs:
     max_age_days: 90
     last_scanned: null
 
+  - path: scripts/registry/scan-rls-coverage.py
+    title: "RLS Coverage Scanner Script"
+    purpose: "Checks every CREATE TABLE has ENABLE ROW LEVEL SECURITY + at least one CREATE POLICY. Emits JSON report. Read-only (no --apply)."
+    category: automation
+    last_verified: "2026-04-14"
+    max_age_days: 90
+    last_scanned: null
+
   - path: docs/projects/dashboard.html
     title: "Project Dashboard"
     purpose: "Interactive dashboard with PROJECTS array in sync with ALL-PROJECTS.md"
@@ -2165,6 +2173,14 @@ docs:
   - path: docs/scanner-reports/vendors.json
     title: "Vendor Scanner Report"
     purpose: "Latest scan-vendors.py output — orphaned/missing vendors + stats (automation-written)"
+    category: automation
+    last_verified: "2026-04-14"
+    max_age_days: 7
+    last_scanned: "2026-04-14"
+
+  - path: docs/scanner-reports/rls-coverage.json
+    title: "RLS Coverage Scanner Report"
+    purpose: "Latest scan-rls-coverage.py output — tables missing RLS or policies (automation-written)"
     category: automation
     last_verified: "2026-04-14"
     max_age_days: 7

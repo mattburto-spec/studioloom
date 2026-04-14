@@ -2269,11 +2269,12 @@ systems:
       - scripts/registry/scan-vendors.py
       - scripts/registry/scan-api-routes.py
       - scripts/registry/scan-ai-calls.py
+      - scripts/registry/scan-rls-coverage.py
       - src/app/admin/controls/registries/page.tsx
-    future_needs: Quarterly automation via scheduled task, CI integration, auto-apply mode for scanners.
+    future_needs: CI integration, auto-apply mode for scanners.
     adrs: []
     os_seam: none
-    change_impacts: Any change to a registered system (migration, route, AI call, flag, vendor) must update the corresponding registry. See docs/change-triggers.yaml.
+    change_impacts: Any change to a registered system (migration, route, AI call, flag, vendor) must update the corresponding registry. Any new CREATE TABLE must include RLS + policy (scan-rls-coverage.py). See docs/change-triggers.yaml.
 
 # Summary Statistics
 meta:
