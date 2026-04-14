@@ -42,11 +42,13 @@ CREATE INDEX IF NOT EXISTS idx_cost_rollups_category
 ALTER TABLE cost_rollups ENABLE ROW LEVEL SECURITY;
 
 -- Teachers read their own cost data
+DROP POLICY IF EXISTS "Teachers read own cost rollups" ON public.cost_rollups;
 CREATE POLICY "Teachers read own cost rollups"
   ON cost_rollups FOR SELECT
   USING (teacher_id = auth.uid());
 
 -- Service role full access (nightly rollup job writes via createAdminClient)
+DROP POLICY IF EXISTS "Service role full access cost_rollups" ON public.cost_rollups;
 CREATE POLICY "Service role full access cost_rollups"
   ON cost_rollups FOR ALL
   USING (auth.role() = 'service_role')
@@ -62,11 +64,13 @@ CREATE POLICY "Service role full access cost_rollups"
 ALTER TABLE usage_rollups ENABLE ROW LEVEL SECURITY;
 
 -- Teachers read their own usage data
+DROP POLICY IF EXISTS "Teachers read own usage rollups" ON public.usage_rollups;
 CREATE POLICY "Teachers read own usage rollups"
   ON usage_rollups FOR SELECT
   USING (teacher_id = auth.uid());
 
 -- Service role full access (Job 7 writes daily via createAdminClient)
+DROP POLICY IF EXISTS "Service role full access usage_rollups" ON public.usage_rollups;
 CREATE POLICY "Service role full access usage_rollups"
   ON usage_rollups FOR ALL
   USING (auth.role() = 'service_role')
@@ -82,6 +86,7 @@ CREATE POLICY "Service role full access usage_rollups"
 ALTER TABLE system_alerts ENABLE ROW LEVEL SECURITY;
 
 -- Service role full access (jobs write, admin routes read)
+DROP POLICY IF EXISTS "Service role full access system_alerts" ON public.system_alerts;
 CREATE POLICY "Service role full access system_alerts"
   ON system_alerts FOR ALL
   USING (auth.role() = 'service_role')
@@ -97,6 +102,7 @@ CREATE POLICY "Service role full access system_alerts"
 ALTER TABLE library_health_flags ENABLE ROW LEVEL SECURITY;
 
 -- Service role full access (hygiene job writes, admin reads)
+DROP POLICY IF EXISTS "Service role full access library_health_flags" ON public.library_health_flags;
 CREATE POLICY "Service role full access library_health_flags"
   ON library_health_flags FOR ALL
   USING (auth.role() = 'service_role')
