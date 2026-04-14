@@ -15,6 +15,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { runIngestionPipeline } from "@/lib/ingestion/pipeline";
 import { extractDocument } from "@/lib/knowledge/extract";
 import type { PassConfig, CopyrightFlag } from "@/lib/ingestion/types";
+import { persistModeratedBlocks } from "@/lib/ingestion/persist-blocks";
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
 const ACCEPTED_EXTENSIONS = ["pdf", "docx", "pptx", "txt", "md"];
@@ -160,6 +161,16 @@ export async function POST(request: NextRequest) {
       } catch (e) {
         // content_items table may not exist yet — continue without storage
         console.error("[ingest] Failed to store content_item:", e);
+      }
+    }
+
+    // Persist extracted blocks to activity_blocks for teacher review queue
+    if (result.contentItemId && !result.dedup.isDuplicate && !result.moderationHold && result.moderation.blocks.length > 0) {
+      try {
+        const persist = await persistModeratedBlocks(adminClient, teacherId, result.contentItemId, result.moderation.blocks);
+        console.log("[ingest] Persisted", persist.insertedCount, "blocks to review queue");
+      } catch (e) {
+        console.error("[ingest] Failed to persist moderated blocks:", e);
       }
     }
 

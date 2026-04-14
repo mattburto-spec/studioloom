@@ -134,10 +134,13 @@ export default function LibraryLandingPage() {
 
   // Import Unit handlers
   const handleImportFile = useCallback(async (file: File) => {
-    await uploadFile(
+    const data = await uploadFile(
       file, "/api/teacher/library/import",
       setImportState, setImportFile, setImportResult, setImportError
     );
+    if (data && typeof window !== "undefined") {
+      sessionStorage.setItem("pendingImportResult", JSON.stringify(data));
+    }
   }, [uploadFile]);
 
   // Generic drag/drop helpers
