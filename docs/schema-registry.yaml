@@ -2659,7 +2659,7 @@ tables:
   - idx_content_items_status ON (processing_status)
   - idx_content_items_module ON (module)
   - idx_content_items_type ON (content_type)
-  - idx_content_items_moderation_hold ON (created_at DESC) WHERE processing_status = 'moderation_hold'
+  - idx_content_items_moderation_hold ON (created_at DESC) WHERE processing_status = 'moderation_hold' # added by 074_ingestion_moderation_hold.sql, applied 2026-04-14
   rls:
     read: content_items_select_own (unknown)
     write: content_items_insert_own (unknown); content_items_update_own (unknown); content_items_delete_own (unknown)

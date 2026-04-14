@@ -581,6 +581,49 @@ Migrate moderation log visibility from Option C (student_id cross-join) to Optio
 
 ---
 
+## FU-EE — No canonical migration-applied log (P2)
+
+**Filed:** 14 Apr 2026
+**Target phase:** Next ops pass
+**Priority:** P2 (process gap — blocks confident pre-flight checks)
+
+**Issue:** No canonical record of which migrations have been applied to prod Supabase. `supabase_migrations.schema_migrations` doesn't exist on this project; we've been probing for migration-created objects directly (e.g., `SELECT 1 FROM pg_class WHERE relname = 'usage_rollups'`). This makes pre-flight checks fragile — Claude can't grep a single file to know whether a migration is applied.
+
+**What we know:**
+- Phase 7A-Safety-1 pre-flight had to probe for table existence directly.
+- `docs/resolved-issues-archive.md` has some migration notes but is not a systematic log.
+- `docs/schema-registry.yaml` has `applied_date` per table but only tracks the *creating* migration, not additive migrations (e.g., 074 adds an index to content_items but content_items' source_migration is 063).
+
+**Suggested investigation:**
+1. Either enable Supabase's built-in migration tracking (`supabase db push` populates `supabase_migrations.schema_migrations`), or
+2. Maintain a manual `docs/migrations-applied.md` log with columns: migration number, filename, applied date, who applied, notes.
+
+**Definition of done:** A single source of truth Claude can check in one grep before assuming a migration is or isn't applied.
+
+---
+
+## FU-FF — Undocumented RLS-as-deny-all pattern on 3 tables (P3)
+
+**Filed:** 14 Apr 2026
+**Target phase:** Next governance pass
+**Priority:** P3 (documentation gap, not a security bug)
+
+**Issue:** `scan-rls-coverage.py` flagged 3 tables as `rls_enabled_no_policy` — they have RLS enabled but zero policies, making them effectively deny-all to non-service-role clients:
+- `ai_model_config`
+- `ai_model_config_history`
+- `student_sessions`
+
+This is likely intentional (service-role-only tables), but the pattern is undocumented. The scanner reports them as drift, creating false positives.
+
+**Suggested investigation:**
+1. Audit the 3 tables in `docs/scanner-reports/rls-coverage.json` — confirm each is service-role-only by design.
+2. Document the pattern in `docs/schema-registry.yaml` with `rls: {status: service_role_only, rationale: "..."}` on each table.
+3. Update `scan-rls-coverage.py` to treat documented service-role-only tables as `ok` instead of `drift` (whitelist via a `# deny-all-intentional` marker or schema-registry lookup).
+
+**Definition of done:** Scanner output is clean OR each remaining drift item has a documented rationale in schema-registry.
+
+---
+
 ## FU-O — No co-teacher / dept head / school admin access model
 
 **Surfaced:** Phase 6 Checkpoint 5.1 Step 9 (14 Apr 2026)
