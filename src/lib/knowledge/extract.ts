@@ -25,6 +25,17 @@ export async function extractFromPDF(
   buffer: Buffer,
   filename: string
 ): Promise<ExtractedDoc> {
+  // pdfjs-dist references browser rendering globals (DOMMatrix, Path2D, etc.)
+  // which don't exist in Vercel's serverless Node.js runtime. Stub them all —
+  // text extraction never touches the rendering path so these are never called.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const g = globalThis as any;
+  for (const name of ["DOMMatrix", "Path2D", "ImageData", "OffscreenCanvas"]) {
+    if (typeof g[name] === "undefined") {
+      g[name] = class Stub {};
+    }
+  }
+
   const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
   const data = new Uint8Array(buffer);
   const loadingTask = pdfjsLib.getDocument({
