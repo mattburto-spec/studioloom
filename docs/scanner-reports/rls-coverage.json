@@ -1,0 +1,30 @@
+{
+  "registry": "rls-coverage",
+  "timestamp": "2026-04-14T04:32:56.036540+00:00",
+  "version": 1,
+  "drift": {
+    "no_rls": [],
+    "rls_enabled_no_policy": [
+      {
+        "table": "ai_model_config",
+        "source_migration": "024_ai_model_config.sql"
+      },
+      {
+        "table": "ai_model_config_history",
+        "source_migration": "024_ai_model_config.sql"
+      },
+      {
+        "table": "student_sessions",
+        "source_migration": "001_initial_schema.sql"
+      }
+    ]
+  },
+  "stats": {
+    "total_tables": 69,
+    "rls_enabled": 69,
+    "with_policies": 66,
+    "no_rls_count": 0,
+    "rls_no_policy_count": 3
+  },
+  "status": "drift_detected"
+}
