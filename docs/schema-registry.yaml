@@ -2779,7 +2779,7 @@ tables:
 - name: cost_rollups
   status: written
   source_migration: 075_cost_rollups_and_rls_fix.sql
-  applied_date: null
+  applied_date: 2026-04-14
   purpose: 'Per-teacher cost attribution across 4 categories (ingestion, generation, student_api, teacher_api) with day/week/
     month granularity. Feeds /admin/cost-usage tab (Phase 7E). Distinct from usage_rollups (counts, Phase 4) — this one is
     cost-only.
@@ -5099,7 +5099,7 @@ tables:
 - name: library_health_flags
   source_migration: 072_library_health_ops.sql
   status: applied
-  applied_date: null
+  applied_date: 2026-04-14
   purpose: null
   columns:
     id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
@@ -5109,7 +5109,6 @@ tables:
     reason: TEXT
     resolved_at: TIMESTAMPTZ
     created_at: TIMESTAMPTZ DEFAULT now()
-  # FU-X: this table lacks RLS — classification does not substitute for policy
   classification:
     id:
       pii: false
@@ -7770,7 +7769,7 @@ tables:
 - name: system_alerts
   source_migration: 072_library_health_ops.sql
   status: applied
-  applied_date: null
+  applied_date: 2026-04-14
   purpose: null
   columns:
     id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
@@ -7780,7 +7779,6 @@ tables:
     acknowledged: BOOLEAN DEFAULT false
     acknowledged_at: TIMESTAMPTZ
     created_at: TIMESTAMPTZ DEFAULT now()
-  # FU-X: this table lacks RLS — classification does not substitute for policy
   classification:
     id:
       pii: false
@@ -8643,7 +8641,7 @@ tables:
 - name: usage_rollups
   source_migration: 072_library_health_ops.sql
   status: applied
-  applied_date: null
+  applied_date: 2026-04-14
   purpose: 'Phase 4 daily/weekly/monthly count rollups. Stores { generation_runs, total_blocks } counts per teacher per day.
     NOT for cost attribution — see cost_rollups (migration 075).
 
@@ -8656,7 +8654,6 @@ tables:
     student_id: UUID
     metrics: JSONB NOT NULL DEFAULT '{}'
     created_at: TIMESTAMPTZ DEFAULT now()
-  # FU-X: this table lacks RLS — classification does not substitute for policy
   classification:
     id:
       pii: false
