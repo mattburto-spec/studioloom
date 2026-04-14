@@ -1,7 +1,7 @@
 /**
  * Schema 7A Contract Tests
  *
- * Validates that src/types/admin.ts matches migrations 075/076/077 exactly.
+ * Validates that src/types/admin.ts matches migrations 075/076/077/079 exactly.
  * DDL probes: column names + types align with TypeScript interfaces.
  * CHECK probes: enum values in SQL CHECK constraints match TS union types.
  * Seed probe: admin_settings expected keys match AdminSettingKey enum.
@@ -19,6 +19,7 @@ import {
   type ReporterRole,
   type AdminSetting,
   AdminSettingKey,
+  type AdminAuditLogEntry,
 } from "@/types/admin";
 
 // ─── Helpers ───────────────────────────────────────────────
@@ -367,5 +368,55 @@ describe("Migration 077 — admin_settings", () => {
 
   it("uses ON CONFLICT DO NOTHING (idempotent seed)", () => {
     expect(sql).toContain("ON CONFLICT (key) DO NOTHING");
+  });
+});
+
+// ─── Migration 079: admin_audit_log ───────────────────────────
+
+describe("Migration 079 — admin_audit_log", () => {
+  const sql = readMigration("079_admin_audit_log.sql");
+
+  it("creates admin_audit_log table", () => {
+    expect(sql).toContain("CREATE TABLE IF NOT EXISTS admin_audit_log");
+  });
+
+  it("has all columns matching AdminAuditLogEntry interface", () => {
+    const sqlCols = extractColumns(sql, "admin_audit_log");
+    const tsCols: (keyof AdminAuditLogEntry)[] = [
+      "id",
+      "actor_id",
+      "action",
+      "target_table",
+      "target_key",
+      "old_value",
+      "new_value",
+      "created_at",
+    ];
+    for (const col of tsCols) {
+      expect(sqlCols).toContain(col);
+    }
+    for (const col of sqlCols) {
+      expect(tsCols).toContain(col as keyof AdminAuditLogEntry);
+    }
+  });
+
+  it("uses UUID primary key (D2)", () => {
+    expect(sql).toMatch(/id\s+UUID\s+PRIMARY KEY/i);
+  });
+
+  it("enables RLS on admin_audit_log", () => {
+    expect(sql).toMatch(
+      /ALTER TABLE admin_audit_log ENABLE ROW LEVEL SECURITY/i
+    );
+  });
+
+  it("has no explicit policies (intentional deny-all per FU-FF pattern)", () => {
+    expect(sql).not.toContain("CREATE POLICY");
+  });
+
+  it("has 3 indexes (created_at, actor, target)", () => {
+    expect(sql).toContain("idx_admin_audit_log_created_at");
+    expect(sql).toContain("idx_admin_audit_log_actor");
+    expect(sql).toContain("idx_admin_audit_log_target");
   });
 });

@@ -1,6 +1,6 @@
 /**
- * Admin types — cost_rollups, bug_reports, admin_settings
- * Mirrors migrations 075/076/077 exactly.
+ * Admin types — cost_rollups, bug_reports, admin_settings, admin_audit_log
+ * Mirrors migrations 075/076/077/079 exactly.
  */
 
 // ── Cost Rollups (migration 075) ───────────────────────────
@@ -74,4 +74,19 @@ export interface AdminSetting {
   value: unknown; // JSONB — shape varies per key
   updated_by: string | null;
   updated_at: string;
+}
+
+// ── Admin Audit Log (migration 079) ──────────────────────────
+
+export type AdminAuditAction = "update_setting";
+
+export interface AdminAuditLogEntry {
+  id: string;
+  actor_id: string | null;
+  action: AdminAuditAction;
+  target_table: string | null;
+  target_key: string | null;
+  old_value: unknown;
+  new_value: unknown;
+  created_at: string;
 }
