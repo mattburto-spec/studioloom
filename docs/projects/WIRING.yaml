@@ -2236,6 +2236,45 @@ systems:
     os_seam: ready
     change_impacts: Changes to framework mapping affect comment generation.
 
+  - id: governance-registries
+    name: Governance Registries
+    category: Infrastructure
+    status: complete
+    currentVersion: 1
+    summary: Six machine-readable registries (schema, API, AI calls, feature flags, vendors, WIRING) with taxonomy docs, drift scanners, change triggers, and admin staleness panel.
+    depends_on: []
+    affects: []
+    docs:
+      - path: docs/schema-registry.yaml
+        purpose: Table-level schema registry
+      - path: docs/api-registry.yaml
+        purpose: API route registry
+      - path: docs/ai-call-sites.yaml
+        purpose: AI call site registry
+      - path: docs/feature-flags.yaml
+        purpose: Feature flag and secret registry
+      - path: docs/vendors.yaml
+        purpose: Vendor and DPA registry
+      - path: docs/data-classification-taxonomy.md
+        purpose: Data classification taxonomy
+      - path: docs/feature-flags-taxonomy.md
+        purpose: Feature flag taxonomy
+      - path: docs/vendors-taxonomy.md
+        purpose: Vendor taxonomy
+      - path: docs/change-triggers.yaml
+        purpose: Change trigger rules
+    data_fields: []
+    key_files:
+      - scripts/registry/scan-feature-flags.py
+      - scripts/registry/scan-vendors.py
+      - scripts/registry/scan-api-routes.py
+      - scripts/registry/scan-ai-calls.py
+      - src/app/admin/controls/registries/page.tsx
+    future_needs: Quarterly automation via scheduled task, CI integration, auto-apply mode for scanners.
+    adrs: []
+    os_seam: none
+    change_impacts: Any change to a registered system (migration, route, AI call, flag, vendor) must update the corresponding registry. See docs/change-triggers.yaml.
+
 # Summary Statistics
 meta:
   total_systems: 94
