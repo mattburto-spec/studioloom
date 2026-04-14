@@ -10,7 +10,7 @@ interface HealthData {
   cost: { status: string; todayUSD: number; weekUSD: number; alerts: string[] };
   quality: { status: string; thisWeekAvg: number | null };
   stale: { status: string };
-  usage: { activeTeachers: number; activeStudents: number; totalUnits: number; totalBlocks: number };
+  usage: { activeTeachers: number; activeStudents: number; totalUnits: number; totalBlocks: number; bugReportCount: number | null };
   overallAlerts: string[];
   sparklines: { runs: number[]; cost: number[] };
 }
@@ -63,6 +63,7 @@ export default function AdminDashboard() {
         { label: "Students", value: health.usage.activeStudents },
         { label: "Units", value: health.usage.totalUnits },
         { label: "Blocks", value: health.usage.totalBlocks, sparkline: health.sparklines.runs },
+        { label: "Bug Reports", value: health.usage.bugReportCount ?? "—" },
         { label: "Cost (7d)", value: `$${health.cost.weekUSD.toFixed(2)}`, sparkline: health.sparklines.cost },
       ]
     : [];

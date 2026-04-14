@@ -41,7 +41,7 @@ export async function getHealthSummary(supabase: SupabaseClient): Promise<Health
   const q = quality.status === "fulfilled" ? quality.value : { status: "green" as const, thisWeekAvg: null, rollingAvg: null, drift: null, alerts: [] };
   const e = edits.status === "fulfilled" ? edits.value : { status: "green" as const, totalEdits: 0, mostEdited: [], mostDeleted: [], alerts: [] };
   const s = stale.status === "fulfilled" ? stale.value : { status: "green" as const, staleProfiles: 0, unscannedBlocks: 0, failedRunSpike: false, alerts: [] };
-  const u = usage.status === "fulfilled" ? usage.value : { status: "green" as const, activeTeachers: 0, activeStudents: 0, totalUnits: 0, totalBlocks: 0, daily7d: [], alerts: [] };
+  const u = usage.status === "fulfilled" ? usage.value : { status: "green" as const, activeTeachers: 0, activeStudents: 0, totalUnits: 0, totalBlocks: 0, bugReportCount: null, daily7d: [], alerts: [] };
 
   const overallAlerts = [...p.alerts, ...c.alerts, ...q.alerts, ...e.alerts, ...s.alerts, ...u.alerts];
 

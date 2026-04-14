@@ -11,6 +11,7 @@ export interface UsageAnalyticsResult {
   activeStudents: number;
   totalUnits: number;
   totalBlocks: number;
+  bugReportCount: number | null;
   daily7d: Array<{ date: string; runs: number; blocks: number }>;
   alerts: string[];
 }
@@ -50,6 +51,16 @@ export async function checkUsageAnalytics(supabase: SupabaseClient): Promise<Usa
     totalBlocks = count || 0;
   } catch { /* empty */ }
 
+  // Bug reports with status "new" or "investigating"
+  let bugReportCount: number | null = null;
+  try {
+    const { count } = await supabase
+      .from("bug_reports")
+      .select("id", { count: "exact", head: true })
+      .in("status", ["new", "investigating"]);
+    bugReportCount = count ?? 0;
+  } catch { /* table may not exist yet */ }
+
   // 7d daily breakdown from generation_runs
   const d7 = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
   let runs7d: any[] = [];
@@ -74,5 +85,5 @@ export async function checkUsageAnalytics(supabase: SupabaseClient): Promise<Usa
 
   const status: UsageAnalyticsResult["status"] = "green";
 
-  return { status, activeTeachers, activeStudents, totalUnits, totalBlocks, daily7d, alerts };
+  return { status, activeTeachers, activeStudents, totalUnits, totalBlocks, bugReportCount, daily7d, alerts };
 }
