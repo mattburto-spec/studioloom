@@ -1,0 +1,387 @@
+# ============================================================================
+# Feature Flag & Secret Registry — StudioLoom
+# ============================================================================
+# Single source of truth for every runtime flag and deployment secret.
+# See docs/feature-flags-taxonomy.md for field definitions and rules.
+#
+# Counts: 15 flags, 12 secrets  (last verified: 2026-04-14)
+# ============================================================================
+
+# ────────────────────────────────────────────────────────────────────────────
+# FLAGS — values that change application behaviour
+# ────────────────────────────────────────────────────────────────────────────
+
+flags:
+
+  # ── DB-sourced flags (admin_settings table, managed via /admin/controls) ──
+
+  - name: pipeline.stage_enabled
+    kind: flag
+    source: db
+    public: false
+    required: false
+    type: json
+    scope: runtime
+    default: '{"retrieve": true, "assemble": true, "gap_fill": true, "polish": true, "timing": true, "score": true}'
+    description: Per-stage on/off toggles for the generation pipeline
+    consumers:
+      - src/types/admin.ts                       # AdminSettingKey.STAGE_ENABLED
+      - supabase/migrations/077_admin_settings.sql  # seed row
+
+  - name: pipeline.cost_ceiling_per_run_usd
+    kind: flag
+    source: db
+    public: false
+    required: false
+    type: number
+    scope: runtime
+    default: 5.00
+    description: Maximum USD spend per single pipeline run before abort
+    consumers:
+      - src/types/admin.ts                       # AdminSettingKey.COST_CEILING_PER_RUN
+      - supabase/migrations/077_admin_settings.sql  # seed row
+
+  - name: pipeline.cost_ceiling_per_day_usd
+    kind: flag
+    source: db
+    public: false
+    required: false
+    type: number
+    scope: runtime
+    default: 50.00
+    description: Maximum USD spend per day across all pipeline runs
+    consumers:
+      - src/types/admin.ts                       # AdminSettingKey.COST_CEILING_PER_DAY
+      - supabase/migrations/077_admin_settings.sql  # seed row
+
+  - name: pipeline.model_override
+    kind: flag
+    source: db
+    public: false
+    required: false
+    type: json
+    scope: runtime
+    default: "{}"
+    description: Override AI model selection for specific pipeline stages (empty = use defaults)
+    consumers:
+      - src/types/admin.ts                       # AdminSettingKey.MODEL_OVERRIDE
+      - supabase/migrations/077_admin_settings.sql  # seed row
+
+  - name: pipeline.starter_patterns_enabled
+    kind: flag
+    source: db
+    public: false
+    required: false
+    type: boolean
+    scope: runtime
+    default: true
+    description: Whether to inject starter/exemplar patterns into generation prompts
+    consumers:
+      - src/types/admin.ts                       # AdminSettingKey.STARTER_PATTERNS_ENABLED
+      - supabase/migrations/077_admin_settings.sql  # seed row
+
+  # ── Env-sourced flags (process.env, set in .env.local or Vercel) ──────────
+
+  - name: NEXT_PUBLIC_NSFW_BLOCK_THRESHOLD
+    kind: flag
+    source: env
+    public: true
+    required: false
+    type: number
+    scope: runtime
+    default: 0.6
+    description: NSFW.js confidence threshold above which images are blocked (0-1)
+    consumers:
+      - src/lib/content-safety/client-image-filter.ts
+
+  - name: COST_ALERT_DAILY_USD
+    kind: flag
+    source: env
+    public: false
+    required: false
+    type: number
+    scope: runtime
+    default: 10
+    description: Daily AI spend (USD) threshold before alerting admin
+    consumers:
+      - src/lib/jobs/cost-alert.ts
+
+  - name: COST_ALERT_WEEKLY_USD
+    kind: flag
+    source: env
+    public: false
+    required: false
+    type: number
+    scope: runtime
+    default: 50
+    description: Weekly AI spend (USD) threshold before alerting admin
+    consumers:
+      - src/lib/jobs/cost-alert.ts
+
+  - name: COST_ALERT_MONTHLY_USD
+    kind: flag
+    source: env
+    public: false
+    required: false
+    type: number
+    scope: runtime
+    default: 200
+    description: Monthly AI spend (USD) threshold before alerting admin
+    consumers:
+      - src/lib/jobs/cost-alert.ts
+
+  - name: COST_ALERT_EMAIL
+    kind: flag
+    source: env
+    public: false
+    required: false
+    type: string
+    scope: runtime
+    default: mattburto@gmail.com
+    description: Recipient email address for cost alert notifications
+    consumers:
+      - src/lib/monitoring/cost-alert-delivery.ts
+
+  - name: ADMIN_EMAILS
+    kind: flag
+    source: env
+    public: false
+    required: false
+    type: email_list
+    scope: runtime
+    default: mattburto@gmail.com
+    description: Comma-separated list of emails with /admin route access
+    consumers:
+      - src/app/api/admin/ai-model/route.ts
+      - src/app/api/admin/ai-model/test/route.ts
+      - src/app/api/admin/ai-model/test-lesson/route.ts
+
+  - name: SYSTEM_TEACHER_ID
+    kind: flag
+    source: env
+    public: false
+    required: false
+    type: string
+    scope: runtime
+    default: null
+    description: Fallback teacher UUID for admin ingestion sandbox when no teacherId provided
+    consumers:
+      - src/app/api/admin/ingestion-sandbox/upload/route.ts
+      - src/app/api/admin/ingestion-sandbox/commit/route.ts
+      - src/app/api/admin/ingestion-sandbox/run-stage/route.ts
+
+  - name: NODE_ENV
+    kind: flag
+    source: env
+    public: false
+    required: false
+    type: string
+    scope: runtime
+    default: development
+    description: Framework-provided — controls cookie secure flag in auth routes
+    consumers:
+      - src/app/api/auth/lti/launch/route.ts
+      - src/app/api/auth/student-login/route.ts
+
+  - name: NEXT_RUNTIME
+    kind: flag
+    source: env
+    public: false
+    required: false
+    type: string
+    scope: runtime
+    default: nodejs
+    description: Framework-provided — selects Node.js vs Edge Sentry config in instrumentation
+    consumers:
+      - src/instrumentation.ts
+
+  - name: NEXT_PUBLIC_SENTRY_DSN
+    kind: flag
+    source: env
+    public: true
+    required: false
+    type: string
+    scope: runtime
+    default: null
+    description: Sentry DSN — when set, enables error tracking and performance monitoring
+    consumers:
+      - src/instrumentation.ts
+      - src/instrumentation-client.ts
+
+# ────────────────────────────────────────────────────────────────────────────
+# SECRETS — credentials and connection strings
+# ────────────────────────────────────────────────────────────────────────────
+
+secrets:
+
+  - name: ANTHROPIC_API_KEY
+    kind: secret
+    source: env
+    public: false
+    required: true
+    provider: Anthropic
+    description: Claude API key — powers all AI generation, mentoring, analysis, moderation
+    rotation_notes: Replace in Vercel env vars + .env.local. No DB state to update.
+    consumers:
+      - src/lib/ai/resolve-credentials.ts
+      - src/lib/toolkit/shared-api.ts
+      - src/lib/content-safety/moderate-and-log.ts
+      - src/lib/knowledge/analyse.ts
+      - src/lib/knowledge/vision.ts
+      - src/lib/converter/extract-lesson-structure.ts
+      - src/app/api/admin/ai-model/test/route.ts
+      - src/app/api/admin/ai-model/test-lesson/route.ts
+      - src/app/api/admin/ingestion-sandbox/run-stage/route.ts
+      - src/app/api/teacher/generate-unit/route.ts
+      - src/app/api/teacher/library/import/route.ts
+      - src/app/api/teacher/library/ingest/route.ts
+      - src/app/api/teacher/timetable/parse-upload/route.ts
+      - src/app/api/teacher/knowledge/quick-modify/route.ts
+      - src/app/api/student/design-assistant/route.ts
+      - src/app/api/student/quest/mentor/route.ts
+      - src/app/api/student/open-studio/discovery/route.ts
+      - src/app/api/student/open-studio/check-in/route.ts
+      - src/app/api/tools/report-writer/route.ts
+      - src/app/api/tools/report-writer/bulk/route.ts
+      - src/app/api/tools/marking-comments/route.ts
+
+  - name: VOYAGE_API_KEY
+    kind: secret
+    source: env
+    public: false
+    required: true
+    provider: Voyage AI
+    description: Voyage AI key for voyage-3.5 embeddings (1024-dim) — RAG and semantic search
+    rotation_notes: Replace in Vercel env vars + .env.local. Existing embeddings remain valid.
+    consumers:
+      - src/lib/ai/embeddings.ts
+      - src/lib/activity-cards/import-cards.ts
+      - src/lib/activity-cards/seed.ts
+
+  - name: GROQ_API_KEY
+    kind: secret
+    source: env
+    public: false
+    required: false
+    provider: Groq
+    description: Groq API key — intended as primary fallback for Anthropic (NOT SHIPPED — see FU-Y)
+    rotation_notes: Replace in Vercel env vars. Fallback chain not yet wired.
+    consumers:
+      - src/lib/ai/resolve-credentials.ts
+
+  - name: GEMINI_API_KEY
+    kind: secret
+    source: env
+    public: false
+    required: false
+    provider: Google
+    description: Gemini API key — intended as secondary fallback (NOT SHIPPED — see FU-Y)
+    rotation_notes: Replace in Vercel env vars. Fallback chain not yet wired.
+    consumers:
+      - src/lib/ai/resolve-credentials.ts
+
+  - name: ENCRYPTION_KEY
+    kind: secret
+    source: env
+    public: false
+    required: true
+    provider: Self-generated
+    description: 256-bit hex key for AES-256-GCM encryption of teacher BYOK credentials
+    rotation_notes: Rotating requires re-encrypting all stored credentials. No automated rotation script exists.
+    consumers:
+      - src/lib/encryption.ts
+
+  - name: RESEND_API_KEY
+    kind: secret
+    source: env
+    public: false
+    required: false
+    provider: Resend
+    description: Resend API key for sending cost alert emails (FU-M — not yet tested live)
+    rotation_notes: Replace in Vercel env vars. No stored state.
+    consumers:
+      - src/lib/monitoring/cost-alert-delivery.ts
+
+  - name: SUPABASE_SERVICE_ROLE_KEY
+    kind: secret
+    source: env
+    public: false
+    required: true
+    provider: Supabase
+    description: Service-role JWT — bypasses RLS for admin operations, ingestion, ops scripts
+    rotation_notes: Rotate via Supabase dashboard. Update Vercel + .env.local + all ops script envs.
+    consumers:
+      - src/lib/supabase/admin.ts
+      - src/lib/activity-cards/import-cards.ts
+      - src/lib/activity-cards/seed.ts
+      - src/app/api/admin/ingestion-sandbox/upload/route.ts
+      - src/app/api/admin/ingestion-sandbox/commit/route.ts
+      - src/app/api/admin/ingestion-sandbox/run-stage/route.ts
+      - src/app/api/admin/library/route.ts
+      - src/app/api/admin/health/route.ts
+      - src/app/api/admin/monitors/route.ts
+      - src/app/api/admin/pipeline/route.ts
+      - src/app/api/admin/pipeline/health/route.ts
+      - scripts/ops/run-edit-tracker.ts
+      - scripts/ops/run-quality-drift.ts
+      - scripts/ops/run-stale-watchdog.ts
+      - scripts/ops/run-smoke-tests.ts
+      - scripts/ops/run-cost-alert.ts
+      - scripts/ops/run-pipeline-health.ts
+      - scripts/ops/run-usage-analytics.ts
+      - scripts/run-hygiene.ts
+      - scripts/backfill-activity-ids.ts
+      - scripts/run-efficacy-update.ts
+
+  - name: NEXT_PUBLIC_SUPABASE_URL
+    kind: secret
+    source: env
+    public: true
+    required: true
+    provider: Supabase
+    description: Supabase project URL — used by all client and server Supabase clients
+    rotation_notes: Only changes if migrating Supabase projects. Update Vercel + .env.local + middleware.
+    consumers:
+      - src/lib/supabase/server.ts
+      - src/lib/supabase/client.ts
+      - src/lib/supabase/admin.ts
+      - middleware.ts
+      - src/lib/auth/verify-teacher-unit.ts
+      # ... and 40+ API routes (omitted for brevity — any file creating a Supabase client)
+
+  - name: NEXT_PUBLIC_SUPABASE_ANON_KEY
+    kind: secret
+    source: env
+    public: true
+    required: true
+    provider: Supabase
+    description: Supabase anonymous JWT — used by browser and server clients for RLS-governed access
+    rotation_notes: Only changes if regenerating Supabase keys. Update Vercel + .env.local.
+    consumers:
+      - src/lib/supabase/server.ts
+      - src/lib/supabase/client.ts
+      - middleware.ts
+      - src/lib/auth/verify-teacher-unit.ts
+      # ... and 40+ API routes (omitted for brevity — any file creating a non-admin Supabase client)
+
+  - name: ELEVENLABS_API_KEY
+    kind: secret
+    source: env
+    public: false
+    required: false
+    provider: ElevenLabs
+    description: ElevenLabs API key for text-to-speech in interactive tools
+    rotation_notes: Replace in Vercel env vars. No stored state.
+    consumers:
+      - src/app/api/tts/route.ts
+
+  - name: SENTRY_AUTH_TOKEN
+    kind: secret
+    source: env
+    public: false
+    required: false
+    provider: Sentry
+    description: Sentry auth token for uploading source maps during build — build succeeds without it
+    rotation_notes: Replace in Vercel env vars. Only used at build time, not runtime.
+    consumers:
+      - next.config.ts                           # withSentryConfig conditional upload
