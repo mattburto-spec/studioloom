@@ -15,6 +15,7 @@ const TABS = [
   { label: "Costs", href: "/admin/costs" },
   { label: "Settings", href: "/admin/settings" },
   { label: "Controls", href: "/admin/controls" },
+  { label: "Registries", href: "/admin/controls/registries" },
   { label: "AI Model", href: "/admin/ai-model" },
   { label: "Frameworks", href: "/admin/framework-adapter" },
 ];
