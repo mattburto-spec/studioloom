@@ -43,13 +43,19 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Determine redirect target — the link in the invite email will bring
-  // the teacher to this URL after they set their password.
+  // Determine redirect target — Supabase appends `?code=XYZ` to this URL;
+  // /auth/callback exchanges that code for a session cookie and then
+  // forwards the teacher to `next` (default /teacher/welcome).
+  //
+  // NOTE: this URL must be in Supabase Dashboard → Authentication →
+  // URL Configuration → Redirect URLs allowlist, otherwise the invite
+  // link silently falls back to the Site URL and the teacher lands on
+  // the landing page with an error in the hash.
   const siteUrl =
     process.env.NEXT_PUBLIC_SITE_URL ||
     request.headers.get("origin") ||
     "https://studioloom.org";
-  const redirectTo = `${siteUrl.replace(/\/$/, "")}/teacher/dashboard`;
+  const redirectTo = `${siteUrl.replace(/\/$/, "")}/auth/callback?next=/teacher/welcome`;
 
   const { data, error } = await supabase.auth.admin.inviteUserByEmail(email, {
     data: name ? { name } : undefined,
