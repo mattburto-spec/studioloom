@@ -7046,6 +7046,174 @@ tables:
   - src/app/api/teacher/schedule/lessons/route.ts
   - src/app/api/teacher/schedule/today/route.ts
   spec_drift: []
+- name: schools
+  source_migration: 085_schools.sql
+  status: applied
+  applied_date: null  # NOT YET APPLIED to prod — pending Matt checkpoint A
+  purpose: "Lookup table of schools for teacher onboarding. Seeded with IB MYP/DP/PYP schools; teachers can add user_submitted entries. Forward-compatible with FU-P (school-as-tenant-root): id UUID is stable join key; parent_school_id, verified, source, latitude/longitude already present. FU-P adds billing_tier, primary_admin_id, settings JSONB, branding JSONB as additive columns. A future school_memberships(school_id, user_id, role) table will handle co-teachers/admins (FU-O); teachers.school_id stays as the 'primary school' hint."
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    name: TEXT NOT NULL
+    city: TEXT
+    country: TEXT NOT NULL  # ISO-3166 alpha-2 preferred; accepts full names for user_submitted
+    ib_programmes: "TEXT[] NOT NULL DEFAULT '{}'"  # e.g. {MYP,DP,PYP}
+    ib_school_code: TEXT
+    source: "TEXT NOT NULL CHECK (source IN ('ibo','cis','ecis','user_submitted','imported'))"
+    source_ref: TEXT
+    verified: BOOLEAN NOT NULL DEFAULT false
+    verified_at: TIMESTAMPTZ
+    verified_by: UUID REFERENCES auth.users(id) ON DELETE SET NULL
+    parent_school_id: UUID REFERENCES schools(id) ON DELETE SET NULL  # FU-P districts/MATs
+    latitude: NUMERIC(9,6)
+    longitude: NUMERIC(9,6)
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+    created_by: UUID REFERENCES auth.users(id) ON DELETE SET NULL
+    updated_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+    normalized_name: "TEXT GENERATED ALWAYS AS (lower(regexp_replace(trim(name), '\\s+', ' ', 'g'))) STORED"
+  indexes:
+    - "idx_schools_name_trgm GIN (name gin_trgm_ops)"
+    - "idx_schools_country ON (country)"
+    - "idx_schools_verified ON (verified)"
+    - "idx_schools_unique_name_country UNIQUE (normalized_name, country)"
+  classification:
+    id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    name:
+      pii: false  # school name is public info
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    city:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    country:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    ib_programmes:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    ib_school_code:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    source:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    source_ref:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    verified:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    verified_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    verified_by:
+      pii: true  # links to auth user
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: none
+      retention_days: indefinite
+      basis: contract
+    parent_school_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    latitude:
+      pii: false  # school location is public
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    longitude:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+    created_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    created_by:
+      pii: true  # links to auth user who added user_submitted row
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: none
+      retention_days: indefinite
+      basis: contract
+    updated_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
+    normalized_name:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: legitimate_interest
+  rls:
+    enabled: true
+    policies:
+      - "read_schools_auth: SELECT for authenticated (typeahead) USING (true)"
+      - "insert_custom_schools: INSERT for authenticated WITH CHECK (source='user_submitted' AND verified=false AND created_by=auth.uid())"
+    notes: "UPDATE/DELETE only via service_role (admin moderation: merge duplicates, promote user_submitted to verified)."
+  writers:
+  - src/app/api/schools/route.ts  # POST (to be created)
+  readers:
+  - src/app/api/schools/search/route.ts  # GET (to be created)
+  - src/app/api/teacher/school/route.ts  # PATCH teachers.school_id (to be created)
+  spec_drift: []
 - name: student_badges
   source_migration: 035_safety_badges.sql
   status: applied
@@ -8194,6 +8362,7 @@ tables:
     created_at: TIMESTAMPTZ DEFAULT now()
     style_profile: JSONB DEFAULT NULL
     onboarded_at: TIMESTAMPTZ DEFAULT NULL  # added by 083_teacher_onboarded_at.sql (applied 15 Apr 2026); NULL = redirect to /teacher/welcome
+    school_id: UUID REFERENCES schools(id) ON DELETE SET NULL  # added by 085_schools.sql (NOT YET APPLIED); NULL = not yet picked / existing teacher backfill via settings
   classification:
     id:
       pii: false
@@ -8237,14 +8406,23 @@ tables:
       ai_exportable: full
       retention_days: indefinite
       basis: pseudonymous
+    school_id:
+      pii: false  # school FK, not student identity
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
   indexes:
   - idx_teachers_style_confidence ON ((style_profile->>'confidenceLevel'))
+  - idx_teachers_school ON (school_id)  # added by 085_schools.sql (NOT YET APPLIED)
   rls:
     read: Teachers read own profile (unknown)
     write: Teachers update own profile (unknown)
   writers:
   - src/lib/teacher-style/profile-service.ts
-  - src/app/api/teacher/welcome/complete/route.ts  # flips onboarded_at on wizard completion
+  - src/app/api/teacher/welcome/complete/route.ts  # flips onboarded_at on wizard completion; will also set school_id
+  - src/app/api/teacher/school/route.ts  # PATCH school_id from settings (to be created in 085 sub-phase B)
   readers:
   - src/app/teacher/dashboard/page.tsx
   - src/app/teacher/layout.tsx  # reads onboarded_at to gate first-login redirect
@@ -8253,6 +8431,9 @@ tables:
   - date: 2026-04-15
     migration: 084_fk_cascade_fixes_for_teacher_delete.sql
     decision: "10 inbound FKs pointing at teachers(id) or auth.users(id) had ON DELETE defaulting to NO ACTION, blocking auth.admin.deleteUser(). Migration 084 rewrites: CASCADE on content ownership (units.author_teacher_id, units.teacher_id, content_items.teacher_id, activity_blocks.teacher_id, generation_runs.teacher_id, gallery_rounds.teacher_id); SET NULL on audit trails (students.author_teacher_id, content_moderation_log.overridden_by, feedback_proposals.resolved_by, feedback_audit_log.resolved_by). Admin endpoint at /api/admin/teachers/[id] already guards against deletion when units or classes > 0, so CASCADE only fires for teachers deemed safe to remove. Sanity asserts at end of migration raise EXCEPTION if any of the 10 FKs remain on NO ACTION."
+  - date: 2026-04-16
+    migration: 085_schools.sql
+    decision: "Added teachers.school_id (UUID FK → schools.id, ON DELETE SET NULL). Canonical school pointer going forward. **Overlap noted but not resolved in this migration:** teacher_profiles.school_name TEXT (from migration 021) already exists and is written by /api/teacher/profile (settings page) + read in 11 src/ files. Kept as legacy denormalized hint for backward compatibility — welcome wizard will set teachers.school_id; settings page continues writing teacher_profiles.school_name until a future migration migrates school_name → join on schools.name and drops the legacy column. Also noted: src/types/school.ts has ~700 lines of typed-but-unbuilt School/Membership/Enrollment entities representing full FU-P vision. Current schools table is intentionally minimal (name, country, ib_programmes, source, verified, parent_school_id, lat/lng) — FU-P later layers additive columns (billing_tier, primary_admin_id, settings JSONB, branding JSONB, invite_code, timezone, student_id_scheme, enabled_auth_methods) onto the same UUID stable key. No rename needed."
 - name: unit_badge_requirements
   source_migration: 035_safety_badges.sql
   status: applied
