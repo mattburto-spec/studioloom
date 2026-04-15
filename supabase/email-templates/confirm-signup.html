@@ -1,0 +1,135 @@
+<!--
+  Sign-up confirmation email — StudioLoom
+  ---------------------------------------
+  Pasted into Supabase Dashboard → Authentication → Email Templates → "Confirm signup".
+  Fires when a user registers directly (vs being invited by admin). In StudioLoom's
+  current flow most teachers arrive via /api/admin/teachers/invite, but this template
+  still covers self-signup + any future public-signup path.
+
+  Supabase vars: {{ .ConfirmationURL }}, {{ .Email }}, {{ .SiteURL }}
+
+  Design follows invite.html — same logo header, gradient hero, coral CTA, footer.
+-->
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <title>Confirm your StudioLoom account</title>
+  </head>
+  <body style="margin:0; padding:0; background-color:#F5F3FF; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color:#1A1A2E;">
+    <div style="display:none; max-height:0; overflow:hidden; mso-hide:all;">
+      One click to finish setting up your StudioLoom account.
+    </div>
+
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#F5F3FF; padding:32px 16px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px; width:100%; background-color:#FFFFFF; border-radius:16px; overflow:hidden; box-shadow:0 4px 24px rgba(91, 33, 182, 0.08);">
+
+            <!-- Header -->
+            <tr>
+              <td align="center" style="padding:32px 32px 24px 32px; background-color:#FFFFFF;">
+                <img src="https://studioloom.org/logo.svg" alt="StudioLoom" width="56" height="56" style="display:block; border:0; width:56px; height:56px;" />
+                <div style="margin-top:12px; font-size:20px; font-weight:700; letter-spacing:-0.01em; color:#1A1A2E;">StudioLoom</div>
+              </td>
+            </tr>
+
+            <!-- Hero -->
+            <tr>
+              <td style="padding:0;">
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#5C16C5; background-image:linear-gradient(135deg, #7B2FF2 0%, #5C16C5 50%, #4A0FB0 100%);">
+                  <tr>
+                    <td align="center" style="padding:40px 32px 40px 32px;">
+                      <h1 style="margin:0 0 12px 0; font-size:28px; line-height:1.2; font-weight:700; color:#FFFFFF; letter-spacing:-0.02em;">
+                        Confirm your email
+                      </h1>
+                      <p style="margin:0; font-size:16px; line-height:1.5; color:#E9D5FF;">
+                        One click and you're in.
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- Body -->
+            <tr>
+              <td style="padding:32px 40px 8px 40px;">
+                <p style="margin:0 0 16px 0; font-size:16px; line-height:1.6; color:#1A1A2E;">
+                  Hi there,
+                </p>
+                <p style="margin:0 0 16px 0; font-size:16px; line-height:1.6; color:#1A1A2E;">
+                  Thanks for signing up for StudioLoom. Confirm your email address to activate your account and get started.
+                </p>
+                <p style="margin:0 0 24px 0; font-size:16px; line-height:1.6; color:#1A1A2E;">
+                  This link is time-limited — if it expires, just sign in again and we'll send a fresh one.
+                </p>
+              </td>
+            </tr>
+
+            <!-- CTA -->
+            <tr>
+              <td align="center" style="padding:8px 40px 8px 40px;">
+                <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td align="center" style="background-color:#FF3366; background-image:linear-gradient(135deg, #FF3366 0%, #FF6B6B 100%); border-radius:999px; box-shadow:0 4px 14px rgba(255, 51, 102, 0.3);">
+                      <a href="{{ .ConfirmationURL }}" style="display:inline-block; padding:14px 32px; font-size:16px; font-weight:700; color:#FFFFFF; text-decoration:none; letter-spacing:0.01em;">
+                        Confirm email →
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- Fallback -->
+            <tr>
+              <td align="center" style="padding:16px 40px 32px 40px;">
+                <p style="margin:0; font-size:13px; line-height:1.5; color:#6B7280;">
+                  Or paste this link into your browser:<br />
+                  <a href="{{ .ConfirmationURL }}" style="color:#7B2FF2; text-decoration:underline; word-break:break-all;">{{ .ConfirmationURL }}</a>
+                </p>
+              </td>
+            </tr>
+
+            <!-- Divider -->
+            <tr>
+              <td style="padding:0 40px;">
+                <div style="height:1px; background-color:#E5E7EB; width:100%;"></div>
+              </td>
+            </tr>
+
+            <!-- Footer -->
+            <tr>
+              <td align="center" style="padding:24px 40px 32px 40px;">
+                <p style="margin:0 0 8px 0; font-size:13px; line-height:1.5; color:#6B7280;">
+                  This confirmation was sent to <strong style="color:#1A1A2E;">{{ .Email }}</strong>.<br />
+                  If you didn't sign up for StudioLoom, you can safely ignore this email.
+                </p>
+                <p style="margin:16px 0 0 0; font-size:12px; line-height:1.5; color:#9CA3AF;">
+                  <a href="https://studioloom.org" style="color:#7B2FF2; text-decoration:none;">studioloom.org</a>
+                  &nbsp;·&nbsp;
+                  <a href="mailto:hello@studioloom.org" style="color:#7B2FF2; text-decoration:none;">hello@studioloom.org</a>
+                </p>
+              </td>
+            </tr>
+
+          </table>
+
+          <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px; width:100%;">
+            <tr>
+              <td align="center" style="padding:16px 16px 0 16px;">
+                <p style="margin:0; font-size:11px; line-height:1.5; color:#9CA3AF;">
+                  StudioLoom — the platform for classrooms that make, solve, and create.
+                </p>
+              </td>
+            </tr>
+          </table>
+
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
