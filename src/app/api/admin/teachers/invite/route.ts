@@ -43,23 +43,26 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Determine redirect target — Supabase appends `?code=XYZ` (PKCE) or
-  // `#access_token=...&type=invite` (implicit) to this URL. /auth/callback
-  // completes the session and, because the flow is an invite, routes the
-  // teacher to /teacher/set-password first so they leave with a real
-  // password. After that the set-password page forwards to /teacher/welcome
-  // for onboarding.
+  // Determine redirect target — the invite flow uses the IMPLICIT auth
+  // flow (server-side admin invite; tokens come back in the URL hash
+  // `#access_token=...&type=invite`). Hashes never reach the server, so
+  // we route to the client page at /auth/confirm which parses the hash,
+  // calls setSession(), and because `type=invite` forwards to
+  // /teacher/set-password → /teacher/welcome.
+  //
+  // (Forgot-password uses PKCE, which lands at /auth/callback instead —
+  // a server route that does the cookie-backed code exchange.)
   //
   // NOTE: this URL must be in Supabase Dashboard → Authentication →
   // URL Configuration → Redirect URLs allowlist, otherwise the invite
   // link silently falls back to the Site URL. AuthHashForwarder on the
-  // landing page catches that fallback case and forwards to /auth/callback
+  // landing page catches that fallback case and forwards to /auth/confirm
   // preserving the hash, but the allowlist entry is still the right fix.
   const siteUrl =
     process.env.NEXT_PUBLIC_SITE_URL ||
     request.headers.get("origin") ||
     "https://studioloom.org";
-  const redirectTo = `${siteUrl.replace(/\/$/, "")}/auth/callback?next=/teacher/welcome`;
+  const redirectTo = `${siteUrl.replace(/\/$/, "")}/auth/confirm?next=/teacher/welcome`;
 
   const { data, error } = await supabase.auth.admin.inviteUserByEmail(email, {
     data: name ? { name } : undefined,

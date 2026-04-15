@@ -6,21 +6,27 @@
  * payload attached either:
  *
  *   - URL hash:   https://studioloom.org/#access_token=...&refresh_token=...
- *                 (implicit flow — access/refresh tokens, or error_code)
+ *                 (implicit flow — invite emails; access/refresh tokens
+ *                 or error_code in the hash fragment)
  *
  *   - Query str:  https://studioloom.org/?code=<uuid>
- *                 (PKCE flow — exchange-code, or error)
+ *                 (PKCE flow — forgot-password emails; exchange-code
+ *                 in the query string)
  *
  * Either way the user just sees the landing page and has no idea
  * they're mid-auth. This component mounts in the root layout, detects
- * the fallback, and forwards to /auth/callback (preserving both query
- * and hash) so the real callback page can complete the flow.
+ * the fallback, and forwards to the right handler:
  *
- * The real fix is to add the /auth/callback URLs to Supabase's Redirect
- * URL allowlist — this forwarder is a belt-and-braces safety net.
+ *   hash auth  →  /auth/confirm   (client page; hash needs client JS)
+ *   PKCE code  →  /auth/callback  (server route; needs cookie access
+ *                                  to exchange the code for a session)
  *
- * No-op for every other URL (no hash + no code, or already on the
- * callback route).
+ * The real fix is to add the /auth/callback + /auth/confirm URLs to
+ * Supabase's Redirect URL allowlist — this forwarder is a belt-and-
+ * braces safety net.
+ *
+ * No-op for every other URL (no hash + no code, or already on one of
+ * the auth routes).
  */
 
 "use client";
@@ -37,13 +43,15 @@ export default function AuthHashForwarder() {
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    // Don't loop if we're already on /auth/callback.
-    if (window.location.pathname.startsWith("/auth/callback")) return;
+    // Don't loop if we're already on one of the auth routes.
+    const path = window.location.pathname;
+    if (path.startsWith("/auth/callback") || path.startsWith("/auth/confirm"))
+      return;
 
     const hash = window.location.hash;
     const search = window.location.search;
 
-    // --- Hash check: implicit flow fallback -----------------------------
+    // --- Hash check: implicit flow fallback (invite emails) -------------
     const h = hash.length >= 2 ? hash.slice(1) : "";
     const hashLooksLikeAuth =
       h.includes("access_token=") ||
@@ -52,18 +60,21 @@ export default function AuthHashForwarder() {
       h.includes("error_description=") ||
       h.startsWith("error=");
 
-    // --- Query check: PKCE flow fallback --------------------------------
+    // --- Query check: PKCE flow fallback (reset emails) -----------------
     const params = new URLSearchParams(search);
     const code = params.get("code");
     const err = params.get("error") || params.get("error_code");
-    const queryLooksLikeAuth =
-      (code !== null && PKCE_CODE_RE.test(code)) || err !== null;
+    const queryHasCode = code !== null && PKCE_CODE_RE.test(code);
+    const queryHasError = err !== null;
 
-    if (!hashLooksLikeAuth && !queryLooksLikeAuth) return;
+    if (!hashLooksLikeAuth && !queryHasCode && !queryHasError) return;
 
-    // Preserve both the query string and hash — the callback page reads
-    // from either source depending on which Supabase flow was used.
-    window.location.replace(`/auth/callback${search}${hash}`);
+    // Route to the right handler:
+    //   hash tokens  → /auth/confirm  (client page parses the hash)
+    //   PKCE code    → /auth/callback (server route does the exchange)
+    //   error only   → /auth/confirm  (shared error UI)
+    const target = queryHasCode ? "/auth/callback" : "/auth/confirm";
+    window.location.replace(`${target}${search}${hash}`);
   }, []);
 
   return null;
