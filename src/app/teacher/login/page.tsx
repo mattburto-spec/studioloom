@@ -7,10 +7,8 @@ import Link from "next/link";
 
 export default function TeacherLoginPage() {
   const router = useRouter();
-  const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -22,27 +20,13 @@ export default function TeacherLoginPage() {
     const supabase = createClient();
 
     try {
-      if (mode === "signup") {
-        const { error: signUpError } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: { name },
-          },
-        });
-        if (signUpError) {
-          setError(signUpError.message);
-          return;
-        }
-      } else {
-        const { error: signInError } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-        if (signInError) {
-          setError(signInError.message);
-          return;
-        }
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (signInError) {
+        setError(signInError.message);
+        return;
       }
 
       router.push("/teacher/dashboard");
@@ -62,45 +46,7 @@ export default function TeacherLoginPage() {
         </div>
 
         <div className="bg-white rounded-2xl shadow-xl p-6">
-          <div className="flex mb-6 bg-surface-alt rounded-lg p-1">
-            <button
-              onClick={() => { setMode("login"); setError(""); }}
-              className={`flex-1 py-2 text-sm font-medium rounded-md transition ${
-                mode === "login"
-                  ? "bg-white shadow text-text-primary"
-                  : "text-text-secondary hover:text-text-primary"
-              }`}
-            >
-              Log In
-            </button>
-            <button
-              onClick={() => { setMode("signup"); setError(""); }}
-              className={`flex-1 py-2 text-sm font-medium rounded-md transition ${
-                mode === "signup"
-                  ? "bg-white shadow text-text-primary"
-                  : "text-text-secondary hover:text-text-primary"
-              }`}
-            >
-              Sign Up
-            </button>
-          </div>
-
           <form onSubmit={handleSubmit} className="space-y-4">
-            {mode === "signup" && (
-              <div>
-                <label className="block text-sm font-medium text-text-secondary mb-1.5">
-                  Name
-                </label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Your name"
-                  required
-                  className="w-full px-4 py-3 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent-blue focus:border-transparent"
-                />
-              </div>
-            )}
             <div>
               <label className="block text-sm font-medium text-text-secondary mb-1.5">
                 Email
@@ -138,12 +84,13 @@ export default function TeacherLoginPage() {
               disabled={loading}
               className="w-full py-3 gradient-cta text-white rounded-full font-medium hover:opacity-90 transition disabled:opacity-40 disabled:cursor-not-allowed shadow-md shadow-brand-pink/20"
             >
-              {loading
-                ? mode === "login" ? "Logging in..." : "Creating account..."
-                : mode === "login" ? "Log In" : "Create Account"
-              }
+              {loading ? "Logging in..." : "Log In"}
             </button>
           </form>
+
+          <p className="text-center mt-4 text-xs text-text-tertiary">
+            Teacher accounts are invite-only during the pilot.
+          </p>
         </div>
 
         <p className="text-center mt-6 text-white/40 text-sm">

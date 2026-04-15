@@ -8,6 +8,9 @@
 - `docs/roadmap.md` contains strategic design content (UX philosophy, phase specs, feature details). Update it when phase specs change or new phases are added — but project STATUS lives in ALL-PROJECTS.md.
 - The interactive dashboard at [`docs/projects/dashboard.html`](docs/projects/dashboard.html) has a `PROJECTS` array that must stay in sync with ALL-PROJECTS.md.
 
+### ShipReady — active build plan
+- **[`docs/projects/ship-ready-build-plan.md`](docs/projects/ship-ready-build-plan.md)** is the current build plan. When Matt says **"continue next phase in shipready"** or **"shipready"**, read that file, find the first phase with status NOT STARTED, and write a build brief for it using the `build-phase-prep` skill. Update the phase status as work progresses (NOT STARTED → IN PROGRESS → COMPLETE).
+
 ### How we build — PHASED WITH CHECKPOINTS
 - **[`docs/build-methodology.md`](docs/build-methodology.md)** is the canonical build discipline for any non-trivial work. **Read it before starting any build phase.** Core principle: scaffolding (sandbox, simulator, dryRun, cost tracking, debug surfaces) is baked into the spec as first-class components, not bolted on later. Every phase is gated by a named Matt Checkpoint — pause, report in full, wait for explicit sign-off before proceeding.
 - **Default to the discipline even when Matt doesn't explicitly ask.** The methodology exists because the Dimensions3 build proved that rushing spec → code creates silent bugs (Migration 067 grandfather, Pass A/B silent max_tokens truncation) that surface later at much higher cost. Matt is explicitly happy to be methodical. Speed comes from not rediscovering these principles after they bite.
