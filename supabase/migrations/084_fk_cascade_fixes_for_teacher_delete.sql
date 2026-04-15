@@ -97,12 +97,12 @@ BEGIN
     ADD CONSTRAINT feedback_proposals_resolved_by_fkey
     FOREIGN KEY (resolved_by) REFERENCES auth.users(id) ON DELETE SET NULL;
 
-  -- 10. feedback_resolution_log.resolved_by → SET NULL (audit trail)
-  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'feedback_resolution_log_resolved_by_fkey') THEN
-    ALTER TABLE feedback_resolution_log DROP CONSTRAINT feedback_resolution_log_resolved_by_fkey;
+  -- 10. feedback_audit_log.resolved_by → SET NULL (audit trail)
+  IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'feedback_audit_log_resolved_by_fkey') THEN
+    ALTER TABLE feedback_audit_log DROP CONSTRAINT feedback_audit_log_resolved_by_fkey;
   END IF;
-  ALTER TABLE feedback_resolution_log
-    ADD CONSTRAINT feedback_resolution_log_resolved_by_fkey
+  ALTER TABLE feedback_audit_log
+    ADD CONSTRAINT feedback_audit_log_resolved_by_fkey
     FOREIGN KEY (resolved_by) REFERENCES auth.users(id) ON DELETE SET NULL;
 END$$;
 
@@ -127,7 +127,7 @@ BEGIN
       (t.relname = 'generation_runs' AND a.attname = 'teacher_id') OR
       (t.relname = 'gallery_rounds' AND a.attname = 'teacher_id') OR
       (t.relname = 'feedback_proposals' AND a.attname = 'resolved_by') OR
-      (t.relname = 'feedback_resolution_log' AND a.attname = 'resolved_by')
+      (t.relname = 'feedback_audit_log' AND a.attname = 'resolved_by')
     );
   IF bad_count > 0 THEN
     RAISE EXCEPTION 'Migration 084 left % FK(s) still on NO ACTION', bad_count;
