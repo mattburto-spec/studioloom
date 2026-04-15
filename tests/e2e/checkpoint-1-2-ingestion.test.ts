@@ -127,13 +127,18 @@ describe("Checkpoint 1.2 α — sandbox DOCX ingestion", () => {
     expect(result.analysis.enrichedSections).toHaveLength(50);
 
     // --- Extraction ---
-    expect(result.extraction.blocks).toHaveLength(9);
+    // Note: post-FU "extract.ts filter widening" (15 Apr 2026) — the extractor
+    // now also pulls sections that Pass B enriched with an activity_category
+    // even when sectionType is "instruction" (catches teaching resources that
+    // lack explicit duration markers). All 50 enriched sections in this fixture
+    // carry activity_category in sandbox mode, so all 50 are extracted.
+    expect(result.extraction.blocks).toHaveLength(50);
     expect(result.extraction.totalSectionsProcessed).toBe(50);
-    expect(result.extraction.activitySectionsFound).toBe(9);
+    expect(result.extraction.activitySectionsFound).toBe(50);
     expect(result.extraction.piiDetected).toBe(false);
 
     // --- Moderation ---
-    expect(result.moderation.approvedCount).toBe(9);
+    expect(result.moderation.approvedCount).toBe(50);
     expect(result.moderation.flaggedCount).toBe(0);
     expect(result.moderation.pendingCount).toBe(0);
 

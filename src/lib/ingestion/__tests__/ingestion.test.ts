@@ -284,6 +284,10 @@ describe("extractBlocks", () => {
   });
 
   it("handles analysis with no activity sections", () => {
+    // Pure metadata section with no activity signal — neither sectionType
+    // "activity"/"assessment" nor an activity_category. After the 15 Apr 2026
+    // filter widening, the absence of activity_category is what keeps this
+    // section out of the extracted blocks.
     const emptyAnalysis: IngestionAnalysis = {
       classification: {
         documentType: "rubric",
@@ -303,7 +307,6 @@ describe("extractBlocks", () => {
           time_weight: "quick",
           grouping: "individual",
           phase: "evaluate",
-          activity_category: "assessment",
           materials: [],
         },
       ],
