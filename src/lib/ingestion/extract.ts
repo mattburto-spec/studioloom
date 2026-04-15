@@ -82,8 +82,12 @@ export function extractBlocks(
   let activitySectionsFound = 0;
 
   for (const section of analysis.enrichedSections) {
-    // Only extract blocks from activity and assessment sections
-    if (section.sectionType !== "activity" && section.sectionType !== "assessment") {
+    // Extract blocks from activity/assessment sections, or any section that
+    // Pass B enriched with an activity_category (catches teaching resources
+    // that lack explicit duration markers but are clearly activities).
+    const isActivityType = section.sectionType === "activity" || section.sectionType === "assessment";
+    const hasActivityCategory = !!section.activity_category;
+    if (!isActivityType && !hasActivityCategory) {
       continue;
     }
 

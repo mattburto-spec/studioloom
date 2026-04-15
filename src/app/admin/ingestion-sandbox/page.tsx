@@ -696,10 +696,213 @@ export default function IngestionSandboxPage() {
 }
 
 // -----------------------------------------------------------------------------
+// StageSummary — human-readable output per stage
+// -----------------------------------------------------------------------------
+
+function StageSummary({ id, output }: { id: StageId; output: unknown }) {
+  const [showRaw, setShowRaw] = useState(false);
+
+  const renderSummary = () => {
+    switch (id) {
+      case "dedup": {
+        const d = output as DedupResult;
+        const isDup = d.isDuplicate;
+        const nearScore = d.nearDuplicateScore;
+        return (
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <span className={`inline-block w-2 h-2 rounded-full ${isDup ? "bg-red-500" : nearScore && nearScore > 0.85 ? "bg-amber-500" : "bg-green-500"}`} />
+              <span className="font-medium">
+                {isDup ? "Exact duplicate found" : nearScore && nearScore > 0.85 ? `Near-duplicate (${(nearScore * 100).toFixed(0)}% similar)` : "No duplicates"}
+              </span>
+            </div>
+            {isDup && d.existingContentItemId && (
+              <p className="text-text-secondary">Matches content item <code className="font-mono text-[10px]">{d.existingContentItemId.slice(0, 12)}…</code></p>
+            )}
+            {nearScore != null && !isDup && nearScore > 0.8 && d.nearDuplicateBlockTitle && (
+              <p className="text-text-secondary">Closest match: &ldquo;{d.nearDuplicateBlockTitle}&rdquo; ({(nearScore * 100).toFixed(0)}%)</p>
+            )}
+          </div>
+        );
+      }
+      case "parse": {
+        const p = output as ParseResult;
+        const sections = p?.sections ?? [];
+        return (
+          <div className="space-y-2">
+            <div className="font-medium">{sections.length} section{sections.length !== 1 ? "s" : ""} found</div>
+            <div className="space-y-1">
+              {sections.slice(0, 10).map((s: { heading?: string; content?: string; estimatedDuration?: string }, i: number) => (
+                <div key={i} className="flex items-start gap-2 text-text-secondary">
+                  <span className="text-[10px] font-mono bg-gray-200 rounded px-1 mt-0.5 shrink-0">§{i}</span>
+                  <span className="font-medium text-text-primary">{s.heading || "Untitled"}</span>
+                  <span className="text-[10px] text-text-secondary ml-auto shrink-0">
+                    {s.content ? `${s.content.length.toLocaleString()} chars` : ""}
+                    {s.estimatedDuration ? ` · ${s.estimatedDuration}` : ""}
+                  </span>
+                </div>
+              ))}
+              {sections.length > 10 && <p className="text-text-secondary italic">…and {sections.length - 10} more</p>}
+            </div>
+          </div>
+        );
+      }
+      case "passA": {
+        const c = output as IngestionClassification;
+        if (!c) return <p className="text-text-secondary">No classification data</p>;
+        const confPct = (v: number | undefined) => v != null ? `${(v * 100).toFixed(0)}%` : "—";
+        return (
+          <div className="space-y-2">
+            <div className="font-medium">
+              Classification: <span className="capitalize">{c.documentType}</span>
+              <span className="ml-2 text-[10px] font-mono bg-gray-200 rounded px-1.5 py-0.5">{confPct(c.confidence)} confidence</span>
+            </div>
+            <div className="grid grid-cols-3 gap-2 text-text-secondary">
+              <div>Subject: <span className="text-text-primary font-medium">{c.detectedSubject || "—"}</span></div>
+              <div>Strand: <span className="text-text-primary font-medium">{c.detectedStrand || "—"}</span></div>
+              <div>Level: <span className="text-text-primary font-medium">{c.detectedLevel || "—"}</span></div>
+            </div>
+            {c.topic && <div className="text-text-secondary">Topic: <span className="text-text-primary">{c.topic}</span></div>}
+            {c.sections && c.sections.length > 0 && (
+              <div className="mt-1 pt-1 border-t border-gray-200">
+                <span className="font-medium">{c.sections.length} section{c.sections.length !== 1 ? "s" : ""} classified:</span>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {c.sections.map((s: { sectionType?: string }, i: number) => {
+                    const t = s.sectionType || "unknown";
+                    const color = t === "activity" ? "bg-green-100 text-green-800" : t === "assessment" ? "bg-blue-100 text-blue-800" : t === "instruction" ? "bg-purple-100 text-purple-800" : "bg-gray-100 text-gray-600";
+                    return <span key={i} className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${color}`}>{t}</span>;
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      }
+      case "passB": {
+        const b = output as IngestionAnalysis;
+        const c = b?.classification;
+        const sections = b?.enrichedSections ?? [];
+        return (
+          <div className="space-y-2">
+            {c && (
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-text-secondary">
+                <div>Type: <span className="text-text-primary font-medium capitalize">{c.documentType}</span></div>
+                <div>Subject: <span className="text-text-primary font-medium">{c.detectedSubject || "—"}</span></div>
+                <div>Strand: <span className="text-text-primary font-medium">{c.detectedStrand || "—"}</span></div>
+                <div>Level: <span className="text-text-primary font-medium">{c.detectedLevel || "—"}</span></div>
+              </div>
+            )}
+            <div className="font-medium">{sections.length} enriched section{sections.length !== 1 ? "s" : ""}</div>
+            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+            {sections.slice(0, 8).map((s: any, i: number) => (
+              <div key={i} className="flex items-center gap-2 flex-wrap text-text-secondary">
+                <span className="text-[10px] font-mono bg-gray-200 rounded px-1 shrink-0">§{i}</span>
+                <span className="font-medium text-text-primary text-xs">{s.heading || "Untitled"}</span>
+                {s.sectionType && <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold ${s.sectionType === "activity" ? "bg-green-100 text-green-800" : s.sectionType === "assessment" ? "bg-blue-100 text-blue-800" : "bg-gray-100 text-gray-600"}`}>{s.sectionType}</span>}
+                {s.activity_category && <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-800">{s.activity_category}</span>}
+                {s.bloom_level && <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">Bloom: {s.bloom_level}</span>}
+                {s.grouping && <span className="text-[10px] text-text-secondary">{s.grouping}</span>}
+              </div>
+            ))}
+            {sections.length > 8 && <p className="text-text-secondary italic text-xs">…and {sections.length - 8} more</p>}
+          </div>
+        );
+      }
+      case "extract": {
+        const e = output as ExtractionResult;
+        const hasBlocks = e.blocks && e.blocks.length > 0;
+        return (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <span className={`inline-block w-2 h-2 rounded-full ${hasBlocks ? "bg-green-500" : "bg-amber-500"}`} />
+              <span className="font-medium">
+                {hasBlocks
+                  ? `${e.blocks.length} block${e.blocks.length !== 1 ? "s" : ""} extracted`
+                  : "No blocks extracted"}
+              </span>
+              <span className="text-text-secondary text-xs">
+                ({e.totalSectionsProcessed} sections scanned, {e.activitySectionsFound} activity/assessment)
+              </span>
+            </div>
+            {e.piiDetected && <div className="text-amber-700 text-xs font-semibold">⚠ PII detected in one or more blocks</div>}
+            {!hasBlocks && e.totalSectionsProcessed > 0 && (
+              <p className="text-xs text-text-secondary bg-amber-50 border border-amber-200 rounded p-2">
+                💡 Sections were classified as non-activity types (instruction, metadata, etc.) so no blocks were created.
+                This is common for reference documents, teacher guides, and lesson overviews.
+              </p>
+            )}
+            {hasBlocks && e.blocks.map((b: ExtractedBlock, i: number) => (
+              <div key={b.tempId} className="text-xs bg-white rounded-lg border p-2.5">
+                <div className="font-medium text-text-primary">{i + 1}. {b.title}</div>
+                <div className="flex gap-1.5 mt-1 flex-wrap">
+                  {b.bloom_level && <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">Bloom: {b.bloom_level}</span>}
+                  {b.activity_category && <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-800">{b.activity_category}</span>}
+                  {b.grouping && <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-800">{b.grouping}</span>}
+                  {b.piiFlags.length > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-100 text-red-800">PII: {b.piiFlags.join(", ")}</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+      }
+      case "moderate": {
+        const m = output as ModerationStageResult;
+        const blocks = m?.blocks ?? [];
+        const approved = blocks.filter((b: ModeratedBlock) => b.moderationStatus === "approved").length;
+        const flagged = blocks.filter((b: ModeratedBlock) => b.moderationStatus === "flagged" || b.moderationStatus === "rejected").length;
+        const pending = blocks.filter((b: ModeratedBlock) => b.moderationStatus === "pending").length;
+        return (
+          <div className="space-y-2">
+            {blocks.length === 0 ? (
+              <p className="text-text-secondary">No blocks to moderate (extract stage produced 0 blocks)</p>
+            ) : (
+              <>
+                <div className="flex gap-3 font-medium">
+                  {approved > 0 && <span className="text-green-700">✓ {approved} approved</span>}
+                  {flagged > 0 && <span className="text-red-700">⚠ {flagged} flagged</span>}
+                  {pending > 0 && <span className="text-gray-600">◌ {pending} pending</span>}
+                </div>
+                {blocks.map((b: ModeratedBlock, i: number) => (
+                  <div key={b.tempId} className="text-xs flex items-center gap-2">
+                    <span className={`w-1.5 h-1.5 rounded-full ${b.moderationStatus === "approved" ? "bg-green-500" : b.moderationStatus === "flagged" || b.moderationStatus === "rejected" ? "bg-red-500" : "bg-gray-400"}`} />
+                    <span className="text-text-primary">{b.title || `Block ${i + 1}`}</span>
+                    {b.moderationFlags?.length > 0 && <span className="text-red-600 text-[10px]">({b.moderationFlags.join(", ")})</span>}
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+        );
+      }
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className="text-xs space-y-2">
+      {renderSummary()}
+      <button
+        onClick={() => setShowRaw((x) => !x)}
+        className="text-[10px] text-text-secondary hover:text-text-primary underline mt-1"
+      >
+        {showRaw ? "Hide raw JSON" : "Show raw JSON"}
+      </button>
+      {showRaw && (
+        <pre className="text-[10px] font-mono overflow-x-auto max-h-60 whitespace-pre-wrap bg-white rounded border p-2 mt-1">
+          {JSON.stringify(output, null, 2)}
+        </pre>
+      )}
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
 // StagePanel
 // -----------------------------------------------------------------------------
 
 function StagePanel({
+  id,
   label,
   state,
   disabled,
@@ -760,9 +963,7 @@ function StagePanel({
           {state.error ? (
             <pre className="text-xs text-red-700 whitespace-pre-wrap">{state.error}</pre>
           ) : (
-            <pre className="text-[11px] font-mono overflow-x-auto max-h-96 whitespace-pre-wrap">
-              {JSON.stringify(state.output, null, 2)}
-            </pre>
+            <StageSummary id={id} output={state.output} />
           )}
         </div>
       )}
