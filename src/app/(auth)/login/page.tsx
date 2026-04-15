@@ -133,23 +133,6 @@ export default function StudentLoginPage() {
           )}
         </div>
 
-        {/* LMS SSO option */}
-        <div className="mt-4 bg-white/5 border border-white/10 rounded-2xl p-5 backdrop-blur-sm">
-          <div className="flex items-center gap-2 mb-3">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="text-white/50">
-              <path d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.66 0 3-4.03 3-9s-1.34-9-3-9m0 18c-1.66 0-3-4.03-3-9s1.34-9 3-9" />
-            </svg>
-            <span className="text-sm font-medium text-white/70">Log in via your LMS</span>
-          </div>
-          <p className="text-xs text-white/40 leading-relaxed">
-            If your school uses <strong className="text-white/60">ManageBac</strong>,{" "}
-            <strong className="text-white/60">Canvas</strong>,{" "}
-            <strong className="text-white/60">Schoology</strong>, or another LMS,
-            click the <strong className="text-white/60">StudioLoom</strong> link
-            inside your LMS to log in automatically — no class code needed.
-          </p>
-        </div>
-
         <p className="text-center mt-5 text-white/40 text-sm">
           Teacher?{" "}
           <Link href="/teacher/login" className="text-white/70 hover:text-white underline">
