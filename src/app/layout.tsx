@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import AuthHashForwarder from "@/components/auth/AuthHashForwarder";
 
 export const metadata: Metadata = {
   title: "StudioLoom — Design Process Platform",
@@ -23,6 +24,9 @@ export default function RootLayout({
         />
       </head>
       <body className="antialiased">
+        {/* Catches Supabase auth hash fragments that land on any page and
+            forwards them to /auth/callback for completion. */}
+        <AuthHashForwarder />
         {children}
       </body>
     </html>
