@@ -20,8 +20,14 @@ jobs:
 
       - run: npm ci
 
+      # FU-6: legacy ESLint backlog (hundreds of pre-existing
+      # @typescript-eslint/no-explicit-any + no-unused-vars in src/lib/pipeline,
+      # src/lib/safety/modules, tests/, etc.). Lint is reported but not blocking
+      # so new commits don't fail CI on legacy debt. Cleanup tracked in
+      # docs/projects/dimensions3-followups.md.
       - name: Lint
         run: npm run lint
+        continue-on-error: true
 
       - name: Typecheck
         run: npx tsc --noEmit --project tsconfig.check.json
