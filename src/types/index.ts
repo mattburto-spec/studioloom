@@ -6,6 +6,8 @@ export interface Teacher {
   name: string;
   email: string;
   created_at: string;
+  /** ISO timestamp. NULL = hasn't completed /teacher/welcome (migration 083). */
+  onboarded_at?: string | null;
 }
 
 export interface Class {

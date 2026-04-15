@@ -96,6 +96,20 @@ export default function TeacherLayout({
 
         setTeacher(teacherData);
 
+        // Phase 1B: first-login detector. If the teacher hasn't finished the
+        // welcome wizard, redirect them there on every request. The wizard
+        // itself (and the login page) must render without this redirect or
+        // the teacher would be trapped. See migration 083.
+        if (
+          teacherData &&
+          !teacherData.onboarded_at &&
+          pathname !== "/teacher/welcome" &&
+          pathname !== "/teacher/login"
+        ) {
+          router.push("/teacher/welcome");
+          return;
+        }
+
         // Phase 6B: count unreviewed critical alerts for nav badge
         const { count } = await supabase
           .from("student_content_moderation_log")
@@ -123,8 +137,12 @@ export default function TeacherLayout({
     );
   }
 
-  if (pathname === "/teacher/login") {
-    return <>{children}</>;
+  if (pathname === "/teacher/login" || pathname === "/teacher/welcome") {
+    return (
+      <TeacherContext.Provider value={{ teacher }}>
+        {children}
+      </TeacherContext.Provider>
+    );
   }
 
   const isSettingsActive = pathname.startsWith("/teacher/settings");
