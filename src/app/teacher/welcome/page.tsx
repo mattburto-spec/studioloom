@@ -1,0 +1,766 @@
+"use client";
+
+/**
+ * /teacher/welcome — First-login onboarding wizard.
+ *
+ * Phase 1B of the ShipReady build plan. Teachers invited from
+ * `/admin/teachers` land here on their first login because the teacher layout
+ * redirect (in `src/app/teacher/layout.tsx`) pushes everyone with a NULL
+ * `teachers.onboarded_at` to this route. Migration 083 adds that column.
+ *
+ * 4 steps:
+ *   1. Confirm name — prefilled from `teachers.name` (set from the invite's
+ *      raw_user_meta_data.name). Editable.
+ *   2. Create first class — name, framework, period length.
+ *   3. Roster paste — optional. Teachers can skip and add students later.
+ *   4. Credentials — class code + printable student list + starter-path CTAs
+ *      (generate with AI or start blank). "Go to dashboard" marks onboarded.
+ *
+ * Every step except the credentials screen is reversible via Back. Leaving
+ * the page mid-flow is fine — the layout will pull them back here on their
+ * next visit because `onboarded_at` stays NULL until the final
+ * `/api/teacher/welcome/complete` call.
+ */
+
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
+
+type Step = "name" | "class" | "roster" | "credentials";
+
+interface CreatedClass {
+  classId: string;
+  classCode: string;
+  className: string;
+}
+
+interface CreatedStudent {
+  id: string;
+  username: string;
+  displayName: string | null;
+}
+
+// Keep in sync with VALID_FRAMEWORKS in /api/teacher/welcome/create-class.
+const FRAMEWORKS = [
+  { id: "IB_MYP", label: "IB MYP", desc: "Design cycle · Criteria A–D" },
+  { id: "GCSE_DT", label: "GCSE D&T", desc: "AO1–AO5 assessment" },
+  { id: "IGCSE_DT", label: "IGCSE D&T", desc: "Cambridge pathway" },
+  { id: "A_LEVEL_DT", label: "A-Level D&T", desc: "Advanced design" },
+  { id: "ACARA_DT", label: "ACARA D&T", desc: "Australian curriculum" },
+  { id: "PLTW", label: "PLTW", desc: "Project Lead the Way" },
+];
+
+const PERIOD_OPTIONS = [40, 45, 50, 55, 60, 75, 80, 90];
+
+export default function TeacherWelcomePage() {
+  const router = useRouter();
+  const [step, setStep] = useState<Step>("name");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Teacher identity
+  const [teacherId, setTeacherId] = useState<string | null>(null);
+  const [name, setName] = useState("");
+  const [loadingTeacher, setLoadingTeacher] = useState(true);
+
+  // Class
+  const [className, setClassName] = useState("");
+  const [framework, setFramework] = useState("IB_MYP");
+  const [periodMinutes, setPeriodMinutes] = useState(60);
+  const [createdClass, setCreatedClass] = useState<CreatedClass | null>(null);
+
+  // Roster
+  const [rosterText, setRosterText] = useState("");
+  const [createdStudents, setCreatedStudents] = useState<CreatedStudent[]>([]);
+  const [rosterSkipped, setRosterSkipped] = useState<string[]>([]);
+
+  // ---------------------------------------------------------------------
+  // Load teacher (prefill name from invite metadata)
+  // ---------------------------------------------------------------------
+  useEffect(() => {
+    async function load() {
+      try {
+        const supabase = createClient();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user) {
+          router.push("/teacher/login");
+          return;
+        }
+        const { data: teacher } = await supabase
+          .from("teachers")
+          .select("id, name, onboarded_at")
+          .eq("id", user.id)
+          .single();
+        if (teacher?.onboarded_at) {
+          // Already onboarded — skip the wizard entirely.
+          router.push("/teacher/dashboard");
+          return;
+        }
+        setTeacherId(teacher?.id || user.id);
+        // Fall back to raw_user_meta_data.name if teachers.name is empty.
+        const fallbackName =
+          (user.user_metadata?.name as string | undefined) || "";
+        setName(teacher?.name || fallbackName);
+      } catch (err) {
+        console.error("[welcome] load teacher error:", err);
+      } finally {
+        setLoadingTeacher(false);
+      }
+    }
+    load();
+  }, [router]);
+
+  // ---------------------------------------------------------------------
+  // Actions
+  // ---------------------------------------------------------------------
+
+  async function handleCreateClass() {
+    setError(null);
+    if (!className.trim()) {
+      setError("Class name is required.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await fetch("/api/teacher/welcome/create-class", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: className.trim(),
+          framework,
+          periodLengthMinutes: periodMinutes,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || `Create failed (HTTP ${res.status})`);
+        return;
+      }
+      setCreatedClass({
+        classId: data.classId,
+        classCode: data.classCode,
+        className: className.trim(),
+      });
+      setStep("roster");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleAddRoster() {
+    if (!createdClass) return;
+    setError(null);
+    setSaving(true);
+
+    // Parse lines now so the user sees the preview before we submit. The
+    // server re-parses and handles dedup — we just hand it raw name/username
+    // pairs.
+    const lines = rosterText
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0);
+
+    const roster = lines.map((line) => {
+      const sep = line.match(/^([^,\t]+)[,\t]\s*(.+)$/);
+      if (sep) {
+        return { username: sep[1].trim(), name: sep[2].trim() };
+      }
+      return { name: line };
+    });
+
+    try {
+      const res = await fetch("/api/teacher/welcome/add-roster", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          classId: createdClass.classId,
+          roster,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || `Roster add failed (HTTP ${res.status})`);
+        return;
+      }
+      setCreatedStudents(data.students || []);
+      setRosterSkipped(data.skipped || []);
+      setStep("credentials");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Network error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleSkipRoster() {
+    setStep("credentials");
+  }
+
+  /**
+   * Fire the /complete endpoint to flip `onboarded_at`, then navigate to the
+   * given destination. Target is either the dashboard or the create-unit
+   * flow depending on which CTA the teacher picks on the credentials step.
+   */
+  async function completeAndGo(destination: string) {
+    setSaving(true);
+    setError(null);
+    try {
+      await fetch("/api/teacher/welcome/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim() || undefined }),
+      });
+    } catch (err) {
+      // Non-blocking — the layout will redirect them back here if it didn't
+      // stick, which lets them retry from the credentials screen.
+      console.warn("[welcome] complete failed:", err);
+    } finally {
+      // Full navigation (not router.push) so the layout re-fetches the teacher
+      // and picks up the new onboarded_at without a stale cached value.
+      window.location.href = destination;
+    }
+  }
+
+  // ---------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------
+
+  if (loadingTeacher) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-surface-alt">
+        <div className="flex items-center gap-3">
+          <div className="w-5 h-5 border-2 border-brand-purple border-t-transparent rounded-full animate-spin" />
+          <span className="text-sm text-text-secondary">Loading…</span>
+        </div>
+      </div>
+    );
+  }
+
+  const stepNumber =
+    step === "name" ? 1 : step === "class" ? 2 : step === "roster" ? 3 : 4;
+
+  return (
+    <main className="min-h-screen bg-surface-alt">
+      <div className="max-w-3xl mx-auto px-6 py-10">
+        {/* Header */}
+        <div
+          className="rounded-2xl px-8 py-7 relative overflow-hidden mb-6"
+          style={{
+            background:
+              "linear-gradient(135deg, #7B2FF2 0%, #4F46E5 50%, #3B82F6 100%)",
+          }}
+        >
+          <div
+            className="absolute inset-0 opacity-10"
+            style={{
+              backgroundImage:
+                "radial-gradient(circle at 20% 50%, white 1px, transparent 1px), radial-gradient(circle at 80% 20%, white 1px, transparent 1px)",
+              backgroundSize: "60px 60px, 40px 40px",
+            }}
+          />
+          <div className="relative">
+            <h1 className="text-2xl font-bold text-white tracking-tight mb-1">
+              Welcome to StudioLoom{name ? `, ${name.split(" ")[0]}` : ""}
+            </h1>
+            <p className="text-white/80 text-sm max-w-xl">
+              Four quick steps and you&apos;ll be ready to teach. You can change
+              anything later from Settings.
+            </p>
+            <div className="flex items-center gap-2 mt-3">
+              {[1, 2, 3, 4].map((n) => (
+                <div key={n} className="flex items-center gap-2">
+                  <StepDot active={stepNumber === n} done={stepNumber > n} label={`${n}`} />
+                  {n < 4 && <div className="w-6 h-px bg-white/20" />}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {error && (
+          <div className="mb-4 bg-red-50 border border-red-200 rounded-lg px-4 py-2.5 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+
+        {/* Step 1: Confirm name */}
+        {step === "name" && (
+          <div className="bg-white rounded-2xl p-6 border border-border shadow-sm">
+            <h2 className="text-lg font-bold text-gray-900 mb-1">What should students call you?</h2>
+            <p className="text-sm text-gray-500 mb-4">
+              This is the name that shows up on dashboards, gradebooks, and
+              class rosters.
+            </p>
+            <label className="block text-xs font-semibold text-gray-500 mb-1.5">
+              Your name
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Ms Burton"
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-400 transition-all text-sm mb-5"
+              autoFocus
+            />
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => {
+                  if (!name.trim()) {
+                    setError("Please enter a name.");
+                    return;
+                  }
+                  setError(null);
+                  setStep("class");
+                }}
+                className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-bold text-white rounded-xl transition-all duration-200 hover:scale-[1.02] hover:shadow-lg active:scale-[0.98]"
+                style={{
+                  background: "linear-gradient(135deg, #7B2FF2, #5C16C5)",
+                  boxShadow: "0 4px 14px rgba(123, 47, 242, 0.3)",
+                }}
+              >
+                Next — Create your first class
+                <ArrowRight />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 2: First class */}
+        {step === "class" && (
+          <div className="bg-white rounded-2xl p-6 border border-border shadow-sm space-y-5">
+            <div>
+              <h2 className="text-lg font-bold text-gray-900 mb-1">Your first class</h2>
+              <p className="text-sm text-gray-500">
+                We&apos;ll generate a join code you can share with students.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1.5">
+                Class name
+              </label>
+              <input
+                type="text"
+                value={className}
+                onChange={(e) => setClassName(e.target.value)}
+                placeholder="e.g. Grade 8 Design"
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-400 transition-all text-sm"
+                autoFocus
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1.5">
+                Curriculum framework
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {FRAMEWORKS.map((fw) => (
+                  <button
+                    key={fw.id}
+                    type="button"
+                    onClick={() => setFramework(fw.id)}
+                    className={`p-2.5 rounded-xl border-2 text-left transition-all ${
+                      framework === fw.id
+                        ? "border-purple-500 bg-purple-50 shadow-sm"
+                        : "border-gray-200 hover:border-gray-300 bg-white"
+                    }`}
+                  >
+                    <div className="text-xs font-bold text-gray-900">{fw.label}</div>
+                    <div className="text-[10px] text-gray-400 mt-0.5">{fw.desc}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1.5">
+                Typical period length
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {PERIOD_OPTIONS.map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setPeriodMinutes(p)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                      periodMinutes === p
+                        ? "bg-purple-100 text-purple-700 border border-purple-300"
+                        : "bg-gray-50 text-gray-500 border border-gray-200 hover:border-gray-300"
+                    }`}
+                  >
+                    {p} min
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 pt-1">
+              <button
+                onClick={handleCreateClass}
+                disabled={saving || !className.trim()}
+                className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-bold text-white rounded-xl transition-all duration-200 hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] disabled:opacity-50 disabled:hover:scale-100"
+                style={{
+                  background: "linear-gradient(135deg, #7B2FF2, #5C16C5)",
+                  boxShadow: "0 4px 14px rgba(123, 47, 242, 0.3)",
+                }}
+              >
+                {saving ? "Creating…" : "Create class"}
+                {!saving && <ArrowRight />}
+              </button>
+              <button
+                onClick={() => {
+                  setError(null);
+                  setStep("name");
+                }}
+                className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                Back
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: Roster */}
+        {step === "roster" && createdClass && (
+          <div className="bg-white rounded-2xl p-6 border border-border shadow-sm space-y-5">
+            <div>
+              <div className="flex items-center gap-2 mb-0.5">
+                <CheckBadge />
+                <span className="text-xs font-medium text-green-600">
+                  {createdClass.className} created — join code{" "}
+                  <code className="font-mono font-bold">{createdClass.classCode}</code>
+                </span>
+              </div>
+              <h2 className="text-lg font-bold text-gray-900 mb-1">Add your students</h2>
+              <p className="text-sm text-gray-500">
+                Paste one per line. You can always add more later from the class page.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-1.5">
+                Roster
+              </label>
+              <textarea
+                value={rosterText}
+                onChange={(e) => setRosterText(e.target.value)}
+                placeholder={`John Smith\nMaria Garcia\njdoe, Jane Doe`}
+                rows={8}
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-400 transition-all text-sm font-mono"
+              />
+              <p className="text-[11px] text-gray-400 mt-1.5 leading-relaxed">
+                Accepts <code>Full Name</code>, <code>username</code>, or{" "}
+                <code>username, Full Name</code>. We&apos;ll auto-generate
+                usernames from full names (e.g. &ldquo;John Smith&rdquo; → <code>jsmith</code>).
+              </p>
+            </div>
+
+            <div className="flex items-center gap-3 pt-1">
+              <button
+                onClick={handleAddRoster}
+                disabled={saving || !rosterText.trim()}
+                className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-bold text-white rounded-xl transition-all duration-200 hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] disabled:opacity-50 disabled:hover:scale-100"
+                style={{
+                  background: "linear-gradient(135deg, #7B2FF2, #5C16C5)",
+                  boxShadow: "0 4px 14px rgba(123, 47, 242, 0.3)",
+                }}
+              >
+                {saving ? "Adding…" : "Add students"}
+                {!saving && <ArrowRight />}
+              </button>
+              <button
+                onClick={handleSkipRoster}
+                className="text-sm text-gray-500 hover:text-gray-700 transition-colors underline underline-offset-2"
+              >
+                Skip for now
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 4: Credentials + starter paths */}
+        {step === "credentials" && createdClass && (
+          <div className="space-y-5">
+            <div className="bg-white rounded-2xl p-6 border border-border shadow-sm">
+              <div className="flex items-center gap-2 mb-1">
+                <CheckBadge />
+                <span className="text-xs font-medium text-green-600">Ready to teach</span>
+              </div>
+              <h2 className="text-lg font-bold text-gray-900 mb-1">
+                Share this with your class
+              </h2>
+              <p className="text-sm text-gray-500 mb-4">
+                Students join with the class code, then log in with their
+                username.{" "}
+                {createdStudents.length > 0 &&
+                  `We've created ${createdStudents.length} student account${createdStudents.length !== 1 ? "s" : ""}.`}
+              </p>
+
+              {/* Code card */}
+              <div className="rounded-xl bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-200 px-5 py-4 mb-4">
+                <div className="text-[11px] font-semibold text-purple-600 uppercase tracking-wide mb-0.5">
+                  Class code
+                </div>
+                <div className="text-3xl font-bold font-mono text-purple-900 tracking-wider">
+                  {createdClass.classCode}
+                </div>
+                <div className="text-xs text-purple-500 mt-0.5">
+                  {createdClass.className}
+                </div>
+              </div>
+
+              {/* Student list */}
+              {createdStudents.length > 0 && (
+                <div className="mb-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                      Student logins
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => window.print()}
+                      className="text-xs text-purple-600 hover:text-purple-800 font-medium inline-flex items-center gap-1"
+                    >
+                      <PrinterIcon />
+                      Print
+                    </button>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 text-[11px] uppercase tracking-wide text-gray-500">
+                        <tr>
+                          <th className="text-left px-3 py-1.5 font-semibold">Name</th>
+                          <th className="text-left px-3 py-1.5 font-semibold">Username</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {createdStudents.map((s) => (
+                          <tr key={s.id} className="border-t border-gray-100">
+                            <td className="px-3 py-1.5 text-gray-900">
+                              {s.displayName || "—"}
+                            </td>
+                            <td className="px-3 py-1.5 font-mono text-gray-700">
+                              {s.username}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  {rosterSkipped.length > 0 && (
+                    <p className="text-xs text-amber-600 mt-2">
+                      {rosterSkipped.length} line{rosterSkipped.length !== 1 ? "s" : ""} skipped
+                      (duplicate usernames or empty). You can add them later
+                      from the class page.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Starter paths — Phase 1B-3 */}
+            <div className="bg-white rounded-2xl p-6 border border-border shadow-sm">
+              <h3 className="text-sm font-bold text-gray-900 mb-1">
+                What&apos;s next?
+              </h3>
+              <p className="text-xs text-gray-500 mb-4">
+                Pick one — you can always do the other later.
+              </p>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <button
+                  onClick={() =>
+                    completeAndGo(
+                      `/teacher/units/create?classId=${createdClass.classId}`
+                    )
+                  }
+                  disabled={saving}
+                  className="group text-left bg-white rounded-xl border-2 border-purple-200 hover:border-purple-400 p-4 transition-all hover:shadow-md disabled:opacity-50"
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <div
+                      className="w-9 h-9 rounded-lg flex items-center justify-center"
+                      style={{
+                        background: "linear-gradient(135deg, #7B2FF2, #5C16C5)",
+                      }}
+                    >
+                      <SparkleIcon />
+                    </div>
+                    <span className="text-[10px] font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full uppercase tracking-wide">
+                      Recommended
+                    </span>
+                  </div>
+                  <div className="text-sm font-bold text-gray-900 mb-0.5">
+                    Generate your first unit with AI
+                  </div>
+                  <div className="text-xs text-gray-500 leading-relaxed">
+                    Describe what you want to teach and we&apos;ll draft a full
+                    unit in minutes. You&apos;ll edit from there.
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => completeAndGo("/teacher/dashboard")}
+                  disabled={saving}
+                  className="group text-left bg-white rounded-xl border-2 border-gray-200 hover:border-gray-300 p-4 transition-all hover:shadow-md disabled:opacity-50"
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center group-hover:bg-blue-50 transition-colors">
+                      <CompassIcon />
+                    </div>
+                  </div>
+                  <div className="text-sm font-bold text-gray-900 mb-0.5">
+                    Explore the dashboard
+                  </div>
+                  <div className="text-xs text-gray-500 leading-relaxed">
+                    Look around first. Your class is ready whenever you want to
+                    come back.
+                  </div>
+                </button>
+              </div>
+
+              <div className="mt-4 pt-3 border-t border-gray-100 text-[11px] text-gray-400 text-center">
+                Need help?{" "}
+                <Link
+                  href="/teacher/toolkit"
+                  className="text-purple-600 hover:text-purple-800 font-medium"
+                >
+                  Browse the toolkit
+                </Link>{" "}
+                for ready-made lesson starters.
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Footer — debug note for dev. Remove before shipping if not useful. */}
+        {teacherId && (
+          <p className="text-[10px] text-gray-300 text-center mt-6">
+            Teacher ID: <span className="font-mono">{teacherId.slice(0, 8)}…</span>
+          </p>
+        )}
+      </div>
+    </main>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Inline icon components
+// ---------------------------------------------------------------------------
+
+function StepDot({
+  active,
+  done,
+  label,
+}: {
+  active: boolean;
+  done: boolean;
+  label: string;
+}) {
+  return (
+    <div
+      className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold transition-all ${
+        done
+          ? "bg-white text-purple-600"
+          : active
+            ? "bg-white/90 text-purple-600 ring-2 ring-white/60"
+            : "bg-white/20 text-white/60"
+      }`}
+    >
+      {done ? "✓" : label}
+    </div>
+  );
+}
+
+function ArrowRight() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="white"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M5 12h14M12 5l7 7-7 7" />
+    </svg>
+  );
+}
+
+function CheckBadge() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="#22C55E"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M20 6L9 17l-5-5" />
+    </svg>
+  );
+}
+
+function PrinterIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M6 9V2h12v7" />
+      <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+      <path d="M6 14h12v8H6z" />
+    </svg>
+  );
+}
+
+function SparkleIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="white"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12 3v18M3 12h18M6 6l12 12M18 6L6 18" />
+    </svg>
+  );
+}
+
+function CompassIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="#6B7280"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="12" r="10" />
+      <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
+    </svg>
+  );
+}
