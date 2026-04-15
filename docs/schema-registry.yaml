@@ -36,8 +36,8 @@
 
 version: 1
 
-last_updated: 2026-04-14
-last_updated_by: sync-schema-registry.py backfill
+last_updated: 2026-04-15
+last_updated_by: manual — migrations 083 + 084 (teacher onboarding + FK cascades)
 tables:
 - name: activity_blocks
   source_migration: 060_activity_blocks.sql
@@ -8186,13 +8186,14 @@ tables:
   source_migration: 001_initial_schema.sql
   status: applied
   applied_date: null
-  purpose: null
+  purpose: "Teacher identity mirror of auth.users + style profile + onboarding state."
   columns:
     id: UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE
     name: TEXT NOT NULL
     email: TEXT NOT NULL UNIQUE
     created_at: TIMESTAMPTZ DEFAULT now()
     style_profile: JSONB DEFAULT NULL
+    onboarded_at: TIMESTAMPTZ DEFAULT NULL  # added by 083_teacher_onboarded_at.sql (applied 15 Apr 2026); NULL = redirect to /teacher/welcome
   classification:
     id:
       pii: false
@@ -8229,6 +8230,13 @@ tables:
       ai_exportable: full
       retention_days: indefinite
       basis: legitimate_interest
+    onboarded_at:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: indefinite
+      basis: pseudonymous
   indexes:
   - idx_teachers_style_confidence ON ((style_profile->>'confidenceLevel'))
   rls:
@@ -8236,10 +8244,15 @@ tables:
     write: Teachers update own profile (unknown)
   writers:
   - src/lib/teacher-style/profile-service.ts
+  - src/app/api/teacher/welcome/complete/route.ts  # flips onboarded_at on wizard completion
   readers:
   - src/app/teacher/dashboard/page.tsx
-  - src/app/teacher/layout.tsx
-  spec_drift: []
+  - src/app/teacher/layout.tsx  # reads onboarded_at to gate first-login redirect
+  - src/app/api/teacher/welcome/complete/route.ts
+  spec_drift:
+  - date: 2026-04-15
+    migration: 084_fk_cascade_fixes_for_teacher_delete.sql
+    decision: "10 inbound FKs pointing at teachers(id) or auth.users(id) had ON DELETE defaulting to NO ACTION, blocking auth.admin.deleteUser(). Migration 084 rewrites: CASCADE on content ownership (units.author_teacher_id, units.teacher_id, content_items.teacher_id, activity_blocks.teacher_id, generation_runs.teacher_id, gallery_rounds.teacher_id); SET NULL on audit trails (students.author_teacher_id, content_moderation_log.overridden_by, feedback_proposals.resolved_by, feedback_audit_log.resolved_by). Admin endpoint at /api/admin/teachers/[id] already guards against deletion when units or classes > 0, so CASCADE only fires for teachers deemed safe to remove. Sanity asserts at end of migration raise EXCEPTION if any of the 10 FKs remain on NO ACTION."
 - name: unit_badge_requirements
   source_migration: 035_safety_badges.sql
   status: applied

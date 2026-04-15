@@ -4,6 +4,33 @@
 
 ---
 
+## 15 Apr 2026 — ShipReady Phase 1B COMPLETE: Teacher onboarding + branded auth emails
+
+**What changed (across two sessions, same day):**
+- **Migration 083** (`teachers.onboarded_at TIMESTAMPTZ`) — nullable first-login flag. Applied to prod.
+- **Migration 084** (FK cascade fixes) — 10 FKs pointing at `teachers(id)` or `auth.users(id)` rewritten. CASCADE on content ownership (units×2, content_items, activity_blocks, generation_runs, gallery_rounds); SET NULL on audit trails (students.author_teacher_id, content_moderation_log.overridden_by, feedback_proposals.resolved_by, feedback_audit_log.resolved_by). 2 sanity asserts at end. Applied to prod. Shipped with wrong table name `feedback_resolution_log`; fixed same-day to `feedback_audit_log`.
+- **Teacher Welcome flow** — 3 API routes (`/api/teacher/welcome/create-class`, `/add-roster`, `/complete`) + 4-step wizard page `/teacher/welcome` (name → class → roster → credentials). Wizard step 2 retries class-code collisions up to 5×, step 3 bulk-inserts students + class_students junction with global username dedup, step 4 flips `onboarded_at = now()` idempotently.
+- **Teacher layout first-login redirect** — `src/app/teacher/layout.tsx` pushes users with `onboarded_at IS NULL` to `/teacher/welcome`.
+- **Starter-path CTAs** on wizard step 4: "Generate with AI" → `/teacher/units/create?classId=X`, "Explore dashboard" → `/teacher/dashboard`.
+- **Admin remove-teacher flow** working after migration 084 cleared the FK blocks.
+- **Branded Supabase auth email templates** in `supabase/email-templates/` (new folder with README): `invite.html`, `confirm-signup.html`, `magic-link.html`, `reset-password.html`. Each uses StudioLoom brand gradient hero (`#7B2FF2 → #5C16C5 → #4A0FB0`), coral CTA button, 600px table layout, inline styles only, with solid-colour fallbacks for Outlook. Invite includes 4-step preview mirroring the wizard; reset-password has a prominent red security notice above the footer. Pasted into Supabase Dashboard 15 Apr 2026. Versioned in repo so copy stays in sync with the app.
+
+**Systems affected:** teacher-onboarding (new), admin-teachers, auth-email-templates (new). No test impact — flow is Supabase Auth + UI wizard, no new business logic outside the 3 welcome routes.
+
+**Registries synced:** api-registry.yaml gained 5 new routes (welcome×3, admin/teachers DELETE + invite). schema-registry.yaml updated for migrations 083/084 on teachers table. doc-manifest.yaml gained 5 email-template entries.
+
+**Registries NOT committed:** ai-call-sites scanner output reverted — scanner strips 12 hand-curated indirect call sites (regression). Filed as FU-MM (P2).
+
+**Drift noted (pre-existing, not from this session):**
+- Feature-flags: `SENTRY_AUTH_TOKEN` orphaned (already FU-CC), `NEXT_PUBLIC_SITE_URL` missing from registry.
+- RLS coverage: 4 tables with RLS enabled but no policies (already FU-FF — likely intentional deny-all pattern).
+
+**Commits (this session):** `428a883`, `8c3d823`, `4b8185d` — all pushed to origin/main. Phase 1B commits from earlier today: `95d60dd`, `0e632d2`, `d574a04`, `fa0889f`.
+
+**Tests:** 1254 passing, 8 skipped (baseline maintained).
+
+---
+
 ## 15 Apr 2026 — Fix PDF extraction on Vercel (ingestion sandbox)
 
 **What changed:**

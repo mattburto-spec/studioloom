@@ -2242,9 +2242,55 @@ docs:
     max_age_days: 7
     last_scanned: "2026-04-14"
 
+  # --- EMAIL TEMPLATES ---
+  # Branded Supabase auth email templates. Versioned here because Supabase
+  # doesn't expose template contents via API — repo is the source of truth
+  # for brand/copy. Paste into Supabase Dashboard → Authentication → Email
+  # Templates after any edit.
+
+  - path: supabase/email-templates/README.md
+    title: "StudioLoom Supabase email templates — index + paste workflow"
+    purpose: "Index of the four branded auth email templates with paste instructions, shared design notes, Supabase var reference, and email-client gotchas"
+    category: email-templates
+    last_verified: "2026-04-15"
+    max_age_days: 180
+    last_scanned: "2026-04-15"
+
+  - path: supabase/email-templates/invite.html
+    title: "Teacher invite email — branded HTML"
+    purpose: "Replaces default Supabase 'You have been invited' template. Logo header, brand gradient hero, 4-step preview mirroring /teacher/welcome, coral CTA. Pasted into Supabase Dashboard → Auth → Email Templates → Invite user."
+    category: email-templates
+    last_verified: "2026-04-15"
+    max_age_days: 180
+    last_scanned: "2026-04-15"
+
+  - path: supabase/email-templates/confirm-signup.html
+    title: "Signup confirmation email — branded HTML"
+    purpose: "Replaces default Supabase 'Confirm signup' template. Short, welcoming, finishes what the user started. Pasted into Supabase Dashboard → Auth → Email Templates → Confirm signup."
+    category: email-templates
+    last_verified: "2026-04-15"
+    max_age_days: 180
+    last_scanned: "2026-04-15"
+
+  - path: supabase/email-templates/magic-link.html
+    title: "Magic-link sign-in email — branded HTML"
+    purpose: "Replaces default Supabase 'Magic Link' template. Utility-focused, single-use warning, phishing-aware footer. Pasted into Supabase Dashboard → Auth → Email Templates → Magic Link."
+    category: email-templates
+    last_verified: "2026-04-15"
+    max_age_days: 180
+    last_scanned: "2026-04-15"
+
+  - path: supabase/email-templates/reset-password.html
+    title: "Password reset email — branded HTML"
+    purpose: "Replaces default Supabase 'Reset Password' template. Includes prominent red 'Didn't request this?' security notice above the footer since reset emails are a high phishing target. Pasted into Supabase Dashboard → Auth → Email Templates → Reset Password."
+    category: email-templates
+    last_verified: "2026-04-15"
+    max_age_days: 180
+    last_scanned: "2026-04-15"
+
 # --- SUMMARY STATISTICS ---
 summary:
-  total_documents: 270
+  total_documents: 275
   by_category:
     root: 40
     brain: 9
@@ -2262,5 +2308,6 @@ summary:
     archive: 19
     marketing: 1
     safety: 1
+    email-templates: 5
   last_updated: "2026-04-15"
   referenced_in_claude_md: 17

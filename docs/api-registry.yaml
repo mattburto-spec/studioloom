@@ -5,7 +5,7 @@
 # Cross-referenced with docs/schema-registry.yaml (tables) and docs/ai-call-sites.yaml (AI calls).
 #
 # Last synced: 2026-04-14
-# Total routes: 279
+# Total routes: 284
 
 routes:
 - path: /api/admin/ai-model
@@ -320,6 +320,28 @@ routes:
   - classes
   - teachers
   - units
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/admin/teachers/[id]
+  method: DELETE
+  file: src/app/api/admin/teachers/[id]/route.ts
+  auth: admin
+  tables_read:
+  - classes
+  - teachers
+  - units
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/admin/teachers/invite
+  method: POST
+  file: src/app/api/admin/teachers/invite/route.ts
+  auth: admin
+  tables_read:
+  - teachers
   tables_written: []
   ai_call_sites: []
   cost_ceiling_usd: null
@@ -2783,6 +2805,41 @@ routes:
   tables_read: []
   tables_written:
   - units
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/welcome/add-roster
+  method: POST
+  file: src/app/api/teacher/welcome/add-roster/route.ts
+  auth: teacher
+  tables_read:
+  - students
+  tables_written:
+  - class_students
+  - students
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/welcome/complete
+  method: POST
+  file: src/app/api/teacher/welcome/complete/route.ts
+  auth: teacher
+  tables_read:
+  - teachers
+  tables_written:
+  - teachers
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/welcome/create-class
+  method: POST
+  file: src/app/api/teacher/welcome/create-class/route.ts
+  auth: teacher
+  tables_read:
+  - classes
+  tables_written:
+  - classes
+  - teacher_profiles
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null

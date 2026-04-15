@@ -24,7 +24,14 @@ Pilot teachers are **invited personally by Matt** (self-signup removed 15 Apr 20
   - (2) Library: **deferred to 2C** (no real units to seed)
   - (3) Student model: **teacher creates rows, distributes classCode + username, no email/password** (current behaviour confirmed)
   - (4) Co-teacher: **out of scope** (stays in 1E)
-- Status: **IN PROGRESS**
+- Status: **COMPLETE** (15 Apr 2026)
+  - Migration 083 (`teachers.onboarded_at`) APPLIED to prod
+  - Migration 084 (FK cascade fixes for `auth.admin.deleteUser()`) APPLIED to prod — 10 FKs now CASCADE or SET NULL, 2 sanity asserts pass
+  - 3 welcome APIs live: `/api/teacher/welcome/create-class`, `/add-roster`, `/complete`
+  - 4-step `/teacher/welcome` wizard (name → class → roster → credentials) with starter-path CTAs (Generate with AI / Explore dashboard)
+  - Teacher layout redirect on first login (`onboarded_at IS NULL` → `/teacher/welcome`)
+  - Branded Supabase auth email templates — invite, confirm-signup, magic-link, reset-password (in `supabase/email-templates/`, pasted into Supabase Dashboard 15 Apr 2026)
+  - Admin remove-teacher flow working (guards: no teacher deletion when units/classes > 0, cascade FKs handle the rest)
 
 ### 1C. Content Safety Teacher Controls (4-5 days)
 Backend exists (Phase 5 content safety, Haiku moderation, NSFW scanning). Missing for pilot:

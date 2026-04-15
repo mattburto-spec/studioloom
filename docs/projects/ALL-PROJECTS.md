@@ -2,7 +2,7 @@
 
 > **Single source of truth for all projects, features, and ideas.**
 > Visual dashboard: [projects/dashboard.html](dashboard.html)
-> Last updated: 14 April 2026 (Dimensions3 Phase 6 COMPLETE + Checkpoint 5.1 CLOSED at 9/11 — Steps 1–5, 8, 9 passed; Steps 6–7 deferred as they require test images. Phase 6A teacher safety alert feed + 6B nav badge + 6C ingestion pipeline safety scan all shipped. Nav longest-prefix fix so Badges/Alerts don't both highlight. Working tree cleaned (test fixture moved to `src/__tests__/fixtures/`, karpathy reference gitignored). 1254 tests passing. 10 architectural limitations filed as FU-N..W. Next: Phase 7.)
+> Last updated: 15 April 2026 (ShipReady Phase 1B COMPLETE — teacher onboarding flow live. Migrations 083 + 084 applied to prod; 4-step `/teacher/welcome` wizard + 3 welcome APIs + teacher layout first-login redirect + admin remove-teacher FK cascades. Branded Supabase auth email templates (invite / confirm-signup / magic-link / reset-password) in `supabase/email-templates/`, pasted into Supabase Dashboard. Dimensions3 declared SHIPPED 15 Apr 2026; polish moved to backlog. Next: Phase 1C (Content Safety Teacher Controls).)
 
 ---
 

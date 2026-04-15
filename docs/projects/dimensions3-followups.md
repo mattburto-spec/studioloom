@@ -1049,6 +1049,29 @@ RLS-coverage scanner (`scan-rls-coverage.py`) added to prevent recurrence.
 
 ---
 
+## FU-MM — `scan-ai-calls.py` strips hand-curated indirect call sites on rewrite (P2)
+
+**Filed:** 15 Apr 2026 (during `saveme`)
+**Target phase:** Next scanner maintenance pass
+**Priority:** P2 — silent data loss; current saveme workflow requires manual revert every run
+
+**Issue:** Running `python3 scripts/registry/scan-ai-calls.py --apply` rewrites `docs/ai-call-sites.yaml` with fewer entries than exist. The scanner only detects direct Anthropic SDK imports; 12 hand-curated "indirect" entries (routes that invoke library functions which themselves call AI) are dropped on every rewrite. Current count went from 60 → 48 on the 15 Apr 2026 run. The dropped entries include `/api/student/design-assistant`, `/api/student/quest/mentor`, `/api/teacher/generate-unit`, and others where cost-tracking completeness matters.
+
+**Workaround applied this session:** Reverted `docs/ai-call-sites.yaml` via `git checkout` after the scanner ran. Accepted the `docs/api-registry.yaml` diff (purely additive — 5 new routes). Flagged here so future `saveme` runs don't blindly commit the regression.
+
+**Related follow-ups:**
+- FU-DD (legacy scanners strip `version:` field on rewrite) — same class of scanner-loses-curation bug
+- Pattern: any scanner that fully rewrites its target file must preserve hand-curated data sections
+
+**Suggested investigation:**
+1. Scanner should detect the existing "Indirect AI call sites" comment block and preserve everything under it.
+2. OR split the yaml into two top-level keys: `scanner_managed_sites:` + `manually_curated_sites:` so the scanner only touches its half.
+3. Add a regression test: run scanner against a yaml with known indirect entries, assert they survive.
+
+**Definition of done:** Running the scanner preserves hand-curated indirect entries. A saveme can commit the diff without needing to revert.
+
+---
+
 ## FU-Library-B1 — Wire `/teacher/library/import/page.tsx` stub `handleAccept` (P1)
 **Surfaced:** Library Card File Upload Phase A (14 Apr 2026)
 **Target phase:** Library Phase B

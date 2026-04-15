@@ -92,5 +92,9 @@ Extracted from CLAUDE.md on 7 Apr 2026. These issues are resolved and kept here 
 
 **Migration 059 (student_progress + planning_tasks RLS junction fix — UNION of class_students + legacy students.class_id paths)** — **CONFIRMED APPLIED 30 Mar 2026.**
 
+**Migration 083 (`teachers.onboarded_at TIMESTAMPTZ`)** — **APPLIED 15 Apr 2026.** Adds nullable timestamp column; NULL means first-login, `/teacher/layout.tsx` redirects to `/teacher/welcome`. Written by `/api/teacher/welcome/complete` (idempotent — preserves existing timestamp if set).
+
+**Migration 084 (ON DELETE cascade / SET NULL across 10 teacher FKs)** — **APPLIED 15 Apr 2026.** Fixes `auth.admin.deleteUser()` "Database error deleting user" by rewriting FK behaviour. CASCADE on content ownership (units×2, content_items, activity_blocks, generation_runs, gallery_rounds); SET NULL on audit trails (students.author_teacher_id, content_moderation_log.overridden_by, feedback_proposals.resolved_by, feedback_audit_log.resolved_by). 2 sanity asserts at end raise EXCEPTION if any remain on NO ACTION. *Original migration shipped with wrong table name `feedback_resolution_log` — fixed to `feedback_audit_log` in same-day follow-up commit `428a883` before re-running.* Unblocks admin remove-teacher flow.
+
 ---
-*Last updated: 7 Apr 2026*
+*Last updated: 15 Apr 2026*
