@@ -630,6 +630,36 @@ export default function TeacherSettingsPage() {
             </div>
           </section>
 
+          {/* Account — password change */}
+          <section className="bg-white rounded-xl p-6 border border-border">
+            <h2 className="text-lg font-semibold text-text-primary mb-1">
+              Account
+            </h2>
+            <p className="text-sm text-text-secondary mb-4">
+              Manage the credentials you use to sign in to StudioLoom.
+            </p>
+            <div className="flex items-center justify-between gap-4 py-2">
+              <div>
+                <div className="text-sm font-medium text-text-primary">
+                  Password
+                </div>
+                <div className="text-xs text-text-secondary">
+                  Change the password you use to sign in.
+                </div>
+              </div>
+              <a
+                href="/teacher/set-password?next=/teacher/settings"
+                className="px-4 py-2 text-sm font-medium rounded-lg text-white transition hover:opacity-90"
+                style={{
+                  background: "linear-gradient(135deg, #7B2FF2, #5C16C5)",
+                  boxShadow: "0 2px 8px rgba(123, 47, 242, 0.25)",
+                }}
+              >
+                Change password
+              </a>
+            </div>
+          </section>
+
           {/* Quick setup cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <button

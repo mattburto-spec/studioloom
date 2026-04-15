@@ -38,7 +38,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 function safeNext(raw: string | null): string {
-  const fallback = "/teacher/welcome";
+  // PKCE is ONLY used in StudioLoom for the forgot-password flow
+  // (resetPasswordForEmail). If Supabase's Site URL fallback stripped
+  // our explicit `next=/teacher/set-password` and `type=recovery`, the
+  // user still needs to pick a new password — so default to
+  // set-password rather than dashboard.
+  const fallback = "/teacher/set-password";
   if (!raw) return fallback;
   if (!raw.startsWith("/") || raw.startsWith("//")) return fallback;
   return raw;
