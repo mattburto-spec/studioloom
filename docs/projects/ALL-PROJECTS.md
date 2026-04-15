@@ -2,7 +2,7 @@
 
 > **Single source of truth for all projects, features, and ideas.**
 > Visual dashboard: [projects/dashboard.html](dashboard.html)
-> Last updated: 15 April 2026 (ShipReady Phase 1B COMPLETE — teacher onboarding flow live. Migrations 083 + 084 applied to prod; 4-step `/teacher/welcome` wizard + 3 welcome APIs + teacher layout first-login redirect + admin remove-teacher FK cascades. Branded Supabase auth email templates (invite / confirm-signup / magic-link / reset-password) in `supabase/email-templates/`, pasted into Supabase Dashboard. Dimensions3 declared SHIPPED 15 Apr 2026; polish moved to backlog. Next: Phase 1C (Content Safety Teacher Controls).)
+> Last updated: 15 April 2026 (ShipReady Phase 1B COMPLETE — teacher onboarding flow live. Migrations 083 + 084 applied to prod; 4-step `/teacher/welcome` wizard + 3 welcome APIs + teacher layout first-login redirect + admin remove-teacher FK cascades. Branded Supabase auth email templates (invite / confirm-signup / magic-link / reset-password) in `supabase/email-templates/`, pasted into Supabase Dashboard. **Teacher password recovery hardened (15 Apr 2026, evening):** PKCE vs implicit flow split into server route (`/auth/callback/route.ts`, cookie-backed code exchange) vs client page (`/auth/confirm/page.tsx`, hash parser + shared error UI); `AuthHashForwarder` forwards both payload types; PKCE `safeNext` fallback set to `/teacher/set-password`; teacher layout gained `PUBLIC_TEACHER_PATHS` allowlist; "Change password" link added to settings → General → Account. Commits `ead284b`, `ce45e2f`, `680a4de`, `314d567`. Dimensions3 declared SHIPPED 15 Apr 2026; polish moved to backlog. Next: Phase 1C (Content Safety Teacher Controls).)
 
 ---
 

@@ -4,6 +4,35 @@
 
 ---
 
+## 15 Apr 2026 — Teacher password recovery: PKCE vs implicit flow split + settings change-password UI
+
+**Context:** Phase 1B shipped the forgot-password / set-password flows earlier today (`353c0c7`). Production smoke test uncovered three stacked bugs in the reset-link round-trip. This session resolved them across four commits.
+
+**What changed:**
+- **`src/app/teacher/layout.tsx`** (`ead284b`) — Added `PUBLIC_TEACHER_PATHS` allowlist (`/teacher/login`, `/teacher/welcome`, `/teacher/forgot-password`, `/teacher/set-password`). All three redirect/render checks consult `isPublicTeacherPath()` so bare auth pages render without a session instead of flash-bouncing to login.
+- **`src/components/auth/AuthHashForwarder.tsx`** (`ce45e2f` → `680a4de`) — Extended beyond hash-only detection. Now checks for `?code=<uuid>` query (UUID regex) AND hash, then splits routing: hash → `/auth/confirm` (client), PKCE code → `/auth/callback` (server). Catches Supabase Site URL fallback cases where `redirectTo` is not in the allowlist and Supabase silently strips all query params except `code`.
+- **`src/app/auth/callback/page.tsx` → `route.ts`** (`680a4de`) — Replaced client page with a Next.js App Router server route handler. Server route uses `createServerSupabaseClient` (cookie access via `@supabase/ssr`) to call `exchangeCodeForSession(code)`. Fixes "PKCE code verifier not found in storage" — the verifier cookie can't be reliably read client-side after the full-page navigation chain (apex→www redirects, cookie scope). Session cookies are written to the redirect response.
+- **`src/app/auth/confirm/page.tsx`** (`680a4de`) — New client page for implicit flow. Suspense-wrapped, parses `#access_token=...&refresh_token=...&type=invite` from the URL hash, calls `supabase.auth.setSession()`, routes based on `type`. Also serves as the shared error UI when the server route redirects here with `?error=...`.
+- **`src/app/api/admin/teachers/invite/route.ts`** (`680a4de`) — `redirectTo` changed from `/auth/callback` to `/auth/confirm?next=/teacher/welcome`. Invites use implicit flow (admin-issued tokens in hash fragment), so the client hash parser is the right landing.
+- **`src/app/auth/callback/route.ts` safeNext fallback** (`314d567`) — Default changed from generic `/teacher/dashboard` to `/teacher/set-password`. PKCE is ONLY used in StudioLoom for forgot-password. If Supabase's Site URL fallback strips the explicit `next=/teacher/set-password` and `type=recovery` params, the user still needs to set a new password — landing on the dashboard leaves them half-authenticated. `routeFor()` still honours explicit `type=recovery` and `type=invite` when present.
+- **`src/app/teacher/settings/page.tsx`** (`314d567`) — Added "Account" section to General tab under About StudioLoom. Single "Change password" row with a link to `/teacher/set-password?next=/teacher/settings`. Reuses the existing set-password page; no new change-password flow needed.
+
+**Architectural decision — why two routes, not one:**
+Supabase emits two very different auth payloads depending on the flow:
+- **PKCE** (`resetPasswordForEmail`, forgot-password flow) — `?code=<uuid>` in query string. Server sees it. Code verifier stored in a server-readable cookie. Exchange MUST happen server-side for `@supabase/ssr` to read the verifier.
+- **Implicit** (`admin.inviteUserByEmail`, invite flow) — `#access_token=...&type=invite` in URL hash. Hashes NEVER reach the server. Must be parsed client-side, then `setSession()` called.
+Trying to handle both in one route produces silent failures — either "PKCE verifier not found" (client-side PKCE) or empty hash (server-side implicit). The split is the correct long-term pattern.
+
+**Systems affected:** teacher-auth (auth flow routing hardened), teacher-settings (account section added), teacher-layout (public paths allowlist).
+
+**Tests:** 1254 passing, 8 skipped (baseline maintained — no new business logic).
+
+**Commits (this session):** `ead284b`, `ce45e2f`, `680a4de`, `314d567` — all pushed to origin/main.
+
+**Verification:** Fresh forgot-password round-trip now lands at `/teacher/set-password` with a valid session, submits a new password, signs in. Invite round-trip still works via implicit flow through `/auth/confirm`. "Change password" link appears in settings for logged-in teachers.
+
+---
+
 ## 15 Apr 2026 — ShipReady Phase 1B COMPLETE: Teacher onboarding + branded auth emails
 
 **What changed (across two sessions, same day):**

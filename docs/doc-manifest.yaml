@@ -1,6 +1,6 @@
 # StudioLoom Documentation Manifest
 # Auto-maintained: `saveme` updates last_verified date and syncs with CLAUDE.md
-# Last full scan: 15 Apr 2026
+# Last full scan: 15 Apr 2026 (evening — teacher auth flow hardening)
 #
 # This is the canonical index of ALL documentation files in the project.
 # Categories: brain (AI intelligence), specs (feature specs), projects (project plans),
@@ -24,23 +24,23 @@ docs:
     title: "Session Changelog"
     purpose: "Rolling log of changes across sessions for cross-session context"
     category: root
-    last_verified: "2026-04-14"
+    last_verified: "2026-04-15"
     max_age_days: 90
     last_scanned: null
 
   - path: docs/decisions-log.md
     title: "Key Decisions Log"
-    purpose: "192+ architectural and design decisions from 17 Mar – 12 Apr 2026"
+    purpose: "197+ architectural and design decisions from 17 Mar – 15 Apr 2026. Last: PKCE vs implicit auth flow split (15 Apr 2026)."
     category: root
-    last_verified: "2026-04-12"
+    last_verified: "2026-04-15"
     max_age_days: 90
     last_scanned: null
 
   - path: docs/lessons-learned.md
     title: "Lessons Learned"
-    purpose: "42 hard-won lessons from production bugs, build disasters, Supabase/Vercel gotchas. #42 (12 Apr 2026): dual-shape persistence fields silently break consumers when frontend types diverge from server writers."
+    purpose: "50 hard-won lessons from production bugs, build disasters, Supabase/Vercel gotchas. #48-50 (15 Apr 2026): Supabase Site URL fallback strips params except code, layout auth gates need public allowlist, Next.js route.ts/page.tsx mutual exclusion."
     category: root
-    last_verified: "2026-04-12"
+    last_verified: "2026-04-15"
     max_age_days: 90
     last_scanned: null
 
@@ -313,7 +313,7 @@ docs:
     title: "StudioLoom — Master Project Index"
     purpose: "CANONICAL project tracker. ALL project status, new projects, completions. Single source of truth."
     category: projects
-    last_verified: "2026-04-14"
+    last_verified: "2026-04-15"
     referenced_from: ["CLAUDE.md project tracking section"]
     max_age_days: 90
     last_scanned: null

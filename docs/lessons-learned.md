@@ -322,3 +322,60 @@ GOV-1.4 added `version: 1` as a new top-level field to all 5 registry yamls. Two
 **How to apply:** Before adding a new top-level field to a shared yaml, grep for every script that writes it (`git grep -l 'yaml.dump.*REGISTRY_NAME'` or equivalent). Either (a) update each writer to preserve top-level scalars in the same PR, or (b) file an FU and ban the consumer until all writers are fixed. The safer long-term fix is a `read_registry()` / `write_registry()` helper that captures + restores unknown top-level fields.
 
 ---
+
+### Lesson #48 — Supabase Site URL fallback silently strips params except `code`
+**Date:** 15 Apr 2026
+
+When a Supabase auth email link's `redirectTo` URL is NOT in the project's Auth → URL Configuration → Redirect URLs allowlist, Supabase quietly falls back to the Site URL (e.g. `https://studioloom.org`) and strips ALL query params except `?code=<uuid>`. The `?next=/teacher/set-password` and `?type=recovery` hints you set in `resetPasswordForEmail(email, { redirectTo })` are gone. Your callback handler sees only the code, not the context.
+
+**Why this matters for us:** Code that says "if type === 'recovery' route to set-password, else route to dashboard" silently routes fallback-mode users to the wrong page. The reset flow appears to "succeed" (user lands logged in on the dashboard) but skips the critical set-password step — they still have the old password, or whatever temp password Supabase generated.
+
+**How to apply:**
+1. Primary fix: add the exact `redirectTo` URL to Supabase Dashboard → Authentication → URL Configuration → Redirect URLs. Wildcards like `https://studioloom.org/auth/**` work and cover future auth routes.
+2. Defensive fix: in the callback handler, default your `safeNext` to the most conservative destination for that flow, not to the dashboard. For PKCE in StudioLoom (forgot-password only), the fallback is `/teacher/set-password` — a user who clicked a reset link ALWAYS needs to set a new password, regardless of whether Supabase preserved the type hint.
+3. Belt-and-braces: land a catch-all component (we have `AuthHashForwarder`) on the bare landing route that detects `?code=<uuid>` + hash and forwards to the right handler. This catches future auth routes you haven't added to the allowlist yet.
+
+Commits: `ce45e2f`, `680a4de`, `314d567`.
+
+---
+
+### Lesson #49 — Layout auth gates need a public paths allowlist
+**Date:** 15 Apr 2026
+
+`src/app/teacher/layout.tsx` originally redirected anyone without a Supabase session to `/teacher/login`. When we shipped `/teacher/forgot-password` and `/teacher/set-password` (Phase 1B auth), both flash-bounced to login: the layout fired its redirect before the form could render, then bounced BACK to the auth page after the redirect chain finished, creating an ugly flash. A logged-out user CAN'T complete forgot-password while logged out if the layout won't let them see the form.
+
+**Why this matters for us:** Any new auth-adjacent page (forgot-password, set-password, welcome after invite, password-reset confirmation) needs to be in an explicit allowlist. The layout can't know "this path is public" from path structure alone — `/teacher/*` is otherwise 100% authenticated.
+
+**How to apply:**
+```ts
+const PUBLIC_TEACHER_PATHS: readonly string[] = [
+  "/teacher/login",
+  "/teacher/welcome",
+  "/teacher/forgot-password",
+  "/teacher/set-password",
+];
+const isPublicTeacherPath = (p: string) =>
+  PUBLIC_TEACHER_PATHS.some(x => p === x || p.startsWith(x + "?"));
+```
+Apply `isPublicTeacherPath()` to every redirect/render check in the layout, not just the first one. The admin layout should get the same allowlist pattern if we ever add admin-public pages.
+
+Commit: `ead284b`.
+
+---
+
+### Lesson #50 — Route Handler (`route.ts`) and Page (`page.tsx`) can't coexist at the same path
+**Date:** 15 Apr 2026
+
+Next.js 15 App Router enforces mutual exclusion: if `src/app/auth/callback/page.tsx` exists, `src/app/auth/callback/route.ts` at the same path is a build error. We shipped a page first, then when we needed the server route for PKCE we had to DELETE the page before creating the route. Forgetting this step produces a confusing build error that doesn't obviously point to the conflict.
+
+**Why this matters for us:** Auth flow rebuilds often need to promote a client page to a server route (or vice versa) when the architecture changes. The transition requires `git rm` of the old file, not just `git add` of the new one. Left-behind page files on failed deploys cause Vercel to return the page HTML instead of hitting the route handler.
+
+**How to apply:** When switching a route from page to route-handler (or back), always grep for both files at the same path:
+```bash
+git ls-files "src/app/auth/callback/*"
+```
+If you see both `page.tsx` and `route.ts`, delete one. Include both in the same commit so rollback is atomic.
+
+Commit: `680a4de` (deleted `page.tsx`, added `route.ts`).
+
+---
