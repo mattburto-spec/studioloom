@@ -10,6 +10,28 @@ import TeacherAIFAB from "@/components/teacher/TeacherAIFAB";
 import { BugReportButton } from "@/components/shared/BugReportButton";
 import type { Teacher } from "@/types";
 
+/**
+ * Bare auth-flow pages: render without the teacher chrome AND are exempt
+ * from the "no user → /teacher/login" and "onboarded_at IS NULL → /teacher/welcome"
+ * redirects. Each of these pages handles its own session state internally.
+ *
+ *   /teacher/login            — credential entry, no session yet.
+ *   /teacher/welcome          — onboarding wizard, session set but onboarded_at NULL.
+ *   /teacher/forgot-password  — password-reset request, works logged-in or out.
+ *   /teacher/set-password     — set/change password (invite, recovery, self-service);
+ *                               has its own session guard.
+ */
+const PUBLIC_TEACHER_PATHS: readonly string[] = [
+  "/teacher/login",
+  "/teacher/welcome",
+  "/teacher/forgot-password",
+  "/teacher/set-password",
+];
+
+function isPublicTeacherPath(pathname: string): boolean {
+  return PUBLIC_TEACHER_PATHS.includes(pathname);
+}
+
 const NAV_ITEMS = [
   { href: "/teacher/dashboard", label: "Dashboard", icon: (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -77,7 +99,8 @@ export default function TeacherLayout({
         }
 
         if (!user) {
-          if (pathname !== "/teacher/login") {
+          // Don't trap users who are legitimately on a bare auth-flow page.
+          if (!isPublicTeacherPath(pathname)) {
             router.push("/teacher/login");
           }
           setLoading(false);
@@ -98,13 +121,14 @@ export default function TeacherLayout({
 
         // Phase 1B: first-login detector. If the teacher hasn't finished the
         // welcome wizard, redirect them there on every request. The wizard
-        // itself (and the login page) must render without this redirect or
-        // the teacher would be trapped. See migration 083.
+        // itself (and all bare auth-flow pages) must render without this
+        // redirect or the teacher would be trapped — critically, the
+        // /teacher/set-password step that the invite callback routes to.
+        // See migration 083.
         if (
           teacherData &&
           !teacherData.onboarded_at &&
-          pathname !== "/teacher/welcome" &&
-          pathname !== "/teacher/login"
+          !isPublicTeacherPath(pathname)
         ) {
           router.push("/teacher/welcome");
           return;
@@ -137,7 +161,9 @@ export default function TeacherLayout({
     );
   }
 
-  if (pathname === "/teacher/login" || pathname === "/teacher/welcome") {
+  // Bare-render any of the public auth-flow pages without the header /
+  // nav — these screens manage their own visual chrome.
+  if (isPublicTeacherPath(pathname)) {
     return (
       <TeacherContext.Provider value={{ teacher }}>
         {children}
