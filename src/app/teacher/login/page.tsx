@@ -86,6 +86,15 @@ export default function TeacherLoginPage() {
             >
               {loading ? "Logging in..." : "Log In"}
             </button>
+
+            <div className="text-center">
+              <Link
+                href="/teacher/forgot-password"
+                className="text-xs text-text-secondary hover:text-accent-blue transition"
+              >
+                Forgot password? · Need a sign-in link?
+              </Link>
+            </div>
           </form>
 
           <p className="text-center mt-4 text-xs text-text-tertiary">

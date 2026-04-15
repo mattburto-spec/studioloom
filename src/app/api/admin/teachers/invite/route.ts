@@ -43,14 +43,18 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Determine redirect target — Supabase appends `?code=XYZ` to this URL;
-  // /auth/callback exchanges that code for a session cookie and then
-  // forwards the teacher to `next` (default /teacher/welcome).
+  // Determine redirect target — Supabase appends `?code=XYZ` (PKCE) or
+  // `#access_token=...&type=invite` (implicit) to this URL. /auth/callback
+  // completes the session and, because the flow is an invite, routes the
+  // teacher to /teacher/set-password first so they leave with a real
+  // password. After that the set-password page forwards to /teacher/welcome
+  // for onboarding.
   //
   // NOTE: this URL must be in Supabase Dashboard → Authentication →
   // URL Configuration → Redirect URLs allowlist, otherwise the invite
-  // link silently falls back to the Site URL and the teacher lands on
-  // the landing page with an error in the hash.
+  // link silently falls back to the Site URL. AuthHashForwarder on the
+  // landing page catches that fallback case and forwards to /auth/callback
+  // preserving the hash, but the allowlist entry is still the right fix.
   const siteUrl =
     process.env.NEXT_PUBLIC_SITE_URL ||
     request.headers.get("origin") ||

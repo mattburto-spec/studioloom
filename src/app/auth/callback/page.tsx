@@ -36,6 +36,17 @@ function safeNext(raw: string | null): string {
   return "/teacher/welcome";
 }
 
+/**
+ * Supabase emails include a `type` parameter indicating what flow the token
+ * represents (invite / recovery / magiclink / signup). For recovery + invite
+ * we want to force a set-password step before landing in the app proper.
+ */
+function routeFor(type: string | null, next: string): string {
+  if (type === "recovery") return "/teacher/set-password";
+  if (type === "invite") return "/teacher/set-password?next=/teacher/welcome";
+  return next;
+}
+
 function CallbackInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -45,6 +56,8 @@ function CallbackInner() {
   useEffect(() => {
     const supabase = createClient();
     const next = safeNext(searchParams.get("next"));
+    // type may come in the query string (PKCE) or hash (implicit) — check both.
+    const queryType = searchParams.get("type");
 
     async function handle() {
       // Case 1: PKCE flow — ?code=XYZ in query string.
@@ -56,7 +69,7 @@ function CallbackInner() {
           setMessage(`Sign-in failed: ${error.message}`);
           return;
         }
-        router.replace(next);
+        router.replace(routeFor(queryType, next));
         return;
       }
 
@@ -66,6 +79,7 @@ function CallbackInner() {
         const accessToken = hashParams.get("access_token");
         const refreshToken = hashParams.get("refresh_token");
         const hashErr = hashParams.get("error_description") || hashParams.get("error");
+        const hashType = hashParams.get("type");
 
         if (hashErr) {
           setStatus("error");
@@ -87,7 +101,7 @@ function CallbackInner() {
           if (typeof window !== "undefined") {
             window.history.replaceState(null, "", window.location.pathname + window.location.search);
           }
-          router.replace(next);
+          router.replace(routeFor(hashType || queryType, next));
           return;
         }
       }
