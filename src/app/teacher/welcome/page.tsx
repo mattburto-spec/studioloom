@@ -22,10 +22,11 @@
  * `/api/teacher/welcome/complete` call.
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { parseRosterFile } from "@/lib/roster/parse-csv";
 
 type Step = "name" | "class" | "roster" | "credentials";
 
@@ -74,6 +75,12 @@ export default function TeacherWelcomePage() {
   const [rosterText, setRosterText] = useState("");
   const [createdStudents, setCreatedStudents] = useState<CreatedStudent[]>([]);
   const [rosterSkipped, setRosterSkipped] = useState<string[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadInfo, setUploadInfo] = useState<{
+    filename: string;
+    count: number;
+    usedHeaders: boolean;
+  } | null>(null);
 
   // ---------------------------------------------------------------------
   // Load teacher (prefill name from invite metadata)
@@ -199,6 +206,69 @@ export default function TeacherWelcomePage() {
 
   async function handleSkipRoster() {
     setStep("credentials");
+  }
+
+  /**
+   * CSV / TSV / TXT file upload. Reads the file client-side (never hits the
+   * server), runs it through parseRosterFile, then drops the normalised lines
+   * into the textarea so the teacher can review + edit before submitting.
+   *
+   * If the teacher already has text in the box, append rather than replace —
+   * lets them combine a SIS export with a few manually-typed names.
+   */
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError(null);
+
+    // 1 MB guard — a class of 500 students in CSV form is only ~25 KB, so
+    // anything larger is almost certainly the wrong file.
+    if (file.size > 1024 * 1024) {
+      setError("File is too large (max 1MB). Split it or paste manually.");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
+    try {
+      const text = await file.text();
+      const parsed = parseRosterFile(text);
+
+      if (parsed.lines.length === 0) {
+        setError(
+          "Couldn't find any students in that file. Check the format — one student per row, with at least a name column."
+        );
+        return;
+      }
+
+      // Append to existing text if the textarea isn't empty, so uploads don't
+      // clobber manual entries.
+      setRosterText((prev) => {
+        const existing = prev.trim();
+        return existing
+          ? `${existing}\n${parsed.lines.join("\n")}`
+          : parsed.lines.join("\n");
+      });
+
+      setUploadInfo({
+        filename: file.name,
+        count: parsed.lines.length,
+        usedHeaders: parsed.usedHeaders,
+      });
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? `Couldn't read the file: ${err.message}`
+          : "Couldn't read the file."
+      );
+    } finally {
+      // Reset so the same file can be re-selected (change event won't fire
+      // for the same value).
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  function clearUploadInfo() {
+    setUploadInfo(null);
   }
 
   /**
@@ -443,13 +513,55 @@ export default function TeacherWelcomePage() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-1.5">
-                Roster
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-semibold text-gray-500">
+                  Roster
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values,text/plain"
+                    onChange={handleFileUpload}
+                    className="hidden"
+                    aria-label="Upload roster file"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 transition-colors"
+                  >
+                    <UploadIcon />
+                    Upload CSV
+                  </button>
+                </div>
+              </div>
+
+              {uploadInfo && (
+                <div className="mb-2 flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-green-50 border border-green-200 text-xs">
+                  <span className="text-green-800">
+                    <span className="font-semibold">✓ Loaded {uploadInfo.count} student{uploadInfo.count !== 1 ? "s" : ""}</span>
+                    {" from "}
+                    <span className="font-mono text-green-900">{uploadInfo.filename}</span>
+                    {uploadInfo.usedHeaders && (
+                      <span className="text-green-600"> (using column headers)</span>
+                    )}
+                    . Review and edit below before adding.
+                  </span>
+                  <button
+                    type="button"
+                    onClick={clearUploadInfo}
+                    className="text-green-600 hover:text-green-800 font-medium whitespace-nowrap"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              )}
+
               <textarea
                 value={rosterText}
                 onChange={(e) => setRosterText(e.target.value)}
-                placeholder={`John Smith\nMaria Garcia\njdoe, Jane Doe`}
+                placeholder={`John Smith\nMaria Garcia\njdoe, Jane Doe\n\n— or click “Upload CSV” to import from a file`}
                 rows={8}
                 className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-400 transition-all text-sm font-mono"
               />
@@ -457,6 +569,7 @@ export default function TeacherWelcomePage() {
                 Accepts <code>Full Name</code>, <code>username</code>, or{" "}
                 <code>username, Full Name</code>. We&apos;ll auto-generate
                 usernames from full names (e.g. &ldquo;John Smith&rdquo; → <code>jsmith</code>).
+                CSV uploads recognise columns like <code>Name</code>, <code>First Name</code>/<code>Last Name</code>, <code>Username</code>, <code>Email</code>.
               </p>
             </div>
 
@@ -761,6 +874,25 @@ function CompassIcon() {
     >
       <circle cx="12" cy="12" r="10" />
       <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
+    </svg>
+  );
+}
+
+function UploadIcon() {
+  return (
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="17 8 12 3 7 8" />
+      <line x1="12" y1="3" x2="12" y2="15" />
     </svg>
   );
 }
