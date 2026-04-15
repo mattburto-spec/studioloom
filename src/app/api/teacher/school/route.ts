@@ -1,11 +1,12 @@
 /**
- * PATCH /api/teacher/school
+ * GET    /api/teacher/school — returns the teacher's current school (or null)
+ * PATCH  /api/teacher/school — sets the teacher's `teachers.school_id`
  *
- * Authenticated teacher sets their own `teachers.school_id`.
- * Body: { schoolId: string | null }
+ * GET response: { school: School | null }
+ * PATCH body:   { schoolId: string | null }
  *
- * - Pass a UUID to link to a school (validated against schools table)
- * - Pass null to clear
+ * - PATCH with a UUID links to a school (validated against schools table)
+ * - PATCH with null clears
  *
  * Called from the welcome wizard (step 1) and from the Settings → Account
  * "School" row.
@@ -17,6 +18,46 @@ import { withErrorHandler } from "@/lib/api/error-handler";
 import { requireTeacherAuth } from "@/lib/auth/verify-teacher-unit";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export const GET = withErrorHandler("teacher/school:GET", async (request: NextRequest) => {
+  const auth = await requireTeacherAuth(request);
+  if (auth.error) return auth.error;
+  const teacherId = auth.teacherId;
+
+  const supabase = createAdminClient();
+
+  // Pull the teacher's school_id, then hydrate the school row (if any).
+  // Two queries is simpler than a join here and keeps the error handling tidy.
+  const { data: teacher, error: teacherErr } = await supabase
+    .from("teachers")
+    .select("school_id")
+    .eq("id", teacherId)
+    .maybeSingle();
+
+  if (teacherErr) {
+    console.error("[teacher/school:GET] teacher lookup failed:", teacherErr.message);
+    return NextResponse.json({ error: teacherErr.message }, { status: 500 });
+  }
+
+  if (!teacher?.school_id) {
+    return NextResponse.json({ school: null });
+  }
+
+  const { data: school, error: schoolErr } = await supabase
+    .from("schools")
+    .select("id, name, city, country, ib_programmes, verified, source")
+    .eq("id", teacher.school_id)
+    .maybeSingle();
+
+  if (schoolErr) {
+    console.error("[teacher/school:GET] school lookup failed:", schoolErr.message);
+    return NextResponse.json({ error: schoolErr.message }, { status: 500 });
+  }
+
+  // school row may have been deleted underneath us — return null rather than
+  // a stale id that will 404 the picker.
+  return NextResponse.json({ school: school ?? null });
+});
 
 export const PATCH = withErrorHandler("teacher/school:PATCH", async (request: NextRequest) => {
   const auth = await requireTeacherAuth(request);

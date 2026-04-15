@@ -62,7 +62,9 @@ function buildChain(result: ChainResult = { data: null, error: null }) {
 }
 
 let currentChain: ReturnType<typeof buildChain>;
-const mockFrom = vi.fn(() => currentChain);
+// mockFrom signature mirrors supabase.from(table) so tests can assert on the
+// table name (see e.g. the teacher/school PATCH 2-call test).
+const mockFrom = vi.fn((_table: string) => currentChain);
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => ({ from: mockFrom }),
 }));
@@ -71,6 +73,7 @@ vi.mock("@/lib/supabase/admin", () => ({
 
 let searchGET: typeof import("../search/route").GET;
 let schoolsPOST: typeof import("../route").POST;
+let teacherSchoolGET: typeof import("../../teacher/school/route").GET;
 let teacherSchoolPATCH: typeof import("../../teacher/school/route").PATCH;
 
 beforeEach(async () => {
@@ -90,6 +93,7 @@ beforeEach(async () => {
   const schoolsMod = await import("../route");
   schoolsPOST = schoolsMod.POST;
   const teacherSchoolMod = await import("../../teacher/school/route");
+  teacherSchoolGET = teacherSchoolMod.GET;
   teacherSchoolPATCH = teacherSchoolMod.PATCH;
 });
 
@@ -423,5 +427,79 @@ describe("PATCH /api/teacher/school", () => {
     // Only one call (teachers.update) — no school lookup for null
     expect(mockFrom).toHaveBeenCalledTimes(1);
     expect(mockFrom).toHaveBeenCalledWith("teachers");
+  });
+});
+
+// ─── GET /api/teacher/school ─────────────────────────────────────────────
+
+describe("GET /api/teacher/school", () => {
+  const VALID_UUID = "123e4567-e89b-12d3-a456-426614174000";
+
+  it("returns 401 when unauthenticated", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: null } });
+    const res = await teacherSchoolGET(mkReq("http://x/api/teacher/school"));
+    expect(res.status).toBe(401);
+  });
+
+  it("returns { school: null } when teacher has no school_id", async () => {
+    currentChain = buildChain({ data: { school_id: null }, error: null });
+    const res = await teacherSchoolGET(mkReq("http://x/api/teacher/school"));
+    const body = await res.json();
+    expect(res.status).toBe(200);
+    expect(body.school).toBe(null);
+  });
+
+  it("returns hydrated school row when teacher has school_id", async () => {
+    const teacherChain = buildChain({
+      data: { school_id: VALID_UUID },
+      error: null,
+    });
+    const schoolChain = buildChain({
+      data: {
+        id: VALID_UUID,
+        name: "Nanjing International School",
+        city: "Nanjing",
+        country: "CN",
+        ib_programmes: ["MYP", "DP", "PYP"],
+        verified: true,
+        source: "ibo",
+      },
+      error: null,
+    });
+    let callCount = 0;
+    mockFrom.mockImplementation((table: string) => {
+      callCount += 1;
+      if (callCount === 1) {
+        expect(table).toBe("teachers");
+        return teacherChain;
+      }
+      expect(table).toBe("schools");
+      return schoolChain;
+    });
+
+    const res = await teacherSchoolGET(mkReq("http://x/api/teacher/school"));
+    const body = await res.json();
+    expect(res.status).toBe(200);
+    expect(body.school.id).toBe(VALID_UUID);
+    expect(body.school.name).toBe("Nanjing International School");
+  });
+
+  it("returns { school: null } if referenced school row was deleted", async () => {
+    // teacher.school_id set but schools.id lookup returns nothing
+    const teacherChain = buildChain({
+      data: { school_id: VALID_UUID },
+      error: null,
+    });
+    const schoolChain = buildChain({ data: null, error: null });
+    let callCount = 0;
+    mockFrom.mockImplementation(() => {
+      callCount += 1;
+      return callCount === 1 ? teacherChain : schoolChain;
+    });
+
+    const res = await teacherSchoolGET(mkReq("http://x/api/teacher/school"));
+    const body = await res.json();
+    expect(res.status).toBe(200);
+    expect(body.school).toBe(null);
   });
 });

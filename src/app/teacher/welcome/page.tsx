@@ -27,6 +27,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { parseRosterFile } from "@/lib/roster/parse-csv";
+import { SchoolPicker, type PickerSchool } from "@/components/schools/SchoolPicker";
 
 type Step = "name" | "class" | "roster" | "credentials";
 
@@ -65,6 +66,9 @@ export default function TeacherWelcomePage() {
   const [name, setName] = useState("");
   const [loadingTeacher, setLoadingTeacher] = useState(true);
 
+  // School (migration 085 — picker + add-your-own)
+  const [selectedSchool, setSelectedSchool] = useState<PickerSchool | null>(null);
+
   // Class
   const [className, setClassName] = useState("");
   const [framework, setFramework] = useState("IB_MYP");
@@ -98,7 +102,7 @@ export default function TeacherWelcomePage() {
         }
         const { data: teacher } = await supabase
           .from("teachers")
-          .select("id, name, onboarded_at")
+          .select("id, name, onboarded_at, school_id")
           .eq("id", user.id)
           .single();
         if (teacher?.onboarded_at) {
@@ -111,6 +115,19 @@ export default function TeacherWelcomePage() {
         const fallbackName =
           (user.user_metadata?.name as string | undefined) || "";
         setName(teacher?.name || fallbackName);
+
+        // Pre-load the picker if the teacher already had a school set
+        // (e.g. they left mid-wizard and came back).
+        if (teacher?.school_id) {
+          const { data: school } = await supabase
+            .from("schools")
+            .select("id, name, city, country, ib_programmes, verified, source")
+            .eq("id", teacher.school_id)
+            .maybeSingle();
+          if (school) {
+            setSelectedSchool(school as PickerSchool);
+          }
+        }
       } catch (err) {
         console.error("[welcome] load teacher error:", err);
       } finally {
@@ -283,7 +300,10 @@ export default function TeacherWelcomePage() {
       await fetch("/api/teacher/welcome/complete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim() || undefined }),
+        body: JSON.stringify({
+          name: name.trim() || undefined,
+          schoolId: selectedSchool?.id || null,
+        }),
       });
     } catch (err) {
       // Non-blocking — the layout will redirect them back here if it didn't
@@ -358,14 +378,15 @@ export default function TeacherWelcomePage() {
           </div>
         )}
 
-        {/* Step 1: Confirm name */}
+        {/* Step 1: Confirm name + pick school */}
         {step === "name" && (
           <div className="bg-white rounded-2xl p-6 border border-border shadow-sm">
-            <h2 className="text-lg font-bold text-gray-900 mb-1">What should students call you?</h2>
-            <p className="text-sm text-gray-500 mb-4">
-              This is the name that shows up on dashboards, gradebooks, and
-              class rosters.
+            <h2 className="text-lg font-bold text-gray-900 mb-1">About you</h2>
+            <p className="text-sm text-gray-500 mb-5">
+              Your name is shown on dashboards and gradebooks. Your school is
+              optional — we&apos;ll use it to connect you with co-teachers later.
             </p>
+
             <label className="block text-xs font-semibold text-gray-500 mb-1.5">
               Your name
             </label>
@@ -377,7 +398,22 @@ export default function TeacherWelcomePage() {
               className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-400 transition-all text-sm mb-5"
               autoFocus
             />
-            <div className="flex items-center gap-3">
+
+            <label className="block text-xs font-semibold text-gray-500 mb-1.5">
+              Your school <span className="text-gray-400 font-normal">(optional)</span>
+            </label>
+            <SchoolPicker
+              value={selectedSchool}
+              onChange={setSelectedSchool}
+              placeholder="Start typing your school's name…"
+            />
+            <p className="text-[11px] text-gray-400 mt-1.5 leading-snug">
+              Can&apos;t find yours? Pick &ldquo;Add it&rdquo; at the bottom of the
+              list — we&apos;ll verify and share it with other teachers at your
+              school.
+            </p>
+
+            <div className="flex items-center gap-3 mt-6">
               <button
                 onClick={() => {
                   if (!name.trim()) {

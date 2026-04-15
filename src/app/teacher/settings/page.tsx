@@ -8,6 +8,7 @@ import ICalPreview from "@/components/teacher/ICalPreview";
 import type { ICalImportData, CycleConfig } from "@/components/teacher/ICalPreview";
 import { TimetableGrid } from "@/components/teacher/TimetableGrid";
 import type { ClassMeetingEntry } from "@/components/teacher/TimetableGrid";
+import { SchoolPicker, type PickerSchool } from "@/components/schools/SchoolPicker";
 
 type SettingsTab = "general" | "school" | "timetable" | "workshop" | "personalisation" | "lms" | "ai";
 
@@ -85,6 +86,16 @@ export default function TeacherSettingsPage() {
   const [successMsg, setSuccessMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
   const [copied, setCopied] = useState("");
+
+  // Canonical school (teachers.school_id → schools row). Separate from the
+  // legacy free-text `school_name` on teacher_profiles, which is kept as a
+  // denormalised hint during the transition. See schema-registry spec_drift
+  // entry 2026-04-16.
+  const [currentSchool, setCurrentSchool] = useState<PickerSchool | null>(null);
+  const [schoolEditing, setSchoolEditing] = useState(false);
+  const [schoolSaving, setSchoolSaving] = useState(false);
+  const [schoolSaveMsg, setSchoolSaveMsg] = useState("");
+  const [schoolSaveError, setSchoolSaveError] = useState("");
 
   // School/teaching profile state
   const [schoolName, setSchoolName] = useState("");
@@ -166,9 +177,14 @@ export default function TeacherSettingsPage() {
   const [testingAi, setTestingAi] = useState(false);
 
   useEffect(() => {
-    Promise.all([loadIntegration(), loadAiSettings(), loadProfile(), loadTimetable(), loadClasses()]).then(() =>
-      setLoading(false)
-    );
+    Promise.all([
+      loadIntegration(),
+      loadAiSettings(),
+      loadProfile(),
+      loadCurrentSchool(),
+      loadTimetable(),
+      loadClasses(),
+    ]).then(() => setLoading(false));
   }, []);
 
   async function loadIntegration() {
@@ -257,6 +273,43 @@ export default function TeacherSettingsPage() {
       }
     } catch {
       // silent — table might not exist yet
+    }
+  }
+
+  async function loadCurrentSchool() {
+    try {
+      const res = await fetch("/api/teacher/school");
+      if (!res.ok) return;
+      const data = await res.json();
+      setCurrentSchool(data.school ?? null);
+    } catch {
+      // silent — schools table may not be migrated yet in older envs
+    }
+  }
+
+  async function saveSchool(next: PickerSchool | null) {
+    setSchoolSaving(true);
+    setSchoolSaveError("");
+    setSchoolSaveMsg("");
+    try {
+      const res = await fetch("/api/teacher/school", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ schoolId: next?.id ?? null }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setSchoolSaveError(data.error || `Save failed (HTTP ${res.status})`);
+        return;
+      }
+      setCurrentSchool(next);
+      setSchoolEditing(false);
+      setSchoolSaveMsg(next ? "School updated." : "School cleared.");
+      setTimeout(() => setSchoolSaveMsg(""), 3000);
+    } catch (err) {
+      setSchoolSaveError(err instanceof Error ? err.message : "Network error");
+    } finally {
+      setSchoolSaving(false);
     }
   }
 
@@ -630,7 +683,7 @@ export default function TeacherSettingsPage() {
             </div>
           </section>
 
-          {/* Account — password change */}
+          {/* Account — school + password */}
           <section className="bg-white rounded-xl p-6 border border-border">
             <h2 className="text-lg font-semibold text-text-primary mb-1">
               Account
@@ -638,7 +691,119 @@ export default function TeacherSettingsPage() {
             <p className="text-sm text-text-secondary mb-4">
               Manage the credentials you use to sign in to StudioLoom.
             </p>
-            <div className="flex items-center justify-between gap-4 py-2">
+
+            {/* School row */}
+            <div className="py-3 border-b border-border">
+              <div className="flex items-start justify-between gap-4 mb-2">
+                <div className="min-w-0">
+                  <div className="text-sm font-medium text-text-primary">
+                    School
+                  </div>
+                  <div className="text-xs text-text-secondary">
+                    Linking your account to a school helps us suggest content
+                    shared by colleagues and keeps rostering tidy.
+                  </div>
+                </div>
+                {!schoolEditing && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSchoolEditing(true);
+                      setSchoolSaveError("");
+                      setSchoolSaveMsg("");
+                    }}
+                    className="shrink-0 text-xs font-medium text-brand-purple hover:underline"
+                  >
+                    {currentSchool ? "Change" : "Set school"}
+                  </button>
+                )}
+              </div>
+
+              {!schoolEditing && currentSchool && (
+                <div className="mt-2 px-3 py-2 bg-purple-50 border border-purple-200 rounded-lg">
+                  <div className="text-sm font-semibold text-text-primary truncate">
+                    {currentSchool.name}
+                  </div>
+                  <div className="text-xs text-gray-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
+                    <span>
+                      {[currentSchool.city, currentSchool.country]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
+                    {currentSchool.ib_programmes.length > 0 && (
+                      <span className="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded font-medium">
+                        IB {currentSchool.ib_programmes.join("/")}
+                      </span>
+                    )}
+                    {!currentSchool.verified && (
+                      <span className="px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded">
+                        user-added
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {!schoolEditing && !currentSchool && (
+                <div className="mt-2 text-xs text-gray-400 italic">
+                  Not linked to a school yet.
+                </div>
+              )}
+
+              {schoolEditing && (
+                <div className="mt-2 space-y-2">
+                  <SchoolPicker
+                    value={currentSchool}
+                    onChange={(next) => {
+                      // Save immediately on pick — picker already confirms the
+                      // chosen row and there is no second "Save" step here.
+                      saveSchool(next);
+                    }}
+                    placeholder="Start typing your school's name…"
+                    variant="compact"
+                  />
+                  <div className="flex items-center justify-between gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSchoolEditing(false);
+                        setSchoolSaveError("");
+                      }}
+                      className="text-xs text-gray-500 hover:text-gray-700 underline"
+                    >
+                      Cancel
+                    </button>
+                    {currentSchool && (
+                      <button
+                        type="button"
+                        onClick={() => saveSchool(null)}
+                        disabled={schoolSaving}
+                        className="text-xs text-red-600 hover:text-red-800 underline disabled:opacity-50"
+                      >
+                        Clear school link
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {schoolSaving && (
+                <div className="mt-2 text-xs text-gray-500">Saving…</div>
+              )}
+              {schoolSaveMsg && (
+                <div className="mt-2 text-xs text-accent-green">
+                  {schoolSaveMsg}
+                </div>
+              )}
+              {schoolSaveError && (
+                <div className="mt-2 text-xs text-red-600">
+                  {schoolSaveError}
+                </div>
+              )}
+            </div>
+
+            {/* Password row */}
+            <div className="flex items-center justify-between gap-4 pt-4">
               <div>
                 <div className="text-sm font-medium text-text-primary">
                   Password
