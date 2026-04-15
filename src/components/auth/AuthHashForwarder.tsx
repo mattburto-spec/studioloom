@@ -1,44 +1,69 @@
 /**
- * AuthHashForwarder — fallback catcher for Supabase auth hash fragments.
+ * AuthHashForwarder — fallback catcher for Supabase auth redirects.
  *
  * When the Supabase redirect URL allowlist doesn't match `redirectTo`,
- * Supabase falls back to the project's Site URL. The access token still
- * lands in the URL hash (e.g. `https://studioloom.org/#access_token=...`)
- * but without this component it just sits there — the user sees the
- * landing page and has no idea they're actually authenticated.
+ * Supabase silently falls back to the project's Site URL with the auth
+ * payload attached either:
  *
- * Mount this in the root layout. On mount it checks for `#access_token=`
- * or `#error=` in the URL and, if found, forwards to /auth/callback so
- * the real callback page can complete the sign-in (or show the error).
+ *   - URL hash:   https://studioloom.org/#access_token=...&refresh_token=...
+ *                 (implicit flow — access/refresh tokens, or error_code)
  *
- * No-op for every other URL (no hash, or hash unrelated to auth).
+ *   - Query str:  https://studioloom.org/?code=<uuid>
+ *                 (PKCE flow — exchange-code, or error)
+ *
+ * Either way the user just sees the landing page and has no idea
+ * they're mid-auth. This component mounts in the root layout, detects
+ * the fallback, and forwards to /auth/callback (preserving both query
+ * and hash) so the real callback page can complete the flow.
+ *
+ * The real fix is to add the /auth/callback URLs to Supabase's Redirect
+ * URL allowlist — this forwarder is a belt-and-braces safety net.
+ *
+ * No-op for every other URL (no hash + no code, or already on the
+ * callback route).
  */
 
 "use client";
 
 import { useEffect } from "react";
 
+// Supabase PKCE codes are UUID-format. Restrict forwarding to real
+// auth codes so we don't hijack unrelated `?code=` params on other
+// pages in the future.
+const PKCE_CODE_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export default function AuthHashForwarder() {
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const hash = window.location.hash;
-    if (!hash || hash.length < 2) return;
 
-    const h = hash.slice(1); // drop leading '#'
-    const looksLikeAuth =
+    // Don't loop if we're already on /auth/callback.
+    if (window.location.pathname.startsWith("/auth/callback")) return;
+
+    const hash = window.location.hash;
+    const search = window.location.search;
+
+    // --- Hash check: implicit flow fallback -----------------------------
+    const h = hash.length >= 2 ? hash.slice(1) : "";
+    const hashLooksLikeAuth =
       h.includes("access_token=") ||
       h.includes("refresh_token=") ||
       h.includes("error_code=") ||
       h.includes("error_description=") ||
       h.startsWith("error=");
 
-    if (!looksLikeAuth) return;
+    // --- Query check: PKCE flow fallback --------------------------------
+    const params = new URLSearchParams(search);
+    const code = params.get("code");
+    const err = params.get("error") || params.get("error_code");
+    const queryLooksLikeAuth =
+      (code !== null && PKCE_CODE_RE.test(code)) || err !== null;
 
-    // Don't loop if we're already on /auth/callback.
-    if (window.location.pathname.startsWith("/auth/callback")) return;
+    if (!hashLooksLikeAuth && !queryLooksLikeAuth) return;
 
-    // Preserve the hash so /auth/callback can parse it.
-    window.location.replace(`/auth/callback${window.location.search}${hash}`);
+    // Preserve both the query string and hash — the callback page reads
+    // from either source depending on which Supabase flow was used.
+    window.location.replace(`/auth/callback${search}${hash}`);
   }, []);
 
   return null;
