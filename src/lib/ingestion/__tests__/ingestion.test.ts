@@ -307,6 +307,10 @@ describe("extractBlocks", () => {
           time_weight: "quick",
           grouping: "individual",
           phase: "evaluate",
+          // Empty activity_category = "no signal" — the filter widening
+          // (15 Apr 2026) only catches sections with a TRUTHY
+          // activity_category, so this stays excluded.
+          activity_category: "",
           materials: [],
         },
       ],
