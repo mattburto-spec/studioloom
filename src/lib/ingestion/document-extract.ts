@@ -51,15 +51,88 @@ export async function extractFromPDF(
   });
   const doc = await loadingTask.promise;
 
+  // ── Position-aware text extraction ──
+  // Extract text items WITH positional data (transform[4]=x, transform[5]=y).
+  // This lets us reconstruct line breaks from vertical gaps and detect when
+  // text items are on the same line vs different lines — critical for PDFs
+  // where pdfjs-dist returns items without natural newlines.
   const pageTexts: string[] = [];
   for (let i = 1; i <= doc.numPages; i++) {
     const page = await doc.getPage(i);
     const content = await page.getTextContent();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const pageText = content.items.map((item: any) => item.str).join(" ");
-    pageTexts.push(pageText);
+    const items: Array<{ str: string; transform: number[]; height: number }> = content.items
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .filter((item: any) => item.str && item.str.trim().length > 0)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((item: any) => ({
+        str: item.str,
+        transform: item.transform || [1, 0, 0, 1, 0, 0],
+        height: item.height || Math.abs(item.transform?.[3] || 12),
+      }));
+
+    if (items.length === 0) {
+      pageTexts.push("");
+      continue;
+    }
+
+    // Sort items by Y position (descending — PDF Y goes bottom-up) then X
+    items.sort((a, b) => {
+      const dy = b.transform[5] - a.transform[5];
+      if (Math.abs(dy) > 3) return dy; // Different lines
+      return a.transform[4] - b.transform[4]; // Same line, left to right
+    });
+
+    // Group into lines by Y proximity, insert newlines between lines
+    // and double-newlines for large vertical gaps (paragraph breaks)
+    const lines: string[] = [];
+    let currentLine: string[] = [];
+    let lastY = items[0].transform[5];
+    const avgHeight = items.reduce((s, it) => s + it.height, 0) / items.length || 12;
+
+    for (const item of items) {
+      const y = item.transform[5];
+      const gap = lastY - y; // Positive = moved down
+
+      if (gap > avgHeight * 1.8) {
+        // Large gap → paragraph break
+        if (currentLine.length > 0) {
+          lines.push(currentLine.join(" "));
+          currentLine = [];
+        }
+        lines.push(""); // Empty line = paragraph break
+      } else if (gap > avgHeight * 0.5 && currentLine.length > 0) {
+        // Normal line break
+        lines.push(currentLine.join(" "));
+        currentLine = [];
+      }
+
+      currentLine.push(item.str);
+      lastY = y;
+    }
+    if (currentLine.length > 0) lines.push(currentLine.join(" "));
+
+    pageTexts.push(lines.join("\n"));
   }
+
   const text = pageTexts.join("\n\n");
+
+  // ── Scanned PDF detection ──
+  // If pages have very little extractable text, the PDF is likely scanned
+  // (image-only). Flag it — proper OCR needs Tesseract or a cloud service.
+  const avgCharsPerPage = text.length / Math.max(doc.numPages, 1);
+  const isLikelyScanned = avgCharsPerPage < 50 && doc.numPages > 0;
+
+  if (isLikelyScanned) {
+    const scanNotice =
+      `[This PDF appears to be scanned (${Math.round(avgCharsPerPage)} chars/page average). ` +
+      `Text extraction is limited. For best results, use a text-based PDF or DOCX.]`;
+    return {
+      title: filename.replace(/\.[^.]+$/, ""),
+      sections: [{ heading: "Scanned Document", content: scanNotice + "\n\n" + text.trim() }],
+      rawText: text,
+    };
+  }
 
   // Split by double newlines to approximate sections
   const paragraphs = text
