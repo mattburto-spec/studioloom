@@ -203,7 +203,7 @@ async function runPassA(
   }
 
   const modelId = config.modelOverride || DEFAULT_MODEL;
-  const client = new Anthropic({ apiKey: config.apiKey, maxRetries: 2 });
+  const client = new Anthropic({ apiKey: config.apiKey, maxRetries: 4 });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const correctionContext = (config as any)._correctionContext as string | undefined;
   const prompt = buildClassificationPrompt(input, correctionContext);

@@ -194,7 +194,7 @@ export async function moderateContent(
     ? buildImageContent(input, mimeType || "image/jpeg", context)
     : buildTextContent(input as string, context);
 
-  const client = new Anthropic({ apiKey, maxRetries: 2 });
+  const client = new Anthropic({ apiKey, maxRetries: 4 });
 
   try {
     // NOTE: tool_choice + thinking cannot coexist (CLAUDE.md constraint).

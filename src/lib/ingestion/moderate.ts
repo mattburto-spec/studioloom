@@ -156,7 +156,7 @@ export async function moderateExtractedBlocks(
   }
 
   const modelId = config.modelOverride || DEFAULT_MODEL;
-  const client = new Anthropic({ apiKey: config.apiKey, maxRetries: 2 });
+  const client = new Anthropic({ apiKey: config.apiKey, maxRetries: 4 });
 
   const batchText = blocks.map(renderBlockForModeration).join("\n\n---\n\n");
   const prompt = `You are moderating candidate educational activities before they reach a teacher's review queue. For each block below, decide whether it is safe and age-appropriate for a K-12 classroom, OR whether a teacher should review it first.

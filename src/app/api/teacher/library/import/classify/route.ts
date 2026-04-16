@@ -175,13 +175,25 @@ export async function POST(request: NextRequest) {
   } catch (e) {
     // Outermost catch — guarantees JSON response for ANY error
     console.error("[library/import/classify] Unhandled error:", e);
+
+    // Detect Anthropic API overload (529) and rate limit (429) for user-friendly messages
+    const errMsg = e instanceof Error ? e.message : String(e);
+    const isOverloaded = errMsg.includes("overloaded") || errMsg.includes("Overloaded") || errMsg.includes("529");
+    const isRateLimit = errMsg.includes("rate_limit") || errMsg.includes("429");
+
+    const userMessage = isOverloaded
+      ? "The AI service is temporarily overloaded. Please wait a moment and try again."
+      : isRateLimit
+        ? "Rate limit reached. Please wait a minute and try again."
+        : errMsg;
+
     return NextResponse.json(
       {
         error: "Classification failed",
-        message: e instanceof Error ? e.message : "Unknown error",
-        stack: process.env.NODE_ENV === "development" ? (e instanceof Error ? e.stack : undefined) : undefined,
+        message: userMessage,
+        retryable: isOverloaded || isRateLimit,
       },
-      { status: 500 }
+      { status: isOverloaded ? 503 : isRateLimit ? 429 : 500 }
     );
   }
 }

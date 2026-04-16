@@ -231,6 +231,7 @@ export default function LibraryLandingPage() {
   const [correctionStored, setCorrectionStored] = useState(false);
   const [copyright] = useState<"own" | "copyrighted" | "creative_commons" | "unknown">("own");
   const importInputRef = useRef<HTMLInputElement>(null);
+  const lastImportFileRef = useRef<File | null>(null);
 
   // helpers
   const markComplete = (stage: ImportStage) =>
@@ -297,7 +298,8 @@ export default function LibraryLandingPage() {
       return;
     }
 
-    // Reset state
+    // Reset state + store file ref for retry
+    lastImportFileRef.current = file;
     setImportFileName(file.name);
     setImportError(null);
     setClassifyResult(null);
@@ -457,6 +459,13 @@ export default function LibraryLandingPage() {
     setImportFileName(null);
     setCompletedStages(new Set());
     setCorrectionStored(false);
+  }, []);
+
+  // ── Retry with same file ──
+  const handleRetry = useCallback(() => {
+    const file = lastImportFileRef.current;
+    if (file) handleImportFile(file);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Drag / drop helpers ──
@@ -630,12 +639,22 @@ export default function LibraryLandingPage() {
               <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">
                 <p className="font-medium">Import failed</p>
                 <p className="text-xs mt-1">{importError}</p>
-                <button
-                  onClick={handleReject}
-                  className="mt-2 text-xs font-medium text-red-600 hover:text-red-800 underline"
-                >
-                  Start over
-                </button>
+                <div className="flex items-center gap-3 mt-2">
+                  {lastImportFileRef.current && (
+                    <button
+                      onClick={handleRetry}
+                      className="px-3 py-1 text-xs font-semibold text-white bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors"
+                    >
+                      Retry
+                    </button>
+                  )}
+                  <button
+                    onClick={handleReject}
+                    className="text-xs font-medium text-red-600 hover:text-red-800 underline"
+                  >
+                    Start over
+                  </button>
+                </div>
               </div>
             )}
 
