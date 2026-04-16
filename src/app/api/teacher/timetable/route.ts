@@ -276,4 +276,60 @@ async function POST(request: NextRequest) {
   }
 }
 
-export { GET, POST };
+// ─────────────────────────────────────────────────────────────
+// PATCH /api/teacher/timetable
+// Targeted field-level update — unlike POST, does NOT replace
+// meetings or overwrite unmentioned config fields.
+// Used by onboarding calibrate step to add iCal URL after
+// timetable was already created from photo upload.
+//
+// Body: partial { ical_url, excluded_dates, anchor_cycle_day, source }
+// ─────────────────────────────────────────────────────────────
+
+async function PATCH(request: NextRequest) {
+  const auth = await requireTeacherAuth(request);
+  if (auth.error) return auth.error;
+
+  try {
+    const body = await request.json();
+    const supabase = createAdminClient();
+
+    // Build update object from allowed fields only
+    const updates: Record<string, unknown> = {};
+    if (body.ical_url !== undefined) updates.ical_url = body.ical_url;
+    if (body.excluded_dates !== undefined) updates.excluded_dates = body.excluded_dates;
+    if (body.anchor_cycle_day !== undefined) updates.anchor_cycle_day = body.anchor_cycle_day;
+    if (body.anchor_date !== undefined) updates.anchor_date = body.anchor_date;
+    if (body.source !== undefined) updates.source = body.source;
+
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json(
+        { error: "No updates provided" },
+        { status: 400 }
+      );
+    }
+
+    const { error: updateErr } = await supabase
+      .from("school_timetable")
+      .update(updates)
+      .eq("teacher_id", auth.teacherId);
+
+    if (updateErr) {
+      console.error("[timetable PATCH] error:", updateErr);
+      return NextResponse.json(
+        { error: "Failed to update timetable" },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    console.error("[timetable PATCH]", err);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
+export { GET, POST, PATCH };

@@ -8,11 +8,14 @@
  * redirect (in `src/app/teacher/layout.tsx`) pushes everyone with a NULL
  * `teachers.onboarded_at` to this route. Migration 083 adds that column.
  *
- * 5 steps (timetable-first flow):
+ * 5 visual steps (timetable-first flow, up to 6 logical steps):
  *   1. About you — name + school picker.
- *   2. Your timetable — upload photo (AI parse) or skip.
+ *   2. Your timetable — upload photo (AI parse), paste iCal link, or skip.
  *   3. Your classes — from timetable (editable list + frameworks) OR manual
  *      create-first-class if timetable was skipped.
+ *   3b. Calibrate (photo path only) — optional calendar link to keep
+ *      schedule synced with holidays/cycle days. Skippable to Settings.
+ *      iCal path auto-skips this step since they already have a link.
  *   4. Add students — roster paste for one class. Skippable.
  *   5. You're ready — class codes + printable student list + starter CTAs.
  *      "Go to dashboard" marks onboarded.
@@ -23,14 +26,14 @@
  * `/api/teacher/welcome/complete` call.
  */
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { parseRosterFile } from "@/lib/roster/parse-csv";
 import { SchoolPicker, type PickerSchool } from "@/components/schools/SchoolPicker";
 
-type Step = "name" | "timetable" | "classes" | "roster" | "credentials";
+type Step = "name" | "timetable" | "classes" | "calibrate" | "roster" | "credentials";
 
 interface CreatedClass {
   classId: string;
@@ -117,6 +120,7 @@ export default function TeacherWelcomePage() {
   const [timetableUploading, setTimetableUploading] = useState(false);
   const [parseResult, setParseResult] = useState<TimetableParseResult | null>(null);
   const timetableFileRef = useRef<HTMLInputElement>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
   // iCal path
   const [icalUrl, setIcalUrl] = useState("");
   const [icalLoading, setIcalLoading] = useState(false);
@@ -126,7 +130,6 @@ export default function TeacherWelcomePage() {
 
   // Classes (step 3 — from timetable OR manual)
   const [detectedClasses, setDetectedClasses] = useState<DetectedClass[]>([]);
-  const [anchorCycleDay, setAnchorCycleDay] = useState(1);
   const [createdClasses, setCreatedClasses] = useState<CreatedClass[]>([]);
   // Manual fallback (when timetable skipped)
   const [className, setClassName] = useState("");
@@ -202,6 +205,58 @@ export default function TeacherWelcomePage() {
     }
     load();
   }, [router]);
+
+  // ---------------------------------------------------------------------
+  // Simulated progress for timetable upload (~50s AI processing)
+  // Curve: fast start → steady middle → slow crawl → jumps to 100 on finish
+  // ---------------------------------------------------------------------
+  useEffect(() => {
+    if (!timetableUploading) {
+      // When done (success or error), snap to 100 briefly then reset
+      if (uploadProgress > 0 && uploadProgress < 100) {
+        setUploadProgress(100);
+        const reset = setTimeout(() => setUploadProgress(0), 600);
+        return () => clearTimeout(reset);
+      }
+      return;
+    }
+
+    setUploadProgress(0);
+    const start = Date.now();
+    const interval = setInterval(() => {
+      const elapsed = (Date.now() - start) / 1000; // seconds
+      let pct: number;
+      if (elapsed < 5) {
+        // 0–5s: fast ramp to 15% (immediate feedback)
+        pct = (elapsed / 5) * 15;
+      } else if (elapsed < 15) {
+        // 5–15s: steady to 40%
+        pct = 15 + ((elapsed - 5) / 10) * 25;
+      } else if (elapsed < 30) {
+        // 15–30s: moderate to 65%
+        pct = 40 + ((elapsed - 15) / 15) * 25;
+      } else if (elapsed < 50) {
+        // 30–50s: slow crawl to 85%
+        pct = 65 + ((elapsed - 30) / 20) * 20;
+      } else {
+        // 50s+: inch toward 92% max (never hits 100 on its own)
+        pct = Math.min(92, 85 + (elapsed - 50) * 0.3);
+      }
+      setUploadProgress(Math.round(pct));
+    }, 300);
+
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timetableUploading]);
+
+  const uploadStageLabel = useCallback((pct: number) => {
+    if (pct < 10) return "Uploading image...";
+    if (pct < 30) return "Reading timetable structure...";
+    if (pct < 55) return "Detecting classes and periods...";
+    if (pct < 75) return "Identifying teaching slots...";
+    if (pct < 90) return "Building your schedule...";
+    return "Almost there...";
+  }, []);
 
   // ---------------------------------------------------------------------
   // Step 2: Timetable upload
@@ -380,7 +435,6 @@ export default function TeacherWelcomePage() {
             cycle_length: parseResult.cycle_length,
             periods: parseResult.periods,
             entries: parseResult.entries,
-            anchor_cycle_day: anchorCycleDay,
             ...(icalUrl.trim() && { ical_url: icalUrl.trim() }),
             ...(icalHolidays.length > 0 && {
               excluded_dates: icalHolidays.map((h) => h.date),
@@ -394,7 +448,9 @@ export default function TeacherWelcomePage() {
         return;
       }
       setCreatedClasses(data.classes || []);
-      setStep("roster");
+      // iCal users already have a calendar link — skip calibration.
+      // Photo users need a nudge to add one for proper schedule sync.
+      setStep(timetableMethod === "ical" ? "roster" : "calibrate");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error");
     } finally {
@@ -599,7 +655,7 @@ export default function TeacherWelcomePage() {
       ? 1
       : step === "timetable"
         ? 2
-        : step === "classes"
+        : step === "classes" || step === "calibrate"
           ? 3
           : step === "roster"
             ? 4
@@ -844,12 +900,28 @@ export default function TeacherWelcomePage() {
               <>
                 {timetableUploading ? (
                   <div className="flex flex-col items-center gap-3 py-10">
-                    <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
-                    <span className="text-sm text-purple-700 font-medium">
-                      Reading your timetable...
-                    </span>
-                    <span className="text-[11px] text-gray-400">
-                      This can take up to a minute for complex timetables
+                    {/* Progress bar */}
+                    <div className="w-full max-w-xs">
+                      <div className="h-2 rounded-full bg-purple-100 overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all duration-500 ease-out"
+                          style={{
+                            width: `${uploadProgress}%`,
+                            background: "linear-gradient(90deg, #7B2FF2, #A855F7)",
+                          }}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between mt-2">
+                        <span className="text-sm text-purple-700 font-medium">
+                          {uploadStageLabel(uploadProgress)}
+                        </span>
+                        <span className="text-xs text-purple-400 font-mono tabular-nums">
+                          {uploadProgress}%
+                        </span>
+                      </div>
+                    </div>
+                    <span className="text-[11px] text-gray-400 mt-1">
+                      AI is reading your timetable — this usually takes 30–60 seconds
                     </span>
                   </div>
                 ) : (
@@ -1110,54 +1182,6 @@ export default function TeacherWelcomePage() {
                   </div>
                 )}
 
-                {/* Cycle day calibration */}
-                <div className="rounded-xl border border-blue-100 bg-blue-50/50 px-4 py-3">
-                  <label className="block text-xs font-semibold text-gray-700 mb-1.5">
-                    One last thing — what day of the cycle is today?
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-600">Today is Day</span>
-                    <select
-                      value={anchorCycleDay}
-                      onChange={(e) =>
-                        setAnchorCycleDay(Number(e.target.value))
-                      }
-                      className="border border-blue-200 rounded-lg px-2.5 py-1.5 text-sm font-semibold bg-white w-16 text-center"
-                    >
-                      {Array.from(
-                        { length: parseResult.cycle_length },
-                        (_, i) => (
-                          <option key={i + 1} value={i + 1}>
-                            {i + 1}
-                          </option>
-                        )
-                      )}
-                    </select>
-                    <span className="text-sm text-gray-600">
-                      of your {parseResult.cycle_length}-day cycle
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-gray-400 mt-1.5">
-                    This ensures your dashboard shows the right classes each
-                    day. You can change this anytime in Settings.
-                  </p>
-                </div>
-
-                {/* iCal nudge — only show if they used photo upload (no calendar link) */}
-                {timetableMethod === "photo" && (
-                  <div className="rounded-lg bg-amber-50/60 border border-amber-100 px-4 py-3">
-                    <p className="text-[11px] text-amber-700 font-medium">
-                      Want your schedule to stay in sync with holidays and
-                      schedule changes automatically?
-                    </p>
-                    <p className="text-[11px] text-gray-500 mt-0.5">
-                      You can add a calendar link (iCal) later in{" "}
-                      <span className="font-medium">Settings &rarr; Timetable</span>{" "}
-                      to import holidays and keep everything up to date.
-                    </p>
-                  </div>
-                )}
-
                 <div className="flex items-center gap-3 pt-1">
                   {detectedClasses.length > 0 && (
                     <button
@@ -1309,6 +1333,171 @@ export default function TeacherWelcomePage() {
                   setError(null);
                   setTimetableMethod(null);
                   setStep("timetable");
+                }}
+                className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                Back
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ============================================================= */}
+        {/* Step 3b: Calibrate schedule (timetable-photo path only)        */}
+        {/* ============================================================= */}
+        {step === "calibrate" && timetableMethod !== "ical" && createdClasses.length > 0 && (
+          <div className="bg-white rounded-2xl p-6 border border-border shadow-sm space-y-5">
+            {/* Success banner */}
+            <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-2.5 text-sm text-green-800">
+              <span className="font-semibold">
+                {createdClasses.length === 1
+                  ? `${createdClasses[0].className} created`
+                  : `${createdClasses.length} classes created`}
+              </span>
+              {" from your timetable \u2014 nice!"}
+            </div>
+
+            <div>
+              <h2 className="text-lg font-bold text-gray-900 mb-1">
+                Want to keep your schedule synced?
+              </h2>
+              <p className="text-sm text-gray-500">
+                Your timetable photo gave us your class structure. A calendar
+                link keeps holidays, schedule changes, and cycle days accurate
+                automatically.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3">
+              <button
+                onClick={() => {
+                  setTimetableMethod("ical");
+                }}
+                className="group text-left rounded-xl border-2 border-blue-200 hover:border-blue-400 p-4 transition-all hover:shadow-md"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center group-hover:bg-blue-100 transition-colors shrink-0">
+                    <CalendarLinkIcon />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-gray-900">
+                        Add a calendar link
+                      </span>
+                      <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full uppercase tracking-wide">
+                        Recommended
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Paste an iCal link from Outlook, Google Calendar, or
+                      ManageBac. Holidays sync automatically.
+                    </p>
+                  </div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => setStep("roster")}
+                className="group text-left rounded-xl border-2 border-gray-100 hover:border-gray-200 p-4 transition-all"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-gray-50 flex items-center justify-center group-hover:bg-gray-100 transition-colors shrink-0">
+                    <SkipIcon />
+                  </div>
+                  <div>
+                    <span className="text-sm font-medium text-gray-600">
+                      I&apos;ll do this later in Settings
+                    </span>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      You can set up calendar sync, cycle day alignment, and
+                      holidays anytime from Settings &rarr; Timetable.
+                    </p>
+                  </div>
+                </div>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Calibrate step — iCal input (shown when they chose "Add a calendar link") */}
+        {step === "calibrate" && timetableMethod === "ical" && createdClasses.length > 0 && (
+          <div className="bg-white rounded-2xl p-6 border border-border shadow-sm space-y-5">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 mb-1">
+                Paste your calendar link
+              </h3>
+              <p className="text-[11px] text-gray-500">
+                Look for &quot;Subscribe to calendar&quot; or &quot;Share
+                calendar link&quot; in your school&apos;s calendar app. The
+                URL usually ends in <code>.ics</code>
+              </p>
+            </div>
+
+            <input
+              type="url"
+              value={icalUrl}
+              onChange={(e) => setIcalUrl(e.target.value)}
+              placeholder="https://outlook.office365.com/owa/calendar/..."
+              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all text-sm font-mono"
+              autoFocus
+            />
+
+            {icalHolidays.length > 0 && (
+              <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-2.5 text-sm text-green-800">
+                <span className="font-semibold">Calendar linked</span>
+                {" \u2014 "}{icalHolidays.length} holiday{icalHolidays.length !== 1 ? "s" : ""} imported.
+                Your schedule will stay synced automatically.
+              </div>
+            )}
+
+            <div className="flex items-center gap-3">
+              {icalHolidays.length > 0 ? (
+                <button
+                  onClick={() => {
+                    // Save the iCal URL + holidays to the existing timetable
+                    fetch("/api/teacher/timetable", {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        ical_url: icalUrl.trim(),
+                        excluded_dates: icalHolidays.map((h) => h.date),
+                        source: "ical",
+                      }),
+                    }).catch(() => {});
+                    setStep("roster");
+                  }}
+                  className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-bold text-white rounded-xl transition-all duration-200 hover:scale-[1.02] hover:shadow-lg active:scale-[0.98]"
+                  style={{
+                    background: "linear-gradient(135deg, #7B2FF2, #5C16C5)",
+                    boxShadow: "0 4px 14px rgba(123, 47, 242, 0.3)",
+                  }}
+                >
+                  Continue
+                  <ArrowRight />
+                </button>
+              ) : (
+                <button
+                  onClick={async () => {
+                    // Import iCal and save to existing timetable
+                    await handleIcalImport();
+                  }}
+                  disabled={icalLoading || !icalUrl.trim()}
+                  className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-bold text-white rounded-xl transition-all duration-200 hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] disabled:opacity-50 disabled:hover:scale-100"
+                  style={{
+                    background: "linear-gradient(135deg, #3B82F6, #2563EB)",
+                    boxShadow: "0 4px 14px rgba(59, 130, 246, 0.3)",
+                  }}
+                >
+                  {icalLoading ? "Importing..." : "Import calendar"}
+                  {!icalLoading && <ArrowRight />}
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  setTimetableMethod("photo"); // Reset back to photo so choice cards show
+                  setIcalUrl("");
+                  setIcalHolidays([]);
+                  setError(null);
                 }}
                 className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
               >
