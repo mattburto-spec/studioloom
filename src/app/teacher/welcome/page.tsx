@@ -111,12 +111,22 @@ export default function TeacherWelcomePage() {
   const [selectedSchool, setSelectedSchool] = useState<PickerSchool | null>(null);
 
   // Timetable (step 2)
+  const [timetableMethod, setTimetableMethod] = useState<
+    null | "photo" | "ical" | "skip"
+  >(null);
   const [timetableUploading, setTimetableUploading] = useState(false);
   const [parseResult, setParseResult] = useState<TimetableParseResult | null>(null);
   const timetableFileRef = useRef<HTMLInputElement>(null);
+  // iCal path
+  const [icalUrl, setIcalUrl] = useState("");
+  const [icalLoading, setIcalLoading] = useState(false);
+  const [icalHolidays, setIcalHolidays] = useState<
+    Array<{ date: string; label: string }>
+  >([]);
 
   // Classes (step 3 — from timetable OR manual)
   const [detectedClasses, setDetectedClasses] = useState<DetectedClass[]>([]);
+  const [anchorCycleDay, setAnchorCycleDay] = useState(1);
   const [createdClasses, setCreatedClasses] = useState<CreatedClass[]>([]);
   // Manual fallback (when timetable skipped)
   const [className, setClassName] = useState("");
@@ -240,6 +250,105 @@ export default function TeacherWelcomePage() {
   }
 
   // ---------------------------------------------------------------------
+  // Step 2b: iCal import
+  // ---------------------------------------------------------------------
+
+  async function handleIcalImport() {
+    if (!icalUrl.trim()) {
+      setError("Paste your calendar link first.");
+      return;
+    }
+    setError(null);
+    setIcalLoading(true);
+
+    try {
+      const res = await fetch("/api/teacher/timetable/import-ical", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ical_url: icalUrl.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Calendar import failed");
+        return;
+      }
+
+      // Store holidays for later use
+      setIcalHolidays(data.holidayDetails || []);
+
+      // The iCal import doesn't give us cycle_length / entries in the same
+      // format as the AI parser. It gives us matched meetings + holidays.
+      // For now, we store what we can and let the teacher proceed.
+      // If we got cycleDayEvents, we can infer cycle_length.
+      const cycleDayMarkers = data.cycleDayEvents || [];
+      const inferredCycleLength = cycleDayMarkers.length > 0
+        ? Math.max(...cycleDayMarkers.map((m: { day: number }) => m.day))
+        : 0;
+
+      // Build a minimal parseResult so the rest of the flow works
+      // (the class list UI checks parseResult)
+      if (data.meetings?.length > 0 || inferredCycleLength > 0) {
+        // Extract unique class names from matched meetings
+        const classNames = new Map<string, number>();
+        for (const m of data.meetings || []) {
+          const key = m.className || m.class_name;
+          if (key) classNames.set(key, (classNames.get(key) || 0) + 1);
+        }
+
+        const detClasses: DetectedClass[] = Array.from(classNames.entries()).map(
+          ([name, count]) => ({
+            name,
+            originalName: name,
+            grade: "",
+            occurrences: count,
+            is_teaching: true,
+            framework: "IB_MYP",
+            include: true,
+          })
+        );
+
+        if (detClasses.length > 0) {
+          setDetectedClasses(detClasses);
+        }
+
+        setParseResult({
+          cycle_length: inferredCycleLength || 5, // default 5-day week if unknown
+          periods: [],
+          entries: (data.meetings || []).map(
+            (m: { day?: number; period?: number; className?: string; class_name?: string; room?: string }) => ({
+              day: m.day || 1,
+              period: m.period || 1,
+              class_name: m.className || m.class_name || "",
+              grade_level: "",
+              room: m.room || "",
+              is_teaching: true,
+              classification: "teaching",
+              classification_reason: "From calendar",
+            })
+          ),
+          detected_classes: [],
+          ai_notes: `Imported from calendar. ${data.totalEvents || 0} events found, ${data.excludedDates?.length || 0} holidays detected.`,
+        });
+      } else {
+        // No meetings matched — calendar may not have class-level events.
+        // Still useful for holidays/excluded dates.
+        setError(
+          `We found ${data.totalEvents || 0} events but couldn't match any to classes. ` +
+          `This calendar might only have holidays — those will be saved. ` +
+          `You can add classes manually in the next step.`
+        );
+        if (data.excludedDates?.length > 0) {
+          setIcalHolidays(data.holidayDetails || []);
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Calendar import failed");
+    } finally {
+      setIcalLoading(false);
+    }
+  }
+
+  // ---------------------------------------------------------------------
   // Step 3: Create classes (from timetable or manual)
   // ---------------------------------------------------------------------
 
@@ -271,6 +380,11 @@ export default function TeacherWelcomePage() {
             cycle_length: parseResult.cycle_length,
             periods: parseResult.periods,
             entries: parseResult.entries,
+            anchor_cycle_day: anchorCycleDay,
+            ...(icalUrl.trim() && { ical_url: icalUrl.trim() }),
+            ...(icalHolidays.length > 0 && {
+              excluded_dates: icalHolidays.map((h) => h.date),
+            }),
           },
         }),
       });
@@ -519,8 +633,8 @@ export default function TeacherWelcomePage() {
               Welcome to StudioLoom{name ? `, ${name.split(" ")[0]}` : ""}
             </h1>
             <p className="text-white/80 text-sm max-w-xl">
-              Five quick steps and you&apos;ll be ready to teach. You can change
-              anything later from Settings.
+              A few quick questions and you&apos;ll be ready to teach. You can
+              change anything later.
             </p>
             <div className="flex items-center gap-2 mt-3">
               {[1, 2, 3, 4, 5].map((n) => (
@@ -543,40 +657,46 @@ export default function TeacherWelcomePage() {
         {/* Step 1: About you (name + school)                             */}
         {/* ============================================================= */}
         {step === "name" && (
-          <div className="bg-white rounded-2xl p-6 border border-border shadow-sm">
-            <h2 className="text-lg font-bold text-gray-900 mb-1">About you</h2>
-            <p className="text-sm text-gray-500 mb-5">
-              Your name is shown on dashboards and gradebooks. Your school is
-              optional — we&apos;ll use it to connect you with co-teachers later.
-            </p>
+          <div className="bg-white rounded-2xl p-6 border border-border shadow-sm space-y-5">
+            <div>
+              <h2 className="text-lg font-bold text-gray-900 mb-1">
+                What should we call you?
+              </h2>
+              <p className="text-sm text-gray-500">
+                This appears on your dashboard, gradebooks, and anywhere
+                students see your name.
+              </p>
+            </div>
 
-            <label className="block text-xs font-semibold text-gray-500 mb-1.5">
-              Your name
-            </label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Ms Burton"
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-400 transition-all text-sm mb-5"
+              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-400 transition-all text-sm"
               autoFocus
             />
 
-            <label className="block text-xs font-semibold text-gray-500 mb-1.5">
-              Your school <span className="text-gray-400 font-normal">(optional)</span>
-            </label>
-            <SchoolPicker
-              value={selectedSchool}
-              onChange={setSelectedSchool}
-              placeholder="Start typing your school's name..."
-            />
-            <p className="text-[11px] text-gray-400 mt-1.5 leading-snug">
-              Can&apos;t find yours? Pick &ldquo;Add it&rdquo; at the bottom of the
-              list — we&apos;ll verify and share it with other teachers at your
-              school.
-            </p>
+            {/* School appears once they've typed a name — progressive disclosure */}
+            {name.trim().length > 0 && (
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1.5">
+                  Which school are you at?{" "}
+                  <span className="text-gray-400 font-normal">(optional)</span>
+                </label>
+                <SchoolPicker
+                  value={selectedSchool}
+                  onChange={setSelectedSchool}
+                  placeholder="Start typing your school's name..."
+                />
+                <p className="text-[11px] text-gray-400 mt-1.5 leading-snug">
+                  This helps connect you with co-teachers later. Can&apos;t find
+                  yours? Pick &ldquo;Add it&rdquo; at the bottom.
+                </p>
+              </div>
+            )}
 
-            <div className="flex items-center gap-3 mt-6">
+            <div className="flex items-center gap-3">
               <button
                 onClick={() => {
                   if (!name.trim()) {
@@ -586,7 +706,8 @@ export default function TeacherWelcomePage() {
                   setError(null);
                   setStep("timetable");
                 }}
-                className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-bold text-white rounded-xl transition-all duration-200 hover:scale-[1.02] hover:shadow-lg active:scale-[0.98]"
+                disabled={!name.trim()}
+                className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-bold text-white rounded-xl transition-all duration-200 hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] disabled:opacity-50 disabled:hover:scale-100"
                 style={{
                   background: "linear-gradient(135deg, #7B2FF2, #5C16C5)",
                   boxShadow: "0 4px 14px rgba(123, 47, 242, 0.3)",
@@ -600,21 +721,10 @@ export default function TeacherWelcomePage() {
         )}
 
         {/* ============================================================= */}
-        {/* Step 2: Your timetable (upload photo or skip)                  */}
+        {/* Step 2: Your timetable — conversational branching flow         */}
         {/* ============================================================= */}
         {step === "timetable" && (
           <div className="bg-white rounded-2xl p-6 border border-border shadow-sm space-y-5">
-            <div>
-              <h2 className="text-lg font-bold text-gray-900 mb-1">
-                Your timetable
-              </h2>
-              <p className="text-sm text-gray-500">
-                Your timetable powers lesson scheduling, due dates, and your
-                daily class view. Upload it now and we&apos;ll create your
-                classes from it automatically.
-              </p>
-            </div>
-
             <input
               ref={timetableFileRef}
               type="file"
@@ -623,16 +733,118 @@ export default function TeacherWelcomePage() {
               className="hidden"
             />
 
-            {!parseResult ? (
-              <div
-                onClick={() =>
-                  !timetableUploading && timetableFileRef.current?.click()
-                }
-                className="border-2 border-dashed border-purple-200 rounded-xl p-10 text-center cursor-pointer hover:border-purple-400 hover:bg-purple-50/30 transition-all"
-              >
+            {/* ── Phase 1: Method choice (no result yet) ── */}
+            {!parseResult && !timetableMethod && (
+              <>
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900 mb-1">
+                    Let&apos;s set up your schedule
+                  </h2>
+                  <p className="text-sm text-gray-500">
+                    This powers your daily class view, lesson scheduling, and
+                    due dates. How would you like to get started?
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3">
+                  <button
+                    onClick={() => {
+                      setTimetableMethod("photo");
+                      timetableFileRef.current?.click();
+                    }}
+                    disabled={timetableUploading}
+                    className="group text-left rounded-xl border-2 border-purple-200 hover:border-purple-400 p-4 transition-all hover:shadow-md"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div
+                        className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
+                        style={{
+                          background:
+                            "linear-gradient(135deg, #7B2FF2, #5C16C5)",
+                        }}
+                      >
+                        <CameraIcon white />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold text-gray-900">
+                            Upload a photo of my timetable
+                          </span>
+                          <span className="text-[10px] font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full uppercase tracking-wide">
+                            Fastest
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          Snap a photo or screenshot. AI reads it and creates
+                          your classes automatically.
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => setTimetableMethod("ical")}
+                    className="group text-left rounded-xl border-2 border-gray-200 hover:border-blue-300 p-4 transition-all hover:shadow-md"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center group-hover:bg-blue-100 transition-colors shrink-0">
+                        <CalendarLinkIcon />
+                      </div>
+                      <div>
+                        <span className="text-sm font-bold text-gray-900">
+                          Paste a calendar link
+                        </span>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          Got an iCal or Outlook calendar URL? We&apos;ll
+                          import holidays and keep your schedule synced.
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setTimetableMethod("skip");
+                      setError(null);
+                      setStep("classes");
+                    }}
+                    className="group text-left rounded-xl border-2 border-gray-100 hover:border-gray-200 p-4 transition-all"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-gray-50 flex items-center justify-center group-hover:bg-gray-100 transition-colors shrink-0">
+                        <SkipIcon />
+                      </div>
+                      <div>
+                        <span className="text-sm font-medium text-gray-600">
+                          I&apos;ll set this up later
+                        </span>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          You can always add your timetable from Settings.
+                          You&apos;ll create classes manually next.
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+
+                <button
+                  onClick={() => {
+                    setError(null);
+                    setStep("name");
+                  }}
+                  className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  Back
+                </button>
+              </>
+            )}
+
+            {/* ── Phase 1b: Photo uploading state ── */}
+            {!parseResult && timetableMethod === "photo" && (
+              <>
                 {timetableUploading ? (
-                  <div className="flex flex-col items-center gap-2">
-                    <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                  <div className="flex flex-col items-center gap-3 py-10">
+                    <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
                     <span className="text-sm text-purple-700 font-medium">
                       Reading your timetable...
                     </span>
@@ -642,27 +854,127 @@ export default function TeacherWelcomePage() {
                   </div>
                 ) : (
                   <>
-                    <CameraIcon large />
-                    <p className="text-sm font-medium text-gray-700 mt-3">
-                      Upload a photo or screenshot of your timetable
-                    </p>
-                    <p className="text-[11px] text-gray-400 mt-1">
-                      PNG, JPG, or PDF. We&apos;ll read it and create your
-                      classes automatically.
-                    </p>
+                    <div>
+                      <h2 className="text-lg font-bold text-gray-900 mb-1">
+                        Upload your timetable
+                      </h2>
+                      <p className="text-sm text-gray-500">
+                        Take a photo or screenshot of your timetable. We accept
+                        PNG, JPG, or PDF.
+                      </p>
+                    </div>
+                    <div
+                      onClick={() => timetableFileRef.current?.click()}
+                      className="border-2 border-dashed border-purple-200 rounded-xl p-10 text-center cursor-pointer hover:border-purple-400 hover:bg-purple-50/30 transition-all"
+                    >
+                      <CameraIcon large />
+                      <p className="text-sm font-medium text-gray-700 mt-3">
+                        Click to upload
+                      </p>
+                      <p className="text-[11px] text-gray-400 mt-1">
+                        We&apos;ll read it with AI and create your classes
+                        automatically
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setTimetableMethod(null)}
+                      className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
+                    >
+                      Back
+                    </button>
                   </>
                 )}
-              </div>
-            ) : (
-              <div className="space-y-4">
+              </>
+            )}
+
+            {/* ── Phase 1c: iCal URL input ── */}
+            {!parseResult && timetableMethod === "ical" && (
+              <>
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900 mb-1">
+                    Paste your calendar link
+                  </h2>
+                  <p className="text-sm text-gray-500">
+                    This is usually an iCal (.ics) URL from your school&apos;s
+                    Outlook, Google Calendar, or ManageBac. We&apos;ll import
+                    holidays and detect your schedule.
+                  </p>
+                </div>
+
+                <div>
+                  <input
+                    type="url"
+                    value={icalUrl}
+                    onChange={(e) => setIcalUrl(e.target.value)}
+                    placeholder="https://outlook.office365.com/owa/calendar/..."
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-400 transition-all text-sm font-mono"
+                    autoFocus
+                  />
+                  <p className="text-[11px] text-gray-400 mt-1.5 leading-relaxed">
+                    Look for &quot;Subscribe to calendar&quot; or
+                    &quot;Share calendar link&quot; in your school&apos;s calendar
+                    app. The URL usually ends in <code>.ics</code>
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleIcalImport}
+                    disabled={icalLoading || !icalUrl.trim()}
+                    className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-bold text-white rounded-xl transition-all duration-200 hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] disabled:opacity-50 disabled:hover:scale-100"
+                    style={{
+                      background: "linear-gradient(135deg, #3B82F6, #2563EB)",
+                      boxShadow: "0 4px 14px rgba(59, 130, 246, 0.3)",
+                    }}
+                  >
+                    {icalLoading ? "Importing..." : "Import calendar"}
+                    {!icalLoading && <ArrowRight />}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setTimetableMethod(null);
+                      setIcalUrl("");
+                      setError(null);
+                    }}
+                    className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    Back
+                  </button>
+                </div>
+
+                <div className="rounded-lg bg-blue-50/50 border border-blue-100 px-4 py-3">
+                  <p className="text-[11px] text-blue-600 font-medium mb-1">
+                    Don&apos;t have a calendar link?
+                  </p>
+                  <p className="text-[11px] text-gray-500">
+                    No worries — go back and try uploading a photo of your
+                    timetable instead. You can always add a calendar link
+                    later in Settings to keep holidays synced.
+                  </p>
+                </div>
+              </>
+            )}
+
+            {/* ── Phase 2: Results (from photo or iCal) ── */}
+            {parseResult && (
+              <>
                 <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-sm text-green-800">
                   <span className="font-semibold">
-                    Detected {parseResult.cycle_length}-day cycle
+                    {timetableMethod === "ical" ? "Calendar imported" : `Detected ${parseResult.cycle_length}-day cycle`}
                   </span>
-                  {" with "}
-                  <span className="font-semibold">
-                    {teachingSlotCount} teaching slots
-                  </span>
+                  {timetableMethod !== "ical" && (
+                    <>
+                      {" with "}
+                      <span className="font-semibold">
+                        {teachingSlotCount} teaching slot{teachingSlotCount !== 1 ? "s" : ""}
+                      </span>
+                    </>
+                  )}
+                  {icalHolidays.length > 0 && (
+                    <span className="text-green-600">
+                      {" \u00b7 "}{icalHolidays.length} holiday{icalHolidays.length !== 1 ? "s" : ""} imported
+                    </span>
+                  )}
                 </div>
 
                 {/* Editable class list */}
@@ -798,207 +1110,139 @@ export default function TeacherWelcomePage() {
                   </div>
                 )}
 
-                <button
-                  onClick={() => {
-                    setParseResult(null);
-                    setDetectedClasses([]);
-                  }}
-                  className="text-xs text-gray-500 hover:text-purple-600 font-medium transition-colors"
-                >
-                  Upload a different timetable
-                </button>
-              </div>
-            )}
+                {/* Cycle day calibration */}
+                <div className="rounded-xl border border-blue-100 bg-blue-50/50 px-4 py-3">
+                  <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                    One last thing — what day of the cycle is today?
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-600">Today is Day</span>
+                    <select
+                      value={anchorCycleDay}
+                      onChange={(e) =>
+                        setAnchorCycleDay(Number(e.target.value))
+                      }
+                      className="border border-blue-200 rounded-lg px-2.5 py-1.5 text-sm font-semibold bg-white w-16 text-center"
+                    >
+                      {Array.from(
+                        { length: parseResult.cycle_length },
+                        (_, i) => (
+                          <option key={i + 1} value={i + 1}>
+                            {i + 1}
+                          </option>
+                        )
+                      )}
+                    </select>
+                    <span className="text-sm text-gray-600">
+                      of your {parseResult.cycle_length}-day cycle
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-gray-400 mt-1.5">
+                    This ensures your dashboard shows the right classes each
+                    day. You can change this anytime in Settings.
+                  </p>
+                </div>
 
-            <div className="flex items-center gap-3 pt-1">
-              {parseResult && detectedClasses.length > 0 && (
-                <button
-                  onClick={handleCreateClassesFromTimetable}
-                  disabled={
-                    saving ||
-                    detectedClasses.filter(
-                      (dc) => dc.include && dc.name.trim()
-                    ).length === 0
-                  }
-                  className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-bold text-white rounded-xl transition-all duration-200 hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] disabled:opacity-50 disabled:hover:scale-100"
-                  style={{
-                    background: "linear-gradient(135deg, #7B2FF2, #5C16C5)",
-                    boxShadow: "0 4px 14px rgba(123, 47, 242, 0.3)",
-                  }}
-                >
-                  {saving
-                    ? "Creating..."
-                    : `Create ${
+                {/* iCal nudge — only show if they used photo upload (no calendar link) */}
+                {timetableMethod === "photo" && (
+                  <div className="rounded-lg bg-amber-50/60 border border-amber-100 px-4 py-3">
+                    <p className="text-[11px] text-amber-700 font-medium">
+                      Want your schedule to stay in sync with holidays and
+                      schedule changes automatically?
+                    </p>
+                    <p className="text-[11px] text-gray-500 mt-0.5">
+                      You can add a calendar link (iCal) later in{" "}
+                      <span className="font-medium">Settings &rarr; Timetable</span>{" "}
+                      to import holidays and keep everything up to date.
+                    </p>
+                  </div>
+                )}
+
+                <div className="flex items-center gap-3 pt-1">
+                  {detectedClasses.length > 0 && (
+                    <button
+                      onClick={handleCreateClassesFromTimetable}
+                      disabled={
+                        saving ||
                         detectedClasses.filter(
                           (dc) => dc.include && dc.name.trim()
-                        ).length
-                      } class${
-                        detectedClasses.filter(
-                          (dc) => dc.include && dc.name.trim()
-                        ).length !== 1
-                          ? "es"
-                          : ""
-                      }`}
-                  {!saving && <ArrowRight />}
-                </button>
-              )}
-              <button
-                onClick={() => {
-                  setError(null);
-                  setStep("name");
-                }}
-                className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                Back
-              </button>
-              {!parseResult && (
-                <button
-                  onClick={() => {
-                    setError(null);
-                    setParseResult(null);
-                    setStep("classes");
-                  }}
-                  className="text-sm text-gray-500 hover:text-gray-700 transition-colors underline underline-offset-2"
-                >
-                  Skip — I&apos;ll add it in Settings
-                </button>
-              )}
-            </div>
+                        ).length === 0
+                      }
+                      className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-bold text-white rounded-xl transition-all duration-200 hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] disabled:opacity-50 disabled:hover:scale-100"
+                      style={{
+                        background:
+                          "linear-gradient(135deg, #7B2FF2, #5C16C5)",
+                        boxShadow: "0 4px 14px rgba(123, 47, 242, 0.3)",
+                      }}
+                    >
+                      {saving
+                        ? "Creating..."
+                        : `Create ${
+                            detectedClasses.filter(
+                              (dc) => dc.include && dc.name.trim()
+                            ).length
+                          } class${
+                            detectedClasses.filter(
+                              (dc) => dc.include && dc.name.trim()
+                            ).length !== 1
+                              ? "es"
+                              : ""
+                          }`}
+                      {!saving && <ArrowRight />}
+                    </button>
+                  )}
+                  <button
+                    onClick={() => {
+                      setParseResult(null);
+                      setDetectedClasses([]);
+                      setTimetableMethod(null);
+                      setIcalUrl("");
+                      setIcalHolidays([]);
+                      setError(null);
+                    }}
+                    className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    Start over
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         )}
 
         {/* ============================================================= */}
         {/* Step 3: Your classes                                           */}
         {/* ============================================================= */}
+        {/* ============================================================= */}
+        {/* Step 3: Create first class (manual — timetable was skipped)    */}
+        {/* ============================================================= */}
         {step === "classes" && (
           <div className="bg-white rounded-2xl p-6 border border-border shadow-sm space-y-5">
-            {parseResult && detectedClasses.length > 0 ? (
+            <div>
+              <h2 className="text-lg font-bold text-gray-900 mb-1">
+                What&apos;s your first class called?
+              </h2>
+              <p className="text-sm text-gray-500">
+                You can add more classes later. We&apos;ll generate a join
+                code students use to enroll.
+              </p>
+            </div>
+
+            <input
+              type="text"
+              value={className}
+              onChange={(e) => setClassName(e.target.value)}
+              placeholder="e.g. Grade 8 Design"
+              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-400 transition-all text-sm"
+              autoFocus
+            />
+
+            {/* Framework appears once they've typed a name — progressive disclosure */}
+            {className.trim().length > 0 && (
               <>
-                {/* ── From timetable: detected classes list ── */}
                 <div>
-                  <h2 className="text-lg font-bold text-gray-900 mb-1">
-                    Confirm your classes
-                  </h2>
-                  <p className="text-sm text-gray-500">
-                    We detected these from your timetable. Untick any
-                    non-teaching entries and pick a curriculum framework for
-                    each class.
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  {detectedClasses.map((dc, i) => (
-                    <div
-                      key={i}
-                      className={`flex items-center gap-3 rounded-xl border px-4 py-3 transition-all ${
-                        dc.include
-                          ? "border-purple-200 bg-white"
-                          : "border-gray-100 bg-gray-50 opacity-60"
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={dc.include}
-                        onChange={(e) => {
-                          const next = [...detectedClasses];
-                          next[i] = { ...next[i], include: e.target.checked };
-                          setDetectedClasses(next);
-                        }}
-                        className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-                      />
-
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-semibold text-gray-900 truncate">
-                          {dc.name}
-                        </div>
-                        <div className="text-[11px] text-gray-400">
-                          {dc.grade} &middot; {dc.occurrences}x per cycle
-                          {!dc.is_teaching && (
-                            <span className="ml-1 text-amber-600 font-medium">
-                              (non-teaching)
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      <select
-                        value={dc.framework}
-                        onChange={(e) => {
-                          const next = [...detectedClasses];
-                          next[i] = { ...next[i], framework: e.target.value };
-                          setDetectedClasses(next);
-                        }}
-                        disabled={!dc.include}
-                        className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs font-medium bg-white disabled:bg-gray-50 disabled:text-gray-400"
-                      >
-                        {FRAMEWORKS.map((fw) => (
-                          <option key={fw.id} value={fw.id}>
-                            {fw.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="flex items-center gap-3 pt-1">
-                  <button
-                    onClick={handleCreateClassesFromTimetable}
-                    disabled={
-                      saving ||
-                      detectedClasses.filter((dc) => dc.include).length === 0
-                    }
-                    className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-bold text-white rounded-xl transition-all duration-200 hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] disabled:opacity-50 disabled:hover:scale-100"
-                    style={{
-                      background: "linear-gradient(135deg, #7B2FF2, #5C16C5)",
-                      boxShadow: "0 4px 14px rgba(123, 47, 242, 0.3)",
-                    }}
-                  >
-                    {saving
-                      ? "Creating..."
-                      : `Create ${detectedClasses.filter((dc) => dc.include).length} class${detectedClasses.filter((dc) => dc.include).length !== 1 ? "es" : ""}`}
-                    {!saving && <ArrowRight />}
-                  </button>
-                  <button
-                    onClick={() => {
-                      setError(null);
-                      setStep("timetable");
-                    }}
-                    className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
-                  >
-                    Back
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                {/* ── Manual: create first class (timetable was skipped) ── */}
-                <div>
-                  <h2 className="text-lg font-bold text-gray-900 mb-1">
-                    Your first class
-                  </h2>
-                  <p className="text-sm text-gray-500">
-                    We&apos;ll generate a join code you can share with students.
-                  </p>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1.5">
-                    Class name
-                  </label>
-                  <input
-                    type="text"
-                    value={className}
-                    onChange={(e) => setClassName(e.target.value)}
-                    placeholder="e.g. Grade 8 Design"
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-400 transition-all text-sm"
-                    autoFocus
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1.5">
-                    Curriculum framework
+                  <label className="block text-xs font-semibold text-gray-700 mb-2">
+                    Which curriculum framework?
                   </label>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {FRAMEWORKS.map((fw) => (
@@ -1024,8 +1268,8 @@ export default function TeacherWelcomePage() {
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1.5">
-                    Typical period length
+                  <label className="block text-xs font-semibold text-gray-700 mb-2">
+                    How long are your periods?
                   </label>
                   <div className="flex flex-wrap gap-1.5">
                     {PERIOD_OPTIONS.map((p) => (
@@ -1044,32 +1288,33 @@ export default function TeacherWelcomePage() {
                     ))}
                   </div>
                 </div>
-
-                <div className="flex items-center gap-3 pt-1">
-                  <button
-                    onClick={handleCreateClassManual}
-                    disabled={saving || !className.trim()}
-                    className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-bold text-white rounded-xl transition-all duration-200 hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] disabled:opacity-50 disabled:hover:scale-100"
-                    style={{
-                      background: "linear-gradient(135deg, #7B2FF2, #5C16C5)",
-                      boxShadow: "0 4px 14px rgba(123, 47, 242, 0.3)",
-                    }}
-                  >
-                    {saving ? "Creating..." : "Create class"}
-                    {!saving && <ArrowRight />}
-                  </button>
-                  <button
-                    onClick={() => {
-                      setError(null);
-                      setStep("timetable");
-                    }}
-                    className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
-                  >
-                    Back
-                  </button>
-                </div>
               </>
             )}
+
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleCreateClassManual}
+                disabled={saving || !className.trim()}
+                className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-bold text-white rounded-xl transition-all duration-200 hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] disabled:opacity-50 disabled:hover:scale-100"
+                style={{
+                  background: "linear-gradient(135deg, #7B2FF2, #5C16C5)",
+                  boxShadow: "0 4px 14px rgba(123, 47, 242, 0.3)",
+                }}
+              >
+                {saving ? "Creating..." : "Create class"}
+                {!saving && <ArrowRight />}
+              </button>
+              <button
+                onClick={() => {
+                  setError(null);
+                  setTimetableMethod(null);
+                  setStep("timetable");
+                }}
+                className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                Back
+              </button>
+            </div>
           </div>
         )}
 
@@ -1078,48 +1323,72 @@ export default function TeacherWelcomePage() {
         {/* ============================================================= */}
         {step === "roster" && createdClasses.length > 0 && (
           <div className="bg-white rounded-2xl p-6 border border-border shadow-sm space-y-5">
+            {/* Success banner */}
+            <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-2.5 text-sm text-green-800">
+              <span className="font-semibold">
+                {createdClasses.length === 1
+                  ? `${createdClasses[0].className} created`
+                  : `${createdClasses.length} classes created`}
+              </span>
+              {" \u2014 nice work!"}
+            </div>
+
             <div>
-              <div className="flex items-center gap-2 mb-0.5">
-                <CheckBadge />
-                <span className="text-xs font-medium text-green-600">
-                  {createdClasses.length === 1
-                    ? `${createdClasses[0].className} created — join code `
-                    : `${createdClasses.length} classes created`}
-                  {createdClasses.length === 1 && (
-                    <code className="font-mono font-bold">
-                      {createdClasses[0].classCode}
-                    </code>
-                  )}
-                </span>
-              </div>
               <h2 className="text-lg font-bold text-gray-900 mb-1">
-                Add your students
+                Do you want to add students now?
               </h2>
               <p className="text-sm text-gray-500">
-                You can paste or upload a roster for each class, or add
-                students later from each class page.
+                You can paste a class list or upload a CSV. Students will be
+                able to log in right away.
               </p>
             </div>
 
             {!rosterChoice ? (
-              /* ── Choice gate ── */
-              <div className="flex items-center gap-3">
+              /* ── Choice gate — card style ── */
+              <div className="grid grid-cols-1 gap-3">
                 <button
                   onClick={() => setRosterChoice(true)}
-                  className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-bold text-white rounded-xl transition-all duration-200 hover:scale-[1.02] hover:shadow-lg active:scale-[0.98]"
-                  style={{
-                    background: "linear-gradient(135deg, #7B2FF2, #5C16C5)",
-                    boxShadow: "0 4px 14px rgba(123, 47, 242, 0.3)",
-                  }}
+                  className="group text-left rounded-xl border-2 border-purple-200 hover:border-purple-400 p-4 transition-all hover:shadow-md"
                 >
-                  Yes, add students now
-                  <ArrowRight />
+                  <div className="flex items-start gap-3">
+                    <div
+                      className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
+                      style={{
+                        background:
+                          "linear-gradient(135deg, #7B2FF2, #5C16C5)",
+                      }}
+                    >
+                      <RosterIcon />
+                    </div>
+                    <div>
+                      <span className="text-sm font-bold text-gray-900">
+                        Yes, add students now
+                      </span>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Paste names or upload a CSV. Takes about 30 seconds
+                        per class.
+                      </p>
+                    </div>
+                  </div>
                 </button>
+
                 <button
                   onClick={() => setStep("credentials")}
-                  className="text-sm text-gray-500 hover:text-gray-700 transition-colors underline underline-offset-2"
+                  className="group text-left rounded-xl border-2 border-gray-100 hover:border-gray-200 p-4 transition-all"
                 >
-                  I&apos;ll add them later
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-gray-50 flex items-center justify-center group-hover:bg-gray-100 transition-colors shrink-0">
+                      <SkipIcon />
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium text-gray-600">
+                        I&apos;ll add them later
+                      </span>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        You can add students anytime from each class page.
+                      </p>
+                    </div>
+                  </div>
                 </button>
               </div>
             ) : (
@@ -1270,115 +1539,111 @@ export default function TeacherWelcomePage() {
         {/* Step 5: Credentials + starter paths                           */}
         {/* ============================================================= */}
         {step === "credentials" && createdClasses.length > 0 && (
-          <div className="space-y-5">
-            <div className="bg-white rounded-2xl p-6 border border-border shadow-sm">
-              <div className="flex items-center gap-2 mb-1">
-                <CheckBadge />
-                <span className="text-xs font-medium text-green-600">
-                  Ready to teach
-                </span>
+          <div className="bg-white rounded-2xl p-6 border border-border shadow-sm space-y-5">
+            {/* Celebration header */}
+            <div className="text-center py-2">
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-green-100 mb-3">
+                <CheckBadge large />
               </div>
               <h2 className="text-lg font-bold text-gray-900 mb-1">
-                Share {createdClasses.length === 1 ? "this" : "these"} with your
-                class{createdClasses.length !== 1 ? "es" : ""}
+                You&apos;re all set!
               </h2>
-              <p className="text-sm text-gray-500 mb-4">
-                Students join with the class code, then log in with their
-                username.{" "}
+              <p className="text-sm text-gray-500">
+                {createdClasses.length === 1
+                  ? `Your class "${createdClasses[0].className}" is ready to go.`
+                  : `Your ${createdClasses.length} classes are ready to go.`}
                 {createdStudents.length > 0 &&
-                  `We've created ${createdStudents.length} student account${createdStudents.length !== 1 ? "s" : ""}.`}
+                  ` ${createdStudents.length} student account${createdStudents.length !== 1 ? "s" : ""} created.`}
               </p>
-
-              {/* Class code cards */}
-              <div
-                className={`grid gap-3 mb-4 ${
-                  createdClasses.length === 1
-                    ? "grid-cols-1"
-                    : "grid-cols-1 sm:grid-cols-2"
-                }`}
-              >
-                {createdClasses.map((cls) => (
-                  <div
-                    key={cls.classId}
-                    className="rounded-xl bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-200 px-5 py-4"
-                  >
-                    <div className="text-[11px] font-semibold text-purple-600 uppercase tracking-wide mb-0.5">
-                      Class code
-                    </div>
-                    <div className="text-3xl font-bold font-mono text-purple-900 tracking-wider">
-                      {cls.classCode}
-                    </div>
-                    <div className="text-xs text-purple-500 mt-0.5">
-                      {cls.className}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Student list */}
-              {createdStudents.length > 0 && (
-                <div className="mb-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                      Student logins
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => window.print()}
-                      className="text-xs text-purple-600 hover:text-purple-800 font-medium inline-flex items-center gap-1"
-                    >
-                      <PrinterIcon />
-                      Print
-                    </button>
-                  </div>
-                  <div className="rounded-lg border border-gray-200 overflow-hidden">
-                    <table className="w-full text-sm">
-                      <thead className="bg-gray-50 text-[11px] uppercase tracking-wide text-gray-500">
-                        <tr>
-                          <th className="text-left px-3 py-1.5 font-semibold">
-                            Name
-                          </th>
-                          <th className="text-left px-3 py-1.5 font-semibold">
-                            Username
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {createdStudents.map((s) => (
-                          <tr
-                            key={s.id}
-                            className="border-t border-gray-100"
-                          >
-                            <td className="px-3 py-1.5 text-gray-900">
-                              {s.displayName || "\u2014"}
-                            </td>
-                            <td className="px-3 py-1.5 font-mono text-gray-700">
-                              {s.username}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  {rosterSkipped.length > 0 && (
-                    <p className="text-xs text-amber-600 mt-2">
-                      {rosterSkipped.length} line
-                      {rosterSkipped.length !== 1 ? "s" : ""} skipped (duplicate
-                      usernames or empty). You can add them later from the class
-                      page.
-                    </p>
-                  )}
-                </div>
-              )}
             </div>
 
-            {/* Starter paths */}
-            <div className="bg-white rounded-2xl p-6 border border-border shadow-sm">
+            {/* Compact class summary — collapsible if many classes */}
+            <div className="rounded-lg border border-gray-200 overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 text-[11px] uppercase tracking-wide text-gray-500">
+                  <tr>
+                    <th className="text-left px-3 py-1.5 font-semibold">Class</th>
+                    <th className="text-left px-3 py-1.5 font-semibold">Code</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {createdClasses.map((cls) => (
+                    <tr key={cls.classId} className="border-t border-gray-100">
+                      <td className="px-3 py-1.5 text-gray-900">{cls.className}</td>
+                      <td className="px-3 py-1.5 font-mono text-purple-700 font-semibold tracking-wide">{cls.classCode}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-[11px] text-gray-400 leading-relaxed">
+              Class codes are on each class page — share with students when
+              you&apos;re ready.
+            </p>
+
+            {/* Student list (only if they added any) */}
+            {createdStudents.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    Student logins
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="text-xs text-purple-600 hover:text-purple-800 font-medium inline-flex items-center gap-1"
+                  >
+                    <PrinterIcon />
+                    Print
+                  </button>
+                </div>
+                <div className="rounded-lg border border-gray-200 overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 text-[11px] uppercase tracking-wide text-gray-500">
+                      <tr>
+                        <th className="text-left px-3 py-1.5 font-semibold">
+                          Name
+                        </th>
+                        <th className="text-left px-3 py-1.5 font-semibold">
+                          Username
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {createdStudents.map((s) => (
+                        <tr
+                          key={s.id}
+                          className="border-t border-gray-100"
+                        >
+                          <td className="px-3 py-1.5 text-gray-900">
+                            {s.displayName || "\u2014"}
+                          </td>
+                          <td className="px-3 py-1.5 font-mono text-gray-700">
+                            {s.username}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {rosterSkipped.length > 0 && (
+                  <p className="text-xs text-amber-600 mt-2">
+                    {rosterSkipped.length} line
+                    {rosterSkipped.length !== 1 ? "s" : ""} skipped (duplicate
+                    usernames or empty). You can add them later from the class
+                    page.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* What's next — integrated into same card */}
+            <div className="pt-3 border-t border-gray-100">
               <h3 className="text-sm font-bold text-gray-900 mb-1">
-                What&apos;s next?
+                What would you like to do first?
               </h3>
               <p className="text-xs text-gray-500 mb-4">
-                Pick one — you can always do the other later.
+                Pick one — you can always do the others later.
               </p>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -1454,17 +1719,17 @@ export default function TeacherWelcomePage() {
                   </div>
                 </button>
               </div>
+            </div>
 
-              <div className="mt-4 pt-3 border-t border-gray-100 text-[11px] text-gray-400 text-center">
-                Need help?{" "}
-                <Link
-                  href="/teacher/toolkit"
-                  className="text-purple-600 hover:text-purple-800 font-medium"
-                >
-                  Browse the toolkit
-                </Link>{" "}
-                for ready-made lesson starters.
-              </div>
+            <div className="text-[11px] text-gray-400 text-center">
+              Need help?{" "}
+              <Link
+                href="/teacher/toolkit"
+                className="text-purple-600 hover:text-purple-800 font-medium"
+              >
+                Browse the toolkit
+              </Link>{" "}
+              for ready-made lesson starters.
             </div>
           </div>
         )}
@@ -1526,11 +1791,12 @@ function ArrowRight() {
   );
 }
 
-function CheckBadge() {
+function CheckBadge({ large }: { large?: boolean } = {}) {
+  const s = large ? 24 : 16;
   return (
     <svg
-      width="16"
-      height="16"
+      width={s}
+      height={s}
       viewBox="0 0 24 24"
       fill="none"
       stroke="#22C55E"
@@ -1539,6 +1805,26 @@ function CheckBadge() {
       strokeLinejoin="round"
     >
       <path d="M20 6L9 17l-5-5" />
+    </svg>
+  );
+}
+
+function RosterIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="white"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
     </svg>
   );
 }
@@ -1673,7 +1959,7 @@ function XIcon() {
   );
 }
 
-function CameraIcon({ large }: { large?: boolean } = {}) {
+function CameraIcon({ large, white }: { large?: boolean; white?: boolean } = {}) {
   const s = large ? 28 : 18;
   return (
     <svg
@@ -1681,7 +1967,7 @@ function CameraIcon({ large }: { large?: boolean } = {}) {
       height={s}
       viewBox="0 0 24 24"
       fill="none"
-      stroke="#7C3AED"
+      stroke={white ? "white" : "#7C3AED"}
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -1689,6 +1975,45 @@ function CameraIcon({ large }: { large?: boolean } = {}) {
     >
       <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
       <circle cx="12" cy="13" r="4" />
+    </svg>
+  );
+}
+
+function CalendarLinkIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="#3B82F6"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+      <line x1="16" y1="2" x2="16" y2="6" />
+      <line x1="8" y1="2" x2="8" y2="6" />
+      <line x1="3" y1="10" x2="21" y2="10" />
+      <path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01" />
+    </svg>
+  );
+}
+
+function SkipIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="#9CA3AF"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 8v4l3 3" />
     </svg>
   );
 }

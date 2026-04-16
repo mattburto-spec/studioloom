@@ -65,6 +65,8 @@ interface TimetableInput {
   entries: TimetableEntry[];
   anchor_date?: string;
   anchor_cycle_day?: number;
+  ical_url?: string;
+  excluded_dates?: string[];
 }
 
 export const POST = withErrorHandler(
@@ -225,6 +227,11 @@ export const POST = withErrorHandler(
 
     let timetableId: string;
 
+    // Determine source — ical if URL provided, otherwise manual
+    // (ai_upload requires migration 086 on the CHECK constraint)
+    const timetableSource = timetable.ical_url ? "ical" : "manual";
+    const excludedDates = timetable.excluded_dates || [];
+
     if (existing) {
       await supabase
         .from("class_meetings")
@@ -240,8 +247,9 @@ export const POST = withErrorHandler(
           anchor_cycle_day: anchorCycleDay,
           reset_each_term: false,
           periods: timetable.periods || [],
-          excluded_dates: [],
-          source: "manual", // TODO: use "ai_upload" after migration 086 adds it to CHECK constraint
+          excluded_dates: excludedDates,
+          source: timetableSource,
+          ...(timetable.ical_url && { ical_url: timetable.ical_url }),
         })
         .eq("teacher_id", teacherId)
         .select("id")
@@ -266,8 +274,9 @@ export const POST = withErrorHandler(
           anchor_cycle_day: anchorCycleDay,
           reset_each_term: false,
           periods: timetable.periods || [],
-          excluded_dates: [],
-          source: "manual", // TODO: use "ai_upload" after migration 086 adds it to CHECK constraint
+          excluded_dates: excludedDates,
+          source: timetableSource,
+          ...(timetable.ical_url && { ical_url: timetable.ical_url }),
         })
         .select("id")
         .single();
