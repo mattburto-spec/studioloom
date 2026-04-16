@@ -160,6 +160,8 @@ async function GET(request: NextRequest) {
 
     return NextResponse.json({
       hasTimetable: true,
+      hasIcal: !!tt.ical_url,
+      source: tt.source || "manual",
       entries,
       _debug: {
         serverTimeUTC: new Date().toISOString(),

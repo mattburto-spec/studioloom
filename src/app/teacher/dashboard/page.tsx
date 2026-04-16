@@ -780,6 +780,8 @@ function TwoColumnDashboard({
   const [schedule, setSchedule] = useState<ScheduleEntry[]>([]);
   const [scheduleLoading, setScheduleLoading] = useState(true);
   const [hasTimetable, setHasTimetable] = useState(false);
+  const [hasIcal, setHasIcal] = useState(false);
+  const [showIcalHelp, setShowIcalHelp] = useState(false);
 
   const classIndexMap = new Map<string, number>();
   data.classes.forEach((cls, idx) => classIndexMap.set(cls.id, idx));
@@ -830,6 +832,7 @@ function TwoColumnDashboard({
         if (!res.ok) { setScheduleLoading(false); return; }
         const schedData = await res.json();
         setHasTimetable(schedData.hasTimetable ?? false);
+        setHasIcal(schedData.hasIcal ?? false);
         setSchedule(schedData.entries || []);
       } catch {
         // fine
@@ -897,6 +900,59 @@ function TwoColumnDashboard({
               })}
             </div>
           )}
+          {/* iCal sync nudge — only show if timetable exists but no iCal URL */}
+          {hasTimetable && !hasIcal && !scheduleLoading && (
+            <div className="border-t border-gray-100 px-3 py-2">
+              {!showIcalHelp ? (
+                <button
+                  onClick={() => setShowIcalHelp(true)}
+                  className="w-full text-left rounded-lg bg-amber-50 border border-amber-100 px-3 py-2 hover:bg-amber-100/70 transition-colors group"
+                >
+                  <div className="flex items-center gap-2">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /><path d="M8 14h.01M12 14h.01M16 14h.01" /></svg>
+                    <span className="text-[11px] text-amber-700 font-medium">
+                      Keep schedule synced with a calendar link
+                    </span>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 ml-auto opacity-60 group-hover:opacity-100 transition"><polyline points="6 9 12 15 18 9" /></svg>
+                  </div>
+                </button>
+              ) : (
+                <div className="rounded-lg bg-amber-50 border border-amber-100 px-3 py-3 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-amber-800">
+                      Add a calendar link (iCal)
+                    </span>
+                    <button
+                      onClick={() => setShowIcalHelp(false)}
+                      className="text-amber-400 hover:text-amber-600 transition-colors"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-amber-700 leading-relaxed">
+                    An iCal link lets StudioLoom automatically import your
+                    school holidays and schedule changes so your dashboard
+                    stays accurate.
+                  </p>
+                  <div className="text-[11px] text-gray-600 space-y-1.5">
+                    <p className="font-semibold text-gray-700">How to find your link:</p>
+                    <div className="space-y-1">
+                      <p><span className="font-semibold">Outlook:</span> Open your calendar &rarr; Settings &rarr; Shared calendars &rarr; Publish a calendar &rarr; Copy the ICS link</p>
+                      <p><span className="font-semibold">Google:</span> Calendar settings &rarr; Your calendar &rarr; Integrate calendar &rarr; Secret address in iCal format</p>
+                      <p><span className="font-semibold">ManageBac:</span> Calendar &rarr; Subscribe &rarr; Copy webcal link</p>
+                    </div>
+                  </div>
+                  <Link
+                    href="/teacher/settings"
+                    className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-amber-700 hover:text-amber-900 transition-colors"
+                  >
+                    Add it in Settings &rarr;
+                  </Link>
+                </div>
+              )}
+            </div>
+          )}
+
           {upcomingEntries.length > 0 && (
             <div className="border-t border-gray-100 px-3 py-2">
               <p className="text-[10px] font-semibold text-text-secondary uppercase tracking-wider mb-1.5">Coming up</p>
