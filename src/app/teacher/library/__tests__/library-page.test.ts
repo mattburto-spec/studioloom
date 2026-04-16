@@ -64,8 +64,8 @@ describe("/teacher/library page — cards + upload", () => {
   });
 
   it("redirect prompt has Yes and No buttons", () => {
-    expect(src).toContain("Yes, redirect");
-    expect(src).toContain("No, continue");
+    expect(src).toContain("Yes, import it");
+    expect(src).toContain("No, just extract blocks");
   });
 
   it("Yes button re-POSTs to import endpoint", () => {
@@ -105,19 +105,18 @@ describe("/teacher/library page — cards + upload", () => {
     expect(src).toContain("e.stopPropagation()");
   });
 
-  // ── sessionStorage handoff (Commit 4) ──
-  it("handleRedirectYes stashes result in sessionStorage before navigation", () => {
-    expect(src).toContain('sessionStorage.setItem("pendingImportResult"');
-    expect(src).toContain("JSON.stringify(data)");
-    // SSR guard
-    expect(src).toContain('typeof window !== "undefined"');
+  // ── Inline import flow (replaces sessionStorage handoff) ──
+  it("handleRedirectYes triggers inline import flow instead of navigation", () => {
+    expect(src).toContain("handleRedirectYes");
+    expect(src).toContain("handleImportFile");
   });
 
-  it("sessionStorage write happens before router.push", () => {
-    const storageIdx = src.indexOf("sessionStorage.setItem");
-    const pushIdx = src.indexOf('router.push("/teacher/library/import")');
-    expect(storageIdx).toBeGreaterThan(-1);
-    expect(pushIdx).toBeGreaterThan(-1);
-    expect(storageIdx).toBeLessThan(pushIdx);
+  it("uses classify endpoint for the import flow", () => {
+    expect(src).toContain('"/api/teacher/library/import/classify"');
+  });
+
+  it("renders ClassificationCheckpoint for the interactive checkpoint", () => {
+    expect(src).toContain("<ClassificationCheckpoint");
+    expect(src).toContain("handleCheckpointConfirm");
   });
 });
