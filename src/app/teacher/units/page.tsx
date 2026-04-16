@@ -537,7 +537,7 @@ export default function TeacherUnitsPage() {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 5v14" /><path d="M5 12h14" />
             </svg>
-            Build with AI
+            Unit Creator
           </Link>
         </div>
       </div>
@@ -686,7 +686,7 @@ export default function TeacherUnitsPage() {
               </p>
               <p className="text-gray-400 text-sm mt-1 max-w-sm mx-auto">
                 {units.length === 0
-                  ? "Create your first unit with AI, import an existing lesson plan, or build one manually."
+                  ? "Use the Unit Creator to get started, upload an existing unit, or build one manually."
                   : "Try a different category or clear the search."}
               </p>
               {units.length === 0 && (
@@ -696,7 +696,7 @@ export default function TeacherUnitsPage() {
                     className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white rounded-xl hover:opacity-90 transition-opacity"
                     style={{ background: "linear-gradient(135deg, #7B2F72, #5C16C5)" }}
                   >
-                    Build with AI
+                    Unit Creator
                   </Link>
                   {/* QUARANTINED (3 Apr 2026) — Import uses knowledge pipeline */}
                   <span
@@ -1250,7 +1250,7 @@ export default function TeacherUnitsPage() {
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
         </div>
         <p className="text-xs text-purple-700 leading-relaxed pt-1.5">
-          <span className="font-semibold">Tip:</span> Build a unit with AI to generate a complete lesson sequence with scaffolding, timing, and extensions. You can then assign it to multiple classes and customize content per class.
+          <span className="font-semibold">Tip:</span> Use the Unit Creator to generate a complete lesson sequence with scaffolding, timing, and extensions. You can then assign it to multiple classes and customize content per class.
         </p>
       </div>
     </main>
