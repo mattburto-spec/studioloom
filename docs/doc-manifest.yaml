@@ -1,6 +1,6 @@
 # StudioLoom Documentation Manifest
 # Auto-maintained: `saveme` updates last_verified date and syncs with CLAUDE.md
-# Last full scan: 15 Apr 2026 (evening — teacher auth flow hardening)
+# Last full scan: 16 Apr 2026 (multi-lesson detection + Dimensions3 import persistence)
 #
 # This is the canonical index of ALL documentation files in the project.
 # Categories: brain (AI intelligence), specs (feature specs), projects (project plans),
@@ -24,7 +24,7 @@ docs:
     title: "Session Changelog"
     purpose: "Rolling log of changes across sessions for cross-session context"
     category: root
-    last_verified: "2026-04-15"
+    last_verified: "2026-04-16"
     max_age_days: 90
     last_scanned: null
 

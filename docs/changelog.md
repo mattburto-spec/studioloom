@@ -4,6 +4,26 @@
 
 ---
 
+## 16 Apr 2026 — Multi-lesson detection fix + Dimensions3 persistence for import pipeline
+
+**Context:** A 12-lesson DOCX unit plan (Product Design Biomimicry) was collapsing into 1 lesson with 3 activities. Root cause: 5-step chain where mammoth only creates `<h>` tags for Word heading styles (not bold text), parseDocument couldn't detect "Week N"/"Lesson N" patterns, extraction produced few blocks, and reconstruction couldn't split them. Additionally, the import route ran the full Dimensions3 pipeline but discarded all results — no content_items, no activity_blocks.
+
+**What changed:**
+- **`src/lib/knowledge/extract.ts`** — Bold-heading promotion: when mammoth finds no native heading styles in DOCX HTML, promotes `<strong>` paragraphs to `<h3>` headings (3-120 chars, no terminal punctuation). Two regex patterns: full bold paragraphs + bold-start with short tail.
+- **`src/lib/ingestion/parse.ts`** — Broader heading detection: added Week/Day/Session/Period/Lesson/Module/Part/Unit + number patterns to `HEADING_PATTERNS` array and `detectHeading()` function.
+- **`src/lib/ingestion/unit-import.ts`** — Title-based lesson boundary splitting: `LESSON_TITLE_RE` detects Lesson/Week/Day/Session/Module/Part/Unit + number in block titles. Preserves original heading text (e.g., "Week 3: Prototyping") instead of generic "Lesson N".
+- **`src/app/api/teacher/library/import/route.ts`** — Dimensions3 persistence: import route now persists `content_items` row + `activity_blocks` via `persistModeratedBlocks()`, matching the ingest route pattern. System learns from every import.
+- **`tests/e2e/checkpoint-1-2-ingestion.test.ts`** — Word count snapshot updated (3154→3110) for both sandbox and live variants.
+- **New test files:** `multi-lesson-detection.test.ts` (12 tests), `bold-heading-promotion.test.ts` (3 tests).
+
+**Systems affected:** knowledge-pipeline (extract.ts bold promotion), unit-conversion (import route persistence + lesson detection), ingestion-pipeline (parse.ts heading patterns, unit-import.ts boundaries).
+
+**Tests:** 1315 passing, 8 skipped (baseline maintained + 18 new tests).
+
+**Commits:** `285b792` — pushed to origin/main.
+
+---
+
 ## 15 Apr 2026 — Teacher password recovery: PKCE vs implicit flow split + settings change-password UI
 
 **Context:** Phase 1B shipped the forgot-password / set-password flows earlier today (`353c0c7`). Production smoke test uncovered three stacked bugs in the reset-link round-trip. This session resolved them across four commits.

@@ -5,7 +5,7 @@
 # Cross-referenced with docs/schema-registry.yaml (tables) and docs/ai-call-sites.yaml (AI calls).
 #
 # Last synced: 2026-04-14
-# Total routes: 284
+# Total routes: 290
 
 routes:
 - path: /api/admin/ai-model
@@ -500,6 +500,27 @@ routes:
   tables_read: []
   tables_written:
   - student_content_moderation_log
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/schools
+  method: POST
+  file: src/app/api/schools/route.ts
+  auth: teacher
+  tables_read:
+  - schools
+  tables_written:
+  - schools
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/schools/search
+  method: GET
+  file: src/app/api/schools/search/route.ts
+  auth: teacher
+  tables_read:
+  - schools
+  tables_written: []
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
@@ -2242,7 +2263,8 @@ routes:
   file: src/app/api/teacher/library/import/route.ts
   auth: teacher
   tables_read: []
-  tables_written: []
+  tables_written:
+  - content_items
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
@@ -2584,6 +2606,32 @@ routes:
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
+- path: /api/teacher/school
+  method: GET
+  file: src/app/api/teacher/school/route.ts
+  auth: teacher
+  tables_read:
+  - schools
+  - teachers
+  tables_written:
+  - schools
+  - teachers
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/school
+  method: PATCH
+  file: src/app/api/teacher/school/route.ts
+  auth: teacher
+  tables_read:
+  - schools
+  - teachers
+  tables_written:
+  - schools
+  - teachers
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
 - path: /api/teacher/school-calendar
   method: GET
   file: src/app/api/teacher/school-calendar/route.ts
@@ -2686,6 +2734,19 @@ routes:
   notes: null
 - path: /api/teacher/timetable
   method: POST
+  file: src/app/api/teacher/timetable/route.ts
+  auth: teacher
+  tables_read:
+  - class_meetings
+  - school_timetable
+  tables_written:
+  - class_meetings
+  - school_timetable
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/timetable
+  method: PATCH
   file: src/app/api/teacher/timetable/route.ts
   auth: teacher
   tables_read:
@@ -2825,6 +2886,7 @@ routes:
   file: src/app/api/teacher/welcome/complete/route.ts
   auth: teacher
   tables_read:
+  - schools
   - teachers
   tables_written:
   - teachers
@@ -2839,6 +2901,21 @@ routes:
   - classes
   tables_written:
   - classes
+  - teacher_profiles
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/welcome/setup-from-timetable
+  method: POST
+  file: src/app/api/teacher/welcome/setup-from-timetable/route.ts
+  auth: teacher
+  tables_read:
+  - classes
+  - school_timetable
+  tables_written:
+  - class_meetings
+  - classes
+  - school_timetable
   - teacher_profiles
   ai_call_sites: []
   cost_ceiling_usd: null

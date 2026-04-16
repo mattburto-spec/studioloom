@@ -4,8 +4,8 @@
 # Cross-referenced with docs/api-registry.yaml (called_from_routes) and
 # docs/projects/dimensions3-followups.md FU-5 (stop_reason_handled seeding).
 #
-# Last synced: 2026-04-15
-# Total call sites: 60
+# Last synced: 2026-04-14
+# Total call sites: 48
 
 call_sites:
 - id: ai_app_api_admin_ai_model_test_lesson_route_buildUnitTypeSystemPrompt
@@ -411,6 +411,7 @@ call_sites:
   has_fallback: false
   called_from_routes:
   - /api/admin/ingestion-sandbox/run-stage
+  - /api/teacher/library/import
   cost_category: ingestion
   notes: Uses wrapper src/lib/ai/embeddings.ts
 - id: ai_lib_ingestion_moderate_topics
@@ -458,6 +459,7 @@ call_sites:
   stop_reason_handled: unknown
   has_fallback: false
   called_from_routes:
+  - /api/teacher/library/import
   - /api/teacher/library/ingest
   cost_category: ingestion
   notes: Uses wrapper src/lib/ai/embeddings.ts
@@ -571,163 +573,3 @@ call_sites:
   called_from_routes: []
   cost_category: generation
   notes: null
-
-# ── Indirect AI call sites (route → library function) ──────────────────────
-# These routes do not import the Anthropic SDK directly but invoke library
-# functions that make AI calls. Listed here for cost-tracking completeness.
-
-- id: ai_route_student_design_assistant
-  file: src/app/api/student/design-assistant/route.ts
-  function: generateResponse
-  provider: indirect
-  model: indirect
-  max_tokens: null
-  stop_reason_handled: unknown
-  has_fallback: false
-  called_from_routes:
-  - /api/student/design-assistant
-  cost_category: student_api
-  notes: "Indirect — calls generateResponse() from src/lib/design-assistant/conversation.ts which calls Anthropic Haiku. See ai_lib_design_assistant_conversation_callDesignAssistantAI."
-
-- id: ai_route_student_quest_mentor
-  file: src/app/api/student/quest/mentor/route.ts
-  function: anthropic.messages.create
-  provider: anthropic
-  model: claude-haiku-4-5-20251001
-  max_tokens: 400
-  stop_reason_handled: false
-  has_fallback: false
-  called_from_routes:
-  - /api/student/quest/mentor
-  cost_category: student_api
-  notes: "Direct SDK import via dynamic import('@anthropic-ai/sdk'). Uses MODELS.HAIKU. Builds prompt via buildQuestPrompt()."
-
-- id: ai_route_teacher_generate_unit
-  file: src/app/api/teacher/generate-unit/route.ts
-  function: runPipeline
-  provider: indirect
-  model: indirect
-  max_tokens: null
-  stop_reason_handled: unknown
-  has_fallback: false
-  called_from_routes:
-  - /api/teacher/generate-unit
-  cost_category: teacher_api
-  notes: "Indirect — calls runPipeline() from src/lib/pipeline/orchestrator.ts (Dimensions3 pipeline). Uses MODELS.SONNET. Multiple AI stages internally."
-
-- id: ai_route_teacher_generate_timeline_outlines
-  file: src/app/api/teacher/generate-timeline-outlines/route.ts
-  function: provider.generateOutlines
-  provider: indirect
-  model: dynamic
-  max_tokens: 6000
-  stop_reason_handled: unknown
-  has_fallback: true
-  called_from_routes:
-  - /api/teacher/generate-timeline-outlines
-  cost_category: teacher_api
-  notes: "Indirect — calls createAIProvider() → provider.generateOutlines()/generateText(). Model resolved via resolveCredentials(). Also uses Voyage embeddings via retrieveContext()/retrieveLessonProfiles()."
-
-- id: ai_route_teacher_generate_timeline_outline_single
-  file: src/app/api/teacher/generate-timeline-outline-single/route.ts
-  function: provider.generateOutlines
-  provider: indirect
-  model: dynamic
-  max_tokens: 3000
-  stop_reason_handled: unknown
-  has_fallback: true
-  called_from_routes:
-  - /api/teacher/generate-timeline-outline-single
-  cost_category: teacher_api
-  notes: "Indirect — same pattern as generate-timeline-outlines but generates a single outline. Called 3x in parallel from client. RAG only on index 0."
-
-- id: ai_route_teacher_generate_journey_outlines
-  file: src/app/api/teacher/generate-journey-outlines/route.ts
-  function: provider.generateOutlines
-  provider: indirect
-  model: dynamic
-  max_tokens: 6000
-  stop_reason_handled: unknown
-  has_fallback: true
-  called_from_routes:
-  - /api/teacher/generate-journey-outlines
-  cost_category: teacher_api
-  notes: "Indirect — calls createAIProvider() → provider.generateOutlines()/generateText(). Supports both batch (3 outlines) and single mode (angleHint). Also uses Voyage embeddings via RAG."
-
-- id: ai_route_teacher_activity_cards_generate_modifiers
-  file: src/app/api/teacher/activity-cards/generate-modifiers/route.ts
-  function: provider.generateText
-  provider: indirect
-  model: dynamic
-  max_tokens: 2048
-  stop_reason_handled: unknown
-  has_fallback: false
-  called_from_routes:
-  - /api/teacher/activity-cards/generate-modifiers
-  cost_category: teacher_api
-  notes: "Indirect — calls createAIProvider() → provider.generateText(). QUARANTINED (returns 410) as of 3 Apr 2026. Code unreachable but preserved."
-
-- id: ai_route_teacher_activity_cards_apply
-  file: src/app/api/teacher/activity-cards/apply/route.ts
-  function: provider.generateText
-  provider: indirect
-  model: dynamic
-  max_tokens: 4096
-  stop_reason_handled: unknown
-  has_fallback: false
-  called_from_routes:
-  - /api/teacher/activity-cards/apply
-  cost_category: teacher_api
-  notes: "Indirect — calls createAIProvider() → provider.generateText(). Adapts activity card templates with modifier axes and unit context."
-
-- id: ai_route_teacher_library_import
-  file: src/app/api/teacher/library/import/route.ts
-  function: runIngestionPipeline
-  provider: indirect
-  model: indirect
-  max_tokens: null
-  stop_reason_handled: unknown
-  has_fallback: false
-  called_from_routes:
-  - /api/teacher/library/import
-  cost_category: teacher_api
-  notes: "Indirect — calls runIngestionPipeline() from src/lib/ingestion/pipeline.ts, then reconstructUnit(). Multiple AI stages internally (Pass A/B classification + enrichment, dedup embeddings, moderation)."
-
-- id: ai_route_teacher_library_ingest
-  file: src/app/api/teacher/library/ingest/route.ts
-  function: runIngestionPipeline
-  provider: indirect
-  model: indirect
-  max_tokens: null
-  stop_reason_handled: unknown
-  has_fallback: false
-  called_from_routes:
-  - /api/teacher/library/ingest
-  cost_category: teacher_api
-  notes: "Indirect — calls runIngestionPipeline() from src/lib/ingestion/pipeline.ts + persistModeratedBlocks(). Multiple AI stages internally. Also stores to content_items."
-
-- id: ai_route_admin_generation_sandbox_run
-  file: src/app/api/admin/generation-sandbox/run/route.ts
-  function: runPipeline
-  provider: indirect
-  model: indirect
-  max_tokens: null
-  stop_reason_handled: unknown
-  has_fallback: false
-  called_from_routes:
-  - /api/admin/generation-sandbox/run
-  cost_category: admin
-  notes: "Indirect — calls runPipeline() from src/lib/pipeline/orchestrator.ts in sandbox mode. Uses sentinel teacherId. Default sandboxMode=true (simulator)."
-
-- id: ai_route_admin_ingestion_sandbox_run_stage
-  file: src/app/api/admin/ingestion-sandbox/run-stage/route.ts
-  function: passA.run|passB.run|dedupCheck|moderateExtractedBlocks
-  provider: indirect
-  model: indirect
-  max_tokens: null
-  stop_reason_handled: unknown
-  has_fallback: false
-  called_from_routes:
-  - /api/admin/ingestion-sandbox/run-stage
-  cost_category: admin
-  notes: "Indirect — dispatches to individual ingestion stages (dedup, parse, passA, passB, extract, moderate). passA/passB call Anthropic; dedup calls Voyage embeddings; moderate calls Haiku."

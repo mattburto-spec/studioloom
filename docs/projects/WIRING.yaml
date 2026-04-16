@@ -3,7 +3,7 @@
 # Scope: SYSTEMS (e.g. "content-safety", "framework-adapter") — 82+ systems.
 # For per-TABLE schema state (columns, CHECK constraints, RLS, writers/readers,
 # spec drift), see docs/schema-registry.yaml — different scope, same spirit.
-# Last updated: 2026-04-14
+# Last updated: 2026-04-16
 # When a change is made to any system, trace affected systems via depends_on/affects
 
 systems:
@@ -888,9 +888,10 @@ systems:
     future_needs: Pass C (deep UDL), Pass D (cognitive load curves), cross-teacher knowledge sharing.
     capabilities_added:
       - "Phase A (14 Apr 2026): Multipart file upload on /api/teacher/library/ingest — accepts .pdf/.docx/.pptx/.txt/.md up to 20MB. Reuses extractDocument from @/lib/knowledge/extract. Pass 0 intent-guard: scheme_of_work classification triggers suggestedRedirect: 'import' for client-side redirect prompt."
+      - "Multi-lesson detection fix (16 Apr 2026): DOCX bold-heading promotion (mammoth <strong> → <h3> when no native heading styles), broader Week/Day/Session/Lesson heading detection in parseDocument, title-based lesson boundary splitting in reconstructUnit. Fixes 12-lesson unit plans collapsing to 1 lesson."
     adrs: ["004"]
     os_seam: designed
-    change_impacts: Ingestion pipeline rebuilt (Phase B), hardened (1.5), truncation-fixed (1.7). Changes to pass registry affect all ingestion. Changes to Pass A or Pass B max_tokens require updating Checkpoint 1.2 E2E test baselines. When fixing a stop_reason/defensive-destructure bug at one AI call site, audit FU-5 sites and fix all similar sites in the same phase (Lesson #39).
+    change_impacts: Ingestion pipeline rebuilt (Phase B), hardened (1.5), truncation-fixed (1.7). Changes to pass registry affect all ingestion. Changes to Pass A or Pass B max_tokens require updating Checkpoint 1.2 E2E test baselines. When fixing a stop_reason/defensive-destructure bug at one AI call site, audit FU-5 sites and fix all similar sites in the same phase (Lesson #39). Bold-heading promotion in extract.ts affects DOCX extraction quality; heading detection in parse.ts and lesson boundary detection in unit-import.ts affect all file types.
 
   - id: activity-blocks
     name: Activity Blocks (Reusable Component Library)
@@ -1251,9 +1252,15 @@ systems:
     future_needs: Batch conversion. Legacy `/teacher/units/import` + `/api/teacher/convert-lesson` (currently 410) retirement tracked as FU-Library-B2; stub `handleAccept` wiring tracked as FU-Library-B1.
     capabilities_added:
       - "Phase A (14 Apr 2026): Multipart file upload on /api/teacher/library/import — accepts .pdf/.docx/.pptx/.txt/.md up to 20MB (format autodetection DONE). Reuses extractDocument from @/lib/knowledge/extract. Chains reconstructUnit() after ingestion pipeline. 50-char minimum on extracted text."
+      - "Dimensions3 persistence (16 Apr 2026): Import route now persists content_items + activity_blocks via persistModeratedBlocks (matching ingest route pattern). System learns from every import, not just knowledge library uploads."
+      - "Multi-lesson detection (16 Apr 2026): Title-based lesson boundary splitting (Lesson/Week/Day/Session N patterns) preserves original heading text. Bold-heading promotion for DOCX files without native heading styles."
+    key_files:
+      - src/app/api/teacher/library/import/route.ts
+      - src/lib/ingestion/unit-import.ts
+      - src/lib/ingestion/persist-blocks.ts
     adrs: ["004"]
     os_seam: designed
-    change_impacts: Changes to reconstructUnit() or reconstructionToContentData() affect import output. extractDocument location may move (FU-Library-B3).
+    change_impacts: Changes to reconstructUnit() or reconstructionToContentData() affect import output. extractDocument location may move (FU-Library-B3). Import route now writes to content_items + activity_blocks — changes to persistModeratedBlocks or ingestion pipeline affect import persistence.
 
   - id: teacher-grading
     name: Teacher Grading Dashboard
