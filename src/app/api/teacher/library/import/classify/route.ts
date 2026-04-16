@@ -15,6 +15,9 @@ import { extractDocument, sectionsToMarkdown } from "@/lib/ingestion/document-ex
 import { computeHash } from "@/lib/ingestion/dedup";
 import type { CopyrightFlag } from "@/lib/ingestion/types";
 
+// Vercel serverless function timeout — classify runs extraction + safety + Pass A
+export const maxDuration = 300;
+
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
 const ACCEPTED_EXTENSIONS = ["pdf", "docx", "pptx", "txt", "md"];
 

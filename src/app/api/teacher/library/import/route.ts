@@ -24,6 +24,9 @@ import { computeHash } from "@/lib/ingestion/dedup";
 import { parseDocument } from "@/lib/ingestion/parse";
 import type { PassConfig, CopyrightFlag, IngestionClassification, IngestionPipelineResult } from "@/lib/ingestion/types";
 
+// Vercel serverless function timeout — import runs Pass B + Extract + Moderate + Persist
+export const maxDuration = 300;
+
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
 const ACCEPTED_EXTENSIONS = ["pdf", "docx", "pptx", "txt", "md"];
 

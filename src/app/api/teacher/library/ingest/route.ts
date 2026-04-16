@@ -17,6 +17,9 @@ import { extractDocument, sectionsToMarkdown } from "@/lib/ingestion/document-ex
 import type { PassConfig, CopyrightFlag } from "@/lib/ingestion/types";
 import { persistModeratedBlocks } from "@/lib/ingestion/persist-blocks";
 
+// Vercel serverless function timeout — full ingestion runs Pass A + Pass B + Extract + Moderate
+export const maxDuration = 300;
+
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
 const ACCEPTED_EXTENSIONS = ["pdf", "docx", "pptx", "txt", "md"];
 
