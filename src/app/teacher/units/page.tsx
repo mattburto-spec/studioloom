@@ -626,7 +626,7 @@ export default function TeacherUnitsPage() {
                   className="px-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-purple-300"
                 >
                   <option value="newest">Newest</option>
-                  <option value="most-forked">Most Forked</option>
+                  <option value="most-forked">Most Popular</option>
                 </select>
               </>
             )}
@@ -760,7 +760,7 @@ export default function TeacherUnitsPage() {
                           )}
                           {unit.forked_from && (
                             <span className="text-[10px] font-semibold text-white px-2 py-0.5 rounded-full" style={{ background: "rgba(124,58,237,0.7)" }}>
-                              Forked
+                              Community
                             </span>
                           )}
                         </div>
@@ -906,7 +906,7 @@ export default function TeacherUnitsPage() {
                     )}
                     {unit.fork_count > 0 && (
                       <span className="absolute top-2 right-2 text-[10px] font-semibold text-white px-2 py-0.5 rounded-full" style={{ background: "rgba(37,99,235,0.85)" }}>
-                        {unit.fork_count} fork{unit.fork_count !== 1 ? "s" : ""}
+                        {unit.fork_count} use{unit.fork_count !== 1 ? "s" : ""}
                       </span>
                     )}
                   </div>
@@ -980,7 +980,7 @@ export default function TeacherUnitsPage() {
                         className="px-3 py-1.5 text-[11px] font-semibold text-white rounded-lg transition disabled:opacity-50"
                         style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)" }}
                       >
-                        {forking === unit.id ? "..." : "Fork"}
+                        {forking === unit.id ? "..." : "Use This"}
                       </button>
                     </div>
                   </div>
@@ -1250,7 +1250,7 @@ export default function TeacherUnitsPage() {
                 className="w-full py-2.5 text-white rounded-xl text-sm font-semibold transition disabled:opacity-50"
                 style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)" }}
               >
-                Fork to My Library
+                Copy to My Units
               </button>
             </div>
           </div>
