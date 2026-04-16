@@ -7,7 +7,7 @@
 import { describe, it, expect } from "vitest";
 import { parseDocument } from "../parse";
 import { reconstructUnit } from "../unit-import";
-import type { IngestionPipelineResult, ExtractedBlock, ExtractionResult, ModerationStageResult } from "../types";
+import type { IngestionPipelineResult, ExtractedBlock, EnrichedSection, ExtractionResult, ModerationStageResult } from "../types";
 import type { CostBreakdown } from "@/types/activity-blocks";
 
 const ZERO_COST: CostBreakdown = {
@@ -94,6 +94,22 @@ function makeBlock(overrides: Partial<ExtractedBlock> & { title: string; source_
   };
 }
 
+/** Convert a test block into a fake enriched section so reconstructUnit() sees them. */
+function blockToEnrichedSection(block: ExtractedBlock): EnrichedSection {
+  return {
+    index: block.source_section_index,
+    heading: block.title,
+    content: block.description || block.prompt || "",
+    sectionType: "activity",
+    bloom_level: block.bloom_level,
+    time_weight: block.time_weight,
+    grouping: block.grouping,
+    phase: block.phase,
+    activity_category: block.activity_category,
+    materials: block.materials || [],
+  };
+}
+
 function makeIngestionResult(blocks: ExtractedBlock[]): IngestionPipelineResult {
   const extraction: ExtractionResult = {
     blocks,
@@ -109,27 +125,23 @@ function makeIngestionResult(blocks: ExtractedBlock[]): IngestionPipelineResult 
     flaggedCount: 0,
     pendingCount: 0,
   };
+  // Build enriched sections from blocks — reconstructUnit prefers these over extraction.blocks
+  const enrichedSections: EnrichedSection[] = blocks.map(blockToEnrichedSection);
+  const classificationObj = {
+    documentType: "unit_plan" as const,
+    confidence: 0.9,
+    confidences: { documentType: 0.9 },
+    topic: "Design",
+    sections: [] as never[],
+    cost: ZERO_COST,
+  };
   return {
     dedup: { isDuplicate: false, fileHash: "test", cost: ZERO_COST },
     parse: { title: "Test", sections: [], totalWordCount: 0, headingCount: 0, cost: ZERO_COST },
-    classification: {
-      documentType: "unit_plan",
-      confidence: 0.9,
-      confidences: { documentType: 0.9 },
-      topic: "Design",
-      sections: [],
-      cost: ZERO_COST,
-    },
+    classification: classificationObj,
     analysis: {
-      classification: {
-        documentType: "unit_plan",
-        confidence: 0.9,
-        confidences: { documentType: 0.9 },
-        topic: "Design",
-        sections: [],
-        cost: ZERO_COST,
-      },
-      enrichedSections: [],
+      classification: classificationObj,
+      enrichedSections,
       cost: ZERO_COST,
     },
     extraction,
@@ -249,5 +261,114 @@ describe("detectLessonBoundaries — title-based detection", () => {
     expect(result.totalBlocks).toBe(3);
     // Lessons with evaluate/create bloom or assessment category should be assessment points
     expect(result.metadata.assessmentPoints.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+// =========================================================================
+// Enriched-section reconstruction (uses ALL sections, not just activities)
+// =========================================================================
+
+describe("reconstructUnit — enriched section reconstruction", () => {
+  it("uses all enriched sections, not just extraction blocks", () => {
+    // Simulate a 12-lesson document where only 3 sections are activities.
+    // Extraction would produce 3 blocks, but enriched sections has all 12.
+    const enrichedSections: EnrichedSection[] = Array.from({ length: 12 }, (_, i) => ({
+      index: i,
+      heading: `Lesson ${i + 1}: Topic ${i + 1}`,
+      content: `Content for lesson ${i + 1} with detailed instructions.`,
+      sectionType: i % 4 === 0 ? "activity" as const : "instruction" as const,
+      bloom_level: "understand",
+      time_weight: "moderate",
+      grouping: "individual",
+      phase: "investigate",
+      activity_category: i % 4 === 0 ? "research" : "documentation",
+      materials: [],
+    }));
+
+    // Extraction only found the 3 activity sections
+    const activityBlocks = enrichedSections
+      .filter(s => s.sectionType === "activity")
+      .map(s => makeBlock({
+        title: s.heading,
+        source_section_index: s.index,
+      }));
+
+    const ingestion = makeIngestionResult(activityBlocks);
+    // Override enriched sections to include all 12
+    ingestion.analysis.enrichedSections = enrichedSections;
+
+    const result = reconstructUnit(ingestion);
+
+    // Should see 12 lessons (one per Lesson N heading), not 3
+    expect(result.lessons.length).toBe(12);
+    expect(result.totalBlocks).toBe(12);
+    expect(result.lessons[0].title).toBe("Lesson 1: Topic 1");
+    expect(result.lessons[11].title).toBe("Lesson 12: Topic 12");
+  });
+
+  it("skips metadata sections", () => {
+    const enrichedSections: EnrichedSection[] = [
+      { index: 0, heading: "Title Page", content: "Unit plan cover", sectionType: "metadata", bloom_level: "remember", time_weight: "quick", grouping: "individual", phase: "plan", activity_category: "documentation", materials: [] },
+      { index: 1, heading: "Lesson 1: Intro", content: "Intro activity", sectionType: "activity", bloom_level: "understand", time_weight: "moderate", grouping: "whole_class", phase: "investigate", activity_category: "research", materials: [] },
+      { index: 2, heading: "Copyright Notice", content: "All rights reserved", sectionType: "metadata", bloom_level: "remember", time_weight: "quick", grouping: "individual", phase: "plan", activity_category: "documentation", materials: [] },
+      { index: 3, heading: "Lesson 2: Design", content: "Design task", sectionType: "activity", bloom_level: "create", time_weight: "extended", grouping: "pair", phase: "create", activity_category: "making", materials: ["paper"] },
+    ];
+
+    const ingestion = makeIngestionResult([]);
+    ingestion.analysis.enrichedSections = enrichedSections;
+
+    const result = reconstructUnit(ingestion);
+
+    // Only 2 non-metadata sections
+    expect(result.totalBlocks).toBe(2);
+    expect(result.lessons.length).toBe(2);
+    expect(result.lessons[0].title).toBe("Lesson 1: Intro");
+    expect(result.lessons[1].title).toBe("Lesson 2: Design");
+  });
+
+  it("falls back to extraction blocks when no enriched sections", () => {
+    const blocks = [
+      makeBlock({ title: "Activity 1", source_section_index: 0 }),
+      makeBlock({ title: "Activity 2", source_section_index: 1 }),
+    ];
+
+    const ingestion = makeIngestionResult(blocks);
+    // Clear enriched sections to trigger fallback
+    ingestion.analysis.enrichedSections = [];
+
+    const result = reconstructUnit(ingestion);
+
+    expect(result.totalBlocks).toBe(2);
+    expect(result.lessons.length).toBe(1);
+  });
+
+  it("instruction sections with Week headings still split into lessons", () => {
+    // This is the key scenario: a teacher uploads a DOCX where each week's
+    // content is classified as "instruction" (not activity) by Pass B.
+    const enrichedSections: EnrichedSection[] = [
+      { index: 0, heading: "Unit Overview", content: "12-week biomimicry unit", sectionType: "instruction", bloom_level: "remember", time_weight: "quick", grouping: "whole_class", phase: "plan", activity_category: "documentation", materials: [] },
+      { index: 1, heading: "Week 1: Introduction to Biomimicry", content: "Explore nature's designs", sectionType: "instruction", bloom_level: "understand", time_weight: "moderate", grouping: "whole_class", phase: "investigate", activity_category: "research", materials: [] },
+      { index: 2, heading: "Lesson 1: What is Biomimicry?", content: "Discuss examples", sectionType: "activity", bloom_level: "understand", time_weight: "moderate", grouping: "whole_class", phase: "investigate", activity_category: "research", materials: [] },
+      { index: 3, heading: "Lesson 2: Nature Walk", content: "Outdoor observation", sectionType: "activity", bloom_level: "apply", time_weight: "extended", grouping: "small_group", phase: "investigate", activity_category: "research", materials: ["sketchbook"] },
+      { index: 4, heading: "Week 2: Research Phase", content: "Deep dive into examples", sectionType: "instruction", bloom_level: "analyze", time_weight: "moderate", grouping: "individual", phase: "investigate", activity_category: "research", materials: [] },
+      { index: 5, heading: "Lesson 3: Case Studies", content: "Analyse real products", sectionType: "activity", bloom_level: "analyze", time_weight: "extended", grouping: "pair", phase: "investigate", activity_category: "analysis", materials: ["case study handouts"] },
+      { index: 6, heading: "Lesson 4: Research Presentation", content: "Present findings", sectionType: "activity", bloom_level: "evaluate", time_weight: "extended", grouping: "individual", phase: "evaluate", activity_category: "presentation", materials: [] },
+    ];
+
+    const ingestion = makeIngestionResult([]);
+    ingestion.analysis.enrichedSections = enrichedSections;
+
+    const result = reconstructUnit(ingestion);
+
+    // Should detect Week 1, Lesson 1, Lesson 2, Week 2, Lesson 3, Lesson 4 boundaries
+    // (Unit Overview stays in first lesson since it doesn't match LESSON_TITLE_RE)
+    expect(result.lessons.length).toBeGreaterThanOrEqual(5);
+
+    // Check specific lesson titles preserved
+    const titles = result.lessons.map(l => l.title);
+    expect(titles.some(t => t.includes("Week 1"))).toBe(true);
+    expect(titles.some(t => t.includes("Lesson 2"))).toBe(true);
+    expect(titles.some(t => t.includes("Week 2"))).toBe(true);
+    expect(titles.some(t => t.includes("Lesson 4"))).toBe(true);
   });
 });

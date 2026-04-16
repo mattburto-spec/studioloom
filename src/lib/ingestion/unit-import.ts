@@ -3,9 +3,15 @@
  *
  * Takes full ingestion pipeline result, detects lesson boundaries,
  * assembles into StudioLoom unit structure with match report.
+ *
+ * Key insight: For unit IMPORT, we use ALL enriched sections (not just
+ * extracted activity blocks) to preserve the full lesson structure. The
+ * extraction step filters to activities-only, which is correct for the
+ * block library but loses lesson structure (a 12-lesson unit plan where
+ * most sections are "instruction" collapses to 1 lesson with 3 blocks).
  */
 
-import type { IngestionPipelineResult, ExtractedBlock } from "./types";
+import type { IngestionPipelineResult, ExtractedBlock, EnrichedSection } from "./types";
 
 // ─── Types ───
 
@@ -26,6 +32,46 @@ export interface ReconstructionResult {
     detectedLessonCount: number;
     sequenceConfidence: number;
     assessmentPoints: number[];
+  };
+}
+
+// ─── Section → Block helpers ───
+
+/** Clean up a heading for use as a block title. */
+function cleanTitle(heading: string): string {
+  return heading
+    .replace(/^#+\s*/, "")
+    .replace(/^\*\*(.+)\*\*$/, "$1")
+    .trim()
+    .slice(0, 120);
+}
+
+/** Short description from section content. */
+function shortDescription(content: string): string {
+  const firstSentence = content.split(/[.!?]\s/)[0];
+  if (firstSentence && firstSentence.length <= 200) return firstSentence + ".";
+  return content.slice(0, 200).trim() + "...";
+}
+
+/** Convert an enriched section into an ExtractedBlock for reconstruction. */
+function sectionToBlock(section: EnrichedSection): ExtractedBlock {
+  return {
+    tempId: crypto.randomUUID(),
+    title: cleanTitle(section.heading),
+    description: shortDescription(section.content),
+    prompt: section.content.slice(0, 500),
+    bloom_level: section.bloom_level,
+    time_weight: section.time_weight,
+    grouping: section.grouping,
+    phase: section.phase,
+    activity_category: section.activity_category,
+    materials: section.materials || [],
+    scaffolding_notes: section.scaffolding_notes,
+    udl_hints: section.udl_hints,
+    teaching_approach: section.teaching_approach,
+    source_section_index: section.index,
+    piiFlags: [],
+    copyrightFlag: "unknown",
   };
 }
 
@@ -111,9 +157,25 @@ function detectAssessmentPoints(lessons: ReconstructedLesson[]): number[] {
 
 /**
  * Reconstruct a unit from ingestion pipeline output.
+ *
+ * Uses ALL enriched sections (not just extracted activity blocks) so that a
+ * 12-lesson unit plan with mostly instructional text still shows 12 lessons.
+ * Sections classified as "metadata" are skipped (title pages, copyright, etc.)
+ * but instruction, activity, assessment, and unknown sections all become blocks.
+ * Falls back to extraction.blocks when no enriched sections are available.
  */
 export function reconstructUnit(ingestion: IngestionPipelineResult): ReconstructionResult {
-  const blocks = ingestion.extraction.blocks;
+  // Prefer enriched sections (full document) over extracted blocks (activity-only)
+  const enrichedSections = ingestion.analysis?.enrichedSections ?? [];
+  const usableSections = enrichedSections.filter(
+    (s) => s.sectionType !== "metadata"
+  );
+
+  // Build blocks from all usable sections, or fall back to extraction blocks
+  const blocks: ExtractedBlock[] =
+    usableSections.length > 0
+      ? usableSections.map(sectionToBlock)
+      : ingestion.extraction.blocks;
 
   if (blocks.length === 0) {
     return {
