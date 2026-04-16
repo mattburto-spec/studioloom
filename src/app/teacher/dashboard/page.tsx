@@ -911,7 +911,7 @@ function TwoColumnDashboard({
                   <div className="flex items-center gap-2">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /><path d="M8 14h.01M12 14h.01M16 14h.01" /></svg>
                     <span className="text-[11px] text-amber-700 font-medium">
-                      Keep schedule synced with a calendar link
+                      Cycle days may drift without a calendar link
                     </span>
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 ml-auto opacity-60 group-hover:opacity-100 transition"><polyline points="6 9 12 15 18 9" /></svg>
                   </div>
@@ -920,7 +920,7 @@ function TwoColumnDashboard({
                 <div className="rounded-lg bg-amber-50 border border-amber-100 px-3 py-3 space-y-2.5">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-semibold text-amber-800">
-                      Add a calendar link (iCal)
+                      Keep cycle days accurate
                     </span>
                     <button
                       onClick={() => setShowIcalHelp(false)}
@@ -930,9 +930,11 @@ function TwoColumnDashboard({
                     </button>
                   </div>
                   <p className="text-[11px] text-amber-700 leading-relaxed">
-                    An iCal link lets StudioLoom automatically import your
-                    school holidays and schedule changes so your dashboard
-                    stays accurate.
+                    Your timetable tells us which classes are on each cycle
+                    day, but without a calendar link we can&apos;t account for
+                    holidays or schedule changes. That means the cycle day
+                    shown here can drift after a long weekend or public
+                    holiday.
                   </p>
                   <div className="text-[11px] text-gray-600 space-y-1.5">
                     <p className="font-semibold text-gray-700">How to find your link:</p>

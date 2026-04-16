@@ -1359,12 +1359,13 @@ export default function TeacherWelcomePage() {
 
             <div>
               <h2 className="text-lg font-bold text-gray-900 mb-1">
-                Want to keep your schedule synced?
+                Keep your cycle days accurate?
               </h2>
               <p className="text-sm text-gray-500">
-                Your timetable photo gave us your class structure. A calendar
-                link keeps holidays, schedule changes, and cycle days accurate
-                automatically.
+                We know which classes are on each day of your cycle. But
+                without a calendar link, holidays and schedule changes can
+                make the cycle day drift — so Day 5 might show as Day 6
+                after a long weekend.
               </p>
             </div>
 
@@ -1390,7 +1391,8 @@ export default function TeacherWelcomePage() {
                     </div>
                     <p className="text-xs text-gray-500 mt-0.5">
                       Paste an iCal link from Outlook, Google Calendar, or
-                      ManageBac. Holidays sync automatically.
+                      ManageBac. Holidays are imported so cycle days stay
+                      correct.
                     </p>
                   </div>
                 </div>
@@ -1409,8 +1411,8 @@ export default function TeacherWelcomePage() {
                       I&apos;ll do this later in Settings
                     </span>
                     <p className="text-xs text-gray-400 mt-0.5">
-                      You can set up calendar sync, cycle day alignment, and
-                      holidays anytime from Settings &rarr; Timetable.
+                      Your schedule will work, but cycle days may drift
+                      after holidays. Fix it anytime in Settings &rarr; Timetable.
                     </p>
                   </div>
                 </div>
@@ -1446,7 +1448,7 @@ export default function TeacherWelcomePage() {
               <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-2.5 text-sm text-green-800">
                 <span className="font-semibold">Calendar linked</span>
                 {" \u2014 "}{icalHolidays.length} holiday{icalHolidays.length !== 1 ? "s" : ""} imported.
-                Your schedule will stay synced automatically.
+                Cycle days will stay accurate through holidays and schedule changes.
               </div>
             )}
 
