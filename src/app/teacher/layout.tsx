@@ -297,7 +297,7 @@ export default function TeacherLayout({
         </header>
 
         {children}
-        <TeacherAIFAB />
+        {/* <TeacherAIFAB /> — disabled for now */}
         <BugReportButton role="teacher" />
       </div>
     </TeacherContext.Provider>

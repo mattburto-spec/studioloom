@@ -305,7 +305,7 @@ export default function UnitDetailPage({
 
   if (loading) {
     return (
-      <main className="max-w-3xl mx-auto px-4 py-8">
+      <main className="max-w-6xl mx-auto px-4 py-8">
         <div className="animate-pulse space-y-4">
           <div className="h-4 bg-gray-200 rounded w-32" />
           <div className="h-8 bg-gray-200 rounded w-64" />
@@ -323,7 +323,7 @@ export default function UnitDetailPage({
 
   if (!unit) {
     return (
-      <main className="max-w-3xl mx-auto px-4 py-8">
+      <main className="max-w-6xl mx-auto px-4 py-8">
         <p className="text-text-secondary">Unit not found.</p>
         <Link href="/teacher/units" className="text-accent-blue text-sm mt-2 inline-block">
           ← Back to units
