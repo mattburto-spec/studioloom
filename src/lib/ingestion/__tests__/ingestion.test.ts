@@ -764,6 +764,14 @@ describe("copyright heuristic — detectVerbatimOverlap", () => {
     const b = "b".repeat(300);
     expect(detectVerbatimOverlap(a, [b])).toEqual({ matched: false });
   });
+
+  it("matches case-insensitive (same content, different capitalisation)", () => {
+    const source =
+      "The Students Will Research The Structural Principles Of Bridges Including Tension Compression And Load Distribution. They Will Then Design And Build A Prototype Using Available Materials And Test It Against A Five Kilogram Load.";
+    const blockLowerCase = source.toLowerCase();
+    const result = detectVerbatimOverlap(blockLowerCase, [source]);
+    expect(result.matched).toBe(true);
+  });
 });
 
 describe("copyright heuristic — checkBlocksForCopyright", () => {

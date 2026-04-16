@@ -122,13 +122,20 @@ For each section below, determine:
 8. **udl_hints** — UDL checkpoint IDs that this section addresses (e.g., "5.1" for expression/communication, "8.2" for sustained effort)
 9. **teaching_approach** — Brief descriptor (e.g., "direct instruction", "inquiry-based", "project-based", "collaborative")
 
-**IMPORTANT — Lesson splitting:** If a section covers multiple distinct class periods, lessons, or weeks of teaching (e.g., a week's worth of bullet-pointed activities, or a long list of activities that would span several class sessions), SPLIT it into separate enriched sections — one per lesson or class period. Give each sub-section:
+**MANDATORY — Lesson splitting:** You MUST split any section that covers multiple distinct class periods, lessons, or weeks. This is NOT optional. Look for these signals:
+- Multiple day/lesson references ("Monday...", "Tuesday...", "Lesson 1...", "Lesson 2...")
+- Multiple timed activities ("20 min...", "30 min...", "45 min...")
+- A week's worth of bullet-pointed activities
+- A long list of activities that would span several class sessions
+- Transition phrases ("then in the next lesson...", "the following day...")
+
+For EACH distinct class period or lesson, create a separate enriched section:
 - A sequential index (continue numbering from the last section)
 - A descriptive heading like "Week 1 - Lesson 1: Introduction & Brief" or "Week 2 - Lesson 5: Production"
 - Only the content relevant to that lesson/class period
 - Its own bloom_level, phase, activity_category, etc.
 
-This is critical for scheme_of_work and lesson_plan documents where the parser grouped multiple lessons into a single section. You may return MORE enriched sections than input sections.
+You MUST return MORE enriched sections than input sections when a section contains multiple lessons. Count the distinct activities and time blocks — if a section has activities totalling more than one class period (~60 min), it MUST be split. A scheme_of_work section covering 4 weeks should produce at least 4 enriched sections, not 1.
 
 Sections to analyse:
 ${sectionDetails}

@@ -204,7 +204,11 @@ export async function extractFromDOCX(
 
 /**
  * Extract text from a PPTX buffer.
- * Returns one section per slide.
+ * Returns one section per slide, with speaker notes appended.
+ *
+ * Uses officeparser v6's AST to walk slide + note nodes separately,
+ * so speaker notes (which often contain the real lesson plan) are
+ * captured instead of being silently dropped.
  */
 export async function extractFromPPTX(
   buffer: Buffer,
@@ -212,31 +216,102 @@ export async function extractFromPPTX(
 ): Promise<ExtractedDoc> {
   const { parseOffice } = await import("officeparser");
 
+  // Parse with AST — notes are included by default (ignoreNotes: false)
   const ast = await parseOffice(buffer);
-  const text = ast.toText();
+  const rawText = ast.toText();
 
-  // Split by slide markers or double newlines
-  const slides = text
-    .split(/\n{3,}|---+/)
-    .map((s: string) => s.trim())
-    .filter((s: string) => s.length > 10);
+  // Walk the AST content tree to separate slides from notes.
+  // Top-level nodes are 'slide' and 'note' nodes in presentation order.
+  const sections: ExtractedSection[] = [];
+  let currentSlideText = "";
+  let currentSlideHeading = "";
+  let currentNoteText = "";
+  let slideIndex = 0;
 
-  const sections: ExtractedSection[] = slides.map(
-    (slide: string, i: number) => {
-      const lines = slide.split("\n");
-      const heading = lines[0]?.length < 100 ? lines[0] : `Slide ${i + 1}`;
-      const content = lines.slice(1).join("\n").trim() || slide;
-      return { heading, content };
+  function collectText(node: { type: string; text?: string; children?: Array<{ type: string; text?: string; children?: unknown[] }> }): string {
+    if (node.text) return node.text;
+    if (node.children) {
+      return (node.children as Array<{ type: string; text?: string; children?: unknown[] }>)
+        .map(collectText)
+        .filter(Boolean)
+        .join("\n");
     }
-  );
+    return "";
+  }
+
+  function flushSlide() {
+    if (!currentSlideText && !currentNoteText) return;
+    slideIndex++;
+
+    const slideLines = currentSlideText.trim().split("\n");
+    const heading =
+      slideLines[0] && slideLines[0].length < 100
+        ? slideLines[0]
+        : currentSlideHeading || `Slide ${slideIndex}`;
+    const bodyText = slideLines.slice(1).join("\n").trim() || currentSlideText.trim();
+
+    // Append speaker notes as clearly labelled content — notes often
+    // contain the detailed lesson plan, timings, and teacher instructions.
+    let content = bodyText;
+    const notesTrimmed = currentNoteText.trim();
+    if (notesTrimmed.length > 5) {
+      content += `\n\nSpeaker Notes:\n${notesTrimmed}`;
+    }
+
+    if (content.trim().length > 5) {
+      sections.push({ heading, content: content.trim() });
+    }
+
+    currentSlideText = "";
+    currentSlideHeading = "";
+    currentNoteText = "";
+  }
+
+  for (const node of ast.content) {
+    if (node.type === "slide") {
+      // Flush previous slide before starting new one
+      flushSlide();
+      currentSlideText = collectText(node);
+      // Try to extract heading from first child
+      if (node.children) {
+        const firstChild = node.children[0];
+        if (firstChild?.type === "heading" && firstChild.text) {
+          currentSlideHeading = firstChild.text;
+        }
+      }
+    } else if (node.type === "note") {
+      currentNoteText = collectText(node);
+    } else {
+      // Other top-level nodes (rare) — treat as slide content
+      const text = collectText(node);
+      if (text) currentSlideText += "\n" + text;
+    }
+  }
+  // Flush last slide
+  flushSlide();
+
+  // Fallback: if AST walking produced nothing, use plain text splitting
+  if (sections.length === 0) {
+    const slides = rawText
+      .split(/\n{3,}|---+/)
+      .map((s: string) => s.trim())
+      .filter((s: string) => s.length > 10);
+
+    for (let i = 0; i < slides.length; i++) {
+      const lines = slides[i].split("\n");
+      const heading = lines[0]?.length < 100 ? lines[0] : `Slide ${i + 1}`;
+      const content = lines.slice(1).join("\n").trim() || slides[i];
+      sections.push({ heading, content });
+    }
+  }
 
   if (sections.length === 0) {
-    sections.push({ heading: "Content", content: text.trim() });
+    sections.push({ heading: "Content", content: rawText.trim() });
   }
 
   const title = sections[0]?.heading || filename.replace(/\.[^.]+$/, "");
 
-  return { title, sections, rawText: text };
+  return { title, sections, rawText };
 }
 
 /**

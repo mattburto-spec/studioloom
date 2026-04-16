@@ -105,10 +105,15 @@ const CLASSIFICATION_TOOL = {
 };
 
 function buildClassificationPrompt(parsed: ParseResult): string {
+  // Budget per section: 600 chars for docs ≤ 30 sections, 300 for larger
+  // docs to stay within Haiku's context. Long sections lose critical context
+  // (activity descriptions, timing info) at 300 chars.
+  const charBudget = parsed.sections.length <= 30 ? 600 : 300;
+
   const sectionSummaries = parsed.sections
     .map(
       (s) =>
-        `[Section ${s.index}: "${s.heading}" (${s.wordCount} words${s.hasDuration ? ", contains timing" : ""}${s.hasListItems ? ", has list items" : ""})]\n${s.content.slice(0, 300)}${s.content.length > 300 ? "..." : ""}`
+        `[Section ${s.index}: "${s.heading}" (${s.wordCount} words${s.hasDuration ? ", contains timing" : ""}${s.hasListItems ? ", has list items" : ""})]\n${s.content.slice(0, charBudget)}${s.content.length > charBudget ? "..." : ""}`
     )
     .join("\n\n");
 

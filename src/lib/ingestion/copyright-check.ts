@@ -44,11 +44,13 @@ const WINDOW_STEP = 50;
 const CORPUS_FETCH_LIMIT = 5000;
 
 /**
- * Normalise text for substring comparison: collapse whitespace, trim.
- * Case is preserved — copyright detection cares about verbatim copies.
+ * Normalise text for substring comparison: lowercase, collapse whitespace, trim.
+ * Case-insensitive — "Design A Package" and "design a package" are the same
+ * content. The 200-char minimum already prevents false positives; adding
+ * case-folding catches real copies with different capitalisation.
  */
 function normalise(text: string): string {
-  return text.replace(/\s+/g, " ").trim();
+  return text.toLowerCase().replace(/\s+/g, " ").trim();
 }
 
 /**
