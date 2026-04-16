@@ -268,19 +268,18 @@ For each entry, determine if it's a TEACHING class or NON-TEACHING activity:
 **NON-TEACHING (is_teaching: false):**
 - Advisory / Homeroom / Tutor group / Form time / Extended Advisory
 - Duty / Yard duty / Supervision / Bus duty
-- Planning / PLC / Professional learning / Meeting / Staff meeting
+- Planning / PLC / Professional learning / Meeting / Staff meeting — this includes entries like "Planning Design", "6-10 Planning Design", "9 Planning Design". If the word "Planning" appears in the entry name, it is NON-TEACHING regardless of whether a subject word or grade range also appears.
 - Recess / Lunch / Break (these won't usually appear but if they do)
 - Assembly / Chapel / Extended Assembly
 - Free / Unassigned / PPA / Non-contact / Release
 
 **TEACHING (is_teaching: true):**
-- Any entry with a subject name + grade level (e.g. "7 Design", "10 Science", "Grade 8 Art")
+- Any entry with a subject name + grade level (e.g. "7 Design", "10 Science", "Grade 8 Art") — UNLESS the name also contains "Planning", "PLC", "Meeting", or other non-teaching keywords above
 - Classes in specific teaching rooms with subject-like names
 - Electives / Options with a subject name
 
 **BORDERLINE (is_teaching: true but flag in classification_reason):**
 - "Service as Action" / "Service Learning" — supervised student programs, treat as teaching but note it
-- "Planning Design" with a grade range (e.g. "6-10 Planning Design") — this is likely a class, treat as teaching
 - Any ambiguous entry where you're unsure — mark as teaching and explain in classification_reason so the teacher can toggle it off
 
 ## Key rules:
