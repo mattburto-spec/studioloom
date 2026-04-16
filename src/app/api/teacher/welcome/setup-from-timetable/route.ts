@@ -43,6 +43,7 @@ const VALID_FRAMEWORKS = new Set([
 interface ClassInput {
   name: string;
   framework: string;
+  original_name?: string;
 }
 
 interface TimetableEntry {
@@ -174,7 +175,9 @@ export const POST = withErrorHandler(
         className: cls.name.trim(),
       });
 
-      nameToClassId.set(cls.name.trim().toLowerCase(), insertResult.data.id);
+      // Use original_name for timetable entry matching (teacher may have renamed)
+      const matchName = (cls.original_name || cls.name).trim().toLowerCase();
+      nameToClassId.set(matchName, insertResult.data.id);
     }
 
     // ── 2. Compute typical period length from timetable ────────

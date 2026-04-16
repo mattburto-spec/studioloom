@@ -46,6 +46,7 @@ interface CreatedStudent {
 
 interface DetectedClass {
   name: string;
+  originalName: string;
   grade: string;
   occurrences: number;
   is_teaching: boolean;
@@ -220,7 +221,8 @@ export default function TeacherWelcomePage() {
         setDetectedClasses(
           data.detected_classes.map((dc) => ({
             ...dc,
-            framework: "IB_MYP", // default — teacher picks in step 3
+            originalName: dc.name,
+            framework: "IB_MYP",
             include: dc.is_teaching,
           }))
         );
@@ -242,9 +244,11 @@ export default function TeacherWelcomePage() {
     setError(null);
     setSaving(true);
 
-    const includedClasses = detectedClasses.filter((dc) => dc.include);
+    const includedClasses = detectedClasses.filter(
+      (dc) => dc.include && dc.name.trim()
+    );
     if (includedClasses.length === 0) {
-      setError("Select at least one class to create.");
+      setError("Include at least one class with a name.");
       setSaving(false);
       return;
     }
@@ -257,6 +261,7 @@ export default function TeacherWelcomePage() {
           classes: includedClasses.map((dc) => ({
             name: dc.name,
             framework: dc.framework,
+            original_name: dc.originalName || undefined,
           })),
           timetable: {
             cycle_length: parseResult.cycle_length,
@@ -637,7 +642,7 @@ export default function TeacherWelcomePage() {
                 )}
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-sm text-green-800">
                   <span className="font-semibold">
                     Detected {parseResult.cycle_length}-day cycle
@@ -646,28 +651,138 @@ export default function TeacherWelcomePage() {
                   <span className="font-semibold">
                     {teachingSlotCount} teaching slots
                   </span>
-                  {parseResult.detected_classes?.length > 0 && (
-                    <>
-                      {" across "}
-                      <span className="font-semibold">
-                        {
-                          parseResult.detected_classes.filter(
-                            (c) => c.is_teaching
-                          ).length
-                        }{" "}
-                        classes
-                      </span>
-                    </>
-                  )}
                 </div>
 
-                {parseResult.detected_classes?.length > 0 && (
-                  <div className="text-xs text-gray-500">
-                    Detected classes:{" "}
-                    {parseResult.detected_classes
-                      .filter((c) => c.is_teaching)
-                      .map((c) => c.name)
-                      .join(", ")}
+                {/* Editable class list */}
+                {detectedClasses.length > 0 && (
+                  <div className="space-y-3">
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-700 mb-0.5">
+                        Your classes
+                      </h3>
+                      <p className="text-[11px] text-gray-400">
+                        Untick non-teaching entries, edit names, pick a
+                        framework, or add a class.
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      {detectedClasses.map((dc, i) => (
+                        <div
+                          key={i}
+                          className={`flex items-center gap-3 rounded-xl border px-4 py-2.5 transition-all ${
+                            dc.include
+                              ? "border-purple-200 bg-white"
+                              : "border-gray-100 bg-gray-50 opacity-60"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={dc.include}
+                            onChange={(e) => {
+                              const next = [...detectedClasses];
+                              next[i] = {
+                                ...next[i],
+                                include: e.target.checked,
+                              };
+                              setDetectedClasses(next);
+                            }}
+                            className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500 shrink-0"
+                          />
+
+                          <div className="flex-1 min-w-0">
+                            <input
+                              type="text"
+                              value={dc.name}
+                              onChange={(e) => {
+                                const next = [...detectedClasses];
+                                next[i] = {
+                                  ...next[i],
+                                  name: e.target.value,
+                                };
+                                setDetectedClasses(next);
+                              }}
+                              disabled={!dc.include}
+                              placeholder="Class name"
+                              className="w-full text-sm font-semibold text-gray-900 bg-transparent border-0 border-b border-transparent hover:border-gray-200 focus:border-purple-400 focus:outline-none focus:ring-0 px-0 py-0.5 disabled:text-gray-400 transition-colors placeholder:text-gray-300 placeholder:font-normal"
+                            />
+                            <div className="text-[11px] text-gray-400 mt-0.5">
+                              {dc.grade ? (
+                                <>{dc.grade} &middot; </>
+                              ) : null}
+                              {dc.occurrences > 0 ? (
+                                <>{dc.occurrences}x per cycle</>
+                              ) : (
+                                !dc.grade && (
+                                  <span className="text-purple-400 italic">
+                                    Added manually
+                                  </span>
+                                )
+                              )}
+                              {!dc.is_teaching && (
+                                <span className="ml-1 text-amber-600 font-medium">
+                                  (non-teaching)
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <select
+                            value={dc.framework}
+                            onChange={(e) => {
+                              const next = [...detectedClasses];
+                              next[i] = {
+                                ...next[i],
+                                framework: e.target.value,
+                              };
+                              setDetectedClasses(next);
+                            }}
+                            disabled={!dc.include}
+                            className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs font-medium bg-white disabled:bg-gray-50 disabled:text-gray-400 shrink-0"
+                          >
+                            {FRAMEWORKS.map((fw) => (
+                              <option key={fw.id} value={fw.id}>
+                                {fw.label}
+                              </option>
+                            ))}
+                          </select>
+
+                          <button
+                            onClick={() => {
+                              setDetectedClasses(
+                                detectedClasses.filter(
+                                  (_, idx) => idx !== i
+                                )
+                              );
+                            }}
+                            className="text-gray-300 hover:text-red-400 transition-colors p-0.5 shrink-0"
+                            title="Remove"
+                          >
+                            <XIcon />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        setDetectedClasses([
+                          ...detectedClasses,
+                          {
+                            name: "",
+                            originalName: "",
+                            grade: "",
+                            occurrences: 0,
+                            is_teaching: true,
+                            framework: "IB_MYP",
+                            include: true,
+                          },
+                        ]);
+                      }}
+                      className="inline-flex items-center gap-1.5 text-xs font-medium text-purple-600 hover:text-purple-800 transition-colors"
+                    >
+                      <PlusIcon /> Add a class
+                    </button>
                   </div>
                 )}
 
@@ -676,7 +791,7 @@ export default function TeacherWelcomePage() {
                     setParseResult(null);
                     setDetectedClasses([]);
                   }}
-                  className="text-xs text-purple-600 hover:text-purple-800 font-medium"
+                  className="text-xs text-gray-500 hover:text-purple-600 font-medium transition-colors"
                 >
                   Upload a different timetable
                 </button>
@@ -684,20 +799,35 @@ export default function TeacherWelcomePage() {
             )}
 
             <div className="flex items-center gap-3 pt-1">
-              {parseResult && (
+              {parseResult && detectedClasses.length > 0 && (
                 <button
-                  onClick={() => {
-                    setError(null);
-                    setStep("classes");
-                  }}
-                  className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-bold text-white rounded-xl transition-all duration-200 hover:scale-[1.02] hover:shadow-lg active:scale-[0.98]"
+                  onClick={handleCreateClassesFromTimetable}
+                  disabled={
+                    saving ||
+                    detectedClasses.filter(
+                      (dc) => dc.include && dc.name.trim()
+                    ).length === 0
+                  }
+                  className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-bold text-white rounded-xl transition-all duration-200 hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] disabled:opacity-50 disabled:hover:scale-100"
                   style={{
                     background: "linear-gradient(135deg, #7B2FF2, #5C16C5)",
                     boxShadow: "0 4px 14px rgba(123, 47, 242, 0.3)",
                   }}
                 >
-                  Next — Confirm your classes
-                  <ArrowRight />
+                  {saving
+                    ? "Creating..."
+                    : `Create ${
+                        detectedClasses.filter(
+                          (dc) => dc.include && dc.name.trim()
+                        ).length
+                      } class${
+                        detectedClasses.filter(
+                          (dc) => dc.include && dc.name.trim()
+                        ).length !== 1
+                          ? "es"
+                          : ""
+                      }`}
+                  {!saving && <ArrowRight />}
                 </button>
               )}
               <button
@@ -1398,6 +1528,42 @@ function UploadIcon() {
       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
       <polyline points="17 8 12 3 7 8" />
       <line x1="12" y1="3" x2="12" y2="15" />
+    </svg>
+  );
+}
+
+function PlusIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  );
+}
+
+function XIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <line x1="18" y1="6" x2="6" y2="18" />
+      <line x1="6" y1="6" x2="18" y2="18" />
     </svg>
   );
 }
