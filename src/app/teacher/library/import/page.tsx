@@ -93,21 +93,13 @@ export default function ImportPage() {
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Pick up result stashed by library landing page redirect handoff
+  // Clean up any stale sessionStorage from the old (pre-checkpoint) flow.
+  // The library page no longer writes here — it uses inline import now.
   useEffect(() => {
     try {
-      const stashed = sessionStorage.getItem("pendingImportResult");
-      if (stashed) {
-        sessionStorage.removeItem("pendingImportResult");
-        const parsed = JSON.parse(stashed) as ImportResult;
-        if (parsed?.reconstruction && parsed?.ingestion) {
-          setResult(parsed);
-          setStage("review");
-        }
-      }
-    } catch (e) {
-      console.error("[import] Failed to parse pendingImportResult:", e);
       sessionStorage.removeItem("pendingImportResult");
+    } catch {
+      // ignore
     }
   }, []);
 
