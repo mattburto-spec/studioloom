@@ -8,7 +8,10 @@
 import { describe, it, expect } from "vitest";
 import { parseDocument } from "../parse";
 import { reconstructUnit } from "../unit-import";
-import { _promoteLessonHeadings as promoteLessonHeadings } from "../document-extract";
+import {
+  _promoteLessonHeadings as promoteLessonHeadings,
+  _processTablesInHtml as processTablesInHtml,
+} from "../document-extract";
 import type { IngestionPipelineResult, ExtractedBlock, EnrichedSection, ExtractionResult, ModerationStageResult } from "../types";
 import type { CostBreakdown } from "@/types/activity-blocks";
 
@@ -472,5 +475,265 @@ describe("promoteLessonHeadings (Phase 1 — always-on)", () => {
     // Original headings untouched
     expect(result).toContain("<h2>Introduction</h2>");
     expect(result).toContain("<h2>Assessment</h2>");
+  });
+});
+
+// =========================================================================
+// Table-aware extraction (Phase 0 — schedule tables expanded to sections)
+// =========================================================================
+
+describe("processTablesInHtml — schedule table extraction", () => {
+  it("expands a Week × Lesson grid into heading+content blocks", () => {
+    const html = `
+      <p>Some intro text</p>
+      <table><thead>
+        <tr>
+          <th><p><strong>Week(s)</strong></p></th>
+          <th><p><strong>Lesson 1</strong></p></th>
+          <th><p><strong>Lesson 2</strong></p></th>
+          <th><p><strong>Lesson 3</strong></p></th>
+        </tr>
+        <tr>
+          <th><p><strong>1</strong></p><p>Design Brief</p></th>
+          <th><p>Introduction activities and class expectations.</p></th>
+          <th><p>Nature walk drawing exercise with leaves.</p></th>
+          <th><p>Pressed flowers drawing and orthogonal sketching.</p></th>
+        </tr>
+        <tr>
+          <th><p><strong>2</strong></p><p>Production</p></th>
+          <th><p>Plastic bag experiments and fusing techniques.</p></th>
+          <th><p>Sewing machine demonstration and practice.</p></th>
+          <th><p>Sample creation and seam types exploration.</p></th>
+        </tr>
+      </thead></table>
+      <p>Assessment section follows.</p>
+    `;
+
+    const result = processTablesInHtml(html);
+
+    // Should produce 6 lesson headings (2 weeks × 3 lessons)
+    expect(result).toContain("<h3>Week 1 - Lesson 1: Design Brief</h3>");
+    expect(result).toContain("<h3>Week 1 - Lesson 2: Design Brief</h3>");
+    expect(result).toContain("<h3>Week 1 - Lesson 3: Design Brief</h3>");
+    expect(result).toContain("<h3>Week 2 - Lesson 1: Production</h3>");
+    expect(result).toContain("<h3>Week 2 - Lesson 2: Production</h3>");
+    expect(result).toContain("<h3>Week 2 - Lesson 3: Production</h3>");
+
+    // Content should be preserved
+    expect(result).toContain("Introduction activities and class expectations.");
+    expect(result).toContain("Sewing machine demonstration and practice.");
+
+    // Non-table content should be untouched
+    expect(result).toContain("Some intro text");
+    expect(result).toContain("Assessment section follows.");
+  });
+
+  it("expands combined week ranges like '3 & 4' into separate weeks", () => {
+    const html = `
+      <table><thead>
+        <tr><th>Week(s)</th><th>Lesson 1</th><th>Lesson 2</th></tr>
+        <tr>
+          <th><p><strong>3 &amp; 4</strong></p><p>Advanced Production</p></th>
+          <th><p>Zipper insertion and lapped method techniques.</p></th>
+          <th><p>Self-paced practical work and construction.</p></th>
+        </tr>
+      </thead></table>
+    `;
+
+    const result = processTablesInHtml(html);
+
+    // "3 & 4" should expand into Week 3 AND Week 4 (same lessons repeated)
+    expect(result).toContain("<h3>Week 3 - Lesson 1: Advanced Production</h3>");
+    expect(result).toContain("<h3>Week 3 - Lesson 2: Advanced Production</h3>");
+    expect(result).toContain("<h3>Week 4 - Lesson 1: Advanced Production</h3>");
+    expect(result).toContain("<h3>Week 4 - Lesson 2: Advanced Production</h3>");
+    expect(result).toContain("Zipper insertion and lapped method techniques.");
+
+    // Should produce 4 headings total (2 weeks × 2 lessons)
+    const h3Count = (result.match(/<h3>/g) || []).length;
+    expect(h3Count).toBe(4);
+  });
+
+  it("includes differentiation column content when present", () => {
+    const html = `
+      <table><thead>
+        <tr>
+          <th>Week(s)</th>
+          <th>Lesson 1</th>
+          <th>What variations are possible for student with different needs?</th>
+        </tr>
+        <tr>
+          <th><p><strong>1</strong></p><p>Introduction</p></th>
+          <th><p>Main lesson activity content here with detail.</p></th>
+          <th><p>Provide templates and exemplars for struggling students.</p></th>
+        </tr>
+      </thead></table>
+    `;
+
+    const result = processTablesInHtml(html);
+
+    expect(result).toContain("Differentiation: Provide templates and exemplars for struggling students.");
+  });
+
+  it("skips empty/trivial cells (< 10 chars)", () => {
+    const html = `
+      <table><thead>
+        <tr><th>Week</th><th>Lesson 1</th><th>Lesson 2</th></tr>
+        <tr>
+          <th><p><strong>1</strong></p><p>Topic</p></th>
+          <th><p>Full lesson content with lots of detail here.</p></th>
+          <th><p>Short.</p></th>
+        </tr>
+      </thead></table>
+    `;
+
+    const result = processTablesInHtml(html);
+
+    // Lesson 1 should appear (long content)
+    expect(result).toContain("Week 1 - Lesson 1");
+    // Lesson 2 should be skipped (< 10 chars)
+    expect(result).not.toContain("Week 1 - Lesson 2");
+  });
+
+  it("unwraps non-schedule tables preserving inner HTML", () => {
+    const html = `
+      <table><thead>
+        <tr>
+          <th><p><strong>Unit Title: Product Design</strong></p></th>
+          <th><p><strong>Duration: 4 weeks</strong></p></th>
+        </tr>
+        <tr>
+          <th colspan="2"><p><strong>Unit Overview:</strong></p><p>Students explore materials.</p></th>
+        </tr>
+      </thead></table>
+    `;
+
+    const result = processTablesInHtml(html);
+
+    // Table tags should be removed
+    expect(result).not.toContain("<table");
+    expect(result).not.toContain("<tr");
+    expect(result).not.toContain("<th");
+
+    // Inner HTML (paragraphs, bold) should be preserved
+    expect(result).toContain("<p><strong>Unit Title: Product Design</strong></p>");
+    expect(result).toContain("<p><strong>Unit Overview:</strong></p>");
+    expect(result).toContain("<p>Students explore materials.</p>");
+  });
+
+  it("handles Session N column headers", () => {
+    const html = `
+      <table><thead>
+        <tr><th>Day</th><th>Session 1</th><th>Session 2</th></tr>
+        <tr>
+          <th><p><strong>1</strong></p><p>Orientation</p></th>
+          <th><p>Morning session with team building activities.</p></th>
+          <th><p>Afternoon session with skills assessment.</p></th>
+        </tr>
+      </thead></table>
+    `;
+
+    const result = processTablesInHtml(html);
+
+    expect(result).toContain("<h3>Week 1 - Session 1: Orientation</h3>");
+    expect(result).toContain("<h3>Week 1 - Session 2: Orientation</h3>");
+  });
+
+  it("handles mixed content — table + non-table paragraphs", () => {
+    const html = `
+      <p><strong>Learning Timeline</strong></p>
+      <ul><li>Design brief context here.</li></ul>
+      <table><thead>
+        <tr><th>Week(s)</th><th>Lesson 1</th></tr>
+        <tr>
+          <th><p><strong>1</strong></p><p>Intro</p></th>
+          <th><p>Getting to know you activities and expectations.</p></th>
+        </tr>
+      </thead></table>
+      <p><strong>Assessment Rubric</strong></p>
+      <table><thead>
+        <tr><th>Criteria</th><th>Achievement</th></tr>
+        <tr><th>Outstanding work</th><th>Extending</th></tr>
+      </thead></table>
+    `;
+
+    const result = processTablesInHtml(html);
+
+    // Schedule table expanded
+    expect(result).toContain("<h3>Week 1 - Lesson 1: Intro</h3>");
+
+    // Non-schedule content preserved
+    expect(result).toContain("<strong>Learning Timeline</strong>");
+    expect(result).toContain("Design brief context here.");
+    expect(result).toContain("<strong>Assessment Rubric</strong>");
+
+    // Rubric table unwrapped (not a schedule table)
+    expect(result).toContain("Outstanding work");
+    expect(result).toContain("Extending");
+  });
+
+  it("real-world biomimicry DOCX pattern: 4 weeks × 3 lessons = 12 sections", () => {
+    // Simulate the exact structure from the Biomimicry[95].docx
+    // Document says "4 weeks (12 x 72 minute lessons)" — weeks 3 & 4 share
+    // a row but each week has its own 3 class periods.
+    const html = `
+      <table><thead>
+        <tr>
+          <th><p><strong>Week(s) </strong></p></th>
+          <th><p><strong>Lesson 1</strong></p><p><em>Include a list of teaching and learning activities</em></p></th>
+          <th><p><strong>Lesson 2</strong></p><p><em>Include a list of teaching and learning activities</em></p></th>
+          <th><p><strong>Lesson 3</strong></p><p><em>Include a list of teaching and learning activities</em></p></th>
+          <th><p><strong>What variations are possible for student with different needs?</strong></p></th>
+        </tr>
+        <tr>
+          <th><p><strong>1</strong></p><p>Plastic Zip Pouch – DESIGN BRIEF &amp; VISUALISTAION</p></th>
+          <th><ul><li>Getting to know you activities such as: roll call games, name that tool!</li><li>Establish guidelines and class expectations</li></ul></th>
+          <th><ul><li>Walk the school grounds and collect leaves/natural matter</li><li>Drawing exercise on shape and form</li></ul></th>
+          <th><ul><li>Look at pressed flowers and leaves</li><li>Drawing exercise to trace/transpose shapes</li></ul></th>
+          <th><p>Grid paper Drawing templates Drafting shapes with chalk on fabric</p></th>
+        </tr>
+        <tr>
+          <th><p><strong>2</strong></p><p>Plastic Zip Pouch - PRODUCTION</p></th>
+          <th><ul><li>Plastic bag ban discussion</li><li>Students research lifecycle of a plastic bag</li></ul></th>
+          <th><ul><li>Students continue to experiment with plastic</li><li>Demonstrate sewing machine operation</li></ul></th>
+          <th><ul><li>Create a fused plastic sample</li><li>Create sample seams</li></ul></th>
+          <th><p>Partner pairs for prac Chalk on fabric for sewing guides</p></th>
+        </tr>
+        <tr>
+          <th><p><strong>3 &amp; 4</strong></p><p>Plastic Zip Pouch - PRODUCTION</p></th>
+          <th><ul><li>Zipper insertion, lapped method</li><li>Students continue construction</li></ul></th>
+          <th><ul><li>Facilitate and support students through self-paced practical work</li><li>Constructing the pouch</li></ul></th>
+          <th><p>Extension – lined pouch and additional features for advanced students</p></th>
+          <th></th>
+        </tr>
+      </thead></table>
+    `;
+
+    const result = processTablesInHtml(html);
+
+    // Week 1: 3 lessons
+    expect(result).toContain("Week 1 - Lesson 1");
+    expect(result).toContain("Week 1 - Lesson 2");
+    expect(result).toContain("Week 1 - Lesson 3");
+    // Week 2: 3 lessons
+    expect(result).toContain("Week 2 - Lesson 1");
+    expect(result).toContain("Week 2 - Lesson 2");
+    expect(result).toContain("Week 2 - Lesson 3");
+    // Week 3 & 4 expanded into separate weeks: 3 + 3 = 6 lessons
+    expect(result).toContain("Week 3 - Lesson 1: Plastic Zip Pouch - PRODUCTION");
+    expect(result).toContain("Week 3 - Lesson 2: Plastic Zip Pouch - PRODUCTION");
+    expect(result).toContain("Week 4 - Lesson 1: Plastic Zip Pouch - PRODUCTION");
+    expect(result).toContain("Week 4 - Lesson 2: Plastic Zip Pouch - PRODUCTION");
+
+    // Week descriptions in headings
+    expect(result).toContain("DESIGN BRIEF");
+    expect(result).toContain("PRODUCTION");
+
+    // Count <h3> tags — should be at least 11 (12th might be skipped if < 10 chars)
+    const h3Count = (result.match(/<h3>/g) || []).length;
+    expect(h3Count).toBeGreaterThanOrEqual(11);
+
+    // Differentiation content should appear in Week 1 and 2 lessons
+    expect(result).toContain("Differentiation:");
   });
 });

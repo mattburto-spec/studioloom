@@ -124,6 +124,14 @@ export async function extractFromDOCX(
   // Also get raw text for rawText field
   const rawResult = await mammoth.extractRawText({ buffer });
 
+  // ── Table processing (Phase 0) ──
+  // Teacher-authored DOCXs commonly use table grids for scheme-of-work
+  // timelines (Week rows × Lesson columns). Mammoth preserves <table>
+  // tags, but heading-based splitting ignores them — collapsing 12 lessons
+  // into 1-3 sections. Process tables BEFORE bold-heading promotion:
+  // schedule tables → <h3> headings; other tables → unwrapped inner HTML.
+  html = processTablesInHtml(html);
+
   // ── Bold-heading promotion (two-phase) ──
   // Many teacher-authored docs use bold text for headings instead of Word
   // heading styles. Mammoth only creates <h> tags for styled headings, so
@@ -370,9 +378,184 @@ function promoteBoldToHeadings(html: string): string {
   return result;
 }
 
+/**
+ * Schedule column pattern — matches "Lesson N", "Session N", "Day N",
+ * "Period N", or "Class N" in table header cells.
+ */
+const SCHEDULE_COL_RE = /^((?:Lesson|Session|Day|Period|Class)\s+\d+)/i;
+
+/**
+ * Process tables in mammoth HTML output.
+ *
+ * Teacher-authored DOCXs commonly use table grids for scheme-of-work
+ * timelines (Week rows × Lesson columns). Mammoth preserves table tags
+ * but `extractFromDOCX`'s heading-based splitter ignores them, collapsing
+ * 12 lessons into 1-3 sections.
+ *
+ * Schedule/timeline tables (those with "Lesson N" or "Session N" columns)
+ * are expanded into `<h3>` heading + `<p>` content blocks — one per
+ * week × lesson cell. This preserves the grid structure for downstream
+ * section splitting.
+ *
+ * Non-schedule tables (metadata, rubrics) are unwrapped: table/tr/th/td
+ * tags removed, inner HTML preserved so bold-heading promotion can still
+ * detect patterns like `<p><strong>Unit Overview:</strong></p>`.
+ */
+function processTablesInHtml(html: string): string {
+  return html.replace(/<table[\s\S]*?<\/table>/gi, (tableHtml) => {
+    const rows = tableHtml.match(/<tr[\s\S]*?<\/tr>/gi) || [];
+    if (rows.length < 2) return unwrapTable(tableHtml);
+
+    // Parse header row cells
+    const headerCells = extractTableCells(rows[0]);
+
+    // Find schedule columns (Lesson N, Session N, etc.)
+    const scheduleCols: { index: number; name: string }[] = [];
+    headerCells.forEach((cellHtml, i) => {
+      const text = stripHtml(cellHtml).trim();
+      const match = text.match(SCHEDULE_COL_RE);
+      if (match) {
+        scheduleCols.push({ index: i, name: match[1] });
+      }
+    });
+
+    // Not a schedule table — unwrap and preserve inner HTML
+    if (scheduleCols.length === 0) {
+      return unwrapTable(tableHtml);
+    }
+
+    // --- Schedule table: expand week × lesson cells into sections ---
+
+    // Optionally find a "variations/differentiation" column
+    const varColIdx = headerCells.findIndex((cellHtml) => {
+      const t = stripHtml(cellHtml).trim().toLowerCase();
+      return t.includes("variation") || t.includes("differentiat") || t.includes("different needs");
+    });
+
+    let output = "";
+    for (let r = 1; r < rows.length; r++) {
+      const cells = extractTableCells(rows[r]);
+      if (cells.length === 0) continue;
+
+      // First cell = week/period label
+      const weekText = stripHtml(cells[0] || "").trim();
+      const weekMatch = weekText.match(/^(\d+(?:\s*[&\-–—,]\s*\d+)*)\s*([\s\S]*)/);
+      const weekRaw = weekMatch?.[1] || `${r}`;
+      const weekDesc = weekMatch?.[2]?.replace(/^\s*[-–—:]\s*/, "").trim() || "";
+
+      // Expand combined week ranges: "3 & 4" → [3, 4], "5" → [5]
+      // A row covering multiple weeks means the same lesson plan repeats
+      // each week (e.g., "12 x 72-minute lessons" over 4 weeks, 3 per week).
+      const weekNums = expandWeekRange(weekRaw);
+
+      // Get variations/differentiation text if column exists
+      const varText =
+        varColIdx >= 0 && cells[varColIdx]
+          ? stripHtml(cells[varColIdx]).trim()
+          : "";
+
+      for (const weekNum of weekNums) {
+        for (const col of scheduleCols) {
+          const cellHtml = cells[col.index];
+          if (!cellHtml) continue;
+
+          const cellText = stripHtml(cellHtml).trim();
+          if (cellText.length < 10) continue; // Skip trivial/empty cells
+
+          // Build descriptive heading: "Week 3 - Lesson 1: Production"
+          const heading = weekDesc
+            ? `Week ${weekNum} - ${col.name}: ${weekDesc}`
+            : `Week ${weekNum} - ${col.name}`;
+
+          // Build content, append differentiation notes if available
+          let content = cellText;
+          if (varText.length > 10) {
+            content += `\n\nDifferentiation: ${varText}`;
+          }
+
+          output += `<h3>${heading}</h3><p>${content}</p>\n`;
+        }
+      }
+    }
+
+    return output || unwrapTable(tableHtml);
+  });
+}
+
+/**
+ * Extract cell contents from a table row.
+ * Handles both `<th>` and `<td>` cells.
+ */
+function extractTableCells(rowHtml: string): string[] {
+  const cells: string[] = [];
+  const regex = /<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/gi;
+  let match;
+  while ((match = regex.exec(rowHtml)) !== null) {
+    cells.push(match[1]);
+  }
+  return cells;
+}
+
+/**
+ * Unwrap a non-schedule table: remove table/tr/th/td tags but
+ * preserve inner HTML (paragraphs, bold text, lists, links).
+ * This allows bold-heading promotion to still detect patterns.
+ */
+function unwrapTable(tableHtml: string): string {
+  const rows = tableHtml.match(/<tr[\s\S]*?<\/tr>/gi) || [];
+  let output = "";
+  for (const row of rows) {
+    const cells = extractTableCells(row);
+    for (const cellHtml of cells) {
+      const content = cellHtml.trim();
+      if (content.length > 0) {
+        output += content;
+      }
+    }
+  }
+  return output;
+}
+
+/**
+ * Expand a combined week range string into individual week numbers.
+ *
+ * "3 & 4"  → ["3", "4"]
+ * "3-5"    → ["3", "4", "5"]
+ * "5"      → ["5"]
+ * "1, 2"   → ["1", "2"]
+ *
+ * Combined rows in schedule tables mean the same lesson plan repeats
+ * each week — e.g., a "12 lessons over 4 weeks" document where weeks
+ * 3 & 4 share one row but each week has its own 3 class periods.
+ */
+function expandWeekRange(raw: string): string[] {
+  const trimmed = raw.trim();
+
+  // "3 & 4", "3, 4", "3 and 4" → split on separators
+  const parts = trimmed.split(/\s*[&,]\s*|\s+and\s+/i).map((s) => s.trim()).filter(Boolean);
+
+  // If any part is a range like "3-5" or "3–5", expand it
+  const result: string[] = [];
+  for (const part of parts) {
+    const rangeMatch = part.match(/^(\d+)\s*[-–—]\s*(\d+)$/);
+    if (rangeMatch) {
+      const start = parseInt(rangeMatch[1], 10);
+      const end = parseInt(rangeMatch[2], 10);
+      for (let n = start; n <= end; n++) {
+        result.push(String(n));
+      }
+    } else {
+      result.push(part);
+    }
+  }
+
+  return result.length > 0 ? result : [trimmed];
+}
+
 // Exported for unit tests — these functions are otherwise private to the module
 export { promoteLessonHeadings as _promoteLessonHeadings };
 export { promoteBoldToHeadings as _promoteBoldToHeadings };
+export { processTablesInHtml as _processTablesInHtml };
 
 /** Strip HTML tags from a string */
 function stripHtml(html: string): string {
