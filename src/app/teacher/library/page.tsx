@@ -93,6 +93,7 @@ interface ImportResult {
     gradeLevel: string;
     totalBlocks: number;
     piiDetected: boolean;
+    documentTitle?: string;
   };
 }
 
@@ -412,11 +413,16 @@ export default function LibraryLandingPage() {
     setImportStage("saving");
 
     try {
+      // Prefer the actual document title over "Subject — Grade"
+      const docTitle = importResult.ingestion.documentTitle;
       const firstLesson = importResult.reconstruction.lessons[0];
-      const title =
-        importResult.ingestion.subject && importResult.ingestion.gradeLevel
-          ? `${importResult.ingestion.subject} — ${importResult.ingestion.gradeLevel}`
-          : firstLesson?.title || "Imported Unit";
+      const title = docTitle && docTitle !== "Imported Unit"
+        ? docTitle
+        : firstLesson?.title || "Imported Unit";
+
+      // Strip redundant "Grade" prefix if the detected level already starts with "Grade"
+      const rawGrade = importResult.ingestion.gradeLevel || null;
+      const gradeLevel = rawGrade?.replace(/^Grade\s+/i, "") || rawGrade;
 
       const res = await fetch("/api/teacher/units", {
         method: "POST",
@@ -429,7 +435,7 @@ export default function LibraryLandingPage() {
             `Imported from ${importResult.ingestion.documentType}. ` +
             `${importResult.reconstruction.lessons.length} lessons, ` +
             `${importResult.reconstruction.totalBlocks} activities.`,
-          gradeLevel: importResult.ingestion.gradeLevel || null,
+          gradeLevel,
           topic: importResult.ingestion.subject || null,
         }),
       });

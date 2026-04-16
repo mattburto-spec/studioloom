@@ -252,34 +252,72 @@ export function reconstructUnit(ingestion: IngestionPipelineResult): Reconstruct
 // ─── Content Data Conversion ───
 
 /**
- * Convert reconstruction result to StudioLoom content_data format (v2 pages).
+ * Map enriched time_weight to a duration estimate in minutes.
+ */
+function timeWeightToMinutes(tw: string): number {
+  switch (tw) {
+    case "quick": return 5;
+    case "moderate": return 15;
+    case "extended": return 25;
+    default: return 10;
+  }
+}
+
+/**
+ * Map time_weight strings to the TimeWeight type expected by ActivitySection.
+ */
+function normalizeTimeWeight(tw: string): "quick" | "moderate" | "extended" {
+  if (tw === "quick" || tw === "moderate" || tw === "extended") return tw;
+  return "moderate";
+}
+
+/**
+ * Convert reconstruction result to StudioLoom UnitContentDataV2 format.
+ *
+ * Each lesson becomes a UnitPage with type "lesson" and a nested content
+ * object matching the PageContent interface (title, learningGoal, sections[]).
+ * Each block becomes an ActivitySection with prompt, bloom_level, timeWeight,
+ * grouping, and durationMinutes.
  */
 export function reconstructionToContentData(result: ReconstructionResult): {
+  version: 2;
   pages: Array<{
     id: string;
+    type: "lesson";
     title: string;
-    learningGoal: string;
-    sections: Array<{
-      activityId: string;
+    content: {
       title: string;
-      description: string;
-      responseType: string;
-      duration: number;
-    }>;
+      learningGoal: string;
+      sections: Array<{
+        prompt: string;
+        responseType: string;
+        durationMinutes: number;
+        bloom_level?: string;
+        timeWeight?: string;
+        grouping?: string;
+        criterionTags?: string[];
+      }>;
+    };
   }>;
 } {
   return {
+    version: 2,
     pages: result.lessons.map((lesson, i) => ({
       id: `import_p${i}`,
+      type: "lesson" as const,
       title: lesson.title,
-      learningGoal: lesson.learningGoal,
-      sections: lesson.blocks.map(block => ({
-        activityId: block.tempId,
-        title: block.title,
-        description: block.description,
-        responseType: "text",
-        duration: block.time_weight === "quick" ? 5 : block.time_weight === "moderate" ? 15 : 25,
-      })),
+      content: {
+        title: lesson.title,
+        learningGoal: lesson.learningGoal,
+        sections: lesson.blocks.map(block => ({
+          prompt: block.description || block.title,
+          responseType: "text",
+          durationMinutes: timeWeightToMinutes(block.time_weight),
+          bloom_level: block.bloom_level || undefined,
+          timeWeight: normalizeTimeWeight(block.time_weight),
+          grouping: block.grouping || undefined,
+        })),
+      },
     })),
   };
 }

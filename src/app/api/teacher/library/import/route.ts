@@ -294,6 +294,7 @@ export async function POST(request: NextRequest) {
           gradeLevel: ingestion.classification.detectedLevel ?? "unknown",
           totalBlocks: ingestion.extraction.blocks.length,
           piiDetected: ingestion.extraction.piiDetected,
+          documentTitle: ingestion.parse.title || ingestion.classification.topic || "Imported Unit",
         },
       },
       { headers: { "Cache-Control": "private, no-cache" } }
