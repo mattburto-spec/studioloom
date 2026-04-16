@@ -122,6 +122,14 @@ For each section below, determine:
 8. **udl_hints** — UDL checkpoint IDs that this section addresses (e.g., "5.1" for expression/communication, "8.2" for sustained effort)
 9. **teaching_approach** — Brief descriptor (e.g., "direct instruction", "inquiry-based", "project-based", "collaborative")
 
+**IMPORTANT — Lesson splitting:** If a section covers multiple distinct class periods, lessons, or weeks of teaching (e.g., a week's worth of bullet-pointed activities, or a long list of activities that would span several class sessions), SPLIT it into separate enriched sections — one per lesson or class period. Give each sub-section:
+- A sequential index (continue numbering from the last section)
+- A descriptive heading like "Week 1 - Lesson 1: Introduction & Brief" or "Week 2 - Lesson 5: Production"
+- Only the content relevant to that lesson/class period
+- Its own bloom_level, phase, activity_category, etc.
+
+This is critical for scheme_of_work and lesson_plan documents where the parser grouped multiple lessons into a single section. You may return MORE enriched sections than input sections.
+
 Sections to analyse:
 ${sectionDetails}
 
