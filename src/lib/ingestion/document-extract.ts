@@ -124,12 +124,20 @@ export async function extractFromDOCX(
   // Also get raw text for rawText field
   const rawResult = await mammoth.extractRawText({ buffer });
 
-  // ── Bold-heading promotion ──
+  // ── Bold-heading promotion (two-phase) ──
   // Many teacher-authored docs use bold text for headings instead of Word
   // heading styles. Mammoth only creates <h> tags for styled headings, so
   // bold-only paragraphs appear as <p><strong>text</strong></p>.
-  // When no heading styles exist, promote short bold-only paragraphs to
-  // <h3> so the section splitter can detect structural boundaries.
+  //
+  // Phase 1 (ALWAYS): Promote bold text matching lesson/week/day patterns
+  // regardless of existing headings. A scheme_of_work often has 3 proper
+  // headings (Intro, Task, Assessment) with bold "Lesson 1:", "Week 2:"
+  // sub-headings inside sections. Without this, 12-lesson documents
+  // collapse to 1 lesson because the sub-headings stay as body text.
+  //
+  // Phase 2 (no headings only): If the document has NO heading styles at
+  // all, also promote other short bold paragraphs as headings.
+  html = promoteLessonHeadings(html);
   if (!/<h[1-6][^>]*>/i.test(html)) {
     html = promoteBoldToHeadings(html);
   }
@@ -273,8 +281,55 @@ export function sectionsToMarkdown(sections: ExtractedSection[]): string {
 }
 
 /**
- * Promote bold-only paragraphs to <h3> headings.
- * Used when mammoth finds no Word heading styles in a DOCX — the next best
+ * Pattern for lesson/week/day headings — always promoted regardless of
+ * whether the document has other heading styles.
+ */
+const LESSON_HEADING_RE = /^(?:Lesson|Week|Weeks|Day|Session|Module|Part|Unit)\s+\d/i;
+
+/**
+ * Phase 1 promotion: Always promote bold text that matches lesson/week/day
+ * patterns to <h3> headings, even when the document already has heading styles.
+ *
+ * This is critical for scheme_of_work documents where the top-level structure
+ * uses proper headings but individual lesson entries are bold body text.
+ * Without this, a 12-lesson scheme of work collapses to 1 lesson.
+ */
+function promoteLessonHeadings(html: string): string {
+  // Pattern 1: Entire bold paragraph matching lesson heading
+  // e.g. <p><strong>Lesson 3: Prototyping</strong></p>
+  let result = html.replace(
+    /<p>\s*<strong>(.*?)<\/strong>\s*<\/p>/gi,
+    (fullMatch, inner: string) => {
+      const text = stripHtml(inner).trim();
+      if (text.length >= 3 && text.length <= 120 && LESSON_HEADING_RE.test(text)) {
+        return `<h3>${text}</h3>`;
+      }
+      return fullMatch;
+    }
+  );
+
+  // Pattern 2: Bold start matching lesson heading + short tail
+  // e.g. <p><strong>Week 1</strong>: Introduction to Biomimicry</p>
+  result = result.replace(
+    /<p>\s*<strong>(.*?)<\/strong>\s*([^<]{1,80})\s*<\/p>/gi,
+    (fullMatch, boldInner: string, tail: string) => {
+      const boldText = stripHtml(boldInner).trim();
+      if (LESSON_HEADING_RE.test(boldText)) {
+        const combined = (boldText + " " + tail.trim()).trim();
+        if (combined.length >= 3 && combined.length <= 120) {
+          return `<h3>${combined}</h3>`;
+        }
+      }
+      return fullMatch;
+    }
+  );
+
+  return result;
+}
+
+/**
+ * Phase 2 promotion: Promote ALL bold-only paragraphs to <h3> headings.
+ * Only used when mammoth finds no Word heading styles in a DOCX — the next best
  * structural signal is bold text that teachers use as visual headings.
  *
  * Handles two patterns:
@@ -314,6 +369,10 @@ function promoteBoldToHeadings(html: string): string {
 
   return result;
 }
+
+// Exported for unit tests — these functions are otherwise private to the module
+export { promoteLessonHeadings as _promoteLessonHeadings };
+export { promoteBoldToHeadings as _promoteBoldToHeadings };
 
 /** Strip HTML tags from a string */
 function stripHtml(html: string): string {

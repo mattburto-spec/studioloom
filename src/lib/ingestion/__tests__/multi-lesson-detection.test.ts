@@ -1,12 +1,14 @@
 /**
  * Tests for multi-lesson detection fixes:
- * 1. Bold-heading promotion in DOCX extraction
+ * 1. Bold-heading promotion in DOCX extraction (Phase 1 + Phase 2)
  * 2. Week/Lesson heading detection in parseDocument
  * 3. Title-based lesson boundary detection in reconstructUnit
+ * 4. Scheme-of-work documents with mixed heading styles + bold lesson headings
  */
 import { describe, it, expect } from "vitest";
 import { parseDocument } from "../parse";
 import { reconstructUnit } from "../unit-import";
+import { _promoteLessonHeadings as promoteLessonHeadings } from "../document-extract";
 import type { IngestionPipelineResult, ExtractedBlock, EnrichedSection, ExtractionResult, ModerationStageResult } from "../types";
 import type { CostBreakdown } from "@/types/activity-blocks";
 
@@ -370,5 +372,105 @@ describe("reconstructUnit — enriched section reconstruction", () => {
     expect(titles.some(t => t.includes("Lesson 2"))).toBe(true);
     expect(titles.some(t => t.includes("Week 2"))).toBe(true);
     expect(titles.some(t => t.includes("Lesson 4"))).toBe(true);
+  });
+});
+
+// =========================================================================
+// Phase 1 bold-heading promotion (lesson headings WITHIN existing headings)
+// =========================================================================
+
+describe("promoteLessonHeadings (Phase 1 — always-on)", () => {
+  it("promotes bold Lesson N paragraphs even when heading tags exist", () => {
+    // Simulates a scheme_of_work with 3 real headings + bold lesson sub-headings
+    const html = `
+      <h2>Introduction</h2>
+      <p>Unit overview for 12 × 72-minute lessons.</p>
+      <p><strong>Lesson 1: Materials Overview</strong></p>
+      <p>Students explore different material types.</p>
+      <p><strong>Lesson 2: Natural vs Synthetic</strong></p>
+      <p>Comparing material properties.</p>
+      <h2>Task Description</h2>
+      <p>Design a biomimicry pouch.</p>
+      <p><strong>Lesson 3: Research Phase</strong></p>
+      <p>Investigate biomimicry examples.</p>
+      <h2>Assessment</h2>
+      <p>Submission requirements.</p>
+    `;
+    const result = promoteLessonHeadings(html);
+
+    // Bold Lesson N headings should become <h3>
+    expect(result).toContain("<h3>Lesson 1: Materials Overview</h3>");
+    expect(result).toContain("<h3>Lesson 2: Natural vs Synthetic</h3>");
+    expect(result).toContain("<h3>Lesson 3: Research Phase</h3>");
+    // Existing <h2> headings should be untouched
+    expect(result).toContain("<h2>Introduction</h2>");
+    expect(result).toContain("<h2>Task Description</h2>");
+  });
+
+  it("promotes bold Week N paragraphs", () => {
+    const html = `
+      <h1>Unit Plan</h1>
+      <p><strong>Week 1: Introduction</strong></p>
+      <p>Content here.</p>
+      <p><strong>Week 2: Development</strong></p>
+      <p>More content.</p>
+      <p><strong>Weeks 3-4: Production</strong></p>
+      <p>Build phase.</p>
+    `;
+    const result = promoteLessonHeadings(html);
+
+    expect(result).toContain("<h3>Week 1: Introduction</h3>");
+    expect(result).toContain("<h3>Week 2: Development</h3>");
+    expect(result).toContain("<h3>Weeks 3-4: Production</h3>");
+  });
+
+  it("promotes bold-start + tail pattern for lesson headings", () => {
+    // <p><strong>Lesson 5</strong>: Testing and Evaluation</p>
+    const html = `
+      <h2>Overview</h2>
+      <p><strong>Lesson 5</strong>: Testing and Evaluation</p>
+      <p>Students test their prototypes.</p>
+    `;
+    const result = promoteLessonHeadings(html);
+
+    expect(result).toContain("<h3>Lesson 5 : Testing and Evaluation</h3>");
+  });
+
+  it("does NOT promote non-lesson bold text", () => {
+    const html = `
+      <h2>Introduction</h2>
+      <p><strong>Important: Read this first</strong></p>
+      <p><strong>Materials Needed</strong></p>
+      <p>Cardboard, glue, scissors.</p>
+    `;
+    const result = promoteLessonHeadings(html);
+
+    // These should NOT be promoted (don't match Lesson/Week/Day patterns)
+    expect(result).not.toContain("<h3>Important: Read this first</h3>");
+    expect(result).not.toContain("<h3>Materials Needed</h3>");
+  });
+
+  it("12-lesson scheme_of_work produces 12 promoted headings", () => {
+    // Simulates the exact bug: 3 real headings + 12 bold lesson headings
+    const lessonParagraphs = Array.from({ length: 12 }, (_, i) =>
+      `<p><strong>Lesson ${i + 1}: Activity ${i + 1}</strong></p>\n<p>Students do activity ${i + 1}.</p>`
+    ).join("\n");
+
+    const html = `
+      <h2>Introduction</h2>
+      <p>A 4-week Product Design course (12 × 72-minute lessons).</p>
+      ${lessonParagraphs}
+      <h2>Assessment</h2>
+      <p>Portfolio submission required.</p>
+    `;
+    const result = promoteLessonHeadings(html);
+
+    // All 12 lesson headings should be promoted
+    for (let i = 1; i <= 12; i++) {
+      expect(result).toContain(`<h3>Lesson ${i}: Activity ${i}</h3>`);
+    }
+    // Original headings untouched
+    expect(result).toContain("<h2>Introduction</h2>");
+    expect(result).toContain("<h2>Assessment</h2>");
   });
 });

@@ -12,7 +12,7 @@ export default defineConfig({
     exclude: [
       "**/node_modules/**",
       "**/.git/**",
-      "**/.claude/worktrees/**",
+      "**/.claude/**",
     ],
     // E2E tests (tests/e2e/**) may hit the live Anthropic API when
     // RUN_E2E=1. The DOCX run took ~132s on 11 Apr 2026. 300s per test
