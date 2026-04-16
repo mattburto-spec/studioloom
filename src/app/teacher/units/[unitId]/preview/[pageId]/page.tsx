@@ -7,6 +7,8 @@
  * teacher auth (no student session required). Read-only — no response inputs,
  * no save/progress, no student dashboard nav.
  *
+ * The preview layout (layout.tsx) provides the LHS sidebar and preview banner.
+ *
  * Route: /teacher/units/[unitId]/preview/[pageId]
  */
 
@@ -15,7 +17,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { getPageList, normalizeContentData } from "@/lib/unit-adapter";
-import { getPageColor, CRITERIA, type CriterionKey } from "@/lib/constants";
+import { getPageColor } from "@/lib/constants";
 import { collectCriterionChips } from "@/lib/frameworks/render-helpers";
 import { MarkdownPrompt } from "@/components/student/MarkdownPrompt";
 import { toEmbedUrl } from "@/lib/video-embed";
@@ -100,17 +102,19 @@ function PreviewActivityCard({
       )}
 
       {/* Response placeholder (read-only indicator) */}
-      <div className="px-6 pb-5">
-        <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50/50 p-4 text-center">
-          <p className="text-sm text-gray-400 italic">
-            {section.responseType === "upload"
-              ? "Student uploads their work here"
-              : section.responseType === "voice"
-                ? "Student records a voice response here"
-                : "Student types their response here"}
-          </p>
+      {section.responseType && (
+        <div className="px-6 pb-5">
+          <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50/50 p-4 text-center">
+            <p className="text-sm text-gray-400 italic">
+              {section.responseType === "upload"
+                ? "Student uploads their work here"
+                : section.responseType === "voice"
+                  ? "Student records a voice response here"
+                  : "Student types their response here"}
+            </p>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Metadata pills */}
       {(section.durationMinutes || section.bloom_level || section.grouping) && (
@@ -221,71 +225,6 @@ export default function TeacherPreviewPage({
 
   return (
     <div className="min-h-screen bg-white">
-      {/* ── Preview banner ── */}
-      <div className="bg-amber-50 border-b border-amber-200">
-        <div className="max-w-5xl mx-auto px-4 py-2 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-              <circle cx="12" cy="12" r="3" />
-            </svg>
-            <span className="text-sm font-semibold text-amber-800">Student Preview</span>
-            <span className="text-xs text-amber-600">Read-only view of how students see this lesson</span>
-          </div>
-          <Link
-            href={`/teacher/units/${unitId}`}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-amber-700 hover:text-amber-900 bg-amber-100 hover:bg-amber-200 rounded-lg transition"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-            Exit Preview
-          </Link>
-        </div>
-      </div>
-
-      {/* ── Lesson nav bar ── */}
-      <div className="sticky top-0 z-40 bg-white/95 backdrop-blur-sm border-b border-gray-100 shadow-sm">
-        <div className="max-w-5xl mx-auto px-4 py-2 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-gray-400 font-medium">
-              {currentIndex + 1}/{allPages.length}
-            </span>
-            {/* Page nav pills */}
-            <div className="hidden sm:flex items-center gap-1">
-              {allPages.map((p, i) => (
-                <Link
-                  key={p.id}
-                  href={`/teacher/units/${unitId}/preview/${p.id}`}
-                  className={`w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-bold transition ${
-                    p.id === pageId
-                      ? "text-white shadow-sm"
-                      : "text-gray-400 bg-gray-100 hover:bg-gray-200"
-                  }`}
-                  style={p.id === pageId ? { backgroundColor: pageColor } : undefined}
-                  title={p.content?.title || p.title || `Page ${i + 1}`}
-                >
-                  {i + 1}
-                </Link>
-              ))}
-            </div>
-          </div>
-          <span className="text-sm font-semibold text-gray-700 truncate max-w-[40%]">
-            {pageContent?.title || currentPage?.title || unit.title}
-          </span>
-          <Link
-            href={`/teacher/units/${unitId}`}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 rounded-lg transition"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="15 18 9 12 15 6" />
-            </svg>
-            Back to Unit
-          </Link>
-        </div>
-      </div>
-
       {/* ── Hero header ── */}
       {currentPage ? (
         <div className="w-full" style={{ background: `linear-gradient(135deg, #1A1A2E 0%, ${pageColor} 100%)` }}>
