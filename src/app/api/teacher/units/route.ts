@@ -144,21 +144,37 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const { data: newUnit, error: insertError } = await adminClient
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const insertPayload: Record<string, any> = {
+        title,
+        description: description || null,
+        content_data: contentData,
+        author_teacher_id: user.id,
+        teacher_id: user.id,
+        grade_level: gradeLevel || null,
+        topic: topic || null,
+        unit_type: unitType || "design",
+        is_published: false,
+      };
+
+      let { data: newUnit, error: insertError } = await adminClient
         .from("units")
-        .insert({
-          title,
-          description: description || null,
-          content_data: contentData,
-          author_teacher_id: user.id,
-          teacher_id: user.id,
-          grade_level: gradeLevel || null,
-          topic: topic || null,
-          unit_type: unitType || "design",
-          is_published: false,
-        })
+        .insert(insertPayload)
         .select("id")
         .single();
+
+      // Retry without unit_type if column doesn't exist yet (migration 051 not applied)
+      if (insertError && (insertError.message.includes("unit_type") || insertError.code === "PGRST204")) {
+        console.warn("[units:POST:create] unit_type column missing — retrying without it");
+        delete insertPayload.unit_type;
+        const retry = await adminClient
+          .from("units")
+          .insert(insertPayload)
+          .select("id")
+          .single();
+        newUnit = retry.data;
+        insertError = retry.error;
+      }
 
       if (insertError) {
         console.error("[units:POST:create] insert failed:", insertError.message);
