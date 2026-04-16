@@ -887,7 +887,7 @@ systems:
       - src/lib/knowledge/search.ts
     future_needs: Pass C (deep UDL), Pass D (cognitive load curves), cross-teacher knowledge sharing.
     capabilities_added:
-      - "Phase A (14 Apr 2026): Multipart file upload on /api/teacher/library/ingest — accepts .pdf/.docx/.pptx/.txt/.md up to 20MB. Reuses extractDocument from @/lib/knowledge/extract. Pass 0 intent-guard: scheme_of_work classification triggers suggestedRedirect: 'import' for client-side redirect prompt."
+      - "Phase A (14 Apr 2026): Multipart file upload on /api/teacher/library/ingest — accepts .pdf/.docx/.pptx/.txt/.md up to 20MB. Reuses extractDocument from @/lib/ingestion/document-extract. Pass 0 intent-guard: scheme_of_work classification triggers suggestedRedirect: 'import' for client-side redirect prompt."
       - "Multi-lesson detection fix (16 Apr 2026): DOCX bold-heading promotion (mammoth <strong> → <h3> when no native heading styles), broader Week/Day/Session/Lesson heading detection in parseDocument, title-based lesson boundary splitting in reconstructUnit. Fixes 12-lesson unit plans collapsing to 1 lesson."
     adrs: ["004"]
     os_seam: designed
@@ -1249,9 +1249,9 @@ systems:
     docs:
       - path: docs/projects/dimensions3.md
         purpose: Ingestion to unit conversion
-    future_needs: Batch conversion. Legacy `/teacher/units/import` + `/api/teacher/convert-lesson` (currently 410) retirement tracked as FU-Library-B2; stub `handleAccept` wiring tracked as FU-Library-B1.
+    future_needs: Batch conversion. Legacy `/teacher/units/import` DELETED (16 Apr 2026). `/api/teacher/convert-lesson` still returns 410 (quarantined). `handleAccept` wiring tracked as FU-Library-B1. knowledge/extract.ts shim DELETED (16 Apr 2026, zero consumers).
     capabilities_added:
-      - "Phase A (14 Apr 2026): Multipart file upload on /api/teacher/library/import — accepts .pdf/.docx/.pptx/.txt/.md up to 20MB (format autodetection DONE). Reuses extractDocument from @/lib/knowledge/extract. Chains reconstructUnit() after ingestion pipeline. 50-char minimum on extracted text."
+      - "Phase A (14 Apr 2026): Multipart file upload on /api/teacher/library/import — accepts .pdf/.docx/.pptx/.txt/.md up to 20MB (format autodetection DONE). Reuses extractDocument from @/lib/ingestion/document-extract. Chains reconstructUnit() after ingestion pipeline. 50-char minimum on extracted text."
       - "Dimensions3 persistence (16 Apr 2026): Import route now persists content_items + activity_blocks via persistModeratedBlocks (matching ingest route pattern). System learns from every import, not just knowledge library uploads."
       - "Multi-lesson detection (16 Apr 2026): Title-based lesson boundary splitting (Lesson/Week/Day/Session N patterns) preserves original heading text. Bold-heading promotion for DOCX files without native heading styles."
     key_files:
@@ -1260,7 +1260,7 @@ systems:
       - src/lib/ingestion/persist-blocks.ts
     adrs: ["004"]
     os_seam: designed
-    change_impacts: Changes to reconstructUnit() or reconstructionToContentData() affect import output. extractDocument location may move (FU-Library-B3). Import route now writes to content_items + activity_blocks — changes to persistModeratedBlocks or ingestion pipeline affect import persistence.
+    change_impacts: Changes to reconstructUnit() or reconstructionToContentData() affect import output. extractDocument now at src/lib/ingestion/document-extract.ts (FU-Library-B3 RESOLVED). Import route now writes to content_items + activity_blocks — changes to persistModeratedBlocks or ingestion pipeline affect import persistence.
 
   - id: teacher-grading
     name: Teacher Grading Dashboard

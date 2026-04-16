@@ -2,6 +2,24 @@
 
 > Audit of every build phase deliverable, categorized by tester (Matt manual / Vitest automated / Sandbox visual), plus automation strategies to reduce manual testing burden.
 
+### Status Check (16 Apr 2026)
+
+This document was written as a **prospective plan**. Here's what actually shipped vs what's still planned:
+
+| Phase | Plan | Actual | Notes |
+|-------|------|--------|-------|
+| **A — Foundation** | ~35 tests | ✅ Stage contracts + validation tests shipped | |
+| **B — Ingestion** | 18 automated | ✅ **105 automated tests** (5.8× plan) | 4 test files: ingestion, multi-lesson-detection, pipeline-safety-scan, persist-blocks |
+| **C — Generation** | 32 automated | Existing (stage contracts, prompt snapshots) | Generation pipeline uses existing Dimensions3 stages |
+| **D — Feedback** | 17 automated | ✅ Feedback audit system + edit tracker shipped | |
+| **E — Polish** | 8 automated | Partially done (admin controls, registries) | |
+
+**Golden file pattern** (described in §Automation Strategy below): **NOT YET IMPLEMENTED.** Tests use sandbox fixtures with assertion-based validation. Implementing golden files is a ~2-3 hour task when ready.
+
+**E2E checkpoint test:** `tests/e2e/checkpoint-1-2-ingestion.test.ts` gates Phase 1 completion. Runs in sandbox mode on every `npm test` (α variant) and with live AI via `RUN_E2E=1` (β variant).
+
+---
+
 ## Testing Philosophy
 
 Dimensions3 has a natural split: **typed contracts** (testable with pure functions and fixtures) vs **AI output quality** (requires human judgment). The goal is to automate everything that CAN be automated so Matt's manual testing is limited to things only a human can judge — visual UX, pedagogical quality, and "does this feel right?"
@@ -102,7 +120,7 @@ describe('FrameworkAdapter', () => {
 | PII regex detection | Vitest | Feed strings with emails, phone numbers, student names — assert all caught |
 | Copyright flagging | Vitest | Feed strings with "Copyright ©", "All rights reserved" — assert flagged |
 
-**Automation notes:** Pass A is highly automatable because it has a defined output schema. Create 10-15 fixture documents (real lesson plan snippets, rubric excerpts, textbook paragraphs) and golden-file their expected Pass A output. On each test run, compare actual vs golden. If the AI model changes output, the golden file diff shows exactly what changed — Matt reviews and approves/rejects the new golden file.
+**Automation notes:** Pass A is highly automatable because it has a defined output schema. **ACTUAL (16 Apr 2026):** 80 tests in `ingestion.test.ts` cover Pass A with 2 fixtures (lesson plan + short text) in sandbox mode. Golden file pattern planned but not yet implemented — tests assert output shape and cost structure. To add golden files: save actual outputs to `tests/golden/pass-a/*.golden.json`, add comparison assertions, document approval workflow.
 
 ### B2: Pass B (Analyse + Enrich)
 
@@ -114,7 +132,7 @@ describe('FrameworkAdapter', () => {
 | Activity block extraction from lesson plans | Matt | "Did it find the right activities?" — requires pedagogical judgment |
 | Embedding generation (vector exists, correct dimensions) | Vitest | Assert embedding is Float32Array of length 1024 |
 
-**Automation notes:** Pass B has an irreducible human-judgment component (is the Bloom level RIGHT?). Strategy: Matt judges a batch of 10-15 documents once, those become golden fixtures. Future runs compare against golden files — any drift gets flagged for Matt to re-judge. This is the **snapshot testing** pattern.
+**Automation notes:** Pass B has an irreducible human-judgment component (is the Bloom level RIGHT?). Strategy: Matt judges a batch of 10-15 documents once, those become golden fixtures. Future runs compare against golden files — any drift gets flagged for Matt to re-judge. This is the **snapshot testing** pattern. **ACTUAL (16 Apr 2026):** Pass B tested in sandbox mode via `ingestion.test.ts`. Bloom level assignment and enriched section generation covered. Golden file pattern not yet implemented.
 
 ### B3: Block Extraction + Storage
 

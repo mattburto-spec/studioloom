@@ -3,7 +3,7 @@
  * ExtractedSection[] so parseDocument can detect section boundaries.
  */
 import { describe, it, expect } from "vitest";
-import { sectionsToMarkdown } from "../extract";
+import { sectionsToMarkdown } from "@/lib/ingestion/document-extract";
 import { parseDocument } from "@/lib/ingestion/parse";
 
 describe("sectionsToMarkdown", () => {

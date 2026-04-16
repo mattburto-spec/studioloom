@@ -7,7 +7,7 @@
  * with real mammoth output patterns via the sectionsToMarkdown round-trip.
  */
 import { describe, it, expect } from "vitest";
-import { sectionsToMarkdown, type ExtractedSection } from "../extract";
+import { sectionsToMarkdown, type ExtractedSection } from "@/lib/ingestion/document-extract";
 import { parseDocument } from "@/lib/ingestion/parse";
 
 describe("bold-heading promotion integration", () => {

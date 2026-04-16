@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { withErrorHandler } from "@/lib/api/error-handler";
-import { extractDocument } from "@/lib/knowledge/extract";
+import { extractDocument } from "@/lib/ingestion/document-extract";
 import { analysePass0 } from "@/lib/knowledge/analyse";
 import { extractLessonStructure, type LessonStructureExtraction, type ExtractedResource, type ExtractedRubric } from "@/lib/converter/extract-lesson-structure";
 import { buildSkeletonFromExtraction } from "@/lib/converter/build-skeleton";
@@ -11,7 +11,7 @@ import { resolveCredentials } from "@/lib/ai/resolve-credentials";
 import { onLessonUploaded } from "@/lib/teacher-style/profile-service";
 import { chunkDocument, type ChunkMetadata } from "@/lib/knowledge/chunk";
 import { embedAll } from "@/lib/ai/embeddings";
-import type { ExtractedDoc } from "@/lib/knowledge/extract";
+import type { ExtractedDoc } from "@/lib/ingestion/document-extract";
 import type { TimelineSkeleton, PageContent } from "@/types";
 import { MODELS } from "@/lib/ai/models";
 

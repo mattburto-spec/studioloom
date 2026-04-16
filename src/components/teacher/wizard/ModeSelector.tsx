@@ -94,7 +94,7 @@ export function ModeSelector({ onSelectMode, lastUsed }: Props) {
       {/* Import existing option */}
       <div className="mt-6 text-center">
         <Link
-          href="/teacher/units/import"
+          href="/teacher/library/import"
           className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl border border-dashed border-gray-300 text-sm text-text-secondary hover:border-purple-300 hover:text-purple-600 hover:bg-purple-50/30 transition-all"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

@@ -24,7 +24,7 @@ describe("ingest route — multipart upload", () => {
     expect(ingestSrc).toContain('contentType.includes("multipart/form-data")');
   });
 
-  it("reuses extractDocument from @/lib/knowledge/extract", () => {
+  it("reuses extractDocument from @/lib/ingestion/document-extract", () => {
     expect(ingestSrc).toContain('from "@/lib/ingestion/document-extract"');
     expect(ingestSrc).toContain("extractDocument(buffer, file.name, file.type)");
   });
@@ -79,7 +79,7 @@ describe("import route — multipart upload", () => {
     expect(importSrc).toContain('contentType.includes("multipart/form-data")');
   });
 
-  it("reuses extractDocument from @/lib/knowledge/extract", () => {
+  it("reuses extractDocument from @/lib/ingestion/document-extract", () => {
     expect(importSrc).toContain('from "@/lib/ingestion/document-extract"');
     expect(importSrc).toContain("extractDocument(buffer, file.name, file.type)");
   });

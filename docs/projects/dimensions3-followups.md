@@ -1102,15 +1102,10 @@ RLS-coverage scanner (`scan-rls-coverage.py`) added to prevent recurrence.
 
 ---
 
-## FU-Library-B3 — Relocate `extractDocument` to shared location (P3)
+## FU-Library-B3 — Relocate `extractDocument` to shared location (P3) ✅ RESOLVED
 **Surfaced:** Library Card File Upload Phase A (14 Apr 2026)
-**Target phase:** Post-Library Phase B
+**Resolved:** 16 Apr 2026
 
-**Issue:** `extractDocument` lives in `src/lib/knowledge/extract.ts` but is now consumed by both the knowledge/ingestion pipeline AND the unit-conversion/import pipeline. Its current location implies it belongs to the knowledge subsystem, but it's a general-purpose utility.
+**Resolution:** `extractDocument` relocated to `src/lib/ingestion/document-extract.ts` (canonical location). All 7 consumers updated to new import path. Original `src/lib/knowledge/extract.ts` first converted to re-export shim, then fully deleted when zero consumers remained. Shim lifecycle: created → all imports migrated → deleted in same session.
 
-**Suggested investigation:**
-1. Move `extractDocument` to `src/lib/extract/` or `src/lib/shared/extract.ts`.
-2. Update all import sites (ingest route, import route, knowledge pipeline).
-3. Verify tests still pass.
-
-**Definition of done:** `extractDocument` lives in a location that doesn't imply ownership by knowledge subsystem. All consumers updated.
+**Commits:** `64d7df9` (relocate + shim), cleanup commit (shim deletion + final consumer updates).
