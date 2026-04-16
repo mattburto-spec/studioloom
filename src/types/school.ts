@@ -56,7 +56,12 @@ export interface School {
   // ─── Location ───
   country: string; // ISO 3166-1 alpha-2
   region?: string; // state/province/emirate
-  timezone: string; // IANA timezone (e.g., "Asia/Dubai")
+  // NOTE: no timezone column. Teacher's browser captures IANA tz via
+  // Intl.DateTimeFormat().resolvedOptions().timeZone on every dashboard
+  // load and passes it to /api/teacher/schedule/today?tz=... — more
+  // accurate than any stored value (handles expat / travelling teachers).
+  // Add schools.timezone here + in SQL only when FU-P needs server-side
+  // "end of school day" crons.
 
   // ─── Identity ───
   /** How students are identified — drives the join flow */
@@ -682,7 +687,7 @@ export interface SchoolRow {
   invite_code: string;
   country: string;
   region: string | null;
-  timezone: string;
+  // NOTE: no timezone — detected client-side per-request (see School interface above).
   student_id_scheme: StudentIdScheme;
   student_id_label: string;
   enabled_auth_methods: StudentAuthMethod[];
