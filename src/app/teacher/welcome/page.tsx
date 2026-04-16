@@ -328,30 +328,34 @@ export default function TeacherWelcomePage() {
         return;
       }
 
-      // Store holidays for later use
-      setIcalHolidays(data.holidayDetails || []);
+      // The iCal link's purpose is importing holidays and cycle-day
+      // markers — NOT matching classes. Classes come from the timetable
+      // photo upload or manual creation. So holidays found = success.
 
-      // The iCal import doesn't give us cycle_length / entries in the same
-      // format as the AI parser. It gives us matched meetings + holidays.
-      // For now, we store what we can and let the teacher proceed.
-      // If we got cycleDayEvents, we can infer cycle_length.
+      const holidays = data.holidayDetails || [];
+      const excludedDates = data.excludedDates || [];
+      setIcalHolidays(holidays);
+
+      // If cycleDayEvents were found (rare — some school calendars tag
+      // "Day 1", "Day 2" etc.), also extract those for the class list.
       const cycleDayMarkers = data.cycleDayEvents || [];
-      const inferredCycleLength = cycleDayMarkers.length > 0
-        ? Math.max(...cycleDayMarkers.map((m: { day: number }) => m.day))
-        : 0;
 
-      // Build a minimal parseResult so the rest of the flow works
-      // (the class list UI checks parseResult)
-      if (data.meetings?.length > 0 || inferredCycleLength > 0) {
-        // Extract unique class names from matched meetings
-        const classNames = new Map<string, number>();
-        for (const m of data.meetings || []) {
-          const key = m.className || m.class_name;
-          if (key) classNames.set(key, (classNames.get(key) || 0) + 1);
-        }
+      // Bonus: if the calendar happens to contain class-level events,
+      // extract them so the teacher can skip the timetable photo step.
+      // But this is a bonus — the primary value is holidays.
+      const classNames = new Map<string, number>();
+      for (const m of data.meetings || []) {
+        const key = m.className || m.class_name;
+        if (key) classNames.set(key, (classNames.get(key) || 0) + 1);
+      }
 
-        const detClasses: DetectedClass[] = Array.from(classNames.entries()).map(
-          ([name, count]) => ({
+      if (classNames.size > 0) {
+        const inferredCycleLength = cycleDayMarkers.length > 0
+          ? Math.max(...cycleDayMarkers.map((m: { day: number }) => m.day))
+          : 0;
+
+        setDetectedClasses(
+          Array.from(classNames.entries()).map(([name, count]) => ({
             name,
             originalName: name,
             grade: "",
@@ -359,15 +363,11 @@ export default function TeacherWelcomePage() {
             is_teaching: true,
             framework: "IB_MYP",
             include: true,
-          })
+          }))
         );
 
-        if (detClasses.length > 0) {
-          setDetectedClasses(detClasses);
-        }
-
         setParseResult({
-          cycle_length: inferredCycleLength || 5, // default 5-day week if unknown
+          cycle_length: inferredCycleLength || 5,
           periods: [],
           entries: (data.meetings || []).map(
             (m: { day?: number; period?: number; className?: string; class_name?: string; room?: string }) => ({
@@ -382,20 +382,17 @@ export default function TeacherWelcomePage() {
             })
           ),
           detected_classes: [],
-          ai_notes: `Imported from calendar. ${data.totalEvents || 0} events found, ${data.excludedDates?.length || 0} holidays detected.`,
+          ai_notes: `Imported from calendar. ${data.totalEvents || 0} events found, ${excludedDates.length} holidays detected.`,
         });
-      } else {
-        // No meetings matched — calendar may not have class-level events.
-        // Still useful for holidays/excluded dates.
+      } else if (holidays.length === 0 && excludedDates.length === 0) {
+        // Truly empty — no holidays AND no classes. That's unusual.
         setError(
-          `We found ${data.totalEvents || 0} events but couldn't match any to classes. ` +
-          `This calendar might only have holidays — those will be saved. ` +
-          `You can add classes manually in the next step.`
+          `We found ${data.totalEvents || 0} events but couldn't detect any holidays or schedule data. ` +
+          `Check that this is your school calendar (not a personal calendar).`
         );
-        if (data.excludedDates?.length > 0) {
-          setIcalHolidays(data.holidayDetails || []);
-        }
       }
+      // If holidays were found but no classes — that's the normal case.
+      // icalHolidays is already set, the UI will show the success state.
     } catch (err) {
       setError(err instanceof Error ? err.message : "Calendar import failed");
     } finally {
@@ -852,7 +849,7 @@ export default function TeacherWelcomePage() {
                         </span>
                         <p className="text-xs text-gray-500 mt-0.5">
                           Got an iCal or Outlook calendar URL? We&apos;ll
-                          import holidays and keep your schedule synced.
+                          import holidays so your cycle days stay accurate.
                         </p>
                       </div>
                     </div>
@@ -960,7 +957,7 @@ export default function TeacherWelcomePage() {
             )}
 
             {/* ── Phase 1c: iCal URL input ── */}
-            {!parseResult && timetableMethod === "ical" && (
+            {!parseResult && timetableMethod === "ical" && icalHolidays.length === 0 && (
               <>
                 <div>
                   <h2 className="text-lg font-bold text-gray-900 mb-1">
@@ -969,7 +966,7 @@ export default function TeacherWelcomePage() {
                   <p className="text-sm text-gray-500">
                     This is usually an iCal (.ics) URL from your school&apos;s
                     Outlook, Google Calendar, or ManageBac. We&apos;ll import
-                    holidays and detect your schedule.
+                    holidays so your cycle days stay accurate.
                   </p>
                 </div>
 
@@ -1021,8 +1018,59 @@ export default function TeacherWelcomePage() {
                   <p className="text-[11px] text-gray-500">
                     No worries — go back and try uploading a photo of your
                     timetable instead. You can always add a calendar link
-                    later in Settings to keep holidays synced.
+                    later in Settings to keep cycle days accurate.
                   </p>
+                </div>
+              </>
+            )}
+
+            {/* ── Phase 1d: iCal success — holidays imported, no classes ── */}
+            {/* Normal case: school calendars have holidays but not individual class periods */}
+            {!parseResult && timetableMethod === "ical" && icalHolidays.length > 0 && (
+              <>
+                <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-sm text-green-800">
+                  <span className="font-semibold">Calendar linked</span>
+                  {" \u2014 "}{icalHolidays.length} holiday{icalHolidays.length !== 1 ? "s" : ""} imported.
+                  Cycle days will stay accurate through holidays and schedule changes.
+                </div>
+
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900 mb-1">
+                    Now let&apos;s set up your classes
+                  </h2>
+                  <p className="text-sm text-gray-500">
+                    Your calendar has holidays but not individual class
+                    periods — that&apos;s normal. You&apos;ll create your
+                    classes in the next step.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => {
+                      setError(null);
+                      setStep("classes");
+                    }}
+                    className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-bold text-white rounded-xl transition-all duration-200 hover:scale-[1.02] hover:shadow-lg active:scale-[0.98]"
+                    style={{
+                      background: "linear-gradient(135deg, #7B2FF2, #5C16C5)",
+                      boxShadow: "0 4px 14px rgba(123, 47, 242, 0.3)",
+                    }}
+                  >
+                    Continue
+                    <ArrowRight />
+                  </button>
+                  <button
+                    onClick={() => {
+                      setTimetableMethod(null);
+                      setIcalUrl("");
+                      setIcalHolidays([]);
+                      setError(null);
+                    }}
+                    className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    Start over
+                  </button>
                 </div>
               </>
             )}
