@@ -17,7 +17,7 @@ import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { runIngestionPipeline } from "@/lib/ingestion/pipeline";
 import { reconstructUnit, reconstructionToContentData } from "@/lib/ingestion/unit-import";
-import { extractDocument, sectionsToMarkdown } from "@/lib/knowledge/extract";
+import { extractDocument, sectionsToMarkdown } from "@/lib/ingestion/document-extract";
 import { persistModeratedBlocks } from "@/lib/ingestion/persist-blocks";
 import { computeHash } from "@/lib/ingestion/dedup";
 import type { PassConfig, CopyrightFlag } from "@/lib/ingestion/types";

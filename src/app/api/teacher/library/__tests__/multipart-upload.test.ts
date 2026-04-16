@@ -25,7 +25,7 @@ describe("ingest route — multipart upload", () => {
   });
 
   it("reuses extractDocument from @/lib/knowledge/extract", () => {
-    expect(ingestSrc).toContain('from "@/lib/knowledge/extract"');
+    expect(ingestSrc).toContain('from "@/lib/ingestion/document-extract"');
     expect(ingestSrc).toContain("extractDocument(buffer, file.name, file.type)");
   });
 
@@ -80,7 +80,7 @@ describe("import route — multipart upload", () => {
   });
 
   it("reuses extractDocument from @/lib/knowledge/extract", () => {
-    expect(importSrc).toContain('from "@/lib/knowledge/extract"');
+    expect(importSrc).toContain('from "@/lib/ingestion/document-extract"');
     expect(importSrc).toContain("extractDocument(buffer, file.name, file.type)");
   });
 
@@ -121,8 +121,8 @@ describe("import route — multipart upload", () => {
 
 describe("route symmetry — ingest vs import multipart branches", () => {
   it("both import extractDocument from the same module", () => {
-    const ingestImport = ingestSrc.match(/from "@\/lib\/knowledge\/extract"/);
-    const importImport = importSrc.match(/from "@\/lib\/knowledge\/extract"/);
+    const ingestImport = ingestSrc.match(/from "@\/lib\/ingestion\/document-extract"/);
+    const importImport = importSrc.match(/from "@\/lib\/ingestion\/document-extract"/);
     expect(ingestImport).not.toBeNull();
     expect(importImport).not.toBeNull();
   });

@@ -11,7 +11,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { embedText, embedAll } from "@/lib/ai/embeddings";
 import { chunkDocument, type ChunkMetadata } from "@/lib/knowledge/chunk";
-import type { ExtractedDoc } from "@/lib/knowledge/extract";
+import type { ExtractedDoc } from "@/lib/ingestion/document-extract";
 import type {
   KnowledgeItem,
   KnowledgeItemWithCurricula,

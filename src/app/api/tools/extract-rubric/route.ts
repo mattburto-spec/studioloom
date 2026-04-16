@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { extractDocument } from "@/lib/knowledge/extract";
+import { extractDocument } from "@/lib/ingestion/document-extract";
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const ALLOWED_EXTENSIONS = [".pdf", ".docx", ".pptx"];

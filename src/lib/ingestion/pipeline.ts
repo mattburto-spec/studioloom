@@ -20,8 +20,7 @@ import type {
 } from "./types";
 import { dedupCheck } from "./dedup";
 import { parseDocument } from "./parse";
-import { passA } from "./pass-a";
-import { passB } from "./pass-b";
+import { ingestionPasses } from "./registry";
 import { extractBlocks } from "./extract";
 import { checkBlocksForCopyright } from "./copyright-check";
 import { moderateExtractedBlocks } from "./moderate";
@@ -169,11 +168,22 @@ export async function runIngestionPipeline(
     }
   }
 
-  // Stage I-2: Pass A — Classify + Tag
-  const classification: IngestionClassification = await passA.run(parse, config);
+  // Stages I-2..I-N: Run all registered AI passes in order.
+  // Each pass chains its output to the next pass's input.
+  // Adding a future Pass C = write function + push to registry. No pipeline edits.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const passOutputs: Record<string, any> = {};
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let passInput: any = parse;
 
-  // Stage I-3: Pass B — Analyse + Enrich
-  const analysis: IngestionAnalysis = await passB.run(classification, config);
+  for (const pass of ingestionPasses) {
+    const output = await pass.run(passInput, config);
+    passOutputs[pass.id] = output;
+    passInput = output; // chain to next pass
+  }
+
+  const classification = passOutputs["pass-a-classify"] as IngestionClassification;
+  const analysis = passOutputs["pass-b-analyse"] as IngestionAnalysis;
 
   // Stage I-4: Block Extraction + PII + Copyright (user-declared)
   const extractionRaw: ExtractionResult = extractBlocks(

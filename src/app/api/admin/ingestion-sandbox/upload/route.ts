@@ -13,7 +13,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { createServerClient } from "@supabase/ssr";
 import { createHash } from "crypto";
-import { extractDocument, sectionsToMarkdown } from "@/lib/knowledge/extract";
+import { extractDocument, sectionsToMarkdown } from "@/lib/ingestion/document-extract";
 import { extractImages } from "@/lib/ingestion/image-extraction";
 
 export const maxDuration = 300;

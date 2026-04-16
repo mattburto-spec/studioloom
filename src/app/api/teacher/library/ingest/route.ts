@@ -13,7 +13,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { runIngestionPipeline } from "@/lib/ingestion/pipeline";
-import { extractDocument, sectionsToMarkdown } from "@/lib/knowledge/extract";
+import { extractDocument, sectionsToMarkdown } from "@/lib/ingestion/document-extract";
 import type { PassConfig, CopyrightFlag } from "@/lib/ingestion/types";
 import { persistModeratedBlocks } from "@/lib/ingestion/persist-blocks";
 
