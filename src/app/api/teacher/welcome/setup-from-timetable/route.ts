@@ -28,6 +28,9 @@ import { withErrorHandler } from "@/lib/api/error-handler";
 import { requireTeacherAuth } from "@/lib/auth/verify-teacher-unit";
 import { generateClassCode } from "@/lib/utils";
 
+// Multiple class inserts + timetable save — unlikely to hit this but be safe
+export const maxDuration = 30;
+
 const VALID_FRAMEWORKS = new Set([
   "IB_MYP",
   "GCSE_DT",

@@ -619,7 +619,7 @@ export default function TeacherWelcomePage() {
                       Reading your timetable...
                     </span>
                     <span className="text-[11px] text-gray-400">
-                      This usually takes 10-15 seconds
+                      This can take up to a minute for complex timetables
                     </span>
                   </div>
                 ) : (

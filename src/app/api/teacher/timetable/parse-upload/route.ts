@@ -18,6 +18,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireTeacherAuth } from "@/lib/auth/verify-teacher-unit";
 
+// Claude vision calls on complex timetable images can take 30-60s
+export const maxDuration = 120;
+
 const SONNET_MODEL = "claude-sonnet-4-6";
 
 export async function POST(request: NextRequest) {
