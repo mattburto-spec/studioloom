@@ -329,14 +329,22 @@ export default function LibraryLandingPage() {
         body: formData,
       });
 
-      const ct = res.headers.get("content-type") || "";
-      if (!ct.includes("application/json")) {
-        throw new Error(res.status === 413 ? "File too large for server" : `Classification failed (${res.status})`);
+      if (!res.ok) {
+        // Try to extract JSON error message; fall back to status code
+        let errorMsg = `Classification failed (${res.status})`;
+        try {
+          const errData = await res.json();
+          if (errData.message) errorMsg = errData.message;
+          else if (errData.error) errorMsg = errData.error;
+        } catch {
+          // Response wasn't JSON (e.g., Vercel infrastructure error)
+        }
+        throw new Error(errorMsg);
       }
 
       const data = await res.json();
-      if (!res.ok || data.error) {
-        throw new Error(data.error || `Classification failed (${res.status})`);
+      if (data.error) {
+        throw new Error(data.message || data.error);
       }
 
       if (data.moderationHold) {
