@@ -241,7 +241,7 @@ export const POST = withErrorHandler(
           reset_each_term: false,
           periods: timetable.periods || [],
           excluded_dates: [],
-          source: "ai_upload",
+          source: "manual", // TODO: use "ai_upload" after migration 086 adds it to CHECK constraint
         })
         .eq("teacher_id", teacherId)
         .select("id")
@@ -267,7 +267,7 @@ export const POST = withErrorHandler(
           reset_each_term: false,
           periods: timetable.periods || [],
           excluded_dates: [],
-          source: "ai_upload",
+          source: "manual", // TODO: use "ai_upload" after migration 086 adds it to CHECK constraint
         })
         .select("id")
         .single();
