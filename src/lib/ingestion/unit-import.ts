@@ -31,12 +31,16 @@ export interface ReconstructionResult {
 
 // ─── Lesson Boundary Detection ───
 
+/** Pattern matching lesson/week/day headings in block titles */
+const LESSON_TITLE_RE = /^(?:Lesson|Week|Weeks|Day|Session|Module|Part|Unit)\s+\d/i;
+
 /**
  * Detect lesson boundaries from extracted blocks.
- * Heuristics:
- * - Blocks with phase "opening" or activity_category "warmup" start a new lesson
- * - Large section_index gaps (>3) suggest lesson boundaries
- * - First block always starts lesson 1
+ * Heuristics (in priority order):
+ * 1. Block title starts with lesson/week/day keyword + number
+ * 2. Blocks with phase "opening" or activity_category "warmup" start a new lesson
+ * 3. Large section_index gaps (>3) suggest lesson boundaries
+ * 4. First block always starts lesson 1
  */
 function detectLessonBoundaries(blocks: ExtractedBlock[]): number[][] {
   if (blocks.length === 0) return [];
@@ -46,7 +50,12 @@ function detectLessonBoundaries(blocks: ExtractedBlock[]): number[][] {
   for (let i = 1; i < blocks.length; i++) {
     const block = blocks[i];
     const prevBlock = blocks[i - 1];
+
+    // Title-based: block title matches lesson/week/day heading pattern
+    const titleStartsLesson = LESSON_TITLE_RE.test(block.title);
+
     const isNewLesson =
+      titleStartsLesson ||
       block.phase === "opening" ||
       block.activity_category === "warmup" ||
       (block.source_section_index - prevBlock.source_section_index > 3);
@@ -123,11 +132,24 @@ export function reconstructUnit(ingestion: IngestionPipelineResult): Reconstruct
   const lessons: ReconstructedLesson[] = lessonGroups.map((group, idx) => {
     const lessonBlocks = group.map(i => sorted[i]);
     const firstBlock = lessonBlocks[0];
+
+    // Derive lesson title: use the block's own heading when it already names
+    // the lesson/week (e.g. "Week 2: Prototyping"), otherwise prefix with
+    // "Lesson N:"
+    let title: string;
+    if (!firstBlock) {
+      title = `Lesson ${idx + 1}`;
+    } else if (LESSON_TITLE_RE.test(firstBlock.title)) {
+      title = firstBlock.title;
+    } else {
+      title = `Lesson ${idx + 1}: ${firstBlock.title.split(":").pop()?.trim() || firstBlock.title}`;
+    }
+
     return {
-      title: lessonBlocks.length > 0
-        ? `Lesson ${idx + 1}: ${firstBlock.title.split(":").pop()?.trim() || firstBlock.title}`
-        : `Lesson ${idx + 1}`,
-      learningGoal: `Students will ${firstBlock.bloom_level} through ${firstBlock.activity_category} activities`,
+      title,
+      learningGoal: firstBlock
+        ? `Students will ${firstBlock.bloom_level} through ${firstBlock.activity_category} activities`
+        : "",
       blocks: lessonBlocks,
       matchPercentage: computeLessonMatch(lessonBlocks),
       originalIndex: idx,

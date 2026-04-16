@@ -153,6 +153,41 @@ describe("parseDocument", () => {
     expect(result.sections.length).toBe(2);
     expect(result.sections[0].heading).toBe("Activity One");
   });
+
+  it("detects 'Week N' as heading", () => {
+    const text = "Week 1\nIntroduction content here.\n\nWeek 2\nDesign sprint content.";
+    const result = parseDocument(text);
+    expect(result.sections.length).toBeGreaterThanOrEqual(2);
+    expect(result.sections[0].heading).toBe("Week 1");
+  });
+
+  it("detects 'Weeks 1-2' compound heading", () => {
+    const text = "Weeks 1-2: Research Phase\nStudents research topics.\n\nWeeks 3-4: Design Phase\nStudents design solutions.";
+    const result = parseDocument(text);
+    expect(result.sections.length).toBeGreaterThanOrEqual(2);
+    expect(result.sections[0].heading).toBe("Weeks 1-2: Research Phase");
+  });
+
+  it("detects 'Lesson N' without colon as heading", () => {
+    const text = "Lesson 1\nFirst lesson content.\n\nLesson 2\nSecond lesson content.";
+    const result = parseDocument(text);
+    expect(result.sections.length).toBeGreaterThanOrEqual(2);
+    expect(result.sections[0].heading).toBe("Lesson 1");
+  });
+
+  it("detects 'Day N' as heading", () => {
+    const text = "Day 1: Warm Up\nStretch and discuss.\n\nDay 2: Main Activity\nBuild prototypes.";
+    const result = parseDocument(text);
+    expect(result.sections.length).toBeGreaterThanOrEqual(2);
+    expect(result.sections[0].heading).toBe("Day 1: Warm Up");
+  });
+
+  it("does not treat long lines starting with 'Week' as headings", () => {
+    const text = "Week 1 is a time when students explore the full range of biomimicry examples across many different fields of study and research including architecture engineering medicine and more.\nMore content here.";
+    const result = parseDocument(text);
+    // Should NOT detect as heading (>12 words)
+    expect(result.sections.every(s => s.heading !== text.split("\n")[0])).toBe(true);
+  });
 });
 
 // =========================================================================

@@ -104,7 +104,10 @@ describe("Checkpoint 1.2 α — sandbox DOCX ingestion", () => {
 
     // --- Parse (deterministic — same in sandbox and live) ---
     expect(result.parse.title).toBe("Task 1: Folio submission (30%)");
-    expect(result.parse.totalWordCount).toBe(3154);
+    // Word count changed from 3154→3110 after adding Week/Lesson heading
+    // detection (16 Apr 2026) — lines like "Lesson 4" without colons are
+    // now correctly detected as headings rather than body text.
+    expect(result.parse.totalWordCount).toBe(3110);
     expect(result.parse.headingCount).toBe(50);
     expect(result.parse.sections).toHaveLength(50);
 
@@ -222,7 +225,7 @@ describe("Checkpoint 1.2 β — live DOCX ingestion [RUN_E2E=1]", () => {
       expect(result.dedup.isDuplicate).toBe(false);
 
       // --- Parse (deterministic — same as sandbox) ---
-      expect(result.parse.totalWordCount).toBe(3154);
+      expect(result.parse.totalWordCount).toBe(3110);
       expect(result.parse.sections).toHaveLength(50);
 
       // --- Classification: tight on enums, loose on AI-generated text ---

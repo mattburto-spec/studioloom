@@ -115,10 +115,20 @@ export async function extractFromDOCX(
 ): Promise<ExtractedDoc> {
   const mammoth = await import("mammoth");
   const result = await mammoth.convertToHtml({ buffer });
-  const html = result.value;
+  let html = result.value;
 
   // Also get raw text for rawText field
   const rawResult = await mammoth.extractRawText({ buffer });
+
+  // ── Bold-heading promotion ──
+  // Many teacher-authored docs use bold text for headings instead of Word
+  // heading styles. Mammoth only creates <h> tags for styled headings, so
+  // bold-only paragraphs appear as <p><strong>text</strong></p>.
+  // When no heading styles exist, promote short bold-only paragraphs to
+  // <h3> so the section splitter can detect structural boundaries.
+  if (!/<h[1-6][^>]*>/i.test(html)) {
+    html = promoteBoldToHeadings(html);
+  }
 
   // Parse HTML to extract headings and content sections
   const sections: ExtractedSection[] = [];
@@ -256,6 +266,49 @@ export function sectionsToMarkdown(sections: ExtractedSection[]): string {
     })
     .filter((block) => block.length > 0)
     .join("\n\n");
+}
+
+/**
+ * Promote bold-only paragraphs to <h3> headings.
+ * Used when mammoth finds no Word heading styles in a DOCX — the next best
+ * structural signal is bold text that teachers use as visual headings.
+ *
+ * Handles two patterns:
+ *   <p><strong>Lesson 1: Title</strong></p>        → <h3>Lesson 1: Title</h3>
+ *   <p><strong>Week 1</strong>: Introduction</p>   → <h3>Week 1: Introduction</h3>
+ */
+function promoteBoldToHeadings(html: string): string {
+  // Pattern 1: Entire paragraph is a single bold element
+  // e.g. <p><strong>Lesson 3: Prototyping</strong></p>
+  let result = html.replace(
+    /<p>\s*<strong>(.*?)<\/strong>\s*<\/p>/gi,
+    (fullMatch, inner: string) => {
+      const text = stripHtml(inner).trim();
+      if (text.length >= 3 && text.length <= 120 && !/[.!?]$/.test(text)) {
+        return `<h3>${text}</h3>`;
+      }
+      return fullMatch;
+    }
+  );
+
+  // Pattern 2: Bold start followed by short non-HTML tail
+  // e.g. <p><strong>Week 1</strong>: Introduction to Biomimicry</p>
+  result = result.replace(
+    /<p>\s*<strong>(.*?)<\/strong>\s*([^<]{1,80})\s*<\/p>/gi,
+    (fullMatch, boldInner: string, tail: string) => {
+      const combined = (stripHtml(boldInner).trim() + " " + tail.trim()).trim();
+      if (
+        combined.length >= 3 &&
+        combined.length <= 120 &&
+        !/[.!?]$/.test(combined)
+      ) {
+        return `<h3>${combined}</h3>`;
+      }
+      return fullMatch;
+    }
+  );
+
+  return result;
 }
 
 /** Strip HTML tags from a string */

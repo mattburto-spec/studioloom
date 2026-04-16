@@ -24,6 +24,7 @@ const HEADING_PATTERNS = [
   /^(#{1,6})\s+(.+)$/,                     // Markdown headings
   /^([A-Z][A-Za-z\s&,:-]{2,80})$/,         // ALL-CAPS-ish short lines as headings
   /^(?:Section|Part|Chapter|Module|Lesson|Activity|Stage|Step|Phase|Task)\s*\d*[.:]\s*(.+)$/i,
+  /^(?:Week|Weeks|Day|Session|Period|Lesson|Module|Part|Unit)\s+\d+/i,  // Numbered week/lesson headings
 ];
 
 /** Count words in a string. */
@@ -45,6 +46,15 @@ function detectHeading(line: string): [number, string] | null {
     /^(?:Section|Part|Chapter|Module|Lesson|Activity|Stage|Step|Phase|Task)\s*\d*[.:]\s*(.+)$/i
   );
   if (sectionMatch) return [2, trimmed];
+
+  // Week/Day/Session numbered heading — common in teacher unit plans
+  // e.g., "Week 1", "Lesson 3", "Weeks 1-2: Design Sprint", "Day 5"
+  if (
+    /^(?:Week|Weeks|Day|Session|Period|Lesson|Module|Part|Unit)\s+\d+/i.test(trimmed) &&
+    wordCount(trimmed) <= 12
+  ) {
+    return [2, trimmed];
+  }
 
   // Short uppercase line (likely a heading)
   if (

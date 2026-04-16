@@ -18,6 +18,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { runIngestionPipeline } from "@/lib/ingestion/pipeline";
 import { reconstructUnit, reconstructionToContentData } from "@/lib/ingestion/unit-import";
 import { extractDocument, sectionsToMarkdown } from "@/lib/knowledge/extract";
+import { persistModeratedBlocks } from "@/lib/ingestion/persist-blocks";
+import { computeHash } from "@/lib/ingestion/dedup";
 import type { PassConfig, CopyrightFlag } from "@/lib/ingestion/types";
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
@@ -146,6 +148,59 @@ export async function POST(request: NextRequest) {
         },
         { status: 200, headers: { "Cache-Control": "private, no-cache" } }
       );
+    }
+
+    // ── Persist to Dimensions3 knowledge system ──
+    // Same as /library/ingest: save the document + blocks so the system
+    // learns from every import, not just knowledge library uploads.
+    let contentItemId: string | null = null;
+
+    try {
+      const fileHash = computeHash(rawText);
+      const { data: contentItem } = await adminClient
+        .from("content_items")
+        .insert({
+          teacher_id: teacherId,
+          title: ingestion.parse.title || "Imported Unit",
+          content_type: ingestion.classification.documentType,
+          subject: ingestion.classification.detectedSubject,
+          file_hash: fileHash,
+          processing_status: "completed",
+          raw_extracted_text: rawText.slice(0, 100_000), // cap storage
+          parsed_sections: ingestion.parse.sections,
+          classification: ingestion.classification,
+          enrichment: ingestion.analysis,
+          blocks_extracted: ingestion.extraction.blocks.length,
+          copyright_flag: copyrightFlag || "unknown",
+        })
+        .select("id")
+        .single();
+
+      if (contentItem) {
+        contentItemId = contentItem.id;
+      }
+    } catch (e) {
+      // content_items table may not exist — continue without storage
+      console.error("[library/import] Failed to store content_item:", e);
+    }
+
+    // Persist extracted blocks to activity_blocks for the block library
+    if (contentItemId && ingestion.moderation.blocks.length > 0) {
+      try {
+        const persist = await persistModeratedBlocks(
+          adminClient,
+          teacherId,
+          contentItemId,
+          ingestion.moderation.blocks
+        );
+        console.log(
+          "[library/import] Persisted",
+          persist.insertedCount,
+          "blocks to library"
+        );
+      } catch (e) {
+        console.error("[library/import] Failed to persist blocks:", e);
+      }
     }
 
     const reconstruction = reconstructUnit(ingestion);
