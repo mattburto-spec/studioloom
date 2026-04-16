@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import MatchReport from "@/components/teacher/library/MatchReport";
 
@@ -50,6 +50,7 @@ interface ImportResult {
 
 export default function ImportPage() {
   const router = useRouter();
+  const [inputMode, setInputMode] = useState<"choice" | "paste" | "file">("choice");
   const [rawText, setRawText] = useState("");
   const [copyright, setCopyright] = useState<"own" | "copyrighted" | "creative_commons" | "unknown">("own");
   const [loading, setLoading] = useState(false);
@@ -57,6 +58,8 @@ export default function ImportPage() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [accepted, setAccepted] = useState(false);
+  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Pick up result stashed by library landing page redirect handoff
   useEffect(() => {
@@ -90,6 +93,48 @@ export default function ImportPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ rawText, copyrightFlag: copyright }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Import failed");
+      }
+
+      const data = await res.json();
+      if (data.moderationHold) {
+        setError(
+          "This document was flagged by our content safety system and has been held for review. No unit was created. Please check the content and try again."
+        );
+      } else {
+        setResult(data);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Import failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleFileUpload = async (file: File) => {
+    const maxSize = 20 * 1024 * 1024; // 20MB
+    if (file.size > maxSize) {
+      setError("File is too large (max 20MB).");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    setResult(null);
+    setUploadedFileName(file.name);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("copyrightFlag", copyright);
+
+      const res = await fetch("/api/teacher/library/import", {
+        method: "POST",
+        body: formData,
       });
 
       if (!res.ok) {
@@ -167,53 +212,133 @@ export default function ImportPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".pdf,.docx,.pptx,.txt,.md"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) handleFileUpload(file);
+          e.target.value = "";
+        }}
+        className="hidden"
+      />
+
       <div>
         <h1 className="text-xl font-bold text-gray-900">Import Unit Plan</h1>
         <p className="text-sm text-gray-500 mt-1">
-          Paste your unit plan document below. The system will analyse and reconstruct it as a StudioLoom unit.
+          Upload or paste a unit plan and we&apos;ll reconstruct it as a StudioLoom unit with lessons and activities.
         </p>
       </div>
 
+      {error && (
+        <div className="bg-red-50 text-red-700 rounded-lg px-4 py-2 text-sm">{error}</div>
+      )}
+
       {!result ? (
-        <div className="space-y-4">
-          <textarea
-            value={rawText}
-            onChange={(e) => setRawText(e.target.value)}
-            placeholder="Paste your unit plan text here..."
-            className="w-full h-64 border rounded-lg px-4 py-3 text-sm resize-y"
-            disabled={loading}
-          />
-
-          <div className="flex items-center gap-4">
-            <label className="text-sm text-gray-600">
-              Copyright:
-              <select
-                value={copyright}
-                onChange={(e) => setCopyright(e.target.value as typeof copyright)}
-                className="ml-2 border rounded px-2 py-1 text-sm"
-              >
-                <option value="own">My own work</option>
-                <option value="creative_commons">Creative Commons</option>
-                <option value="copyrighted">Copyrighted</option>
-                <option value="unknown">Unknown</option>
-              </select>
-            </label>
-
-            <span className="text-xs text-gray-400">{rawText.length} characters</span>
-          </div>
-
-          {error && (
-            <div className="bg-red-50 text-red-700 rounded-lg px-4 py-2 text-sm">{error}</div>
+        <>
+          {/* Loading state */}
+          {loading && (
+            <div className="rounded-xl border border-purple-200 bg-purple-50 p-8 text-center space-y-3">
+              <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto" />
+              <p className="text-sm font-medium text-purple-700">
+                Analysing {uploadedFileName ? uploadedFileName : "your unit plan"}...
+              </p>
+              <p className="text-[11px] text-gray-500">
+                This can take 30–60 seconds for longer documents
+              </p>
+            </div>
           )}
 
-          <button
-            onClick={handleImport}
-            disabled={loading || rawText.length < 50}
-            className="px-6 py-2.5 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50"
-          >
-            {loading ? "Analysing..." : "Import & Reconstruct"}
-          </button>
-        </div>
+          {/* Choice: upload or paste */}
+          {!loading && inputMode === "choice" && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="group text-left rounded-xl border-2 border-purple-200 hover:border-purple-400 p-5 transition-all hover:shadow-md"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0" style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)" }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-gray-900">Upload a file</span>
+                      <span className="text-[10px] font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full uppercase tracking-wide">Recommended</span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      PDF, Word (.docx), PowerPoint (.pptx), or text file
+                    </p>
+                  </div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => setInputMode("paste")}
+                className="group text-left rounded-xl border-2 border-gray-200 hover:border-gray-300 p-5 transition-all hover:shadow-md"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center group-hover:bg-purple-50 transition-colors shrink-0">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" /><rect x="8" y="2" width="8" height="4" rx="1" /></svg>
+                  </div>
+                  <div>
+                    <span className="text-sm font-bold text-gray-900">Paste text</span>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Copy-paste your unit plan content directly
+                    </p>
+                  </div>
+                </div>
+              </button>
+            </div>
+          )}
+
+          {/* Paste mode */}
+          {!loading && inputMode === "paste" && (
+            <div className="space-y-4">
+              <textarea
+                value={rawText}
+                onChange={(e) => setRawText(e.target.value)}
+                placeholder="Paste your unit plan text here..."
+                className="w-full h-64 border border-gray-200 rounded-xl px-4 py-3 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-400 transition-all"
+                autoFocus
+              />
+
+              <div className="flex items-center gap-4">
+                <label className="text-sm text-gray-600">
+                  Copyright:
+                  <select
+                    value={copyright}
+                    onChange={(e) => setCopyright(e.target.value as typeof copyright)}
+                    className="ml-2 border border-gray-200 rounded-lg px-2 py-1 text-sm"
+                  >
+                    <option value="own">My own work</option>
+                    <option value="creative_commons">Creative Commons</option>
+                    <option value="copyrighted">Copyrighted</option>
+                    <option value="unknown">Unknown</option>
+                  </select>
+                </label>
+                <span className="text-xs text-gray-400">{rawText.length} characters</span>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleImport}
+                  disabled={rawText.length < 50}
+                  className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-bold text-white rounded-xl transition-all duration-200 hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] disabled:opacity-50 disabled:hover:scale-100"
+                  style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)", boxShadow: "0 4px 14px rgba(123, 47, 242, 0.3)" }}
+                >
+                  Import &amp; Reconstruct
+                </button>
+                <button
+                  onClick={() => setInputMode("choice")}
+                  className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  Back
+                </button>
+              </div>
+            </div>
+          )}
+        </>
       ) : accepted ? (
         <div className="bg-emerald-50 text-emerald-700 rounded-lg px-6 py-4 text-center">
           <div className="text-lg font-semibold mb-1">✓ Unit Imported Successfully</div>
