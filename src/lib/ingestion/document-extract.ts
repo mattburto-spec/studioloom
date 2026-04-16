@@ -301,10 +301,11 @@ export async function extractFromPPTX(
   let currentNoteText = "";
   let slideIndex = 0;
 
-  function collectText(node: { type: string; text?: string; children?: Array<{ type: string; text?: string; children?: unknown[] }> }): string {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function collectText(node: { type: string; text?: string; children?: any[] }): string {
     if (node.text) return node.text;
     if (node.children) {
-      return (node.children as Array<{ type: string; text?: string; children?: unknown[] }>)
+      return node.children
         .map(collectText)
         .filter(Boolean)
         .join("\n");
@@ -555,7 +556,7 @@ function processTablesInHtml(html: string): string {
     if (rows.length < 2) return unwrapTable(tableHtml);
 
     // Parse header row cells
-    const headerCells = extractTableCells(rows[0]);
+    const headerCells = extractTableCells(rows[0]!);
 
     // Find schedule columns (Lesson N, Session N, etc.)
     const scheduleCols: { index: number; name: string }[] = [];

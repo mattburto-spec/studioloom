@@ -9,7 +9,7 @@
  *    to pedagogical phases, producing richer metadata per chunk
  */
 
-import type { ExtractedDoc, ExtractedSection } from "./extract";
+import type { ExtractedDoc, ExtractedSection } from "@/lib/ingestion/document-extract";
 import type { LessonProfile, LessonFlowPhase } from "@/types/lesson-intelligence";
 
 export interface ChunkMetadata {
@@ -183,7 +183,7 @@ function chunkSection(
 
 /** Build overview text from document */
 function buildOverview(doc: ExtractedDoc): string {
-  const headings = doc.sections.map((s) => s.heading).join(", ");
+  const headings = doc.sections.map((s: ExtractedSection) => s.heading).join(", ");
   return `Document: ${doc.title}\nSections: ${headings}`;
 }
 
@@ -249,7 +249,7 @@ export function chunkDocumentWithProfile(
   profile: LessonProfile
 ): Chunk[] {
   const chunks: Chunk[] = [];
-  const fullText = doc.sections.map((s) => `${s.heading}\n\n${s.content}`).join("\n\n");
+  const fullText = doc.sections.map((s: ExtractedSection) => `${s.heading}\n\n${s.content}`).join("\n\n");
 
   // 1. Create a rich overview chunk from the profile
   const overviewParts: string[] = [
