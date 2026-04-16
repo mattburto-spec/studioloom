@@ -8,14 +8,14 @@
  * redirect (in `src/app/teacher/layout.tsx`) pushes everyone with a NULL
  * `teachers.onboarded_at` to this route. Migration 083 adds that column.
  *
- * 5 steps:
- *   1. Confirm name — prefilled from `teachers.name` (set from the invite's
- *      raw_user_meta_data.name). Editable.
- *   2. Create first class — name, framework, period length.
- *   3. Timetable — upload photo (AI parse), manual grid, or iCal. Skippable.
- *   4. Roster paste — optional. Teachers can skip and add students later.
- *   5. Credentials — class code + printable student list + starter-path CTAs
- *      (generate with AI or start blank). "Go to dashboard" marks onboarded.
+ * 5 steps (timetable-first flow):
+ *   1. About you — name + school picker.
+ *   2. Your timetable — upload photo (AI parse) or skip.
+ *   3. Your classes — from timetable (editable list + frameworks) OR manual
+ *      create-first-class if timetable was skipped.
+ *   4. Add students — roster paste for one class. Skippable.
+ *   5. You're ready — class codes + printable student list + starter CTAs.
+ *      "Go to dashboard" marks onboarded.
  *
  * Every step except the credentials screen is reversible via Back. Leaving
  * the page mid-flow is fine — the layout will pull them back here on their
@@ -29,12 +29,8 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { parseRosterFile } from "@/lib/roster/parse-csv";
 import { SchoolPicker, type PickerSchool } from "@/components/schools/SchoolPicker";
-import {
-  TimetableGrid,
-  type ClassMeetingEntry,
-} from "@/components/teacher/TimetableGrid";
 
-type Step = "name" | "class" | "timetable" | "roster" | "credentials";
+type Step = "name" | "timetable" | "classes" | "roster" | "credentials";
 
 interface CreatedClass {
   classId: string;
@@ -48,10 +44,49 @@ interface CreatedStudent {
   displayName: string | null;
 }
 
+interface DetectedClass {
+  name: string;
+  grade: string;
+  occurrences: number;
+  is_teaching: boolean;
+  framework: string;
+  include: boolean;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+interface TimetableParseResult {
+  cycle_length: number;
+  periods: Array<{
+    period_number: number;
+    start_time: string;
+    end_time: string;
+    duration_minutes: number;
+  }>;
+  entries: Array<{
+    day: number;
+    period: number;
+    class_name: string;
+    grade_level: string;
+    room: string;
+    is_teaching: boolean;
+    classification: string;
+    classification_reason: string;
+  }>;
+  detected_classes: Array<{
+    name: string;
+    grade: string;
+    occurrences: number;
+    is_teaching: boolean;
+  }>;
+  school_name?: string;
+  teacher_name?: string;
+  ai_notes?: string;
+}
+
 // Keep in sync with VALID_FRAMEWORKS in /api/teacher/welcome/create-class.
 const FRAMEWORKS = [
-  { id: "IB_MYP", label: "IB MYP", desc: "Design cycle · Criteria A–D" },
-  { id: "GCSE_DT", label: "GCSE D&T", desc: "AO1–AO5 assessment" },
+  { id: "IB_MYP", label: "IB MYP", desc: "Design cycle - Criteria A-D" },
+  { id: "GCSE_DT", label: "GCSE D&T", desc: "AO1-AO5 assessment" },
   { id: "IGCSE_DT", label: "IGCSE D&T", desc: "Cambridge pathway" },
   { id: "A_LEVEL_DT", label: "A-Level D&T", desc: "Advanced design" },
   { id: "ACARA_DT", label: "ACARA D&T", desc: "Australian curriculum" },
@@ -74,13 +109,21 @@ export default function TeacherWelcomePage() {
   // School (migration 085 — picker + add-your-own)
   const [selectedSchool, setSelectedSchool] = useState<PickerSchool | null>(null);
 
-  // Class
+  // Timetable (step 2)
+  const [timetableUploading, setTimetableUploading] = useState(false);
+  const [parseResult, setParseResult] = useState<TimetableParseResult | null>(null);
+  const timetableFileRef = useRef<HTMLInputElement>(null);
+
+  // Classes (step 3 — from timetable OR manual)
+  const [detectedClasses, setDetectedClasses] = useState<DetectedClass[]>([]);
+  const [createdClasses, setCreatedClasses] = useState<CreatedClass[]>([]);
+  // Manual fallback (when timetable skipped)
   const [className, setClassName] = useState("");
   const [framework, setFramework] = useState("IB_MYP");
   const [periodMinutes, setPeriodMinutes] = useState(60);
-  const [createdClass, setCreatedClass] = useState<CreatedClass | null>(null);
 
-  // Roster
+  // Roster (step 4)
+  const [rosterClassIndex, setRosterClassIndex] = useState(0);
   const [rosterText, setRosterText] = useState("");
   const [createdStudents, setCreatedStudents] = useState<CreatedStudent[]>([]);
   const [rosterSkipped, setRosterSkipped] = useState<string[]>([]);
@@ -91,23 +134,8 @@ export default function TeacherWelcomePage() {
     usedHeaders: boolean;
   } | null>(null);
 
-  // Timetable
-  const [timetableMode, setTimetableMode] = useState<
-    "pick" | "upload" | "manual" | "ical"
-  >("pick");
-  const [cycleLength, setCycleLength] = useState(5);
-  const [anchorDate, setAnchorDate] = useState(
-    () => new Date().toISOString().split("T")[0]
-  );
-  const [anchorCycleDay, setAnchorCycleDay] = useState(1);
-  const [classMeetings, setClassMeetings] = useState<ClassMeetingEntry[]>([]);
-  const [icalUrl, setIcalUrl] = useState("");
-  const [timetableSaving, setTimetableSaving] = useState(false);
-  const [timetableUploading, setTimetableUploading] = useState(false);
-  const [timetableSaved, setTimetableSaved] = useState(false);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [aiParseResult, setAiParseResult] = useState<any>(null);
-  const timetableFileRef = useRef<HTMLInputElement>(null);
+  // Derived: the "active" class for roster
+  const rosterClass = createdClasses[rosterClassIndex] ?? createdClasses[0];
 
   // ---------------------------------------------------------------------
   // Load teacher (prefill name from invite metadata)
@@ -161,14 +189,10 @@ export default function TeacherWelcomePage() {
   }, [router]);
 
   // ---------------------------------------------------------------------
-  // Actions
+  // Step 2: Timetable upload
   // ---------------------------------------------------------------------
 
-  // -------------------------------------------------------------------
-  // Timetable handlers
-  // -------------------------------------------------------------------
-
-  async function handleTimetablePhotoUpload(
+  async function handleTimetableUpload(
     e: React.ChangeEvent<HTMLInputElement>
   ) {
     const file = e.target.files?.[0];
@@ -187,20 +211,18 @@ export default function TeacherWelcomePage() {
         const d = await res.json().catch(() => ({}));
         throw new Error(d.error || "Upload failed");
       }
-      const data = await res.json();
-      setAiParseResult(data);
-      setCycleLength(data.cycle_length || 5);
+      const data: TimetableParseResult = await res.json();
+      setParseResult(data);
 
-      // Convert AI entries into ClassMeetingEntry format
-      if (data.entries?.length && createdClass) {
-        const meetings: ClassMeetingEntry[] = data.entries
-          .filter((e: { is_teaching: boolean }) => e.is_teaching)
-          .map((e: { day: number; period: number }) => ({
-            class_id: createdClass.classId,
-            cycle_day: e.day,
-            period_number: e.period,
-          }));
-        setClassMeetings(meetings);
+      // Pre-populate detectedClasses from the AI result
+      if (data.detected_classes?.length) {
+        setDetectedClasses(
+          data.detected_classes.map((dc) => ({
+            ...dc,
+            framework: "IB_MYP", // default — teacher picks in step 3
+            include: dc.is_teaching,
+          }))
+        );
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed");
@@ -210,70 +232,53 @@ export default function TeacherWelcomePage() {
     }
   }
 
-  async function handleIcalImport() {
-    if (!icalUrl.trim()) return;
+  // ---------------------------------------------------------------------
+  // Step 3: Create classes (from timetable or manual)
+  // ---------------------------------------------------------------------
+
+  async function handleCreateClassesFromTimetable() {
+    if (!parseResult) return;
     setError(null);
-    setTimetableUploading(true);
+    setSaving(true);
 
-    try {
-      const res = await fetch("/api/teacher/timetable/import-ical", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ical_url: icalUrl.trim() }),
-      });
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        throw new Error(d.error || "iCal import failed");
-      }
-      const data = await res.json();
-
-      // Convert meetings to ClassMeetingEntry with the created class
-      if (data.meetings?.length && createdClass) {
-        const meetings: ClassMeetingEntry[] = data.meetings.map(
-          (m: { cycle_day: number; period_number?: number }) => ({
-            class_id: createdClass.classId,
-            cycle_day: m.cycle_day,
-            period_number: m.period_number || "",
-          })
-        );
-        setClassMeetings(meetings);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Import failed");
-    } finally {
-      setTimetableUploading(false);
+    const includedClasses = detectedClasses.filter((dc) => dc.include);
+    if (includedClasses.length === 0) {
+      setError("Select at least one class to create.");
+      setSaving(false);
+      return;
     }
-  }
-
-  async function handleSaveTimetable() {
-    setTimetableSaving(true);
-    setError(null);
 
     try {
-      const res = await fetch("/api/teacher/timetable", {
+      const res = await fetch("/api/teacher/welcome/setup-from-timetable", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          cycle_length: cycleLength,
-          anchor_date: anchorDate,
-          anchor_cycle_day: anchorCycleDay,
-          meetings: classMeetings,
+          classes: includedClasses.map((dc) => ({
+            name: dc.name,
+            framework: dc.framework,
+          })),
+          timetable: {
+            cycle_length: parseResult.cycle_length,
+            periods: parseResult.periods,
+            entries: parseResult.entries,
+          },
         }),
       });
+      const data = await res.json();
       if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        throw new Error(d.error || "Save failed");
+        setError(data.error || `Setup failed (HTTP ${res.status})`);
+        return;
       }
-      setTimetableSaved(true);
+      setCreatedClasses(data.classes || []);
       setStep("roster");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Save failed");
+      setError(err instanceof Error ? err.message : "Network error");
     } finally {
-      setTimetableSaving(false);
+      setSaving(false);
     }
   }
 
-  async function handleCreateClass() {
+  async function handleCreateClassManual() {
     setError(null);
     if (!className.trim()) {
       setError("Class name is required.");
@@ -295,12 +300,14 @@ export default function TeacherWelcomePage() {
         setError(data.error || `Create failed (HTTP ${res.status})`);
         return;
       }
-      setCreatedClass({
-        classId: data.classId,
-        classCode: data.classCode,
-        className: className.trim(),
-      });
-      setStep("timetable");
+      setCreatedClasses([
+        {
+          classId: data.classId,
+          classCode: data.classCode,
+          className: className.trim(),
+        },
+      ]);
+      setStep("roster");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error");
     } finally {
@@ -308,14 +315,15 @@ export default function TeacherWelcomePage() {
     }
   }
 
+  // ---------------------------------------------------------------------
+  // Step 4: Roster
+  // ---------------------------------------------------------------------
+
   async function handleAddRoster() {
-    if (!createdClass) return;
+    if (!rosterClass) return;
     setError(null);
     setSaving(true);
 
-    // Parse lines now so the user sees the preview before we submit. The
-    // server re-parses and handles dedup — we just hand it raw name/username
-    // pairs.
     const lines = rosterText
       .split("\n")
       .map((l) => l.trim())
@@ -334,7 +342,7 @@ export default function TeacherWelcomePage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          classId: createdClass.classId,
+          classId: rosterClass.classId,
           roster,
         }),
       });
@@ -361,17 +369,12 @@ export default function TeacherWelcomePage() {
    * CSV / TSV / TXT file upload. Reads the file client-side (never hits the
    * server), runs it through parseRosterFile, then drops the normalised lines
    * into the textarea so the teacher can review + edit before submitting.
-   *
-   * If the teacher already has text in the box, append rather than replace —
-   * lets them combine a SIS export with a few manually-typed names.
    */
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     setError(null);
 
-    // 1 MB guard — a class of 500 students in CSV form is only ~25 KB, so
-    // anything larger is almost certainly the wrong file.
     if (file.size > 1024 * 1024) {
       setError("File is too large (max 1MB). Split it or paste manually.");
       if (fileInputRef.current) fileInputRef.current.value = "";
@@ -389,8 +392,6 @@ export default function TeacherWelcomePage() {
         return;
       }
 
-      // Append to existing text if the textarea isn't empty, so uploads don't
-      // clobber manual entries.
       setRosterText((prev) => {
         const existing = prev.trim();
         return existing
@@ -410,8 +411,6 @@ export default function TeacherWelcomePage() {
           : "Couldn't read the file."
       );
     } finally {
-      // Reset so the same file can be re-selected (change event won't fire
-      // for the same value).
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   }
@@ -420,10 +419,13 @@ export default function TeacherWelcomePage() {
     setUploadInfo(null);
   }
 
+  // ---------------------------------------------------------------------
+  // Step 5: Complete
+  // ---------------------------------------------------------------------
+
   /**
    * Fire the /complete endpoint to flip `onboarded_at`, then navigate to the
-   * given destination. Target is either the dashboard or the create-unit
-   * flow depending on which CTA the teacher picks on the credentials step.
+   * given destination.
    */
   async function completeAndGo(destination: string) {
     setSaving(true);
@@ -438,12 +440,9 @@ export default function TeacherWelcomePage() {
         }),
       });
     } catch (err) {
-      // Non-blocking — the layout will redirect them back here if it didn't
-      // stick, which lets them retry from the credentials screen.
       console.warn("[welcome] complete failed:", err);
     } finally {
-      // Full navigation (not router.push) so the layout re-fetches the teacher
-      // and picks up the new onboarded_at without a stale cached value.
+      // Full navigation so the layout re-fetches the teacher.
       window.location.href = destination;
     }
   }
@@ -457,7 +456,7 @@ export default function TeacherWelcomePage() {
       <div className="min-h-screen flex items-center justify-center bg-surface-alt">
         <div className="flex items-center gap-3">
           <div className="w-5 h-5 border-2 border-brand-purple border-t-transparent rounded-full animate-spin" />
-          <span className="text-sm text-text-secondary">Loading…</span>
+          <span className="text-sm text-text-secondary">Loading...</span>
         </div>
       </div>
     );
@@ -466,13 +465,17 @@ export default function TeacherWelcomePage() {
   const stepNumber =
     step === "name"
       ? 1
-      : step === "class"
+      : step === "timetable"
         ? 2
-        : step === "timetable"
+        : step === "classes"
           ? 3
           : step === "roster"
             ? 4
             : 5;
+
+  const teachingSlotCount = parseResult
+    ? parseResult.entries.filter((e) => e.is_teaching).length
+    : 0;
 
   return (
     <main className="min-h-screen bg-surface-alt">
@@ -518,7 +521,9 @@ export default function TeacherWelcomePage() {
           </div>
         )}
 
-        {/* Step 1: Confirm name + pick school */}
+        {/* ============================================================= */}
+        {/* Step 1: About you (name + school)                             */}
+        {/* ============================================================= */}
         {step === "name" && (
           <div className="bg-white rounded-2xl p-6 border border-border shadow-sm">
             <h2 className="text-lg font-bold text-gray-900 mb-1">About you</h2>
@@ -545,7 +550,7 @@ export default function TeacherWelcomePage() {
             <SchoolPicker
               value={selectedSchool}
               onChange={setSelectedSchool}
-              placeholder="Start typing your school's name…"
+              placeholder="Start typing your school's name..."
             />
             <p className="text-[11px] text-gray-400 mt-1.5 leading-snug">
               Can&apos;t find yours? Pick &ldquo;Add it&rdquo; at the bottom of the
@@ -561,7 +566,7 @@ export default function TeacherWelcomePage() {
                     return;
                   }
                   setError(null);
-                  setStep("class");
+                  setStep("timetable");
                 }}
                 className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-bold text-white rounded-xl transition-all duration-200 hover:scale-[1.02] hover:shadow-lg active:scale-[0.98]"
                 style={{
@@ -569,95 +574,126 @@ export default function TeacherWelcomePage() {
                   boxShadow: "0 4px 14px rgba(123, 47, 242, 0.3)",
                 }}
               >
-                Next — Create your first class
+                Next
                 <ArrowRight />
               </button>
             </div>
           </div>
         )}
 
-        {/* Step 2: First class */}
-        {step === "class" && (
+        {/* ============================================================= */}
+        {/* Step 2: Your timetable (upload photo or skip)                  */}
+        {/* ============================================================= */}
+        {step === "timetable" && (
           <div className="bg-white rounded-2xl p-6 border border-border shadow-sm space-y-5">
             <div>
-              <h2 className="text-lg font-bold text-gray-900 mb-1">Your first class</h2>
+              <h2 className="text-lg font-bold text-gray-900 mb-1">
+                Your timetable
+              </h2>
               <p className="text-sm text-gray-500">
-                We&apos;ll generate a join code you can share with students.
+                Your timetable powers lesson scheduling, due dates, and your
+                daily class view. Upload it now and we&apos;ll create your
+                classes from it automatically.
               </p>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-1.5">
-                Class name
-              </label>
-              <input
-                type="text"
-                value={className}
-                onChange={(e) => setClassName(e.target.value)}
-                placeholder="e.g. Grade 8 Design"
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-400 transition-all text-sm"
-                autoFocus
-              />
-            </div>
+            <input
+              ref={timetableFileRef}
+              type="file"
+              accept="image/*,.pdf"
+              onChange={handleTimetableUpload}
+              className="hidden"
+            />
 
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-1.5">
-                Curriculum framework
-              </label>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {FRAMEWORKS.map((fw) => (
-                  <button
-                    key={fw.id}
-                    type="button"
-                    onClick={() => setFramework(fw.id)}
-                    className={`p-2.5 rounded-xl border-2 text-left transition-all ${
-                      framework === fw.id
-                        ? "border-purple-500 bg-purple-50 shadow-sm"
-                        : "border-gray-200 hover:border-gray-300 bg-white"
-                    }`}
-                  >
-                    <div className="text-xs font-bold text-gray-900">{fw.label}</div>
-                    <div className="text-[10px] text-gray-400 mt-0.5">{fw.desc}</div>
-                  </button>
-                ))}
+            {!parseResult ? (
+              <div
+                onClick={() =>
+                  !timetableUploading && timetableFileRef.current?.click()
+                }
+                className="border-2 border-dashed border-purple-200 rounded-xl p-10 text-center cursor-pointer hover:border-purple-400 hover:bg-purple-50/30 transition-all"
+              >
+                {timetableUploading ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                    <span className="text-sm text-purple-700 font-medium">
+                      Reading your timetable...
+                    </span>
+                    <span className="text-[11px] text-gray-400">
+                      This usually takes 10-15 seconds
+                    </span>
+                  </div>
+                ) : (
+                  <>
+                    <CameraIcon large />
+                    <p className="text-sm font-medium text-gray-700 mt-3">
+                      Upload a photo or screenshot of your timetable
+                    </p>
+                    <p className="text-[11px] text-gray-400 mt-1">
+                      PNG, JPG, or PDF. We&apos;ll read it and create your
+                      classes automatically.
+                    </p>
+                  </>
+                )}
               </div>
-            </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-sm text-green-800">
+                  <span className="font-semibold">
+                    Detected {parseResult.cycle_length}-day cycle
+                  </span>
+                  {" with "}
+                  <span className="font-semibold">
+                    {teachingSlotCount} teaching slots
+                  </span>
+                  {" across "}
+                  <span className="font-semibold">
+                    {
+                      parseResult.detected_classes.filter((c) => c.is_teaching)
+                        .length
+                    }{" "}
+                    classes
+                  </span>
+                </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-1.5">
-                Typical period length
-              </label>
-              <div className="flex flex-wrap gap-1.5">
-                {PERIOD_OPTIONS.map((p) => (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => setPeriodMinutes(p)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                      periodMinutes === p
-                        ? "bg-purple-100 text-purple-700 border border-purple-300"
-                        : "bg-gray-50 text-gray-500 border border-gray-200 hover:border-gray-300"
-                    }`}
-                  >
-                    {p} min
-                  </button>
-                ))}
+                {parseResult.detected_classes.length > 0 && (
+                  <div className="text-xs text-gray-500">
+                    Detected classes:{" "}
+                    {parseResult.detected_classes
+                      .filter((c) => c.is_teaching)
+                      .map((c) => c.name)
+                      .join(", ")}
+                  </div>
+                )}
+
+                <button
+                  onClick={() => {
+                    setParseResult(null);
+                    setDetectedClasses([]);
+                  }}
+                  className="text-xs text-purple-600 hover:text-purple-800 font-medium"
+                >
+                  Upload a different timetable
+                </button>
               </div>
-            </div>
+            )}
 
             <div className="flex items-center gap-3 pt-1">
-              <button
-                onClick={handleCreateClass}
-                disabled={saving || !className.trim()}
-                className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-bold text-white rounded-xl transition-all duration-200 hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] disabled:opacity-50 disabled:hover:scale-100"
-                style={{
-                  background: "linear-gradient(135deg, #7B2FF2, #5C16C5)",
-                  boxShadow: "0 4px 14px rgba(123, 47, 242, 0.3)",
-                }}
-              >
-                {saving ? "Creating…" : "Create class"}
-                {!saving && <ArrowRight />}
-              </button>
+              {parseResult && (
+                <button
+                  onClick={() => {
+                    setError(null);
+                    setStep("classes");
+                  }}
+                  className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-bold text-white rounded-xl transition-all duration-200 hover:scale-[1.02] hover:shadow-lg active:scale-[0.98]"
+                  style={{
+                    background: "linear-gradient(135deg, #7B2FF2, #5C16C5)",
+                    boxShadow: "0 4px 14px rgba(123, 47, 242, 0.3)",
+                  }}
+                >
+                  Next — Confirm your classes
+                  <ArrowRight />
+                </button>
+              )}
               <button
                 onClick={() => {
                   setError(null);
@@ -667,364 +703,274 @@ export default function TeacherWelcomePage() {
               >
                 Back
               </button>
+              {!parseResult && (
+                <button
+                  onClick={() => {
+                    setError(null);
+                    setParseResult(null);
+                    setStep("classes");
+                  }}
+                  className="text-sm text-gray-500 hover:text-gray-700 transition-colors underline underline-offset-2"
+                >
+                  Skip — I&apos;ll add it in Settings
+                </button>
+              )}
             </div>
           </div>
         )}
 
-        {/* Step 3: Timetable */}
-        {step === "timetable" && createdClass && (
+        {/* ============================================================= */}
+        {/* Step 3: Your classes                                           */}
+        {/* ============================================================= */}
+        {step === "classes" && (
           <div className="bg-white rounded-2xl p-6 border border-border shadow-sm space-y-5">
-            <div>
-              <div className="flex items-center gap-2 mb-0.5">
-                <CheckBadge />
-                <span className="text-xs font-medium text-green-600">
-                  {createdClass.className} created — join code{" "}
-                  <code className="font-mono font-bold">
-                    {createdClass.classCode}
-                  </code>
-                </span>
-              </div>
-              <h2 className="text-lg font-bold text-gray-900 mb-1">
-                Your timetable
-              </h2>
-              <p className="text-sm text-gray-500">
-                Tell us when you teach so we can show today&apos;s and
-                tomorrow&apos;s classes on your dashboard.
-              </p>
-            </div>
-
-            {/* Mode picker */}
-            {timetableMode === "pick" && (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setTimetableMode("upload")}
-                  className="text-left p-4 rounded-xl border-2 border-purple-200 hover:border-purple-400 bg-white transition-all hover:shadow-md"
-                >
-                  <div className="w-9 h-9 rounded-lg bg-purple-100 flex items-center justify-center mb-2">
-                    <CameraIcon />
-                  </div>
-                  <div className="text-sm font-bold text-gray-900">
-                    Upload a photo
-                  </div>
-                  <div className="text-[11px] text-gray-500 mt-0.5 leading-snug">
-                    Snap a photo of your printed timetable and we&apos;ll read it
-                    automatically.
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setTimetableMode("manual")}
-                  className="text-left p-4 rounded-xl border-2 border-gray-200 hover:border-gray-300 bg-white transition-all hover:shadow-md"
-                >
-                  <div className="w-9 h-9 rounded-lg bg-blue-100 flex items-center justify-center mb-2">
-                    <GridIcon />
-                  </div>
-                  <div className="text-sm font-bold text-gray-900">
-                    Enter manually
-                  </div>
-                  <div className="text-[11px] text-gray-500 mt-0.5 leading-snug">
-                    Set your cycle length and click cells to add class meetings.
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setTimetableMode("ical")}
-                  className="text-left p-4 rounded-xl border-2 border-gray-200 hover:border-gray-300 bg-white transition-all hover:shadow-md"
-                >
-                  <div className="w-9 h-9 rounded-lg bg-green-100 flex items-center justify-center mb-2">
-                    <CalendarIcon />
-                  </div>
-                  <div className="text-sm font-bold text-gray-900">
-                    Import calendar
-                  </div>
-                  <div className="text-[11px] text-gray-500 mt-0.5 leading-snug">
-                    Paste an Outlook 365, Google Calendar, or .ics URL.
-                  </div>
-                </button>
-              </div>
-            )}
-
-            {/* Upload mode */}
-            {timetableMode === "upload" && (
-              <div className="space-y-4">
-                <input
-                  ref={timetableFileRef}
-                  type="file"
-                  accept="image/*,.pdf"
-                  onChange={handleTimetablePhotoUpload}
-                  className="hidden"
-                />
-
-                {!aiParseResult ? (
-                  <div
-                    onClick={() => timetableFileRef.current?.click()}
-                    className="border-2 border-dashed border-purple-200 rounded-xl p-8 text-center cursor-pointer hover:border-purple-400 hover:bg-purple-50/30 transition-all"
-                  >
-                    {timetableUploading ? (
-                      <div className="flex flex-col items-center gap-2">
-                        <div className="w-6 h-6 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
-                        <span className="text-sm text-purple-700 font-medium">
-                          Reading your timetable…
-                        </span>
-                      </div>
-                    ) : (
-                      <>
-                        <CameraIcon large />
-                        <p className="text-sm font-medium text-gray-700 mt-2">
-                          Click to upload a photo or PDF
-                        </p>
-                        <p className="text-[11px] text-gray-400 mt-1">
-                          We&apos;ll extract your schedule automatically
-                        </p>
-                      </>
-                    )}
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-2.5 text-sm text-green-800">
-                      <span className="font-semibold">
-                        ✓ Detected {aiParseResult.cycle_length}-day cycle
-                      </span>
-                      {aiParseResult.entries?.length > 0 && (
-                        <span>
-                          {" "}
-                          with{" "}
-                          {
-                            aiParseResult.entries.filter(
-                              (e: { is_teaching: boolean }) => e.is_teaching
-                            ).length
-                          }{" "}
-                          teaching slots
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Cycle length control */}
-                    <div className="flex items-center gap-3">
-                      <label className="text-xs font-semibold text-gray-500">
-                        Cycle length
-                      </label>
-                      <select
-                        value={cycleLength}
-                        onChange={(e) =>
-                          setCycleLength(Number(e.target.value))
-                        }
-                        className="border border-gray-200 rounded-lg px-2 py-1 text-sm"
-                      >
-                        {Array.from({ length: 19 }, (_, i) => i + 2).map(
-                          (n) => (
-                            <option key={n} value={n}>
-                              {n} days
-                            </option>
-                          )
-                        )}
-                      </select>
-                    </div>
-
-                    <TimetableGrid
-                      cycleLength={cycleLength}
-                      meetings={classMeetings}
-                      classes={[
-                        {
-                          id: createdClass.classId,
-                          name: createdClass.className,
-                        },
-                      ]}
-                      onMeetingsChange={setClassMeetings}
-                    />
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Manual mode */}
-            {timetableMode === "manual" && (
-              <div className="space-y-4">
-                <div className="flex flex-wrap items-center gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-500 mb-1">
-                      Days in cycle
-                    </label>
-                    <select
-                      value={cycleLength}
-                      onChange={(e) =>
-                        setCycleLength(Number(e.target.value))
-                      }
-                      className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm"
-                    >
-                      {Array.from({ length: 19 }, (_, i) => i + 2).map(
-                        (n) => (
-                          <option key={n} value={n}>
-                            {n} days
-                          </option>
-                        )
-                      )}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-500 mb-1">
-                      Anchor date
-                    </label>
-                    <input
-                      type="date"
-                      value={anchorDate}
-                      onChange={(e) => setAnchorDate(e.target.value)}
-                      className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-500 mb-1">
-                      That date is Day…
-                    </label>
-                    <select
-                      value={anchorCycleDay}
-                      onChange={(e) =>
-                        setAnchorCycleDay(Number(e.target.value))
-                      }
-                      className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm"
-                    >
-                      {Array.from({ length: cycleLength }, (_, i) => i + 1).map(
-                        (n) => (
-                          <option key={n} value={n}>
-                            Day {n}
-                          </option>
-                        )
-                      )}
-                    </select>
-                  </div>
-                </div>
-
-                <TimetableGrid
-                  cycleLength={cycleLength}
-                  meetings={classMeetings}
-                  classes={[
-                    {
-                      id: createdClass.classId,
-                      name: createdClass.className,
-                    },
-                  ]}
-                  onMeetingsChange={setClassMeetings}
-                />
-              </div>
-            )}
-
-            {/* iCal mode */}
-            {timetableMode === "ical" && (
-              <div className="space-y-4">
+            {parseResult && detectedClasses.length > 0 ? (
+              <>
+                {/* ── From timetable: detected classes list ── */}
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1.5">
-                    Calendar URL
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="url"
-                      value={icalUrl}
-                      onChange={(e) => setIcalUrl(e.target.value)}
-                      placeholder="https://outlook.office365.com/owa/calendar/…"
-                      className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-400 transition-all text-sm"
-                    />
-                    <button
-                      onClick={handleIcalImport}
-                      disabled={timetableUploading || !icalUrl.trim()}
-                      className="px-4 py-2.5 text-sm font-semibold text-white rounded-xl disabled:opacity-50"
-                      style={{
-                        background:
-                          "linear-gradient(135deg, #7B2FF2, #5C16C5)",
-                      }}
-                    >
-                      {timetableUploading ? "Importing…" : "Import"}
-                    </button>
-                  </div>
-                  <p className="text-[11px] text-gray-400 mt-1.5">
-                    Works with Outlook 365, Google Calendar, and any .ics URL.
+                  <h2 className="text-lg font-bold text-gray-900 mb-1">
+                    Confirm your classes
+                  </h2>
+                  <p className="text-sm text-gray-500">
+                    We detected these from your timetable. Untick any
+                    non-teaching entries and pick a curriculum framework for
+                    each class.
                   </p>
                 </div>
 
-                {classMeetings.length > 0 && (
-                  <div className="space-y-3">
-                    <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-2.5 text-sm text-green-800">
-                      ✓ Found {classMeetings.length} class meeting
-                      {classMeetings.length !== 1 ? "s" : ""}
-                    </div>
-                    <TimetableGrid
-                      cycleLength={cycleLength}
-                      meetings={classMeetings}
-                      classes={[
-                        {
-                          id: createdClass.classId,
-                          name: createdClass.className,
-                        },
-                      ]}
-                      onMeetingsChange={setClassMeetings}
-                    />
-                  </div>
-                )}
-              </div>
-            )}
+                <div className="space-y-2">
+                  {detectedClasses.map((dc, i) => (
+                    <div
+                      key={i}
+                      className={`flex items-center gap-3 rounded-xl border px-4 py-3 transition-all ${
+                        dc.include
+                          ? "border-purple-200 bg-white"
+                          : "border-gray-100 bg-gray-50 opacity-60"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={dc.include}
+                        onChange={(e) => {
+                          const next = [...detectedClasses];
+                          next[i] = { ...next[i], include: e.target.checked };
+                          setDetectedClasses(next);
+                        }}
+                        className="w-4 h-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                      />
 
-            {/* Bottom buttons */}
-            <div className="flex items-center gap-3 pt-1">
-              {timetableMode !== "pick" && classMeetings.length > 0 && (
-                <button
-                  onClick={handleSaveTimetable}
-                  disabled={timetableSaving}
-                  className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-bold text-white rounded-xl transition-all duration-200 hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] disabled:opacity-50 disabled:hover:scale-100"
-                  style={{
-                    background: "linear-gradient(135deg, #7B2FF2, #5C16C5)",
-                    boxShadow: "0 4px 14px rgba(123, 47, 242, 0.3)",
-                  }}
-                >
-                  {timetableSaving ? "Saving…" : "Save timetable"}
-                  {!timetableSaving && <ArrowRight />}
-                </button>
-              )}
-              {timetableMode !== "pick" && (
-                <button
-                  onClick={() => {
-                    setTimetableMode("pick");
-                    setAiParseResult(null);
-                    setClassMeetings([]);
-                    setError(null);
-                  }}
-                  className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
-                >
-                  ← Back to options
-                </button>
-              )}
-              <button
-                onClick={() => {
-                  setError(null);
-                  setStep("roster");
-                }}
-                className="text-sm text-gray-500 hover:text-gray-700 transition-colors underline underline-offset-2"
-              >
-                Skip — set up in Settings
-              </button>
-            </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-semibold text-gray-900 truncate">
+                          {dc.name}
+                        </div>
+                        <div className="text-[11px] text-gray-400">
+                          {dc.grade} &middot; {dc.occurrences}x per cycle
+                          {!dc.is_teaching && (
+                            <span className="ml-1 text-amber-600 font-medium">
+                              (non-teaching)
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <select
+                        value={dc.framework}
+                        onChange={(e) => {
+                          const next = [...detectedClasses];
+                          next[i] = { ...next[i], framework: e.target.value };
+                          setDetectedClasses(next);
+                        }}
+                        disabled={!dc.include}
+                        className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs font-medium bg-white disabled:bg-gray-50 disabled:text-gray-400"
+                      >
+                        {FRAMEWORKS.map((fw) => (
+                          <option key={fw.id} value={fw.id}>
+                            {fw.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-3 pt-1">
+                  <button
+                    onClick={handleCreateClassesFromTimetable}
+                    disabled={
+                      saving ||
+                      detectedClasses.filter((dc) => dc.include).length === 0
+                    }
+                    className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-bold text-white rounded-xl transition-all duration-200 hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] disabled:opacity-50 disabled:hover:scale-100"
+                    style={{
+                      background: "linear-gradient(135deg, #7B2FF2, #5C16C5)",
+                      boxShadow: "0 4px 14px rgba(123, 47, 242, 0.3)",
+                    }}
+                  >
+                    {saving
+                      ? "Creating..."
+                      : `Create ${detectedClasses.filter((dc) => dc.include).length} class${detectedClasses.filter((dc) => dc.include).length !== 1 ? "es" : ""}`}
+                    {!saving && <ArrowRight />}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setError(null);
+                      setStep("timetable");
+                    }}
+                    className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    Back
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* ── Manual: create first class (timetable was skipped) ── */}
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900 mb-1">
+                    Your first class
+                  </h2>
+                  <p className="text-sm text-gray-500">
+                    We&apos;ll generate a join code you can share with students.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1.5">
+                    Class name
+                  </label>
+                  <input
+                    type="text"
+                    value={className}
+                    onChange={(e) => setClassName(e.target.value)}
+                    placeholder="e.g. Grade 8 Design"
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-400 transition-all text-sm"
+                    autoFocus
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1.5">
+                    Curriculum framework
+                  </label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {FRAMEWORKS.map((fw) => (
+                      <button
+                        key={fw.id}
+                        type="button"
+                        onClick={() => setFramework(fw.id)}
+                        className={`p-2.5 rounded-xl border-2 text-left transition-all ${
+                          framework === fw.id
+                            ? "border-purple-500 bg-purple-50 shadow-sm"
+                            : "border-gray-200 hover:border-gray-300 bg-white"
+                        }`}
+                      >
+                        <div className="text-xs font-bold text-gray-900">
+                          {fw.label}
+                        </div>
+                        <div className="text-[10px] text-gray-400 mt-0.5">
+                          {fw.desc}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1.5">
+                    Typical period length
+                  </label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {PERIOD_OPTIONS.map((p) => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => setPeriodMinutes(p)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                          periodMinutes === p
+                            ? "bg-purple-100 text-purple-700 border border-purple-300"
+                            : "bg-gray-50 text-gray-500 border border-gray-200 hover:border-gray-300"
+                        }`}
+                      >
+                        {p} min
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 pt-1">
+                  <button
+                    onClick={handleCreateClassManual}
+                    disabled={saving || !className.trim()}
+                    className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-bold text-white rounded-xl transition-all duration-200 hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] disabled:opacity-50 disabled:hover:scale-100"
+                    style={{
+                      background: "linear-gradient(135deg, #7B2FF2, #5C16C5)",
+                      boxShadow: "0 4px 14px rgba(123, 47, 242, 0.3)",
+                    }}
+                  >
+                    {saving ? "Creating..." : "Create class"}
+                    {!saving && <ArrowRight />}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setError(null);
+                      setStep("timetable");
+                    }}
+                    className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    Back
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         )}
 
-        {/* Step 4: Roster */}
-        {step === "roster" && createdClass && (
+        {/* ============================================================= */}
+        {/* Step 4: Add students (roster)                                  */}
+        {/* ============================================================= */}
+        {step === "roster" && createdClasses.length > 0 && (
           <div className="bg-white rounded-2xl p-6 border border-border shadow-sm space-y-5">
             <div>
               <div className="flex items-center gap-2 mb-0.5">
                 <CheckBadge />
                 <span className="text-xs font-medium text-green-600">
-                  {createdClass.className} created — join code{" "}
-                  <code className="font-mono font-bold">{createdClass.classCode}</code>
+                  {createdClasses.length === 1
+                    ? `${createdClasses[0].className} created — join code `
+                    : `${createdClasses.length} classes created`}
+                  {createdClasses.length === 1 && (
+                    <code className="font-mono font-bold">
+                      {createdClasses[0].classCode}
+                    </code>
+                  )}
                 </span>
               </div>
-              <h2 className="text-lg font-bold text-gray-900 mb-1">Add your students</h2>
+              <h2 className="text-lg font-bold text-gray-900 mb-1">
+                Add your students
+              </h2>
               <p className="text-sm text-gray-500">
                 Paste one per line. You can always add more later from the class page.
               </p>
             </div>
+
+            {/* Class picker (only if multiple classes) */}
+            {createdClasses.length > 1 && (
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1.5">
+                  Add students to
+                </label>
+                <select
+                  value={rosterClassIndex}
+                  onChange={(e) => setRosterClassIndex(Number(e.target.value))}
+                  className="border border-gray-200 rounded-xl px-3 py-2 text-sm w-full"
+                >
+                  {createdClasses.map((cls, i) => (
+                    <option key={cls.classId} value={i}>
+                      {cls.className} ({cls.classCode})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div>
               <div className="flex items-center justify-between mb-1.5">
@@ -1054,11 +1000,19 @@ export default function TeacherWelcomePage() {
               {uploadInfo && (
                 <div className="mb-2 flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-green-50 border border-green-200 text-xs">
                   <span className="text-green-800">
-                    <span className="font-semibold">✓ Loaded {uploadInfo.count} student{uploadInfo.count !== 1 ? "s" : ""}</span>
+                    <span className="font-semibold">
+                      Loaded {uploadInfo.count} student
+                      {uploadInfo.count !== 1 ? "s" : ""}
+                    </span>
                     {" from "}
-                    <span className="font-mono text-green-900">{uploadInfo.filename}</span>
+                    <span className="font-mono text-green-900">
+                      {uploadInfo.filename}
+                    </span>
                     {uploadInfo.usedHeaders && (
-                      <span className="text-green-600"> (using column headers)</span>
+                      <span className="text-green-600">
+                        {" "}
+                        (using column headers)
+                      </span>
                     )}
                     . Review and edit below before adding.
                   </span>
@@ -1075,15 +1029,18 @@ export default function TeacherWelcomePage() {
               <textarea
                 value={rosterText}
                 onChange={(e) => setRosterText(e.target.value)}
-                placeholder={`John Smith\nMaria Garcia\njdoe, Jane Doe\n\n— or click “Upload CSV” to import from a file`}
+                placeholder={`John Smith\nMaria Garcia\njdoe, Jane Doe\n\n— or click "Upload CSV" to import from a file`}
                 rows={8}
                 className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-400 transition-all text-sm font-mono"
               />
               <p className="text-[11px] text-gray-400 mt-1.5 leading-relaxed">
                 Accepts <code>Full Name</code>, <code>username</code>, or{" "}
                 <code>username, Full Name</code>. We&apos;ll auto-generate
-                usernames from full names (e.g. &ldquo;John Smith&rdquo; → <code>jsmith</code>).
-                CSV uploads recognise columns like <code>Name</code>, <code>First Name</code>/<code>Last Name</code>, <code>Username</code>, <code>Email</code>.
+                usernames from full names (e.g. &ldquo;John Smith&rdquo; &rarr;{" "}
+                <code>jsmith</code>). CSV uploads recognise columns like{" "}
+                <code>Name</code>, <code>First Name</code>/
+                <code>Last Name</code>, <code>Username</code>,{" "}
+                <code>Email</code>.
               </p>
             </div>
 
@@ -1097,7 +1054,7 @@ export default function TeacherWelcomePage() {
                   boxShadow: "0 4px 14px rgba(123, 47, 242, 0.3)",
                 }}
               >
-                {saving ? "Adding…" : "Add students"}
+                {saving ? "Adding..." : "Add students"}
                 {!saving && <ArrowRight />}
               </button>
               <button
@@ -1110,16 +1067,21 @@ export default function TeacherWelcomePage() {
           </div>
         )}
 
-        {/* Step 5: Credentials + starter paths */}
-        {step === "credentials" && createdClass && (
+        {/* ============================================================= */}
+        {/* Step 5: Credentials + starter paths                           */}
+        {/* ============================================================= */}
+        {step === "credentials" && createdClasses.length > 0 && (
           <div className="space-y-5">
             <div className="bg-white rounded-2xl p-6 border border-border shadow-sm">
               <div className="flex items-center gap-2 mb-1">
                 <CheckBadge />
-                <span className="text-xs font-medium text-green-600">Ready to teach</span>
+                <span className="text-xs font-medium text-green-600">
+                  Ready to teach
+                </span>
               </div>
               <h2 className="text-lg font-bold text-gray-900 mb-1">
-                Share this with your class
+                Share {createdClasses.length === 1 ? "this" : "these"} with your
+                class{createdClasses.length !== 1 ? "es" : ""}
               </h2>
               <p className="text-sm text-gray-500 mb-4">
                 Students join with the class code, then log in with their
@@ -1128,17 +1090,30 @@ export default function TeacherWelcomePage() {
                   `We've created ${createdStudents.length} student account${createdStudents.length !== 1 ? "s" : ""}.`}
               </p>
 
-              {/* Code card */}
-              <div className="rounded-xl bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-200 px-5 py-4 mb-4">
-                <div className="text-[11px] font-semibold text-purple-600 uppercase tracking-wide mb-0.5">
-                  Class code
-                </div>
-                <div className="text-3xl font-bold font-mono text-purple-900 tracking-wider">
-                  {createdClass.classCode}
-                </div>
-                <div className="text-xs text-purple-500 mt-0.5">
-                  {createdClass.className}
-                </div>
+              {/* Class code cards */}
+              <div
+                className={`grid gap-3 mb-4 ${
+                  createdClasses.length === 1
+                    ? "grid-cols-1"
+                    : "grid-cols-1 sm:grid-cols-2"
+                }`}
+              >
+                {createdClasses.map((cls) => (
+                  <div
+                    key={cls.classId}
+                    className="rounded-xl bg-gradient-to-br from-purple-50 to-indigo-50 border border-purple-200 px-5 py-4"
+                  >
+                    <div className="text-[11px] font-semibold text-purple-600 uppercase tracking-wide mb-0.5">
+                      Class code
+                    </div>
+                    <div className="text-3xl font-bold font-mono text-purple-900 tracking-wider">
+                      {cls.classCode}
+                    </div>
+                    <div className="text-xs text-purple-500 mt-0.5">
+                      {cls.className}
+                    </div>
+                  </div>
+                ))}
               </div>
 
               {/* Student list */}
@@ -1161,15 +1136,22 @@ export default function TeacherWelcomePage() {
                     <table className="w-full text-sm">
                       <thead className="bg-gray-50 text-[11px] uppercase tracking-wide text-gray-500">
                         <tr>
-                          <th className="text-left px-3 py-1.5 font-semibold">Name</th>
-                          <th className="text-left px-3 py-1.5 font-semibold">Username</th>
+                          <th className="text-left px-3 py-1.5 font-semibold">
+                            Name
+                          </th>
+                          <th className="text-left px-3 py-1.5 font-semibold">
+                            Username
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
                         {createdStudents.map((s) => (
-                          <tr key={s.id} className="border-t border-gray-100">
+                          <tr
+                            key={s.id}
+                            className="border-t border-gray-100"
+                          >
                             <td className="px-3 py-1.5 text-gray-900">
-                              {s.displayName || "—"}
+                              {s.displayName || "\u2014"}
                             </td>
                             <td className="px-3 py-1.5 font-mono text-gray-700">
                               {s.username}
@@ -1181,16 +1163,17 @@ export default function TeacherWelcomePage() {
                   </div>
                   {rosterSkipped.length > 0 && (
                     <p className="text-xs text-amber-600 mt-2">
-                      {rosterSkipped.length} line{rosterSkipped.length !== 1 ? "s" : ""} skipped
-                      (duplicate usernames or empty). You can add them later
-                      from the class page.
+                      {rosterSkipped.length} line
+                      {rosterSkipped.length !== 1 ? "s" : ""} skipped (duplicate
+                      usernames or empty). You can add them later from the class
+                      page.
                     </p>
                   )}
                 </div>
               )}
             </div>
 
-            {/* Starter paths — Phase 1B-3 */}
+            {/* Starter paths */}
             <div className="bg-white rounded-2xl p-6 border border-border shadow-sm">
               <h3 className="text-sm font-bold text-gray-900 mb-1">
                 What&apos;s next?
@@ -1203,7 +1186,7 @@ export default function TeacherWelcomePage() {
                 <button
                   onClick={() =>
                     completeAndGo(
-                      `/teacher/units/create?classId=${createdClass.classId}`
+                      `/teacher/units/create?classId=${createdClasses[0].classId}`
                     )
                   }
                   disabled={saving}
@@ -1213,7 +1196,8 @@ export default function TeacherWelcomePage() {
                     <div
                       className="w-9 h-9 rounded-lg flex items-center justify-center"
                       style={{
-                        background: "linear-gradient(135deg, #7B2FF2, #5C16C5)",
+                        background:
+                          "linear-gradient(135deg, #7B2FF2, #5C16C5)",
                       }}
                     >
                       <SparkleIcon />
@@ -1223,7 +1207,7 @@ export default function TeacherWelcomePage() {
                     </span>
                   </div>
                   <div className="text-sm font-bold text-gray-900 mb-0.5">
-                    Generate your first unit with AI
+                    Create your first unit
                   </div>
                   <div className="text-xs text-gray-500 leading-relaxed">
                     Describe what you want to teach and we&apos;ll draft a full
@@ -1245,8 +1229,8 @@ export default function TeacherWelcomePage() {
                     Explore the dashboard
                   </div>
                   <div className="text-xs text-gray-500 leading-relaxed">
-                    Look around first. Your class is ready whenever you want to
-                    come back.
+                    Look around first. Your classes are ready whenever you want
+                    to come back.
                   </div>
                 </button>
               </div>
@@ -1265,10 +1249,11 @@ export default function TeacherWelcomePage() {
           </div>
         )}
 
-        {/* Footer — debug note for dev. Remove before shipping if not useful. */}
+        {/* Footer debug */}
         {teacherId && (
           <p className="text-[10px] text-gray-300 text-center mt-6">
-            Teacher ID: <span className="font-mono">{teacherId.slice(0, 8)}…</span>
+            Teacher ID:{" "}
+            <span className="font-mono">{teacherId.slice(0, 8)}...</span>
           </p>
         )}
       </div>
@@ -1299,7 +1284,7 @@ function StepDot({
             : "bg-white/20 text-white/60"
       }`}
     >
-      {done ? "✓" : label}
+      {done ? "\u2713" : label}
     </div>
   );
 }
@@ -1419,51 +1404,14 @@ function CameraIcon({ large }: { large?: boolean } = {}) {
       height={s}
       viewBox="0 0 24 24"
       fill="none"
-      stroke={large ? "#7C3AED" : "#7C3AED"}
+      stroke="#7C3AED"
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
+      className={large ? "mx-auto" : ""}
     >
       <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
       <circle cx="12" cy="13" r="4" />
-    </svg>
-  );
-}
-
-function GridIcon() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="#2563EB"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <rect x="3" y="3" width="18" height="18" rx="2" />
-      <path d="M3 9h18M3 15h18M9 3v18M15 3v18" />
-    </svg>
-  );
-}
-
-function CalendarIcon() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="#059669"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <rect x="3" y="4" width="18" height="18" rx="2" />
-      <line x1="16" y1="2" x2="16" y2="6" />
-      <line x1="8" y1="2" x2="8" y2="6" />
-      <line x1="3" y1="10" x2="21" y2="10" />
     </svg>
   );
 }
