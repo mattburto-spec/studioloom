@@ -3,6 +3,11 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import MatchReport from "@/components/teacher/library/MatchReport";
+import ClassificationCheckpoint from "@/components/teacher/library/ClassificationCheckpoint";
+
+// =========================================================================
+// Types
+// =========================================================================
 
 interface ImportBlock {
   tempId: string;
@@ -46,16 +51,45 @@ interface ImportResult {
   };
 }
 
+interface ClassifyResult {
+  classification: {
+    documentType: string;
+    confidences: { documentType: number; subject?: number; strand?: number; level?: number };
+    topic: string;
+    detectedSubject?: string;
+    detectedStrand?: string;
+    detectedLevel?: string;
+    sections: Array<{ index: number; heading: string; content: string; sectionType: string }>;
+    cost: { inputTokens: number; outputTokens: number; modelId: string; estimatedCostUSD: number; timeMs: number };
+  };
+  rawText: string;
+  parseResult: {
+    title: string;
+    sectionCount: number;
+    sectionHeadings: string[];
+  };
+  cost: { inputTokens: number; outputTokens: number; estimatedCostUSD: number; timeMs: number };
+  correctionsUsed: number;
+  fileHash: string;
+}
+
+type ImportStage = "input" | "checkpoint" | "processing" | "review" | "accepted";
+
+// =========================================================================
+// Component
+// =========================================================================
+
 export default function ImportPage() {
   const router = useRouter();
+  const [stage, setStage] = useState<ImportStage>("input");
   const [inputMode, setInputMode] = useState<"choice" | "paste" | "file">("choice");
   const [rawText, setRawText] = useState("");
   const [copyright, setCopyright] = useState<"own" | "copyrighted" | "creative_commons" | "unknown">("own");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [classifyResult, setClassifyResult] = useState<ClassifyResult | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
-  const [accepted, setAccepted] = useState(false);
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -68,6 +102,7 @@ export default function ImportPage() {
         const parsed = JSON.parse(stashed) as ImportResult;
         if (parsed?.reconstruction && parsed?.ingestion) {
           setResult(parsed);
+          setStage("review");
         }
       }
     } catch (e) {
@@ -76,21 +111,95 @@ export default function ImportPage() {
     }
   }, []);
 
-  const handleImport = async () => {
+  // ── Step 1: Classify (Parse + Pass A) ──
+  const handleClassify = async (textOrFile: string | File) => {
+    setLoading(true);
+    setError(null);
+    setClassifyResult(null);
+
+    try {
+      let res: Response;
+
+      if (typeof textOrFile === "string") {
+        res = await fetch("/api/teacher/library/import/classify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rawText: textOrFile, copyrightFlag: copyright }),
+        });
+      } else {
+        const formData = new FormData();
+        formData.append("file", textOrFile);
+        formData.append("copyrightFlag", copyright);
+        res = await fetch("/api/teacher/library/import/classify", {
+          method: "POST",
+          body: formData,
+        });
+      }
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Classification failed");
+      }
+
+      const data = await res.json();
+      if (data.moderationHold) {
+        setError(
+          "This document was flagged by our content safety system and has been held for review. No unit was created. Please check the content and try again."
+        );
+        setStage("input");
+      } else {
+        setClassifyResult(data);
+        setStage("checkpoint");
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Classification failed");
+      setStage("input");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTextImport = () => {
     if (rawText.length < 50) {
       setError("Please paste at least 50 characters of your unit plan.");
       return;
     }
+    handleClassify(rawText);
+  };
 
-    setLoading(true);
+  const handleFileUpload = (file: File) => {
+    const maxSize = 20 * 1024 * 1024;
+    if (file.size > maxSize) {
+      setError("File is too large (max 20MB).");
+      return;
+    }
+    setUploadedFileName(file.name);
+    handleClassify(file);
+  };
+
+  // ── Step 2: Checkpoint confirmed → Continue (Pass B + Extract + Persist) ──
+  const handleCheckpointConfirm = useCallback(async (corrections?: {
+    correctedDocumentType?: string;
+    correctedSubject?: string;
+    correctedGradeLevel?: string;
+    correctedSectionCount?: number;
+    correctionNote?: string;
+  }) => {
+    if (!classifyResult) return;
+
+    setStage("processing");
     setError(null);
-    setResult(null);
 
     try {
       const res = await fetch("/api/teacher/library/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rawText, copyrightFlag: copyright }),
+        body: JSON.stringify({
+          rawText: classifyResult.rawText,
+          copyrightFlag: copyright,
+          classification: classifyResult.classification,
+          corrections: corrections || undefined,
+        }),
       });
 
       if (!res.ok) {
@@ -101,67 +210,26 @@ export default function ImportPage() {
       const data = await res.json();
       if (data.moderationHold) {
         setError(
-          "This document was flagged by our content safety system and has been held for review. No unit was created. Please check the content and try again."
+          "This document was flagged by our content safety system and has been held for review."
         );
+        setStage("input");
       } else {
         setResult(data);
+        setStage("review");
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Import failed");
-    } finally {
-      setLoading(false);
+      setStage("checkpoint"); // Go back to checkpoint so they can retry
     }
-  };
+  }, [classifyResult, copyright]);
 
-  const handleFileUpload = async (file: File) => {
-    const maxSize = 20 * 1024 * 1024; // 20MB
-    if (file.size > maxSize) {
-      setError("File is too large (max 20MB).");
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    setResult(null);
-    setUploadedFileName(file.name);
-
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("copyrightFlag", copyright);
-
-      const res = await fetch("/api/teacher/library/import", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "Import failed");
-      }
-
-      const data = await res.json();
-      if (data.moderationHold) {
-        setError(
-          "This document was flagged by our content safety system and has been held for review. No unit was created. Please check the content and try again."
-        );
-      } else {
-        setResult(data);
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Import failed");
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // ── Step 3: Accept final result → Create unit ──
   const handleAccept = useCallback(async () => {
     if (!result) return;
     setSaving(true);
     setError(null);
 
     try {
-      // Build a title from the first lesson or ingestion metadata
       const firstLesson = result.reconstruction.lessons[0];
       const title =
         result.ingestion.subject && result.ingestion.gradeLevel
@@ -190,9 +258,8 @@ export default function ImportPage() {
       }
 
       const data = await res.json();
-      setAccepted(true);
+      setStage("accepted");
 
-      // Redirect to the new unit after a brief pause so the success banner is visible
       if (data.unitId) {
         setTimeout(() => router.push(`/teacher/units/${data.unitId}`), 1200);
       }
@@ -205,8 +272,15 @@ export default function ImportPage() {
 
   const handleReject = () => {
     setResult(null);
+    setClassifyResult(null);
     setRawText("");
+    setStage("input");
+    setInputMode("choice");
   };
+
+  // =========================================================================
+  // Render
+  // =========================================================================
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-6">
@@ -233,22 +307,21 @@ export default function ImportPage() {
         <div className="bg-red-50 text-red-700 rounded-lg px-4 py-2 text-sm">{error}</div>
       )}
 
-      {!result ? (
+      {/* ── Stage: Input ───────────────────────────────────── */}
+      {stage === "input" && (
         <>
-          {/* Loading state */}
           {loading && (
             <div className="rounded-xl border border-purple-200 bg-purple-50 p-8 text-center space-y-3">
               <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto" />
               <p className="text-sm font-medium text-purple-700">
-                Analysing {uploadedFileName ? uploadedFileName : "your unit plan"}...
+                Classifying {uploadedFileName || "your unit plan"}...
               </p>
               <p className="text-[11px] text-gray-500">
-                This can take 30–60 seconds for longer documents
+                This takes 5–15 seconds
               </p>
             </div>
           )}
 
-          {/* Choice: upload or paste */}
           {!loading && inputMode === "choice" && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
@@ -290,7 +363,6 @@ export default function ImportPage() {
             </div>
           )}
 
-          {/* Paste mode */}
           {!loading && inputMode === "paste" && (
             <div className="space-y-4">
               <textarea
@@ -320,7 +392,7 @@ export default function ImportPage() {
 
               <div className="flex items-center gap-3">
                 <button
-                  onClick={handleImport}
+                  onClick={handleTextImport}
                   disabled={rawText.length < 50}
                   className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-bold text-white rounded-xl transition-all duration-200 hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] disabled:opacity-50 disabled:hover:scale-100"
                   style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)", boxShadow: "0 4px 14px rgba(123, 47, 242, 0.3)" }}
@@ -337,23 +409,44 @@ export default function ImportPage() {
             </div>
           )}
         </>
-      ) : accepted ? (
-        <div className="bg-emerald-50 text-emerald-700 rounded-lg px-6 py-4 text-center">
-          <div className="text-lg font-semibold mb-1">✓ Unit Imported Successfully</div>
-          <p className="text-sm">
-            Detected as {result.ingestion.subject} ({result.ingestion.gradeLevel}) — {result.reconstruction.lessons.length} lessons, {result.reconstruction.totalBlocks} activities
+      )}
+
+      {/* ── Stage: Checkpoint ──────────────────────────────── */}
+      {stage === "checkpoint" && classifyResult && (
+        <ClassificationCheckpoint
+          classification={classifyResult.classification}
+          sectionCount={classifyResult.parseResult.sectionCount}
+          sectionHeadings={classifyResult.parseResult.sectionHeadings}
+          documentTitle={classifyResult.parseResult.title}
+          correctionsUsed={classifyResult.correctionsUsed}
+          onConfirm={handleCheckpointConfirm}
+          onReject={handleReject}
+        />
+      )}
+
+      {/* ── Stage: Processing (Pass B running) ─────────────── */}
+      {stage === "processing" && (
+        <div className="rounded-xl border border-purple-200 bg-purple-50 p-8 text-center space-y-3">
+          <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-sm font-medium text-purple-700">
+            Enriching &amp; extracting activities...
           </p>
-          <p className="text-xs text-emerald-500 mt-2">Redirecting to your new unit…</p>
+          <p className="text-[11px] text-gray-500">
+            This takes 15–45 seconds for longer documents
+          </p>
         </div>
-      ) : (
+      )}
+
+      {/* ── Stage: Review ──────────────────────────────────── */}
+      {stage === "review" && result && (
         <div className="space-y-4">
           {saving && (
             <div className="bg-purple-50 text-purple-700 rounded-lg px-4 py-3 text-sm flex items-center gap-2">
               <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-              Saving unit to your library…
+              Saving unit to your library...
             </div>
           )}
-          {/* Ingestion summary */}
+
           <div className="bg-blue-50 rounded-lg border border-blue-100 px-4 py-3 flex gap-4 text-sm">
             <span className="text-blue-700">
               <strong>Type:</strong> {result.ingestion.documentType}
@@ -378,6 +471,17 @@ export default function ImportPage() {
             onAccept={handleAccept}
             onReject={handleReject}
           />
+        </div>
+      )}
+
+      {/* ── Stage: Accepted ────────────────────────────────── */}
+      {stage === "accepted" && result && (
+        <div className="bg-emerald-50 text-emerald-700 rounded-lg px-6 py-4 text-center">
+          <div className="text-lg font-semibold mb-1">Unit Imported Successfully</div>
+          <p className="text-sm">
+            Detected as {result.ingestion.subject} ({result.ingestion.gradeLevel}) — {result.reconstruction.lessons.length} lessons, {result.reconstruction.totalBlocks} activities
+          </p>
+          <p className="text-xs text-emerald-500 mt-2">Redirecting to your new unit...</p>
         </div>
       )}
     </div>

@@ -104,7 +104,7 @@ const CLASSIFICATION_TOOL = {
   },
 };
 
-function buildClassificationPrompt(parsed: ParseResult): string {
+function buildClassificationPrompt(parsed: ParseResult, correctionContext?: string): string {
   // Budget per section: 600 chars for docs ≤ 30 sections, 300 for larger
   // docs to stay within Haiku's context. Long sections lose critical context
   // (activity descriptions, timing info) at 300 chars.
@@ -146,7 +146,7 @@ For each section, determine if it is:
 Also estimate duration where detectable:
 - "quick": Under 10 minutes
 - "moderate": 10-25 minutes
-- "extended": Over 25 minutes`;
+- "extended": Over 25 minutes${correctionContext || ""}`;
 }
 
 /** Simulated classification for sandbox/test mode. */
@@ -204,7 +204,9 @@ async function runPassA(
 
   const modelId = config.modelOverride || DEFAULT_MODEL;
   const client = new Anthropic({ apiKey: config.apiKey, maxRetries: 2 });
-  const prompt = buildClassificationPrompt(input);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const correctionContext = (config as any)._correctionContext as string | undefined;
+  const prompt = buildClassificationPrompt(input, correctionContext);
 
   const response = await client.messages.create({
     model: modelId,

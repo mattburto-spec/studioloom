@@ -99,7 +99,7 @@ const ENRICHMENT_TOOL = {
   },
 };
 
-function buildEnrichmentPrompt(classification: IngestionClassification): string {
+function buildEnrichmentPrompt(classification: IngestionClassification, correctionContext?: string): string {
   const sectionDetails = classification.sections
     .map(
       (s) =>
@@ -147,7 +147,7 @@ ${splittingBlock}
 Sections to analyse:
 ${sectionDetails}
 
-Return ALL sections, including non-activity ones — enrichment metadata helps with curriculum mapping even for metadata/instruction sections.`;
+Return ALL sections, including non-activity ones — enrichment metadata helps with curriculum mapping even for metadata/instruction sections.${correctionContext || ""}`;
 }
 
 /** Simulated enrichment for sandbox/test mode. */
@@ -201,7 +201,9 @@ async function runPassB(
 
   const modelId = config.modelOverride || DEFAULT_MODEL;
   const client = new Anthropic({ apiKey: config.apiKey, maxRetries: 2 });
-  const prompt = buildEnrichmentPrompt(input);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const correctionContext = (config as any)._correctionContext as string | undefined;
+  const prompt = buildEnrichmentPrompt(input, correctionContext);
 
   const response = await client.messages.create({
     model: modelId,

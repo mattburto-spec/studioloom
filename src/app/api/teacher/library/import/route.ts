@@ -15,12 +15,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { runIngestionPipeline } from "@/lib/ingestion/pipeline";
+import { runIngestionPipeline, runContinueStage } from "@/lib/ingestion/pipeline";
 import { reconstructUnit, reconstructionToContentData } from "@/lib/ingestion/unit-import";
 import { extractDocument, sectionsToMarkdown } from "@/lib/ingestion/document-extract";
 import { persistModeratedBlocks } from "@/lib/ingestion/persist-blocks";
+import { storeCorrection } from "@/lib/ingestion/corrections";
 import { computeHash } from "@/lib/ingestion/dedup";
-import type { PassConfig, CopyrightFlag } from "@/lib/ingestion/types";
+import { parseDocument } from "@/lib/ingestion/parse";
+import type { PassConfig, CopyrightFlag, IngestionClassification, IngestionPipelineResult } from "@/lib/ingestion/types";
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB
 const ACCEPTED_EXTENSIONS = ["pdf", "docx", "pptx", "txt", "md"];
@@ -56,6 +58,10 @@ export async function POST(request: NextRequest) {
   let rawText: string;
   let copyrightFlag: CopyrightFlag | undefined;
   let sandboxMode = false;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let classification: any = undefined;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let corrections: any = undefined;
 
   if (isMultipart) {
     // ── Multipart: extract text from uploaded file ──
@@ -97,8 +103,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Extracted text is too short (need at least 50 characters)" }, { status: 400 });
     }
   } else {
-    // ── JSON: existing path (unchanged) ──
-    let body: { rawText?: string; copyrightFlag?: CopyrightFlag; sandboxMode?: boolean };
+    // ── JSON: either full pipeline or continue-from-checkpoint ──
+    let body: {
+      rawText?: string;
+      copyrightFlag?: CopyrightFlag;
+      sandboxMode?: boolean;
+      // Continue-from-checkpoint fields:
+      classification?: IngestionClassification;
+      corrections?: {
+        correctedDocumentType?: string;
+        correctedSubject?: string;
+        correctedGradeLevel?: string;
+        correctedSectionCount?: number;
+        correctionNote?: string;
+      };
+    };
     try {
       body = await request.json();
     } catch {
@@ -108,6 +127,8 @@ export async function POST(request: NextRequest) {
     rawText = body.rawText || "";
     copyrightFlag = body.copyrightFlag;
     sandboxMode = body.sandboxMode === true;
+    classification = body.classification;
+    corrections = body.corrections;
 
     if (!rawText || typeof rawText !== "string" || rawText.trim().length < 50) {
       return NextResponse.json(
@@ -134,10 +155,64 @@ export async function POST(request: NextRequest) {
   };
 
   try {
-    const ingestion = await runIngestionPipeline(
-      { rawText, copyrightFlag },
-      config
-    );
+    // ── Two paths: full pipeline OR continue from checkpoint ──
+    let ingestion: IngestionPipelineResult;
+
+    if (classification && typeof classification === "object") {
+      // Continue path: checkpoint already ran classify, now run Pass B + Extract + Persist
+      const parse = parseDocument(rawText);
+
+      // Store correction if any fields were changed
+      if (corrections && typeof corrections === "object") {
+        const hasCorrections = corrections.correctedDocumentType ||
+          corrections.correctedSubject || corrections.correctedGradeLevel ||
+          corrections.correctedSectionCount || corrections.correctionNote;
+
+        if (hasCorrections) {
+          await storeCorrection(config, {
+            aiDocumentType: classification.documentType,
+            aiSubject: classification.detectedSubject,
+            aiGradeLevel: classification.detectedLevel,
+            aiSectionCount: classification.sections?.length,
+            correctedDocumentType: corrections.correctedDocumentType,
+            correctedSubject: corrections.correctedSubject,
+            correctedGradeLevel: corrections.correctedGradeLevel,
+            correctedSectionCount: corrections.correctedSectionCount,
+            correctionNote: corrections.correctionNote,
+            documentTitle: parse.title,
+            fileHash: computeHash(rawText),
+          });
+        }
+      }
+
+      // Apply user corrections to classification before passing to Pass B
+      const correctedClassification: IngestionClassification = {
+        ...classification,
+        documentType: (corrections?.correctedDocumentType || classification.documentType) as IngestionClassification["documentType"],
+        detectedSubject: corrections?.correctedSubject || classification.detectedSubject,
+        detectedLevel: corrections?.correctedGradeLevel || classification.detectedLevel,
+      };
+
+      ingestion = await runContinueStage(
+        {
+          rawText,
+          classification: correctedClassification,
+          parse,
+          copyrightFlag,
+          userCorrections: corrections ? {
+            correctedSectionCount: corrections.correctedSectionCount,
+            correctionNote: corrections.correctionNote,
+          } : undefined,
+        },
+        config
+      );
+    } else {
+      // Full pipeline path (backward compat — no checkpoint)
+      ingestion = await runIngestionPipeline(
+        { rawText, copyrightFlag },
+        config
+      );
+    }
 
     // Phase 6C: If content was held for safety review, return early
     if (ingestion.moderationHold) {

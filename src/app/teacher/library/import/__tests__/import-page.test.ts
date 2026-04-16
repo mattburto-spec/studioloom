@@ -49,10 +49,10 @@ describe("/teacher/library/import page — sessionStorage handoff", () => {
     expect(closingDeps).toBeGreaterThan(effectIdx);
   });
 
-  // Regression: paste form still renders when no stashed result
-  it("shows textarea paste form when result is null (default state)", () => {
+  // Regression: paste form still renders in input stage (default state)
+  it("shows textarea paste form in input stage (default state)", () => {
     expect(src).toContain("Paste your unit plan text here...");
-    expect(src).toContain("{!result ? (");
+    expect(src).toContain('stage === "input"');
   });
 
   // Regression: MatchReport still renders when result is set

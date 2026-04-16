@@ -1,7 +1,9 @@
 /**
  * Ingestion Pipeline Orchestrator
  *
- * Runs: Dedup → Parse → Pass A → Pass B → Extract
+ * Full pipeline: Dedup → Parse → Pass A → Pass B → Extract
+ * Split pipeline: Classify (Parse + Pass A) → Checkpoint → Continue (Pass B + Extract)
+ *
  * Each stage chains typed output to the next input.
  * All stages return CostBreakdown for transparency.
  */
@@ -26,6 +28,8 @@ import { checkBlocksForCopyright } from "./copyright-check";
 import { moderateExtractedBlocks } from "./moderate";
 import { moderateContent } from "@/lib/content-safety/server-moderation";
 import type { ModerationContext } from "@/lib/content-safety/types";
+import { fetchTeacherCorrections, buildPassACorrections, buildPassBCorrections } from "./corrections";
+import type { IngestionCorrection } from "./corrections";
 
 /**
  * Sum a list of CostBreakdown objects into a single aggregate. Exported
@@ -230,6 +234,202 @@ export async function runIngestionPipeline(
     dedup,
     parse,
     classification,
+    analysis,
+    extraction,
+    moderation,
+    totalCost: { ...totalCost, timeMs: Date.now() - startTime },
+    totalTimeMs: Date.now() - startTime,
+  };
+}
+
+// =========================================================================
+// Split Pipeline — Classify Stage (for interactive checkpoint)
+// =========================================================================
+
+export interface ClassifyStageResult {
+  parse: ParseResult;
+  classification: IngestionClassification;
+  /** Corrections from this teacher injected into the prompt */
+  correctionsUsed: number;
+  cost: CostBreakdown;
+  timeMs: number;
+  /** Set when upload-level safety scan flagged the content */
+  moderationHold?: boolean;
+  moderationHoldReason?: string;
+}
+
+/**
+ * Run Parse + Safety pre-check + Pass A only.
+ * Returns classification for user review at the interactive checkpoint.
+ * Pass B + Extract + Moderate run separately via runContinueStage().
+ */
+export async function runClassifyStage(
+  input: IngestionInput,
+  config: PassConfig
+): Promise<ClassifyStageResult> {
+  const startTime = Date.now();
+
+  // Stage I-1: Deterministic Parse
+  const parse: ParseResult = parseDocument(input.rawText);
+
+  // Phase 6C: Upload-level safety pre-check
+  if (!config.sandboxMode && config.apiKey) {
+    const textSample = input.rawText.slice(0, 5000);
+    const safetyContext: ModerationContext = {
+      classId: config.teacherId || "system",
+      studentId: config.teacherId || "system",
+      source: "upload_image",
+    };
+    try {
+      const safetyResult = await moderateContent(textSample, safetyContext, config.apiKey);
+      if (safetyResult.moderation.status === "blocked" || safetyResult.moderation.status === "flagged") {
+        const zeroCost: CostBreakdown = {
+          inputTokens: 0, outputTokens: 0, modelId: "none",
+          estimatedCostUSD: 0, timeMs: Date.now() - startTime,
+        };
+        return {
+          parse,
+          classification: {
+            documentType: "unknown", confidence: 0,
+            confidences: { documentType: 0 }, topic: "", sections: [], cost: zeroCost,
+          },
+          correctionsUsed: 0,
+          cost: sumCosts(parse.cost, safetyResult.cost),
+          timeMs: Date.now() - startTime,
+          moderationHold: true,
+          moderationHoldReason: `Upload held: content ${safetyResult.moderation.status} (${safetyResult.moderation.flags.map(f => f.type).join(", ")})`,
+        };
+      }
+    } catch (err) {
+      console.error("[pipeline/classify] Safety pre-check failed, proceeding:", err instanceof Error ? err.message : err);
+    }
+  }
+
+  // Fetch teacher corrections for few-shot injection
+  let corrections: IngestionCorrection[] = [];
+  try {
+    corrections = await fetchTeacherCorrections(config);
+  } catch {
+    // Advisory — never block
+  }
+
+  // Stage I-2: Pass A — Classify + Tag
+  const passA = ingestionPasses[0]; // pass-a-classify
+  const correctionContext = buildPassACorrections(corrections);
+
+  // Inject corrections into config as a temporary override
+  const passAConfig = correctionContext
+    ? { ...config, _correctionContext: correctionContext }
+    : config;
+
+  const classification = await passA.run(parse, passAConfig) as IngestionClassification & { cost: CostBreakdown };
+
+  return {
+    parse,
+    classification,
+    correctionsUsed: corrections.length,
+    cost: sumCosts(parse.cost, classification.cost),
+    timeMs: Date.now() - startTime,
+  };
+}
+
+// =========================================================================
+// Split Pipeline — Continue Stage (after checkpoint confirmation)
+// =========================================================================
+
+export interface ContinueStageInput {
+  rawText: string;
+  classification: IngestionClassification;
+  parse: ParseResult;
+  copyrightFlag?: CopyrightFlag;
+  /** User corrections from the checkpoint — injected into Pass B */
+  userCorrections?: {
+    correctedSectionCount?: number;
+    correctionNote?: string;
+  };
+}
+
+/**
+ * Run Pass B + Extract + Copyright + Moderate.
+ * Called after the user confirms/corrects at the interactive checkpoint.
+ */
+export async function runContinueStage(
+  input: ContinueStageInput,
+  config: PassConfig
+): Promise<IngestionPipelineResult> {
+  const startTime = Date.now();
+
+  // Fetch teacher corrections for Pass B few-shot injection
+  let corrections: IngestionCorrection[] = [];
+  try {
+    corrections = await fetchTeacherCorrections(config);
+  } catch {
+    // Advisory — never block
+  }
+
+  // Build correction context for Pass B
+  const correctionContext = buildPassBCorrections(corrections);
+
+  // If user provided a correction note at checkpoint, add it to the context
+  let checkpointContext = "";
+  if (input.userCorrections?.correctedSectionCount) {
+    checkpointContext += `\n\nThe teacher has confirmed this document has exactly ${input.userCorrections.correctedSectionCount} lessons. Do NOT produce more or fewer enriched sections than this number.`;
+  }
+  if (input.userCorrections?.correctionNote) {
+    checkpointContext += `\n\nTeacher note for this specific document: "${input.userCorrections.correctionNote}"`;
+  }
+
+  const passBConfig = (correctionContext || checkpointContext)
+    ? { ...config, _correctionContext: correctionContext + checkpointContext }
+    : config;
+
+  // Stage I-3: Pass B — Analyse + Enrich
+  const passB = ingestionPasses[1]; // pass-b-analyse
+  const analysis = await passB.run(input.classification, passBConfig) as IngestionAnalysis & { cost: CostBreakdown };
+
+  // Stage I-4: Block Extraction + Copyright
+  const extractionRaw: ExtractionResult = extractBlocks(
+    analysis,
+    input.copyrightFlag || "unknown"
+  );
+
+  const copyrightCheck = await checkBlocksForCopyright(extractionRaw.blocks, config);
+  const extraction: ExtractionResult = {
+    ...extractionRaw,
+    blocks: copyrightCheck.blocks,
+    cost: {
+      ...extractionRaw.cost,
+      timeMs: extractionRaw.cost.timeMs + copyrightCheck.cost.timeMs,
+    },
+  };
+
+  // Stage I-5: Haiku moderation
+  const moderationRaw = await moderateExtractedBlocks(extraction.blocks, config);
+  const moderation: ModerationStageResult = {
+    blocks: moderationRaw.blocks,
+    cost: moderationRaw.cost,
+    approvedCount: moderationRaw.blocks.filter((b) => b.moderationStatus === "approved").length,
+    flaggedCount: moderationRaw.blocks.filter((b) => b.moderationStatus === "flagged").length,
+    pendingCount: moderationRaw.blocks.filter((b) => b.moderationStatus === "pending").length,
+  };
+
+  const zeroDedupCost: CostBreakdown = {
+    inputTokens: 0, outputTokens: 0, modelId: "none",
+    estimatedCostUSD: 0, timeMs: 0,
+  };
+
+  const totalCost = sumCosts(
+    input.parse.cost,
+    input.classification.cost,
+    analysis.cost,
+    extraction.cost,
+    moderation.cost
+  );
+
+  return {
+    dedup: { isDuplicate: false, fileHash: "", cost: zeroDedupCost },
+    parse: input.parse,
+    classification: input.classification,
     analysis,
     extraction,
     moderation,
