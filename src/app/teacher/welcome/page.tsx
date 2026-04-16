@@ -134,6 +134,10 @@ export default function TeacherWelcomePage() {
     count: number;
     usedHeaders: boolean;
   } | null>(null);
+  const [rosterChoice, setRosterChoice] = useState(false);
+  const [savedRosterClassIds, setSavedRosterClassIds] = useState<Set<string>>(
+    new Set()
+  );
 
   // Derived: the "active" class for roster
   const rosterClass = createdClasses[rosterClassIndex] ?? createdClasses[0];
@@ -357,9 +361,17 @@ export default function TeacherWelcomePage() {
         setError(data.error || `Roster add failed (HTTP ${res.status})`);
         return;
       }
-      setCreatedStudents(data.students || []);
-      setRosterSkipped(data.skipped || []);
-      setStep("credentials");
+      setCreatedStudents((prev) => [...prev, ...(data.students || [])]);
+      setRosterSkipped((prev) => [...prev, ...(data.skipped || [])]);
+      setSavedRosterClassIds(
+        (prev) => new Set([...prev, rosterClass.classId])
+      );
+      setRosterText("");
+      setUploadInfo(null);
+      // Single class? Advance automatically. Multi-class? Stay so they can do others.
+      if (createdClasses.length <= 1) {
+        setStep("credentials");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Network error");
     } finally {
@@ -1084,122 +1096,173 @@ export default function TeacherWelcomePage() {
                 Add your students
               </h2>
               <p className="text-sm text-gray-500">
-                Paste one per line. You can always add more later from the class page.
+                You can paste or upload a roster for each class, or add
+                students later from each class page.
               </p>
             </div>
 
-            {/* Class picker (only if multiple classes) */}
-            {createdClasses.length > 1 && (
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 mb-1.5">
-                  Add students to
-                </label>
-                <select
-                  value={rosterClassIndex}
-                  onChange={(e) => setRosterClassIndex(Number(e.target.value))}
-                  className="border border-gray-200 rounded-xl px-3 py-2 text-sm w-full"
+            {!rosterChoice ? (
+              /* ── Choice gate ── */
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setRosterChoice(true)}
+                  className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-bold text-white rounded-xl transition-all duration-200 hover:scale-[1.02] hover:shadow-lg active:scale-[0.98]"
+                  style={{
+                    background: "linear-gradient(135deg, #7B2FF2, #5C16C5)",
+                    boxShadow: "0 4px 14px rgba(123, 47, 242, 0.3)",
+                  }}
                 >
-                  {createdClasses.map((cls, i) => (
-                    <option key={cls.classId} value={i}>
-                      {cls.className} ({cls.classCode})
-                    </option>
-                  ))}
-                </select>
+                  Yes, add students now
+                  <ArrowRight />
+                </button>
+                <button
+                  onClick={() => setStep("credentials")}
+                  className="text-sm text-gray-500 hover:text-gray-700 transition-colors underline underline-offset-2"
+                >
+                  I&apos;ll add them later
+                </button>
               </div>
-            )}
+            ) : (
+              /* ── Roster form ── */
+              <>
+                {/* Saved indicator */}
+                {savedRosterClassIds.size > 0 && (
+                  <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-2.5 text-xs text-green-700">
+                    Students added to:{" "}
+                    {createdClasses
+                      .filter((c) => savedRosterClassIds.has(c.classId))
+                      .map((c) => c.className)
+                      .join(", ")}
+                  </div>
+                )}
 
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-semibold text-gray-500">
-                  Roster
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values,text/plain"
-                    onChange={handleFileUpload}
-                    className="hidden"
-                    aria-label="Upload roster file"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 transition-colors"
-                  >
-                    <UploadIcon />
-                    Upload CSV
-                  </button>
-                </div>
-              </div>
+                {/* Class picker (only if multiple classes) */}
+                {createdClasses.length > 1 && (
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 mb-1.5">
+                      Add students to
+                    </label>
+                    <select
+                      value={rosterClassIndex}
+                      onChange={(e) =>
+                        setRosterClassIndex(Number(e.target.value))
+                      }
+                      className="border border-gray-200 rounded-xl px-3 py-2 text-sm w-full"
+                    >
+                      {createdClasses.map((cls, i) => (
+                        <option key={cls.classId} value={i}>
+                          {cls.className} ({cls.classCode})
+                          {savedRosterClassIds.has(cls.classId) ? " ✓" : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
-              {uploadInfo && (
-                <div className="mb-2 flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-green-50 border border-green-200 text-xs">
-                  <span className="text-green-800">
-                    <span className="font-semibold">
-                      Loaded {uploadInfo.count} student
-                      {uploadInfo.count !== 1 ? "s" : ""}
-                    </span>
-                    {" from "}
-                    <span className="font-mono text-green-900">
-                      {uploadInfo.filename}
-                    </span>
-                    {uploadInfo.usedHeaders && (
-                      <span className="text-green-600">
-                        {" "}
-                        (using column headers)
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-semibold text-gray-500">
+                      Roster
+                      {rosterClass && createdClasses.length > 1 && (
+                        <span className="text-gray-400 font-normal">
+                          {" "}
+                          for {rosterClass.className}
+                        </span>
+                      )}
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values,text/plain"
+                        onChange={handleFileUpload}
+                        className="hidden"
+                        aria-label="Upload roster file"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-semibold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 transition-colors"
+                      >
+                        <UploadIcon />
+                        Upload CSV
+                      </button>
+                    </div>
+                  </div>
+
+                  {uploadInfo && (
+                    <div className="mb-2 flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-green-50 border border-green-200 text-xs">
+                      <span className="text-green-800">
+                        <span className="font-semibold">
+                          Loaded {uploadInfo.count} student
+                          {uploadInfo.count !== 1 ? "s" : ""}
+                        </span>
+                        {" from "}
+                        <span className="font-mono text-green-900">
+                          {uploadInfo.filename}
+                        </span>
+                        {uploadInfo.usedHeaders && (
+                          <span className="text-green-600">
+                            {" "}
+                            (using column headers)
+                          </span>
+                        )}
+                        . Review and edit below before adding.
                       </span>
-                    )}
-                    . Review and edit below before adding.
-                  </span>
+                      <button
+                        type="button"
+                        onClick={clearUploadInfo}
+                        className="text-green-600 hover:text-green-800 font-medium whitespace-nowrap"
+                      >
+                        Dismiss
+                      </button>
+                    </div>
+                  )}
+
+                  <textarea
+                    value={rosterText}
+                    onChange={(e) => setRosterText(e.target.value)}
+                    placeholder={`John Smith\nMaria Garcia\njdoe, Jane Doe\n\n— or click "Upload CSV" to import from a file`}
+                    rows={8}
+                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-400 transition-all text-sm font-mono"
+                  />
+                  <p className="text-[11px] text-gray-400 mt-1.5 leading-relaxed">
+                    Accepts <code>Full Name</code>, <code>username</code>, or{" "}
+                    <code>username, Full Name</code>. We&apos;ll auto-generate
+                    usernames from full names (e.g. &ldquo;John Smith&rdquo;{" "}
+                    &rarr; <code>jsmith</code>). CSV uploads recognise columns
+                    like <code>Name</code>, <code>First Name</code>/
+                    <code>Last Name</code>, <code>Username</code>,{" "}
+                    <code>Email</code>.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3 pt-1">
                   <button
-                    type="button"
-                    onClick={clearUploadInfo}
-                    className="text-green-600 hover:text-green-800 font-medium whitespace-nowrap"
+                    onClick={handleAddRoster}
+                    disabled={saving || !rosterText.trim()}
+                    className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-bold text-white rounded-xl transition-all duration-200 hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] disabled:opacity-50 disabled:hover:scale-100"
+                    style={{
+                      background: "linear-gradient(135deg, #7B2FF2, #5C16C5)",
+                      boxShadow: "0 4px 14px rgba(123, 47, 242, 0.3)",
+                    }}
                   >
-                    Dismiss
+                    {saving
+                      ? "Adding..."
+                      : `Add to ${rosterClass?.className || "class"}`}
+                    {!saving && <ArrowRight />}
+                  </button>
+                  <button
+                    onClick={() => setStep("credentials")}
+                    className="text-sm text-gray-500 hover:text-gray-700 transition-colors underline underline-offset-2"
+                  >
+                    {savedRosterClassIds.size > 0
+                      ? "Done \u2014 see class codes"
+                      : "Skip for now"}
                   </button>
                 </div>
-              )}
-
-              <textarea
-                value={rosterText}
-                onChange={(e) => setRosterText(e.target.value)}
-                placeholder={`John Smith\nMaria Garcia\njdoe, Jane Doe\n\n— or click "Upload CSV" to import from a file`}
-                rows={8}
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-400 transition-all text-sm font-mono"
-              />
-              <p className="text-[11px] text-gray-400 mt-1.5 leading-relaxed">
-                Accepts <code>Full Name</code>, <code>username</code>, or{" "}
-                <code>username, Full Name</code>. We&apos;ll auto-generate
-                usernames from full names (e.g. &ldquo;John Smith&rdquo; &rarr;{" "}
-                <code>jsmith</code>). CSV uploads recognise columns like{" "}
-                <code>Name</code>, <code>First Name</code>/
-                <code>Last Name</code>, <code>Username</code>,{" "}
-                <code>Email</code>.
-              </p>
-            </div>
-
-            <div className="flex items-center gap-3 pt-1">
-              <button
-                onClick={handleAddRoster}
-                disabled={saving || !rosterText.trim()}
-                className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-bold text-white rounded-xl transition-all duration-200 hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] disabled:opacity-50 disabled:hover:scale-100"
-                style={{
-                  background: "linear-gradient(135deg, #7B2FF2, #5C16C5)",
-                  boxShadow: "0 4px 14px rgba(123, 47, 242, 0.3)",
-                }}
-              >
-                {saving ? "Adding..." : "Add students"}
-                {!saving && <ArrowRight />}
-              </button>
-              <button
-                onClick={handleSkipRoster}
-                className="text-sm text-gray-500 hover:text-gray-700 transition-colors underline underline-offset-2"
-              >
-                Skip for now
-              </button>
-            </div>
+              </>
+            )}
           </div>
         )}
 
@@ -1318,7 +1381,7 @@ export default function TeacherWelcomePage() {
                 Pick one — you can always do the other later.
               </p>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <button
                   onClick={() =>
                     completeAndGo(
@@ -1343,11 +1406,32 @@ export default function TeacherWelcomePage() {
                     </span>
                   </div>
                   <div className="text-sm font-bold text-gray-900 mb-0.5">
-                    Create your first unit
+                    Create a unit with AI
                   </div>
                   <div className="text-xs text-gray-500 leading-relaxed">
                     Describe what you want to teach and we&apos;ll draft a full
-                    unit in minutes. You&apos;ll edit from there.
+                    unit in minutes.
+                  </div>
+                </button>
+
+                <button
+                  onClick={() =>
+                    completeAndGo("/teacher/library/import")
+                  }
+                  disabled={saving}
+                  className="group text-left bg-white rounded-xl border-2 border-gray-200 hover:border-gray-300 p-4 transition-all hover:shadow-md disabled:opacity-50"
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center group-hover:bg-purple-50 transition-colors">
+                      <UploadUnitIcon />
+                    </div>
+                  </div>
+                  <div className="text-sm font-bold text-gray-900 mb-0.5">
+                    Upload existing unit
+                  </div>
+                  <div className="text-xs text-gray-500 leading-relaxed">
+                    Paste or upload a unit plan you already have and
+                    we&apos;ll import it.
                   </div>
                 </button>
 
@@ -1365,8 +1449,8 @@ export default function TeacherWelcomePage() {
                     Explore the dashboard
                   </div>
                   <div className="text-xs text-gray-500 leading-relaxed">
-                    Look around first. Your classes are ready whenever you want
-                    to come back.
+                    Look around first. Your classes are ready whenever you
+                    want to come back.
                   </div>
                 </button>
               </div>
@@ -1528,6 +1612,27 @@ function UploadIcon() {
       <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
       <polyline points="17 8 12 3 7 8" />
       <line x1="12" y1="3" x2="12" y2="15" />
+    </svg>
+  );
+}
+
+function UploadUnitIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="#6B7280"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+      <line x1="12" y1="18" x2="12" y2="12" />
+      <line x1="9" y1="15" x2="12" y2="12" />
+      <line x1="15" y1="15" x2="12" y2="12" />
     </svg>
   );
 }
