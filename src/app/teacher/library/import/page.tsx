@@ -4,34 +4,32 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import MatchReport from "@/components/teacher/library/MatchReport";
 
+interface ImportBlock {
+  tempId: string;
+  title: string;
+  description: string;
+  bloom_level: string;
+  time_weight: string;
+  activity_category: string;
+  phase: string;
+  grouping?: string;
+  materials?: string[];
+  teaching_approach?: string;
+  scaffolding_notes?: string;
+}
+
 interface ImportResult {
   reconstruction: {
     lessons: Array<{
       title: string;
       learningGoal: string;
-      blocks: Array<{
-        tempId: string;
-        title: string;
-        description: string;
-        bloom_level: string;
-        time_weight: string;
-        activity_category: string;
-        phase: string;
-      }>;
+      blocks: ImportBlock[];
       matchPercentage: number;
       originalIndex: number;
     }>;
     overallMatchPercentage: number;
     totalBlocks: number;
-    unmatchedBlocks: Array<{
-      tempId: string;
-      title: string;
-      description: string;
-      bloom_level: string;
-      time_weight: string;
-      activity_category: string;
-      phase: string;
-    }>;
+    unmatchedBlocks: ImportBlock[];
     metadata: {
       detectedLessonCount: number;
       sequenceConfidence: number;
