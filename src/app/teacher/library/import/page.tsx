@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import MatchReport from "@/components/teacher/library/MatchReport";
 
 interface ImportResult {
@@ -48,9 +49,11 @@ interface ImportResult {
 }
 
 export default function ImportPage() {
+  const router = useRouter();
   const [rawText, setRawText] = useState("");
   const [copyright, setCopyright] = useState<"own" | "copyrighted" | "creative_commons" | "unknown">("own");
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [accepted, setAccepted] = useState(false);
@@ -109,11 +112,53 @@ export default function ImportPage() {
     }
   };
 
-  const handleAccept = () => {
-    setAccepted(true);
-    // In a full implementation, this would create the unit from contentData
-    alert("Unit created! (In production, this would save the reconstructed unit to your library.)");
-  };
+  const handleAccept = useCallback(async () => {
+    if (!result) return;
+    setSaving(true);
+    setError(null);
+
+    try {
+      // Build a title from the first lesson or ingestion metadata
+      const firstLesson = result.reconstruction.lessons[0];
+      const title =
+        result.ingestion.subject && result.ingestion.gradeLevel
+          ? `${result.ingestion.subject} — ${result.ingestion.gradeLevel}`
+          : firstLesson?.title || "Imported Unit";
+
+      const res = await fetch("/api/teacher/units", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "create",
+          title,
+          contentData: result.contentData,
+          description:
+            `Imported from ${result.ingestion.documentType}. ` +
+            `${result.reconstruction.lessons.length} lessons, ` +
+            `${result.reconstruction.totalBlocks} activities.`,
+          gradeLevel: result.ingestion.gradeLevel || null,
+          topic: result.ingestion.subject || null,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to save unit");
+      }
+
+      const data = await res.json();
+      setAccepted(true);
+
+      // Redirect to the new unit after a brief pause so the success banner is visible
+      if (data.unitId) {
+        setTimeout(() => router.push(`/teacher/units/${data.unitId}`), 1200);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to save unit");
+    } finally {
+      setSaving(false);
+    }
+  }, [result, router]);
 
   const handleReject = () => {
     setResult(null);
@@ -171,13 +216,20 @@ export default function ImportPage() {
         </div>
       ) : accepted ? (
         <div className="bg-emerald-50 text-emerald-700 rounded-lg px-6 py-4 text-center">
-          <div className="text-lg font-semibold mb-1">Unit Imported Successfully</div>
+          <div className="text-lg font-semibold mb-1">✓ Unit Imported Successfully</div>
           <p className="text-sm">
             Detected as {result.ingestion.subject} ({result.ingestion.gradeLevel}) — {result.reconstruction.lessons.length} lessons, {result.reconstruction.totalBlocks} activities
           </p>
+          <p className="text-xs text-emerald-500 mt-2">Redirecting to your new unit…</p>
         </div>
       ) : (
         <div className="space-y-4">
+          {saving && (
+            <div className="bg-purple-50 text-purple-700 rounded-lg px-4 py-3 text-sm flex items-center gap-2">
+              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+              Saving unit to your library…
+            </div>
+          )}
           {/* Ingestion summary */}
           <div className="bg-blue-50 rounded-lg border border-blue-100 px-4 py-3 flex gap-4 text-sm">
             <span className="text-blue-700">

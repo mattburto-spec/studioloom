@@ -514,14 +514,13 @@ export default function TeacherUnitsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {/* QUARANTINED (3 Apr 2026) — Import uses knowledge pipeline */}
-          <span
-            className="inline-flex items-center gap-1.5 px-4 py-2 border border-gray-200 text-gray-400 rounded-xl text-sm font-medium cursor-not-allowed"
-            title="Lesson import is being rebuilt — coming back soon"
+          <Link
+            href="/teacher/library/import"
+            className="inline-flex items-center gap-1.5 px-4 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-50 transition"
           >
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-            Import (Coming Soon)
-          </span>
+            Upload Existing Unit
+          </Link>
           <button
             onClick={() => setShowCreate(true)}
             className="inline-flex items-center gap-1.5 px-4 py-2 border border-gray-200 text-gray-600 rounded-xl text-sm font-medium hover:bg-gray-50 transition"
@@ -698,13 +697,12 @@ export default function TeacherUnitsPage() {
                   >
                     Unit Creator
                   </Link>
-                  {/* QUARANTINED (3 Apr 2026) — Import uses knowledge pipeline */}
-                  <span
-                    className="px-5 py-2.5 text-sm font-medium text-gray-400 border border-gray-200 rounded-xl cursor-not-allowed"
-                    title="Lesson import is being rebuilt — coming back soon"
+                  <Link
+                    href="/teacher/library/import"
+                    className="px-5 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition"
                   >
-                    Import Plan (Coming Soon)
-                  </span>
+                    Upload Existing Unit
+                  </Link>
                 </div>
               )}
             </div>

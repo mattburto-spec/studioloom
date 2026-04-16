@@ -90,8 +90,9 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/teacher/units
- * Repository actions: publish, unpublish, fork.
- * Body: { action: "publish"|"unpublish"|"fork", unitId: string, authorName?: string, schoolName?: string, tags?: string[] }
+ * Repository actions: publish, unpublish, fork, create.
+ * Body: { action: "publish"|"unpublish"|"fork", unitId: string, ... }
+ *    OR { action: "create", title: string, contentData: object, ... }
  */
 export async function POST(request: NextRequest) {
   const supabase = createSupabaseServer(request);
@@ -104,25 +105,78 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { action, unitId, authorName, schoolName, tags } = body as {
-    action: string;
-    unitId: string;
-    authorName?: string;
-    schoolName?: string;
-    tags?: string[];
-  };
+  const { action } = body as { action: string };
 
-  if (!action || !unitId) {
+  if (!action) {
     return NextResponse.json(
-      { error: "action and unitId required" },
+      { error: "action required" },
       { status: 400 }
     );
   }
 
   const adminClient = createAdminClient();
 
+  // --- "create" doesn't need unitId; everything else does ---
+  if (action !== "create" && !body.unitId) {
+    return NextResponse.json(
+      { error: "unitId required for this action" },
+      { status: 400 }
+    );
+  }
+  const unitId: string | undefined = body.unitId;
+
   switch (action) {
+    case "create": {
+      const { title, contentData, description, gradeLevel, topic, unitType } =
+        body as {
+          title?: string;
+          contentData?: unknown;
+          description?: string;
+          gradeLevel?: string;
+          topic?: string;
+          unitType?: string;
+        };
+
+      if (!title || !contentData || typeof contentData !== "object") {
+        return NextResponse.json(
+          { error: "title and contentData required for create" },
+          { status: 400 }
+        );
+      }
+
+      const { data: newUnit, error: insertError } = await adminClient
+        .from("units")
+        .insert({
+          title,
+          description: description || null,
+          content_data: contentData,
+          author_teacher_id: user.id,
+          teacher_id: user.id,
+          grade_level: gradeLevel || null,
+          topic: topic || null,
+          unit_type: unitType || "design",
+          is_published: false,
+        })
+        .select("id")
+        .single();
+
+      if (insertError) {
+        console.error("[units:POST:create] insert failed:", insertError.message);
+        return NextResponse.json(
+          { error: insertError.message },
+          { status: 500 }
+        );
+      }
+
+      return NextResponse.json({ success: true, unitId: newUnit?.id });
+    }
+
     case "publish": {
+      const { authorName, schoolName, tags } = body as {
+        authorName?: string;
+        schoolName?: string;
+        tags?: string[];
+      };
       const { error } = await adminClient
         .from("units")
         .update({
@@ -210,7 +264,7 @@ export async function POST(request: NextRequest) {
 
     default:
       return NextResponse.json(
-        { error: "Invalid action. Use publish, unpublish, or fork." },
+        { error: "Invalid action. Use create, publish, unpublish, or fork." },
         { status: 400 }
       );
   }
