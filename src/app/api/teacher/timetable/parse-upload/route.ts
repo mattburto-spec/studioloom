@@ -174,6 +174,7 @@ export async function POST(request: NextRequest) {
       cycle_length: parsed.cycle_length,
       periods: parsed.periods || [],
       entries: parsed.entries,
+      detected_classes: parsed.detected_classes || [],
       room: parsed.room || null,
       school_name: parsed.school_name || null,
       teacher_name: parsed.teacher_name || null,

@@ -214,7 +214,8 @@ export default function TeacherWelcomePage() {
       const data: TimetableParseResult = await res.json();
       setParseResult(data);
 
-      // Pre-populate detectedClasses from the AI result
+      // Pre-populate detectedClasses from the AI result (defensive — field
+      // was missing from the API response before the fix)
       if (data.detected_classes?.length) {
         setDetectedClasses(
           data.detected_classes.map((dc) => ({
@@ -473,7 +474,7 @@ export default function TeacherWelcomePage() {
             ? 4
             : 5;
 
-  const teachingSlotCount = parseResult
+  const teachingSlotCount = parseResult?.entries
     ? parseResult.entries.filter((e) => e.is_teaching).length
     : 0;
 
@@ -645,17 +646,22 @@ export default function TeacherWelcomePage() {
                   <span className="font-semibold">
                     {teachingSlotCount} teaching slots
                   </span>
-                  {" across "}
-                  <span className="font-semibold">
-                    {
-                      parseResult.detected_classes.filter((c) => c.is_teaching)
-                        .length
-                    }{" "}
-                    classes
-                  </span>
+                  {parseResult.detected_classes?.length > 0 && (
+                    <>
+                      {" across "}
+                      <span className="font-semibold">
+                        {
+                          parseResult.detected_classes.filter(
+                            (c) => c.is_teaching
+                          ).length
+                        }{" "}
+                        classes
+                      </span>
+                    </>
+                  )}
                 </div>
 
-                {parseResult.detected_classes.length > 0 && (
+                {parseResult.detected_classes?.length > 0 && (
                   <div className="text-xs text-gray-500">
                     Detected classes:{" "}
                     {parseResult.detected_classes
