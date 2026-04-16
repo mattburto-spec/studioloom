@@ -180,6 +180,9 @@ export default function TeacherUnitsPage() {
   // Delete confirmation
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  // Current user ID for filtering "My Units"
+  const [userId, setUserId] = useState<string | null>(null);
+
   // ---------------------------------------------------------------------------
   // Data loading
   // ---------------------------------------------------------------------------
@@ -192,11 +195,22 @@ export default function TeacherUnitsPage() {
     try {
       const supabase = createClient();
 
-      // Load units first — this is the critical query
-      const { data: unitData, error: unitError } = await supabase
+      // Get current user first — needed to scope "My Units" to this teacher
+      const { data: { user } } = await supabase.auth.getUser();
+      const currentUserId = user?.id || null;
+      setUserId(currentUserId);
+
+      // Load only this teacher's units (not all units in the system)
+      let query = supabase
         .from("units")
         .select("*")
         .order("created_at", { ascending: false });
+
+      if (currentUserId) {
+        query = query.or(`author_teacher_id.eq.${currentUserId},teacher_id.eq.${currentUserId}`);
+      }
+
+      const { data: unitData, error: unitError } = await query;
 
       if (unitError) {
         console.error("[loadUnits] Units query error:", unitError);
@@ -839,7 +853,8 @@ export default function TeacherUnitsPage() {
                       </button>
                       <button
                         onClick={(e) => { e.preventDefault(); setDeletingId(unit.id); }}
-                        className="ml-auto px-2 py-1.5 text-[11px] text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition opacity-0 group-hover:opacity-100"
+                        className="ml-auto px-2 py-1.5 text-[11px] text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                        title="Delete unit"
                       >
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
                       </button>
