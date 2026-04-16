@@ -412,7 +412,7 @@ export default function UnitDetailPage({
     : 0;
 
   return (
-    <main className="max-w-3xl mx-auto px-4 py-8">
+    <main className="max-w-6xl mx-auto px-4 py-8">
       {/* Back link */}
       <Link
         href="/teacher/units"
