@@ -470,7 +470,7 @@ export default function UnitDetailPage({
         </Link>
         {firstPageId && (
           <button
-            onClick={() => window.open(`/unit/${unitId}/${firstPageId}`, "_blank")}
+            onClick={() => window.open(`/teacher/units/${unitId}/preview/${firstPageId}`, "_blank")}
             className="px-4 py-2 rounded-xl bg-dark-blue text-white font-medium text-sm hover:bg-dark-blue/90 transition-colors shadow-sm flex items-center gap-2"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
