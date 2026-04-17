@@ -36,11 +36,27 @@ function AdminLoginInner() {
         return;
       }
 
-      // Hard navigate (not router.replace) so middleware runs server-side
-      // BEFORE any client-rendered admin page chunks can paint. Without this,
-      // a non-admin user would briefly see the admin dashboard shell before
-      // the middleware's 307 redirect bounced them back here.
-      window.location.replace(redirect);
+      // Verify admin status BEFORE navigating. Without this, a non-admin
+      // teacher would briefly see the admin dashboard shell (bfcache snapshot
+      // or server HTML in flight) before middleware bounced them back here.
+      // Only navigate on a clean 200 from /api/admin/whoami.
+      const whoamiRes = await fetch("/api/admin/whoami", {
+        cache: "no-store",
+        credentials: "same-origin",
+      });
+
+      if (whoamiRes.ok) {
+        window.location.replace(redirect);
+        return;
+      }
+
+      if (whoamiRes.status === 403) {
+        await supabase.auth.signOut();
+        setError("This account doesn't have admin access. Try a different account.");
+        return;
+      }
+
+      setError("Couldn't verify admin access. Please try again.");
     } catch {
       setError("Something went wrong. Please try again.");
     } finally {
