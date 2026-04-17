@@ -33,15 +33,23 @@ export async function middleware(request: NextRequest) {
   // edge-runtime quirk) fails CLOSED to /admin/login rather than surfacing
   // Sentry's "Something went wrong" page to the user.
   if (pathname.startsWith("/admin")) {
+    // Disable HTTP + bfcache for /admin so browsers can't flash stale HTML
+    // (e.g. the admin dashboard snapshot captured while you were logged in).
+    // Applied to BOTH redirect and allow-through responses.
+    const NO_STORE = "no-store, private, max-age=0, must-revalidate";
+
     const loginRedirect = (extra?: Record<string, string>) => {
       const loginUrl = new URL("/admin/login", request.url);
       loginUrl.searchParams.set("redirect", pathname);
       if (extra) for (const [k, v] of Object.entries(extra)) loginUrl.searchParams.set(k, v);
-      return NextResponse.redirect(loginUrl);
+      const redirect = NextResponse.redirect(loginUrl);
+      redirect.headers.set("Cache-Control", NO_STORE);
+      return redirect;
     };
 
     try {
       const response = NextResponse.next();
+      response.headers.set("Cache-Control", NO_STORE);
 
       const supabase = createServerClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
