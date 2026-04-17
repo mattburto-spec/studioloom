@@ -424,110 +424,122 @@ export default function UnitDetailPage({
         Back to Units
       </Link>
 
-      {/* Title + description */}
-      <h1 className="text-2xl font-bold text-text-primary mt-1">{unit.title}</h1>
-      {unit.description && (
-        <p className="text-base text-text-secondary mt-2 leading-relaxed">{unit.description}</p>
-      )}
+      {/* ── Two-column header: info + thumbnail ── */}
+      <div className="flex gap-6 mt-1 mb-6">
+        {/* Left column: title, description, stats, actions, classes */}
+        <div className="flex-1 min-w-0">
+          <h1 className="text-2xl font-bold text-text-primary">{unit.title}</h1>
+          {unit.description && (
+            <p className="text-base text-text-secondary mt-2 leading-relaxed">{unit.description}</p>
+          )}
 
-      {/* Cover image picker */}
-      <div className="mt-4 mb-2">
-        <UnitThumbnailPicker
-          unitId={unitId}
-          unitTitle={unit.title}
-          currentThumbnailUrl={thumbnailUrl}
-          onThumbnailChange={setThumbnailUrl}
-        />
-      </div>
+          {/* Stats bar */}
+          <div className="flex items-center gap-4 mt-3 text-sm text-text-tertiary">
+            <span>
+              {isTimelineUnit ? lessons.length : pages.length}{" "}
+              {isTimelineUnit || isJourneyUnit ? "lessons" : "pages"}
+            </span>
+            {totalMinutes > 0 && (
+              <span>{Math.round(totalMinutes / 60)} hours total</span>
+            )}
+            {isTimelineUnit && phaseGroups.length > 1 && (
+              <span>{phaseGroups.length} phases</span>
+            )}
+            {unit.grade_level && <span>Grade {unit.grade_level}</span>}
+            {unit.duration_weeks && <span>{unit.duration_weeks} weeks</span>}
+          </div>
 
-      {/* Stats bar */}
-      <div className="flex items-center gap-4 mt-3 mb-5 text-sm text-text-tertiary">
-        <span>
-          {isTimelineUnit ? lessons.length : pages.length}{" "}
-          {isTimelineUnit || isJourneyUnit ? "lessons" : "pages"}
-        </span>
-        {totalMinutes > 0 && (
-          <span>{Math.round(totalMinutes / 60)} hours total</span>
-        )}
-        {isTimelineUnit && phaseGroups.length > 1 && (
-          <span>{phaseGroups.length} phases</span>
-        )}
-        {unit.grade_level && <span>Grade {unit.grade_level}</span>}
-        {unit.duration_weeks && <span>{unit.duration_weeks} weeks</span>}
-      </div>
-
-      {/* Action bar */}
-      <div className="flex items-center gap-2 mb-6 flex-wrap">
-        {/* Teach This — primary action */}
-        <Link
-          href={`/teacher/teach/${unitId}`}
-          className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 text-white font-medium text-sm hover:from-purple-700 hover:to-blue-700 transition-all shadow-sm flex items-center gap-2"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polygon points="5 3 19 12 5 21 5 3" />
-          </svg>
-          Teach This
-        </Link>
-        {firstPageId && (
-          <button
-            onClick={() => window.open(`/teacher/units/${unitId}/preview/${firstPageId}`, "_blank")}
-            className="px-4 py-2 rounded-xl bg-dark-blue text-white font-medium text-sm hover:bg-dark-blue/90 transition-colors shadow-sm flex items-center gap-2"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-              <circle cx="12" cy="12" r="3" />
-            </svg>
-            Preview as Student
-          </button>
-        )}
-        {(() => {
-          const assigned = allClasses.filter((c) => c.assigned);
-          if (assigned.length > 0) {
-            return (
-              <Link
-                href={`/teacher/units/${unitId}/class/${assigned[0].id}/edit`}
-                className="px-4 py-2 rounded-xl border border-border text-text-primary font-medium text-sm hover:bg-surface-alt transition-colors flex items-center gap-2"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
-                  <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
-                </svg>
-                Edit Unit
-              </Link>
-            );
-          }
-          return (
-            <button
-              onClick={() => {
-                const el = document.getElementById("assigned-classes-section");
-                if (el) el.scrollIntoView({ behavior: "smooth" });
-              }}
-              className="px-4 py-2 rounded-xl border border-amber-300 bg-amber-50 text-amber-800 font-medium text-sm hover:bg-amber-100 transition-colors flex items-center gap-2"
-              title="Assign this unit to a class to use the lesson editor"
+          {/* Action bar */}
+          <div className="flex items-center gap-2 mt-4 flex-wrap">
+            <Link
+              href={`/teacher/teach/${unitId}`}
+              className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 text-white font-medium text-sm hover:from-purple-700 hover:to-blue-700 transition-all shadow-sm flex items-center gap-2"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
-                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                <polygon points="5 3 19 12 5 21 5 3" />
               </svg>
-              Edit — assign a class first ↓
-            </button>
-          );
-        })()}
-        <button
-          disabled
-          className="px-4 py-2 rounded-xl border border-border text-text-secondary/40 font-medium text-sm cursor-not-allowed"
-          title="Coming soon"
-        >
-          Generate PPTs
-        </button>
-        <button
-          disabled
-          className="px-4 py-2 rounded-xl border border-border text-text-secondary/40 font-medium text-sm cursor-not-allowed"
-          title="Coming soon"
-        >
-          Generate Worksheets
-        </button>
-        {/* QUARANTINED (3 Apr 2026) — Knowledge feedback button + form removed */}
+              Teach This
+            </Link>
+            {firstPageId && (
+              <button
+                onClick={() => window.open(`/teacher/units/${unitId}/preview/${firstPageId}`, "_blank")}
+                className="px-4 py-2 rounded-xl bg-dark-blue text-white font-medium text-sm hover:bg-dark-blue/90 transition-colors shadow-sm flex items-center gap-2"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+                Preview as Student
+              </button>
+            )}
+            {(() => {
+              const assigned = allClasses.filter((c) => c.assigned);
+              if (assigned.length > 0) {
+                return (
+                  <Link
+                    href={`/teacher/units/${unitId}/class/${assigned[0].id}/edit`}
+                    className="px-4 py-2 rounded-xl border border-border text-text-primary font-medium text-sm hover:bg-surface-alt transition-colors flex items-center gap-2"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                      <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                    </svg>
+                    Edit Unit
+                  </Link>
+                );
+              }
+              return null;
+            })()}
+          </div>
+
+          {/* ── Inline class assignment ── */}
+          <div id="assigned-classes-section" className="mt-5">
+            <div className="flex items-center gap-2 mb-2">
+              <h3 className="text-sm font-semibold text-text-primary">Classes</h3>
+              <span className="text-xs text-text-tertiary">
+                ({allClasses.filter((c) => c.assigned).length} assigned)
+              </span>
+            </div>
+            {allClasses.length === 0 ? (
+              <Link href="/teacher/classes" className="text-xs text-purple-600 hover:text-purple-700">
+                Create a class →
+              </Link>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {[...allClasses].sort((a, b) => (a.assigned === b.assigned ? 0 : a.assigned ? -1 : 1)).map((cls) => (
+                  <button
+                    key={cls.id}
+                    onClick={() => toggleClassAssignment(cls.id, cls.assigned)}
+                    disabled={togglingClass === cls.id}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                      cls.assigned
+                        ? "bg-purple-100 text-purple-700 border border-purple-200 hover:bg-purple-200"
+                        : "bg-gray-50 text-gray-500 border border-gray-200 hover:bg-gray-100 hover:text-gray-700"
+                    } ${togglingClass === cls.id ? "opacity-50" : ""}`}
+                  >
+                    {cls.assigned && (
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    )}
+                    {cls.name}
+                    <span className="text-[10px] opacity-60">{cls.studentCount}s</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Right column: thumbnail */}
+        <div className="hidden sm:block flex-shrink-0 w-72">
+          <UnitThumbnailPicker
+            unitId={unitId}
+            unitTitle={unit.title}
+            currentThumbnailUrl={thumbnailUrl}
+            onThumbnailChange={setThumbnailUrl}
+          />
+        </div>
       </div>
 
       {/* ----------------------------------------------------------------- */}
@@ -767,186 +779,6 @@ export default function UnitDetailPage({
         </div>
       )}
 
-      {/* ----------------------------------------------------------------- */}
-      {/* Classes — toggle assignment                                          */}
-      {/* ----------------------------------------------------------------- */}
-      <div id="assigned-classes-section" className="mt-8 mb-6">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-base font-semibold text-text-primary flex items-center gap-2">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
-              <circle cx="9" cy="7" r="4" />
-              <path d="M23 21v-2a4 4 0 00-3-3.87" />
-              <path d="M16 3.13a4 4 0 010 7.75" />
-            </svg>
-            Classes
-            <span className="text-sm font-normal text-text-tertiary ml-1">
-              ({allClasses.filter((c) => c.assigned).length} assigned)
-            </span>
-          </h2>
-          <p className="text-xs text-text-tertiary">Toggle to assign or unassign</p>
-        </div>
-
-        {allClasses.length === 0 ? (
-          <div className="p-4 rounded-xl border border-dashed border-border text-center">
-            <p className="text-sm text-text-secondary">No classes yet.</p>
-            <Link href="/teacher/classes" className="text-xs text-purple-600 hover:text-purple-700 mt-1 inline-block">
-              Create a class →
-            </Link>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {/* Show assigned classes first, then unassigned */}
-            {(() => {
-              const sorted = [...allClasses].sort((a, b) => (a.assigned === b.assigned ? 0 : a.assigned ? -1 : 1));
-              const assignedCount = sorted.filter((c) => c.assigned).length;
-              const unassignedCount = sorted.length - assignedCount;
-              const allAssigned = unassignedCount === 0 && assignedCount > 0;
-              return (<>
-                {sorted.map((cls, idx) => (
-                <div key={cls.id}>
-                  {/* Divider between assigned and unassigned */}
-                  {idx === assignedCount && unassignedCount > 0 && assignedCount > 0 && (
-                    <div className="flex items-center gap-2 py-2 mt-2">
-                      <div className="flex-1 h-px bg-gray-200" />
-                      <span className="text-[10px] font-semibold uppercase tracking-wider text-text-tertiary">Not assigned</span>
-                      <div className="flex-1 h-px bg-gray-200" />
-                    </div>
-                  )}
-                <div
-                  className={`flex items-center justify-between p-3 rounded-xl border transition-colors ${
-                    cls.assigned
-                      ? "border-purple-200 bg-purple-50/50"
-                      : "border-border bg-white"
-                  } ${pendingTermClass === cls.id ? "rounded-b-none border-b-0" : ""}`}
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    {/* Toggle switch */}
-                    <button
-                      onClick={() => toggleClassAssignment(cls.id, cls.assigned)}
-                      disabled={togglingClass === cls.id}
-                      className={`relative flex-shrink-0 w-10 h-6 rounded-full transition-colors duration-200 ${
-                        cls.assigned ? "bg-purple-600" : "bg-gray-200"
-                      } ${togglingClass === cls.id ? "opacity-50" : ""}`}
-                    >
-                      <span
-                        className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${
-                          cls.assigned ? "translate-x-4" : ""
-                        }`}
-                      />
-                    </button>
-                    <div className="min-w-0">
-                      <span className="text-sm font-medium text-text-primary truncate block">{cls.name}</span>
-                      <div className="flex items-center gap-2 text-[11px] text-text-tertiary mt-0.5 flex-wrap">
-                        <span>{cls.studentCount} student{cls.studentCount !== 1 ? "s" : ""}</span>
-                        {cls.nmEnabled && cls.assigned && (
-                          <>
-                            <span className="text-text-tertiary/40">·</span>
-                            <span className="text-pink-500 font-medium">NM</span>
-                          </>
-                        )}
-                        {cls.isForked && cls.assigned && (
-                          <>
-                            <span className="text-text-tertiary/40">·</span>
-                            <span className="text-amber-600 font-medium">Customized</span>
-                          </>
-                        )}
-                        {cls.assigned && cls.termName && (
-                          <>
-                            <span className="text-text-tertiary/40">·</span>
-                            <span className="text-purple-600 font-medium">{cls.termName}</span>
-                            {cls.termDates && (
-                              <span className="text-text-tertiary">{cls.termDates}</span>
-                            )}
-                          </>
-                        )}
-                        {cls.assigned && !cls.termName && terms.length > 0 && (
-                          <>
-                            <span className="text-text-tertiary/40">·</span>
-                            <button
-                              onClick={() => {
-                                setPendingTermClass(cls.id);
-                                setPendingTermId(null);
-                              }}
-                              className="text-amber-600 font-medium hover:text-amber-700 transition-colors"
-                            >
-                              Assign term
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  {cls.assigned && (
-                    <Link
-                      href={`/teacher/units/${unitId}/class/${cls.id}`}
-                      className="text-xs text-purple-600 hover:text-purple-700 px-2 py-1 rounded-lg hover:bg-purple-50 transition flex-shrink-0"
-                    >
-                      Settings →
-                    </Link>
-                  )}
-                </div>
-
-                {/* Inline term picker — shown after toggling ON or clicking "Assign term" */}
-                {pendingTermClass === cls.id && (
-                  <div className="px-4 py-3 bg-purple-50/80 border border-purple-200 border-t-0 rounded-b-xl flex items-center gap-2 flex-wrap">
-                    <label className="text-xs text-text-secondary flex-shrink-0">Term:</label>
-                    <select
-                      value={pendingTermId || ""}
-                      onChange={(e) => setPendingTermId(e.target.value || null)}
-                      className="text-xs px-2 py-1.5 rounded-lg border border-purple-200 bg-white text-text-primary focus:outline-none focus:ring-2 focus:ring-purple-300 flex-1 min-w-[140px] max-w-[260px]"
-                    >
-                      <option value="">Select a term…</option>
-                      {/* Group by academic year */}
-                      {Array.from(new Set(terms.map((t) => t.academic_year))).map((year) => (
-                        <optgroup key={year} label={year}>
-                          {terms
-                            .filter((t) => t.academic_year === year)
-                            .sort((a, b) => a.term_order - b.term_order)
-                            .map((t) => (
-                              <option key={t.id} value={t.id}>
-                                {t.term_name}
-                                {t.start_date ? ` (${formatShortDate(t.start_date)})` : ""}
-                              </option>
-                            ))}
-                        </optgroup>
-                      ))}
-                    </select>
-                    <button
-                      onClick={() => assignTermToClass(cls.id, pendingTermId)}
-                      disabled={savingTerm}
-                      className="text-xs px-3 py-1.5 rounded-lg bg-purple-600 text-white font-medium hover:bg-purple-700 transition-colors disabled:opacity-50 flex-shrink-0"
-                    >
-                      {savingTerm ? "Saving…" : "Save"}
-                    </button>
-                    <button
-                      onClick={() => {
-                        setPendingTermClass(null);
-                        setPendingTermId(null);
-                      }}
-                      className="text-xs text-text-tertiary hover:text-text-secondary transition-colors flex-shrink-0"
-                    >
-                      Skip
-                    </button>
-                  </div>
-                )}
-              </div>
-              ))}
-              {/* Helper when all classes are already assigned */}
-              {allAssigned && (
-                <p className="text-xs text-text-tertiary text-center pt-3 pb-1">
-                  All your classes are assigned to this unit.{" "}
-                  <Link href="/teacher/dashboard" className="text-purple-600 hover:text-purple-700 font-medium">
-                    Create a new class
-                  </Link>{" "}
-                  from your dashboard to assign more.
-                </p>
-              )}
-              </>);
-            })()}
-          </div>
-        )}
-      </div>
     </main>
   );
 }
