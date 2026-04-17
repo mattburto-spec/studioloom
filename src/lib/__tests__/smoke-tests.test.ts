@@ -198,8 +198,8 @@ describe("E2E: Library → Generation (Reconstruction)", () => {
     const content = reconstructionToContentData(fakeResult);
     expect(content.pages.length).toBe(1);
     expect(content.pages[0].title).toBe("Lesson 1");
-    expect(content.pages[0].sections.length).toBe(1);
-    expect(content.pages[0].sections[0].activityId).toBe("b1");
+    expect(content.pages[0].content.sections.length).toBe(1);
+    expect(content.pages[0].content.sections[0].prompt).toBe("desc");
   });
 });
 
