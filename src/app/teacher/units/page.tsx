@@ -891,9 +891,10 @@ export default function TeacherUnitsPage() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredCommunityUnits.map((unit) => (
-                <div
+                <Link
                   key={unit.id}
-                  className="bg-white rounded-2xl overflow-hidden hover:shadow-md transition-shadow flex flex-col border border-gray-100"
+                  href={`/teacher/units/${unit.id}`}
+                  className="bg-white rounded-2xl overflow-hidden hover:shadow-md hover:border-purple-200 transition-all flex flex-col border border-gray-100 cursor-pointer"
                 >
                   {/* Thumbnail */}
                   <div className="w-full h-36 bg-gray-50 relative">
@@ -957,34 +958,18 @@ export default function TeacherUnitsPage() {
                     )}
                   </div>
 
-                  {/* Footer — author + actions */}
-                  <div className="px-4 pb-3 pt-2 flex items-center justify-between border-t border-gray-100 mt-auto">
-                    <div className="text-[11px] text-gray-400 truncate mr-2">
-                      {unit.author_name && (
+                  {/* Footer — author only */}
+                  {unit.author_name && (
+                    <div className="px-4 pb-3 pt-2 border-t border-gray-100 mt-auto">
+                      <div className="text-[11px] text-gray-400 truncate">
                         <span className="font-medium text-gray-500">
                           {unit.author_name}
                           {unit.school_name && ` \u00B7 ${unit.school_name}`}
                         </span>
-                      )}
+                      </div>
                     </div>
-                    <div className="flex gap-1.5 flex-shrink-0">
-                      <Link
-                        href={`/teacher/units/${unit.id}`}
-                        className="px-3 py-1.5 text-[11px] font-semibold text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition"
-                      >
-                        Browse
-                      </Link>
-                      <button
-                        onClick={() => forkUnit(unit.id)}
-                        disabled={forking === unit.id}
-                        className="px-3 py-1.5 text-[11px] font-semibold text-white rounded-lg transition disabled:opacity-50"
-                        style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)" }}
-                      >
-                        {forking === unit.id ? "..." : "Use This"}
-                      </button>
-                    </div>
-                  </div>
-                </div>
+                  )}
+                </Link>
               ))}
             </div>
           )}
