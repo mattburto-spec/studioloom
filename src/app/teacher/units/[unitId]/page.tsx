@@ -428,8 +428,10 @@ export default function UnitDetailPage({
         {/* Left: title, description, stats, actions */}
         <div className="flex-1 min-w-0">
           <h1 className="text-2xl font-bold text-text-primary">{unit.title}</h1>
-          {unit.description && (
-            <p className="text-base text-text-secondary mt-2 leading-relaxed">{unit.description}</p>
+          {(unit.description || unit.topic) && (
+            <p className="text-[15px] text-text-secondary mt-2 leading-relaxed">
+              {unit.description || unit.topic}
+            </p>
           )}
 
           {/* Stats bar */}
@@ -549,15 +551,10 @@ export default function UnitDetailPage({
       {/* Lessons — always visible                                            */}
       {/* ----------------------------------------------------------------- */}
       <div className="mb-6">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-base font-semibold text-text-primary">
-            {isTimelineUnit ? lessons.length : pages.length}{" "}
-            {isTimelineUnit || isJourneyUnit ? "Lessons" : "Pages"}
-          </h2>
-          {unit.topic && (
-            <span className="text-xs text-text-tertiary">{unit.topic}</span>
-          )}
-        </div>
+        <h2 className="text-sm font-semibold text-text-tertiary uppercase tracking-wider mb-3">
+          {isTimelineUnit ? lessons.length : pages.length}{" "}
+          {isTimelineUnit || isJourneyUnit ? "Lessons" : "Pages"}
+        </h2>
 
       {(isTimelineUnit ? (
         <div className="space-y-6">
