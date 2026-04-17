@@ -638,7 +638,17 @@ export default function UnitDetailPage({
                 )}
                 {(unit as any).author_name && (
                   <span className="text-xs text-text-tertiary ml-1">
-                    by {(unit as any).author_name}
+                    by{" "}
+                    {(unit as any).author_teacher_id ? (
+                      <Link
+                        href={`/teacher/units/author/${(unit as any).author_teacher_id}`}
+                        className="text-text-secondary hover:text-purple-600 hover:underline font-medium"
+                      >
+                        {(unit as any).author_name}
+                      </Link>
+                    ) : (
+                      <span className="font-medium">{(unit as any).author_name}</span>
+                    )}
                     {(unit as any).school_name && ` at ${(unit as any).school_name}`}
                   </span>
                 )}

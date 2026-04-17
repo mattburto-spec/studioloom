@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { getPageList, isV3, isV4, normalizeContentData } from "@/lib/unit-adapter";
 import type { Unit } from "@/types";
@@ -24,6 +25,7 @@ interface RepoUnit {
   title: string;
   description: string | null;
   thumbnail_url: string | null;
+  author_teacher_id: string | null;
   author_name: string | null;
   school_name: string | null;
   tags: string[];
@@ -139,6 +141,8 @@ const CATEGORY_COLORS: Record<string, { bg: string; text: string; activeBg: stri
 // ---------------------------------------------------------------------------
 
 export default function TeacherUnitsPage() {
+  const router = useRouter();
+
   // View toggle
   const [viewMode, setViewMode] = useState<ViewMode>("mine");
 
@@ -642,7 +646,7 @@ export default function TeacherUnitsPage() {
                   ? setMySearch(e.target.value)
                   : setCommunitySearch(e.target.value)
               }
-              placeholder={viewMode === "mine" ? "Search your units..." : "Search community units..."}
+              placeholder={viewMode === "mine" ? "Search your units..." : "Search by title, topic, teacher, or school..."}
               className="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-purple-300 focus:border-transparent"
             />
           </div>
@@ -916,14 +920,28 @@ export default function TeacherUnitsPage() {
                     )}
                   </div>
 
-                  {/* Footer — author only */}
+                  {/* Footer — author only (clickable → author page) */}
                   {unit.author_name && (
                     <div className="px-4 pb-3 pt-2 border-t border-gray-100 mt-auto">
                       <div className="text-[11px] text-gray-400 truncate">
-                        <span className="font-medium text-gray-500">
-                          {unit.author_name}
-                          {unit.school_name && ` \u00B7 ${unit.school_name}`}
-                        </span>
+                        {unit.author_teacher_id ? (
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              router.push(`/teacher/units/author/${unit.author_teacher_id}`);
+                            }}
+                            className="font-medium text-gray-500 hover:text-purple-600 hover:underline transition-colors text-left truncate"
+                          >
+                            {unit.author_name}
+                            {unit.school_name && ` \u00B7 ${unit.school_name}`}
+                          </button>
+                        ) : (
+                          <span className="font-medium text-gray-500">
+                            {unit.author_name}
+                            {unit.school_name && ` \u00B7 ${unit.school_name}`}
+                          </span>
+                        )}
                       </div>
                     </div>
                   )}

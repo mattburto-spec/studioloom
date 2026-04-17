@@ -47,19 +47,24 @@ export async function GET(request: NextRequest) {
   const grade = searchParams.get("grade") || "";
   const tag = searchParams.get("tag") || "";
   const sort = searchParams.get("sort") || "newest";
+  const authorTeacherId = searchParams.get("authorTeacherId") || "";
 
   const adminClient = createAdminClient();
 
   let query = adminClient
     .from("units")
     .select(
-      "id, title, description, thumbnail_url, is_published, author_name, school_name, tags, grade_level, duration_weeks, topic, global_context, key_concept, fork_count, created_at"
+      "id, title, description, thumbnail_url, is_published, author_teacher_id, author_name, school_name, tags, grade_level, duration_weeks, topic, global_context, key_concept, fork_count, created_at"
     )
     .eq("is_published", true);
 
+  if (authorTeacherId) {
+    query = query.eq("author_teacher_id", authorTeacherId);
+  }
+
   if (search) {
     query = query.or(
-      `title.ilike.%${search}%,topic.ilike.%${search}%,description.ilike.%${search}%`
+      `title.ilike.%${search}%,topic.ilike.%${search}%,description.ilike.%${search}%,author_name.ilike.%${search}%,school_name.ilike.%${search}%`
     );
   }
 
