@@ -1,12 +1,11 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
 
 function AdminLoginInner() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const redirect = searchParams.get("redirect") || "/admin";
   const urlError = searchParams.get("error");
@@ -37,10 +36,11 @@ function AdminLoginInner() {
         return;
       }
 
-      // Verify admin status by hitting a lightweight admin route.
-      // If the middleware lets us through to /admin, we're good.
-      // Use replace so the login page doesn't stay in history.
-      router.replace(redirect);
+      // Hard navigate (not router.replace) so middleware runs server-side
+      // BEFORE any client-rendered admin page chunks can paint. Without this,
+      // a non-admin user would briefly see the admin dashboard shell before
+      // the middleware's 307 redirect bounced them back here.
+      window.location.replace(redirect);
     } catch {
       setError("Something went wrong. Please try again.");
     } finally {
