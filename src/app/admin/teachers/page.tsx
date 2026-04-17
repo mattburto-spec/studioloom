@@ -11,23 +11,48 @@ interface Teacher {
   unitCount: number;
 }
 
+interface AccessRequest {
+  id: string;
+  email: string;
+  name: string | null;
+  school: string | null;
+  role: string | null;
+  message: string | null;
+  status: "pending" | "invited" | "rejected";
+  created_at: string;
+  rejection_reason?: string | null;
+}
+
 const PROTECTED_EMAILS = new Set(["system@studioloom.internal"]);
 
 export default function TeachersPage() {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [requests, setRequests] = useState<AccessRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState<
+    | { mode: "blank" }
+    | { mode: "from-request"; request: AccessRequest }
+    | null
+  >(null);
   const [deleteTarget, setDeleteTarget] = useState<Teacher | null>(null);
+  const [updatingRequest, setUpdatingRequest] = useState<string | null>(null);
 
   const loadTeachers = useCallback(() => {
     setLoading(true);
-    fetch("/api/admin/teachers")
-      .then((r) => {
+    Promise.all([
+      fetch("/api/admin/teachers").then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
+      }),
+      fetch("/api/admin/teacher-requests?status=pending").then((r) =>
+        r.ok ? r.json() : { requests: [] }
+      ),
+    ])
+      .then(([tData, rData]) => {
+        setTeachers(tData.teachers || []);
+        setRequests(rData.requests || []);
       })
-      .then((data) => setTeachers(data.teachers || []))
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
@@ -35,6 +60,23 @@ export default function TeachersPage() {
   useEffect(() => {
     loadTeachers();
   }, [loadTeachers]);
+
+  async function updateRequestStatus(
+    id: string,
+    status: "invited" | "rejected"
+  ) {
+    setUpdatingRequest(id);
+    try {
+      await fetch("/api/admin/teacher-requests", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, status }),
+      });
+      loadTeachers();
+    } finally {
+      setUpdatingRequest(null);
+    }
+  }
 
   if (loading) return <div className="max-w-7xl mx-auto px-6 py-8"><p className="text-sm text-gray-500">Loading teachers...</p></div>;
   if (error) return <div className="max-w-7xl mx-auto px-6 py-8"><p className="text-sm text-red-600">Error: {error}</p></div>;
@@ -47,13 +89,77 @@ export default function TeachersPage() {
           <p className="text-sm text-gray-500">{teachers.length} registered teacher{teachers.length !== 1 ? "s" : ""}</p>
         </div>
         <button
-          onClick={() => setInviteOpen(true)}
+          onClick={() => setInviteOpen({ mode: "blank" })}
           className="px-4 py-2 text-sm font-medium text-white bg-brand-purple rounded-lg hover:opacity-90 transition shadow-sm"
           style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)" }}
         >
           + Invite teacher
         </button>
       </div>
+
+      {/* Pending Access Requests */}
+      {requests.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-6 h-6 rounded-full flex items-center justify-center" style={{ background: "#F59E0B" }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z" />
+              </svg>
+            </div>
+            <h3 className="text-sm font-semibold text-amber-900">
+              {requests.length} pending access request{requests.length !== 1 ? "s" : ""}
+            </h3>
+          </div>
+          <div className="space-y-2">
+            {requests.map((req) => (
+              <div key={req.id} className="bg-white border border-amber-100 rounded-lg p-3 flex items-start gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-baseline gap-2 flex-wrap">
+                    <span className="font-medium text-gray-900 text-sm">
+                      {req.name || "Unknown"}
+                    </span>
+                    <span className="text-sm text-gray-600">{req.email}</span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-0.5 text-xs text-gray-500 flex-wrap">
+                    {req.school && <span>{req.school}</span>}
+                    {req.role && (
+                      <>
+                        {req.school && <span className="text-gray-300">·</span>}
+                        <span>{req.role}</span>
+                      </>
+                    )}
+                    <span className="text-gray-300">·</span>
+                    <span>{new Date(req.created_at).toLocaleDateString()}</span>
+                  </div>
+                  {req.message && (
+                    <p className="text-xs text-gray-600 mt-1.5 italic">
+                      &ldquo;{req.message}&rdquo;
+                    </p>
+                  )}
+                </div>
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <button
+                    onClick={() => setInviteOpen({ mode: "from-request", request: req })}
+                    disabled={updatingRequest === req.id}
+                    className="px-3 py-1.5 text-xs font-semibold text-white rounded-lg transition disabled:opacity-50"
+                    style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)" }}
+                  >
+                    Send invite
+                  </button>
+                  <button
+                    onClick={() => updateRequestStatus(req.id, "rejected")}
+                    disabled={updatingRequest === req.id}
+                    className="px-2.5 py-1.5 text-xs font-medium text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition disabled:opacity-50"
+                    title="Reject request"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <table className="w-full text-sm">
@@ -112,9 +218,25 @@ export default function TeachersPage() {
 
       {inviteOpen && (
         <InviteTeacherModal
-          onClose={() => setInviteOpen(false)}
-          onInvited={() => {
-            setInviteOpen(false);
+          prefill={inviteOpen.mode === "from-request" ? {
+            email: inviteOpen.request.email,
+            name: inviteOpen.request.name || "",
+          } : undefined}
+          onClose={() => setInviteOpen(null)}
+          onInvited={async () => {
+            // If this was from a pending request, mark it as invited
+            if (inviteOpen.mode === "from-request") {
+              try {
+                await fetch("/api/admin/teacher-requests", {
+                  method: "PATCH",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ id: inviteOpen.request.id, status: "invited" }),
+                });
+              } catch {
+                // silent — teacher was still invited, just request tracking failed
+              }
+            }
+            setInviteOpen(null);
             loadTeachers();
           }}
         />
@@ -246,9 +368,17 @@ function DeleteTeacherModal({
   );
 }
 
-function InviteTeacherModal({ onClose, onInvited }: { onClose: () => void; onInvited: () => void }) {
-  const [email, setEmail] = useState("");
-  const [name, setName] = useState("");
+function InviteTeacherModal({
+  onClose,
+  onInvited,
+  prefill,
+}: {
+  onClose: () => void;
+  onInvited: () => void;
+  prefill?: { email: string; name: string };
+}) {
+  const [email, setEmail] = useState(prefill?.email || "");
+  const [name, setName] = useState(prefill?.name || "");
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
