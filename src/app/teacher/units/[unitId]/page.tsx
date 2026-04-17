@@ -993,79 +993,116 @@ function LessonCard({
   workshopPhases?: { opening: { durationMinutes: number }; miniLesson: { durationMinutes: number }; workTime: { durationMinutes: number }; debrief: { durationMinutes: number } };
   extensionCount?: number;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const hasDetails = subtitle || (activityHints.length > 0) || workshopPhases || (criterionTags.length > 0);
+
+  // Strip the phase prefix from title if it duplicates the phase header
+  // e.g. "Launch & Investigate — What Makes a Racer Fast? — Racer Analysis" → "Racer Analysis & First-Draft Design Brief"
+  const parts = title.split(" — ");
+  const shortTitle = parts.length >= 3 ? parts.slice(2).join(" — ") : (parts.length === 2 ? parts[1] : title);
+
   return (
-    <div className="flex items-start gap-2 p-3 rounded-lg border border-border hover:border-gray-300 bg-white transition-colors">
-      {/* Lesson number badge */}
-      {badgeId && badgeColor ? (
-        <div
-          className="flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-bold text-white mt-0.5"
-          style={{ backgroundColor: badgeColor }}
-        >
-          {badgeId}
-        </div>
-      ) : (
-        <div className="flex-shrink-0 w-7 h-7 rounded-lg bg-gray-100 flex items-center justify-center text-[11px] font-semibold text-text-secondary mt-0.5">
-          {lessonNumber}
-        </div>
-      )}
-
-      {/* Content */}
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-text-primary leading-snug">{title}</p>
-        {subtitle && (
-          <p className="text-xs text-text-secondary mt-0.5 line-clamp-2">{subtitle}</p>
+    <div
+      className={`rounded-lg border bg-white transition-colors ${expanded ? "border-purple-200" : "border-border hover:border-gray-300"}`}
+    >
+      {/* Collapsed row — always visible */}
+      <button
+        onClick={() => hasDetails && setExpanded(!expanded)}
+        className={`w-full flex items-center gap-3 px-3 py-2.5 text-left ${hasDetails ? "cursor-pointer" : "cursor-default"}`}
+      >
+        {/* Lesson number badge */}
+        {badgeId && badgeColor ? (
+          <div
+            className="flex-shrink-0 w-6 h-6 rounded-md flex items-center justify-center text-[10px] font-bold text-white"
+            style={{ backgroundColor: badgeColor }}
+          >
+            {badgeId}
+          </div>
+        ) : (
+          <div className="flex-shrink-0 w-6 h-6 rounded-md bg-gray-100 flex items-center justify-center text-[11px] font-semibold text-text-tertiary">
+            {lessonNumber}
+          </div>
         )}
 
-        {/* Workshop phase bar — shown when timing data exists */}
-        {workshopPhases && (
-          <MiniPhaseBar phases={{
-            opening: workshopPhases.opening.durationMinutes,
-            miniLesson: workshopPhases.miniLesson.durationMinutes,
-            workTime: workshopPhases.workTime.durationMinutes,
-            debrief: workshopPhases.debrief.durationMinutes,
-          }} />
-        )}
+        {/* Title */}
+        <span className="flex-1 text-sm font-medium text-text-primary truncate">{shortTitle}</span>
 
-        {/* Meta row */}
-        <div className="flex items-center gap-2 mt-1.5">
-          {minutes != null && !workshopPhases && (
-            <span className="text-[10px] text-text-tertiary">{minutes}min</span>
+        {/* Right side: duration + criterion pips + chevron */}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {minutes != null && (
+            <span className="text-xs text-text-tertiary">{minutes}m</span>
           )}
-
-          {/* Criterion pips */}
           {criterionTags.length > 0 && (
             <div className="flex items-center gap-0.5">
+              {criterionTags.map((tag) => (
+                <div
+                  key={tag}
+                  className="w-3 h-1.5 rounded-full"
+                  style={{ backgroundColor: getCriterionColor(tag, "IB_MYP" as FrameworkId) }}
+                />
+              ))}
+            </div>
+          )}
+          {extensionCount != null && extensionCount > 0 && (
+            <span className="text-[9px] px-1 py-0.5 rounded bg-green-50 text-green-700">{extensionCount} ext</span>
+          )}
+          {hasDetails && (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+              className={`text-text-tertiary transition-transform ${expanded ? "rotate-180" : ""}`}>
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          )}
+        </div>
+      </button>
+
+      {/* Expanded details */}
+      {expanded && (
+        <div className="px-3 pb-3 pt-0 border-t border-gray-100 ml-9">
+          {subtitle && (
+            <p className="text-xs text-text-secondary mt-2 leading-relaxed">{subtitle}</p>
+          )}
+
+          {workshopPhases && (
+            <div className="mt-2">
+              <MiniPhaseBar phases={{
+                opening: workshopPhases.opening.durationMinutes,
+                miniLesson: workshopPhases.miniLesson.durationMinutes,
+                workTime: workshopPhases.workTime.durationMinutes,
+                debrief: workshopPhases.debrief.durationMinutes,
+              }} />
+            </div>
+          )}
+
+          {activityHints.length > 0 && (
+            <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+              {activityHints.map((hint, i) => (
+                <span key={i} className="text-[11px] px-2 py-0.5 rounded-full bg-gray-50 text-text-tertiary border border-gray-100">
+                  {hint}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {criterionTags.length > 0 && (
+            <div className="flex items-center gap-1.5 mt-2">
               {criterionTags.map((tag) => {
                 const r = renderCriterionLabel(tag, "IB_MYP" as FrameworkId);
-                const tipLabel = r.kind === "label" || r.kind === "implicit"
+                const label = r.kind === "label" || r.kind === "implicit"
                   ? `${r.short}: ${r.name}` : tag;
                 return (
-                  <div
-                    key={tag}
-                    className="w-4 h-1.5 rounded-full"
-                    style={{ backgroundColor: getCriterionColor(tag, "IB_MYP" as FrameworkId) }}
-                    title={tipLabel}
-                  />
+                  <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded-full border" style={{
+                    backgroundColor: getCriterionColor(tag, "IB_MYP" as FrameworkId) + "18",
+                    borderColor: getCriterionColor(tag, "IB_MYP" as FrameworkId) + "40",
+                    color: getCriterionColor(tag, "IB_MYP" as FrameworkId),
+                  }}>
+                    {label}
+                  </span>
                 );
               })}
             </div>
           )}
-
-          {/* Extension indicator */}
-          {extensionCount != null && extensionCount > 0 && (
-            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-green-50 text-green-700">
-              {extensionCount} ext
-            </span>
-          )}
-
-          {/* Activity hints */}
-          {activityHints.length > 0 && (
-            <span className="flex-1 text-[10px] text-text-tertiary truncate">
-              {activityHints.slice(0, 3).join(" \u2022 ")}
-            </span>
-          )}
         </div>
-      </div>
+      )}
     </div>
   );
 }
