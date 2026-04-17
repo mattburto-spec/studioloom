@@ -424,9 +424,55 @@ export default function UnitDetailPage({
         Back to Units
       </Link>
 
-      {/* ── Two-column header: info + thumbnail ── */}
+      {/* ── Three-column layout: classes | content | thumbnail ── */}
       <div className="flex gap-6 mt-1 mb-6">
-        {/* Left column: title, description, stats, actions, classes */}
+        {/* Left column: class assignment */}
+        <div className="hidden sm:block flex-shrink-0 w-52">
+          <h3 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-3">
+            Assign to Classes
+          </h3>
+          {allClasses.length === 0 ? (
+            <Link href="/teacher/classes" className="text-xs text-purple-600 hover:text-purple-700">
+              Create a class →
+            </Link>
+          ) : (
+            <div className="space-y-1">
+              {[...allClasses].sort((a, b) => (a.assigned === b.assigned ? 0 : a.assigned ? -1 : 1)).map((cls) => (
+                <button
+                  key={cls.id}
+                  onClick={() => toggleClassAssignment(cls.id, cls.assigned)}
+                  disabled={togglingClass === cls.id}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all text-left ${
+                    cls.assigned
+                      ? "bg-purple-50 border border-purple-200 hover:bg-purple-100"
+                      : "bg-white border border-gray-200 hover:bg-gray-50"
+                  } ${togglingClass === cls.id ? "opacity-50" : ""}`}
+                >
+                  {/* Toggle indicator */}
+                  <div className={`flex-shrink-0 w-8 h-[18px] rounded-full transition-colors duration-200 relative ${
+                    cls.assigned ? "bg-purple-600" : "bg-gray-300"
+                  }`}>
+                    <div className={`absolute top-[2px] left-[2px] w-[14px] h-[14px] bg-white rounded-full shadow-sm transition-transform duration-200 ${
+                      cls.assigned ? "translate-x-[14px]" : ""
+                    }`} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <span className={`block text-sm font-medium truncate ${
+                      cls.assigned ? "text-purple-700" : "text-text-secondary"
+                    }`}>
+                      {cls.name}
+                    </span>
+                    <span className="text-[10px] text-text-tertiary">
+                      {cls.studentCount} student{cls.studentCount !== 1 ? "s" : ""}
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Center column: title, description, stats, actions */}
         <div className="flex-1 min-w-0">
           <h1 className="text-2xl font-bold text-text-primary">{unit.title}</h1>
           {unit.description && (
@@ -492,47 +538,35 @@ export default function UnitDetailPage({
             })()}
           </div>
 
-          {/* ── Inline class assignment ── */}
-          <div id="assigned-classes-section" className="mt-5">
-            <div className="flex items-center gap-2 mb-2">
-              <h3 className="text-sm font-semibold text-text-primary">Classes</h3>
-              <span className="text-xs text-text-tertiary">
-                ({allClasses.filter((c) => c.assigned).length} assigned)
-              </span>
+          {/* Mobile-only class assignment (hidden on desktop where sidebar shows) */}
+          <div className="sm:hidden mt-5">
+            <h3 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider mb-2">
+              Assign to Classes
+            </h3>
+            <div className="flex flex-wrap gap-2">
+              {allClasses.map((cls) => (
+                <button
+                  key={cls.id}
+                  onClick={() => toggleClassAssignment(cls.id, cls.assigned)}
+                  disabled={togglingClass === cls.id}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                    cls.assigned
+                      ? "bg-purple-100 text-purple-700 border border-purple-200"
+                      : "bg-gray-50 text-gray-500 border border-gray-200"
+                  } ${togglingClass === cls.id ? "opacity-50" : ""}`}
+                >
+                  {cls.assigned && (
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12" /></svg>
+                  )}
+                  {cls.name}
+                </button>
+              ))}
             </div>
-            {allClasses.length === 0 ? (
-              <Link href="/teacher/classes" className="text-xs text-purple-600 hover:text-purple-700">
-                Create a class →
-              </Link>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {[...allClasses].sort((a, b) => (a.assigned === b.assigned ? 0 : a.assigned ? -1 : 1)).map((cls) => (
-                  <button
-                    key={cls.id}
-                    onClick={() => toggleClassAssignment(cls.id, cls.assigned)}
-                    disabled={togglingClass === cls.id}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                      cls.assigned
-                        ? "bg-purple-100 text-purple-700 border border-purple-200 hover:bg-purple-200"
-                        : "bg-gray-50 text-gray-500 border border-gray-200 hover:bg-gray-100 hover:text-gray-700"
-                    } ${togglingClass === cls.id ? "opacity-50" : ""}`}
-                  >
-                    {cls.assigned && (
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                    )}
-                    {cls.name}
-                    <span className="text-[10px] opacity-60">{cls.studentCount}s</span>
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
         </div>
 
         {/* Right column: thumbnail */}
-        <div className="hidden sm:block flex-shrink-0 w-72">
+        <div className="hidden md:block flex-shrink-0 w-56">
           <UnitThumbnailPicker
             unitId={unitId}
             unitTitle={unit.title}
