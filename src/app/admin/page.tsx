@@ -15,6 +15,23 @@ interface HealthData {
   sparklines: { runs: number[]; cost: number[] };
 }
 
+/**
+ * Minimal runtime check — the health endpoint returns { error: "Unauthorized" }
+ * with a 401 if the user isn't admin, and we don't want to render the dashboard
+ * against that shape.
+ */
+function isValidHealth(x: unknown): x is HealthData {
+  if (!x || typeof x !== "object") return false;
+  const o = x as Record<string, unknown>;
+  return (
+    o.pipeline != null &&
+    o.cost != null &&
+    o.quality != null &&
+    o.usage != null &&
+    o.sparklines != null
+  );
+}
+
 export default function AdminDashboard() {
   const [health, setHealth] = useState<HealthData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -22,8 +39,20 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     fetch("/api/admin/health")
-      .then((r) => r.json())
-      .then(setHealth)
+      .then(async (r) => {
+        // If auth failed, bounce to the admin login. Middleware should
+        // normally catch this earlier, but belt-and-suspenders — the browser
+        // can serve stale HTML of /admin if it was cached before logout.
+        if (r.status === 401 || r.status === 403) {
+          window.location.href = `/admin/login?redirect=${encodeURIComponent("/admin")}`;
+          return null;
+        }
+        const data = await r.json();
+        return isValidHealth(data) ? data : null;
+      })
+      .then((data) => {
+        if (data) setHealth(data);
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);

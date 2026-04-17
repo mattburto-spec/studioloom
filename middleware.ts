@@ -28,43 +28,54 @@ export async function middleware(request: NextRequest) {
   // (with ADMIN_EMAILS env-var fallback so we can't lock ourselves out).
   // Non-admins are sent to /admin/login, not /teacher/login, to keep the
   // admin auth surface visually separate from the teacher area.
+  //
+  // Wrapped in try/catch so any transient error (stale cookies, DB blip,
+  // edge-runtime quirk) fails CLOSED to /admin/login rather than surfacing
+  // Sentry's "Something went wrong" page to the user.
   if (pathname.startsWith("/admin")) {
-    const response = NextResponse.next();
+    const loginRedirect = (extra?: Record<string, string>) => {
+      const loginUrl = new URL("/admin/login", request.url);
+      loginUrl.searchParams.set("redirect", pathname);
+      if (extra) for (const [k, v] of Object.entries(extra)) loginUrl.searchParams.set(k, v);
+      return NextResponse.redirect(loginUrl);
+    };
 
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return request.cookies.getAll();
+    try {
+      const response = NextResponse.next();
+
+      const supabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+          cookies: {
+            getAll() {
+              return request.cookies.getAll();
+            },
+            setAll(cookiesToSet: Array<{ name: string; value: string; options?: Record<string, unknown> }>) {
+              cookiesToSet.forEach(({ name, value, options }) => {
+                response.cookies.set(name, value, options);
+              });
+            },
           },
-          setAll(cookiesToSet: Array<{ name: string; value: string; options?: Record<string, unknown> }>) {
-            cookiesToSet.forEach(({ name, value, options }) => {
-              response.cookies.set(name, value, options);
-            });
-          },
-        },
+        }
+      );
+
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+
+      if (userError || !user) {
+        return loginRedirect();
       }
-    );
 
-    const { data: { user } } = await supabase.auth.getUser();
+      const isAdmin = await isAdminUser(user.id, user.email);
+      if (!isAdmin) {
+        return loginRedirect({ error: "not_authorised" });
+      }
 
-    if (!user) {
-      const loginUrl = new URL("/admin/login", request.url);
-      loginUrl.searchParams.set("redirect", pathname);
-      return NextResponse.redirect(loginUrl);
+      return response;
+    } catch (err) {
+      console.error("[middleware /admin] auth check failed:", err);
+      return loginRedirect();
     }
-
-    const isAdmin = await isAdminUser(user.id, user.email);
-    if (!isAdmin) {
-      const loginUrl = new URL("/admin/login", request.url);
-      loginUrl.searchParams.set("redirect", pathname);
-      loginUrl.searchParams.set("error", "not_authorised");
-      return NextResponse.redirect(loginUrl);
-    }
-
-    return response;
   }
 
   // Teacher routes — require Supabase Auth

@@ -42,8 +42,10 @@ export default function AdminLayout({
 }) {
   const pathname = usePathname();
 
-  // /admin/login manages its own chrome — render bare (no admin nav)
-  if (pathname === "/admin/login") {
+  // /admin/login manages its own chrome — render bare (no admin nav).
+  // Also render bare while pathname is still resolving (null during initial
+  // render) to avoid a chrome flash before the client hydrates.
+  if (pathname === null || pathname === "/admin/login") {
     return <>{children}</>;
   }
 
