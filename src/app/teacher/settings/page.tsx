@@ -99,6 +99,12 @@ export default function TeacherSettingsPage() {
 
   // School/teaching profile state
   const [schoolName, setSchoolName] = useState("");
+
+  // Display name for community-published units ("Mr. Burton", "Ms. Chen" etc.)
+  const [displayName, setDisplayName] = useState("");
+  const [teacherFullName, setTeacherFullName] = useState("");
+  const [displayNameSaving, setDisplayNameSaving] = useState(false);
+  const [displayNameSaved, setDisplayNameSaved] = useState(false);
   const [country, setCountry] = useState("");
   const [curriculumFramework, setCurriculumFramework] = useState("");
   const [periodMinutes, setPeriodMinutes] = useState<number>(50);
@@ -217,10 +223,42 @@ export default function TeacherSettingsPage() {
     }
   }
 
+  async function saveDisplayName() {
+    setDisplayNameSaving(true);
+    try {
+      const res = await fetch("/api/teacher/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ display_name: displayName.trim() }),
+      });
+      if (res.ok) {
+        setDisplayNameSaved(true);
+        setTimeout(() => setDisplayNameSaved(false), 2500);
+      }
+    } finally {
+      setDisplayNameSaving(false);
+    }
+  }
+
+  // Suggest "M. Burton" style from the teacher's full name
+  function suggestedDisplayName(): string {
+    const parts = teacherFullName.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      const first = parts[0];
+      const last = parts[parts.length - 1];
+      return `${first.charAt(0).toUpperCase()}. ${last}`;
+    }
+    return teacherFullName.trim();
+  }
+
   async function loadProfile() {
     try {
       const res = await fetch("/api/teacher/profile");
       const data = await res.json();
+      if (data.teacher) {
+        setTeacherFullName(data.teacher.name || "");
+        setDisplayName(data.teacher.display_name || "");
+      }
       if (data.profile) {
         const p = data.profile;
         setSchoolName(p.school_name || "");
@@ -798,6 +836,50 @@ export default function TeacherSettingsPage() {
               {schoolSaveError && (
                 <div className="mt-2 text-xs text-red-600">
                   {schoolSaveError}
+                </div>
+              )}
+            </div>
+
+            {/* Display name for community attribution */}
+            <div className="py-3 border-b border-border">
+              <div className="mb-2">
+                <div className="text-sm font-medium text-text-primary">
+                  Publishing name
+                </div>
+                <div className="text-xs text-text-secondary">
+                  Shown as the author when you publish units to the community library. Keep it friendly but not too revealing — think how students address you (e.g. <span className="font-medium">Mr. Burton</span>, <span className="font-medium">Ms. Chen</span>, <span className="font-medium">Dr. Patel</span>).
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder={suggestedDisplayName() || "Mr. / Ms. / Dr. Surname"}
+                  className="flex-1 px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-purple focus:border-transparent"
+                />
+                <button
+                  type="button"
+                  onClick={saveDisplayName}
+                  disabled={displayNameSaving}
+                  className="px-4 py-2 text-sm font-medium text-white rounded-lg hover:opacity-90 transition disabled:opacity-50"
+                  style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)" }}
+                >
+                  {displayNameSaving ? "Saving…" : "Save"}
+                </button>
+              </div>
+              {!displayName && teacherFullName && (
+                <button
+                  type="button"
+                  onClick={() => setDisplayName(suggestedDisplayName())}
+                  className="mt-2 text-xs text-brand-purple hover:underline"
+                >
+                  Use suggested: <span className="font-medium">{suggestedDisplayName()}</span>
+                </button>
+              )}
+              {displayNameSaved && (
+                <div className="mt-2 text-xs text-accent-green">
+                  Saved. This will be shown on new community publishes.
                 </div>
               )}
             </div>

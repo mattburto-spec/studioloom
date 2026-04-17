@@ -373,7 +373,6 @@ export default function UnitDetailPage({
         body: JSON.stringify({
           action: isPublished ? "unpublish" : "publish",
           unitId,
-          authorName: "Teacher",
         }),
       });
       if (res.ok) {

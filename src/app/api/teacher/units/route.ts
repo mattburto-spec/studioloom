@@ -188,18 +188,65 @@ export async function POST(request: NextRequest) {
     }
 
     case "publish": {
-      const { authorName, schoolName, tags } = body as {
+      const { authorName: authorNameOverride, schoolName: schoolNameOverride, tags } = body as {
         authorName?: string;
         schoolName?: string;
         tags?: string[];
       };
+
+      // Pull the teacher's display_name / name / school so we never write the
+      // literal string "Teacher" as attribution. The client may still override
+      // either field, but by default we use what's in the profile.
+      // display_name column may not exist yet (migration 090 not applied) —
+      // retry without it if PostgREST complains.
+      let teacherLookup = await adminClient
+        .from("teachers")
+        .select("name, display_name")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (
+        teacherLookup.error &&
+        (teacherLookup.error.message.includes("display_name") ||
+          teacherLookup.error.code === "PGRST204" ||
+          teacherLookup.error.code === "42703")
+      ) {
+        teacherLookup = await adminClient
+          .from("teachers")
+          .select("name")
+          .eq("id", user.id)
+          .maybeSingle() as typeof teacherLookup;
+      }
+
+      const teacher = teacherLookup.data as { name?: string | null; display_name?: string | null } | null;
+
+      // Teacher profile sometimes stores school_name separately; if the client
+      // didn't pass one, pull from teacher_profiles via profile API shape.
+      let profileSchoolName: string | null = null;
+      if (!schoolNameOverride) {
+        const { data: profile } = await adminClient
+          .from("teacher_profiles")
+          .select("school_name")
+          .eq("teacher_id", user.id)
+          .maybeSingle();
+        profileSchoolName = (profile as { school_name?: string | null } | null)?.school_name || null;
+      }
+
+      const resolvedAuthorName =
+        authorNameOverride?.trim() ||
+        teacher?.display_name?.trim() ||
+        teacher?.name?.trim() ||
+        null;
+
+      const resolvedSchoolName = schoolNameOverride?.trim() || profileSchoolName || null;
+
       const { error } = await adminClient
         .from("units")
         .update({
           is_published: true,
           author_teacher_id: user.id,
-          author_name: authorName || null,
-          school_name: schoolName || null,
+          author_name: resolvedAuthorName,
+          school_name: resolvedSchoolName,
           tags: tags || [],
         })
         .eq("id", unitId);

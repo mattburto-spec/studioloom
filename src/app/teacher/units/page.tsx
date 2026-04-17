@@ -404,7 +404,6 @@ export default function TeacherUnitsPage() {
         body: JSON.stringify({
           action: unit.is_published ? "unpublish" : "publish",
           unitId: unit.id,
-          authorName: "Teacher",
         }),
       });
       if (res.ok) {
