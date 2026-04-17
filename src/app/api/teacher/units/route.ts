@@ -243,7 +243,7 @@ export async function POST(request: NextRequest) {
       const { data: newUnit, error: insertError } = await adminClient
         .from("units")
         .insert({
-          title: `${source.title} (forked)`,
+          title: source.title,
           description: source.description,
           content_data: source.content_data,
           thumbnail_url: source.thumbnail_url,
