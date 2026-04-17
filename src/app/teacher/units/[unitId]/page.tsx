@@ -62,6 +62,8 @@ export default function UnitDetailPage({
   const [unit, setUnit] = useState<Unit | null>(null);
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [forking, setForking] = useState(false);
   // QUARANTINED (3 Apr 2026) — Knowledge feedback disabled
   // const [showFeedback, setShowFeedback] = useState(false);
   const [showMeta, setShowMeta] = useState(false);
@@ -112,6 +114,10 @@ export default function UnitDetailPage({
     async function load() {
       try {
       const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      const currentUserId = user?.id || null;
+      setUserId(currentUserId);
+
       const { data } = await supabase
         .from("units")
         .select("*")
@@ -331,6 +337,29 @@ export default function UnitDetailPage({
     );
   }
 
+  // Ownership check: is this the teacher's own unit?
+  const isOwner = userId != null && (
+    (unit as any).author_teacher_id === userId || (unit as any).teacher_id === userId
+  );
+
+  async function handleFork() {
+    setForking(true);
+    try {
+      const res = await fetch("/api/teacher/units", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "fork", unitId }),
+      });
+      if (res.ok) {
+        const { unitId: newId } = await res.json();
+        if (newId) window.location.href = `/teacher/units/${newId}`;
+      }
+    } catch {
+      // silent
+    }
+    setForking(false);
+  }
+
   const normalized = normalizeContentData(unit.content_data);
   const pages = getPageList(unit.content_data);
   const isTimelineUnit = isV4(normalized);
@@ -452,70 +481,105 @@ export default function UnitDetailPage({
 
           {/* Action bar */}
           <div className="flex items-center gap-2 mt-4 flex-wrap">
-            <Link
-              href={`/teacher/teach/${unitId}`}
-              className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 text-white font-medium text-sm hover:from-purple-700 hover:to-blue-700 transition-all shadow-sm flex items-center gap-2"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polygon points="5 3 19 12 5 21 5 3" />
-              </svg>
-              Teach This
-            </Link>
-            {firstPageId && (
-              <button
-                onClick={() => window.open(`/teacher/units/${unitId}/preview/${firstPageId}`, "_blank")}
-                className="px-4 py-2 rounded-xl bg-dark-blue text-white font-medium text-sm hover:bg-dark-blue/90 transition-colors shadow-sm flex items-center gap-2"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                  <circle cx="12" cy="12" r="3" />
-                </svg>
-                Preview as Student
-              </button>
-            )}
-            {(() => {
-              const assigned = allClasses.filter((c) => c.assigned);
-              if (assigned.length > 0) {
-                return (
-                  <Link
-                    href={`/teacher/units/${unitId}/class/${assigned[0].id}/edit`}
+            {isOwner ? (
+              <>
+                <Link
+                  href={`/teacher/teach/${unitId}`}
+                  className="px-4 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 text-white font-medium text-sm hover:from-purple-700 hover:to-blue-700 transition-all shadow-sm flex items-center gap-2"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polygon points="5 3 19 12 5 21 5 3" />
+                  </svg>
+                  Teach This
+                </Link>
+                {firstPageId && (
+                  <button
+                    onClick={() => window.open(`/teacher/units/${unitId}/preview/${firstPageId}`, "_blank")}
+                    className="px-4 py-2 rounded-xl bg-dark-blue text-white font-medium text-sm hover:bg-dark-blue/90 transition-colors shadow-sm flex items-center gap-2"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                    Preview as Student
+                  </button>
+                )}
+                {(() => {
+                  const assigned = allClasses.filter((c) => c.assigned);
+                  if (assigned.length > 0) {
+                    return (
+                      <Link
+                        href={`/teacher/units/${unitId}/class/${assigned[0].id}/edit`}
+                        className="px-4 py-2 rounded-xl border border-border text-text-primary font-medium text-sm hover:bg-surface-alt transition-colors flex items-center gap-2"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                          <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                        </svg>
+                        Edit Unit
+                      </Link>
+                    );
+                  }
+                  return null;
+                })()}
+                {/* Unit Details toggle */}
+                <button
+                  onClick={() => setShowMeta(!showMeta)}
+                  className={`px-4 py-2 rounded-xl border text-sm font-medium transition-colors flex items-center gap-2 ${
+                    showMeta
+                      ? "border-purple-200 bg-purple-50 text-purple-700"
+                      : "border-border text-text-secondary hover:bg-surface-alt hover:text-text-primary"
+                  }`}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                    <line x1="16" y1="13" x2="8" y2="13" />
+                    <line x1="16" y1="17" x2="8" y2="17" />
+                  </svg>
+                  Details
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                    className={`transition-transform ${showMeta ? "rotate-180" : ""}`}>
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={handleFork}
+                  disabled={forking}
+                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 text-white font-medium text-sm hover:from-purple-700 hover:to-blue-700 transition-all shadow-sm flex items-center gap-2 disabled:opacity-50"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M16 3h5v5" /><path d="M8 3H3v5" /><path d="M12 22v-8.3a4 4 0 00-1.172-2.872L3 3" /><path d="m15 9 6-6" />
+                  </svg>
+                  {forking ? "Copying..." : "Copy to My Units"}
+                </button>
+                {firstPageId && (
+                  <button
+                    onClick={() => window.open(`/teacher/units/${unitId}/preview/${firstPageId}`, "_blank")}
                     className="px-4 py-2 rounded-xl border border-border text-text-primary font-medium text-sm hover:bg-surface-alt transition-colors flex items-center gap-2"
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
-                      <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                      <circle cx="12" cy="12" r="3" />
                     </svg>
-                    Edit Unit
-                  </Link>
-                );
-              }
-              return null;
-            })()}
-            {/* Unit Details toggle — inline with actions */}
-            <button
-              onClick={() => setShowMeta(!showMeta)}
-              className={`px-4 py-2 rounded-xl border text-sm font-medium transition-colors flex items-center gap-2 ${
-                showMeta
-                  ? "border-purple-200 bg-purple-50 text-purple-700"
-                  : "border-border text-text-secondary hover:bg-surface-alt hover:text-text-primary"
-              }`}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-                <polyline points="14 2 14 8 20 8" />
-                <line x1="16" y1="13" x2="8" y2="13" />
-                <line x1="16" y1="17" x2="8" y2="17" />
-              </svg>
-              Details
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                className={`transition-transform ${showMeta ? "rotate-180" : ""}`}>
-                <polyline points="6 9 12 15 18 9" />
-              </svg>
-            </button>
+                    Preview as Student
+                  </button>
+                )}
+                {(unit as any).author_name && (
+                  <span className="text-xs text-text-tertiary ml-1">
+                    by {(unit as any).author_name}
+                    {(unit as any).school_name && ` at ${(unit as any).school_name}`}
+                  </span>
+                )}
+              </>
+            )}
           </div>
 
-          {/* Unit Details — expands inline below action bar */}
-          {showMeta && (
+          {/* Unit Details — expands inline below action bar (owner only) */}
+          {isOwner && showMeta && (
             <div className="mt-3">
               <UnitMetadataSection unit={unit} unitId={unitId} />
             </div>
@@ -524,17 +588,21 @@ export default function UnitDetailPage({
 
         {/* Right: thumbnail */}
         <div className="hidden sm:block flex-shrink-0 w-56">
-          <UnitThumbnailPicker
-            unitId={unitId}
-            unitTitle={unit.title}
-            currentThumbnailUrl={thumbnailUrl}
-            onThumbnailChange={setThumbnailUrl}
-          />
+          {isOwner ? (
+            <UnitThumbnailPicker
+              unitId={unitId}
+              unitTitle={unit.title}
+              currentThumbnailUrl={thumbnailUrl}
+              onThumbnailChange={setThumbnailUrl}
+            />
+          ) : thumbnailUrl ? (
+            <img src={thumbnailUrl} alt={unit.title} className="w-full rounded-xl object-cover" />
+          ) : null}
         </div>
       </div>
 
-      {/* ── Class assignment — horizontal row with toggles ── */}
-      <div className="mb-6">
+      {/* ── Class assignment — horizontal row with toggles (owner only) ── */}
+      {isOwner && <div className="mb-6">
         <div className="flex items-center gap-2 mb-2">
           <h3 className="text-xs font-semibold text-text-tertiary uppercase tracking-wider">Classes</h3>
           <span className="text-xs text-text-tertiary">
@@ -573,7 +641,7 @@ export default function UnitDetailPage({
             ))}
           </div>
         )}
-      </div>
+      </div>}
 
       {/* ----------------------------------------------------------------- */}
       {/* Lessons — always visible                                            */}

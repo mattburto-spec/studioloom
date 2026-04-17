@@ -968,12 +968,12 @@ export default function TeacherUnitsPage() {
                       )}
                     </div>
                     <div className="flex gap-1.5 flex-shrink-0">
-                      <button
-                        onClick={() => setPreviewUnit(unit)}
+                      <Link
+                        href={`/teacher/units/${unit.id}`}
                         className="px-3 py-1.5 text-[11px] font-semibold text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition"
                       >
-                        Preview
-                      </button>
+                        Browse
+                      </Link>
                       <button
                         onClick={() => forkUnit(unit.id)}
                         disabled={forking === unit.id}
