@@ -24,12 +24,12 @@ export const GET = withErrorHandler("teacher/profile:GET", async (request: NextR
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // Also pull teacher.display_name + name so the settings UI can render them.
-  // display_name column may not exist yet (migration 090 not applied) — retry
-  // without it if PostgREST complains.
+  // Also pull teacher fields (email, name, display_name) so the settings UI
+  // can render account info. display_name column may not exist yet (migration
+  // 090 not applied) — retry without it if PostgREST complains.
   let teacherRow = await supabaseAdmin
     .from("teachers")
-    .select("name, display_name")
+    .select("email, name, display_name")
     .eq("id", teacherId)
     .maybeSingle();
 
@@ -41,18 +41,26 @@ export const GET = withErrorHandler("teacher/profile:GET", async (request: NextR
   ) {
     teacherRow = await supabaseAdmin
       .from("teachers")
-      .select("name")
+      .select("email, name")
       .eq("id", teacherId)
       .maybeSingle() as typeof teacherRow;
   }
 
-  const teacher = teacherRow.data as { name?: string | null; display_name?: string | null } | null;
+  const teacher = teacherRow.data as {
+    email?: string | null;
+    name?: string | null;
+    display_name?: string | null;
+  } | null;
 
   return NextResponse.json(
     {
       profile: data || null,
       teacher: teacher
-        ? { name: teacher.name || null, display_name: teacher.display_name || null }
+        ? {
+            email: teacher.email || null,
+            name: teacher.name || null,
+            display_name: teacher.display_name || null,
+          }
         : null,
     },
     {

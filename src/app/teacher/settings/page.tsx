@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import type { LMSProviderType } from "@/types";
 import { SchoolCalendarSetup } from "@/components/teacher/SchoolCalendarSetup";
 import ICalPreview from "@/components/teacher/ICalPreview";
@@ -10,7 +11,7 @@ import { TimetableGrid } from "@/components/teacher/TimetableGrid";
 import type { ClassMeetingEntry } from "@/components/teacher/TimetableGrid";
 import { SchoolPicker, type PickerSchool } from "@/components/schools/SchoolPicker";
 
-type SettingsTab = "general" | "school" | "timetable" | "workshop" | "personalisation" | "lms" | "ai";
+type SettingsTab = "account" | "school" | "timetable" | "workshop" | "personalisation" | "lms" | "ai";
 
 /* ── Common D&T tools/machines (checkbox presets) ── */
 const COMMON_TOOLS: { category: string; items: string[] }[] = [
@@ -40,7 +41,7 @@ const WORKSHOP_PRESETS: { space: string; linkedBadge: string; badgeLabel: string
 ];
 
 const TABS: { key: SettingsTab; label: string; icon: string }[] = [
-  { key: "general", label: "General", icon: "M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" },
+  { key: "account", label: "Account", icon: "M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" },
   { key: "school", label: "School & Teaching", icon: "M3 21h18M3 7v1a3 3 0 006 0V7m0 1a3 3 0 006 0V7m0 1a3 3 0 006 0V7H3l2-4h14l2 4M5 21V10.5M19 21V10.5" },
   { key: "timetable", label: "Timetable", icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" },
   { key: "workshop", label: "Workshop & Equipment", icon: "M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z" },
@@ -70,7 +71,7 @@ const PROVIDER_OPTIONS: { value: LMSProviderType; label: string; hint: string }[
 
 export default function TeacherSettingsPage() {
   const searchParams = useSearchParams();
-  const initialTab = (searchParams.get("tab") as SettingsTab) || "general";
+  const initialTab = (searchParams.get("tab") as SettingsTab) || "account";
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
   const [loading, setLoading] = useState(true);
 
@@ -103,6 +104,7 @@ export default function TeacherSettingsPage() {
   // Display name for community-published units ("Mr. Burton", "Ms. Chen" etc.)
   const [displayName, setDisplayName] = useState("");
   const [teacherFullName, setTeacherFullName] = useState("");
+  const [teacherEmail, setTeacherEmail] = useState("");
   const [displayNameSaving, setDisplayNameSaving] = useState(false);
   const [displayNameSaved, setDisplayNameSaved] = useState(false);
   const [country, setCountry] = useState("");
@@ -258,6 +260,7 @@ export default function TeacherSettingsPage() {
       if (data.teacher) {
         setTeacherFullName(data.teacher.name || "");
         setDisplayName(data.teacher.display_name || "");
+        setTeacherEmail(data.teacher.email || "");
       }
       if (data.profile) {
         const p = data.profile;
@@ -691,157 +694,58 @@ export default function TeacherSettingsPage() {
         ))}
       </div>
 
-      {/* ==================== GENERAL TAB ==================== */}
-      {activeTab === "general" && (
+      {/* ==================== ACCOUNT TAB ==================== */}
+      {activeTab === "account" && (
         <div className="space-y-6">
-          <section className="bg-white rounded-xl p-6 border border-border">
-            <h2 className="text-lg font-semibold text-text-primary mb-1">
-              About StudioLoom
-            </h2>
-            <p className="text-sm text-text-secondary mb-4">
-              MYP Design Process platform for portfolio tracking, unit management, and student assessment.
-            </p>
-            <div className="space-y-3 text-sm">
-              <div className="flex justify-between py-2 border-b border-border">
-                <span className="text-text-secondary">Version</span>
-                <span className="font-medium text-text-primary">1.0.0</span>
-              </div>
-              <div className="flex justify-between py-2 border-b border-border">
-                <span className="text-text-secondary">LMS Connected</span>
-                <span className="font-medium text-text-primary">
-                  {integration ? "Yes" : "Not configured"}
-                </span>
-              </div>
-              <div className="flex justify-between py-2 border-b border-border">
-                <span className="text-text-secondary">AI Provider</span>
-                <span className="font-medium text-text-primary">
-                  {aiConfig ? `${aiConfig.model_name}` : "Not configured"}
-                </span>
-              </div>
-            </div>
-          </section>
-
-          {/* Account — school + password */}
           <section className="bg-white rounded-xl p-6 border border-border">
             <h2 className="text-lg font-semibold text-text-primary mb-1">
               Account
             </h2>
             <p className="text-sm text-text-secondary mb-4">
-              Manage the credentials you use to sign in to StudioLoom.
+              Your login credentials and how you appear to others in StudioLoom.
             </p>
 
-            {/* School row */}
+            {/* Email — read-only */}
             <div className="py-3 border-b border-border">
-              <div className="flex items-start justify-between gap-4 mb-2">
+              <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
                   <div className="text-sm font-medium text-text-primary">
-                    School
+                    Email
                   </div>
                   <div className="text-xs text-text-secondary">
-                    Linking your account to a school helps us suggest content
-                    shared by colleagues and keeps rostering tidy.
+                    The address you use to sign in.
                   </div>
                 </div>
-                {!schoolEditing && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSchoolEditing(true);
-                      setSchoolSaveError("");
-                      setSchoolSaveMsg("");
-                    }}
-                    className="shrink-0 text-xs font-medium text-brand-purple hover:underline"
-                  >
-                    {currentSchool ? "Change" : "Set school"}
-                  </button>
-                )}
+                <div className="text-sm font-medium text-text-primary truncate">
+                  {teacherEmail || <span className="text-text-tertiary italic">Loading…</span>}
+                </div>
               </div>
+            </div>
 
-              {!schoolEditing && currentSchool && (
-                <div className="mt-2 px-3 py-2 bg-purple-50 border border-purple-200 rounded-lg">
-                  <div className="text-sm font-semibold text-text-primary truncate">
-                    {currentSchool.name}
-                  </div>
-                  <div className="text-xs text-gray-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
-                    <span>
-                      {[currentSchool.city, currentSchool.country]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </span>
-                    {currentSchool.ib_programmes.length > 0 && (
-                      <span className="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded font-medium">
-                        IB {currentSchool.ib_programmes.join("/")}
-                      </span>
-                    )}
-                    {!currentSchool.verified && (
-                      <span className="px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded">
-                        user-added
-                      </span>
-                    )}
-                  </div>
+            {/* Password row */}
+            <div className="flex items-center justify-between gap-4 py-4 border-b border-border">
+              <div>
+                <div className="text-sm font-medium text-text-primary">
+                  Password
                 </div>
-              )}
-
-              {!schoolEditing && !currentSchool && (
-                <div className="mt-2 text-xs text-gray-400 italic">
-                  Not linked to a school yet.
+                <div className="text-xs text-text-secondary">
+                  Change the password you use to sign in.
                 </div>
-              )}
-
-              {schoolEditing && (
-                <div className="mt-2 space-y-2">
-                  <SchoolPicker
-                    value={currentSchool}
-                    onChange={(next) => {
-                      // Save immediately on pick — picker already confirms the
-                      // chosen row and there is no second "Save" step here.
-                      saveSchool(next);
-                    }}
-                    placeholder="Start typing your school's name…"
-                    variant="compact"
-                  />
-                  <div className="flex items-center justify-between gap-3">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSchoolEditing(false);
-                        setSchoolSaveError("");
-                      }}
-                      className="text-xs text-gray-500 hover:text-gray-700 underline"
-                    >
-                      Cancel
-                    </button>
-                    {currentSchool && (
-                      <button
-                        type="button"
-                        onClick={() => saveSchool(null)}
-                        disabled={schoolSaving}
-                        className="text-xs text-red-600 hover:text-red-800 underline disabled:opacity-50"
-                      >
-                        Clear school link
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {schoolSaving && (
-                <div className="mt-2 text-xs text-gray-500">Saving…</div>
-              )}
-              {schoolSaveMsg && (
-                <div className="mt-2 text-xs text-accent-green">
-                  {schoolSaveMsg}
-                </div>
-              )}
-              {schoolSaveError && (
-                <div className="mt-2 text-xs text-red-600">
-                  {schoolSaveError}
-                </div>
-              )}
+              </div>
+              <a
+                href="/teacher/set-password?next=/teacher/settings"
+                className="px-4 py-2 text-sm font-medium rounded-lg text-white transition hover:opacity-90"
+                style={{
+                  background: "linear-gradient(135deg, #7B2FF2, #5C16C5)",
+                  boxShadow: "0 2px 8px rgba(123, 47, 242, 0.25)",
+                }}
+              >
+                Change password
+              </a>
             </div>
 
             {/* Display name for community attribution */}
-            <div className="py-3 border-b border-border">
+            <div className="py-4">
               <div className="mb-2">
                 <div className="text-sm font-medium text-text-primary">
                   Publishing name
@@ -883,103 +787,118 @@ export default function TeacherSettingsPage() {
                 </div>
               )}
             </div>
-
-            {/* Password row */}
-            <div className="flex items-center justify-between gap-4 pt-4">
-              <div>
-                <div className="text-sm font-medium text-text-primary">
-                  Password
-                </div>
-                <div className="text-xs text-text-secondary">
-                  Change the password you use to sign in.
-                </div>
-              </div>
-              <a
-                href="/teacher/set-password?next=/teacher/settings"
-                className="px-4 py-2 text-sm font-medium rounded-lg text-white transition hover:opacity-90"
-                style={{
-                  background: "linear-gradient(135deg, #7B2FF2, #5C16C5)",
-                  boxShadow: "0 2px 8px rgba(123, 47, 242, 0.25)",
-                }}
-              >
-                Change password
-              </a>
-            </div>
           </section>
-
-          {/* Quick setup cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <button
-              onClick={() => setActiveTab("school")}
-              className="bg-white rounded-xl p-5 border border-border text-left hover:shadow-md transition"
-            >
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 rounded-lg bg-brand-purple/10 flex items-center justify-center">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7B2FF2" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M3 21h18M3 7v1a3 3 0 006 0V7m0 1a3 3 0 006 0V7m0 1a3 3 0 006 0V7H3l2-4h14l2 4M5 21V10.5M19 21V10.5" />
-                  </svg>
-                </div>
-                <div>
-                  <p className="font-semibold text-text-primary text-sm">School & Teaching</p>
-                  <p className="text-xs text-text-secondary">Enrich AI with your context</p>
-                </div>
-              </div>
-              {profileLoaded ? (
-                <span className="text-xs text-accent-green font-medium">Configured</span>
-              ) : (
-                <span className="text-xs text-amber-500 font-medium">Set up recommended</span>
-              )}
-            </button>
-            <button
-              onClick={() => setActiveTab("lms")}
-              className="bg-white rounded-xl p-5 border border-border text-left hover:shadow-md transition"
-            >
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 rounded-lg bg-accent-blue/10 flex items-center justify-center">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2E86AB" strokeWidth="2" strokeLinecap="round">
-                    <path d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.66 0 3-4.03 3-9s-1.34-9-3-9m0 18c-1.66 0-3-4.03-3-9s1.34-9 3-9" />
-                  </svg>
-                </div>
-                <div>
-                  <p className="font-semibold text-text-primary text-sm">LMS Integration</p>
-                  <p className="text-xs text-text-secondary">Sync students & enable SSO</p>
-                </div>
-              </div>
-              {integration ? (
-                <span className="text-xs text-accent-green font-medium">Connected</span>
-              ) : (
-                <span className="text-xs text-text-secondary">Not configured</span>
-              )}
-            </button>
-
-            <button
-              onClick={() => setActiveTab("ai")}
-              className="bg-white rounded-xl p-5 border border-border text-left hover:shadow-md transition"
-            >
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 rounded-lg bg-accent-purple/10 flex items-center justify-center">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8B2FC9" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                  </svg>
-                </div>
-                <div>
-                  <p className="font-semibold text-text-primary text-sm">AI Generator</p>
-                  <p className="text-xs text-text-secondary">Power the unit creation wizard</p>
-                </div>
-              </div>
-              {aiConfig?.has_api_key ? (
-                <span className="text-xs text-accent-green font-medium">Connected</span>
-              ) : (
-                <span className="text-xs text-text-secondary">Not configured</span>
-              )}
-            </button>
-          </div>
         </div>
       )}
 
       {/* ==================== SCHOOL & TEACHING TAB ==================== */}
       {activeTab === "school" && (
         <div className="space-y-6">
+
+          {/* ── Linked School ── */}
+          <section className="bg-white rounded-xl p-6 border border-border">
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <div className="min-w-0">
+                <h2 className="text-lg font-semibold text-text-primary mb-1">Linked School</h2>
+                <p className="text-sm text-text-secondary">
+                  Linking your account to a school helps us suggest content shared by colleagues and keeps rostering tidy.
+                </p>
+              </div>
+              {!schoolEditing && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSchoolEditing(true);
+                    setSchoolSaveError("");
+                    setSchoolSaveMsg("");
+                  }}
+                  className="shrink-0 text-xs font-medium text-brand-purple hover:underline"
+                >
+                  {currentSchool ? "Change" : "Set school"}
+                </button>
+              )}
+            </div>
+
+            {!schoolEditing && currentSchool && (
+              <div className="px-3 py-2 bg-purple-50 border border-purple-200 rounded-lg">
+                <div className="text-sm font-semibold text-text-primary truncate">
+                  {currentSchool.name}
+                </div>
+                <div className="text-xs text-gray-500 mt-0.5 flex items-center gap-1.5 flex-wrap">
+                  <span>
+                    {[currentSchool.city, currentSchool.country]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </span>
+                  {currentSchool.ib_programmes.length > 0 && (
+                    <span className="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded font-medium">
+                      IB {currentSchool.ib_programmes.join("/")}
+                    </span>
+                  )}
+                  {!currentSchool.verified && (
+                    <span className="px-1.5 py-0.5 bg-gray-100 text-gray-500 rounded">
+                      user-added
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {!schoolEditing && !currentSchool && (
+              <div className="text-xs text-gray-400 italic">
+                Not linked to a school yet.
+              </div>
+            )}
+
+            {schoolEditing && (
+              <div className="space-y-2">
+                <SchoolPicker
+                  value={currentSchool}
+                  onChange={(next) => {
+                    saveSchool(next);
+                  }}
+                  placeholder="Start typing your school's name…"
+                  variant="compact"
+                />
+                <div className="flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSchoolEditing(false);
+                      setSchoolSaveError("");
+                    }}
+                    className="text-xs text-gray-500 hover:text-gray-700 underline"
+                  >
+                    Cancel
+                  </button>
+                  {currentSchool && (
+                    <button
+                      type="button"
+                      onClick={() => saveSchool(null)}
+                      disabled={schoolSaving}
+                      className="text-xs text-red-600 hover:text-red-800 underline disabled:opacity-50"
+                    >
+                      Clear school link
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {schoolSaving && (
+              <div className="mt-2 text-xs text-gray-500">Saving…</div>
+            )}
+            {schoolSaveMsg && (
+              <div className="mt-2 text-xs text-accent-green">
+                {schoolSaveMsg}
+              </div>
+            )}
+            {schoolSaveError && (
+              <div className="mt-2 text-xs text-red-600">
+                {schoolSaveError}
+              </div>
+            )}
+          </section>
 
           {/* ── 1. School Context ── */}
           <section className="bg-white rounded-xl p-6 border border-border">
@@ -2064,7 +1983,7 @@ export default function TeacherSettingsPage() {
             ) : (
               <div className="p-6 rounded-lg bg-gray-50 border border-gray-200 text-center">
                 <p className="text-sm text-text-secondary mb-2">No classes created yet.</p>
-                <p className="text-xs text-text-tertiary">Create your classes first (on the <button onClick={() => setActiveTab("general")} className="text-brand-purple hover:underline font-medium">General tab</button>), then come back here to set up when each class meets.</p>
+                <p className="text-xs text-text-tertiary">Create your classes first from the <Link href="/teacher/classes" className="text-brand-purple hover:underline font-medium">Classes page</Link>, then come back here to set up when each class meets.</p>
               </div>
             )}
 
