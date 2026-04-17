@@ -6,11 +6,14 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireAdmin } from "@/lib/auth/require-admin";
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ runId: string }> }
 ) {
+  const auth = await requireAdmin(request);
+  if (auth.error) return auth.error;
   const { runId } = await params;
   const supabase = createAdminClient();
 

@@ -8,6 +8,7 @@ import {
   checkStaleData,
   checkUsageAnalytics,
 } from "@/lib/admin/monitors";
+import { requireAdmin } from "@/lib/auth/require-admin";
 
 const MONITORS = {
   pipeline: checkPipelineHealth,
@@ -19,6 +20,8 @@ const MONITORS = {
 } as const;
 
 export async function GET(req: NextRequest) {
+  const auth = await requireAdmin(req);
+  if (auth.error) return auth.error;
   try {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,

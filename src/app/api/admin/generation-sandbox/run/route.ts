@@ -14,8 +14,11 @@ import { runPipeline } from "@/lib/pipeline/orchestrator";
 import type { OrchestratorConfig } from "@/lib/pipeline/orchestrator";
 import type { GenerationRequest } from "@/types/activity-blocks";
 import { MODELS } from "@/lib/ai/models";
+import { requireAdmin } from "@/lib/auth/require-admin";
 
 export async function POST(request: NextRequest) {
+  const auth = await requireAdmin(request);
+  if (auth.error) return auth.error;
   const supabase = createAdminClient();
 
   try {

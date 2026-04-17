@@ -3,11 +3,14 @@
  * Returns anonymized student roster for the admin Students tab.
  */
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createHash } from "crypto";
+import { requireAdmin } from "@/lib/auth/require-admin";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const auth = await requireAdmin(request);
+  if (auth.error) return auth.error;
   const supabase = createAdminClient();
 
   try {

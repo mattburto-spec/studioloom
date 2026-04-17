@@ -19,7 +19,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { createServerClient } from "@supabase/ssr";
+import { requireAdmin } from "@/lib/auth/require-admin";
 import { dedupCheck } from "@/lib/ingestion/dedup";
 import { parseDocument } from "@/lib/ingestion/parse";
 import { passA } from "@/lib/ingestion/pass-a";
@@ -49,6 +49,9 @@ function supabase() {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = await requireAdmin(request);
+  if (auth.error) return auth.error;
+
   let body: {
     stage?: string;
     input?: unknown;
@@ -70,23 +73,12 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Resolve teacher ID: (1) body field, (2) Supabase Auth session, (3) env var
-  let teacherId = body.teacherId || process.env.SYSTEM_TEACHER_ID || null;
-  if (!teacherId) {
-    try {
-      const authClient = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        { cookies: { getAll() { return request.cookies.getAll(); }, setAll() {} } }
-      );
-      const { data: { user } } = await authClient.auth.getUser();
-      if (user) teacherId = user.id;
-    } catch { /* best-effort */ }
-  }
+  // Resolve teacher ID: (1) body field, (2) authenticated admin, (3) env var.
+  const teacherId = body.teacherId || auth.teacherId || process.env.SYSTEM_TEACHER_ID || "";
   if (!teacherId) {
     return NextResponse.json(
-      { error: "Not authenticated. Please log in as a teacher first." },
-      { status: 401 }
+      { error: "Could not resolve teacher ID for ingestion." },
+      { status: 500 }
     );
   }
 

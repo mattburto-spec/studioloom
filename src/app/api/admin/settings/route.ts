@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import {
   loadAdminSettings,
@@ -6,6 +6,7 @@ import {
   InvalidSettingKeyError,
   InvalidSettingValueError,
 } from "@/lib/admin/settings";
+import { requireAdmin } from "@/lib/auth/require-admin";
 
 function getAdminClient() {
   return createClient(
@@ -14,7 +15,9 @@ function getAdminClient() {
   );
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const auth = await requireAdmin(request);
+  if (auth.error) return auth.error;
   try {
     const supabase = getAdminClient();
     const settings = await loadAdminSettings(supabase);
@@ -28,7 +31,9 @@ export async function GET() {
   }
 }
 
-export async function PATCH(request: Request) {
+export async function PATCH(request: NextRequest) {
+  const auth = await requireAdmin(request);
+  if (auth.error) return auth.error;
   try {
     const body = await request.json();
     const { key, value } = body;

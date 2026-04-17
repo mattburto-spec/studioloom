@@ -4,10 +4,13 @@
  * No schools entity exists yet (FU-P), so this returns a flat class list grouped by teacher.
  */
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireAdmin } from "@/lib/auth/require-admin";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const auth = await requireAdmin(request);
+  if (auth.error) return auth.error;
   const supabase = createAdminClient();
 
   try {

@@ -5,8 +5,11 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireAdmin } from "@/lib/auth/require-admin";
 
 export async function GET(request: NextRequest) {
+  const auth = await requireAdmin(request);
+  if (auth.error) return auth.error;
   const supabase = createAdminClient();
   const { searchParams } = new URL(request.url);
   const status = searchParams.get("status") || "pending";
@@ -34,6 +37,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
+  const auth = await requireAdmin(request);
+  if (auth.error) return auth.error;
   try {
     const body = await request.json();
     const { id, status, rejection_reason } = body as {

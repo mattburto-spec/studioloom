@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE_NAME } from "@/lib/constants";
+import { isAdminUser } from "@/lib/auth/require-admin";
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -10,6 +11,7 @@ export async function middleware(request: NextRequest) {
     pathname === "/" ||
     pathname === "/login" ||
     pathname === "/teacher/login" ||
+    pathname === "/admin/login" ||
     pathname.startsWith("/api/auth/") ||
     pathname.startsWith("/api/tools/") ||
     pathname.startsWith("/tools") ||
@@ -22,7 +24,10 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Admin routes — require Supabase Auth (email check in page/API)
+  // Admin routes — require Supabase Auth AND teachers.is_admin=true
+  // (with ADMIN_EMAILS env-var fallback so we can't lock ourselves out).
+  // Non-admins are sent to /admin/login, not /teacher/login, to keep the
+  // admin auth surface visually separate from the teacher area.
   if (pathname.startsWith("/admin")) {
     const response = NextResponse.next();
 
@@ -46,8 +51,16 @@ export async function middleware(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
-      const loginUrl = new URL("/teacher/login", request.url);
+      const loginUrl = new URL("/admin/login", request.url);
       loginUrl.searchParams.set("redirect", pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+
+    const isAdmin = await isAdminUser(user.id, user.email);
+    if (!isAdmin) {
+      const loginUrl = new URL("/admin/login", request.url);
+      loginUrl.searchParams.set("redirect", pathname);
+      loginUrl.searchParams.set("error", "not_authorised");
       return NextResponse.redirect(loginUrl);
     }
 

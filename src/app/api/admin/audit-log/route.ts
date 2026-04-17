@@ -5,8 +5,11 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireAdmin } from "@/lib/auth/require-admin";
 
 export async function GET(request: NextRequest) {
+  const auth = await requireAdmin(request);
+  if (auth.error) return auth.error;
   const supabase = createAdminClient();
   const limit = parseInt(request.nextUrl.searchParams.get("limit") || "100");
   const source = request.nextUrl.searchParams.get("source"); // admin|feedback|moderation|removal

@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { extractBlocks } from "@/lib/ingestion/extract";
+import { requireAdmin } from "@/lib/auth/require-admin";
 import { reconstructUnit } from "@/lib/ingestion/unit-import";
 import { computeEfficacyScore } from "@/lib/feedback/efficacy";
 import { validateProposal, validateEfficacyChange } from "@/lib/feedback/guardrails";
@@ -27,7 +28,9 @@ function runTest(name: string, fn: () => void): TestResult {
   }
 }
 
-export async function POST() {
+export async function POST(request: NextRequest) {
+  const auth = await requireAdmin(request);
+  if (auth.error) return auth.error;
   const results: TestResult[] = [];
 
   // Test 1: Ingestion → Library

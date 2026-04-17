@@ -8,7 +8,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { requireAdmin } from "@/lib/auth/require-admin";
 import { runEfficacyBatch, efficacyToProposals } from "@/lib/feedback/efficacy";
 import { getBlockUsageStats } from "@/lib/feedback/signals";
 import { analyzeSelfHealing, healingToProposals } from "@/lib/feedback/self-healing";
@@ -17,11 +17,9 @@ import { validateProposal } from "@/lib/feedback/guardrails";
 // ─── GET: List proposals ───
 
 export async function GET(request: NextRequest) {
-  const supabase = await createServerSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireAdmin(request);
+  if (auth.error) return auth.error;
+  const user = { id: auth.teacherId, email: auth.email };
 
   const url = new URL(request.url);
   const status = url.searchParams.get("status") || "pending";
@@ -82,11 +80,9 @@ export async function GET(request: NextRequest) {
 // ─── POST: Run batch computation ───
 
 export async function POST(request: NextRequest) {
-  const supabase = await createServerSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireAdmin(request);
+  if (auth.error) return auth.error;
+  const user = { id: auth.teacherId, email: auth.email };
 
   const admin = createAdminClient();
 
@@ -148,11 +144,9 @@ export async function POST(request: NextRequest) {
 // ─── PATCH: Approve/reject/modify a proposal ───
 
 export async function PATCH(request: NextRequest) {
-  const supabase = await createServerSupabaseClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const auth = await requireAdmin(request);
+  if (auth.error) return auth.error;
+  const user = { id: auth.teacherId, email: auth.email };
 
   const body = await request.json();
   const { proposalId, action, modifiedValue, note } = body as {

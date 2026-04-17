@@ -42,6 +42,11 @@ export default function AdminLayout({
 }) {
   const pathname = usePathname();
 
+  // /admin/login manages its own chrome — render bare (no admin nav)
+  if (pathname === "/admin/login") {
+    return <>{children}</>;
+  }
+
   function isActive(href: string) {
     if (href === "/admin") return pathname === "/admin";
     // Exact match for sub-routes, startsWith for top-level tabs

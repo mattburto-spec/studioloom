@@ -39,7 +39,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { createServerClient } from "@supabase/ssr";
+import { requireAdmin } from "@/lib/auth/require-admin";
 import { embedText } from "@/lib/ai/embeddings";
 import { computeContentFingerprint } from "@/lib/ingestion/fingerprint";
 import { MODELS } from "@/lib/ai/models";
@@ -78,6 +78,9 @@ function toPgVector(vec: number[]): string {
 }
 
 export async function POST(request: NextRequest) {
+  const auth = await requireAdmin(request);
+  if (auth.error) return auth.error;
+
   let body: {
     contentItemId?: string;
     teacherId?: string;
@@ -108,23 +111,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  // Resolve teacher ID: (1) body field, (2) Supabase Auth session, (3) env var
-  let teacherId: string | null = body.teacherId || process.env.SYSTEM_TEACHER_ID || null;
-  if (!teacherId) {
-    try {
-      const authClient = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        { cookies: { getAll() { return request.cookies.getAll(); }, setAll() {} } }
-      );
-      const { data: { user } } = await authClient.auth.getUser();
-      if (user) teacherId = user.id;
-    } catch { /* best-effort */ }
-  }
+  // Resolve teacher ID: (1) body field, (2) authenticated admin, (3) env var.
+  // Admin is already verified above so auth.teacherId is trusted.
+  const teacherId: string = body.teacherId || auth.teacherId || process.env.SYSTEM_TEACHER_ID || "";
   if (!teacherId) {
     return NextResponse.json(
-      { error: "Not authenticated. Please log in as a teacher first." },
-      { status: 401 }
+      { error: "Could not resolve teacher ID for ingestion." },
+      { status: 500 }
     );
   }
 

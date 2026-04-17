@@ -18,15 +18,18 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireAdmin } from "@/lib/auth/require-admin";
 
 const PROTECTED_EMAILS = new Set([
   "system@studioloom.internal",
 ]);
 
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = await requireAdmin(request);
+  if (auth.error) return auth.error;
   const { id } = await params;
 
   if (!id || !/^[0-9a-f-]{36}$/i.test(id)) {

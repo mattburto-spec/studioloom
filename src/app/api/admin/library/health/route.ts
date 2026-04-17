@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   getBlocksBySourceType,
@@ -10,8 +10,11 @@ import {
   getEmbeddingHealth,
   getCoverageHeatmap,
 } from "@/lib/admin/library-health-queries";
+import { requireAdmin } from "@/lib/auth/require-admin";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const auth = await requireAdmin(request);
+  if (auth.error) return auth.error;
   try {
     const supabase = createAdminClient();
     const [

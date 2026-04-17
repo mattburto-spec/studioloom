@@ -1,45 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
+import { requireAdmin } from "@/lib/auth/require-admin";
 import { getModelConfig, saveModelConfig, getRawConfig, invalidateConfigCache } from "@/lib/ai/model-config";
 import { DEFAULT_MODEL_CONFIG } from "@/lib/ai/model-config-defaults";
 import type { AIModelConfig, RelativeEmphasis } from "@/types/ai-model-config";
-
-const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "mattburto@gmail.com")
-  .split(",")
-  .map((e) => e.trim().toLowerCase());
-
-function createSupabaseServer(request: NextRequest) {
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll() {},
-      },
-    }
-  );
-}
-
-async function verifyAdmin(request: NextRequest): Promise<string | null> {
-  const supabase = createSupabaseServer(request);
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user?.email) return null;
-  if (!ADMIN_EMAILS.includes(user.email.toLowerCase())) return null;
-  return user.email;
-}
 
 /**
  * GET /api/admin/ai-model
  * Returns the fully resolved config (defaults + overrides) plus raw overrides.
  */
 export async function GET(request: NextRequest) {
-  const email = await verifyAdmin(request);
-  if (!email) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const auth = await requireAdmin(request);
+  if (auth.error) return auth.error;
+  const email = auth.email;
 
   try {
     const [resolved, raw] = await Promise.all([
@@ -63,10 +35,9 @@ export async function GET(request: NextRequest) {
  * Saves config overrides to the database.
  */
 export async function PUT(request: NextRequest) {
-  const email = await verifyAdmin(request);
-  if (!email) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const auth = await requireAdmin(request);
+  if (auth.error) return auth.error;
+  const email = auth.email;
 
   try {
     const body = await request.json();

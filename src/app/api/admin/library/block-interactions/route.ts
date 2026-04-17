@@ -9,6 +9,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireAdmin } from "@/lib/auth/require-admin";
 
 interface BlockRow {
   id: string;
@@ -22,6 +23,8 @@ interface BlockRow {
 }
 
 export async function GET(request: NextRequest) {
+  const auth = await requireAdmin(request);
+  if (auth.error) return auth.error;
   const blockId = request.nextUrl.searchParams.get("blockId");
   if (!blockId) {
     return NextResponse.json({ error: "blockId required" }, { status: 400 });
