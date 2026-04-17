@@ -64,6 +64,9 @@ export default function UnitDetailPage({
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const [forking, setForking] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   // QUARANTINED (3 Apr 2026) — Knowledge feedback disabled
   // const [showFeedback, setShowFeedback] = useState(false);
   const [showMeta, setShowMeta] = useState(false);
@@ -360,6 +363,42 @@ export default function UnitDetailPage({
     setForking(false);
   }
 
+  async function handleTogglePublish() {
+    setPublishing(true);
+    try {
+      const isPublished = (unit as Unit & { is_published?: boolean })?.is_published;
+      const res = await fetch("/api/teacher/units", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: isPublished ? "unpublish" : "publish",
+          unitId,
+          authorName: "Teacher",
+        }),
+      });
+      if (res.ok) {
+        // Refresh the unit data
+        const supabase = createClient();
+        const { data } = await supabase.from("units").select("*").eq("id", unitId).maybeSingle();
+        if (data) setUnit(data);
+      }
+    } catch {
+      // silent
+    }
+    setPublishing(false);
+  }
+
+  async function handleDelete() {
+    setDeleting(true);
+    try {
+      const supabase = createClient();
+      await supabase.from("units").delete().eq("id", unitId);
+      window.location.href = "/teacher/units";
+    } catch {
+      setDeleting(false);
+    }
+  }
+
   const normalized = normalizeContentData(unit.content_data);
   const pages = getPageList(unit.content_data);
   const isTimelineUnit = isV4(normalized);
@@ -541,6 +580,36 @@ export default function UnitDetailPage({
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
                     className={`transition-transform ${showMeta ? "rotate-180" : ""}`}>
                     <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </button>
+
+                {/* Publish/Unpublish */}
+                <button
+                  onClick={handleTogglePublish}
+                  disabled={publishing}
+                  className={`px-4 py-2 rounded-xl border text-sm font-medium transition-colors flex items-center gap-2 disabled:opacity-50 ${
+                    (unit as Unit & { is_published?: boolean }).is_published
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                      : "border-border text-text-secondary hover:bg-surface-alt hover:text-text-primary"
+                  }`}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="2" y1="12" x2="22" y2="12" />
+                    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                  </svg>
+                  {publishing ? "..." : (unit as Unit & { is_published?: boolean }).is_published ? "Published" : "Publish"}
+                </button>
+
+                {/* Delete — destructive, pushed to the right */}
+                <button
+                  onClick={() => setConfirmDelete(true)}
+                  className="ml-auto p-2 rounded-xl text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                  title="Delete unit"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="3 6 5 6 21 6" />
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                   </svg>
                 </button>
               </>
@@ -831,6 +900,41 @@ export default function UnitDetailPage({
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Delete confirmation modal */}
+      {confirmDelete && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.4)" }}
+          onClick={() => !deleting && setConfirmDelete(false)}
+        >
+          <div
+            className="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold text-text-primary">Delete this unit?</h3>
+            <p className="text-sm text-text-secondary mt-2">
+              This will permanently delete &ldquo;{unit.title}&rdquo; and all its content. This cannot be undone.
+            </p>
+            <div className="flex items-center justify-end gap-2 mt-5">
+              <button
+                onClick={() => setConfirmDelete(false)}
+                disabled={deleting}
+                className="px-4 py-2 rounded-xl border border-border text-sm font-medium hover:bg-surface-alt transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="px-4 py-2 rounded-xl bg-red-600 text-white text-sm font-medium hover:bg-red-700 transition-colors disabled:opacity-50"
+              >
+                {deleting ? "Deleting..." : "Delete Unit"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

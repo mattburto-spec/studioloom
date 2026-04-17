@@ -735,131 +735,90 @@ export default function TeacherUnitsPage() {
                 const isPublished = (unit as Unit & { is_published?: boolean }).is_published;
 
                 return (
-                  <div
+                  <Link
                     key={unit.id}
-                    className="bg-white rounded-2xl overflow-hidden hover:shadow-md transition-shadow flex flex-col border border-gray-100 group"
+                    href={`/teacher/units/${unit.id}`}
+                    className="bg-white rounded-2xl overflow-hidden hover:shadow-md hover:border-purple-200 transition-all flex flex-col border border-gray-100 cursor-pointer"
                   >
-                    <Link href={`/teacher/units/${unit.id}`} className="block flex-1">
-                      <div className="w-full h-40 overflow-hidden relative">
-                        <UnitThumbnail
-                          thumbnailUrl={unit.thumbnail_url}
-                          title={unit.title}
-                          className="w-full h-full object-cover"
-                        />
-                        {/* Overlay badges */}
-                        <div className="absolute top-2 left-2 flex items-center gap-1.5">
-                          {isJourney && (
-                            <span className="text-[10px] font-semibold text-white px-2 py-0.5 rounded-full" style={{ background: "rgba(124,58,237,0.85)" }}>
-                              Journey
-                            </span>
-                          )}
-                          {isTimeline && (
-                            <span className="text-[10px] font-semibold text-white px-2 py-0.5 rounded-full" style={{ background: "rgba(37,99,235,0.85)" }}>
-                              Timeline
-                            </span>
-                          )}
-                          {unit.forked_from && (
-                            <span className="text-[10px] font-semibold text-white px-2 py-0.5 rounded-full" style={{ background: "rgba(124,58,237,0.7)" }}>
-                              Community
-                            </span>
-                          )}
-                        </div>
-                        {isPublished && (
-                          <span className="absolute top-2 right-2 text-[10px] font-semibold text-white px-2 py-0.5 rounded-full" style={{ background: "rgba(5,150,105,0.85)" }}>
-                            Published
+                    <div className="w-full h-40 overflow-hidden relative">
+                      <UnitThumbnail
+                        thumbnailUrl={unit.thumbnail_url}
+                        title={unit.title}
+                        className="w-full h-full object-cover"
+                      />
+                      {/* Overlay badges */}
+                      <div className="absolute top-2 left-2 flex items-center gap-1.5">
+                        {isJourney && (
+                          <span className="text-[10px] font-semibold text-white px-2 py-0.5 rounded-full" style={{ background: "rgba(124,58,237,0.85)" }}>
+                            Journey
+                          </span>
+                        )}
+                        {isTimeline && (
+                          <span className="text-[10px] font-semibold text-white px-2 py-0.5 rounded-full" style={{ background: "rgba(37,99,235,0.85)" }}>
+                            Timeline
+                          </span>
+                        )}
+                        {unit.forked_from && (
+                          <span className="text-[10px] font-semibold text-white px-2 py-0.5 rounded-full" style={{ background: "rgba(124,58,237,0.7)" }}>
+                            Community
                           </span>
                         )}
                       </div>
-                      <div className="px-4 pt-3 pb-2">
-                        <p className="font-bold text-gray-900 text-sm leading-snug line-clamp-2">
-                          {unit.title}
-                        </p>
-                        {unit.description && (
-                          <p className="text-xs text-gray-500 mt-1 line-clamp-2 leading-relaxed">
-                            {unit.description}
-                          </p>
-                        )}
-
-                        {/* Meta row */}
-                        <div className="flex items-center gap-2 mt-3 flex-wrap">
-                          <span className="inline-flex items-center gap-1 text-[11px] text-gray-500 font-medium">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-                            {countLabel}
-                          </span>
-                          {classes.length > 0 && (
-                            <span className="inline-flex items-center gap-1 text-[11px] font-medium" style={{ color: "#059669" }}>
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-                              {classes.length} class{classes.length !== 1 ? "es" : ""}
-                            </span>
-                          )}
-                          {hasForkedClasses && (
-                            <span
-                              className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
-                              style={{ background: "#FEF3C7", color: "#92400E" }}
-                            >
-                              Customized
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Class pills */}
-                        {classes.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-2">
-                            {classes.slice(0, 3).map((c, i) => (
-                              <span key={i} className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
-                                {c.name}
-                              </span>
-                            ))}
-                            {classes.length > 3 && (
-                              <span className="text-[10px] text-gray-400 px-1 py-0.5">
-                                +{classes.length - 3} more
-                              </span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </Link>
-
-                    {/* Actions */}
-                    <div className="px-4 pb-3 pt-2 flex items-center gap-2 border-t border-gray-100 mt-auto">
-                      <Link
-                        href={`/teacher/units/${unit.id}`}
-                        className="px-3 py-1.5 text-[11px] font-semibold rounded-lg transition"
-                        style={{ background: "#F3E8FF", color: "#7C3AED" }}
-                      >
-                        View
-                      </Link>
-                      <Link
-                        href={classes.length > 0
-                          ? `/teacher/units/${unit.id}/class/${classes[0].classId}/edit`
-                          : `/teacher/units/${unit.id}`
-                        }
-                        prefetch={false}
-                        className="px-3 py-1.5 text-[11px] font-semibold text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition"
-                      >
-                        Edit
-                      </Link>
-                      <button
-                        onClick={(e) => { e.preventDefault(); togglePublish(unit); }}
-                        disabled={publishing === unit.id}
-                        className="px-3 py-1.5 text-[11px] font-semibold rounded-lg transition disabled:opacity-50"
-                        style={isPublished ? {
-                          background: "#D1FAE5", color: "#065F46",
-                        } : {
-                          background: "#F3F4F6", color: "#6B7280",
-                        }}
-                      >
-                        {publishing === unit.id ? "..." : isPublished ? "Unpublish" : "Publish"}
-                      </button>
-                      <button
-                        onClick={(e) => { e.preventDefault(); setDeletingId(unit.id); }}
-                        className="ml-auto px-2 py-1.5 text-[11px] text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
-                        title="Delete unit"
-                      >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                      </button>
+                      {isPublished && (
+                        <span className="absolute top-2 right-2 text-[10px] font-semibold text-white px-2 py-0.5 rounded-full" style={{ background: "rgba(5,150,105,0.85)" }}>
+                          Published
+                        </span>
+                      )}
                     </div>
-                  </div>
+                    <div className="px-4 pt-3 pb-3 flex-1">
+                      <p className="font-bold text-gray-900 text-sm leading-snug line-clamp-2">
+                        {unit.title}
+                      </p>
+                      {unit.description && (
+                        <p className="text-xs text-gray-500 mt-1 line-clamp-2 leading-relaxed">
+                          {unit.description}
+                        </p>
+                      )}
+
+                      {/* Meta row */}
+                      <div className="flex items-center gap-2 mt-3 flex-wrap">
+                        <span className="inline-flex items-center gap-1 text-[11px] text-gray-500 font-medium">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                          {countLabel}
+                        </span>
+                        {classes.length > 0 && (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-medium" style={{ color: "#059669" }}>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+                            {classes.length} class{classes.length !== 1 ? "es" : ""}
+                          </span>
+                        )}
+                        {hasForkedClasses && (
+                          <span
+                            className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+                            style={{ background: "#FEF3C7", color: "#92400E" }}
+                          >
+                            Customized
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Class pills */}
+                      {classes.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {classes.slice(0, 3).map((c, i) => (
+                            <span key={i} className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                              {c.name}
+                            </span>
+                          ))}
+                          {classes.length > 3 && (
+                            <span className="text-[10px] text-gray-400 px-1 py-0.5">
+                              +{classes.length - 3} more
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </Link>
                 );
               })}
             </div>
