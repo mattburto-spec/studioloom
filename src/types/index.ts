@@ -966,6 +966,8 @@ export interface StudentBadge {
 export type GalleryStatus = "open" | "closed";
 export type ReviewFormat = "comment" | "pmi" | "two-stars-wish" | string; // string for tool_id
 
+export type GalleryDisplayMode = "grid" | "canvas";
+
 export interface GalleryRound {
   id: string;
   unit_id: string;
@@ -978,6 +980,7 @@ export interface GalleryRound {
   min_reviews: number;
   anonymous: boolean;
   status: GalleryStatus;
+  display_mode: GalleryDisplayMode;
   deadline: string | null;
   created_at: string;
   updated_at: string;
@@ -989,6 +992,8 @@ export interface GallerySubmission {
   student_id: string;
   context_note: string;
   content: Record<string, unknown>;
+  canvas_x: number | null;
+  canvas_y: number | null;
   created_at: string;
 }
 

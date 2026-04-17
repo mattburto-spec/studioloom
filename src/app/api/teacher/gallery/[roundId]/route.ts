@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
   // Fetch the gallery round
   const { data: round, error: roundError } = await db
     .from("gallery_rounds")
-    .select("id, unit_id, class_id, teacher_id, title, description, review_format, min_reviews, anonymous, deadline, status, created_at, updated_at")
+    .select("id, unit_id, class_id, teacher_id, title, description, review_format, min_reviews, anonymous, deadline, status, display_mode, created_at, updated_at")
     .eq("id", roundId)
     .eq("teacher_id", user.id)
     .maybeSingle();
@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
   // Fetch all submissions for this round
   const { data: submissions, error: submissionsError } = await db
     .from("gallery_submissions")
-    .select("id, round_id, student_id, context_note, created_at")
+    .select("id, round_id, student_id, context_note, canvas_x, canvas_y, created_at")
     .eq("round_id", roundId)
     .order("created_at", { ascending: false });
 
@@ -100,6 +100,8 @@ export async function GET(request: NextRequest) {
       student_id: submission.student_id,
       student_name: studentMap.get(submission.student_id) || submission.student_id,
       context_note: submission.context_note,
+      canvas_x: submission.canvas_x,
+      canvas_y: submission.canvas_y,
       created_at: submission.created_at,
       review_count: reviewCount,
       is_complete: reviewCount >= round.min_reviews,

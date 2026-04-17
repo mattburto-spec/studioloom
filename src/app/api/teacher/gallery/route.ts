@@ -58,7 +58,7 @@ export const GET = withErrorHandler("teacher/gallery:GET", async (request: NextR
   // Fetch all gallery rounds for this unit+class
   const { data: rounds, error } = await db
     .from("gallery_rounds")
-    .select("id, unit_id, class_id, teacher_id, title, description, page_ids, review_format, min_reviews, anonymous, deadline, status, created_at, updated_at")
+    .select("id, unit_id, class_id, teacher_id, title, description, page_ids, review_format, min_reviews, anonymous, deadline, status, display_mode, created_at, updated_at")
     .eq("unit_id", unitId)
     .eq("class_id", classId)
     .eq("teacher_id", user.id)
@@ -123,6 +123,7 @@ export const POST = withErrorHandler("teacher/gallery:POST", async (request: Nex
     description = "",
     pageIds,
     reviewFormat = "comment",
+    displayMode = "grid",
     minReviews = 3,
     anonymous = true,
     deadline,
@@ -133,6 +134,7 @@ export const POST = withErrorHandler("teacher/gallery:POST", async (request: Nex
     description?: string;
     pageIds: string[];
     reviewFormat?: string;
+    displayMode?: "grid" | "canvas";
     minReviews?: number;
     anonymous?: boolean;
     deadline?: string;
@@ -142,6 +144,13 @@ export const POST = withErrorHandler("teacher/gallery:POST", async (request: Nex
   if (!unitId || !classId || !title || !pageIds || pageIds.length === 0) {
     return NextResponse.json(
       { error: "unitId, classId, title, and non-empty pageIds are required" },
+      { status: 400 }
+    );
+  }
+
+  if (displayMode !== "grid" && displayMode !== "canvas") {
+    return NextResponse.json(
+      { error: "displayMode must be 'grid' or 'canvas'" },
       { status: 400 }
     );
   }
@@ -165,6 +174,7 @@ export const POST = withErrorHandler("teacher/gallery:POST", async (request: Nex
       description,
       page_ids: pageIds,
       review_format: reviewFormat,
+      display_mode: displayMode,
       min_reviews: Math.max(1, minReviews),
       anonymous,
       status: "open",

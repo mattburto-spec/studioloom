@@ -8,7 +8,7 @@ const XIcon = ({ size = 24 }: { size?: number }) => (
 const AlertCircleIcon = ({ size = 20, className = "" }: { size?: number; className?: string }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
 );
-import type { ReviewFormat } from "@/types";
+import type { ReviewFormat, GalleryDisplayMode } from "@/types";
 
 interface GalleryRoundCreatorProps {
   unitId: string;
@@ -47,6 +47,7 @@ export function GalleryRoundCreator({
   const [description, setDescription] = useState("");
   const [selectedPages, setSelectedPages] = useState<string[]>([]);
   const [reviewFormat, setReviewFormat] = useState<ReviewFormat>("comment");
+  const [displayMode, setDisplayMode] = useState<GalleryDisplayMode>("grid");
   const [minReviews, setMinReviews] = useState(3);
   const [anonymous, setAnonymous] = useState(true);
   const [deadline, setDeadline] = useState("");
@@ -86,6 +87,7 @@ export function GalleryRoundCreator({
           description: description.trim(),
           pageIds: selectedPages,
           reviewFormat,
+          displayMode,
           minReviews,
           anonymous,
           deadline: deadline || null,
@@ -230,6 +232,56 @@ export function GalleryRoundCreator({
                   </div>
                 </label>
               ))}
+            </div>
+          </div>
+
+          {/* Display mode */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-900 mb-3">
+              Display Mode
+            </label>
+            <p className="text-xs text-gray-500 mb-3">
+              How submissions are shown to you in the monitor view. Canvas lets you drag cards into a custom layout.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <label
+                className={`flex flex-col gap-1 p-3 border rounded-lg cursor-pointer transition-colors ${
+                  displayMode === "grid"
+                    ? "border-purple-500 bg-purple-50"
+                    : "border-gray-300 hover:bg-gray-50"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="displayMode"
+                  value="grid"
+                  checked={displayMode === "grid"}
+                  onChange={() => setDisplayMode("grid")}
+                  disabled={saving || success}
+                  className="sr-only"
+                />
+                <span className="font-medium text-gray-900 text-sm">Grid</span>
+                <span className="text-xs text-gray-600">Submissions listed in a simple grid (default).</span>
+              </label>
+              <label
+                className={`flex flex-col gap-1 p-3 border rounded-lg cursor-pointer transition-colors ${
+                  displayMode === "canvas"
+                    ? "border-purple-500 bg-purple-50"
+                    : "border-gray-300 hover:bg-gray-50"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="displayMode"
+                  value="canvas"
+                  checked={displayMode === "canvas"}
+                  onChange={() => setDisplayMode("canvas")}
+                  disabled={saving || success}
+                  className="sr-only"
+                />
+                <span className="font-medium text-gray-900 text-sm">Canvas</span>
+                <span className="text-xs text-gray-600">Pan/zoom board — drag cards to arrange a pin-up layout.</span>
+              </label>
             </div>
           </div>
 

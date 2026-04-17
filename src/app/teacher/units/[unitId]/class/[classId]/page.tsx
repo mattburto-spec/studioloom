@@ -24,7 +24,7 @@ import IntegrityReport from "@/components/teacher/IntegrityReport";
 import type { IntegrityMetadata } from "@/components/student/MonitoredTextarea";
 import { analyzeIntegrity } from "@/lib/integrity/analyze-integrity";
 import { ClassProfileOverview } from "@/components/teacher/ClassProfileOverview";
-import { GalleryRoundCreator, GalleryMonitor, GalleryRoundCard } from "@/components/gallery";
+import { GalleryRoundCreator, GalleryMonitor, GalleryRoundCard, GalleryCanvasModal } from "@/components/gallery";
 import { getYearLevelNumber } from "@/lib/utils/year-level";
 import StudentDrawer from "@/components/teacher/class-hub/StudentDrawer";
 
@@ -75,6 +75,7 @@ function GalleryTab({ unitId, classId, unitPages }: { unitId: string; classId: s
   const [loading, setLoading] = useState(true);
   const [showCreator, setShowCreator] = useState(false);
   const [monitorRoundId, setMonitorRoundId] = useState<string | null>(null);
+  const [canvasRoundId, setCanvasRoundId] = useState<string | null>(null);
 
   const loadRounds = useCallback(async () => {
     setLoading(true);
@@ -95,9 +96,14 @@ function GalleryTab({ unitId, classId, unitPages }: { unitId: string; classId: s
 
   return (
     <div className="max-w-4xl space-y-6">
-      {/* Monitor modal */}
+      {/* Monitor modal (grid display mode) */}
       {monitorRoundId && (
         <GalleryMonitor roundId={monitorRoundId} onClose={() => { setMonitorRoundId(null); loadRounds(); }} />
+      )}
+
+      {/* Canvas modal (canvas display mode) */}
+      {canvasRoundId && (
+        <GalleryCanvasModal roundId={canvasRoundId} onClose={() => { setCanvasRoundId(null); loadRounds(); }} />
       )}
 
       {/* Creator modal */}
@@ -156,7 +162,13 @@ function GalleryTab({ unitId, classId, unitPages }: { unitId: string; classId: s
             <GalleryRoundCard
               key={round.id}
               round={round}
-              onClick={() => setMonitorRoundId(round.id)}
+              onClick={() => {
+                if (round.display_mode === "canvas") {
+                  setCanvasRoundId(round.id);
+                } else {
+                  setMonitorRoundId(round.id);
+                }
+              }}
             />
           ))}
         </div>
