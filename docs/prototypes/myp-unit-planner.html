@@ -1,0 +1,3470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MYP Design Unit Planner — CBCI × Structure of Process × Paul-Elder</title>
+<style>
+  :root {
+    --bg: #f7f5f0;
+    --surface: #ffffff;
+    --ink: #1a1a1a;
+    --ink-soft: #525252;
+    --ink-faint: #8a8a8a;
+    --line: #e5e0d5;
+    --line-soft: #efeae0;
+    --cbci: #0f766e;     /* teal */
+    --cbci-soft: #ccfbf1;
+    --cbci-bg: #f0fdfa;
+    --sop: #b45309;      /* amber */
+    --sop-soft: #fef3c7;
+    --sop-bg: #fffbeb;
+    --pe: #6d28d9;       /* violet */
+    --pe-soft: #ede9fe;
+    --pe-bg: #faf5ff;
+    --frame: #1e3a8a;    /* deep blue */
+    --frame-soft: #dbeafe;
+    --synth: #831843;    /* deep rose */
+    --synth-soft: #fce7f3;
+    --warn: #b91c1c;
+    --ok: #15803d;
+    --sidebar-w: 272px;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.55;
+    font-size: 15px;
+  }
+
+  /* ===========================
+     APP LAYOUT — sidebar + main
+     =========================== */
+  .app {
+    display: grid;
+    grid-template-columns: var(--sidebar-w) 1fr;
+    min-height: 100vh;
+    align-items: start;
+  }
+
+  aside.sidebar {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    background: var(--surface);
+    border-right: 1px solid var(--line);
+    padding: 22px 14px 28px;
+    display: flex;
+    flex-direction: column;
+    z-index: 40;
+  }
+
+  .sidebar-head {
+    padding: 2px 8px 16px;
+    border-bottom: 1px solid var(--line-soft);
+    margin-bottom: 12px;
+  }
+
+  .sidebar-head h1 {
+    margin: 0 0 4px;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    line-height: 1.2;
+  }
+
+  .sidebar-sub {
+    margin: 0;
+    font-size: 11.5px;
+    color: var(--ink-faint);
+    line-height: 1.4;
+  }
+
+  .sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .nav-item {
+    display: grid;
+    grid-template-columns: 28px 1fr;
+    gap: 10px;
+    align-items: center;
+    padding: 9px 10px;
+    border-radius: 7px;
+    text-decoration: none;
+    color: var(--ink-soft);
+    transition: background 0.1s;
+  }
+
+  .nav-item:hover {
+    background: var(--bg);
+    color: var(--ink);
+  }
+
+  .nav-item.current {
+    background: var(--ink);
+    color: white;
+  }
+
+  .nav-item.current .nav-sub { color: rgba(255,255,255,0.7); }
+
+  .nav-n {
+    display: inline-flex;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--ink-soft);
+  }
+
+  .nav-item.current .nav-n {
+    background: rgba(255,255,255,0.2);
+    color: white;
+    border-color: transparent;
+  }
+
+  .nav-body { display: block; min-width: 0; }
+
+  .nav-label {
+    display: block;
+    font-weight: 600;
+    font-size: 13.5px;
+    line-height: 1.2;
+  }
+
+  .nav-sub {
+    display: block;
+    font-size: 11.5px;
+    color: var(--ink-faint);
+    margin-top: 2px;
+  }
+
+  .sidebar-footer {
+    margin-top: auto;
+    padding: 14px 8px 4px;
+    border-top: 1px solid var(--line-soft);
+    font-size: 11px;
+    color: var(--ink-faint);
+  }
+
+  /* ===========================
+     CONTENT COLUMN
+     =========================== */
+  .content-wrap {
+    min-width: 0;
+  }
+
+  .toolbar-bar {
+    background: var(--surface);
+    border-bottom: 1px solid var(--line);
+    padding: 14px 32px;
+    position: sticky;
+    top: 0;
+    z-index: 30;
+  }
+
+  .toolbar {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .toolbar .spacer { flex: 1; }
+
+  button, .btn {
+    font: inherit;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    color: var(--ink);
+    padding: 7px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.12s;
+  }
+
+  button:hover, .btn:hover {
+    border-color: var(--ink-faint);
+    background: var(--bg);
+  }
+
+  button.primary {
+    background: var(--ink);
+    color: white;
+    border-color: var(--ink);
+  }
+
+  button.primary:hover { background: #000; }
+
+  button.active {
+    background: var(--ink);
+    color: white;
+    border-color: var(--ink);
+  }
+
+  .status-chip {
+    font-size: 12px;
+    color: var(--ink-faint);
+    padding: 4px 10px;
+    border: 1px dashed var(--line);
+    border-radius: 4px;
+  }
+
+  main {
+    max-width: 1040px;
+    margin: 0 auto;
+    padding: 28px 32px 64px;
+  }
+
+  @media (max-width: 900px) {
+    .app { grid-template-columns: 1fr; }
+    aside.sidebar {
+      position: sticky;
+      top: 0;
+      height: auto;
+      max-height: auto;
+      padding: 10px 10px 8px;
+      border-right: 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .sidebar-head { display: none; }
+    .sidebar-footer { display: none; }
+    .sidebar-nav {
+      flex-direction: row;
+      gap: 4px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+    .nav-item {
+      grid-template-columns: auto;
+      white-space: nowrap;
+      font-size: 12px;
+      padding: 6px 12px;
+    }
+    .nav-item .nav-sub { display: none; }
+    .nav-n { display: none; }
+    .nav-label { font-size: 12.5px; }
+    main { padding: 18px; }
+    .toolbar-bar { padding: 10px; top: auto; position: static; }
+  }
+
+  /* ===========================
+     SECTIONS
+     =========================== */
+  section {
+    margin-bottom: 48px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 28px 32px 32px;
+  }
+
+  section.cbci     { border-top: 4px solid var(--cbci); }
+  section.sop      { border-top: 4px solid var(--sop); }
+  section.pe       { border-top: 4px solid var(--pe); }
+  section.frame    { border-top: 4px solid var(--frame); }
+  section.synth    { border-top: 4px solid var(--synth); }
+  section.overview { border-top: 4px solid var(--ink); }
+
+  h2.section-title {
+    font-size: 22px;
+    margin: 0 0 4px;
+    letter-spacing: -0.015em;
+    font-weight: 700;
+  }
+
+  .section-tag {
+    display: inline-block;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-weight: 600;
+    margin-bottom: 10px;
+  }
+  .tag-cbci  { background: var(--cbci-soft); color: var(--cbci); }
+  .tag-sop   { background: var(--sop-soft); color: var(--sop); }
+  .tag-pe    { background: var(--pe-soft); color: var(--pe); }
+  .tag-frame { background: var(--frame-soft); color: var(--frame); }
+  .tag-synth { background: var(--synth-soft); color: var(--synth); }
+
+  .section-subtitle {
+    margin: 0 0 18px;
+    color: var(--ink-soft);
+    font-size: 14px;
+  }
+
+  .framework-attr {
+    font-size: 12px;
+    color: var(--ink-faint);
+    margin: -10px 0 18px;
+    font-style: italic;
+  }
+  .framework-attr b { color: var(--ink-soft); font-weight: 600; font-style: normal; }
+
+  h3.field-group {
+    font-size: 15px;
+    margin: 26px 0 8px;
+    font-weight: 700;
+    letter-spacing: -0.005em;
+  }
+
+  h4.subfield {
+    font-size: 13px;
+    margin: 16px 0 4px;
+    color: var(--ink);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .helper {
+    font-size: 13px;
+    color: var(--ink-soft);
+    margin: 0 0 10px;
+  }
+
+  .helper code {
+    background: var(--line-soft);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 12px;
+  }
+
+  textarea, input[type="text"], select.field-select {
+    width: 100%;
+    font: inherit;
+    font-size: 14px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--ink);
+    resize: vertical;
+    line-height: 1.5;
+    min-height: 44px;
+  }
+
+  textarea:focus, input[type="text"]:focus, select.field-select:focus {
+    outline: none;
+    border-color: var(--ink);
+    box-shadow: 0 0 0 3px rgba(26,26,26,0.08);
+  }
+
+  /* ===========================
+     SELECT / DROPDOWN
+     =========================== */
+  select.field-select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    padding-right: 36px;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'><path fill='none' stroke='%23525252' stroke-width='1.5' d='M1 1.5l5 5 5-5'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    cursor: pointer;
+  }
+
+  select.field-select.inline-small {
+    min-height: 36px;
+    padding: 6px 30px 6px 10px;
+    font-size: 13px;
+    background-position: right 8px center;
+  }
+
+  /* Compound "select with Other" — select + reveal-on-other text input */
+  .select-with-other {
+    display: grid;
+    gap: 6px;
+  }
+  .select-with-other .other-input {
+    margin: 0;
+  }
+
+  /* ===========================
+     DURATION SLIDER TRIAD
+     =========================== */
+  .duration-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 14px;
+    align-items: end;
+    margin: 6px 0 10px;
+  }
+  @media (max-width: 720px) {
+    .duration-grid { grid-template-columns: 1fr; }
+  }
+
+  .slider-field label {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+    color: var(--ink-soft);
+    margin-bottom: 4px;
+  }
+
+  .slider-value {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 4px;
+    background: var(--line);
+    border-radius: 2px;
+    outline: none;
+    margin: 6px 0;
+    padding: 0;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    background: var(--ink);
+    border-radius: 50%;
+    cursor: pointer;
+    border: 3px solid var(--surface);
+    box-shadow: 0 0 0 1px var(--line-soft);
+    transition: transform 0.1s;
+  }
+  input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.1); }
+  input[type="range"]::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    background: var(--ink);
+    border-radius: 50%;
+    cursor: pointer;
+    border: 3px solid var(--surface);
+    box-shadow: 0 0 0 1px var(--line-soft);
+  }
+
+  .duration-summary {
+    font-size: 13px;
+    color: var(--ink-soft);
+    padding: 8px 12px;
+    background: var(--bg);
+    border-radius: 6px;
+    margin: 4px 0 10px;
+    font-variant-numeric: tabular-nums;
+  }
+  .duration-summary strong {
+    color: var(--ink);
+    font-weight: 700;
+  }
+
+  .two-col, .three-col {
+    display: grid;
+    gap: 14px;
+    margin-bottom: 6px;
+  }
+  .two-col { grid-template-columns: 1fr 1fr; }
+  .three-col { grid-template-columns: 1fr 1fr 1fr; }
+
+  @media (max-width: 720px) {
+    .two-col, .three-col { grid-template-columns: 1fr; }
+    main { padding: 18px; }
+    section { padding: 20px 18px; }
+  }
+
+  /* ===========================
+     REFERENCE PANELS
+     =========================== */
+  details.reference {
+    margin: 0 0 22px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--bg);
+    overflow: hidden;
+  }
+
+  details.reference summary {
+    padding: 12px 16px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 13px;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--ink-soft);
+  }
+
+  details.reference summary::-webkit-details-marker { display: none; }
+
+  details.reference summary::before {
+    content: "▸";
+    color: var(--ink-faint);
+    transition: transform 0.15s;
+    display: inline-block;
+  }
+
+  details.reference[open] summary::before {
+    transform: rotate(90deg);
+  }
+
+  details.reference summary:hover { color: var(--ink); }
+
+  details.reference .ref-body {
+    padding: 0 18px 16px;
+    border-top: 1px solid var(--line);
+    font-size: 13.5px;
+    color: var(--ink);
+  }
+
+  details.reference .ref-body p { margin: 12px 0; }
+
+  details.reference .ref-body h5 {
+    font-size: 13px;
+    margin: 14px 0 4px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--ink-soft);
+  }
+
+  details.reference .ref-body ul { margin: 8px 0; padding-left: 22px; }
+  details.reference .ref-body li { margin: 4px 0; }
+
+  details.reference.cbci { border-color: var(--cbci); background: var(--cbci-bg); }
+  details.reference.sop  { border-color: var(--sop);  background: var(--sop-bg); }
+  details.reference.pe   { border-color: var(--pe);   background: var(--pe-bg); }
+
+  details.reference.cbci summary,
+  details.reference.sop summary,
+  details.reference.pe summary { color: var(--ink); }
+
+  details.reference.cbci summary::before { color: var(--cbci); }
+  details.reference.sop summary::before  { color: var(--sop); }
+  details.reference.pe summary::before   { color: var(--pe); }
+
+  .pitfall {
+    border-left: 3px solid var(--warn);
+    padding: 2px 0 2px 12px;
+    margin: 10px 0;
+    font-size: 13.5px;
+  }
+  .pitfall strong { color: var(--warn); }
+
+  .tip {
+    border-left: 3px solid var(--ok);
+    padding: 2px 0 2px 12px;
+    margin: 10px 0;
+    font-size: 13.5px;
+  }
+  .tip strong { color: var(--ok); }
+
+  /* ===========================
+     CHIP PICKERS
+     =========================== */
+  .chip-picker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin: 4px 0 10px;
+    align-items: center;
+  }
+
+  .chip-picker-label {
+    font-size: 10.5px;
+    color: var(--ink-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+    margin-right: 6px;
+    flex-shrink: 0;
+  }
+
+  .chip {
+    font-size: 12px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    padding: 4px 10px;
+    border-radius: 12px;
+    color: var(--ink-soft);
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.1s;
+    line-height: 1.4;
+    white-space: nowrap;
+  }
+
+  .chip:hover { border-color: var(--ink); color: var(--ink); }
+
+  .chip.active {
+    background: var(--ink);
+    color: white;
+    border-color: var(--ink);
+  }
+
+  .chip-picker[data-accent="cbci"] .chip.active  { background: var(--cbci); border-color: var(--cbci); }
+  .chip-picker[data-accent="sop"] .chip.active   { background: var(--sop); border-color: var(--sop); }
+  .chip-picker[data-accent="pe"] .chip.active    { background: var(--pe); border-color: var(--pe); }
+  .chip-picker[data-accent="frame"] .chip.active { background: var(--frame); border-color: var(--frame); }
+
+  .chip-custom {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    border: 1px dashed var(--line);
+    border-radius: 12px;
+    padding: 1px 3px 1px 10px;
+    background: var(--surface);
+  }
+
+  .chip-custom:focus-within {
+    border-style: solid;
+    border-color: var(--ink);
+  }
+
+  .chip-custom input {
+    border: 0;
+    font: inherit;
+    font-size: 12px;
+    background: transparent;
+    padding: 3px 0;
+    min-width: 130px;
+    color: var(--ink);
+    outline: none;
+    min-height: auto;
+    width: auto;
+  }
+
+  .chip-custom button {
+    padding: 2px 8px;
+    font-size: 12px;
+    border-radius: 10px;
+    line-height: 1.2;
+    border: 0;
+    background: var(--ink);
+    color: white;
+    cursor: pointer;
+  }
+
+  .chip-custom button:hover { background: #000; border: 0; }
+
+  /* ===========================
+     SPECIALIZED LAYOUTS
+     =========================== */
+  .level-row {
+    display: grid;
+    grid-template-columns: 90px 1fr;
+    gap: 10px;
+    align-items: start;
+    margin-bottom: 10px;
+  }
+
+  .level-label {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 12px 0 0;
+    color: var(--ink-soft);
+  }
+
+  .level-label .n {
+    display: inline-block;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--cbci);
+    color: white;
+    text-align: center;
+    line-height: 22px;
+    margin-right: 4px;
+    font-size: 11px;
+  }
+
+  .question-type-row {
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    gap: 10px;
+    align-items: start;
+    margin-bottom: 10px;
+  }
+
+  .q-label {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 12px 8px 0 0;
+    text-align: right;
+  }
+
+  .q-label.factual    { color: #0369a1; }
+  .q-label.conceptual { color: var(--cbci); }
+  .q-label.debatable  { color: #7c2d12; }
+
+  table.matrix {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12px;
+    font-size: 13px;
+  }
+
+  table.matrix th, table.matrix td {
+    border: 1px solid var(--line);
+    padding: 8px 10px;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  table.matrix th {
+    background: var(--pe-bg);
+    font-weight: 600;
+    color: var(--pe);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  table.matrix td textarea {
+    min-height: 70px;
+    font-size: 13px;
+  }
+
+  .pe-traits-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-top: 8px;
+  }
+
+  .trait-card {
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 13px;
+    background: var(--surface);
+  }
+
+  .trait-card .trait-name {
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--pe);
+    margin-bottom: 2px;
+  }
+
+  .trait-card .trait-desc {
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    margin-bottom: 8px;
+  }
+
+  .trait-card textarea {
+    margin-top: 4px;
+    font-size: 13px;
+    min-height: 52px;
+  }
+
+  .standards-strip {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+
+  @media (max-width: 720px) {
+    .standards-strip { grid-template-columns: 1fr; }
+    .pe-traits-grid { grid-template-columns: 1fr; }
+  }
+
+  .standard-card {
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 10px 12px;
+    background: var(--surface);
+  }
+
+  .standard-card .std-name {
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--pe);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  .standard-card .std-desc {
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    margin: 2px 0 6px;
+  }
+
+  .standard-card textarea { min-height: 52px; }
+
+  .lesson-card {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin-bottom: 14px;
+    background: var(--surface);
+  }
+
+  .lesson-card .lesson-head {
+    display: grid;
+    grid-template-columns: 100px 1fr;
+    gap: 10px;
+    align-items: start;
+    margin-bottom: 8px;
+  }
+
+  .lesson-card .lesson-num {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 700;
+    color: var(--synth);
+    padding-top: 10px;
+  }
+
+  .lesson-card .tag-row {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin: 8px 0 6px;
+  }
+
+  .mini-tag {
+    font-size: 11px;
+    padding: 2px 7px;
+    border-radius: 10px;
+    font-weight: 600;
+  }
+  .mini-tag.cbci { background: var(--cbci-soft); color: var(--cbci); }
+  .mini-tag.sop  { background: var(--sop-soft); color: var(--sop); }
+  .mini-tag.pe   { background: var(--pe-soft); color: var(--pe); }
+  .mini-tag.myp  { background: var(--frame-soft); color: var(--frame); }
+
+  .criteria-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 14px;
+    margin-top: 10px;
+  }
+  @media (max-width: 720px) { .criteria-grid { grid-template-columns: 1fr; } }
+
+  .criterion-card {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 12px 14px;
+    background: var(--surface);
+  }
+
+  .criterion-card h5 {
+    margin: 0 0 6px;
+    font-size: 13px;
+    color: var(--frame);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 700;
+  }
+
+  .criterion-card textarea {
+    min-height: 70px;
+    font-size: 13px;
+  }
+
+  .hint-inline {
+    font-size: 12px;
+    color: var(--ink-faint);
+    margin: 4px 0 8px;
+  }
+
+  .footnote {
+    font-size: 12px;
+    color: var(--ink-faint);
+    margin-top: 20px;
+    font-style: italic;
+  }
+
+  hr.divider {
+    border: 0;
+    border-top: 1px solid var(--line-soft);
+    margin: 28px 0;
+  }
+
+  .banner {
+    background: linear-gradient(to right, var(--cbci-bg), var(--sop-bg), var(--pe-bg));
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-bottom: 22px;
+    font-size: 13.5px;
+  }
+
+  .banner strong { font-weight: 700; }
+
+  .numbered-list-col {
+    columns: 2;
+    column-gap: 30px;
+    font-size: 13px;
+  }
+  @media (max-width: 720px) { .numbered-list-col { columns: 1; } }
+
+  .numbered-list-col ol { margin: 0; padding-left: 22px; }
+  .numbered-list-col li { margin: 4px 0; break-inside: avoid; }
+  .numbered-list-col li strong { color: var(--ink); }
+
+  .hint-bubble {
+    background: var(--line-soft);
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 13px;
+    margin: 8px 0 12px;
+    color: var(--ink-soft);
+  }
+
+  .hint-bubble strong { color: var(--ink); }
+
+  /* ===========================
+     AI SUGGESTIONS
+     =========================== */
+  .ai-status-chip {
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 4px;
+    background: var(--pe-bg);
+    color: var(--pe);
+    border: 1px solid var(--pe-soft);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .ai-status-chip.error {
+    background: #fee2e2;
+    color: var(--warn);
+    border-color: #fecaca;
+  }
+
+  .ai-status-chip .dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    animation: pulse 1.2s infinite;
+  }
+  .ai-status-chip.done .dot { animation: none; }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
+  }
+
+  button.primary.large {
+    font-size: 15px;
+    padding: 12px 22px;
+  }
+
+  /* ===========================
+     ASSIST BUTTONS (field-level)
+     =========================== */
+  .assist-row {
+    margin: 4px 0 10px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .assist-row .assist-hint {
+    font-size: 12px;
+    color: var(--ink-faint);
+    font-style: italic;
+  }
+
+  .assist-btn {
+    font-size: 12px;
+    padding: 6px 12px;
+    border-radius: 16px;
+    background: var(--pe);
+    color: white;
+    border: 0;
+    cursor: pointer;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    line-height: 1.3;
+    transition: background 0.12s;
+  }
+  .assist-btn:hover {
+    background: #5b21b6;
+    border: 0;
+  }
+  .assist-btn:disabled {
+    background: var(--line);
+    color: var(--ink-faint);
+    cursor: not-allowed;
+  }
+  .assist-btn .dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+    animation: pulse 1.2s infinite;
+  }
+
+  .modal-info {
+    background: var(--pe-bg);
+    border: 1px solid var(--pe-soft);
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 12.5px;
+    color: var(--ink);
+    line-height: 1.5;
+    margin: 16px 0 4px;
+  }
+  .modal-info strong { color: var(--pe); }
+
+  /* Suggested chip — softer than .active */
+  .chip.suggested {
+    border-style: dashed;
+    border-color: var(--pe);
+    color: var(--pe);
+    background: var(--pe-bg);
+  }
+  .chip.suggested::after {
+    content: " ✨";
+    font-size: 10px;
+  }
+
+  /* Fields with AI suggestion attached */
+  .ai-suggestion-box {
+    margin: -4px 0 12px;
+    padding: 8px 12px;
+    background: var(--pe-bg);
+    border: 1px dashed var(--pe);
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--ink);
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    line-height: 1.5;
+  }
+  .ai-suggestion-box .sugg-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--pe);
+    flex-shrink: 0;
+    padding-top: 2px;
+  }
+  .ai-suggestion-box .sugg-text {
+    flex: 1;
+    color: var(--ink-soft);
+    font-style: italic;
+  }
+  .ai-suggestion-box .sugg-actions {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+  .ai-suggestion-box .sugg-btn {
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: var(--pe);
+    color: white;
+    border: 0;
+    cursor: pointer;
+    font-weight: 600;
+  }
+  .ai-suggestion-box .sugg-btn:hover { background: #5b21b6; }
+  .ai-suggestion-box .sugg-btn.secondary {
+    background: transparent;
+    color: var(--ink-faint);
+    border: 1px solid var(--line);
+  }
+  .ai-suggestion-box .sugg-btn.secondary:hover {
+    color: var(--ink);
+    border-color: var(--ink);
+    background: transparent;
+  }
+
+  /* Sidebar badge */
+  .nav-badge {
+    display: none;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    border-radius: 10px;
+    background: var(--pe);
+    color: white;
+    font-size: 11px;
+    font-weight: 700;
+    align-items: center;
+    justify-content: center;
+    margin-left: auto;
+  }
+  .nav-badge.has-count {
+    display: inline-flex;
+  }
+  .nav-item { position: relative; }
+
+  .nav-item.current .nav-badge {
+    background: rgba(255,255,255,0.25);
+  }
+
+  .nav-item {
+    grid-template-columns: 28px 1fr auto;
+  }
+
+  /* MYP wrapper CTA */
+  .myp-gen-cta {
+    background: linear-gradient(135deg, var(--pe-bg), var(--cbci-bg));
+    border: 1px solid var(--pe-soft);
+    border-radius: 10px;
+    padding: 18px 20px;
+    margin-bottom: 22px;
+    text-align: center;
+  }
+  .myp-gen-cta button {
+    margin-bottom: 8px;
+  }
+  .myp-gen-hint {
+    font-size: 12px;
+    color: var(--ink-soft);
+    margin: 0;
+    line-height: 1.5;
+  }
+
+  .subfield-hint {
+    font-size: 11px;
+    color: var(--ink-faint);
+    text-transform: none;
+    letter-spacing: 0;
+    font-weight: 400;
+    font-style: italic;
+    margin-left: 6px;
+  }
+
+  /* ===========================
+     AI SETTINGS MODAL
+     =========================== */
+  .modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(26,26,26,0.35);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    padding: 20px;
+  }
+  .modal-backdrop.open { display: flex; }
+
+  .modal {
+    background: var(--surface);
+    border-radius: 12px;
+    padding: 24px 28px;
+    max-width: 480px;
+    width: 100%;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  .modal h3 {
+    margin: 0 0 4px;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .modal .modal-sub {
+    margin: 0 0 18px;
+    font-size: 13px;
+    color: var(--ink-soft);
+  }
+
+  .modal label.field-label {
+    display: block;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+    color: var(--ink-soft);
+    margin: 14px 0 4px;
+  }
+
+  .modal input[type="password"],
+  .modal input[type="text"] {
+    width: 100%;
+    font: inherit;
+    font-size: 13px;
+    padding: 9px 12px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--ink);
+    font-family: "SF Mono", Menlo, Monaco, Consolas, monospace;
+  }
+
+  .modal input:focus {
+    outline: none;
+    border-color: var(--ink);
+    box-shadow: 0 0 0 3px rgba(26,26,26,0.08);
+  }
+
+  .modal .toggle-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 10px 0;
+    border-top: 1px solid var(--line-soft);
+    margin-top: 8px;
+  }
+
+  .modal .toggle-row .toggle-main {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .modal .toggle-row .toggle-hint {
+    font-size: 12px;
+    color: var(--ink-faint);
+    display: block;
+    margin-top: 2px;
+    font-weight: 400;
+  }
+
+  .switch {
+    position: relative;
+    display: inline-block;
+    width: 40px;
+    height: 22px;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .switch .slider-sw {
+    position: absolute;
+    cursor: pointer;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: var(--line);
+    border-radius: 22px;
+    transition: 0.2s;
+  }
+  .switch .slider-sw::before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 3px;
+    bottom: 3px;
+    background: white;
+    border-radius: 50%;
+    transition: 0.2s;
+  }
+  .switch input:checked + .slider-sw { background: var(--pe); }
+  .switch input:checked + .slider-sw::before { transform: translateX(18px); }
+
+  .modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 22px;
+    border-top: 1px solid var(--line-soft);
+    padding-top: 16px;
+  }
+
+  .modal .key-status {
+    margin-top: 8px;
+    font-size: 12px;
+    padding: 8px 10px;
+    border-radius: 5px;
+    display: none;
+  }
+  .modal .key-status.ok {
+    background: #dcfce7;
+    color: #166534;
+    display: block;
+  }
+  .modal .key-status.warn {
+    background: #fef3c7;
+    color: #854d0e;
+    display: block;
+  }
+
+  .modal .docs-link {
+    display: block;
+    font-size: 12px;
+    color: var(--pe);
+    margin-top: 4px;
+    text-decoration: none;
+  }
+  .modal .docs-link:hover { text-decoration: underline; }
+
+  /* Print */
+  @media print {
+    aside.sidebar, .toolbar-bar { display: none; }
+    .app { grid-template-columns: 1fr; }
+    body { background: white; font-size: 11pt; }
+    main { padding: 0; max-width: none; }
+    section { page-break-inside: avoid; box-shadow: none; border-radius: 0; padding: 12pt; border: 1px solid #ccc; margin-bottom: 18pt; }
+    details.reference { display: none; }
+    .chip-picker { display: none; }
+    textarea, input[type="text"] { border: 1px solid #bbb; background: white; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+<!-- ==============================================================
+     SIDEBAR — navigation + title + framework legend
+     ============================================================== -->
+<aside class="sidebar">
+  <div class="sidebar-head">
+    <h1>MYP Design Unit Planner</h1>
+    <p class="sidebar-sub">CBCI · Structure of Process · Paul-Elder</p>
+  </div>
+
+  <nav class="sidebar-nav" id="sidebar-nav">
+    <a href="#overview" class="nav-item">
+      <span class="nav-n">·</span>
+      <span class="nav-body">
+        <span class="nav-label">Overview</span>
+        <span class="nav-sub">How this works</span>
+      </span>
+    </a>
+    <a href="#frame" class="nav-item">
+      <span class="nav-n">1</span>
+      <span class="nav-body">
+        <span class="nav-label">Basics</span>
+        <span class="nav-sub">Title · year · duration · premise</span>
+      </span>
+      <span class="nav-badge" data-section="frame"></span>
+    </a>
+    <a href="#cbci" class="nav-item">
+      <span class="nav-n">2</span>
+      <span class="nav-body">
+        <span class="nav-label">Big ideas</span>
+        <span class="nav-sub">What should transfer (CBCI)</span>
+      </span>
+      <span class="nav-badge" data-section="cbci"></span>
+    </a>
+    <a href="#sop" class="nav-item">
+      <span class="nav-n">3</span>
+      <span class="nav-body">
+        <span class="nav-label">Design work</span>
+        <span class="nav-sub">What students do (SoP)</span>
+      </span>
+      <span class="nav-badge" data-section="sop"></span>
+    </a>
+    <a href="#pe" class="nav-item">
+      <span class="nav-n">4</span>
+      <span class="nav-body">
+        <span class="nav-label">Thinking moves</span>
+        <span class="nav-sub">Critical reasoning (Paul-Elder)</span>
+      </span>
+      <span class="nav-badge" data-section="pe"></span>
+    </a>
+    <a href="#synthesis" class="nav-item">
+      <span class="nav-n">5</span>
+      <span class="nav-body">
+        <span class="nav-label">Lesson plan</span>
+        <span class="nav-sub">Where the three braids meet</span>
+      </span>
+      <span class="nav-badge" data-section="synthesis"></span>
+    </a>
+    <a href="#mypwrapper" class="nav-item">
+      <span class="nav-n">6</span>
+      <span class="nav-body">
+        <span class="nav-label">MYP wrapper</span>
+        <span class="nav-sub">Key concept · SOI · ATL <em>(auto)</em></span>
+      </span>
+      <span class="nav-badge" data-section="mypwrapper"></span>
+    </a>
+    <a href="#assessment" class="nav-item">
+      <span class="nav-n">7</span>
+      <span class="nav-body">
+        <span class="nav-label">Assessment</span>
+        <span class="nav-sub">MYP criteria A–D</span>
+      </span>
+      <span class="nav-badge" data-section="assessment"></span>
+    </a>
+    <a href="#reflection" class="nav-item">
+      <span class="nav-n">8</span>
+      <span class="nav-body">
+        <span class="nav-label">Reflection</span>
+        <span class="nav-sub">Stress-test &amp; revise</span>
+      </span>
+      <span class="nav-badge" data-section="reflection"></span>
+    </a>
+  </nav>
+
+  <div class="sidebar-footer">
+    Click any chip in a section to fill that field. Use “+ custom” to add your own.
+  </div>
+</aside>
+
+<!-- ==============================================================
+     CONTENT — toolbar + main
+     ============================================================== -->
+<div class="content-wrap">
+
+<header class="toolbar-bar">
+  <div class="toolbar">
+    <button id="btn-blank" class="active">Blank template</button>
+    <button id="btn-example">Load worked example</button>
+    <span class="status-chip" id="view-status">Blank</span>
+    <span class="ai-status-chip" id="ai-status" style="display:none"></span>
+    <div class="spacer"></div>
+    <button id="btn-ai-settings" title="AI settings — paste your Anthropic API key to enable the ✨ assist buttons">⚙ AI settings</button>
+    <button id="btn-export">Export JSON</button>
+    <button id="btn-import">Import JSON</button>
+    <input type="file" id="file-import" accept=".json" hidden>
+    <button onclick="window.print()">Print</button>
+    <button id="btn-reset">Reset</button>
+  </div>
+</header>
+
+<main>
+
+<!-- ============================================================
+     SECTION: OVERVIEW
+     ============================================================ -->
+<section class="overview" id="overview">
+  <span class="section-tag" style="background: #f3f4f6; color: var(--ink);">Start here</span>
+  <h2 class="section-title">How the three frameworks fit together</h2>
+  <p class="section-subtitle">A one-screen mental model before you start planning.</p>
+
+  <div class="banner">
+    <strong>The through-line:</strong> A strong MYP Design unit asks students to (1) <em>understand</em> transferable ideas,
+    (2) <em>do</em> disciplined design work, and (3) <em>think</em> rigorously about the choices they make.
+    Each of the three frameworks covers one of those moves.
+  </div>
+
+  <h3 class="field-group">The three frameworks, in one breath each</h3>
+
+  <p><strong style="color: var(--cbci);">1. CBCI — Erickson &amp; Lanning.</strong>
+  Concept-Based Curriculum and Instruction. Curriculum is three-dimensional: facts <em>and</em> skills <em>and</em> <strong>transferable conceptual understanding</strong>.
+  Students look through a <em>conceptual lens</em> (e.g. <em>empathy</em>, <em>system</em>, <em>constraint</em>) and arrive at <em>generalizations</em> — short, transferable
+  sentences that outlast the unit. Erickson's <strong>Structure of Knowledge</strong> governs knowledge-based disciplines.</p>
+
+  <p><strong style="color: var(--sop);">2. Structure of Process — Lanning.</strong>
+  Lanning's complement for <strong>process-heavy disciplines</strong> like Design, ELA, the arts, languages. Instead of facts-up,
+  it reads top-down from <em>Processes</em> (the big moves students perform — e.g. the design cycle) → <em>Strategies</em> (systematic adaptable plans — e.g. empathy interviewing) →
+  <em>Skills</em> (discrete operations — e.g. isometric sketching). Concepts still sit on top, but they're drawn out of <em>what students do</em>,
+  not out of a body of knowledge. <strong>This is the primary lens for MYP Design.</strong></p>
+
+  <p><strong style="color: var(--pe);">3. Paul-Elder Critical Thinking.</strong>
+  Three parts: <strong>Elements of Thought</strong> (8 components of any reasoning — purpose, question, information, inference, concepts,
+  assumptions, implications, point of view), <strong>Intellectual Standards</strong> (9 criteria — clarity, accuracy, precision, relevance, depth, breadth,
+  logic, significance, fairness) and <strong>Intellectual Traits</strong> (8 dispositions cultivated over time — humility, courage, empathy, autonomy,
+  integrity, perseverance, confidence in reason, fairmindedness). You apply standards to elements to produce rigorous thinking,
+  and traits emerge over time as a disposition.</p>
+
+  <hr class="divider">
+
+  <h3 class="field-group">How they interlock in a Design unit</h3>
+  <p>Each framework answers a different question:</p>
+
+  <table class="matrix" style="margin-top: 4px;">
+    <thead>
+      <tr>
+        <th style="background: var(--cbci-bg); color: var(--cbci); width: 22%;">CBCI asks</th>
+        <th style="background: var(--sop-bg); color: var(--sop); width: 22%;">Structure of Process asks</th>
+        <th style="background: var(--pe-bg); color: var(--pe); width: 22%;">Paul-Elder asks</th>
+        <th style="background: #f3f4f6; color: var(--ink); width: 34%;">Together, they produce</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><em>What ideas should transfer beyond this unit?</em></td>
+        <td><em>What processes, strategies and skills will students actually perform?</em></td>
+        <td><em>How will students reason rigorously about their choices?</em></td>
+        <td>A unit where <strong>doing</strong> builds <strong>understanding</strong> that is <strong>defensible</strong>.</td>
+      </tr>
+      <tr>
+        <td>Conceptual lens → Generalizations → Guiding questions.</td>
+        <td>Processes → Strategies → Skills, each tied back to a concept.</td>
+        <td>Elements × Standards applied at decision points; traits cultivated over the arc.</td>
+        <td>Alignment between WHY, WHAT, HOW, and HOW WELL.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3 class="field-group">How to use this planner</h3>
+  <ol style="padding-left: 22px; font-size: 14px;">
+    <li>Use the sidebar to move between sections. Start with <strong>Unit setup</strong> (MYP wrapper + SOI + ATL).</li>
+    <li>Work through <strong>Big ideas</strong> then <strong>Design work</strong>. Together they tell you <em>what to teach</em> and <em>what students do</em>.</li>
+    <li>Layer on <strong>Thinking moves</strong>. Choose 3–4 elements, 4–5 standards, 2–3 traits to actively cultivate. Don't try to do all 25 at once.</li>
+    <li>Use <strong>Lesson plan</strong> to plan 4–8 learning experiences where the three braids meet.</li>
+    <li>Map <strong>Assessment</strong> to MYP criteria A–D. Write your <strong>Reflection</strong> prompts last.</li>
+    <li>Click a chip to fill a field. Click <em>+ custom</em> to add your own. Click <em>Load worked example</em> above to see the planner filled in for <em>Designing for Dignity</em>.</li>
+  </ol>
+
+  <div class="hint-bubble">
+    <strong>Expected time:</strong> 45–90 minutes for a first full pass with a known topic.
+    Plan to iterate — generalizations in particular usually need 2–3 rewrites before they transfer cleanly.
+  </div>
+</section>
+
+<!-- ============================================================
+     SECTION: UNIT SETUP (formerly Unit Frame)
+     ============================================================ -->
+<section class="frame" id="frame">
+  <span class="section-tag tag-frame">Step 1 · The basics</span>
+  <h2 class="section-title">Basics</h2>
+  <p class="section-subtitle">The lightest possible start. Describe the unit in plain language; the MYP wrapper is generated at the end.</p>
+
+  <div class="two-col">
+    <div>
+      <h4 class="subfield">Unit title</h4>
+      <input type="text" data-field="unit_title" placeholder="e.g. Designing for Dignity">
+    </div>
+    <div>
+      <h4 class="subfield">Year / Grade</h4>
+      <div class="select-with-other" data-target="year_level">
+        <select class="field-select">
+          <option value="">— Pick year —</option>
+          <option>MYP Year 1 (Grade 6, age 11)</option>
+          <option>MYP Year 2 (Grade 7, age 12)</option>
+          <option>MYP Year 3 (Grade 8, age 13)</option>
+          <option>MYP Year 4 (Grade 9, age 14)</option>
+          <option>MYP Year 5 (Grade 10, age 15)</option>
+          <option value="__other">Other — type below…</option>
+        </select>
+        <input type="text" class="other-input" placeholder="Type custom year / grade" style="display:none">
+        <input type="hidden" data-field="year_level">
+      </div>
+    </div>
+  </div>
+
+  <h4 class="subfield">Duration</h4>
+  <div class="duration-grid">
+    <div class="slider-field">
+      <label>Weeks <span class="slider-value" id="dur-weeks-v">8</span></label>
+      <input type="range" min="1" max="20" value="8" id="dur-weeks">
+    </div>
+    <div class="slider-field">
+      <label>Periods / week <span class="slider-value" id="dur-pw-v">3</span></label>
+      <input type="range" min="1" max="8" value="3" id="dur-pw">
+    </div>
+    <div class="slider-field">
+      <label>Period length</label>
+      <select class="field-select inline-small" id="dur-len">
+        <option value="30">30 min</option>
+        <option value="40">40 min</option>
+        <option value="45">45 min</option>
+        <option value="50">50 min</option>
+        <option value="55">55 min</option>
+        <option value="60" selected>60 min</option>
+        <option value="75">75 min</option>
+        <option value="80">80 min (double)</option>
+        <option value="90">90 min (double)</option>
+        <option value="120">120 min</option>
+      </select>
+    </div>
+  </div>
+  <p class="duration-summary" id="duration-summary">—</p>
+  <input type="hidden" data-field="duration">
+  <input type="hidden" data-field="duration_weeks" value="8">
+  <input type="hidden" data-field="duration_periods_per_week" value="3">
+  <input type="hidden" data-field="duration_minutes_per_period" value="60">
+
+  <h4 class="subfield">Subject / Strand</h4>
+  <input type="text" data-field="subject" list="subject_strands_list" placeholder="Click to pick or type — e.g. MYP Design — Product Design strand">
+
+  <h4 class="subfield">Unit premise <span class="subfield-hint">the foundation AI suggestions work from</span></h4>
+  <p class="helper">Describe in plain language what this unit is about. Who is it for? What are students making or investigating? What's the interesting tension or problem? 2–4 sentences is plenty.</p>
+  <textarea data-field="unit_premise" rows="5" class="ai-seed"
+    placeholder="e.g. Students redesign a kitchen tool for a user with reduced hand mobility (arthritis, stroke recovery, etc.). They interview a real user, build three iterations, and present at a public critique. The tension: how do we design with a user, not for them — without appropriating their experience?"></textarea>
+</section>
+
+<!-- ============================================================
+     SECTION: BIG IDEAS (formerly CBCI)
+     ============================================================ -->
+<section class="cbci" id="cbci">
+  <span class="section-tag tag-cbci">Step 2 · What should transfer</span>
+  <h2 class="section-title">Big ideas</h2>
+  <p class="section-subtitle">Conceptual lens, concept web, scaffolded generalizations, guiding questions.</p>
+  <p class="framework-attr"><b>Framework:</b> CBCI (Concept-Based Curriculum and Instruction) — Erickson &amp; Lanning. This section decides <em>what ideas should outlive this unit</em>.</p>
+
+  <details class="reference cbci">
+    <summary>Reference: Erickson's Structure of Knowledge, synergistic thinking, generalization levels</summary>
+    <div class="ref-body">
+      <h5>The problem CBCI solves</h5>
+      <p>Traditional "2D" curriculum teaches <em>facts</em> and <em>skills</em>. Students can name the parts of a cell or
+      execute a cutting technique, but struggle to <em>transfer</em>. CBCI adds a third dimension —
+      <strong>conceptual understanding</strong> — that sits above facts and skills and is transferable across contexts.</p>
+
+      <h5>Structure of Knowledge (top → bottom)</h5>
+      <ul>
+        <li><strong>Theory</strong> — a supposition about a phenomenon (e.g. human-centred design theory).</li>
+        <li><strong>Principles / Generalizations</strong> — sentences that transfer across examples. A generalization names
+            a relationship between two or more concepts and holds across time and place.</li>
+        <li><strong>Concepts</strong> — mental constructs that are timeless, universal, abstract, represented by one or two
+            words (e.g. <em>empathy</em>, <em>system</em>, <em>constraint</em>, <em>form</em>).</li>
+        <li><strong>Topics</strong> — specific, time/place-bound (e.g. "designing a jar opener"). Topics are where
+            facts live; concepts are where transfer lives.</li>
+        <li><strong>Facts</strong> — locked to a specific example.</li>
+      </ul>
+
+      <h5>Synergistic thinking</h5>
+      <p>The interaction between the factual level of mind (specifics) and the conceptual level of mind (generalizations).
+      Students don't "get" a generalization until they've wrestled with enough specifics to earn it. This is why CBCI lessons
+      scaffold <em>up</em> from examples to generalizations, not the other way round.</p>
+
+      <h5>Conceptual lens</h5>
+      <p>A broad integrating concept (often 1–2 words) that creates the cognitive pull of the unit. Different from a key concept — a lens is
+      usually narrower, closer to the topic, and creates synergy with the content. For a design unit on ergonomic kitchen tools,
+      a lens like <em>empathy</em> or <em>accessibility</em> focuses the thinking.</p>
+
+      <h5>Scaffolded generalizations (Level 1 → 2 → 3)</h5>
+      <ul>
+        <li><strong>Level 1</strong> — the broad, often obvious generalization. Often uses weak verbs (<em>affect, influence, are, have</em>).
+            This is your starting point; it's not the finish line.</li>
+        <li><strong>Level 2</strong> — more specific, more complex, usually revealing a <em>how</em> or a <em>why</em>. Stronger verbs.</li>
+        <li><strong>Level 3</strong> — the deepest, often qualified with <em>often / sometimes / may</em> to preserve accuracy.
+            Reveals nuance, tension, or a contested relationship.</li>
+      </ul>
+
+      <h5>Guiding questions — three types</h5>
+      <ul>
+        <li><strong>Factual</strong> — locked to the topic; have correct answers. Build the base of specifics.</li>
+        <li><strong>Conceptual</strong> — transferable across topics; pull students from facts toward generalizations.</li>
+        <li><strong>Debatable / Provocative</strong> — genuinely contested; no single "right" answer; exercise point-of-view.</li>
+      </ul>
+
+      <p class="pitfall"><strong>Common pitfall:</strong> Writing "generalizations" that are really topic sentences.
+      Test: rewrite with a different topic. If it still holds, it's a generalization. If it only works for <em>this</em> unit,
+      it's a topic sentence.</p>
+
+      <p class="tip"><strong>Test for a strong generalization:</strong> It (1) names 2+ concepts, (2) uses a verb that
+      isn't a weak cognate (no <em>is</em>, <em>has</em>, <em>affect</em> — use <em>amplifies, constrains, privileges, reveals, obscures</em>),
+      (3) would still be true 20 years from now, (4) transfers outside the topic.</p>
+    </div>
+  </details>
+
+  <h3 class="field-group">2A. Conceptual Lens</h3>
+  <p class="helper">One broad, integrating concept that focuses the unit. Click the field for suggestions, or type your own.</p>
+  <input type="text" data-field="cbci_lens" list="conceptual_lenses_list" placeholder="Click for suggestions — e.g. Empathy, System, Constraint">
+
+  <h4 class="subfield">Why this lens?</h4>
+  <p class="helper">A sentence or two on why this lens produces the kind of thinking you want.</p>
+  <textarea data-field="cbci_lens_rationale" rows="2"
+    placeholder="e.g. Empathy reframes the design brief as a perspective-taking problem, not a technical problem. It forces students to resist early closure and stay in the user's experience."></textarea>
+
+  <h3 class="field-group">2B. Concept Web</h3>
+  <p class="helper">Identify 3–4 conceptual strands under the lens. Each strand gathers 2–4 concepts.</p>
+
+  <div class="hint-bubble">
+    <strong>Prompt:</strong> If your lens is the <em>sun</em>, your strands are <em>planets</em>, and each planet has 2–4
+    <em>moons</em> (concepts). Draw a picture first if helpful.
+  </div>
+
+  <h4 class="subfield">Strand 1 — Name</h4>
+  <input type="text" data-field="cbci_strand1_name" placeholder="e.g. Human dimension">
+  <h4 class="subfield">Strand 1 — Concepts</h4>
+  <div class="chip-picker" data-target="cbci_strand1_concepts" data-pool="concepts_design" data-mode="append" data-accent="cbci"></div>
+  <textarea data-field="cbci_strand1_concepts" rows="2" placeholder="Click chips or type — e.g. perspective, need, dignity, capability"></textarea>
+
+  <h4 class="subfield">Strand 2 — Name</h4>
+  <input type="text" data-field="cbci_strand2_name" placeholder="e.g. Object dimension">
+  <h4 class="subfield">Strand 2 — Concepts</h4>
+  <div class="chip-picker" data-target="cbci_strand2_concepts" data-pool="concepts_design" data-mode="append" data-accent="cbci"></div>
+  <textarea data-field="cbci_strand2_concepts" rows="2" placeholder="e.g. form, function, affordance, ergonomics"></textarea>
+
+  <h4 class="subfield">Strand 3 — Name</h4>
+  <input type="text" data-field="cbci_strand3_name" placeholder="e.g. Process dimension">
+  <h4 class="subfield">Strand 3 — Concepts</h4>
+  <div class="chip-picker" data-target="cbci_strand3_concepts" data-pool="concepts_design" data-mode="append" data-accent="cbci"></div>
+  <textarea data-field="cbci_strand3_concepts" rows="2" placeholder="e.g. iteration, constraint, feedback, refinement"></textarea>
+
+  <h4 class="subfield">Strand 4 — Name (optional)</h4>
+  <input type="text" data-field="cbci_strand4_name" placeholder="e.g. Ethical dimension">
+  <h4 class="subfield">Strand 4 — Concepts (optional)</h4>
+  <div class="chip-picker" data-target="cbci_strand4_concepts" data-pool="concepts_design" data-mode="append" data-accent="cbci"></div>
+  <textarea data-field="cbci_strand4_concepts" rows="2" placeholder="e.g. inclusion, bias, fairness, consequence"></textarea>
+
+  <h3 class="field-group">2C. Generalizations (scaffolded)</h3>
+  <p class="helper">Write three generalizations that deepen across levels. Same conceptual territory, progressively more
+  sophisticated relationships between concepts.</p>
+  <div class="assist-row">
+    <button type="button" class="assist-btn" data-assist="cbci_generalizations">✨ Assist — draft all three levels</button>
+    <span class="assist-hint">uses your lens, strand concepts, and premise</span>
+  </div>
+
+  <div class="level-row">
+    <div class="level-label"><span class="n">1</span>Level 1</div>
+    <textarea data-field="cbci_gen_l1" rows="2"
+      placeholder="Broad, foundational. e.g. Designers respond to human needs."></textarea>
+  </div>
+  <div class="level-row">
+    <div class="level-label"><span class="n" style="background:#0d9488;">2</span>Level 2</div>
+    <textarea data-field="cbci_gen_l2" rows="2"
+      placeholder="Adds a how or why. e.g. Designers reveal hidden needs by studying users whose experiences differ from their own."></textarea>
+  </div>
+  <div class="level-row">
+    <div class="level-label"><span class="n" style="background:#047857;">3</span>Level 3</div>
+    <textarea data-field="cbci_gen_l3" rows="2"
+      placeholder="Qualified, nuanced (often uses 'often/sometimes/may'). e.g. When designers privilege marginalised perspectives, they often surface ergonomic innovations that benefit all users."></textarea>
+  </div>
+
+  <h3 class="field-group">2D. Guiding Questions</h3>
+  <p class="helper">Write 2–4 questions of each type. Use these to orient lessons and assessments.</p>
+
+  <div class="question-type-row">
+    <div class="q-label factual">Factual</div>
+    <textarea data-field="cbci_q_factual" rows="3"
+      placeholder="Topic-bound, answerable. e.g. What is arthritis and how does it affect grip? What materials are used in ergonomic handles? Who are the main user groups for adaptive kitchen tools?"></textarea>
+  </div>
+  <div class="question-type-row">
+    <div class="q-label conceptual">Conceptual</div>
+    <textarea data-field="cbci_q_conceptual" rows="3"
+      placeholder="Transferable, work across topics. e.g. Why does empathy produce better functional outcomes? How does constraint drive innovation? What is the relationship between form, function, and user experience?"></textarea>
+  </div>
+  <div class="question-type-row">
+    <div class="q-label debatable">Debatable</div>
+    <textarea data-field="cbci_q_debatable" rows="3"
+      placeholder="Genuinely contested, no single answer. e.g. Can any design be truly 'universal'? Should designers prioritise the margin or the majority? When does empathy become appropriation?"></textarea>
+  </div>
+
+  <h3 class="field-group">2E. Essential Content</h3>
+  <p class="helper">The factual/topic-level content students must encounter. These specifics feed up
+  into the generalizations. Keep this list honest — only what's load-bearing.</p>
+  <textarea data-field="cbci_content" rows="4"
+    placeholder="e.g. Arthritis prevalence and grip-strength data; ergonomic principles (power vs. precision grip, leverage, friction); history of inclusive design (OXO Good Grips case); materials for soft-touch handles; user interview protocols."></textarea>
+</section>
+
+<!-- ============================================================
+     SECTION: DESIGN WORK (formerly Structure of Process)
+     ============================================================ -->
+<section class="sop" id="sop">
+  <span class="section-tag tag-sop">Step 3 · What students do</span>
+  <h2 class="section-title">Design work</h2>
+  <p class="section-subtitle">Processes, strategies, and skills — and how each action earns a concept.</p>
+  <p class="framework-attr"><b>Framework:</b> Structure of Process — Lois Lanning. The primary lens for MYP Design, because Design is a <em>doing</em> discipline, not a <em>knowing</em> discipline.</p>
+
+  <details class="reference sop">
+    <summary>Reference: Lanning's Structure of Process — why Design is process-driven, not knowledge-driven</summary>
+    <div class="ref-body">
+      <h5>Why a second structure?</h5>
+      <p>Erickson's Structure of Knowledge was built for knowledge-driven disciplines (history, biology). It starts with
+      topics/facts and works up. But in disciplines where <em>doing</em> is the point — Design, English Language Arts,
+      the Arts, Languages, PE — the fact-base isn't the driver. Students don't primarily study <em>about</em> design; they
+      <em>do</em> design. So Lanning proposed a parallel structure organized around process.</p>
+
+      <h5>Structure of Process (top → bottom)</h5>
+      <ul>
+        <li><strong>Theory</strong> — a supposition about the process (e.g. human-centred design as a theory of innovation).</li>
+        <li><strong>Principles / Generalizations</strong> — the same kind of transferable sentences as in SoK. They
+            emerge from reflection on what the doing revealed.</li>
+        <li><strong>Concepts</strong> — same definition as SoK: timeless, transferable mental constructs.</li>
+        <li><strong>Strategies</strong> — "systematic plans a learner consciously adapts and monitors to improve performance"
+            (Lanning). Strategies are <em>adaptable</em>. E.g. empathy interviewing is a strategy — its shape changes with context.</li>
+        <li><strong>Skills</strong> — smaller operations embedded in strategies. Skills are <em>drilled</em> and become
+            automatic. E.g. isometric sketching is a skill.</li>
+        <li><strong>Processes</strong> — the overarching <em>what-one-does</em> of the discipline. In Design, the Design Cycle.</li>
+      </ul>
+
+      <h5>Strategy vs. Skill — a crisp distinction</h5>
+      <p><strong>Skill:</strong> narrow, transferable within a domain, assessed by correctness. "Can the student sketch a
+      three-view drawing?"</p>
+      <p><strong>Strategy:</strong> broader, context-sensitive, assessed by appropriateness and adaptation. "Can the student
+      design an empathy interview that fits this user?"</p>
+      <p>Many teachers conflate them, which is why "skills" lists end up being a mix of motor skills (cutting) and
+      cognitive moves (critiquing precedents). SoP asks you to separate them. Strategies are where most design learning
+      actually lives.</p>
+
+      <h5>Concepts still sit on top</h5>
+      <p>CBCI's innovation is that concepts don't disappear in a process discipline — they just emerge from the doing
+      rather than from a body of content. Watching students do three user interviews teaches them <em>perspective</em>.
+      The concept is earned, not delivered.</p>
+
+      <p class="pitfall"><strong>Common pitfall:</strong> Treating the Design Cycle as the whole unit and forgetting
+      the concepts. Then students "complete the process" but don't understand anything transferable about design.</p>
+
+      <p class="tip"><strong>Test:</strong> For each strategy, ask — <em>which concept does this strategy instantiate?</em>
+      If you can't answer, the strategy isn't earning its keep.</p>
+    </div>
+  </details>
+
+  <h3 class="field-group">3A. Processes</h3>
+  <p class="helper">The big moves students perform in this unit. Usually 1–2 for a single unit.</p>
+  <div class="chip-picker" data-target="sop_processes" data-pool="design_processes" data-mode="append" data-accent="sop"></div>
+  <textarea data-field="sop_processes" rows="3"
+    placeholder="Click chips to add, or type your own processes."></textarea>
+
+  <h3 class="field-group">3B. Strategies (systematic, adaptable)</h3>
+  <p class="helper">Strategies students will be taught, practised, and reflected on. For each, name the concept it
+  instantiates (in parentheses).</p>
+  <div class="chip-picker" data-target="sop_strategies" data-pool="design_strategies" data-mode="append" data-accent="sop"></div>
+  <textarea data-field="sop_strategies" rows="6"
+    placeholder="Click chips to add common strategies, then annotate with the concept each instantiates.&#10;&#10;e.g.&#10;• Empathy interviewing (perspective)&#10;• Precedent analysis — studying existing solutions to expose affordances (form/function)"></textarea>
+
+  <h3 class="field-group">3C. Skills (discrete, drilled)</h3>
+  <p class="helper">Narrower, more automatic operations. These are the "teachable moments" inside lessons.</p>
+  <div class="chip-picker" data-target="sop_skills" data-pool="design_skills" data-mode="append" data-accent="sop"></div>
+  <textarea data-field="sop_skills" rows="6"
+    placeholder="Click chips to add common skills, or type your own."></textarea>
+
+  <h3 class="field-group">3D. Concepts → Strategies map</h3>
+  <p class="helper">For each CBCI concept you identified, name the strategy that develops it. This is the crucial hinge
+  between the two frameworks — what Lanning calls "concepts emerging from the process."</p>
+  <div class="assist-row">
+    <button type="button" class="assist-btn" data-assist="sop_concept_map">✨ Assist — map from your concepts + strategies</button>
+    <span class="assist-hint">synthesizes strand concepts (2B) and strategies (3B)</span>
+  </div>
+  <textarea data-field="sop_concept_map" rows="6"
+    placeholder="e.g.&#10;• Perspective → empathy interviewing + user shadowing&#10;• Form/Function → precedent analysis + heuristic evaluation&#10;• Constraint → constraint mapping + prototyping trade-off decisions&#10;• Iteration → structured test cycles with reflection between rounds"></textarea>
+
+  <h3 class="field-group">3E. Process-level generalizations</h3>
+  <p class="helper">1–2 generalizations that name how the <em>process itself</em> works. These sit alongside the CBCI
+  generalizations and usually describe craft knowledge.</p>
+  <div class="assist-row">
+    <button type="button" class="assist-btn" data-assist="sop_gen">✨ Assist — from your processes and strategies</button>
+  </div>
+  <textarea data-field="sop_gen" rows="3"
+    placeholder="e.g. Designers iterate because early solutions usually solve the wrong problem. Designers adopt strategies that force them out of their own frame of reference before committing to a solution."></textarea>
+</section>
+
+<!-- ============================================================
+     SECTION: THINKING MOVES (formerly Paul-Elder)
+     ============================================================ -->
+<section class="pe" id="pe">
+  <span class="section-tag tag-pe">Step 4 · Rigorous reasoning</span>
+  <h2 class="section-title">Thinking moves</h2>
+  <p class="section-subtitle">Elements of thought, intellectual standards, and intellectual traits — applied to the design work students are doing.</p>
+  <p class="framework-attr"><b>Framework:</b> Paul-Elder Critical Thinking — Richard Paul &amp; Linda Elder, Foundation for Critical Thinking.</p>
+
+  <details class="reference pe">
+    <summary>Reference: The full Paul-Elder framework — elements, standards, traits, and how they combine</summary>
+    <div class="ref-body">
+      <h5>Why this framework?</h5>
+      <p>Paul and Elder (Foundation for Critical Thinking) argue that critical thinking isn't a vague virtue — it's a
+      specific set of moves. Their framework names those moves so teachers can teach them directly, assess them, and
+      cultivate the dispositions that make them habitual.</p>
+      <p>The framework has three parts that work together: apply <strong>standards</strong> to <strong>elements</strong>
+      to produce rigorous thinking; cultivate <strong>traits</strong> over time so students do this spontaneously.</p>
+
+      <h5>The 8 Elements of Thought (components of any reasoning)</h5>
+      <div class="numbered-list-col">
+        <ol>
+          <li><strong>Purpose</strong> — the goal or objective of the reasoning.</li>
+          <li><strong>Question at issue</strong> — the specific problem being addressed.</li>
+          <li><strong>Information</strong> — data, observations, evidence.</li>
+          <li><strong>Interpretation / Inference</strong> — the conclusions or solutions drawn.</li>
+          <li><strong>Concepts</strong> — the ideas, theories, definitions in use.</li>
+          <li><strong>Assumptions</strong> — what is taken for granted, often unconsciously.</li>
+          <li><strong>Implications / Consequences</strong> — what follows from the reasoning.</li>
+          <li><strong>Point of view</strong> — the frame of reference or perspective.</li>
+        </ol>
+      </div>
+
+      <h5>The 9 Intellectual Standards (criteria applied to the elements)</h5>
+      <div class="numbered-list-col">
+        <ol>
+          <li><strong>Clarity</strong> — is the thinking understandable?</li>
+          <li><strong>Accuracy</strong> — is the information true?</li>
+          <li><strong>Precision</strong> — is it exact enough?</li>
+          <li><strong>Relevance</strong> — does it bear on the question?</li>
+          <li><strong>Depth</strong> — does it address complexity?</li>
+          <li><strong>Breadth</strong> — are other viewpoints considered?</li>
+          <li><strong>Logic</strong> — does it follow?</li>
+          <li><strong>Significance</strong> — does it focus on what matters?</li>
+          <li><strong>Fairness</strong> — is it free of bias or self-interest?</li>
+        </ol>
+      </div>
+
+      <h5>The 8 Intellectual Traits (dispositions cultivated over time)</h5>
+      <div class="numbered-list-col">
+        <ol>
+          <li><strong>Humility</strong> — awareness of the limits of one's knowledge.</li>
+          <li><strong>Courage</strong> — willingness to consider views that challenge one's own.</li>
+          <li><strong>Empathy</strong> — capacity to reconstruct others' viewpoints accurately.</li>
+          <li><strong>Autonomy</strong> — independent thinking; taking responsibility for one's beliefs.</li>
+          <li><strong>Integrity</strong> — holding oneself to the same standards as others.</li>
+          <li><strong>Perseverance</strong> — persisting through difficulty and confusion.</li>
+          <li><strong>Confidence in reason</strong> — belief that reasoned inquiry yields defensible conclusions.</li>
+          <li><strong>Fairmindedness</strong> — treating all viewpoints alike without prejudice.</li>
+        </ol>
+      </div>
+
+      <h5>How to operationalise</h5>
+      <p>The matrix approach: at a given decision point in the design work, pick an <strong>element</strong> and apply a
+      <strong>standard</strong>. E.g., at the ideation gate: examine your <em>point of view</em> (element) for <em>fairness</em>
+      (standard) — "Whose perspective shaped this idea, and whose is missing?"</p>
+
+      <p class="pitfall"><strong>Common pitfall:</strong> Trying to hit all 25 intersections. Don't. Pick 3–4 elements
+      and 4–5 standards that are load-bearing for <em>this</em> unit, and make them visible.</p>
+
+      <p class="tip"><strong>Traits are cultivated, not taught:</strong> You don't teach humility in a lesson. You
+      design experiences where students <em>need</em> to practise humility (e.g., a user test that proves their idea
+      wrong), then name and celebrate the trait. Pick 2–3 traits per unit and design 2–3 cultivation moves for each.</p>
+    </div>
+  </details>
+
+  <h3 class="field-group">4A. Elements of Thought (choose 3–4 for focus)</h3>
+  <p class="helper">Click a chip to add the element with a prompt-stub. Write the specific question students will grapple with.</p>
+  <div class="chip-picker" data-target="pe_elements" data-pool="pe_elements" data-mode="append-stub" data-accent="pe"></div>
+  <div class="assist-row">
+    <button type="button" class="assist-btn" data-assist="pe_elements">✨ Assist — suggest load-bearing elements for this unit</button>
+    <span class="assist-hint">picks the 3–4 that matter most, with a specific question for each</span>
+  </div>
+  <textarea data-field="pe_elements" rows="8"
+    placeholder="Format: ELEMENT — specific question students will face.&#10;&#10;e.g.&#10;• Point of view — Whose perspective is shaping my design decisions, and whose voice is missing?&#10;• Assumptions — What am I taking for granted about how my user uses this object?&#10;• Information — Is my user research deep enough to be trustworthy, or am I working on impressions?&#10;• Implications — If this solution is adopted widely, who benefits and who is excluded?"></textarea>
+
+  <h3 class="field-group">4B. Intellectual Standards (choose 4–5 to emphasise)</h3>
+  <p class="helper">For each standard, write the checkpoint question students will use to self-assess.</p>
+
+  <div class="standards-strip">
+    <div class="standard-card">
+      <div class="std-name">Clarity</div>
+      <div class="std-desc">Understandable; unambiguous.</div>
+      <textarea data-field="pe_std_clarity" rows="2" placeholder="e.g. Have I defined my user and brief in language a peer could act on without asking me?"></textarea>
+    </div>
+    <div class="standard-card">
+      <div class="std-name">Accuracy</div>
+      <div class="std-desc">True; verifiable.</div>
+      <textarea data-field="pe_std_accuracy" rows="2" placeholder="e.g. Are my claims about user needs grounded in observed/reported evidence, not assumption?"></textarea>
+    </div>
+    <div class="standard-card">
+      <div class="std-name">Precision</div>
+      <div class="std-desc">Exact; sufficiently specific.</div>
+      <textarea data-field="pe_std_precision" rows="2" placeholder="e.g. Have I specified dimensions, tolerances, and use contexts, or am I hiding behind 'comfortable' and 'easy to use'?"></textarea>
+    </div>
+    <div class="standard-card">
+      <div class="std-name">Relevance</div>
+      <div class="std-desc">Bears on the question.</div>
+      <textarea data-field="pe_std_relevance" rows="2" placeholder="e.g. Does each feature of my design connect to a user need I've documented?"></textarea>
+    </div>
+    <div class="standard-card">
+      <div class="std-name">Depth</div>
+      <div class="std-desc">Addresses complexity.</div>
+      <textarea data-field="pe_std_depth" rows="2" placeholder="e.g. Have I explored the root of the user's difficulty, or am I solving a surface symptom?"></textarea>
+    </div>
+    <div class="standard-card">
+      <div class="std-name">Breadth</div>
+      <div class="std-desc">Considers other viewpoints.</div>
+      <textarea data-field="pe_std_breadth" rows="2" placeholder="e.g. Have I considered how other users (non-target) interact with this design? Caregivers? Children?"></textarea>
+    </div>
+    <div class="standard-card">
+      <div class="std-name">Logic</div>
+      <div class="std-desc">Coherent reasoning.</div>
+      <textarea data-field="pe_std_logic" rows="2" placeholder="e.g. Does my rationale link need → feature → test outcome in a defensible chain?"></textarea>
+    </div>
+    <div class="standard-card">
+      <div class="std-name">Significance</div>
+      <div class="std-desc">Focuses on what matters.</div>
+      <textarea data-field="pe_std_significance" rows="2" placeholder="e.g. Am I optimising trivial features while leaving the core user difficulty unresolved?"></textarea>
+    </div>
+    <div class="standard-card">
+      <div class="std-name">Fairness</div>
+      <div class="std-desc">Free of self-interest / bias.</div>
+      <textarea data-field="pe_std_fairness" rows="2" placeholder="e.g. Am I designing for my user, or for how I imagine they should be?"></textarea>
+    </div>
+  </div>
+
+  <h3 class="field-group">4C. Intellectual Traits (cultivate 2–3 over the unit arc)</h3>
+  <p class="helper">For each trait you'll cultivate, describe the specific experiences that will produce it — not the
+  concept of the trait, but the <em>design</em> of the opportunity to exercise it.</p>
+
+  <div class="pe-traits-grid">
+    <div class="trait-card">
+      <div class="trait-name">Intellectual Humility</div>
+      <div class="trait-desc">Awareness of what one does not know; reluctance to claim more than one knows.</div>
+      <textarea data-field="pe_trait_humility" rows="3" placeholder="Cultivation moves: e.g. Mandatory user test before Developing Ideas. 'What I got wrong' section in design journal."></textarea>
+    </div>
+    <div class="trait-card">
+      <div class="trait-name">Intellectual Courage</div>
+      <div class="trait-desc">Willingness to consider views and evidence that threaten one's own.</div>
+      <textarea data-field="pe_trait_courage" rows="3" placeholder="e.g. Structured 'defend your worst idea' critique."></textarea>
+    </div>
+    <div class="trait-card">
+      <div class="trait-name">Intellectual Empathy</div>
+      <div class="trait-desc">Capacity to reconstruct another's frame of reference accurately.</div>
+      <textarea data-field="pe_trait_empathy" rows="3" placeholder="e.g. Empathy constraint simulation (students work with gloves to simulate reduced dexterity)."></textarea>
+    </div>
+    <div class="trait-card">
+      <div class="trait-name">Intellectual Autonomy</div>
+      <div class="trait-desc">Thinking for oneself; not deferring to authority or crowd.</div>
+      <textarea data-field="pe_trait_autonomy" rows="3" placeholder="e.g. Students defend a design choice against precedent."></textarea>
+    </div>
+    <div class="trait-card">
+      <div class="trait-name">Intellectual Integrity</div>
+      <div class="trait-desc">Holding oneself to the same standards one demands of others.</div>
+      <textarea data-field="pe_trait_integrity" rows="3" placeholder="e.g. Self-critique using the same rubric applied to peers."></textarea>
+    </div>
+    <div class="trait-card">
+      <div class="trait-name">Intellectual Perseverance</div>
+      <div class="trait-desc">Persistence through confusion and frustration.</div>
+      <textarea data-field="pe_trait_perseverance" rows="3" placeholder="e.g. Mandatory third iteration after both previous iterations 'felt fine'."></textarea>
+    </div>
+    <div class="trait-card">
+      <div class="trait-name">Confidence in Reason</div>
+      <div class="trait-desc">Trust that reasoned inquiry produces defensible conclusions.</div>
+      <textarea data-field="pe_trait_reason" rows="3" placeholder="e.g. Decision logs where every design choice is linked to evidence + rationale."></textarea>
+    </div>
+    <div class="trait-card">
+      <div class="trait-name">Fairmindedness</div>
+      <div class="trait-desc">Treating all viewpoints alike, without favoring one's own.</div>
+      <textarea data-field="pe_trait_fairmindedness" rows="3" placeholder="e.g. Structured consideration of a user group the student initially dismissed."></textarea>
+    </div>
+  </div>
+
+  <h3 class="field-group">4D. Element × Standard matrix (2–4 crisp intersections)</h3>
+  <p class="helper">Pick the intersections you will actually teach. Each produces a question students use at a specific
+  decision point in the design process.</p>
+
+  <table class="matrix">
+    <thead>
+      <tr>
+        <th style="width:18%;">Element</th>
+        <th style="width:18%;">× Standard</th>
+        <th>Question students will use at a design decision point</th>
+        <th style="width:18%;">Where in the process?</th>
+      </tr>
+    </thead>
+    <tbody id="pe-matrix-body">
+      <tr>
+        <td><select class="field-select inline-small pe-el-select" data-field="pe_mx1_el"></select></td>
+        <td><select class="field-select inline-small pe-std-select" data-field="pe_mx1_std"></select></td>
+        <td><textarea data-field="pe_mx1_q" rows="2" placeholder="e.g. Whose perspective shaped this design decision, and whose voice is missing?"></textarea></td>
+        <td><input type="text" data-field="pe_mx1_where" placeholder="e.g. End of ideation"></td>
+      </tr>
+      <tr>
+        <td><select class="field-select inline-small pe-el-select" data-field="pe_mx2_el"></select></td>
+        <td><select class="field-select inline-small pe-std-select" data-field="pe_mx2_std"></select></td>
+        <td><textarea data-field="pe_mx2_q" rows="2" placeholder="e.g. What assumption am I making about how my user grips objects, and what evidence supports or contradicts it?"></textarea></td>
+        <td><input type="text" data-field="pe_mx2_where" placeholder="e.g. Before prototype 1"></td>
+      </tr>
+      <tr>
+        <td><select class="field-select inline-small pe-el-select" data-field="pe_mx3_el"></select></td>
+        <td><select class="field-select inline-small pe-std-select" data-field="pe_mx3_std"></select></td>
+        <td><textarea data-field="pe_mx3_q" rows="2" placeholder="e.g. Have I gone beyond surface research into lived experience?"></textarea></td>
+        <td><input type="text" data-field="pe_mx3_where" placeholder="e.g. End of user research"></td>
+      </tr>
+      <tr>
+        <td><select class="field-select inline-small pe-el-select" data-field="pe_mx4_el"></select></td>
+        <td><select class="field-select inline-small pe-std-select" data-field="pe_mx4_std"></select></td>
+        <td><textarea data-field="pe_mx4_q" rows="2" placeholder="e.g. Who else might benefit from this solution? Who might be excluded by it?"></textarea></td>
+        <td><input type="text" data-field="pe_mx4_where" placeholder="e.g. Final evaluation"></td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ============================================================
+     SECTION: LESSON PLAN (formerly Synthesis)
+     ============================================================ -->
+<section class="synth" id="synthesis">
+  <span class="section-tag tag-synth">Step 5 · Braiding the three frameworks</span>
+  <h2 class="section-title">Lesson plan</h2>
+  <p class="section-subtitle">4–8 learning experiences where the three frameworks meet. Each one tags a CBCI concept, a SoP strategy/skill, and a Paul-Elder move.</p>
+
+  <details class="reference">
+    <summary>Reference: how to braid the three frameworks in a single lesson</summary>
+    <div class="ref-body">
+      <h5>The rule of three per learning experience</h5>
+      <p>Every lesson should answer:</p>
+      <ol>
+        <li><strong>Which generalization / concept are students building toward?</strong> (CBCI)</li>
+        <li><strong>Which strategy or skill are they practising?</strong> (SoP)</li>
+        <li><strong>Which Paul-Elder element or standard is under active pressure?</strong></li>
+      </ol>
+      <p>If you can't answer one of the three, the experience is probably doing too much or too little.</p>
+
+      <h5>Lesson-level rhythm (example pattern)</h5>
+      <ul>
+        <li><strong>Enter the concept</strong> — open with a factual anchor that foreshadows the concept.</li>
+        <li><strong>Execute the strategy</strong> — students do the disciplined work.</li>
+        <li><strong>Apply the standard</strong> — explicit critical-thinking checkpoint (one element × one standard).</li>
+        <li><strong>Exit toward the generalization</strong> — reflection prompt that pulls toward Level 2/3 generalization.</li>
+      </ul>
+
+      <p class="tip"><strong>Heuristic:</strong> If a lesson doesn't pressure a concept, why are you teaching it? If it
+      doesn't train a strategy or skill, why is it taking studio time? If it doesn't demand a critical-thinking move,
+      you're training compliance, not thinking.</p>
+    </div>
+  </details>
+
+  <div id="lesson-cards">
+    <div class="lesson-card">
+      <div class="lesson-head">
+        <div class="lesson-num">Learning<br>Experience 1</div>
+        <div>
+          <input type="text" data-field="synth_l1_title" placeholder="Title — e.g. 'Whose hands?' — Empathy dive">
+          <div class="tag-row">
+            <span class="mini-tag cbci">CBCI</span>
+            <span class="mini-tag sop">SoP</span>
+            <span class="mini-tag pe">Paul-Elder</span>
+          </div>
+        </div>
+      </div>
+      <h4 class="subfield">Concept(s) / generalization under pressure</h4>
+      <textarea data-field="synth_l1_cbci" rows="2" placeholder="e.g. Perspective; building toward Level 2 generalization."></textarea>
+      <h4 class="subfield">Strategy / skill practised</h4>
+      <textarea data-field="synth_l1_sop" rows="2" placeholder="e.g. Empathy interview protocol (strategy); note-taking in user's own words (skill)."></textarea>
+      <h4 class="subfield">Critical-thinking move (element × standard)</h4>
+      <textarea data-field="synth_l1_pe" rows="2" placeholder="e.g. Point of view × Fairness — 'What about this user's life did I assume before speaking to them?'"></textarea>
+      <h4 class="subfield">Activity arc (3–5 bullets)</h4>
+      <textarea data-field="synth_l1_activity" rows="4" placeholder="e.g.&#10;• 10 min — Watch short film clip of user doing the task&#10;• 15 min — Pair interview practice with protocol&#10;• 30 min — Field interview (or simulated with arthritis gloves)&#10;• 10 min — Extract 3 surprises in design journal"></textarea>
+    </div>
+
+    <div class="lesson-card">
+      <div class="lesson-head">
+        <div class="lesson-num">Learning<br>Experience 2</div>
+        <div>
+          <input type="text" data-field="synth_l2_title" placeholder="Title">
+          <div class="tag-row">
+            <span class="mini-tag cbci">CBCI</span>
+            <span class="mini-tag sop">SoP</span>
+            <span class="mini-tag pe">Paul-Elder</span>
+          </div>
+        </div>
+      </div>
+      <h4 class="subfield">Concept(s) / generalization under pressure</h4>
+      <textarea data-field="synth_l2_cbci" rows="2"></textarea>
+      <h4 class="subfield">Strategy / skill practised</h4>
+      <textarea data-field="synth_l2_sop" rows="2"></textarea>
+      <h4 class="subfield">Critical-thinking move (element × standard)</h4>
+      <textarea data-field="synth_l2_pe" rows="2"></textarea>
+      <h4 class="subfield">Activity arc</h4>
+      <textarea data-field="synth_l2_activity" rows="4"></textarea>
+    </div>
+
+    <div class="lesson-card">
+      <div class="lesson-head">
+        <div class="lesson-num">Learning<br>Experience 3</div>
+        <div>
+          <input type="text" data-field="synth_l3_title" placeholder="Title">
+          <div class="tag-row">
+            <span class="mini-tag cbci">CBCI</span>
+            <span class="mini-tag sop">SoP</span>
+            <span class="mini-tag pe">Paul-Elder</span>
+          </div>
+        </div>
+      </div>
+      <h4 class="subfield">Concept(s) / generalization under pressure</h4>
+      <textarea data-field="synth_l3_cbci" rows="2"></textarea>
+      <h4 class="subfield">Strategy / skill practised</h4>
+      <textarea data-field="synth_l3_sop" rows="2"></textarea>
+      <h4 class="subfield">Critical-thinking move (element × standard)</h4>
+      <textarea data-field="synth_l3_pe" rows="2"></textarea>
+      <h4 class="subfield">Activity arc</h4>
+      <textarea data-field="synth_l3_activity" rows="4"></textarea>
+    </div>
+
+    <div class="lesson-card">
+      <div class="lesson-head">
+        <div class="lesson-num">Learning<br>Experience 4</div>
+        <div>
+          <input type="text" data-field="synth_l4_title" placeholder="Title">
+          <div class="tag-row">
+            <span class="mini-tag cbci">CBCI</span>
+            <span class="mini-tag sop">SoP</span>
+            <span class="mini-tag pe">Paul-Elder</span>
+          </div>
+        </div>
+      </div>
+      <h4 class="subfield">Concept(s) / generalization under pressure</h4>
+      <textarea data-field="synth_l4_cbci" rows="2"></textarea>
+      <h4 class="subfield">Strategy / skill practised</h4>
+      <textarea data-field="synth_l4_sop" rows="2"></textarea>
+      <h4 class="subfield">Critical-thinking move (element × standard)</h4>
+      <textarea data-field="synth_l4_pe" rows="2"></textarea>
+      <h4 class="subfield">Activity arc</h4>
+      <textarea data-field="synth_l4_activity" rows="4"></textarea>
+    </div>
+
+    <div class="lesson-card">
+      <div class="lesson-head">
+        <div class="lesson-num">Learning<br>Experience 5</div>
+        <div>
+          <input type="text" data-field="synth_l5_title" placeholder="Title">
+          <div class="tag-row">
+            <span class="mini-tag cbci">CBCI</span>
+            <span class="mini-tag sop">SoP</span>
+            <span class="mini-tag pe">Paul-Elder</span>
+          </div>
+        </div>
+      </div>
+      <h4 class="subfield">Concept(s) / generalization under pressure</h4>
+      <textarea data-field="synth_l5_cbci" rows="2"></textarea>
+      <h4 class="subfield">Strategy / skill practised</h4>
+      <textarea data-field="synth_l5_sop" rows="2"></textarea>
+      <h4 class="subfield">Critical-thinking move (element × standard)</h4>
+      <textarea data-field="synth_l5_pe" rows="2"></textarea>
+      <h4 class="subfield">Activity arc</h4>
+      <textarea data-field="synth_l5_activity" rows="4"></textarea>
+    </div>
+
+    <div class="lesson-card">
+      <div class="lesson-head">
+        <div class="lesson-num">Learning<br>Experience 6</div>
+        <div>
+          <input type="text" data-field="synth_l6_title" placeholder="Title">
+          <div class="tag-row">
+            <span class="mini-tag cbci">CBCI</span>
+            <span class="mini-tag sop">SoP</span>
+            <span class="mini-tag pe">Paul-Elder</span>
+          </div>
+        </div>
+      </div>
+      <h4 class="subfield">Concept(s) / generalization under pressure</h4>
+      <textarea data-field="synth_l6_cbci" rows="2"></textarea>
+      <h4 class="subfield">Strategy / skill practised</h4>
+      <textarea data-field="synth_l6_sop" rows="2"></textarea>
+      <h4 class="subfield">Critical-thinking move (element × standard)</h4>
+      <textarea data-field="synth_l6_pe" rows="2"></textarea>
+      <h4 class="subfield">Activity arc</h4>
+      <textarea data-field="synth_l6_activity" rows="4"></textarea>
+    </div>
+  </div>
+
+  <button id="add-lesson" class="btn" style="margin-top: 6px;">+ Add another learning experience</button>
+</section>
+
+<!-- ============================================================
+     SECTION: MYP WRAPPER (auto-generated, near the end)
+     ============================================================ -->
+<section class="frame" id="mypwrapper">
+  <span class="section-tag tag-frame">Step 6 · Auto-generated</span>
+  <h2 class="section-title">MYP wrapper</h2>
+  <p class="section-subtitle">Key concept, related concepts, global context, SOI and ATL — all derivable from your unit premise and filled-in sections. Generate, then edit anything you want.</p>
+
+  <div class="myp-gen-cta">
+    <button type="button" class="assist-btn" data-assist="myp_wrapper" style="font-size:14px; padding:10px 18px; border-radius:8px;">✨ Generate MYP wrapper from your content</button>
+    <p class="myp-gen-hint">Requires an Anthropic API key (set via ⚙ AI settings). Analyses title, premise, big ideas, design work and thinking moves — then fills key concept, related concepts, global context, exploration, SOI and ATL skills. Edit anything you want afterwards.</p>
+  </div>
+
+  <details class="reference">
+    <summary>Reference: MYP Design key concepts, related concepts, global contexts, SOI</summary>
+    <div class="ref-body">
+      <h5>Key concepts (MYP Design — choose 1)</h5>
+      <p><strong>Communication</strong> · <strong>Communities</strong> · <strong>Development</strong> · <strong>Systems</strong></p>
+      <p>Key concepts are broad, overarching, transdisciplinary. They sit at the highest level of abstraction.</p>
+
+      <h5>Related concepts (MYP Design — choose 1–2)</h5>
+      <p>Adaptation · Collaboration · Ergonomics · Evaluation · Form · Function · Innovation · Invention · Markets and trends · Perspective · Resources · Sustainability</p>
+
+      <h5>Global contexts (choose 1)</h5>
+      <ol>
+        <li><strong>Identities and Relationships</strong> — Who am I? Who are we?</li>
+        <li><strong>Orientation in Space and Time</strong> — What is the meaning of "where" and "when"?</li>
+        <li><strong>Personal and Cultural Expression</strong> — What is the nature and purpose of creative expression?</li>
+        <li><strong>Scientific and Technical Innovation</strong> — How do we understand the world in which we live?</li>
+        <li><strong>Globalization and Sustainability</strong> — How is everything connected?</li>
+        <li><strong>Fairness and Development</strong> — What are the consequences of our common humanity?</li>
+      </ol>
+
+      <h5>Statement of Inquiry (SOI)</h5>
+      <p>A single sentence fusing <em>key concept + related concept(s) + global context exploration</em>. A good SOI names what the unit is really <em>about</em> at a transferable level, not just the topic.</p>
+      <p class="pitfall"><strong>Common pitfall:</strong> SOIs that describe the topic ("Students will design a kitchen tool") rather than a transferable idea ("Designers amplify empathy when they redesign everyday objects through marginalised perspectives").</p>
+    </div>
+  </details>
+
+  <h4 class="subfield">Key Concept</h4>
+  <p class="helper">One of the four MYP Design key concepts.</p>
+  <select class="field-select" data-field="key_concept">
+    <option value="">— Pick key concept —</option>
+    <option>Communication</option>
+    <option>Communities</option>
+    <option>Development</option>
+    <option>Systems</option>
+  </select>
+
+  <h4 class="subfield">Related Concepts (1–2)</h4>
+  <p class="helper">From the MYP Design related-concept set. Click chips to add / remove.</p>
+  <div class="chip-picker" data-target="related_concepts" data-pool="related_concepts" data-mode="append" data-accent="frame"></div>
+  <input type="text" data-field="related_concepts" placeholder="Click chips above — or type custom values separated by commas">
+
+  <h4 class="subfield">Global Context</h4>
+  <select class="field-select" data-field="global_context">
+    <option value="">— Pick global context —</option>
+    <option>Identities and Relationships</option>
+    <option>Orientation in Space and Time</option>
+    <option>Personal and Cultural Expression</option>
+    <option>Scientific and Technical Innovation</option>
+    <option>Globalization and Sustainability</option>
+    <option>Fairness and Development</option>
+  </select>
+
+  <h4 class="subfield">Exploration (within the Global Context)</h4>
+  <p class="helper">The specific angle on the Global Context. Usually a phrase, not a full sentence.</p>
+  <input type="text" data-field="exploration" placeholder="e.g. human dignity, inclusion, capacity and capability">
+
+  <h4 class="subfield">Statement of Inquiry</h4>
+  <p class="helper">One transferable sentence. Should read as a <em>generalization</em> — true beyond this unit.</p>
+  <textarea data-field="soi" rows="2" placeholder="e.g. Designers amplify empathy when they redesign everyday objects through the lived perspective of marginalised users."></textarea>
+
+  <h4 class="subfield">ATL (Approaches to Learning) skills in focus</h4>
+  <p class="helper">Choose 2–4 from the MYP ATL clusters. Clicking a chip appends to the list.</p>
+  <div class="chip-picker" data-target="atl" data-pool="atl_skills" data-mode="append" data-accent="frame"></div>
+  <textarea data-field="atl" rows="2" placeholder="Click chips to add ATL skills, or type your own."></textarea>
+</section>
+
+<!-- ============================================================
+     SECTION: ASSESSMENT
+     ============================================================ -->
+<section class="frame" id="assessment">
+  <span class="section-tag tag-frame">Step 6 · MYP criteria A–D</span>
+  <h2 class="section-title">Assessment</h2>
+  <p class="section-subtitle">For each criterion, name the evidence students will produce and which strand of the three frameworks it demonstrates.</p>
+
+  <div class="criteria-grid">
+    <div class="criterion-card">
+      <h5>Criterion A — Inquiring &amp; Analysing</h5>
+      <p class="hint-inline">Strongest alignment: CBCI essential content + Paul-Elder <em>Information</em>, <em>Point of view</em>, <em>Depth</em>.</p>
+      <h4 class="subfield">Evidence / task</h4>
+      <textarea data-field="mypA_task" rows="3" placeholder="e.g. User research report — 3 interviews + 1 shadowing observation, synthesised into a prioritized need statement."></textarea>
+      <h4 class="subfield">Framework tags</h4>
+      <textarea data-field="mypA_tags" rows="2" placeholder="e.g. CBCI — Level 1→2 generalization; SoP — empathy interview strategy; PE — Information × Depth; Point of view × Fairness."></textarea>
+    </div>
+
+    <div class="criterion-card">
+      <h5>Criterion B — Developing Ideas</h5>
+      <p class="hint-inline">Strongest alignment: SoP strategies (ideation, precedent analysis) + Paul-Elder <em>Assumptions</em>, <em>Breadth</em>.</p>
+      <h4 class="subfield">Evidence / task</h4>
+      <textarea data-field="mypB_task" rows="3" placeholder="e.g. Design development portfolio — 3 diverging concepts, precedent analysis, constraint-mapped brief, chosen solution with rationale."></textarea>
+      <h4 class="subfield">Framework tags</h4>
+      <textarea data-field="mypB_tags" rows="2" placeholder="e.g. SoP — precedent analysis, constraint mapping; PE — Assumptions × Accuracy; Point of view × Breadth; CBCI — form/function concepts."></textarea>
+    </div>
+
+    <div class="criterion-card">
+      <h5>Criterion C — Creating the Solution</h5>
+      <p class="hint-inline">Strongest alignment: SoP skills (making, iterating) + Paul-Elder <em>Perseverance</em>, <em>Precision</em>.</p>
+      <h4 class="subfield">Evidence / task</h4>
+      <textarea data-field="mypC_task" rows="3" placeholder="e.g. Working prototype + process journal with 3 documented iterations and decision log."></textarea>
+      <h4 class="subfield">Framework tags</h4>
+      <textarea data-field="mypC_tags" rows="2" placeholder="e.g. SoP — making skills, iteration strategy; PE — Perseverance trait; Accuracy × Information in the decision log."></textarea>
+    </div>
+
+    <div class="criterion-card">
+      <h5>Criterion D — Evaluating</h5>
+      <p class="hint-inline">Strongest alignment: Paul-Elder <em>Standards</em> applied; CBCI return to generalization at Level 3.</p>
+      <h4 class="subfield">Evidence / task</h4>
+      <textarea data-field="mypD_task" rows="3" placeholder="e.g. User-test report with success criteria, evidence of change against test, revised generalization statement."></textarea>
+      <h4 class="subfield">Framework tags</h4>
+      <textarea data-field="mypD_tags" rows="2" placeholder="e.g. PE — full standards suite in the rubric; CBCI — student revises their Level 2 generalization toward Level 3 with qualifier."></textarea>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================
+     SECTION: REFLECTION
+     ============================================================ -->
+<section class="synth" id="reflection">
+  <span class="section-tag tag-synth">Step 7 · Stress-test</span>
+  <h2 class="section-title">Reflection</h2>
+  <p class="section-subtitle">Before you teach, stress-test the plan. After you teach, update for next year.</p>
+
+  <h4 class="subfield">Does every generalization survive the "transfer test"?</h4>
+  <p class="helper">Rewrite each generalization with a different topic. If it still holds, good. If it only works for this unit, rewrite.</p>
+  <textarea data-field="reflect_transfer" rows="3"></textarea>
+
+  <h4 class="subfield">Does every strategy map to a concept?</h4>
+  <p class="helper">If a strategy exists only because "we always do it", reconsider. SoP says concepts emerge from strategies, so each strategy should earn one.</p>
+  <textarea data-field="reflect_strategy_concept" rows="3"></textarea>
+
+  <h4 class="subfield">Where is critical thinking actually pressured?</h4>
+  <p class="helper">Name the specific moments in the unit when students face a Paul-Elder checkpoint. If you can't name 3+, critical thinking is aspirational, not planned.</p>
+  <textarea data-field="reflect_pe_pressure" rows="3"></textarea>
+
+  <h4 class="subfield">Equity / inclusion check</h4>
+  <p class="helper">Whose perspective is built into the brief, and whose isn't? Any assumptions about prior experience, materials, resources, family context?</p>
+  <textarea data-field="reflect_equity" rows="3"></textarea>
+
+  <h4 class="subfield">Risks to pedagogical integrity</h4>
+  <p class="helper">What's most likely to derail this unit? (Over-scaffolding collapses conceptual work; under-scaffolding collapses the making.)</p>
+  <textarea data-field="reflect_risks" rows="3"></textarea>
+
+  <h4 class="subfield">Post-unit: what transferred?</h4>
+  <p class="helper">Fill in after teaching. Which generalizations can students articulate in new contexts? Which strategies did they reach for spontaneously?</p>
+  <textarea data-field="reflect_transfer_evidence" rows="4"></textarea>
+
+  <h4 class="subfield">Post-unit: what to change</h4>
+  <textarea data-field="reflect_changes" rows="4"></textarea>
+
+  <p class="footnote">
+    Built for an MYP Design teacher. Frameworks: H. Lynn Erickson &amp; Lois Lanning, <em>Transitioning to Concept-Based Curriculum and Instruction</em> (Corwin, 2014);
+    Lois Lanning, <em>Designing a Concept-Based Curriculum for English Language Arts</em> (Corwin, 2013);
+    Richard Paul &amp; Linda Elder, <em>Critical Thinking: Tools for Taking Charge of Your Learning and Your Life</em> (Foundation for Critical Thinking).
+  </p>
+</section>
+
+</main>
+</div><!-- /content-wrap -->
+</div><!-- /app -->
+
+<!-- ==============================================================
+     AI SETTINGS MODAL
+     ============================================================== -->
+<div class="modal-backdrop" id="ai-modal-backdrop">
+  <div class="modal">
+    <h3>AI suggestions — settings</h3>
+    <p class="modal-sub">Paste your Anthropic API key to enable live suggestions. The key stays in your browser memory only — it is NOT persisted to disk or sent anywhere other than directly to Anthropic.</p>
+
+    <label class="field-label" for="ai-key">Anthropic API key</label>
+    <input type="password" id="ai-key" placeholder="sk-ant-api03-..." autocomplete="off" spellcheck="false">
+    <div class="key-status" id="ai-key-status"></div>
+    <a class="docs-link" href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">Get a key at console.anthropic.com →</a>
+
+    <label class="field-label" for="ai-model">Model</label>
+    <select class="field-select" id="ai-model">
+      <option value="claude-haiku-4-5-20251001" selected>Claude Haiku 4.5 — fast &amp; cheap (recommended)</option>
+      <option value="claude-sonnet-4-6">Claude Sonnet 4.6 — balanced</option>
+      <option value="claude-opus-4-6">Claude Opus 4.6 — best quality (slower, pricier)</option>
+    </select>
+
+    <div class="modal-info">
+      <strong>How assist buttons work:</strong> Small <span style="color:var(--pe);font-weight:700">✨ Assist</span> buttons appear next to fields that synthesize earlier content — concept → strategy maps, scaffolded generalizations, Paul-Elder element questions, and the MYP wrapper at the end. Click a button; Claude reads what you've filled in above and writes that field. Nothing happens automatically.
+    </div>
+
+    <div class="modal-footer">
+      <button id="ai-modal-cancel">Cancel</button>
+      <button id="ai-modal-save" class="primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==============================================================
+     DATALISTS — autocomplete suggestion banks
+     ============================================================== -->
+<datalist id="subject_strands_list">
+  <option>MYP Design — Product Design strand</option>
+  <option>MYP Design — Digital Design strand</option>
+  <option>MYP Design — Graphic / Visual Communication strand</option>
+  <option>MYP Design — Textiles strand</option>
+  <option>MYP Design — Food Technology strand</option>
+  <option>MYP Design — Architecture / Built Environment strand</option>
+  <option>MYP Design — Systems / Mechatronics strand</option>
+  <option>MYP Design — integrated (multi-strand)</option>
+</datalist>
+
+<datalist id="conceptual_lenses_list">
+  <option>Empathy</option>
+  <option>System</option>
+  <option>Constraint</option>
+  <option>Form</option>
+  <option>Function</option>
+  <option>Identity</option>
+  <option>Perspective</option>
+  <option>Sustainability</option>
+  <option>Innovation</option>
+  <option>Accessibility</option>
+  <option>Iteration</option>
+  <option>Transformation</option>
+  <option>Power</option>
+  <option>Communication</option>
+  <option>Inclusion</option>
+  <option>Interaction</option>
+  <option>Change</option>
+  <option>Value</option>
+  <option>Bias</option>
+  <option>Purpose</option>
+  <option>Aesthetics</option>
+  <option>Tradition</option>
+</datalist>
+
+<script>
+/* -------------------------------------------------------------
+   CHIP POOLS — click-to-fill option banks for each field
+   Customize freely; "+ custom" lets teachers add their own inline.
+   ------------------------------------------------------------- */
+
+const CHIP_POOLS = {
+  key_concepts: [
+    "Communication", "Communities", "Development", "Systems"
+  ],
+  related_concepts: [
+    "Adaptation", "Collaboration", "Ergonomics", "Evaluation",
+    "Form", "Function", "Innovation", "Invention",
+    "Markets and trends", "Perspective", "Resources", "Sustainability"
+  ],
+  global_contexts: [
+    "Identities and Relationships",
+    "Orientation in Space and Time",
+    "Personal and Cultural Expression",
+    "Scientific and Technical Innovation",
+    "Globalization and Sustainability",
+    "Fairness and Development"
+  ],
+  atl_skills: [
+    "Thinking — critical thinking",
+    "Thinking — creative thinking",
+    "Thinking — transfer",
+    "Social — collaboration",
+    "Social — empathy",
+    "Communication — reading, writing, visual",
+    "Self-management — organization",
+    "Self-management — reflection",
+    "Self-management — affective",
+    "Research — information literacy",
+    "Research — media literacy"
+  ],
+  conceptual_lenses: [
+    "Empathy", "System", "Constraint", "Form", "Function",
+    "Identity", "Perspective", "Sustainability", "Innovation",
+    "Accessibility", "Iteration", "Transformation", "Power",
+    "Communication", "Inclusion", "Interaction", "Change",
+    "Value", "Bias", "Purpose", "Aesthetics", "Tradition"
+  ],
+  concepts_design: [
+    "perspective", "need", "dignity", "capability",
+    "form", "function", "affordance", "ergonomics", "materiality",
+    "iteration", "constraint", "feedback", "refinement", "trade-off",
+    "inclusion", "bias", "fairness", "consequence", "representation",
+    "system", "scale", "purpose", "audience", "context",
+    "identity", "value", "power", "sustainability", "ritual"
+  ],
+  design_processes: [
+    "MYP Design Cycle",
+    "Human-centred design (HCD)",
+    "Double Diamond",
+    "Design Thinking (d.school)",
+    "IDEO HCD",
+    "Systems thinking",
+    "Iterative prototyping",
+    "Research → design → test",
+    "Speculative design"
+  ],
+  design_strategies: [
+    "Empathy interviewing",
+    "User shadowing",
+    "Precedent analysis",
+    "Affinity mapping",
+    "Constraint mapping",
+    "Wizard-of-Oz prototyping",
+    "Heuristic evaluation",
+    "SCAMPER",
+    "Journey mapping",
+    "Stakeholder mapping",
+    "Co-design session",
+    "Materials testing",
+    "Form studies",
+    "Storyboarding",
+    "Problem reframing",
+    "\"How might we\" reframing",
+    "Sketching dialogue",
+    "Rubric-anchored reflection",
+    "5 Whys root-cause"
+  ],
+  design_skills: [
+    "Conducting a user interview",
+    "Isometric sketching",
+    "Orthographic drawing",
+    "Plan/elevation drawing",
+    "Foam modelling",
+    "Clay modelling",
+    "3D-printed prototyping",
+    "CAD modelling (Fusion 360 / Onshape)",
+    "Laser cutting",
+    "Bill of materials",
+    "Hand-tool use (coping saw, etc.)",
+    "Glue gun",
+    "Rapid paper prototyping",
+    "Process photography",
+    "Design journal entry",
+    "Critique protocol",
+    "Decision-log entry",
+    "Annotated sketching",
+    "Heuristic self-scoring"
+  ],
+  pe_elements: [
+    "Purpose",
+    "Question at issue",
+    "Information",
+    "Interpretation / Inference",
+    "Concepts",
+    "Assumptions",
+    "Implications",
+    "Point of view"
+  ]
+};
+
+/* -------------------------------------------------------------
+   Chip picker rendering
+   ------------------------------------------------------------- */
+
+function renderChipPickers() {
+  document.querySelectorAll(".chip-picker").forEach(picker => {
+    if (picker.dataset.rendered === "true") return;
+    const poolName = picker.dataset.pool;
+    const mode = picker.dataset.mode || "append";
+    const target = picker.dataset.target;
+    const pool = CHIP_POOLS[poolName] || [];
+
+    picker.innerHTML = "";
+
+    const label = document.createElement("span");
+    label.className = "chip-picker-label";
+    label.textContent = mode === "set" ? "Pick one:" : "Add:";
+    picker.appendChild(label);
+
+    pool.forEach(value => {
+      const chip = document.createElement("span");
+      chip.className = "chip";
+      chip.textContent = value;
+      chip.dataset.value = value;
+      chip.addEventListener("click", () => applyChip(target, value, mode));
+      picker.appendChild(chip);
+    });
+
+    // Custom add
+    const custom = document.createElement("span");
+    custom.className = "chip-custom";
+    custom.innerHTML = '<input type="text" placeholder="+ custom…"><button type="button">Add</button>';
+    const input = custom.querySelector("input");
+    const btn = custom.querySelector("button");
+    const addIt = () => {
+      const v = input.value.trim();
+      if (!v) return;
+      applyChip(target, v, mode === "set" ? "set" : "append");
+      input.value = "";
+      input.focus();
+    };
+    btn.addEventListener("click", addIt);
+    input.addEventListener("keydown", e => {
+      if (e.key === "Enter") { e.preventDefault(); addIt(); }
+    });
+    picker.appendChild(custom);
+    picker.dataset.rendered = "true";
+  });
+  updateChipActiveStates();
+}
+
+function applyChip(fieldName, value, mode) {
+  const el = document.querySelector(`[data-field="${fieldName}"]`);
+  if (!el) return;
+  const isTextarea = el.tagName === "TEXTAREA";
+  const current = el.value || "";
+  const trimmed = current.trim();
+
+  if (mode === "set") {
+    el.value = value;
+  } else if (mode === "append-stub") {
+    // For pe_elements pattern: "• ELEMENT — "
+    const stub = (trimmed ? "\n" : "") + `• ${value} — `;
+    const pos = el.selectionStart ?? el.value.length;
+    el.value = el.value.slice(0, pos) + stub + el.value.slice(pos);
+    const cursor = pos + stub.length;
+    setTimeout(() => { el.focus(); el.setSelectionRange(cursor, cursor); }, 0);
+  } else {
+    // append — with toggle-off support
+    if (!trimmed) {
+      el.value = isTextarea ? `• ${value}` : value;
+    } else {
+      // Check if already present; if so, remove it (toggle off)
+      const parts = current
+        .split(isTextarea ? /\n/ : /,/)
+        .map(s => s.replace(/\r$/, ""));
+      const idx = parts.findIndex(s => {
+        const cleaned = s.trim().replace(/^[•\-\s]+/, "").toLowerCase();
+        return cleaned === value.toLowerCase();
+      });
+      if (idx !== -1) {
+        // Remove this entry
+        parts.splice(idx, 1);
+        const sep = isTextarea ? "\n" : ",";
+        el.value = parts.join(sep).replace(/^[\s,\n]+|[\s,\n]+$/g, "");
+      } else {
+        const sep = isTextarea ? "\n• " : ", ";
+        el.value = current + sep + value;
+      }
+    }
+  }
+  autosize(el);
+  updateChipActiveStates();
+  el.dispatchEvent(new Event("input"));
+}
+
+function flashChip(fieldName, value) {
+  document.querySelectorAll(`.chip-picker[data-target="${fieldName}"] .chip`).forEach(chip => {
+    if (chip.dataset.value && chip.dataset.value.toLowerCase() === value.toLowerCase()) {
+      chip.style.transition = "background 0.3s";
+      const old = chip.style.background;
+      chip.style.background = "#fde68a";
+      setTimeout(() => { chip.style.background = old; }, 400);
+    }
+  });
+}
+
+function updateChipActiveStates() {
+  document.querySelectorAll(".chip-picker").forEach(picker => {
+    const target = picker.dataset.target;
+    const mode = picker.dataset.mode || "append";
+    const el = document.querySelector(`[data-field="${target}"]`);
+    if (!el) return;
+    const current = (el.value || "").toLowerCase();
+    picker.querySelectorAll(".chip[data-value]").forEach(chip => {
+      const v = chip.dataset.value.toLowerCase();
+      let active = false;
+      if (mode === "set") {
+        active = current.trim() === v;
+      } else {
+        // append or append-stub
+        active = current.includes(v);
+      }
+      chip.classList.toggle("active", active);
+    });
+  });
+}
+
+/* -------------------------------------------------------------
+   DATA: Blank template vs Worked example
+   ------------------------------------------------------------- */
+
+const BLANK_DATA = {};
+
+const EXAMPLE_DATA = {
+  unit_title: "Designing for Dignity — Kitchen tools for users with reduced hand mobility",
+  year_level: "MYP Year 4 (Grade 9, age 14)",
+  duration: "8 weeks × 3 × 60-minute periods = 24 periods (24 hrs)",
+  duration_weeks: 8,
+  duration_periods_per_week: 3,
+  duration_minutes_per_period: 60,
+  subject: "MYP Design — Product Design strand",
+  unit_premise: "Students redesign an everyday kitchen tool for a user with reduced hand mobility — arthritis, stroke recovery, or similar. Each student recruits a real user, runs at least one interview, simulates the mobility constraint themselves, and iterates a prototype three times over the unit. The tension we want to hold: designing WITH a marginalised user, not FOR them — without appropriating their experience. Outputs: a working prototype, a process journal, and a public critique where the student defends their decisions against peers and (where possible) the user themselves.",
+  key_concept: "Communities",
+  related_concepts: "Perspective, Ergonomics, Function",
+  global_context: "Fairness and Development",
+  exploration: "human dignity, inclusion, capacity and capability",
+  soi: "Designers amplify empathy when they redesign everyday objects through the lived perspective of marginalised users.",
+  atl: "Thinking — critical thinking (analyse complex concepts, draw reasonable conclusions); Social — empathy (practise empathy in a variety of situations); Research — information literacy (evaluate and select information sources); Communication — use a variety of media to communicate ideas.",
+
+  cbci_lens: "Empathy",
+  cbci_lens_rationale: "Empathy reframes the design brief from a technical problem into a perspective-taking problem. It forces students to resist premature closure, stay inside the user's experience, and treat 'ease of use' as contingent on whose ease we mean. It is also the lens that bridges CBCI and Paul-Elder — Intellectual Empathy is a trait, and taking point of view seriously is an element, so the lens does double duty.",
+
+  cbci_strand1_name: "Human dimension",
+  cbci_strand1_concepts: "perspective, need, dignity, capability, lived experience",
+  cbci_strand2_name: "Object dimension",
+  cbci_strand2_concepts: "form, function, affordance, ergonomics, materiality",
+  cbci_strand3_name: "Process dimension",
+  cbci_strand3_concepts: "iteration, constraint, feedback, refinement, trade-off",
+  cbci_strand4_name: "Ethical dimension",
+  cbci_strand4_concepts: "inclusion, bias, fairness, consequence, representation",
+
+  cbci_gen_l1: "Designers create products that respond to human needs.",
+  cbci_gen_l2: "Designers uncover hidden needs by studying users whose experiences differ from their own.",
+  cbci_gen_l3: "When designers privilege marginalised perspectives, they often surface ergonomic innovations that benefit a wider population than originally targeted — though this 'curb-cut effect' is a by-product, not a substitute for designing with the margin first.",
+
+  cbci_q_factual: "• What is arthritis, and how does it change grip strength, range of motion, and pain response?\n• What materials are used in ergonomic handles (elastomers, TPR, silicone) and why?\n• What are the key affordances of a good kitchen tool (power grip vs. precision grip, leverage, thermal properties)?\n• Who pioneered inclusive design commercially (OXO Good Grips — Sam Farber / Smart Design, 1990)?\n• What are the MYP Design criteria A–D and what does each demand?",
+
+  cbci_q_conceptual: "• Why does empathy produce better functional outcomes?\n• How does a constraint drive innovation rather than limit it?\n• What is the relationship between form, function, and lived experience?\n• How does designing for the margin change the centre?\n• When does a 'need' exist before a designer articulates it, and when is it constructed by the design itself?",
+
+  cbci_q_debatable: "• Can any design be truly 'universal', or does every solution privilege some users over others?\n• Should designers prioritise the margin (accessibility) over the majority (efficiency)?\n• When does empathy become appropriation — the designer claiming an experience that isn't theirs?\n• Is the 'curb-cut effect' an ethical justification, or a convenient aftermarket argument?",
+
+  cbci_content: "• Arthritis epidemiology and grip-strength data (age, gender, condition specifics)\n• Ergonomic principles: power grip vs. precision grip, lever mechanics, friction and surface texture, thermal conductivity\n• History and commercial story of inclusive design — OXO Good Grips as case study; Patricia Moore's empathic research\n• Materials and manufacture: thermoplastic elastomers, soft-touch overmoulding, dishwasher/food-safe constraints\n• User interview protocols: open-ended questioning, laddering, 'show me' requests\n• MYP Design Criteria A–D command terms and rubric conventions",
+
+  sop_processes: "• The MYP Design Cycle (Inquiring & Analysing → Developing Ideas → Creating the Solution → Evaluating)\n• Human-centred design research process (observe → interview → synthesize → reframe → ideate → prototype → test)",
+
+  sop_strategies: "• Empathy interviewing — structured, open-ended conversation to surface lived experience (concept: perspective)\n• Precedent analysis — studying existing solutions to expose affordances, trade-offs and gaps (concept: form/function)\n• Constraint mapping — converting user context into design constraints with justification (concept: constraint)\n• Wizard-of-Oz / low-fidelity prototyping — simulating function to test interaction cheaply before committing materials (concept: iteration)\n• Heuristic evaluation — applying usability heuristics to self- and peer-critique (concept: evaluation)\n• Rubric-anchored reflection — writing against MYP criteria with evidence citations (concept: refinement)",
+
+  sop_skills: "• Conducting a structured user interview using a written protocol, taking verbatim notes\n• Sketching in plan, elevation and 3/4 isometric\n• Producing a bill of materials with specifications and sources\n• Safe use of hand tools: coping saw, sanding block, craft knife, glue gun\n• Prototyping in foam core, clay, and 3D-printed filament\n• Taking and annotating process photographs in design journal\n• Writing a dated design-decision log entry linking need → decision → evidence",
+
+  sop_concept_map: "• Perspective → empathy interviewing + user shadowing + simulation (arthritis gloves)\n• Form / function → precedent analysis + heuristic evaluation + materials testing\n• Constraint → constraint mapping (need → spec conversion) + trade-off decisions during prototyping\n• Iteration → structured test cycles with reflection between rounds (minimum 3 iterations)\n• Evaluation → rubric-anchored self-critique + user-test synthesis",
+
+  sop_gen: "• Designers iterate because early solutions usually solve the wrong problem.\n• Strategies that force designers outside their own frame of reference — user research, precedent analysis, simulation — tend to produce more transferable solutions than strategies that privilege the designer's intuition.",
+
+  pe_elements: "• Point of view — Whose perspective is shaping my design decisions, and whose voice is missing from the brief?\n• Assumptions — What am I taking for granted about how my user uses this object in their kitchen, and what would happen if that assumption is wrong?\n• Information — Is my user research deep enough to be trustworthy, or am I building on impressions from one conversation?\n• Implications — If this solution is adopted widely, who benefits and who is excluded? What unintended consequences are plausible?",
+
+  pe_std_clarity: "Have I defined my user and brief in language a peer could act on without asking me? (Test: hand the brief to a peer and have them sketch their interpretation. Where does it diverge from mine?)",
+  pe_std_accuracy: "Are my claims about user needs grounded in observed or reported evidence, with sources, not assumption? (Every need statement must cite: who said so, when, in what context.)",
+  pe_std_precision: "Have I specified dimensions, tolerances, materials and use context, or am I hiding behind 'comfortable' and 'easy to use'? (Precision = measurability.)",
+  pe_std_relevance: "",
+  pe_std_depth: "Have I explored the root of the user's difficulty, or am I solving a surface symptom? (If my user has arthritis, is 'difficulty gripping' the real problem, or is it 'loss of independence in the kitchen'?)",
+  pe_std_breadth: "Have I considered how other users (non-target) interact with this design? Caregivers who use the tool on the user's behalf? Children in the household? Left-handed users?",
+  pe_std_logic: "",
+  pe_std_significance: "Am I optimising trivial features (branding, secondary details) while leaving the core user difficulty unresolved?",
+  pe_std_fairness: "Am I designing for my user as they are, or for how I imagine they should be? (Test: would my user describe my design in the same terms I do?)",
+
+  pe_trait_humility: "Cultivation moves: (1) Mandatory user test of the first prototype before Developing Ideas is signed off — designed so the student almost certainly discovers something wrong. (2) 'What I got wrong this week' section in design journal, graded on honesty not on being right. (3) Teacher models humility by sharing their own design failure early in the unit.",
+  pe_trait_courage: "",
+  pe_trait_empathy: "Cultivation moves: (1) Arthritis-glove simulation day — students do 20 minutes of their normal kitchen tasks with mobility restricted. (2) Structured interview with a real user, not a family member. (3) 'In their words' journal entries — 3 direct quotes from the user per interview. (4) Public critique protocol in which the designer has to voice the user's likely reaction before the peer does.",
+  pe_trait_autonomy: "",
+  pe_trait_integrity: "",
+  pe_trait_perseverance: "Cultivation moves: (1) Mandatory third iteration even when the second 'feels fine'. (2) Explicit frame: 'the designers you admire iterated 20+ times; you'll do 3.' (3) Decision log shows at least one reversal (\"we thought X; testing showed Y; we changed to Z\").",
+  pe_trait_reason: "",
+  pe_trait_fairmindedness: "",
+
+  pe_mx1_el: "Point of view",
+  pe_mx1_std: "Fairness",
+  pe_mx1_q: "Whose perspective shaped this design decision, and whose voice is missing from the table?",
+  pe_mx1_where: "End of ideation (before shortlisting a concept)",
+  pe_mx2_el: "Assumptions",
+  pe_mx2_std: "Accuracy",
+  pe_mx2_q: "What assumption am I making about how my user grips this object, and what evidence supports or contradicts it?",
+  pe_mx2_where: "Before building prototype 1",
+  pe_mx3_el: "Information",
+  pe_mx3_std: "Depth",
+  pe_mx3_q: "Have I gone beyond surface research into lived experience? Can I cite a direct quote from my user that contradicts my earlier assumption?",
+  pe_mx3_where: "End of user research phase (Criterion A)",
+  pe_mx4_el: "Implications",
+  pe_mx4_std: "Breadth",
+  pe_mx4_q: "Who else might benefit from this solution? Who might be excluded or newly disadvantaged by it?",
+  pe_mx4_where: "Final evaluation (Criterion D)",
+
+  synth_l1_title: "'Whose hands?' — Empathy dive",
+  synth_l1_cbci: "Perspective (strand 1). Building toward Level 1 → Level 2 generalization — students leave with evidence that 'designers uncover hidden needs by studying users whose experiences differ from their own.'",
+  synth_l1_sop: "Empathy interview protocol (strategy); note-taking in user's own words (skill); simulation (strategy — arthritis gloves).",
+  synth_l1_pe: "Point of view × Fairness — 'Whose perspective shaped my assumptions about who cooks, and whose voice is missing from my image of the kitchen?' Trait: Empathy.",
+  synth_l1_activity: "• 10 min — Clip of user with rheumatoid arthritis making tea; students note without discussing\n• 15 min — Pair interview practice using protocol; feedback on what questions got closed-end answers\n• 30 min — Simulation: arthritis gloves + attempting a set of kitchen tasks. Journal every difficulty with timestamp.\n• 10 min — Exit ticket: '3 things I assumed that simulation contradicted.'",
+
+  synth_l2_title: "Precedent and the story of OXO",
+  synth_l2_cbci: "Form / function (strand 2). Generalization: 'designing for the margin often surfaces innovations that benefit the majority.'",
+  synth_l2_sop: "Precedent analysis (strategy); heuristic evaluation (strategy); bill-of-materials sketch (skill).",
+  synth_l2_pe: "Information × Depth — 'Has my precedent analysis gone beneath the aesthetic surface into the ergonomic logic?'",
+  synth_l2_activity: "• 15 min — OXO origin story video (Sam Farber + Smart Design, 1990); teacher frames as inclusive-design case\n• 30 min — Comparative precedent analysis: 3 tools (generic, OXO, competitor). Score on 5 heuristics.\n• 20 min — Sketch one competitor's tool + hypothesis about why each feature exists\n• — Homework: Write 1 generalization draft at Level 2.",
+
+  synth_l3_title: "Interview day — real user",
+  synth_l3_cbci: "Perspective + need (strand 1). Concepts under pressure: 'lived experience' vs. 'designer's imagination of lived experience'.",
+  synth_l3_sop: "Empathy interview (strategy, full protocol); structured note-taking and direct-quote capture (skill).",
+  synth_l3_pe: "Assumptions × Accuracy — students must come back with 3 moments where their prior assumption was contradicted by the interview. Trait: Humility.",
+  synth_l3_activity: "• Pre-lesson — students prepare 8-question protocol (homework)\n• Interview session (in class or arranged) with real users\n• Post-interview debrief: affinity-mapping of surprises on the wall\n• Exit ticket: 'What I would have built if I hadn't done this interview.'",
+
+  synth_l4_title: "Constraint mapping & brief refinement",
+  synth_l4_cbci: "Constraint (strand 3). Generalization at play: 'constraints drive rather than limit innovation.'",
+  synth_l4_sop: "Constraint mapping (strategy — user context → design constraint with justification); rubric-anchored writing (skill).",
+  synth_l4_pe: "Clarity × Precision on the brief. 'Could a peer build from my brief without asking me a single question?'",
+  synth_l4_activity: "• 10 min — Teacher demo: a vague brief vs. a precise brief (both from a past unit)\n• 40 min — Students write their own 10-constraint brief with measurable specs\n• 15 min — Peer review using a 'could I build from this?' rubric\n• — Exit ticket: 2 revisions to the brief.",
+
+  synth_l5_title: "Prototype 1 — intentionally wrong",
+  synth_l5_cbci: "Iteration (strand 3). 'Designers iterate because early solutions usually solve the wrong problem.'",
+  synth_l5_sop: "Low-fidelity prototyping (strategy); foam/clay modelling (skills); decision log (skill).",
+  synth_l5_pe: "Perseverance trait + Logic × Accuracy — is the rationale for each design decision defensible, and is the student willing to scrap it when the user test contradicts it?",
+  synth_l5_activity: "• Build a low-fidelity prototype in ≤ 2 hours (no time for perfection)\n• Same-day user test (with a peer simulating via arthritis glove if real user unavailable)\n• Write 5-bullet decision log entry: what worked, what didn't, what surprised, what to change, why\n• Predict the Level 3 generalization qualifier ('when does designing for the margin NOT benefit the majority?').",
+
+  synth_l6_title: "Final test, evaluation, and generalization revision",
+  synth_l6_cbci: "Revise Level 2 generalization toward Level 3 — add a qualifier or nuance drawn from the actual testing.",
+  synth_l6_sop: "User-test protocol (strategy); synthesis writing (strategy); MYP rubric-anchored self-evaluation (skill).",
+  synth_l6_pe: "Full standards suite applied; Implications × Breadth — 'Who benefits? Who is excluded by this solution?'",
+  synth_l6_activity: "• User test with real user (or a strong simulation) against a 5-point rubric\n• Students write a 250–400 word evaluation applying Paul-Elder standards to their own design\n• Revise the Level 2 generalization by adding a qualifier ('often', 'sometimes', 'when X, then Y')\n• Present to class: 2-minute pitch + 1-minute critique from peer using the framework.",
+
+  mypA_task: "Inquiring & Analysing portfolio (3–4 pages): 3 interviews (transcribed excerpts + analytic annotations) + 1 shadowing observation (photos, field notes) + prioritized need statement (1 page) + 3 precedents analysed against 5 heuristics + first brief draft.",
+  mypA_tags: "CBCI — essential content on ergonomics, arthritis, precedents; Level 1 → 2 generalization drafted. SoP — empathy interview (strategy), structured note-taking (skill), precedent analysis (strategy). PE — Information × Depth; Point of view × Fairness; Intellectual Humility (journal of contradictions).",
+
+  mypB_task: "Development portfolio (5–8 pages): 3 diverging concepts (sketched + 50-word rationale each), decision matrix against the 10-constraint brief, chosen concept with explicit trade-offs, constraint-mapped brief revision, materials rationale.",
+  mypB_tags: "SoP — precedent analysis, constraint mapping, decision-matrix strategy. PE — Assumptions × Accuracy (every design claim cites evidence); Point of view × Breadth (non-target users considered). CBCI — form/function and constraint concepts foregrounded.",
+
+  mypC_task: "Working prototype (3rd iteration) + process journal showing 3 documented iterations, each with: photo, decision log entry, what changed and why, user-test evidence or rationale. Materials: foam core, clay, or 3D print appropriate.",
+  mypC_tags: "SoP — making skills (cutting, moulding, joining), iteration strategy, decision log skill. PE — Perseverance trait (3-iteration minimum); Precision × Accuracy in the decision log. CBCI — iteration concept demonstrated in practice.",
+
+  mypD_task: "Evaluation report (400–600 words) + user-test video/photos: (1) success criteria from Criterion A, (2) evidence of prototype performance against criteria, (3) Paul-Elder standards audit of own design (4–5 standards), (4) revised Level 3 generalization with qualifier, (5) next-steps / who else could benefit.",
+  mypD_tags: "PE — full standards suite applied (Clarity, Accuracy, Depth, Fairness, Breadth). CBCI — student demonstrates movement from Level 2 to Level 3 generalization with nuance. SoP — reflection strategy, rubric-anchored writing skill.",
+
+  reflect_transfer: "Level 1 — 'Designers create products that respond to human needs.' — passes (works for any design unit, not just kitchen tools).\nLevel 2 — 'Designers uncover hidden needs by studying users whose experiences differ from their own.' — passes.\nLevel 3 — 'When designers privilege marginalised perspectives, they often surface ergonomic innovations that benefit a wider population...' — the qualifier 'often' is earning its keep; students will test whether it actually holds for their case.",
+  reflect_strategy_concept: "Checked: every strategy in 3B has a paired concept in 3D. Heuristic evaluation was almost a free-floating 'technique'; tied to the concept of evaluation only after a second pass.",
+  reflect_pe_pressure: "Six explicit pressure points: (1) end of user research (Information × Depth), (2) before shortlisting concept (Point of view × Fairness), (3) before prototype 1 (Assumptions × Accuracy), (4) during iteration (Perseverance trait), (5) at final evaluation (Implications × Breadth), (6) in the MYP D rubric (full standards suite). The trait of Intellectual Empathy is cultivated continuously via the simulation + interview + 'in their words' journal.",
+  reflect_equity: "Risk: 'marginalised user' framing could become abstract or voyeuristic. Mitigation: students must interview a real person, not 'an imagined arthritis sufferer'; direct quotes are required in Criterion A. Accessibility: students without access to a real user should be paired with a teacher-sourced community partner or video-based interview. The generic 'grandmother with arthritis' is explicitly off-limits.",
+  reflect_risks: "• Over-scaffolding → students treat the frameworks as a worksheet rather than a thinking tool. Mitigation: the empathy interview + user test are both moments where the plan is intentionally disrupted by real data.\n• Under-scaffolding on making → 8 weeks is enough for 3 iterations only if material access is pre-booked and hand-tool skills have been pre-taught.\n• Conceptual drift → generalizations get 'taught' rather than earned. Mitigation: students write their own Level 2 generalization in week 2, not week 8.",
+  reflect_transfer_evidence: "",
+  reflect_changes: "",
+};
+
+/* -------------------------------------------------------------
+   Form state & IO
+   ------------------------------------------------------------- */
+
+let currentView = "blank";
+const allFields = () => document.querySelectorAll("[data-field]");
+
+function loadData(data) {
+  allFields().forEach(el => {
+    const key = el.getAttribute("data-field");
+    const val = data[key] ?? "";
+    if (el.tagName === "TEXTAREA" || el.tagName === "INPUT") {
+      el.value = val;
+      autosize(el);
+    }
+  });
+  updateChipActiveStates();
+}
+
+function currentValues() {
+  const out = {};
+  allFields().forEach(el => {
+    const key = el.getAttribute("data-field");
+    out[key] = el.value;
+  });
+  return out;
+}
+
+function setView(which) {
+  currentView = which;
+  const blankBtn = document.getElementById("btn-blank");
+  const exampleBtn = document.getElementById("btn-example");
+  const status = document.getElementById("view-status");
+
+  if (which === "blank") {
+    loadData(BLANK_DATA);
+    blankBtn.classList.add("active");
+    exampleBtn.classList.remove("active");
+    status.textContent = "Blank";
+  } else {
+    loadData(EXAMPLE_DATA);
+    blankBtn.classList.remove("active");
+    exampleBtn.classList.add("active");
+    status.textContent = "Worked example — Designing for Dignity";
+  }
+}
+
+function autosize(el) {
+  if (!el || el.tagName !== "TEXTAREA") return;
+  el.style.height = "auto";
+  el.style.height = (el.scrollHeight + 2) + "px";
+}
+
+function attachFieldListeners() {
+  document.querySelectorAll("textarea, input[type=\"text\"]").forEach(ta => {
+    autosize(ta);
+    ta.addEventListener("input", () => {
+      autosize(ta);
+      updateChipActiveStates();
+    });
+  });
+  document.querySelectorAll('select[data-field], select.pe-el-select, select.pe-std-select, .select-with-other select').forEach(sel => {
+    sel.addEventListener('change', () => {
+      updateChipActiveStates();
+    });
+  });
+}
+
+function exportJson() {
+  const data = currentValues();
+  data._meta = {
+    exported_at: new Date().toISOString(),
+    view_mode: currentView,
+    planner_version: "2.0",
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const title = (data.unit_title || "unit").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  a.href = url;
+  a.download = `myp-unit-planner-${title || "unit"}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importJson(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      loadData(data);
+      document.getElementById("view-status").textContent = "Imported";
+      document.getElementById("btn-blank").classList.remove("active");
+      document.getElementById("btn-example").classList.remove("active");
+      currentView = "imported";
+    } catch (err) {
+      alert("Could not parse JSON: " + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+/* Scrollspy — highlight current sidebar item */
+function setupScrollspy() {
+  const links = document.querySelectorAll(".sidebar-nav a");
+  const sections = [...document.querySelectorAll("main section")];
+
+  function updateCurrent() {
+    const scrollPos = window.scrollY + 160;
+    let current = sections[0] ? sections[0].id : null;
+    for (const s of sections) {
+      if (s.offsetTop <= scrollPos) current = s.id;
+    }
+    links.forEach(l => {
+      l.classList.toggle("current", l.getAttribute("href") === "#" + current);
+    });
+  }
+  window.addEventListener("scroll", updateCurrent, { passive: true });
+  updateCurrent();
+}
+
+/* Add more lesson cards */
+let lessonCount = 6;
+function addLesson() {
+  lessonCount++;
+  const n = lessonCount;
+  const container = document.getElementById("lesson-cards");
+  const card = document.createElement("div");
+  card.className = "lesson-card";
+  card.innerHTML = `
+    <div class="lesson-head">
+      <div class="lesson-num">Learning<br>Experience ${n}</div>
+      <div>
+        <input type="text" data-field="synth_l${n}_title" placeholder="Title">
+        <div class="tag-row">
+          <span class="mini-tag cbci">CBCI</span>
+          <span class="mini-tag sop">SoP</span>
+          <span class="mini-tag pe">Paul-Elder</span>
+        </div>
+      </div>
+    </div>
+    <h4 class="subfield">Concept(s) / generalization under pressure</h4>
+    <textarea data-field="synth_l${n}_cbci" rows="2"></textarea>
+    <h4 class="subfield">Strategy / skill practised</h4>
+    <textarea data-field="synth_l${n}_sop" rows="2"></textarea>
+    <h4 class="subfield">Critical-thinking move (element × standard)</h4>
+    <textarea data-field="synth_l${n}_pe" rows="2"></textarea>
+    <h4 class="subfield">Activity arc</h4>
+    <textarea data-field="synth_l${n}_activity" rows="4"></textarea>
+  `;
+  container.appendChild(card);
+  card.querySelectorAll("textarea, input[type=\"text\"]").forEach(ta => {
+    autosize(ta);
+    ta.addEventListener("input", () => { autosize(ta); updateChipActiveStates(); });
+  });
+}
+
+/* -------------------------------------------------------------
+   AI ASSIST — targeted field-level helpers.
+   API key stays in browser memory only (not persisted to disk).
+   Direct browser → api.anthropic.com using the
+   anthropic-dangerous-direct-browser-access header.
+   ------------------------------------------------------------- */
+
+const aiSettings = {
+  apiKey: "",
+  model: "claude-haiku-4-5-20251001",
+};
+
+let currentAssistAbort = null;
+
+/* Modal open/close/save */
+function openAiModal() {
+  document.getElementById("ai-key").value = aiSettings.apiKey;
+  document.getElementById("ai-model").value = aiSettings.model;
+  updateKeyStatus();
+  document.getElementById("ai-modal-backdrop").classList.add("open");
+}
+function closeAiModal() {
+  document.getElementById("ai-modal-backdrop").classList.remove("open");
+}
+function saveAiSettings() {
+  aiSettings.apiKey = document.getElementById("ai-key").value.trim();
+  aiSettings.model = document.getElementById("ai-model").value;
+  closeAiModal();
+  updateAssistButtonTitles();
+  if (aiSettings.apiKey) {
+    setAiStatus("Assist enabled", "done");
+    setTimeout(() => setAiStatus(""), 2500);
+  }
+}
+function updateKeyStatus() {
+  const input = document.getElementById("ai-key");
+  const status = document.getElementById("ai-key-status");
+  const v = input.value.trim();
+  if (!v) {
+    status.className = "key-status";
+    status.textContent = "";
+  } else if (!v.startsWith("sk-ant-")) {
+    status.className = "key-status warn";
+    status.textContent = "Doesn't look like an Anthropic key (expect sk-ant-...).";
+  } else {
+    status.className = "key-status ok";
+    status.textContent = "Looks valid. Stored in memory only (not persisted).";
+  }
+}
+function updateAssistButtonTitles() {
+  const title = aiSettings.apiKey
+    ? "Ask Claude to fill this from your other content"
+    : "Paste your API key via ⚙ AI settings first";
+  document.querySelectorAll(".assist-btn").forEach(btn => {
+    btn.title = title;
+  });
+}
+function setAiStatus(text, variant) {
+  const chip = document.getElementById("ai-status");
+  if (!text) {
+    chip.style.display = "none";
+    return;
+  }
+  chip.style.display = "inline-flex";
+  chip.className = "ai-status-chip" + (variant ? " " + variant : "");
+  const showDot = !variant || variant === "loading";
+  chip.innerHTML = (showDot ? '<span class="dot"></span>' : "") + `<span>${text}</span>`;
+}
+
+/* Collect all filled fields for context */
+function collectStateForAi() {
+  const state = {};
+  document.querySelectorAll("[data-field]").forEach(el => {
+    const k = el.getAttribute("data-field");
+    if (el.value && el.value.trim()) state[k] = el.value.trim();
+  });
+  return state;
+}
+
+/* -------------------------------------------------------------
+   Assist specs — each assist synthesizes a specific field (or
+   set of fields) from earlier content. Nothing is triggered
+   automatically; teacher clicks the button when they want help.
+   ------------------------------------------------------------- */
+const ASSISTS = {
+  sop_concept_map: {
+    targets: ["sop_concept_map"],
+    context: ["unit_title","unit_premise","cbci_lens","cbci_lens_rationale",
+              "cbci_strand1_name","cbci_strand1_concepts",
+              "cbci_strand2_name","cbci_strand2_concepts",
+              "cbci_strand3_name","cbci_strand3_concepts",
+              "cbci_strand4_name","cbci_strand4_concepts",
+              "sop_processes","sop_strategies","sop_skills"],
+    minContext: ["sop_strategies"],
+    minContextMessage: "Fill in strategies (3B) first",
+    instruction: "For each CBCI concept the teacher has named in the strand concepts, map it to the SoP strategy or strategies that develop it. STAY GROUNDED — use only concepts and strategies the teacher has already named; don't invent new ones. Return 4–6 mappings. Format each line: '• Concept → strategy1 + strategy2'. Return JSON with key 'sop_concept_map' whose value is the multi-line bullet string.",
+  },
+  cbci_generalizations: {
+    targets: ["cbci_gen_l1","cbci_gen_l2","cbci_gen_l3"],
+    context: ["unit_title","unit_premise","cbci_lens","cbci_lens_rationale",
+              "cbci_strand1_concepts","cbci_strand2_concepts",
+              "cbci_strand3_concepts","cbci_strand4_concepts",
+              "sop_strategies"],
+    minContext: ["cbci_lens"],
+    minContextMessage: "Pick a conceptual lens (2A) first",
+    instruction: "Write three scaffolded CBCI generalizations: L1 broad and foundational; L2 deeper, adding a how or why with stronger verbs; L3 nuanced and QUALIFIED (uses 'often', 'sometimes', 'when X, then Y'). All must be TRANSFERABLE beyond this unit — test: would they still be true with a different unit topic? Use strong verbs (amplify, constrain, reveal, privilege, shape) — avoid weak cognates (is, has, affect). Name 2+ concepts in each. Return JSON with keys 'cbci_gen_l1', 'cbci_gen_l2', 'cbci_gen_l3' — each a single sentence.",
+  },
+  sop_gen: {
+    targets: ["sop_gen"],
+    context: ["unit_title","unit_premise","cbci_lens","sop_processes","sop_strategies","sop_skills"],
+    minContext: ["sop_strategies"],
+    minContextMessage: "Fill in strategies (3B) first",
+    instruction: "Write 1–2 process-level generalizations about how the design process itself works in this kind of unit. Bullet format (• prefix), one sentence each. Example: 'Designers iterate because early solutions usually solve the wrong problem.' Return JSON with key 'sop_gen' whose value is the bulleted string.",
+  },
+  pe_elements: {
+    targets: ["pe_elements"],
+    context: ["unit_title","unit_premise","cbci_lens","cbci_gen_l2","cbci_gen_l3","sop_strategies"],
+    minContext: ["unit_premise"],
+    minContextMessage: "Fill in the unit premise first",
+    instruction: "Pick the 3–4 Paul-Elder elements that are most LOAD-BEARING for this particular unit, and for each one write the specific question students will grapple with. Format each line: '• Element — question?'. Choose elements from: Purpose, Question at issue, Information, Interpretation/Inference, Concepts, Assumptions, Implications, Point of view. Return JSON with key 'pe_elements' whose value is the multi-line bulleted string.",
+  },
+  myp_wrapper: {
+    targets: ["key_concept","related_concepts","global_context","exploration","soi","atl"],
+    context: ["unit_title","unit_premise","cbci_lens","cbci_lens_rationale",
+              "cbci_strand1_concepts","cbci_strand2_concepts",
+              "cbci_strand3_concepts","cbci_strand4_concepts",
+              "cbci_gen_l1","cbci_gen_l2","cbci_gen_l3",
+              "sop_processes","sop_strategies","sop_skills","sop_gen",
+              "pe_elements"],
+    minContext: ["unit_premise"],
+    minContextMessage: "Fill in the unit premise first",
+    instruction: `Generate the MYP wrapper. Suggest values for ALL six fields that COHERE with each other and with what the teacher has filled in:
+- key_concept: ONE of Communication, Communities, Development, Systems
+- related_concepts: 1–2 from Adaptation, Collaboration, Ergonomics, Evaluation, Form, Function, Innovation, Invention, Markets and trends, Perspective, Resources, Sustainability (comma-separated string)
+- global_context: ONE of Identities and Relationships, Orientation in Space and Time, Personal and Cultural Expression, Scientific and Technical Innovation, Globalization and Sustainability, Fairness and Development
+- exploration: 3–8 word phrase naming the specific angle on the global context
+- soi: ONE transferable sentence (NOT a topic sentence) fusing key concept + related concept(s) + exploration. Strong verbs (amplify, constrain, reveal, privilege). Names 2+ concepts. Must still be true beyond this unit.
+- atl: bullet list (• prefix, newline-separated) of 2–4 ATL skills. Prefix each with cluster name: Thinking/Social/Communication/Self-management/Research.
+
+Return JSON with exactly these 6 keys, values as strings.`,
+  },
+};
+
+/* Legacy var placeholder kept minimal so nothing references it */
+async function runAssist(assistId) {
+  const spec = ASSISTS[assistId];
+  if (!spec) return;
+
+  if (!aiSettings.apiKey) {
+    setAiStatus("Paste API key via ⚙ AI settings first", "error");
+    setTimeout(() => setAiStatus(""), 3500);
+    openAiModal();
+    return;
+  }
+
+  const state = collectStateForAi();
+  const missing = (spec.minContext || []).filter(f => !state[f]);
+  if (missing.length) {
+    setAiStatus("⚠ " + spec.minContextMessage, "error");
+    setTimeout(() => setAiStatus(""), 4000);
+    return;
+  }
+
+  // Trim state to declared context
+  const contextState = {};
+  (spec.context || []).forEach(k => {
+    if (state[k]) contextState[k] = state[k];
+  });
+
+  const btn = document.querySelector(`[data-assist="${assistId}"]`);
+  let prevHtml = null;
+  if (btn) {
+    btn.disabled = true;
+    prevHtml = btn.innerHTML;
+    btn.innerHTML = '<span class="dot"></span> Thinking…';
+  }
+  setAiStatus("Generating…");
+
+  try {
+    const prompt = buildAssistPrompt(contextState, spec.targets, spec.instruction);
+    const response = await callAnthropic(prompt);
+    const applied = applyAssistResponse(response, spec.targets);
+    if (applied > 0) {
+      setAiStatus(`Filled ${applied} field${applied === 1 ? "" : "s"}`, "done");
+    } else {
+      setAiStatus("No usable response", "error");
+    }
+    setTimeout(() => setAiStatus(""), 3000);
+  } catch (e) {
+    if (e.name !== "AbortError") {
+      console.error(e);
+      setAiStatus("⚠ " + e.message.slice(0, 90), "error");
+      setTimeout(() => setAiStatus(""), 6000);
+    }
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = prevHtml;
+    }
+  }
+}
+
+function buildAssistPrompt(state, targets, instruction) {
+  const filled = Object.entries(state)
+    .map(([k, v]) => `  ${k}: ${JSON.stringify(v.length > 600 ? v.slice(0,600) + "…" : v)}`)
+    .join("\n");
+
+  return `You are an expert MYP Design curriculum consultant with deep knowledge of:
+- CBCI (Erickson & Lanning's Concept-Based Curriculum and Instruction)
+- Structure of Process (Lanning)
+- Paul-Elder critical thinking (8 elements, 9 standards, 8 traits)
+- IB MYP Design: 4 key concepts (Communication/Communities/Development/Systems), 12 related concepts, 6 global contexts, SOI conventions, ATL skills, Criteria A–D.
+
+The teacher has filled in:
+
+${filled || "(little context — synthesise from the premise only)"}
+
+TASK: ${instruction}
+
+Return ONLY valid JSON — no prose, no markdown fences. The object must have exactly these keys: ${targets.map(t => `"${t}"`).join(", ")}.`;
+}
+
+function applyAssistResponse(data, targets) {
+  let applied = 0;
+  targets.forEach(field => {
+    if (data[field] == null || data[field] === "") return;
+    const el = document.querySelector(`[data-field="${field}"]`);
+    if (!el) return;
+    const value = Array.isArray(data[field]) ? data[field].join(", ") : String(data[field]);
+    el.value = value;
+    if (el.tagName === "TEXTAREA") autosize(el);
+    const wrap = el.closest(".select-with-other");
+    if (wrap && wrap._syncFromHidden) wrap._syncFromHidden();
+    el.dispatchEvent(new Event("input"));
+    el.dispatchEvent(new Event("change"));
+    applied++;
+  });
+  if (applied > 0) updateChipActiveStates();
+  return applied;
+}
+
+
+// Wire up
+document.getElementById("btn-ai-settings").addEventListener("click", openAiModal);
+document.getElementById("ai-modal-cancel").addEventListener("click", closeAiModal);
+document.getElementById("ai-modal-save").addEventListener("click", saveAiSettings);
+document.getElementById("ai-modal-backdrop").addEventListener("click", e => {
+  if (e.target.id === "ai-modal-backdrop") closeAiModal();
+});
+document.getElementById("ai-key").addEventListener("input", updateKeyStatus);
+document.querySelectorAll("[data-assist]").forEach(btn => {
+  btn.addEventListener("click", () => runAssist(btn.dataset.assist));
+});
+document.getElementById("btn-blank").addEventListener("click", () => setView("blank"));
+document.getElementById("btn-example").addEventListener("click", () => setView("example"));
+document.getElementById("btn-reset").addEventListener("click", () => {
+  if (confirm("Reset all fields to blank? Unsaved work will be lost.")) setView("blank");
+});
+document.getElementById("btn-export").addEventListener("click", exportJson);
+document.getElementById("btn-import").addEventListener("click", () => {
+  document.getElementById("file-import").click();
+});
+document.getElementById("file-import").addEventListener("change", e => {
+  if (e.target.files.length) importJson(e.target.files[0]);
+  e.target.value = "";
+});
+document.getElementById("add-lesson").addEventListener("click", addLesson);
+
+/* -------------------------------------------------------------
+   PE matrix dropdowns — populate from element / standard pools
+   ------------------------------------------------------------- */
+
+const PE_STANDARDS = [
+  "Clarity", "Accuracy", "Precision", "Relevance",
+  "Depth", "Breadth", "Logic", "Significance", "Fairness"
+];
+
+function populatePeMatrixSelects() {
+  document.querySelectorAll(".pe-el-select").forEach(sel => {
+    if (sel.options.length > 1) return;
+    sel.innerHTML = '<option value="">— Pick element —</option>' +
+      CHIP_POOLS.pe_elements.map(el => `<option>${el}</option>`).join("");
+  });
+  document.querySelectorAll(".pe-std-select").forEach(sel => {
+    if (sel.options.length > 1) return;
+    sel.innerHTML = '<option value="">— Pick standard —</option>' +
+      PE_STANDARDS.map(s => `<option>${s}</option>`).join("");
+  });
+}
+
+/* -------------------------------------------------------------
+   "Select with Other" compound — select + reveal-on-other input
+   ------------------------------------------------------------- */
+
+function initSelectWithOther() {
+  document.querySelectorAll(".select-with-other").forEach(wrap => {
+    const select = wrap.querySelector("select");
+    const otherInput = wrap.querySelector(".other-input");
+    const hidden = wrap.querySelector("input[data-field]");
+
+    const sync = () => {
+      if (select.value === "__other") {
+        otherInput.style.display = "";
+        hidden.value = otherInput.value;
+      } else {
+        otherInput.style.display = "none";
+        hidden.value = select.value;
+      }
+    };
+
+    select.addEventListener("change", sync);
+    otherInput.addEventListener("input", sync);
+
+    // Store ref for loadData to reach
+    wrap._syncFromHidden = () => {
+      const v = hidden.value || "";
+      const matching = [...select.options].find(o => o.value === v || o.textContent === v);
+      if (matching && matching.value !== "__other") {
+        select.value = matching.value || matching.textContent;
+        otherInput.style.display = "none";
+        otherInput.value = "";
+      } else if (v) {
+        select.value = "__other";
+        otherInput.style.display = "";
+        otherInput.value = v;
+      } else {
+        select.value = "";
+        otherInput.style.display = "none";
+        otherInput.value = "";
+      }
+    };
+  });
+}
+
+/* -------------------------------------------------------------
+   Duration sliders — three controls feed a derived summary
+   ------------------------------------------------------------- */
+
+function initDurationSliders() {
+  const weeks = document.getElementById("dur-weeks");
+  const pw = document.getElementById("dur-pw");
+  const len = document.getElementById("dur-len");
+  const weeksV = document.getElementById("dur-weeks-v");
+  const pwV = document.getElementById("dur-pw-v");
+  const summary = document.getElementById("duration-summary");
+  const hWeeks = document.querySelector('[data-field="duration_weeks"]');
+  const hPw = document.querySelector('[data-field="duration_periods_per_week"]');
+  const hLen = document.querySelector('[data-field="duration_minutes_per_period"]');
+  const hDur = document.querySelector('[data-field="duration"]');
+
+  if (!weeks || !pw || !len || !summary) return;
+
+  const recalc = () => {
+    const w = +weeks.value;
+    const p = +pw.value;
+    const m = +len.value;
+    const totalPeriods = w * p;
+    const totalMinutes = totalPeriods * m;
+    const totalHours = (totalMinutes / 60).toFixed(1).replace(/\.0$/, "");
+
+    weeksV.textContent = w;
+    pwV.textContent = p;
+
+    const summaryText = `${w} weeks × ${p} periods/week × ${m} min = ` +
+      `<strong>${totalPeriods} periods</strong> (≈ ${totalHours} hrs)`;
+    summary.innerHTML = summaryText;
+
+    hWeeks.value = w;
+    hPw.value = p;
+    hLen.value = m;
+    hDur.value = `${w} weeks × ${p} × ${m}-minute periods = ${totalPeriods} periods (${totalHours} hrs)`;
+  };
+
+  weeks.addEventListener("input", recalc);
+  pw.addEventListener("input", recalc);
+  len.addEventListener("change", recalc);
+
+  // Expose for loadData
+  window._setDuration = (w, p, m) => {
+    if (w != null) weeks.value = w;
+    if (p != null) pw.value = p;
+    if (m != null) len.value = m;
+    recalc();
+  };
+
+  recalc();
+}
+
+/* -------------------------------------------------------------
+   Extend loadData to sync compound controls
+   ------------------------------------------------------------- */
+
+const _origLoadData = loadData;
+loadData = function(data) {
+  _origLoadData(data);
+  // Sync compound select-with-other widgets
+  document.querySelectorAll(".select-with-other").forEach(w => {
+    if (w._syncFromHidden) w._syncFromHidden();
+  });
+  // Sync duration sliders from data
+  if (window._setDuration) {
+    const w = data.duration_weeks != null && data.duration_weeks !== ""
+      ? +data.duration_weeks : 8;
+    const p = data.duration_periods_per_week != null && data.duration_periods_per_week !== ""
+      ? +data.duration_periods_per_week : 3;
+    const m = data.duration_minutes_per_period != null && data.duration_minutes_per_period !== ""
+      ? +data.duration_minutes_per_period : 60;
+    window._setDuration(w, p, m);
+  }
+};
+
+// Initial state
+populatePeMatrixSelects();
+renderChipPickers();
+initSelectWithOther();
+initDurationSliders();
+setView("blank");
+attachFieldListeners();
+setupScrollspy();
+updateAssistButtonTitles();
+</script>
+
+</body>
+</html>

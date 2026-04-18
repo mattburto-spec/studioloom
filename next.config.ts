@@ -35,6 +35,17 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  // Rewrites — clean URLs for static HTML in public/
+  async rewrites() {
+    return [
+      {
+        // MYP unit planner (standalone single-file HTML, lives in public/)
+        // Added 19 Apr 2026 for /unitplanner clean URL.
+        source: "/unitplanner",
+        destination: "/unitplanner.html",
+      },
+    ];
+  },
   // Security headers — OWASP basics
   async headers() {
     return [
