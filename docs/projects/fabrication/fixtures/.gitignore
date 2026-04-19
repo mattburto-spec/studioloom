@@ -1,0 +1,12 @@
+# Raw fixture files at this directory root are NOT committed.
+# Student PII (names in filenames, names in STL/SVG metadata) must be stripped first.
+# Catalogued fixtures live under known-good/, known-broken/, or borderline/ — those ARE tracked.
+# See README.md for the anonymisation + bucketing workflow.
+
+/*.stl
+/*.svg
+/*.3mf
+/*.dxf
+/*.step
+/*.f3d
+/*.ai
