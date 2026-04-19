@@ -1044,6 +1044,100 @@
   }
   .modal-info strong { color: var(--pe); }
 
+  /* ===========================
+     PAUL-ELDER — three foundations panel
+     =========================== */
+  .foundations-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin: 8px 0 14px;
+  }
+  @media (max-width: 820px) {
+    .foundations-grid { grid-template-columns: 1fr; }
+  }
+
+  .foundation-col {
+    background: var(--pe-bg);
+    border: 1px solid var(--pe-soft);
+    border-radius: 8px;
+    padding: 12px 14px;
+  }
+
+  .foundation-col h5 {
+    margin: 0 0 2px;
+    font-size: 12px;
+    color: var(--pe);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 700;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+
+  .fnd-count {
+    background: var(--pe);
+    color: white;
+    font-size: 10px;
+    padding: 1px 7px;
+    border-radius: 10px;
+    letter-spacing: 0;
+    font-weight: 700;
+  }
+
+  .fnd-sub {
+    font-size: 11.5px;
+    color: var(--ink-soft);
+    margin: 0 0 8px;
+    font-style: italic;
+  }
+
+  .foundation-col ul {
+    margin: 0;
+    padding-left: 0;
+    list-style: none;
+    font-size: 12.5px;
+    line-height: 1.5;
+  }
+
+  .foundation-col li {
+    padding: 3px 0;
+    border-top: 1px solid var(--pe-soft);
+  }
+  .foundation-col li:first-child { border-top: 0; }
+  .foundation-col li b {
+    color: var(--ink);
+    font-weight: 700;
+    display: inline-block;
+    min-width: 92px;
+  }
+
+  .foundations-rule {
+    background: var(--bg);
+    border-left: 3px solid var(--pe);
+    padding: 10px 14px;
+    font-size: 13.5px;
+    margin: 0 0 22px;
+    line-height: 1.55;
+  }
+
+  .foundations-rule .inline-pill {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 10px;
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: white;
+    margin: 0 1px;
+    vertical-align: baseline;
+  }
+  .inline-pill.el  { background: #4f46e5; }
+  .inline-pill.std { background: var(--pe); }
+  .inline-pill.vt  { background: #7c2d12; }
+
   /* Suggested chip — softer than .active */
   .chip.suggested {
     border-style: dashed;
@@ -1859,8 +1953,63 @@
 <section class="pe" id="pe">
   <span class="section-tag tag-pe">Step 4 · Rigorous reasoning</span>
   <h2 class="section-title">Thinking moves</h2>
-  <p class="section-subtitle">Elements of thought, intellectual standards, and intellectual traits — applied to the design work students are doing.</p>
+  <p class="section-subtitle">Paul-Elder's three foundations of critical thinking, applied to the design work students are doing.</p>
   <p class="framework-attr"><b>Framework:</b> Paul-Elder Critical Thinking — Richard Paul &amp; Linda Elder, Foundation for Critical Thinking.</p>
+
+  <div class="foundations-grid">
+    <div class="foundation-col">
+      <h5>Elements of Thought <span class="fnd-count">8</span></h5>
+      <p class="fnd-sub">The components of any reasoning</p>
+      <ul>
+        <li><b>Purpose</b> — goal of the reasoning</li>
+        <li><b>Question</b> — problem addressed</li>
+        <li><b>Information</b> — data, evidence</li>
+        <li><b>Interpretation</b> — conclusions drawn</li>
+        <li><b>Concepts</b> — theories in use</li>
+        <li><b>Assumptions</b> — taken for granted</li>
+        <li><b>Implications</b> — what follows</li>
+        <li><b>Point of view</b> — frame of reference</li>
+      </ul>
+    </div>
+    <div class="foundation-col">
+      <h5>Intellectual Standards <span class="fnd-count">9</span></h5>
+      <p class="fnd-sub">Criteria applied to the elements</p>
+      <ul>
+        <li><b>Clarity</b> — understandable?</li>
+        <li><b>Accuracy</b> — true?</li>
+        <li><b>Precision</b> — exact enough?</li>
+        <li><b>Relevance</b> — bears on the question?</li>
+        <li><b>Depth</b> — addresses complexity?</li>
+        <li><b>Breadth</b> — other viewpoints?</li>
+        <li><b>Logic</b> — does it follow?</li>
+        <li><b>Significance</b> — what matters?</li>
+        <li><b>Fairness</b> — free of bias?</li>
+      </ul>
+    </div>
+    <div class="foundation-col">
+      <h5>Intellectual Virtues <span class="fnd-count">8</span></h5>
+      <p class="fnd-sub">Dispositions cultivated over time</p>
+      <ul>
+        <li><b>Humility</b> — awareness of limits</li>
+        <li><b>Courage</b> — face challenging views</li>
+        <li><b>Empathy</b> — reconstruct other frames</li>
+        <li><b>Autonomy</b> — think for oneself</li>
+        <li><b>Integrity</b> — same standards for self</li>
+        <li><b>Perseverance</b> — persist through confusion</li>
+        <li><b>Confidence in reason</b> — trust inquiry</li>
+        <li><b>Fairmindedness</b> — equal treatment</li>
+      </ul>
+    </div>
+  </div>
+
+  <p class="foundations-rule">
+    <b>How they work together:</b> apply
+    <span class="inline-pill std">standards</span> to
+    <span class="inline-pill el">elements</span>
+    to produce rigorous thinking at any decision point; cultivate
+    <span class="inline-pill vt">virtues</span>
+    over time so students do this spontaneously. Pick 3–4 elements + 4–5 standards + 2–3 virtues for this unit — don't try to teach all 25 at once.
+  </p>
 
   <details class="reference pe">
     <summary>Reference: The full Paul-Elder framework — elements, standards, traits, and how they combine</summary>
@@ -1941,6 +2090,10 @@
 
   <h3 class="field-group">4B. Intellectual Standards (choose 4–5 to emphasise)</h3>
   <p class="helper">For each standard, write the checkpoint question students will use to self-assess.</p>
+  <div class="assist-row">
+    <button type="button" class="assist-btn" data-assist="pe_standards">✨ Assist — suggest load-bearing standards for this unit</button>
+    <span class="assist-hint">picks 4–5 and writes a checkpoint question for each</span>
+  </div>
 
   <div class="standards-strip">
     <div class="standard-card">
@@ -1990,9 +2143,12 @@
     </div>
   </div>
 
-  <h3 class="field-group">4C. Intellectual Traits (cultivate 2–3 over the unit arc)</h3>
-  <p class="helper">For each trait you'll cultivate, describe the specific experiences that will produce it — not the
-  concept of the trait, but the <em>design</em> of the opportunity to exercise it.</p>
+  <h3 class="field-group">4C. Intellectual Virtues (cultivate 2–3 over the unit arc)</h3>
+  <p class="helper">Paul-Elder call these virtues or traits interchangeably. For each you'll cultivate, describe the specific experiences that will produce it — not the concept of the virtue, but the <em>design</em> of the opportunity to exercise it.</p>
+  <div class="assist-row">
+    <button type="button" class="assist-btn" data-assist="pe_virtues">✨ Assist — suggest virtues + cultivation moves</button>
+    <span class="assist-hint">picks 2–3 virtues most load-bearing for this unit, with specific moves for each</span>
+  </div>
 
   <div class="pe-traits-grid">
     <div class="trait-card">
@@ -3164,6 +3320,20 @@ const ASSISTS = {
     minContext: ["unit_premise"],
     minContextMessage: "Fill in the unit premise first",
     instruction: "Pick the 3–4 Paul-Elder elements that are most LOAD-BEARING for this particular unit, and for each one write the specific question students will grapple with. Format each line: '• Element — question?'. Choose elements from: Purpose, Question at issue, Information, Interpretation/Inference, Concepts, Assumptions, Implications, Point of view. Return JSON with key 'pe_elements' whose value is the multi-line bulleted string.",
+  },
+  pe_standards: {
+    targets: ["pe_std_clarity","pe_std_accuracy","pe_std_precision","pe_std_relevance","pe_std_depth","pe_std_breadth","pe_std_logic","pe_std_significance","pe_std_fairness"],
+    context: ["unit_title","unit_premise","cbci_lens","sop_strategies","pe_elements"],
+    minContext: ["unit_premise"],
+    minContextMessage: "Fill in the unit premise first",
+    instruction: "For this unit, pick the 4–5 most LOAD-BEARING Paul-Elder intellectual standards (from the 9: Clarity, Accuracy, Precision, Relevance, Depth, Breadth, Logic, Significance, Fairness). For each chosen standard, write a specific checkpoint question students will use to self-assess their design work against that standard — grounded in THIS unit's content, not generic. LEAVE THE OTHER FIELDS EMPTY (don't invent content for standards that aren't load-bearing here). Return JSON with keys ONLY for the 4–5 chosen standards: pe_std_clarity, pe_std_accuracy, pe_std_precision, pe_std_relevance, pe_std_depth, pe_std_breadth, pe_std_logic, pe_std_significance, pe_std_fairness. Each value is the checkpoint question as a short string.",
+  },
+  pe_virtues: {
+    targets: ["pe_trait_humility","pe_trait_courage","pe_trait_empathy","pe_trait_autonomy","pe_trait_integrity","pe_trait_perseverance","pe_trait_reason","pe_trait_fairmindedness"],
+    context: ["unit_title","unit_premise","cbci_lens","sop_strategies","pe_elements"],
+    minContext: ["unit_premise"],
+    minContextMessage: "Fill in the unit premise first",
+    instruction: "For this unit, pick 2–3 Paul-Elder intellectual virtues (a.k.a. traits) to actively cultivate over the unit arc (from the 8: Humility, Courage, Empathy, Autonomy, Integrity, Perseverance, Confidence in Reason, Fairmindedness). Virtues are cultivated, not taught — so for each chosen virtue, describe the specific cultivation moves (structured activities, reflections, experiences) that will produce it in THIS unit. Use numbered format: '(1) Move one. (2) Move two. (3) Move three.' LEAVE THE OTHER FIELDS EMPTY. Return JSON with keys ONLY for the 2–3 chosen virtues from: pe_trait_humility, pe_trait_courage, pe_trait_empathy, pe_trait_autonomy, pe_trait_integrity, pe_trait_perseverance, pe_trait_reason, pe_trait_fairmindedness. Each value is the cultivation-moves text.",
   },
   myp_wrapper: {
     targets: ["key_concept","related_concepts","global_context","exploration","soi","atl"],
