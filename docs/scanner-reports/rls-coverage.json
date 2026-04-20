@@ -1,6 +1,6 @@
 {
   "registry": "rls-coverage",
-  "timestamp": "2026-04-16T07:13:47.901160+00:00",
+  "timestamp": "2026-04-20T03:30:40.036561+00:00",
   "version": 1,
   "drift": {
     "no_rls": [],
@@ -18,17 +18,29 @@
         "source_migration": "024_ai_model_config.sql"
       },
       {
+        "table": "fabrication_scan_jobs",
+        "source_migration": "096_fabrication_scan_jobs.sql"
+      },
+      {
+        "table": "fabricator_sessions",
+        "source_migration": "097_fabricators.sql"
+      },
+      {
         "table": "student_sessions",
         "source_migration": "001_initial_schema.sql"
+      },
+      {
+        "table": "teacher_access_requests",
+        "source_migration": "089_teacher_access_requests.sql"
       }
     ]
   },
   "stats": {
-    "total_tables": 73,
-    "rls_enabled": 73,
-    "with_policies": 69,
+    "total_tables": 82,
+    "rls_enabled": 82,
+    "with_policies": 75,
     "no_rls_count": 0,
-    "rls_no_policy_count": 4
+    "rls_no_policy_count": 7
   },
   "status": "drift_detected"
 }

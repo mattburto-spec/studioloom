@@ -379,3 +379,42 @@ If you see both `page.tsx` and `route.ts`, delete one. Include both in the same 
 Commit: `680a4de` (deleted `page.tsx`, added `route.ts`).
 
 ---
+
+### Lesson #51 — Supabase dashboard "Run and enable RLS" safety prompt mis-parses PL/pgSQL variable names as table identifiers
+**Date:** 20 Apr 2026
+**Phase:** Preflight Phase 1A-1 (migration 093 apply)
+**Trigger:** Migration 093 (machine_profiles) failed to apply with `ERROR: 42P01: relation "rls_enabled" does not exist`. `rls_enabled` is a declared PL/pgSQL boolean variable inside a `DO $$ ... $$` verify block, never a table.
+
+**What happened:** The migration ended with a DO block:
+
+```sql
+DO $$
+DECLARE
+  rls_enabled    boolean;
+  policy_count   int;
+  ...
+BEGIN
+  SELECT relrowsecurity INTO rls_enabled FROM pg_class WHERE relname = 'machine_profiles';
+  IF NOT rls_enabled THEN RAISE EXCEPTION 'RLS not enabled'; END IF;
+  ...
+END $$;
+```
+
+The SQL is valid PL/pgSQL — migration 092 uses the identical pattern without issue. But the Supabase dashboard triggers a safety popup on any `CREATE TABLE` statement: *"New table will not have Row Level Security enabled"*, offering two buttons: **"Run without RLS"** and **"Run and enable RLS"**. Clicking "Run and enable RLS" silently appends an `ALTER TABLE <name> ENABLE ROW LEVEL SECURITY` statement to your SQL — but the dashboard extracts `<name>` via naive parsing that does NOT understand PL/pgSQL `DECLARE` blocks. It picked up `rls_enabled` (our boolean variable name) as if it were a new table identifier, then generated `ALTER TABLE rls_enabled ENABLE ROW LEVEL SECURITY`, which failed with 42P01 (undefined table).
+
+**Evidence it was the dashboard, not our SQL:** The popup text itself read *"any client using your project's anon or authenticated keys can read and write to `rls_enabled`"* — the dashboard's own warning copy confirms it had substituted our variable name into the "table name" slot.
+
+**Why the bug was invisible in review:**
+- Migration 092 (`gallery_v2_spatial_canvas`) uses the exact same `DO $$ DECLARE ... BEGIN ... END $$` shape with variables named `wrong_mode_count` / `wrong_xy_count`. It applied without incident because those names don't coincide with RLS-related identifiers and the dashboard's heuristic didn't latch on.
+- No local `supabase` CLI, no `psql` — the only way to apply was the dashboard, which added the errant `ALTER TABLE` at a layer we couldn't see until it crashed.
+- Prior phases applied similar DO blocks successfully, so the pattern looked safe.
+
+**Rules:**
+- **For any migration that will be pasted into the Supabase dashboard, avoid variable names inside `DO $$ DECLARE` blocks that could collide with RLS-related identifiers.** Especially: `rls_enabled`, `rls_on`, anything starting with `rls_` or ending in `_rls`.
+- **Prefer post-apply SELECT queries to DO-block `RAISE EXCEPTION` verification** when the migration runs through the dashboard. The verify runs separately, doesn't couple to the dashboard's parse heuristics, and produces readable query output rather than a stack trace.
+- **If a DO verify block is genuinely needed** (multi-statement migration where a failure should roll back the transaction), prefix variables with `v_` (`v_rls_enabled`, `v_policy_count`) to break any collision with domain identifiers the dashboard's parser might latch on to.
+- **When clicking "Run and enable RLS", check that the popup is citing the correct table name.** If it says something odd (a column, a variable, an index), cancel and investigate before running.
+
+**The fix in 093:** Removed the DO block entirely (commit `1d68f29`). Verification now lives as three separate SELECT queries documented in the migration comments + run post-apply in the dashboard. Matt confirmed with `relrowsecurity=t`, 4 policies, and CHECK-constraint violation test — the same invariants the DO block would have asserted.
+
+---

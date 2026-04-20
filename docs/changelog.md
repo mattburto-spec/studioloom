@@ -4,6 +4,49 @@
 
 ---
 
+## 20 Apr 2026 — Preflight (fabrication submission pipeline) — Phase 0 + Phase 1A shipped
+
+**Context:** New project. Submission pipeline between "student design file" and "lab tech runs it on the 3D printer or laser cutter." Pedagogy/workflow spec at `docs/projects/fabrication-pipeline.md` (734 lines) was already SPEC-ready; this session took it from SPEC to deployed schema. Free public tool + logged-in teacher/student/Fabricator workflow share the same codebase.
+
+**Decisions locked (pre-code):**
+- Product name: **Preflight** (domain term of art — Adobe Acrobat Preflight, InDesign live preflight). Pivoted same-day from initial "Bouncer" pick after reconsideration (nightclub vibe, less professional for enterprise sell).
+- Lab-tech role: **Fabricator** — own account type + `/fab/login` surface, NOT Supabase Auth. Cookie session pattern matches `student_sessions` (Lesson #4).
+- Scanner host: **Fly.io** (Python worker, trimesh for STL, svgpathtools for SVG). ~$5–35/mo envelope. No AI calls — deterministic.
+- Retention: raw file deleted 30 days after `completed` or `rejected`; scan results + thumbnails kept indefinitely.
+- Rule-override UX moved Phase 8 → Phase 1 (solo-reviewer mitigation). Ambiguous rules ship at WARN not BLOCK.
+- No FK to `work_items` (Pipeline 2) in v1 — loose event coupling only.
+- Pilot Fabricator: Cynthia (NIS, on-board).
+- Gate A (pre-commit): student-named raw fixture files ignored at `fabrication/fixtures/` root via `.gitignore` — only anonymised bucketed files tracked.
+
+**Phase 1A — 10 commits, all on origin/main:**
+- Migration 093 `machine_profiles` + 5 indexes + 4 RLS + ownership XOR CHECK. `rule_overrides` JSONB + `is_system_template` flag added (not in spec §7 — documented deviation).
+- Migration 094 seeds 12 system-template profiles (6 3DP: Bambu X1C/P1S, Prusa MK4S, Ender 3 V2, Ultimaker S3, Makerbot Replicator+; 6 lasers: Glowforge Pro/Plus, xTool M1/P2/S1, Gweike Cloud Pro). Idempotent `ON CONFLICT WHERE is_system_template DO NOTHING`.
+- Migration 095 `fabrication_jobs` + `fabrication_job_revisions` + dual-visibility RLS. Simpler than Lesson #29 — direct `teacher_id` column covers NULL `class_id` fallback without junction UNION.
+- Migration 096 `fabrication_scan_jobs` queue + 3 partial indexes. Deny-all RLS (matches FU-FF pattern with `student_sessions`, `ai_model_config`).
+- Migration 097 `fabricators` + `fabricator_sessions` + `fabricator_machines` junction. 6 RLS policies. Case-insensitive email via `UNIQUE ON LOWER(email)`.
+- Schema-registry: 7 new table entries with `applied_date: 2026-04-20`. WIRING.yaml: 3 new systems (`preflight-pipeline`, `preflight-scanner`, `machine-profiles`) + Lesson #33 fix on pre-existing line 1960. api-registry drift caught (routes 290→296, auth classification refinements).
+
+**Surprises & fixes:**
+- Supabase dashboard "Run and enable RLS" popup **mis-parses PL/pgSQL `DECLARE` variable names as table identifiers** — our `rls_enabled` boolean variable was extracted and the dashboard auto-generated `ALTER TABLE rls_enabled ENABLE ROW LEVEL SECURITY`, crashing with 42P01. Popup text itself confirmed the misread ("read and write to `rls_enabled`"). Fix: removed DO verify block from 093, rely on post-apply SELECT queries. Logged as **Lesson #51**.
+- CLAUDE.md baseline (1254) had drifted to **1362 passing** over 5 days. Corrected this saveme.
+- RLS-coverage scanner: 7 deny-all tables total (5 pre-existing + 2 new from Preflight). All intentional + documented.
+
+**Systems affected:** NEW — `preflight-pipeline`, `preflight-scanner`, `machine-profiles` (all `in-progress`). Registered downstream impact on `teacher-dashboard`, `student-dashboard`, `audit-log`.
+
+**Tests:** 1362 passing / 8 skipped (no regression — DDL-only phase).
+
+**Commits:** `392bb38` (scaffolding), `a5ff71b` (093), `1d68f29` (093 DO fix), `66c53a3` (094 seed), `1b2c0ad` (095), `b367686` (096), `4d42776` (097), `115a3f8` (api drift), `d476283` (WIRING + Lesson #33 fix), `39826d4` (schema-registry).
+
+**Deferred to Phase 1B / Phase 2:**
+- Storage buckets + bucket policies + retention cron implementation.
+- Teacher Fabricator-invite UI + `/fab/login`.
+- Python scanner worker on Fly.io (needs anonymised bucketed fixtures first per Gate B).
+- FK hardening on `fabrication_jobs.lab_tech_picked_up_by` → `fabricators(id)`.
+- Anonymous RLS explicit verification (dashboard queries used `postgres` role).
+- SVG fixture top-up (5 of target 10 — SVG BLOCK rules ship at WARN until fixtures land).
+
+---
+
 ## 16 Apr 2026 — Multi-lesson detection fix + Dimensions3 persistence for import pipeline
 
 **Context:** A 12-lesson DOCX unit plan (Product Design Biomimicry) was collapsing into 1 lesson with 3 activities. Root cause: 5-step chain where mammoth only creates `<h>` tags for Word heading styles (not bold text), parseDocument couldn't detect "Week N"/"Lesson N" patterns, extraction produced few blocks, and reconstruction couldn't split them. Additionally, the import route ran the full Dimensions3 pipeline but discarded all results — no content_items, no activity_blocks.

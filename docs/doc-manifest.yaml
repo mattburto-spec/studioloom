@@ -2288,13 +2288,62 @@ docs:
     max_age_days: 180
     last_scanned: "2026-04-15"
 
+  # --- PREFLIGHT (fabrication submission pipeline) ---
+  - path: docs/projects/fabrication-pipeline.md
+    title: "Preflight — Fabrication Submission Pipeline (master spec)"
+    purpose: "Full spec for the Preflight submission pipeline: 5 stages (upload → scan → gate → route → pickup → complete), 17 STL rules + 15 SVG rules, machine profile schema, Fabricator UX, Python worker infra on Fly.io, retention policy, 9-phase build plan"
+    category: projects
+    last_verified: "2026-04-20"
+    max_age_days: 90
+    last_scanned: "2026-04-20"
+
+  - path: docs/projects/preflight-phase-1a-brief.md
+    title: "Preflight Phase 1A Brief — Schema + RLS + Seed"
+    purpose: "Phase 1A build brief: 8 sub-tasks (migrations 093-097, prod verification, registry sync), Checkpoint 1.1A definition, stop triggers, don't-stop-for list. Shipped 20 Apr 2026"
+    category: projects
+    last_verified: "2026-04-20"
+    max_age_days: 90
+    last_scanned: "2026-04-20"
+
+  - path: docs/projects/fabrication-pipeline-phase-0-brief.md
+    title: "Preflight Phase 0 Brief — Spec & Pre-Build Checklist"
+    purpose: "Phase 0 pre-build ritual: fixture gathering, rule threshold sign-off, machine profile verification, Fabricator kickoff call, decision doc template, Checkpoint 0.1 gates"
+    category: projects
+    last_verified: "2026-04-20"
+    max_age_days: 90
+    last_scanned: "2026-04-20"
+
+  - path: docs/projects/fabrication/phase-0-decisions.md
+    title: "Preflight Phase 0 Decisions Log (D-01 through D-12)"
+    purpose: "Canonical record of every decision locked during Phase 0: product name (Preflight, not Bouncer), Fabricator role, Fly.io host, 30-day retention, Fabricator own auth, no Pipeline 2 FK in v1, rule-override UX moved to Phase 1, WIRING draft entries. Each decision has rationale + deferred-to trigger"
+    category: projects
+    last_verified: "2026-04-20"
+    max_age_days: 90
+    last_scanned: "2026-04-20"
+
+  - path: docs/projects/fabrication/machine-profile-defaults-v0.md
+    title: "Preflight Machine Profile Defaults v0"
+    purpose: "12 seeded machine profiles (6 3D printers + 6 lasers) with bed dimensions, nozzle/kerf, operation colour maps, source URLs. Used by migration 094 seed insert"
+    category: projects
+    last_verified: "2026-04-20"
+    max_age_days: 180
+    last_scanned: "2026-04-20"
+
+  - path: docs/projects/fabrication/fixtures/README.md
+    title: "Preflight Fixture Corpus"
+    purpose: "Catalog structure + sidecar YAML spec + coverage targets for STL/SVG fixtures used in scanner tests. Defines known-good / known-broken / borderline bucket convention + anonymisation protocol for student files"
+    category: projects
+    last_verified: "2026-04-20"
+    max_age_days: 180
+    last_scanned: "2026-04-20"
+
 # --- SUMMARY STATISTICS ---
 summary:
-  total_documents: 275
+  total_documents: 281
   by_category:
     root: 40
     brain: 9
-    projects: 85
+    projects: 91
     specs: 50
     research: 7
     testing: 8
@@ -2309,5 +2358,5 @@ summary:
     marketing: 1
     safety: 1
     email-templates: 5
-  last_updated: "2026-04-15"
-  referenced_in_claude_md: 17
+  last_updated: "2026-04-20"
+  referenced_in_claude_md: 18

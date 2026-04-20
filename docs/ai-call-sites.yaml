@@ -412,6 +412,7 @@ call_sites:
   called_from_routes:
   - /api/admin/ingestion-sandbox/run-stage
   - /api/teacher/library/import
+  - /api/teacher/library/import/classify
   cost_category: ingestion
   notes: Uses wrapper src/lib/ai/embeddings.ts
 - id: ai_lib_ingestion_moderate_topics
