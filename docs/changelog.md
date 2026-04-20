@@ -4,6 +4,48 @@
 
 ---
 
+## 20 Apr 2026 (late) — Preflight Phase 1B-1 shipped: schema extensions + Storage + AI guardrails
+
+**Context:** Continued same-day from Phase 1A. Brief `docs/projects/preflight-phase-1b-1-brief.md` was prepped earlier in the day (commit `c806d23`); this session executed sub-tasks 1B-1-1 through 1B-1-7 end-to-end. Brief's "Don't stop for" list + Karpathy discipline (Lessons #43–46) kept scope surgical — 6 migrations, all additive, no wandering.
+
+**Sub-tasks landed (7 commits on origin/main):**
+- **1B-1-1 mig 098** (`8029efe`, pre-session) — `fabrication_jobs` gains `student_intent JSONB` (pre-check answers: size bucket / units / material / description), `printing_started_at TIMESTAMPTZ` (Fabricator UI sub-state), `notifications_sent JSONB` (email idempotency map).
+- **1B-1-2 mig 099** (`eb123a7`, pre-session) — `fabricator_sessions.is_setup BOOLEAN NOT NULL DEFAULT false`. Marks one-time invite / password-reset sessions; `/fab/set-password` will consume setup sessions and rotate to `is_setup=false` normal session. 24h TTL via existing `expires_at`.
+- **1B-1-3 mig 100** (`5df4fba`) — `students.fabrication_notify_email BOOLEAN NOT NULL DEFAULT true`. Default=true preserved backward compat — all 6 existing students opted-in on apply. PG 11+ metadata-only ADD COLUMN so safe on hot table.
+- **1B-1-4 mig 101** (`30f550d`) — `fabrication_job_revisions.ai_enrichment_cost_usd NUMERIC` (per-scan Haiku spend; NULL = skipped/disabled) + `thumbnail_views JSONB` (shape: `{views: {iso, front, side, top, walls_heatmap, overhangs_heatmap}, annotations: [{view, bbox, rule_id}]}`).
+- **1B-1-5 mig 102** (`7be2183`) — 3 private buckets (`fabrication-uploads`, `fabrication-thumbnails`, `fabrication-pickup`) + 3 service-role-only FOR ALL policies on `storage.objects`, scoped by bucket_id. Matches FU-FF deny-all pattern; granular path-based RLS deferred to Phase 2.
+- **1B-1-6 mig 103** (`f6ddc1e`) — 3 `admin_settings` keys seeded: `preflight.ai_enrichment_enabled=true` (kill switch), `preflight.ai_enrichment_daily_cap_usd=5.00` (daily spend cap), `preflight.ai_enrichment_tiers_enabled=["tier1"]` (safety-critical only at launch). Scanner worker will read these before every Haiku call; sums today's `fabrication_job_revisions.ai_enrichment_cost_usd` vs cap, emits `system_alerts` on hit.
+- **1B-1-7 docs sync** (`7018f41`) — schema-registry (4 tables updated: students +fabrication_notify_email with classification block, fabrication_jobs +3 cols, fabrication_job_revisions +2 cols, fabricator_sessions +is_setup; admin_settings purpose string mentions new keys). WIRING preflight-pipeline data_fields now references all 4 tables + new columns; preflight-scanner depends_on adds `admin_settings`; both systems link the 1B-1 brief. api-registry rerun — no drift (DDL-only phase).
+
+**Push discipline (from memory):** All 7 commits held on `main` locally, backed up to `phase-1b-1-wip` after each commit. Pushed to `origin/main` only after checkpoint 1.1B-1 closed at 1362/8 test baseline match. No `--amend`, no squashing.
+
+**Systems affected (WIRING):** preflight-pipeline (summary + data_fields + docs + key_files + affects), preflight-scanner (summary + depends_on + data_fields + docs).
+
+**Tests:** 1362 passing, 8 skipped, 79 files — exact baseline match from this morning's saveme. DDL-only phase, no new test coverage — pattern consistent with Lesson #38 (verification discipline: explicit assertions via SELECT queries post-apply, not trusting "no error = success").
+
+**Verify queries captured (per sub-task):**
+- Column shape assertions (data_type, is_nullable, column_default) — all match spec
+- Comment presence — all `COMMENT ON COLUMN` land correctly
+- Empty-table non-null counts — all 0 on fresh tables
+- Storage: 3 buckets public=false, 3 policies cmd=ALL, `storage.objects.relrowsecurity=true`
+- admin_settings: 3 keys present, no key leakage outside preflight.ai_enrichment_*, `updated_at` fresh
+
+**Notable quirks / non-issues:**
+- PostgreSQL JSONB normalises `'5.00'::jsonb` → `5` (trailing zeros dropped). Same semantic value, just Postgres's JSONB numeric representation. Flagged in verify output, non-issue.
+- `students` existing RLS policy count = 1 pre-existing; unchanged by mig 100 (no new policy added). Verify query (d) confirmed.
+- `fabricator_sessions` has 0 policies intentionally (deny-all per FU-FF). Migration 099 didn't add one — correct.
+
+**Pre-existing drift noted (not caused by 1B-1):**
+- TypeScript errors in `src/lib/pipeline/adapters/__tests__/adapters.test.ts` + `tests/e2e/checkpoint-1-2-ingestion.test.ts` (5 errors on Dimensions3 type shapes: `DimensionScore.flags`, `bloomLevels`, `blocksUsed`, `CostBreakdown`, `'cc-by'` literal). Confirmed pre-existing via `git stash` check. Vitest runs green (separate transpile path). Filed as **FU-MM (P3)**.
+
+**Registries scanned:** ai-call-sites.py, feature-flags.py (drift status unchanged from morning — SENTRY_AUTH_TOKEN orphan per FU-CC), vendors.py (OK), rls-coverage.py (7 `rls_enabled_no_policy` tables, all intentional per FU-FF — includes our fabricator_sessions + fabrication_scan_jobs from Phase 1A). No new drift introduced.
+
+**Next up:** Phase 1B-2 (teacher Fabricator-invite UI, `/fab/login`, `/fab/set-password`, email dispatch using `notifications_sent` idempotency, student settings toggle) OR Phase 2 (Python scanner worker on Fly.io).
+
+**Commits (this session):** `5df4fba`, `30f550d`, `7be2183`, `f6ddc1e`, `7018f41` — all pushed to origin/main. Plus `8029efe`, `eb123a7` from earlier in the day.
+
+---
+
 ## 20 Apr 2026 — Preflight (fabrication submission pipeline) — Phase 0 + Phase 1A shipped
 
 **Context:** New project. Submission pipeline between "student design file" and "lab tech runs it on the 3D printer or laser cutter." Pedagogy/workflow spec at `docs/projects/fabrication-pipeline.md` (734 lines) was already SPEC-ready; this session took it from SPEC to deployed schema. Free public tool + logged-in teacher/student/Fabricator workflow share the same codebase.

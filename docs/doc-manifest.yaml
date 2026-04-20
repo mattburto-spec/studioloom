@@ -24,9 +24,9 @@ docs:
     title: "Session Changelog"
     purpose: "Rolling log of changes across sessions for cross-session context"
     category: root
-    last_verified: "2026-04-16"
+    last_verified: "2026-04-20"
     max_age_days: 90
-    last_scanned: null
+    last_scanned: "2026-04-20"
 
   - path: docs/decisions-log.md
     title: "Key Decisions Log"
@@ -313,10 +313,10 @@ docs:
     title: "StudioLoom — Master Project Index"
     purpose: "CANONICAL project tracker. ALL project status, new projects, completions. Single source of truth."
     category: projects
-    last_verified: "2026-04-15"
+    last_verified: "2026-04-20"
     referenced_from: ["CLAUDE.md project tracking section"]
     max_age_days: 90
-    last_scanned: null
+    last_scanned: "2026-04-20"
 
   - path: docs/projects/discovery-engine-cognitive-layer.md
     title: "Discovery Engine — Cognitive Layer (MindPrint-Informed)"
@@ -384,19 +384,19 @@ docs:
     title: "WIRING — Machine-Readable System Registry"
     purpose: "82+ systems with dependencies, affects relationships, data fields, docs, change impacts. CRITICAL: check before making changes."
     category: projects
-    last_verified: "2026-04-14"
+    last_verified: "2026-04-20"
     referenced_from: ["CLAUDE.md impact analysis section"]
     max_age_days: 30
-    last_scanned: null
+    last_scanned: "2026-04-20"
 
   - path: docs/schema-registry.yaml
     title: "Schema Registry — Table-Level Truth"
-    purpose: "~69 tables with columns, RLS policies, writers, readers, spec drift. Backfilled from 74 migration files. 3 flagged No RLS (FU-X). Sync: scripts/registry/sync-schema-registry.py"
+    purpose: "~76 tables with columns, RLS policies, writers, readers, spec drift. Backfilled from migration files through 103 (Preflight 1B-1). 3 flagged No RLS (FU-X). Sync: scripts/registry/sync-schema-registry.py"
     category: root
-    last_verified: "2026-04-14"
+    last_verified: "2026-04-20"
     referenced_from: ["CLAUDE.md registries section"]
     max_age_days: 30
-    last_scanned: null
+    last_scanned: "2026-04-20"
 
   - path: docs/api-registry.yaml
     title: "API Registry — Route-Level Truth"
@@ -2300,6 +2300,14 @@ docs:
   - path: docs/projects/preflight-phase-1a-brief.md
     title: "Preflight Phase 1A Brief — Schema + RLS + Seed"
     purpose: "Phase 1A build brief: 8 sub-tasks (migrations 093-097, prod verification, registry sync), Checkpoint 1.1A definition, stop triggers, don't-stop-for list. Shipped 20 Apr 2026"
+    category: projects
+    last_verified: "2026-04-20"
+    max_age_days: 90
+    last_scanned: "2026-04-20"
+
+  - path: docs/projects/preflight-phase-1b-1-brief.md
+    title: "Preflight Phase 1B-1 Brief — Schema extensions + Storage + AI guardrails"
+    purpose: "Phase 1B-1 build brief: 7 sub-tasks (migrations 098-103 + registry sync), Checkpoint 1.1B-1 definition, stop triggers, 098-candidates sign-off carry-forward. Shipped 20 Apr 2026"
     category: projects
     last_verified: "2026-04-20"
     max_age_days: 90
