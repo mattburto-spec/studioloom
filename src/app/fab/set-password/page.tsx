@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { Suspense, useEffect, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 type Stage = "verifying" | "invalid" | "ready" | "submitting" | "done";
 
 const MIN_PASSWORD_LENGTH = 12;
 
-export default function FabSetPasswordPage() {
+function FabSetPasswordInner() {
   const router = useRouter();
   const params = useSearchParams();
   const token = params.get("token") ?? "";
@@ -169,5 +169,23 @@ export default function FabSetPasswordPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function FabSetPasswordPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center px-4">
+          <div className="w-full max-w-sm">
+            <div className="rounded-2xl bg-slate-900 p-6 text-center text-sm text-slate-400 ring-1 ring-slate-800">
+              Loading…
+            </div>
+          </div>
+        </div>
+      }
+    >
+      <FabSetPasswordInner />
+    </Suspense>
   );
 }
