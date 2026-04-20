@@ -1957,7 +1957,7 @@ systems:
       - src/lib/admin/library-health-queries.ts
       - src/app/admin/costs/page.tsx
       - src/app/admin/settings/page.tsx
-    future_needs: All 12 tabs now live. Future: drill-down on per-teacher cost, block interaction graph improvements.
+    future_needs: "All 12 tabs now live. Future — drill-down on per-teacher cost, block interaction graph improvements."
     adrs: []
     os_seam: partial
     change_impacts: Changes to monitors affect health strip. Changes to pipeline stages affect Pipeline Health tab. Changes to activity_blocks schema affect Library browser and Library Health dashboard. Changes to system_alerts affect both health dashboards.
@@ -2283,16 +2283,115 @@ systems:
     os_seam: none
     change_impacts: Any change to a registered system (migration, route, AI call, flag, vendor) must update the corresponding registry. Any new CREATE TABLE must include RLS + policy (scan-rls-coverage.py). See docs/change-triggers.yaml.
 
+  # ============================================================
+  # Preflight — Fabrication Submission Pipeline (Phase 1A schema applied 2026-04-20)
+  # Product name: Preflight. Schema prefix: fabrication_*.
+  # Docs: docs/projects/fabrication-pipeline.md (spec),
+  #       docs/projects/preflight-phase-1a-brief.md (active brief)
+  # ============================================================
+
+  - id: preflight-pipeline
+    name: "Preflight — Fabrication Submission Pipeline"
+    category: Submission
+    status: in-progress
+    currentVersion: 1
+    summary: "Upload, scan, gate, route, pickup, complete pipeline for student fabrication submissions (3D print, laser). User-facing brand Preflight. Schema tables prefixed fabrication_*. Phase 1A schema applied; Phase 1B (storage buckets + retention trigger) and Phase 2 (scanner worker + upload UI) upcoming."
+    depends_on: [storage, preflight-scanner, auth-system, machine-profiles]
+    affects: [teacher-dashboard, student-dashboard, audit-log]
+    docs:
+      - path: docs/projects/fabrication-pipeline.md
+        purpose: "Full spec (section 11 data model, sections 5 and 6 rule catalogues, section 13 phases)"
+      - path: docs/projects/preflight-phase-1a-brief.md
+        purpose: Phase 1A schema and RLS brief
+      - path: docs/projects/fabrication/phase-0-decisions.md
+        purpose: "D-01 through D-12 design decisions"
+    data_fields:
+      - table: fabrication_jobs
+        columns: [id, teacher_id, student_id, class_id, unit_id, machine_profile_id, file_type, status, current_revision, latest_scan_results, retention_clock_started_at]
+        notes: "One row per logical submission; 21 data columns; dual-visibility RLS via direct teacher_id fallback"
+      - table: fabrication_job_revisions
+        columns: [job_id, revision_number, storage_path, thumbnail_path, scan_results, scan_ruleset_version, scan_status]
+        notes: "One row per upload attempt; storage_path NULLABLE (D-04 cron nulls at day 30)"
+    key_files:
+      - supabase/migrations/095_fabrication_jobs.sql
+      - src/app/teacher/preflight/page.tsx
+      - src/app/student/preflight/submit/page.tsx
+      - src/app/fab/queue/page.tsx
+      - src/app/api/student/fabrication/
+      - src/app/api/teacher/fabrication/
+    future_needs: "Pipeline 2 coupling (auto-attach completion photos to work_items). Slicer integration. Pickup tokens for walk-up tablets (Phase 8+)."
+    adrs: []
+    os_seam: ready
+    change_impacts: "Changes to status transitions affect fabricator queue plus teacher dashboard. Changes to scan result shape require scanner worker redeploy in lockstep."
+
+  - id: preflight-scanner
+    name: "Preflight Scanner Worker (Python on Fly.io)"
+    category: Infrastructure
+    status: in-progress
+    currentVersion: 1
+    summary: "Python worker on Fly.io. Polls fabrication_scan_jobs queue, downloads file from Storage, runs rule catalogue (trimesh for STL, svgpathtools for SVG), uploads thumbnail, writes scan results. NOT DEPLOYED YET — Phase 2."
+    depends_on: [storage, preflight-pipeline, machine-profiles]
+    affects: [preflight-pipeline]
+    docs:
+      - path: docs/projects/fabrication-pipeline.md
+        purpose: "Spec section 12 (worker infra) and sections 5 and 6 (rule catalogues)"
+      - path: docs/projects/fabrication/phase-0-decisions.md
+        purpose: "D-03 (Fly.io host decision)"
+    data_fields:
+      - table: fabrication_scan_jobs
+        columns: [id, job_revision_id, status, attempt_count, locked_by, locked_at, error_detail]
+        notes: "Source of truth for scan lifecycle; service_role only (deny-all RLS)"
+      - table: fabrication_job_revisions
+        columns: [scan_status, scan_results, scan_started_at, scan_completed_at, thumbnail_path]
+        notes: "Worker writes scan outcome; scan_status denormalized from scan_jobs for display"
+    external_deps:
+      - trimesh
+      - svgpathtools
+      - lxml
+      - matplotlib
+      - cairo
+      - supabase-py
+    future_needs: "CNC, vinyl, embroidery scanners via pluggable registry (v2). Auto-repair deferred per spec — teaching moment beats convenience."
+    adrs: []
+    os_seam: pluggable-scanner
+    change_impacts: "Worker deploys are tied to rule catalogue version string. Changing thresholds = ruleset version bump + worker redeploy. Rule catalogue changes flow to teacher UI via scan-results JSONB shape."
+
+  - id: machine-profiles
+    name: "Preflight Machine Profile Registry"
+    category: Configuration
+    status: in-progress
+    currentVersion: 1
+    summary: "Per-teacher (future per-school) machine configurations. 12 seeded system templates + teacher-owned clones. Bed dimensions, nozzle/kerf, operation colour maps, rule_overrides JSONB for per-profile rule softening (D-07)."
+    depends_on: [auth-system]
+    affects: [preflight-pipeline, preflight-scanner]
+    docs:
+      - path: docs/projects/fabrication-pipeline.md
+        purpose: "Spec section 7"
+      - path: docs/projects/fabrication/machine-profile-defaults-v0.md
+        purpose: "12 seeded machine profile definitions"
+    data_fields:
+      - table: machine_profiles
+        columns: [id, school_id, teacher_id, is_system_template, name, machine_category, bed_size_x_mm, bed_size_y_mm, bed_size_z_mm, nozzle_diameter_mm, kerf_mm, operation_color_map, rule_overrides]
+        notes: "rule_overrides JSONB holds per-profile rule severity/threshold changes. is_system_template XOR teacher_id enforced by CHECK constraint."
+    key_files:
+      - supabase/migrations/093_machine_profiles.sql
+      - supabase/migrations/094_machine_profile_seed.sql
+      - docs/projects/fabrication/machine-profile-defaults-v0.md
+    future_needs: "Per-material profiles (e.g. Glowforge Pro for 3mm ply). Per-school shared library when FU-P school entity lands."
+    adrs: []
+    os_seam: ready
+    change_impacts: "Profile schema changes propagate to scanner worker input shape. Rule-override JSONB structure must match worker's expected contract. System-template edits require service_role."
+
 # Summary Statistics
 meta:
-  total_systems: 94
+  total_systems: 97
   complete_systems: 35
-  active_systems: 13
+  active_systems: 16
   planned_systems: 8
   idea_systems: 19
   future_systems: 6
   quarantined_systems: 1
-  last_updated: 2026-04-14
+  last_updated: 2026-04-20
   notes: |
     This registry maps 92 systems across 8 categories.
     CRITICAL LINKS:
