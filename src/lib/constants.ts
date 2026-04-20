@@ -397,6 +397,14 @@ export const INQUIRY_THEMES = [
 export const SESSION_COOKIE_NAME = "questerra_student_session";
 export const SESSION_DURATION_DAYS = 7;
 
+// --- Fabricator session (Preflight) ---
+// Separate cookie + duration so Fabricator and student sessions don't collide
+// and can have independent security posture (Fabricators log in less often;
+// 30-day cookie is acceptable; setup/invite sessions expire in 24h).
+export const FAB_SESSION_COOKIE_NAME = "questerra_fab_session";
+export const FAB_SESSION_DURATION_DAYS = 30;
+export const FAB_SETUP_SESSION_DURATION_HOURS = 24;
+
 // --- Page Settings Helpers ---
 
 import type { PageSettings, PageSettingsMap, PageDueDatesMap } from "@/types";

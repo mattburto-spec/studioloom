@@ -74,6 +74,14 @@ const nextConfig: NextConfig = {
           { key: "Cache-Control", value: "private, no-cache, no-store, must-revalidate" },
         ],
       },
+      // Fabricator routes set/read the fab_session cookie — must be private
+      // (Lesson #11: Vercel CDN strips Set-Cookie from "public" responses).
+      {
+        source: "/api/fab/:path*",
+        headers: [
+          { key: "Cache-Control", value: "private, no-cache, no-store, must-revalidate" },
+        ],
+      },
     ];
   },
   // Keep heavy server-only packages out of the webpack bundle
