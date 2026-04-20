@@ -87,7 +87,7 @@ export async function PATCH(request: NextRequest) {
   if (auth.error) return auth.error;
 
   const body = await request.json();
-  const updates: Record<string, string> = {};
+  const updates: Record<string, string | boolean> = {};
 
   if (body.mentor_id !== undefined) {
     if (!MENTOR_IDS.includes(body.mentor_id as MentorId)) {
@@ -101,6 +101,18 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Invalid theme_id" }, { status: 400 });
     }
     updates.theme_id = body.theme_id;
+  }
+
+  // Preflight Phase 1B-2-5: opt-in/out of fabrication status emails.
+  // Maps to students.fabrication_notify_email (migration 100, default true).
+  if (body.fabricationNotifyEmail !== undefined) {
+    if (typeof body.fabricationNotifyEmail !== "boolean") {
+      return NextResponse.json(
+        { error: "fabricationNotifyEmail must be a boolean" },
+        { status: 400 }
+      );
+    }
+    updates.fabrication_notify_email = body.fabricationNotifyEmail;
   }
 
   if (Object.keys(updates).length === 0) {
