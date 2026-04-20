@@ -172,6 +172,49 @@ export async function createFabricatorSession(
   return { rawToken, tokenHash, expiresAt, sessionId: data.id };
 }
 
+export interface SetupSessionValidation {
+  sessionId: string;
+  fabricator: FabricatorRecord;
+}
+
+/**
+ * Validate a setup/reset token. Used by /fab/set-password verify + submit.
+ *
+ * - Hashes the raw token (tokens live hashed in fabricator_sessions)
+ * - Requires is_setup=true (login sessions must not be consumable here)
+ * - Requires expires_at > now()
+ * - Requires the joined fabricator to be is_active=true
+ *
+ * Returns null on any failure (callers map to 401 — don't leak why).
+ */
+export async function validateSetupSession(
+  rawToken: string,
+  supabase: SupabaseClient
+): Promise<SetupSessionValidation | null> {
+  if (!rawToken) return null;
+  const tokenHash = hashFabToken(rawToken);
+
+  const { data: session } = await supabase
+    .from("fabricator_sessions")
+    .select("id, fabricator_id, is_setup, expires_at")
+    .eq("session_token_hash", tokenHash)
+    .eq("is_setup", true)
+    .gt("expires_at", new Date().toISOString())
+    .maybeSingle();
+
+  if (!session) return null;
+
+  const { data: fabricator } = await supabase
+    .from("fabricators")
+    .select("id, email, display_name, is_active")
+    .eq("id", session.fabricator_id)
+    .maybeSingle();
+
+  if (!fabricator || !fabricator.is_active) return null;
+
+  return { sessionId: session.id, fabricator };
+}
+
 /**
  * Destroy a fabricator session by hashing the raw token and deleting the row.
  * Idempotent — unknown tokens are no-ops.
