@@ -409,8 +409,8 @@ def main():
     if max_reads > 15 or max_writes > 15:
         print(f"\n⛔ GATE FAIL: max tables_read={max_reads}, max tables_written={max_writes} (>15)")
         gate_fail = True
-    if total < 150 or total > 300:
-        print(f"\n⛔ GATE FAIL: total entries {total} outside expected range 150-300")
+    if total < 150 or total > 400:
+        print(f"\n⛔ GATE FAIL: total entries {total} outside expected range 150-400")
         gate_fail = True
 
     if gate_fail:

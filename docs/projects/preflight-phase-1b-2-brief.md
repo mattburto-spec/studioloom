@@ -392,3 +392,57 @@ I'll write the 1B-2-2 instruction block (Fabricator auth helper + `/fab/login` +
 Then 1B-2-3 (`/fab/set-password` flow), 1B-2-4 (teacher admin page + invite API — uses 1B-2-1 email helper), 1B-2-5 (student preference extension — smallest), 1B-2-6 (WIRING sync + Checkpoint report).
 
 Each gets its own pre-work → audit → write → test → NC → commit → report cycle.
+
+---
+
+## Completion summary
+
+**Shipped:** 2026-04-21
+**Commit range:** `3cd3adc..4697801` (7 commits on `main`)
+
+### Commits
+
+| Sub-task | Commit | Subject |
+|---|---|---|
+| 1B-2-1 | `3cd3adc` | feat(preflight): email helper lib + idempotency via notifications_sent (1B-2-1) |
+| 1B-2-2 | `662f81a` | feat(preflight): Fabricator auth + /fab/login + session lifecycle (1B-2-2) |
+| 1B-2-3 | `fd50641` | feat(preflight): /fab/set-password consuming is_setup sessions (1B-2-3) |
+| 1B-2-4 | `c2e75d9` | feat(preflight): teacher Fabricator admin page + invite/reset/deactivate API (1B-2-4) |
+| 1B-2-4 hotfix | `26e4921` | fix(preflight): wrap /fab/set-password useSearchParams in Suspense |
+| 1B-2-5 | `4697801` | feat(preflight): PATCH studio-preferences accepts fabricationNotifyEmail (1B-2-5) |
+| 1B-2-6 | (this commit) | docs(preflight): WIRING + api-registry sync + ALL-PROJECTS update (1B-2-6) |
+
+### What landed
+
+- `src/lib/preflight/email.ts` + `email-templates.ts` — Resend helper with per-job, per-kind idempotency via `fabrication_jobs.notifications_sent` JSONB merge (Lesson #42). 4 email kinds: `invite`, `set_password_reset`, `scan_complete`, `pickup_ready` (latter two wired in Phase 2).
+- `src/lib/fab/auth.ts` + `token.ts` — Argon2id password hashing, opaque 32-byte session tokens (SHA-256 at rest), `requireFabricatorAuth` helper, `createFabricatorSession` with `isSetup` discriminator.
+- `/fab/login` + `/api/fab/login` + `/api/fab/logout` — Fabricator sign-in with `Cache-Control: private` on cookie responses (Lesson #11). Rejects is_setup sessions.
+- `/fab/set-password` + `/api/fab/set-password/verify` + `/api/fab/set-password/submit` — Consumes is_setup sessions; rotates to a normal session after password set. Suspense-wrapped (Next.js 15 prerender requirement).
+- `/teacher/preflight/fabricators` + `FabricatorsClient` — Teacher admin page: invite (email + display name + machine checkboxes), list invitees, toggle is_active, reset password, replace machine assignments. 7 invite-route tests asserting specific payload shapes (Lesson #38).
+- `/api/teacher/fabricators` (POST/GET) + `/[id]` (PATCH) + `/[id]/machines` (PATCH) + `/[id]/reset-password` (POST). Ownership guard (cross-teacher hijack → 409). Resend path keyed by `?resend=true`. No hard-delete (D-INVITE-3; returns 405).
+- `PATCH /api/student/studio-preferences` now accepts optional `fabricationNotifyEmail: boolean` → `students.fabrication_notify_email`. Student-visible toggle UI deferred to Phase 2 per D-STUDENT-1.
+- Teacher sidebar Preflight nav link routing to `/teacher/preflight/fabricators`.
+
+### Tests
+
+- Baseline 1362 passing + 8 skipped → **1409 passing + 8 skipped** (+47 across phase sub-tasks). No regression.
+- `tsc --noEmit` clean on new files; pre-existing FU-MM drift (adapters + checkpoint-1-2-ingestion) unchanged.
+
+### Registry + WIRING changes
+
+- `docs/api-registry.yaml` — regenerated via `scan-api-routes.py --apply`: 296 → 306 routes (+10 new). Scanner gate bumped 300 → 400 entries.
+- `docs/projects/WIRING.yaml`:
+  - `auth-system` extended: triple-auth summary, `fabricators` + `fabricator_sessions` data_fields, `src/lib/fab/auth.ts` + `token.ts` in key_files, `preflight-pipeline` added to affects.
+  - `preflight-pipeline.key_files` — appended 16 new files (fab routes, teacher admin page, studio-preferences, lib/fab/*, lib/preflight/*).
+
+### Out of scope (carried forward to Phase 2)
+
+- Scanner worker on Fly.io; `/fab/queue` real UI; `/fab/jobs/[jobId]` pickup/complete flow; `/student/preflight/submit` upload page; `/teacher/preflight` queue landing page. Student-visible opt-out toggle UI (server side wired now).
+
+### Known follow-ups filed
+
+- None new. FU-DD (scanner version: strip) unchanged — `version:` field still absent from api-registry header, orthogonal to this phase.
+
+### Checkpoint 1.1B-2
+
+All success criteria met except end-to-end smoke test — not run locally; deferred to production verification once `4697801` is deployed. Redeploy on `main` HEAD will be user-verified.

@@ -5,7 +5,7 @@
 # Cross-referenced with docs/schema-registry.yaml (tables) and docs/ai-call-sites.yaml (AI calls).
 #
 # Last synced: 2026-04-14
-# Total routes: 296
+# Total routes: 306
 
 routes:
 - path: /api/admin/ai-model
@@ -491,6 +491,46 @@ routes:
   - students
   tables_written:
   - discovery_sessions
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/fab/login
+  method: POST
+  file: src/app/api/fab/login/route.ts
+  auth: service-role
+  tables_read:
+  - fabricators
+  tables_written:
+  - fabricators
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/fab/logout
+  method: POST
+  file: src/app/api/fab/logout/route.ts
+  auth: service-role
+  tables_read: []
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/fab/set-password/submit
+  method: POST
+  file: src/app/api/fab/set-password/submit/route.ts
+  auth: service-role
+  tables_read: []
+  tables_written:
+  - fabricator_sessions
+  - fabricators
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/fab/set-password/verify
+  method: POST
+  file: src/app/api/fab/set-password/verify/route.ts
+  auth: service-role
+  tables_read: []
+  tables_written: []
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
@@ -1874,6 +1914,85 @@ routes:
   - unit_badge_requirements
   - units
   tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/fabricators
+  method: GET
+  file: src/app/api/teacher/fabricators/route.ts
+  auth: teacher
+  tables_read:
+  - fabricator_machines
+  - fabricator_sessions
+  - fabricators
+  - teachers
+  tables_written:
+  - fabricator_machines
+  - fabricator_sessions
+  - fabricators
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/fabricators
+  method: POST
+  file: src/app/api/teacher/fabricators/route.ts
+  auth: teacher
+  tables_read:
+  - fabricator_machines
+  - fabricator_sessions
+  - fabricators
+  - teachers
+  tables_written:
+  - fabricator_machines
+  - fabricator_sessions
+  - fabricators
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/fabricators/[id]
+  method: PATCH
+  file: src/app/api/teacher/fabricators/[id]/route.ts
+  auth: teacher
+  tables_read:
+  - fabricators
+  tables_written:
+  - fabricator_sessions
+  - fabricators
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/fabricators/[id]
+  method: DELETE
+  file: src/app/api/teacher/fabricators/[id]/route.ts
+  auth: teacher
+  tables_read:
+  - fabricators
+  tables_written:
+  - fabricator_sessions
+  - fabricators
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/fabricators/[id]/machines
+  method: PATCH
+  file: src/app/api/teacher/fabricators/[id]/machines/route.ts
+  auth: teacher
+  tables_read:
+  - fabricators
+  - machine_profiles
+  tables_written:
+  - fabricator_machines
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/fabricators/[id]/reset-password
+  method: POST
+  file: src/app/api/teacher/fabricators/[id]/reset-password/route.ts
+  auth: teacher
+  tables_read:
+  - fabricators
+  tables_written:
+  - fabricator_sessions
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
