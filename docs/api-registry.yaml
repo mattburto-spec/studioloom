@@ -5,27 +5,27 @@
 # Cross-referenced with docs/schema-registry.yaml (tables) and docs/ai-call-sites.yaml (AI calls).
 #
 # Last synced: 2026-04-14
-# Total routes: 290
+# Total routes: 296
 
 routes:
 - path: /api/admin/ai-model
   method: GET
   file: src/app/api/admin/ai-model/route.ts
-  auth: mixed
+  auth: admin
   tables_read: []
   tables_written: []
   ai_call_sites: []
   cost_ceiling_usd: null
-  notes: 'Multiple auth patterns detected: admin, teacher'
+  notes: null
 - path: /api/admin/ai-model
   method: PUT
   file: src/app/api/admin/ai-model/route.ts
-  auth: mixed
+  auth: admin
   tables_read: []
   tables_written: []
   ai_call_sites: []
   cost_ceiling_usd: null
-  notes: 'Multiple auth patterns detected: admin, teacher'
+  notes: null
 - path: /api/admin/ai-model/test
   method: POST
   file: src/app/api/admin/ai-model/test/route.ts
@@ -94,7 +94,7 @@ routes:
 - path: /api/admin/feedback
   method: GET
   file: src/app/api/admin/feedback/route.ts
-  auth: mixed
+  auth: admin
   tables_read:
   - feedback_proposals
   tables_written:
@@ -103,11 +103,11 @@ routes:
   - feedback_proposals
   ai_call_sites: []
   cost_ceiling_usd: null
-  notes: 'Multiple auth patterns detected: admin, teacher'
+  notes: null
 - path: /api/admin/feedback
   method: POST
   file: src/app/api/admin/feedback/route.ts
-  auth: mixed
+  auth: admin
   tables_read:
   - feedback_proposals
   tables_written:
@@ -116,11 +116,11 @@ routes:
   - feedback_proposals
   ai_call_sites: []
   cost_ceiling_usd: null
-  notes: 'Multiple auth patterns detected: admin, teacher'
+  notes: null
 - path: /api/admin/feedback
   method: PATCH
   file: src/app/api/admin/feedback/route.ts
-  auth: mixed
+  auth: admin
   tables_read:
   - feedback_proposals
   tables_written:
@@ -129,17 +129,17 @@ routes:
   - feedback_proposals
   ai_call_sites: []
   cost_ceiling_usd: null
-  notes: 'Multiple auth patterns detected: admin, teacher'
+  notes: null
 - path: /api/admin/feedback/audit-log
   method: GET
   file: src/app/api/admin/feedback/audit-log/route.ts
-  auth: mixed
+  auth: admin
   tables_read:
   - feedback_audit_log
   tables_written: []
   ai_call_sites: []
   cost_ceiling_usd: null
-  notes: 'Multiple auth patterns detected: admin, teacher'
+  notes: null
 - path: /api/admin/generation-sandbox/[runId]
   method: GET
   file: src/app/api/admin/generation-sandbox/[runId]/route.ts
@@ -171,7 +171,7 @@ routes:
 - path: /api/admin/ingestion-sandbox/commit
   method: POST
   file: src/app/api/admin/ingestion-sandbox/commit/route.ts
-  auth: mixed
+  auth: admin
   tables_read:
   - activity_blocks
   tables_written:
@@ -180,27 +180,27 @@ routes:
   - content_moderation_log
   ai_call_sites: []
   cost_ceiling_usd: null
-  notes: 'Multiple auth patterns detected: admin, teacher'
+  notes: null
 - path: /api/admin/ingestion-sandbox/run-stage
   method: POST
   file: src/app/api/admin/ingestion-sandbox/run-stage/route.ts
-  auth: mixed
+  auth: admin
   tables_read: []
   tables_written: []
   ai_call_sites: []
   cost_ceiling_usd: null
-  notes: 'Multiple auth patterns detected: admin, teacher'
+  notes: null
 - path: /api/admin/ingestion-sandbox/upload
   method: POST
   file: src/app/api/admin/ingestion-sandbox/upload/route.ts
-  auth: mixed
+  auth: admin
   tables_read:
   - content_items
   tables_written:
   - content_items
   ai_call_sites: []
   cost_ceiling_usd: null
-  notes: 'Multiple auth patterns detected: admin, teacher'
+  notes: null
 - path: /api/admin/library
   method: GET
   file: src/app/api/admin/library/route.ts
@@ -312,6 +312,28 @@ routes:
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
+- path: /api/admin/teacher-requests
+  method: GET
+  file: src/app/api/admin/teacher-requests/route.ts
+  auth: admin
+  tables_read:
+  - teacher_access_requests
+  tables_written:
+  - teacher_access_requests
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: Reference to unknown table 'teacher_access_requests' — not in schema-registry
+- path: /api/admin/teacher-requests
+  method: PATCH
+  file: src/app/api/admin/teacher-requests/route.ts
+  auth: admin
+  tables_read:
+  - teacher_access_requests
+  tables_written:
+  - teacher_access_requests
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: Reference to unknown table 'teacher_access_requests' — not in schema-registry
 - path: /api/admin/teachers
   method: GET
   file: src/app/api/admin/teachers/route.ts
@@ -342,6 +364,15 @@ routes:
   auth: admin
   tables_read:
   - teachers
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/admin/whoami
+  method: GET
+  file: src/app/api/admin/whoami/route.ts
+  auth: admin
+  tables_read: []
   tables_written: []
   ai_call_sites: []
   cost_ceiling_usd: null
@@ -1912,6 +1943,18 @@ routes:
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
+- path: /api/teacher/gallery/[roundId]/layout
+  method: PATCH
+  file: src/app/api/teacher/gallery/[roundId]/layout/route.ts
+  auth: teacher
+  tables_read:
+  - gallery_rounds
+  - gallery_submissions
+  tables_written:
+  - gallery_submissions
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
 - path: /api/teacher/generate-journey
   method: POST
   file: src/app/api/teacher/generate-journey/route.ts
@@ -2268,6 +2311,15 @@ routes:
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
+- path: /api/teacher/library/import/classify
+  method: POST
+  file: src/app/api/teacher/library/import/classify/route.ts
+  auth: teacher
+  tables_read: []
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
 - path: /api/teacher/library/ingest
   method: POST
   file: src/app/api/teacher/library/ingest/route.ts
@@ -2434,8 +2486,10 @@ routes:
   auth: teacher
   tables_read:
   - teacher_profiles
+  - teachers
   tables_written:
   - teacher_profiles
+  - teachers
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
@@ -2445,8 +2499,10 @@ routes:
   auth: teacher
   tables_read:
   - teacher_profiles
+  - teachers
   tables_written:
   - teacher_profiles
+  - teachers
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
@@ -2521,6 +2577,18 @@ routes:
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
+- path: /api/teacher/request-access
+  method: POST
+  file: src/app/api/teacher/request-access/route.ts
+  auth: service-role
+  tables_read:
+  - teacher_access_requests
+  - teachers
+  tables_written:
+  - teacher_access_requests
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: Reference to unknown table 'teacher_access_requests' — not in schema-registry
 - path: /api/teacher/safety-certs
   method: GET
   file: src/app/api/teacher/safety-certs/route.ts
@@ -2793,6 +2861,8 @@ routes:
   file: src/app/api/teacher/units/route.ts
   auth: teacher
   tables_read:
+  - teacher_profiles
+  - teachers
   - units
   tables_written:
   - units
@@ -2804,6 +2874,8 @@ routes:
   file: src/app/api/teacher/units/route.ts
   auth: teacher
   tables_read:
+  - teacher_profiles
+  - teachers
   - units
   tables_written:
   - units
