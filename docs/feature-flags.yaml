@@ -387,3 +387,16 @@ secrets:
     rotation_notes: Replace in Vercel env vars. Only used at build time, not runtime.
     consumers:
       - next.config.ts                           # withSentryConfig conditional upload
+
+  - name: NEXT_PUBLIC_SITE_URL
+    kind: config
+    source: env
+    public: true
+    required: false
+    provider: Vercel
+    description: Canonical site URL used to build absolute links inside server-side email templates (invite links, password-reset links). NEXT_PUBLIC_* so it is available in client bundles too; falls back to "https://studioloom.org" when unset.
+    rotation_notes: Change in Vercel env vars. Must match the production custom domain or invite emails will link to the wrong host.
+    consumers:
+      - src/app/api/admin/teachers/invite/route.ts    # teacher invite link host
+      - src/app/api/teacher/fabricators/route.ts      # fabricator invite link host
+      - src/app/api/teacher/fabricators/[id]/reset-password/route.ts  # fabricator reset-password link host

@@ -2313,6 +2313,14 @@ docs:
     max_age_days: 90
     last_scanned: "2026-04-20"
 
+  - path: docs/projects/preflight-phase-1b-2-brief.md
+    title: "Preflight Phase 1B-2 Brief — Fabricator auth + invite + email + student pref"
+    purpose: "Phase 1B-2 build brief: 6 sub-tasks (email helper, /fab/login + auth, /fab/set-password, teacher Fabricator admin page + invite/reset/deactivate API, student notify-email PATCH, WIRING + api-registry + Checkpoint report). Shipped 21 Apr 2026 — commit range 3cd3adc..21401b3. Completion summary appended."
+    category: projects
+    last_verified: "2026-04-21"
+    max_age_days: 90
+    last_scanned: "2026-04-21"
+
   - path: docs/projects/fabrication-pipeline-phase-0-brief.md
     title: "Preflight Phase 0 Brief — Spec & Pre-Build Checklist"
     purpose: "Phase 0 pre-build ritual: fixture gathering, rule threshold sign-off, machine profile verification, Fabricator kickoff call, decision doc template, Checkpoint 0.1 gates"

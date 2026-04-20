@@ -4,6 +4,44 @@
 
 ---
 
+## 21 Apr 2026 — Preflight Phase 1B-2 shipped: Fabricator auth + invite + email + student pref
+
+**Context:** Continuation session from 1B-1. Phase brief `docs/projects/preflight-phase-1b-2-brief.md` (commit `b4f4661` on 20 Apr late) organised the work into six surgical sub-tasks. This session executed 1B-2-1 through 1B-2-6 end-to-end plus one preview-caught hotfix.
+
+**Sub-tasks landed (7 commits on origin/main, range `3cd3adc..21401b3`):**
+- **1B-2-1** (`3cd3adc`, pre-session) — `src/lib/preflight/email.ts` + `email-templates.ts`. Resend helper with per-`{jobId, kind}` idempotency via `fabrication_jobs.notifications_sent` JSONB **merge** (Lesson #42 — preserve existing keys on update). 4 email kinds: `invite`, `set_password_reset`, `scan_complete`, `pickup_ready`.
+- **1B-2-2** (`662f81a`, pre-session) — Fabricator auth primitives. `src/lib/fab/auth.ts` + `token.ts`: Argon2id password hash, opaque 32-byte session tokens (SHA-256 at rest), `requireFabricatorAuth`, `createFabricatorSession({isSetup})`. `/fab/login` + `/api/fab/login` + `/api/fab/logout` with `Cache-Control: private` (Lesson #11). Login rejects `is_setup=true` sessions.
+- **1B-2-3** (`fd50641`, pre-session) — `/fab/set-password` + verify/submit API. Consumes `is_setup=true` sessions, rotates to normal session post-save. Initial draft lacked Suspense wrapper → Vercel prerender build failed (`useSearchParams() should be wrapped in a suspense boundary`). See hotfix below.
+- **1B-2-4** (`c2e75d9`, pre-session) — `/teacher/preflight/fabricators` admin page + client + 4 API routes (POST/GET `/fabricators`, PATCH/DELETE `/[id]`, PATCH `/[id]/machines`, POST `/[id]/reset-password`). 7 invite-route tests asserting specific payload shapes (Lesson #38). Cross-teacher ownership guard → 409. Resend path `?resend=true`. No hard-delete (405 per D-INVITE-3).
+- **1B-2-4 hotfix** (`26e4921`) — `/fab/set-password` Suspense wrapper. Split page into `FabSetPasswordInner` + default export wrapped in `<Suspense>`. Verified via preview (invalid-token branch rendered cleanly, no hooks errors, no console warnings). Caught only on Vercel build; local dev was happy. Pattern already used at `/teacher/set-password` — should have mirrored from the start.
+- **1B-2-5** (`4697801`) — `PATCH /api/student/studio-preferences` now accepts `fabricationNotifyEmail: boolean`. Column `students.fabrication_notify_email` already existed from migration 100. Student-visible UI toggle deferred to Phase 2 per D-STUDENT-1. 4 new tests (401 unauthed, 400 non-boolean, 200 true, 200 false) — Lesson #45 scoped (only cover the new field).
+- **1B-2-6** (`21401b3`) — Phase wrap-up. api-registry regenerated (296→306 routes; +10 new). Scanner gate bumped 300→400 (legitimate growth — cap was chosen when we had 266). `auth-system` in WIRING extended from dual-auth to triple-auth with `fabricators` + `fabricator_sessions` data_fields + `is_setup` session semantics documented. `preflight-pipeline.key_files` gained 16 new paths. Phase brief completion summary appended. ALL-PROJECTS.md Preflight block updated.
+
+**Hotfix lesson:** Next.js 15 requires `useSearchParams()` inside a `<Suspense>` boundary for static prerender. Our local `npm run dev` tolerated it (different render path); only Vercel's static export exposed it. When adding a new page that uses `useSearchParams`, mirror the `/teacher/set-password` pattern (inner component + Suspense-wrapped export) from the start.
+
+**Push discipline (from memory):** Hotfix pushed mid-phase to unblock Vercel; all remaining commits held until checkpoint 1.1B-2 signed off. `wip` backup branch (phase-1b-2-wip) remained one step behind `main` after each push — no divergence risk.
+
+**Tests:** Baseline 1362 passing + 8 skipped → **1409 passing + 8 skipped** (+47 net across phase). `tsc --noEmit` clean on new files. FU-MM drift unchanged.
+
+**Registries synced this saveme:**
+- `docs/api-registry.yaml` — no diff after 1B-2-6's regen (306 routes).
+- `docs/ai-call-sites.yaml` — no diff (this phase added no new LLM calls).
+- `docs/feature-flags.yaml` — added `NEXT_PUBLIC_SITE_URL` (new config consumer for invite/reset email URLs in 3 routes). Orphaned `SENTRY_AUTH_TOKEN` still present — FU-CC (build-time-only, documented).
+- `docs/vendors.yaml` — no drift.
+- RLS coverage — 75/82 with policies; 7 no-policy tables are FU-FF intentional deny-all.
+- `docs/schema-registry.yaml` — no migrations this phase; no manual edits needed.
+
+**Systems affected (WIRING):** auth-system (triple-auth extension, +2 data_fields tables, +2 key_files, +preflight-pipeline to affects), preflight-pipeline (+16 key_files).
+
+**Known drift carried forward:**
+- FU-MM (P3) — TS errors in `adapters.test.ts` + `checkpoint-1-2-ingestion.test.ts`, pre-existing.
+- FU-CC (P3) — `SENTRY_AUTH_TOKEN` flagged as orphaned by flags scanner; build-time-only secret, needs annotation on registry side.
+- FU-DD (P2) — legacy scanners still strip `version:` header on rewrite. `api-registry.yaml` currently lacks `version:` but none of the registry-version consumers have shipped yet.
+
+**Next session candidates:** Preflight Phase 2 (Python scanner worker on Fly.io — blocked on Gate B fixture bucketing); Dimensions3 Phase 7 (admin landing + controls); Toolkit Redesign v5.
+
+---
+
 ## 20 Apr 2026 (late) — Preflight Phase 1B-1 shipped: schema extensions + Storage + AI guardrails
 
 **Context:** Continued same-day from Phase 1A. Brief `docs/projects/preflight-phase-1b-1-brief.md` was prepped earlier in the day (commit `c806d23`); this session executed sub-tasks 1B-1-1 through 1B-1-7 end-to-end. Brief's "Don't stop for" list + Karpathy discipline (Lessons #43–46) kept scope surgical — 6 migrations, all additive, no wandering.
