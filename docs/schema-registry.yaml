@@ -905,7 +905,9 @@ tables:
   applied_date: 2026-04-14
   purpose: 'Singleton key/value store for admin-controlled pipeline settings (spec §9.15). Wires the /admin/controls page
     backend (Phase 7I). Examples: pipeline.stage_enabled, pipeline.cost_ceiling_per_day_usd, pipeline.model_override
-    per stage.
+    per stage. Preflight keys seeded in migration 103: preflight.ai_enrichment_enabled,
+    preflight.ai_enrichment_daily_cap_usd, preflight.ai_enrichment_tiers_enabled (scanner worker reads each
+    before dispatching Haiku enrichment).
 
     '
   columns:
@@ -7883,6 +7885,7 @@ tables:
     graduation_year: INTEGER
     learning_profile: JSONB DEFAULT NULL
     mentor_id: TEXT DEFAULT NULL, ADD COLUMN IF NOT EXISTS theme_id TEXT DEFAULT NULL
+    fabrication_notify_email: BOOLEAN NOT NULL DEFAULT true  # migration 100 (Preflight 1B-1-3)
   classification:
     id:
       pii: true
@@ -7962,6 +7965,13 @@ tables:
       retention_days: 2555
       basis: coppa_art_6
     mentor_id:
+      pii: false
+      student_voice: false
+      safety_sensitive: false
+      ai_exportable: full
+      retention_days: 2555
+      basis: ferpa_educational
+    fabrication_notify_email:
       pii: false
       student_voice: false
       safety_sensitive: false
@@ -9174,6 +9184,9 @@ tables:
     completion_note: TEXT
     completed_at: TIMESTAMPTZ
     retention_clock_started_at: TIMESTAMPTZ
+    student_intent: JSONB  # migration 098 (Preflight 1B-1-1) — pre-check answers (size bucket, units, material, description)
+    printing_started_at: TIMESTAMPTZ  # migration 098 — Fabricator UI "currently printing" sub-state
+    notifications_sent: JSONB  # migration 098 — email idempotency timestamps per status transition
     created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
     updated_at: TIMESTAMPTZ NOT NULL DEFAULT now()
   indexes:
@@ -9207,6 +9220,8 @@ tables:
     scan_results: JSONB
     scan_status: TEXT CHECK ('pending' | 'running' | 'done' | 'error' | NULL)
     scan_error: TEXT
+    ai_enrichment_cost_usd: NUMERIC  # migration 101 (Preflight 1B-1-4) — per-scan Haiku spend (NULL = skipped/disabled)
+    thumbnail_views: JSONB  # migration 101 — multi-angle previews + heatmap annotations
     uploaded_at: TIMESTAMPTZ NOT NULL DEFAULT now()
   indexes:
     - idx_fabrication_job_revisions_scan_status ON (scan_status) WHERE scan_status IN ('pending','running')
@@ -9281,6 +9296,7 @@ tables:
     fabricator_id: UUID NOT NULL REFERENCES fabricators(id) ON DELETE CASCADE
     session_token_hash: TEXT NOT NULL UNIQUE
     expires_at: TIMESTAMPTZ NOT NULL
+    is_setup: BOOLEAN NOT NULL DEFAULT false  # migration 099 (Preflight 1B-1-2) — true for one-time invite / password-reset sessions
     created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
     last_seen_at: TIMESTAMPTZ
   indexes:

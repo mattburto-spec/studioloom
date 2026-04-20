@@ -2295,25 +2295,37 @@ systems:
     category: Submission
     status: in-progress
     currentVersion: 1
-    summary: "Upload, scan, gate, route, pickup, complete pipeline for student fabrication submissions (3D print, laser). User-facing brand Preflight. Schema tables prefixed fabrication_*. Phase 1A schema applied; Phase 1B (storage buckets + retention trigger) and Phase 2 (scanner worker + upload UI) upcoming."
+    summary: "Upload, scan, gate, route, pickup, complete pipeline for student fabrication submissions (3D print, laser). User-facing brand Preflight. Schema tables prefixed fabrication_*. Phase 1A schema applied; Phase 1B-1 (additive columns 098-101 + storage buckets 102 + AI-guardrail seed 103) applied; Phase 1B-2 (teacher invite UI, /fab/login, email dispatch) and Phase 2 (scanner worker + upload UI) upcoming."
     depends_on: [storage, preflight-scanner, auth-system, machine-profiles]
-    affects: [teacher-dashboard, student-dashboard, audit-log]
+    affects: [teacher-dashboard, student-dashboard, audit-log, students]
     docs:
       - path: docs/projects/fabrication-pipeline.md
         purpose: "Full spec (section 11 data model, sections 5 and 6 rule catalogues, section 13 phases)"
       - path: docs/projects/preflight-phase-1a-brief.md
         purpose: Phase 1A schema and RLS brief
+      - path: docs/projects/preflight-phase-1b-1-brief.md
+        purpose: "Phase 1B-1 schema extensions + storage buckets + AI-guardrail seed"
       - path: docs/projects/fabrication/phase-0-decisions.md
         purpose: "D-01 through D-12 design decisions"
     data_fields:
       - table: fabrication_jobs
-        columns: [id, teacher_id, student_id, class_id, unit_id, machine_profile_id, file_type, status, current_revision, latest_scan_results, retention_clock_started_at]
-        notes: "One row per logical submission; 21 data columns; dual-visibility RLS via direct teacher_id fallback"
+        columns: [id, teacher_id, student_id, class_id, unit_id, machine_profile_id, file_type, status, current_revision, latest_scan_results, retention_clock_started_at, student_intent, printing_started_at, notifications_sent]
+        notes: "One row per logical submission. student_intent JSONB holds pre-check answers (size/units/material/description, mig 098). printing_started_at marks Fabricator 'currently printing' sub-state. notifications_sent JSONB gives per-transition email idempotency. Dual-visibility RLS via direct teacher_id fallback."
       - table: fabrication_job_revisions
-        columns: [job_id, revision_number, storage_path, thumbnail_path, scan_results, scan_ruleset_version, scan_status]
-        notes: "One row per upload attempt; storage_path NULLABLE (D-04 cron nulls at day 30)"
+        columns: [job_id, revision_number, storage_path, thumbnail_path, scan_results, scan_ruleset_version, scan_status, ai_enrichment_cost_usd, thumbnail_views]
+        notes: "One row per upload attempt; storage_path NULLABLE (D-04 cron nulls at day 30). ai_enrichment_cost_usd NUMERIC tracks per-scan Haiku spend (mig 101). thumbnail_views JSONB holds multi-angle + heatmap metadata consumed by Phase 1B-2 SVG overlay UI."
+      - table: students
+        columns: [fabrication_notify_email]
+        notes: "Opt-out toggle for Preflight fabrication-job emails (mig 100). Default true preserves backward compat; student UI toggle in Phase 1B-2."
+      - table: admin_settings
+        columns: [key, value]
+        notes: "Preflight AI-guardrail keys seeded in migration 103: preflight.ai_enrichment_enabled (bool), preflight.ai_enrichment_daily_cap_usd (5.00), preflight.ai_enrichment_tiers_enabled ([tier1]). Scanner worker reads each before dispatching Haiku enrichment."
     key_files:
       - supabase/migrations/095_fabrication_jobs.sql
+      - supabase/migrations/098_fabrication_jobs_extensions.sql
+      - supabase/migrations/100_students_fabrication_notify_email.sql
+      - supabase/migrations/101_fabrication_job_revisions_extensions.sql
+      - supabase/migrations/103_preflight_ai_guardrails_seed.sql
       - src/app/teacher/preflight/page.tsx
       - src/app/student/preflight/submit/page.tsx
       - src/app/fab/queue/page.tsx
@@ -2329,21 +2341,26 @@ systems:
     category: Infrastructure
     status: in-progress
     currentVersion: 1
-    summary: "Python worker on Fly.io. Polls fabrication_scan_jobs queue, downloads file from Storage, runs rule catalogue (trimesh for STL, svgpathtools for SVG), uploads thumbnail, writes scan results. NOT DEPLOYED YET — Phase 2."
-    depends_on: [storage, preflight-pipeline, machine-profiles]
+    summary: "Python worker on Fly.io. Polls fabrication_scan_jobs queue, downloads file from Storage, runs rule catalogue (trimesh for STL, svgpathtools for SVG), uploads multi-angle thumbnails + heatmaps, writes scan results, optionally calls Haiku for enrichment (gated by admin_settings). NOT DEPLOYED YET — Phase 2."
+    depends_on: [storage, preflight-pipeline, machine-profiles, admin_settings]
     affects: [preflight-pipeline]
     docs:
       - path: docs/projects/fabrication-pipeline.md
         purpose: "Spec section 12 (worker infra) and sections 5 and 6 (rule catalogues)"
       - path: docs/projects/fabrication/phase-0-decisions.md
         purpose: "D-03 (Fly.io host decision)"
+      - path: docs/projects/preflight-phase-1b-1-brief.md
+        purpose: "1B-1-4 thumbnail_views shape + 1B-1-6 AI-guardrail keys the worker reads"
     data_fields:
       - table: fabrication_scan_jobs
         columns: [id, job_revision_id, status, attempt_count, locked_by, locked_at, error_detail]
         notes: "Source of truth for scan lifecycle; service_role only (deny-all RLS)"
       - table: fabrication_job_revisions
-        columns: [scan_status, scan_results, scan_started_at, scan_completed_at, thumbnail_path]
-        notes: "Worker writes scan outcome; scan_status denormalized from scan_jobs for display"
+        columns: [scan_status, scan_results, scan_started_at, scan_completed_at, thumbnail_path, ai_enrichment_cost_usd, thumbnail_views]
+        notes: "Worker writes scan outcome + per-scan Haiku cost + multi-angle thumbnail metadata. scan_status denormalized from scan_jobs for display."
+      - table: admin_settings
+        columns: [key, value]
+        notes: "Worker reads preflight.ai_enrichment_enabled / _daily_cap_usd / _tiers_enabled before every Haiku call; sums today's ai_enrichment_cost_usd vs daily cap to gate dispatch."
     external_deps:
       - trimesh
       - svgpathtools
