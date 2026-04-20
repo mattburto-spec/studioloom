@@ -150,28 +150,12 @@ CREATE POLICY machine_profiles_delete_teacher
   );
 
 -- ============================================================
--- 5. Verify block (Lesson #38 — assert expected state, not just non-null)
+-- 5. Post-apply verification (run these as separate queries in the dashboard)
 -- ============================================================
-
-DO $$
-DECLARE
-  rls_enabled    boolean;
-  policy_count   int;
-  expected_count int := 4;
-BEGIN
-  SELECT relrowsecurity INTO rls_enabled
-  FROM pg_class
-  WHERE relname = 'machine_profiles' AND relnamespace = 'public'::regnamespace;
-
-  IF NOT rls_enabled THEN
-    RAISE EXCEPTION 'RLS not enabled on machine_profiles';
-  END IF;
-
-  SELECT COUNT(*) INTO policy_count
-  FROM pg_policies
-  WHERE tablename = 'machine_profiles' AND schemaname = 'public';
-
-  IF policy_count <> expected_count THEN
-    RAISE EXCEPTION 'Expected % policies on machine_profiles, found %', expected_count, policy_count;
-  END IF;
-END $$;
+-- The original DO $$ ... $$ verify block was removed because Supabase's
+-- dashboard "Run and enable RLS" safety prompt mis-parses the `rls_enabled`
+-- variable name as a table identifier and generates an errant
+-- `ALTER TABLE rls_enabled ENABLE ROW LEVEL SECURITY`.
+-- The invariants are asserted by the post-apply queries instead (see brief §1A-1):
+--   SELECT relrowsecurity FROM pg_class WHERE relname='machine_profiles';   -- expect: t
+--   SELECT COUNT(*) FROM pg_policies WHERE tablename='machine_profiles';    -- expect: 4
