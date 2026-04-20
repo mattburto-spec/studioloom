@@ -75,6 +75,13 @@ const NAV_ITEMS = [
       <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
     </svg>
   )},
+  // Preflight link → /teacher/preflight redirects to /fabricators in Phase 1B-2.
+  // Phase 2 swaps the root to the submission queue; fabricators becomes a sub-nav.
+  { href: "/teacher/preflight", label: "Preflight", icon: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="7" width="18" height="13" rx="2" /><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><path d="M12 11v6" /><path d="M9 14h6" />
+    </svg>
+  )},
 ];
 
 export default function TeacherLayout({
