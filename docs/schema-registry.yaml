@@ -36,8 +36,8 @@
 
 version: 1
 
-last_updated: 2026-04-15
-last_updated_by: manual — migrations 083 + 084 (teacher onboarding + FK cascades)
+last_updated: 2026-04-20
+last_updated_by: manual — migrations 093-097 (Preflight Phase 1A schema)
 tables:
 - name: activity_blocks
   source_migration: 060_activity_blocks.sql
@@ -9095,3 +9095,220 @@ tables:
     write: "service_role only"
   writers: ["remove-student-data.ts"]
   readers: ["admin audit-log page"]
+
+# ============================================================
+# Preflight (fabrication submission pipeline) — Phase 1A
+# Migrations 093-097 applied 2026-04-20
+# Brief: docs/projects/preflight-phase-1a-brief.md
+# ============================================================
+
+- name: machine_profiles
+  source_migration: 093_machine_profiles.sql
+  status: applied
+  applied_date: 2026-04-20
+  purpose: "Per-teacher machine profile registry (3D printers + laser cutters). Contains 12 system-template rows seeded by migration 094 and any teacher-owned clones. rule_overrides JSONB allows per-profile rule-catalogue softening (D-07)."
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    teacher_id: UUID REFERENCES auth.users(id) ON DELETE CASCADE
+    school_id: UUID REFERENCES schools(id) ON DELETE SET NULL
+    is_system_template: BOOLEAN NOT NULL DEFAULT false
+    name: TEXT NOT NULL
+    machine_category: TEXT NOT NULL CHECK ('3d_printer' | 'laser_cutter')
+    machine_model: TEXT
+    is_active: BOOLEAN NOT NULL DEFAULT true
+    requires_teacher_approval: BOOLEAN NOT NULL DEFAULT false
+    bed_size_x_mm: NUMERIC NOT NULL
+    bed_size_y_mm: NUMERIC NOT NULL
+    bed_size_z_mm: NUMERIC
+    nozzle_diameter_mm: NUMERIC
+    supported_materials: JSONB
+    max_print_time_min: INT
+    supports_auto_supports: BOOLEAN
+    kerf_mm: NUMERIC
+    operation_color_map: JSONB
+    min_feature_mm: NUMERIC
+    rule_overrides: JSONB
+    notes: TEXT
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+    updated_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+  indexes:
+    - idx_machine_profiles_teacher_id ON (teacher_id) WHERE teacher_id IS NOT NULL
+    - idx_machine_profiles_system_template ON (is_system_template) WHERE is_system_template = true
+    - idx_machine_profiles_category ON (machine_category)
+    - uq_machine_profiles_system_template_name ON (name) WHERE is_system_template = true
+    - uq_machine_profiles_teacher_name ON (teacher_id, name) WHERE teacher_id IS NOT NULL
+  check_constraints:
+    - "machine_profile_ownership_check: (is_system_template AND teacher_id IS NULL) OR (NOT is_system_template AND teacher_id IS NOT NULL)"
+  rls:
+    read: "Teachers read own profiles + all system templates; service_role full access"
+    write: "Teachers INSERT/UPDATE/DELETE own non-template rows; is_system_template flag is append-only (seed + admin via service_role)"
+  writers: ["teacher settings page (TBD Phase 1B)", "094_machine_profile_seed.sql"]
+  readers: ["teacher machine-profile UI", "preflight scanner worker", "preflight job submission API"]
+
+- name: fabrication_jobs
+  source_migration: 095_fabrication_jobs.sql
+  status: applied
+  applied_date: 2026-04-20
+  purpose: "One row per logical Preflight submission. Tracks workflow status (uploaded → scanning → ... → completed / rejected / cancelled), teacher review fields, lab-tech pickup fields, and D-04 retention clock."
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    school_id: UUID REFERENCES schools(id) ON DELETE SET NULL
+    teacher_id: UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE
+    student_id: UUID NOT NULL REFERENCES students(id) ON DELETE CASCADE
+    class_id: UUID REFERENCES classes(id) ON DELETE SET NULL
+    unit_id: UUID REFERENCES units(id) ON DELETE SET NULL
+    machine_profile_id: UUID NOT NULL REFERENCES machine_profiles(id)
+    file_type: TEXT NOT NULL CHECK ('stl' | 'svg')
+    original_filename: TEXT NOT NULL
+    status: TEXT NOT NULL DEFAULT 'uploaded' CHECK (9 states)
+    current_revision: INT NOT NULL DEFAULT 1
+    latest_scan_results: JSONB
+    scan_ruleset_version: TEXT
+    acknowledged_warnings: JSONB
+    teacher_reviewed_by: UUID REFERENCES auth.users(id) ON DELETE SET NULL
+    teacher_reviewed_at: TIMESTAMPTZ
+    teacher_review_note: TEXT
+    lab_tech_picked_up_by: UUID
+    lab_tech_picked_up_at: TIMESTAMPTZ
+    completion_status: TEXT CHECK ('printed' | 'cut' | 'failed' | NULL)
+    completion_note: TEXT
+    completed_at: TIMESTAMPTZ
+    retention_clock_started_at: TIMESTAMPTZ
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+    updated_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+  indexes:
+    - idx_fabrication_jobs_teacher_status ON (teacher_id, status)
+    - idx_fabrication_jobs_student_status ON (student_id, status)
+    - idx_fabrication_jobs_class_id ON (class_id) WHERE class_id IS NOT NULL
+    - idx_fabrication_jobs_machine_status ON (machine_profile_id, status)
+    - idx_fabrication_jobs_retention ON (retention_clock_started_at) WHERE retention_clock_started_at IS NOT NULL
+  rls:
+    read: "Teachers read where teacher_id = auth.uid() OR class_id ∈ teacher's classes; students/fabricators via service_role"
+    write: "Teachers UPDATE same scope (for review fields); INSERT/DELETE via service_role only"
+  writers: ["student upload API (Phase 2)", "preflight scanner worker (Phase 2)", "teacher review UI (Phase 1B)", "fabricator pickup API (Phase 1B)"]
+  readers: ["teacher dashboard (Phase 1B)", "student job list (Phase 2)", "fabricator queue UI (Phase 1B)", "retention cron (Phase 9)"]
+  notes: "lab_tech_picked_up_by intentionally has no FK to fabricators(id) — table not yet existed at migration time. FK hardening deferred. Dual-visibility RLS uses direct teacher_id fallback rather than Lesson #29 junction UNION because teacher_id column covers the NULL class_id case cleanly."
+
+- name: fabrication_job_revisions
+  source_migration: 095_fabrication_jobs.sql
+  status: applied
+  applied_date: 2026-04-20
+  purpose: "One row per student upload attempt. Holds storage_path (NULLed at day 30 by retention cron per D-04), thumbnail_path, scan lifecycle fields, full scan_results JSONB."
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    job_id: UUID NOT NULL REFERENCES fabrication_jobs(id) ON DELETE CASCADE
+    revision_number: INT NOT NULL
+    storage_path: TEXT  # NULLABLE — D-04 retention cron nulls after 30 days
+    thumbnail_path: TEXT
+    file_size_bytes: BIGINT
+    scan_started_at: TIMESTAMPTZ
+    scan_completed_at: TIMESTAMPTZ
+    scan_ruleset_version: TEXT
+    scan_results: JSONB
+    scan_status: TEXT CHECK ('pending' | 'running' | 'done' | 'error' | NULL)
+    scan_error: TEXT
+    uploaded_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+  indexes:
+    - idx_fabrication_job_revisions_scan_status ON (scan_status) WHERE scan_status IN ('pending','running')
+  unique_constraints:
+    - (job_id, revision_number)
+  rls:
+    read: "Teachers read via EXISTS parent fabrication_jobs RLS; students/fabricators via service_role"
+    write: "service_role only (scanner worker + upload API)"
+  writers: ["student upload API (Phase 2)", "preflight scanner worker (Phase 2)", "retention cron (Phase 9 — NULLs storage_path)"]
+  readers: ["teacher dashboard (Phase 1B)", "student job detail view (Phase 2)"]
+
+- name: fabrication_scan_jobs
+  source_migration: 096_fabrication_scan_jobs.sql
+  status: applied
+  applied_date: 2026-04-20
+  purpose: "Work queue consumed by Python scanner worker. Source of truth for scan lifecycle; fabrication_job_revisions.scan_status is a write-through denormalization for teacher-dashboard display."
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    job_revision_id: UUID NOT NULL REFERENCES fabrication_job_revisions(id) ON DELETE CASCADE
+    status: TEXT NOT NULL DEFAULT 'pending' CHECK ('pending' | 'running' | 'done' | 'error')
+    attempt_count: INT NOT NULL DEFAULT 0
+    max_attempts: INT NOT NULL DEFAULT 3
+    locked_by: TEXT
+    locked_at: TIMESTAMPTZ
+    error_detail: TEXT
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+    updated_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+  indexes:
+    - idx_fabrication_scan_jobs_queue ON (created_at) WHERE status = 'pending'
+    - idx_fabrication_scan_jobs_running_leases ON (locked_at) WHERE status = 'running'
+    - uq_fabrication_scan_jobs_active_per_revision ON (job_revision_id) WHERE status IN ('pending','running')
+  rls:
+    read: "service_role only (deny-all — intentional, matches FU-FF pattern with student_sessions / ai_model_config)"
+    write: "service_role only (scanner worker)"
+  writers: ["preflight scanner worker (Phase 2)", "student upload API enqueues new row on upload (Phase 2)"]
+  readers: ["preflight scanner worker"]
+  notes: "scan-rls-coverage scanner will flag this as rls_enabled_no_policy — that is intentional and documented in-migration. Not drift."
+
+- name: fabricators
+  source_migration: 097_fabricators.sql
+  status: applied
+  applied_date: 2026-04-20
+  purpose: "Fabricator (lab tech) identity records. Separate auth from teachers (Supabase Auth) and students (token sessions). Login via /fab/login with email + bcrypt password; cookie session validated via service role against fabricator_sessions. Invited by teachers; teachers manage active state."
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    school_id: UUID REFERENCES schools(id) ON DELETE SET NULL
+    email: TEXT NOT NULL
+    password_hash: TEXT NOT NULL  # bcrypt
+    display_name: TEXT NOT NULL
+    is_active: BOOLEAN NOT NULL DEFAULT true
+    invited_by_teacher_id: UUID REFERENCES auth.users(id) ON DELETE SET NULL
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+    updated_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+    last_login_at: TIMESTAMPTZ
+  indexes:
+    - uq_fabricators_email_lower ON (LOWER(email))
+    - idx_fabricators_invited_by ON (invited_by_teacher_id) WHERE invited_by_teacher_id IS NOT NULL
+    - idx_fabricators_active ON (is_active) WHERE is_active = true
+  rls:
+    read: "Teachers read invited_by_teacher_id = auth.uid(); fabricator self-read via service_role"
+    write: "Teachers INSERT/UPDATE scope = own invites; no DELETE policy (deactivate only); hard DELETE via service_role only"
+  writers: ["teacher fabricator-invite UI (Phase 1B)", "fabricator /fab/login → updates last_login_at (Phase 1B)"]
+  readers: ["teacher fabricator list (Phase 1B)", "service_role session validation (Phase 1B)"]
+
+- name: fabricator_sessions
+  source_migration: 097_fabricators.sql
+  status: applied
+  applied_date: 2026-04-20
+  purpose: "Cookie session records for Fabricators. Same pattern as student_sessions (Lesson #4) — bcrypt-hashed token stored; cookie value random 32-byte string hashed before comparison."
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    fabricator_id: UUID NOT NULL REFERENCES fabricators(id) ON DELETE CASCADE
+    session_token_hash: TEXT NOT NULL UNIQUE
+    expires_at: TIMESTAMPTZ NOT NULL
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+    last_seen_at: TIMESTAMPTZ
+  indexes:
+    - idx_fabricator_sessions_fabricator_id ON (fabricator_id)
+    - idx_fabricator_sessions_expires_at ON (expires_at)
+  rls:
+    read: "service_role only (deny-all — intentional, matches student_sessions / ai_model_config / fabrication_scan_jobs pattern)"
+    write: "service_role only"
+  writers: ["/fab/login API (Phase 1B)", "session cleanup cron (Phase 1B)"]
+  readers: ["every /fab/* request middleware (Phase 1B)"]
+  notes: "scan-rls-coverage will flag rls_enabled_no_policy — intentional, documented in-migration."
+
+- name: fabricator_machines
+  source_migration: 097_fabricators.sql
+  status: applied
+  applied_date: 2026-04-20
+  purpose: "Junction: which machine profiles each Fabricator can pick up for. Composite PK; immutable rows (insert or delete, no update)."
+  columns:
+    fabricator_id: UUID NOT NULL REFERENCES fabricators(id) ON DELETE CASCADE
+    machine_profile_id: UUID NOT NULL REFERENCES machine_profiles(id) ON DELETE CASCADE
+    assigned_by_teacher_id: UUID REFERENCES auth.users(id) ON DELETE SET NULL
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+  unique_constraints:
+    - PRIMARY KEY (fabricator_id, machine_profile_id)
+  indexes:
+    - idx_fabricator_machines_machine_id ON (machine_profile_id)
+  rls:
+    read: "Teachers read where fabricator_id ∈ fabricators invited by them; service_role full access"
+    write: "Teachers INSERT/DELETE same scope; no UPDATE policy (immutable rows)"
+  writers: ["teacher fabricator assignment UI (Phase 1B)"]
+  readers: ["fabricator queue UI scoping (Phase 1B)", "preflight pipeline routing (Phase 2)"]
