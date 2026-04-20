@@ -1,0 +1,1526 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Preflight — UI Mockups v0</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+    .screen { display: none; }
+    .screen.active { display: block; }
+    .nav-btn.active { background: #111827; color: #fff; }
+    .role-btn.active { border-color: #111827; color: #111827; background: #fff; }
+    .thumb-stl { background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%); }
+    .thumb-svg { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); }
+    .muted { color: #6b7280; }
+    .devnote { display: none; }
+    body.show-devnotes .devnote { display: block; }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-900">
+
+<!-- ================================================================== -->
+<!-- TOP BAR                                                              -->
+<!-- ================================================================== -->
+<header class="bg-white border-b border-gray-200 sticky top-0 z-20">
+  <div class="px-6 py-3 flex items-center gap-6">
+    <div class="flex items-center gap-2">
+      <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 4l16 8-16 8V4z"/></svg>
+      <span class="font-semibold text-lg">Preflight</span>
+      <span class="text-sm muted">UI mockups v0</span>
+    </div>
+    <nav class="flex items-center gap-2 ml-8" id="role-nav">
+      <button class="role-btn active px-3 py-1.5 rounded-md text-sm border border-gray-200" data-role="student">Logged-in student</button>
+      <button class="role-btn px-3 py-1.5 rounded-md text-sm border border-gray-200" data-role="fabricator">Fabricator</button>
+      <button class="role-btn px-3 py-1.5 rounded-md text-sm border border-gray-200" data-role="teacher">Teacher</button>
+      <button class="role-btn px-3 py-1.5 rounded-md text-sm border border-gray-200" data-role="free">Free public</button>
+    </nav>
+    <div class="ml-auto flex items-center gap-4">
+      <label class="flex items-center gap-2 text-sm muted cursor-pointer">
+        <input type="checkbox" id="dev-toggle" class="rounded"> Show schema annotations
+      </label>
+    </div>
+  </div>
+</header>
+
+<div class="flex">
+  <!-- ================================================================== -->
+  <!-- LEFT SIDE NAV                                                        -->
+  <!-- ================================================================== -->
+  <aside class="w-60 flex-shrink-0 bg-white border-r border-gray-200 min-h-[calc(100vh-60px)]">
+    <!-- Student nav -->
+    <div class="role-nav" data-role="student">
+      <div class="px-4 py-3 border-b border-gray-100">
+        <div class="text-xs uppercase tracking-wide text-gray-500 font-semibold">Logged-in student</div>
+        <div class="text-xs muted mt-1">Ella Chen · Y10</div>
+      </div>
+      <nav class="p-2 space-y-1">
+        <button class="nav-btn active w-full text-left px-3 py-2 text-sm rounded-md hover:bg-gray-100" data-screen="student-list">1. My submissions</button>
+        <button class="nav-btn w-full text-left px-3 py-2 text-sm rounded-md hover:bg-gray-100" data-screen="student-new">2. New submission</button>
+        <button class="nav-btn w-full text-left px-3 py-2 text-sm rounded-md hover:bg-gray-100" data-screen="student-scanning">3. Scanning…</button>
+        <button class="nav-btn w-full text-left px-3 py-2 text-sm rounded-md hover:bg-gray-100" data-screen="student-results-fail">4. Results — STL needs work</button>
+        <button class="nav-btn w-full text-left px-3 py-2 text-sm rounded-md hover:bg-gray-100" data-screen="student-results-svg">5. Results — SVG (laser)</button>
+        <button class="nav-btn w-full text-left px-3 py-2 text-sm rounded-md hover:bg-gray-100" data-screen="student-results-pass">6. Results — passed</button>
+      </nav>
+    </div>
+
+    <!-- Fabricator nav -->
+    <div class="role-nav hidden" data-role="fabricator">
+      <div class="px-4 py-3 border-b border-gray-100">
+        <div class="text-xs uppercase tracking-wide text-gray-500 font-semibold">Fabricator</div>
+        <div class="text-xs muted mt-1">Cynthia Chen (NIS)</div>
+      </div>
+      <nav class="p-2 space-y-1">
+        <button class="nav-btn active w-full text-left px-3 py-2 text-sm rounded-md hover:bg-gray-100" data-screen="fab-login">1. Login</button>
+        <button class="nav-btn w-full text-left px-3 py-2 text-sm rounded-md hover:bg-gray-100" data-screen="fab-queue">2. Machine queue</button>
+        <button class="nav-btn w-full text-left px-3 py-2 text-sm rounded-md hover:bg-gray-100" data-screen="fab-job">3. Pickup a job</button>
+      </nav>
+    </div>
+
+    <!-- Teacher nav -->
+    <div class="role-nav hidden" data-role="teacher">
+      <div class="px-4 py-3 border-b border-gray-100">
+        <div class="text-xs uppercase tracking-wide text-gray-500 font-semibold">Teacher</div>
+        <div class="text-xs muted mt-1">Matt Burton</div>
+      </div>
+      <nav class="p-2 space-y-1">
+        <button class="nav-btn active w-full text-left px-3 py-2 text-sm rounded-md hover:bg-gray-100" data-screen="teacher-queue">1. Queue</button>
+        <button class="nav-btn w-full text-left px-3 py-2 text-sm rounded-md hover:bg-gray-100" data-screen="teacher-review">2. Review a submission</button>
+        <button class="nav-btn w-full text-left px-3 py-2 text-sm rounded-md hover:bg-gray-100" data-screen="teacher-override">3. Rule overrides</button>
+        <button class="nav-btn w-full text-left px-3 py-2 text-sm rounded-md hover:bg-gray-100" data-screen="teacher-fabricators">4. Manage Fabricators</button>
+        <button class="nav-btn w-full text-left px-3 py-2 text-sm rounded-md hover:bg-gray-100" data-screen="teacher-machines">5. Machine profiles</button>
+      </nav>
+    </div>
+
+    <!-- Free nav -->
+    <div class="role-nav hidden" data-role="free">
+      <div class="px-4 py-3 border-b border-gray-100">
+        <div class="text-xs uppercase tracking-wide text-gray-500 font-semibold">Free public</div>
+        <div class="text-xs muted mt-1">No account required</div>
+      </div>
+      <nav class="p-2 space-y-1">
+        <button class="nav-btn active w-full text-left px-3 py-2 text-sm rounded-md hover:bg-gray-100" data-screen="free-landing">Landing + check</button>
+      </nav>
+      <div class="p-4 text-xs muted border-t border-gray-100 mt-2">
+        Deferred to Phase 4+ per D-12. Shares result-UI component with student flow; everything account-y hidden. Scanner runs client-side only.
+      </div>
+    </div>
+  </aside>
+
+  <!-- ================================================================== -->
+  <!-- MAIN CONTENT                                                         -->
+  <!-- ================================================================== -->
+  <main class="flex-1 p-8 max-w-6xl">
+
+  <!-- ================================================================== -->
+  <!-- STUDENT #1: LIST                                                    -->
+  <!-- ================================================================== -->
+  <section class="screen active" id="student-list">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-2xl font-semibold">My Preflight submissions</h1>
+        <p class="text-sm muted mt-1">Send your designs to a machine — with a check first.</p>
+      </div>
+      <button class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium">+ New submission</button>
+    </div>
+
+    <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
+      <div class="px-4 py-3 border-b border-gray-200 bg-gray-50 text-xs uppercase tracking-wide text-gray-500 font-semibold flex gap-2">
+        <button class="px-2 py-1 rounded bg-gray-900 text-white">All (5)</button>
+        <button class="px-2 py-1 rounded hover:bg-gray-200">Needs revision</button>
+        <button class="px-2 py-1 rounded hover:bg-gray-200">Waiting</button>
+        <button class="px-2 py-1 rounded hover:bg-gray-200">Completed</button>
+      </div>
+
+      <!-- Row: needs revision -->
+      <div class="flex items-center gap-4 px-4 py-3 border-b border-gray-100 hover:bg-gray-50">
+        <div class="w-20 h-20 thumb-stl rounded flex items-center justify-center flex-shrink-0">
+          <svg class="w-12 h-12 text-indigo-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M12 2L2 7v10l10 5 10-5V7L12 2z"/><path d="M2 7l10 5 10-5M12 12v10"/></svg>
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="font-medium truncate">phone-stand-v3.stl</div>
+          <div class="text-sm muted">Phone accessories · Bambu X1C · Rev 2 of 3</div>
+          <div class="devnote text-xs text-indigo-600 mt-1 font-mono">⟨jobs.original_filename · units.title · machine_profiles.name · jobs.current_revision⟩</div>
+        </div>
+        <div class="flex flex-col items-end gap-1">
+          <span class="bg-red-100 text-red-700 px-2 py-0.5 rounded text-xs font-medium">Needs revision</span>
+          <span class="text-xs muted">2 min ago</span>
+        </div>
+      </div>
+
+      <!-- Row: waiting for approval -->
+      <div class="flex items-center gap-4 px-4 py-3 border-b border-gray-100 hover:bg-gray-50">
+        <div class="w-20 h-20 thumb-stl rounded flex items-center justify-center flex-shrink-0">
+          <svg class="w-12 h-12 text-indigo-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 2"/></svg>
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="font-medium truncate">keychain-v2.stl</div>
+          <div class="text-sm muted">Gift design · Prusa MK4S · Rev 1</div>
+        </div>
+        <div class="flex flex-col items-end gap-1">
+          <span class="bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-xs font-medium">Waiting for Mr Burton</span>
+          <span class="text-xs muted">1 h ago</span>
+        </div>
+      </div>
+
+      <!-- Row: queued -->
+      <div class="flex items-center gap-4 px-4 py-3 border-b border-gray-100 hover:bg-gray-50">
+        <div class="w-20 h-20 thumb-svg rounded flex items-center justify-center flex-shrink-0">
+          <svg class="w-12 h-12 text-amber-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 4v16M15 4v16M4 9h16M4 15h16"/></svg>
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="font-medium truncate">bookmark.svg</div>
+          <div class="text-sm muted">Laser intro · Glowforge Pro · Rev 1</div>
+        </div>
+        <div class="flex flex-col items-end gap-1">
+          <span class="bg-blue-100 text-blue-700 px-2 py-0.5 rounded text-xs font-medium">Queued at Glowforge</span>
+          <span class="text-xs muted">Cynthia · 3 h ago</span>
+        </div>
+      </div>
+
+      <!-- Row: currently printing -->
+      <div class="flex items-center gap-4 px-4 py-3 border-b border-gray-100 hover:bg-gray-50">
+        <div class="w-20 h-20 thumb-stl rounded flex items-center justify-center flex-shrink-0">
+          <svg class="w-12 h-12 text-indigo-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M3 12l3-3m0 0l3 3m-3-3v12M21 12l-3 3m0 0l-3-3m3 3V3"/></svg>
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="font-medium truncate">chess-king.stl</div>
+          <div class="text-sm muted">Chess set · Bambu X1C · Rev 1</div>
+        </div>
+        <div class="flex flex-col items-end gap-1">
+          <span class="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded text-xs font-medium">🖨 Currently printing</span>
+          <span class="text-xs muted">Started 45 min ago</span>
+        </div>
+      </div>
+
+      <!-- Row: completed -->
+      <div class="flex items-center gap-4 px-4 py-3 hover:bg-gray-50">
+        <div class="w-20 h-20 thumb-svg rounded flex items-center justify-center flex-shrink-0">
+          <svg class="w-12 h-12 text-amber-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-6"/></svg>
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="font-medium truncate">name-tag.svg</div>
+          <div class="text-sm muted">Laser intro · xTool P2 · Rev 2</div>
+        </div>
+        <div class="flex flex-col items-end gap-1">
+          <span class="bg-green-100 text-green-700 px-2 py-0.5 rounded text-xs font-medium">✓ Completed</span>
+          <span class="text-xs muted">yesterday</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="devnote mt-4 p-4 bg-indigo-50 border border-indigo-200 rounded text-xs text-indigo-900">
+      <div class="font-semibold mb-2">Schema notes</div>
+      <div>RLS: <code class="bg-white px-1 rounded">fabrication_jobs.student_id = current_student</code> — enforced at API layer (students use token sessions, auth.uid() is NULL).</div>
+      <div class="mt-1">Thumbnail: latest <code class="bg-white px-1 rounded">fabrication_job_revisions.thumbnail_path</code> WHERE revision_number = jobs.current_revision.</div>
+      <div class="mt-1">"Cynthia" picked-up-by: <code class="bg-white px-1 rounded">fabrication_jobs.lab_tech_picked_up_by</code> — currently raw UUID, no FK. Server-side JOIN to <code class="bg-white px-1 rounded">fabricators.display_name</code>.</div>
+    </div>
+  </section>
+
+  <!-- ================================================================== -->
+  <!-- STUDENT #2: NEW SUBMISSION                                           -->
+  <!-- ================================================================== -->
+  <section class="screen" id="student-new">
+    <h1 class="text-2xl font-semibold mb-6">New Preflight submission</h1>
+
+    <div class="space-y-4">
+      <!-- Step 1 -->
+      <div class="bg-white border border-gray-200 rounded-lg p-5">
+        <div class="flex items-baseline gap-2 mb-3">
+          <span class="bg-indigo-600 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-semibold">1</span>
+          <h2 class="font-semibold">Which machine will make this?</h2>
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <label class="flex items-center gap-3 p-3 border border-gray-300 rounded cursor-pointer hover:bg-gray-50 bg-indigo-50 border-indigo-300">
+            <input type="radio" name="machine" checked>
+            <div class="flex-1">
+              <div class="font-medium text-sm">Bambu Lab X1 Carbon</div>
+              <div class="text-xs muted">3D printer · Room 204 · 256×256×256 mm</div>
+            </div>
+          </label>
+          <label class="flex items-center gap-3 p-3 border border-gray-300 rounded cursor-pointer hover:bg-gray-50">
+            <input type="radio" name="machine">
+            <div class="flex-1">
+              <div class="font-medium text-sm">Prusa MK4S</div>
+              <div class="text-xs muted">3D printer · Room 201 · 250×210×220 mm</div>
+            </div>
+          </label>
+          <label class="flex items-center gap-3 p-3 border border-gray-300 rounded cursor-pointer hover:bg-gray-50">
+            <input type="radio" name="machine">
+            <div class="flex-1">
+              <div class="font-medium text-sm">Glowforge Pro</div>
+              <div class="text-xs muted">Laser cutter · Room 205 · 495×279 mm</div>
+            </div>
+          </label>
+          <label class="flex items-center gap-3 p-3 border border-gray-300 rounded cursor-pointer hover:bg-gray-50">
+            <input type="radio" name="machine">
+            <div class="flex-1">
+              <div class="font-medium text-sm">xTool P2</div>
+              <div class="text-xs muted">Laser cutter · Room 205 · 600×308 mm</div>
+            </div>
+          </label>
+        </div>
+        <div class="devnote text-xs text-indigo-600 mt-2 font-mono">Source: machine_profiles WHERE is_active AND (is_system_template OR teacher_id IN student's teachers)</div>
+      </div>
+
+      <!-- Step 2 -->
+      <div class="bg-white border border-gray-200 rounded-lg p-5">
+        <div class="flex items-baseline gap-2 mb-3">
+          <span class="bg-indigo-600 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-semibold">2</span>
+          <h2 class="font-semibold">Quick check (30 seconds)</h2>
+        </div>
+
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium mb-1">What's this for?</label>
+            <select class="w-full border border-gray-300 rounded px-3 py-2 text-sm">
+              <option>Phone accessories (Y10 Design)</option>
+              <option>Gift design (Y10 Design)</option>
+              <option>Chess set personal project</option>
+              <option>Other / not for a unit</option>
+            </select>
+            <div class="devnote text-xs text-indigo-600 mt-1 font-mono">Source: units + class_units for this student → jobs.unit_id</div>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium mb-2">How big should it be?</label>
+            <div class="grid grid-cols-3 gap-2">
+              <label class="flex items-center gap-2 p-2 border border-gray-300 rounded cursor-pointer hover:bg-gray-50 text-sm">
+                <input type="radio" name="size"> Fits in your hand
+              </label>
+              <label class="flex items-center gap-2 p-2 border border-gray-300 rounded cursor-pointer hover:bg-gray-50 bg-indigo-50 border-indigo-300 text-sm">
+                <input type="radio" name="size" checked> A4 or smaller
+              </label>
+              <label class="flex items-center gap-2 p-2 border border-gray-300 rounded cursor-pointer hover:bg-gray-50 text-sm">
+                <input type="radio" name="size"> Bigger than A4
+              </label>
+            </div>
+            <div class="devnote text-xs text-amber-600 mt-1 font-mono">⟨SCHEMA GAP⟩ → proposed jobs.student_intent JSONB field (migration 098)</div>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium mb-2">What units did you design in?</label>
+            <div class="grid grid-cols-3 gap-2">
+              <label class="flex items-center gap-2 p-2 border border-gray-300 rounded cursor-pointer hover:bg-gray-50 bg-indigo-50 border-indigo-300 text-sm">
+                <input type="radio" name="units" checked> Millimetres (mm)
+              </label>
+              <label class="flex items-center gap-2 p-2 border border-gray-300 rounded cursor-pointer hover:bg-gray-50 text-sm">
+                <input type="radio" name="units"> Centimetres (cm)
+              </label>
+              <label class="flex items-center gap-2 p-2 border border-gray-300 rounded cursor-pointer hover:bg-gray-50 text-sm">
+                <input type="radio" name="units"> Inches
+              </label>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium mb-1">Planned material</label>
+            <select class="w-full border border-gray-300 rounded px-3 py-2 text-sm">
+              <option>PLA</option>
+              <option>PETG</option>
+              <option>ABS</option>
+              <option>ASA</option>
+              <option>TPU</option>
+            </select>
+            <div class="devnote text-xs text-indigo-600 mt-1 font-mono">Options from machine_profiles.supported_materials JSONB</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 3 -->
+      <div class="bg-white border border-gray-200 rounded-lg p-5">
+        <div class="flex items-baseline gap-2 mb-3">
+          <span class="bg-indigo-600 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-semibold">3</span>
+          <h2 class="font-semibold">Upload your file</h2>
+        </div>
+
+        <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center bg-gray-50">
+          <svg class="w-12 h-12 mx-auto text-gray-400 mb-3" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M12 4v16m8-8l-8 8-8-8"/></svg>
+          <div class="text-sm">Drag your <strong>.stl</strong> file here, or <a class="text-indigo-600 hover:underline cursor-pointer">browse</a></div>
+          <div class="text-xs muted mt-2">Max 200 MB. Your file is uploaded directly and stays private.</div>
+        </div>
+        <div class="devnote text-xs text-indigo-600 mt-2 font-mono">Upload creates: jobs row (status=uploaded) + first revisions row + scan_jobs row (status=pending). Direct-to-Storage via signed URL; Phase 2 worker polls scan_jobs.</div>
+      </div>
+
+      <div class="flex justify-end gap-3">
+        <button class="px-4 py-2 text-sm border border-gray-300 rounded hover:bg-gray-100">Cancel</button>
+        <button class="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded font-medium">Submit & Check</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================== -->
+  <!-- STUDENT #3: SCANNING LOADING                                         -->
+  <!-- ================================================================== -->
+  <section class="screen" id="student-scanning">
+    <div class="bg-white border border-gray-200 rounded-lg p-12 text-center max-w-2xl mx-auto">
+      <div class="mb-6">
+        <div class="inline-block w-16 h-16 rounded-full border-4 border-indigo-200 border-t-indigo-600 animate-spin mb-4"></div>
+        <h2 class="text-xl font-semibold">Checking phone-stand-v3.stl</h2>
+        <p class="text-sm muted mt-1">against Bambu Lab X1 Carbon</p>
+      </div>
+
+      <div class="text-left max-w-sm mx-auto space-y-2 mb-6">
+        <div class="flex items-center gap-3 text-sm">
+          <svg class="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+          <span>Uploaded</span>
+          <span class="muted text-xs ml-auto">3.2 MB</span>
+        </div>
+        <div class="flex items-center gap-3 text-sm">
+          <div class="w-5 h-5 rounded-full border-2 border-indigo-600 border-t-transparent animate-spin"></div>
+          <span class="font-medium">Checking geometry integrity…</span>
+        </div>
+        <div class="flex items-center gap-3 text-sm muted">
+          <div class="w-5 h-5 rounded-full border-2 border-gray-300"></div>
+          <span>Checking fit on the bed</span>
+        </div>
+        <div class="flex items-center gap-3 text-sm muted">
+          <div class="w-5 h-5 rounded-full border-2 border-gray-300"></div>
+          <span>Checking wall thickness</span>
+        </div>
+        <div class="flex items-center gap-3 text-sm muted">
+          <div class="w-5 h-5 rounded-full border-2 border-gray-300"></div>
+          <span>Rendering preview</span>
+        </div>
+      </div>
+
+      <p class="text-xs muted">Usually takes 5–15 seconds. You can close this tab — we'll notify you when it's done.</p>
+    </div>
+
+    <div class="devnote mt-4 p-4 bg-indigo-50 border border-indigo-200 rounded text-xs text-indigo-900 max-w-2xl mx-auto">
+      <div class="font-semibold mb-2">Polling source</div>
+      <div><code class="bg-white px-1 rounded">fabrication_job_revisions.scan_status</code> transitions pending → running → done/error.</div>
+      <div class="mt-1">Stage labels (client-side sequence; not driven by scanner progress events in v1).</div>
+    </div>
+  </section>
+
+  <!-- ================================================================== -->
+  <!-- STUDENT #4: RESULTS — NEEDS WORK                                     -->
+  <!-- ================================================================== -->
+  <section class="screen" id="student-results-fail">
+    <div class="mb-4">
+      <div class="flex items-center gap-3">
+        <a class="text-sm text-indigo-600 hover:underline cursor-pointer">← My submissions</a>
+      </div>
+      <h1 class="text-2xl font-semibold mt-2">phone-stand-v3.stl</h1>
+      <p class="text-sm muted">Bambu X1C · Revision 1 · 3.2 MB · <span class="text-red-600 font-medium">Needs revision</span></p>
+    </div>
+
+    <div class="bg-white border border-gray-200 rounded-lg overflow-hidden mb-6">
+      <!-- Multi-angle thumbnails + heatmap toggle -->
+      <div class="p-5 border-b border-gray-100">
+        <div class="flex gap-2 mb-3">
+          <button class="view-btn active px-3 py-1 text-xs bg-gray-900 text-white rounded">Isometric</button>
+          <button class="view-btn px-3 py-1 text-xs border border-gray-300 rounded hover:bg-gray-100">Front</button>
+          <button class="view-btn px-3 py-1 text-xs border border-gray-300 rounded hover:bg-gray-100">Side</button>
+          <button class="view-btn px-3 py-1 text-xs border border-gray-300 rounded hover:bg-gray-100">Top</button>
+          <div class="w-px bg-gray-200 mx-1"></div>
+          <button class="view-btn px-3 py-1 text-xs border border-orange-300 text-orange-700 hover:bg-orange-50 rounded">Wall-thickness heatmap</button>
+          <button class="view-btn px-3 py-1 text-xs border border-amber-300 text-amber-800 hover:bg-amber-50 rounded">Overhang heatmap</button>
+          <div class="devnote text-xs text-indigo-600 font-mono ml-auto self-center">4 PNGs per scan from matplotlib · heatmaps are extra renders from trimesh thickness/normal analysis</div>
+        </div>
+        <div class="flex gap-5">
+          <div class="relative w-56 h-56 thumb-stl rounded flex items-center justify-center flex-shrink-0 border border-gray-200">
+            <svg class="w-32 h-32 text-indigo-400" fill="none" stroke="currentColor" stroke-width="1" viewBox="0 0 24 24"><path d="M12 2L2 7v10l10 5 10-5V7L12 2z"/><path d="M2 7l10 5 10-5M12 12v10"/></svg>
+            <!-- Red callout overlay for R-STL-09 -->
+            <div class="absolute top-14 right-12">
+              <div class="w-8 h-8 rounded-full border-2 border-red-500 bg-red-500/20 animate-pulse"></div>
+              <div class="absolute -right-24 top-1 bg-red-600 text-white text-xs px-2 py-0.5 rounded whitespace-nowrap">wall 0.3mm</div>
+            </div>
+            <!-- Red outline for R-STL-01 holes -->
+            <div class="absolute bottom-10 left-8">
+              <div class="w-4 h-4 rounded-full border-2 border-red-500 bg-red-500/20"></div>
+            </div>
+            <div class="absolute bottom-12 left-14">
+              <div class="w-3 h-3 rounded-full border-2 border-red-500 bg-red-500/20"></div>
+            </div>
+          </div>
+          <div class="flex-1 text-sm space-y-1">
+            <div><span class="muted">Bounding box:</span> <strong>58 × 32 × 12 mm</strong></div>
+            <div><span class="muted">Est. print time:</span> 2 h 47 min</div>
+            <div><span class="muted">Est. filament:</span> 18 g</div>
+            <div><span class="muted">Triangle count:</span> 41,203</div>
+            <div class="pt-2"><span class="muted">You said:</span> "phone stand for my Pixel 7"</div>
+            <div><span class="muted">Intended size:</span> A4 or smaller · mm · PLA</div>
+            <div class="devnote text-xs text-indigo-600 font-mono pt-2">Source: latest_scan_results → {bbox, estimates, thumbnail_annotations} + jobs.student_intent JSONB</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Must fix -->
+    <div class="bg-red-50 border border-red-200 rounded-lg p-5 mb-4">
+      <div class="flex items-baseline gap-2 mb-4">
+        <span class="text-xl">🛑</span>
+        <h2 class="font-semibold text-red-900">2 must fix</h2>
+        <span class="text-sm text-red-700">your file can't run on the machine until these clear</span>
+      </div>
+
+      <div class="space-y-4">
+        <div class="bg-white rounded p-4 border border-red-100">
+          <div class="flex justify-between items-start mb-2">
+            <div>
+              <span class="font-mono text-xs text-red-600 font-semibold">R-STL-09</span>
+              <h3 class="font-semibold">Wall too thin at back panel</h3>
+            </div>
+            <button class="text-xs text-indigo-600 hover:underline">Show where</button>
+          </div>
+          <p class="text-sm text-gray-700 mb-2">Your wall is <strong>0.3 mm</strong> at the back. The X1C's 0.4 mm nozzle can't form walls thinner than about <strong>0.6 mm</strong>.</p>
+          <p class="text-sm text-gray-600"><strong>How other students fixed this:</strong> <a class="text-indigo-600 hover:underline cursor-pointer">Skills Library → Wall thickness →</a></p>
+        </div>
+
+        <div class="bg-white rounded p-4 border border-red-100">
+          <div class="flex justify-between items-start mb-2">
+            <div>
+              <span class="font-mono text-xs text-red-600 font-semibold">R-STL-01</span>
+              <h3 class="font-semibold">Model has holes (not watertight)</h3>
+            </div>
+            <button class="text-xs text-indigo-600 hover:underline">Show where</button>
+          </div>
+          <p class="text-sm text-gray-700 mb-2">The mesh isn't closed — the slicer won't know what's solid and what's air. This almost always produces a failed print.</p>
+          <p class="text-sm text-gray-600"><strong>How to fix:</strong> <a class="text-indigo-600 hover:underline cursor-pointer">Skills Library → Watertight meshes →</a></p>
+        </div>
+      </div>
+      <div class="devnote text-xs text-indigo-600 font-mono mt-3">Source: latest_scan_results.findings[] WHERE severity = 'block'. Each finding carries {rule_id, title, explanation, evidence, fix_hint, skills_library_slug}.</div>
+    </div>
+
+    <!-- Should fix -->
+    <div class="bg-amber-50 border border-amber-200 rounded-lg p-5 mb-4">
+      <div class="flex items-baseline gap-2 mb-4">
+        <span class="text-xl">⚠️</span>
+        <h2 class="font-semibold text-amber-900">1 should fix</h2>
+        <span class="text-sm text-amber-800">acknowledge each before submitting</span>
+      </div>
+
+      <div class="bg-white rounded p-4 border border-amber-100 mb-3">
+        <div class="flex justify-between items-start mb-2">
+          <div>
+            <span class="font-mono text-xs text-amber-600 font-semibold">R-STL-11</span>
+            <h3 class="font-semibold">Overhang at 52° on underside</h3>
+          </div>
+          <button class="text-xs text-indigo-600 hover:underline">Show where</button>
+        </div>
+        <p class="text-sm text-gray-700 mb-3">Overhangs steeper than 45° usually need support structure or they'll droop during the print.</p>
+        <div class="space-y-1.5 text-sm">
+          <label class="flex gap-2 cursor-pointer"><input type="checkbox"> I'll add supports in the slicer.</label>
+          <label class="flex gap-2 cursor-pointer"><input type="checkbox"> This is intentional — I want the droop/natural shape.</label>
+        </div>
+      </div>
+
+      <!-- AI enrichment finding (Tier 1) -->
+      <div class="bg-white rounded p-4 border border-purple-200">
+        <div class="flex justify-between items-start mb-2">
+          <div class="flex items-start gap-2">
+            <span class="mt-0.5 text-purple-600" title="AI enrichment — runs after deterministic scan">✨</span>
+            <div>
+              <span class="font-mono text-xs text-purple-600 font-semibold">R-AI-01</span>
+              <span class="ml-1 text-[10px] uppercase tracking-wide text-purple-500 font-semibold bg-purple-50 px-1.5 py-0.5 rounded">AI check</span>
+              <h3 class="font-semibold">Looks a bit small for a Pixel 7 stand</h3>
+            </div>
+          </div>
+          <button class="text-xs text-indigo-600 hover:underline">Show dimensions</button>
+        </div>
+        <p class="text-sm text-gray-700 mb-3">Based on your description ("phone stand for my Pixel 7"), most phone stands are <strong>90–140 mm tall</strong>. Yours is <strong>58 mm</strong> — might be too short for the Pixel 7's 158 mm height. Is this intentional?</p>
+        <div class="space-y-1.5 text-sm">
+          <label class="flex gap-2 cursor-pointer"><input type="checkbox"> Yes — this is the size I want (maybe it's for a different phone).</label>
+          <label class="flex gap-2 cursor-pointer"><input type="checkbox"> Oops — I'll resize the design.</label>
+        </div>
+      </div>
+      <div class="devnote text-xs text-indigo-600 font-mono mt-3">Source: latest_scan_results.findings[] WHERE severity = 'warn'. AI findings use R-AI-* rule prefix (from a single Haiku call bundling size reasonableness + intent mismatch + functional plausibility + material check, ~$0.0015/submission). Ack'd to jobs.acknowledged_warnings JSONB.</div>
+    </div>
+
+    <!-- FYI -->
+    <div class="bg-blue-50 border border-blue-200 rounded-lg p-5 mb-4">
+      <div class="flex items-baseline gap-2 mb-3">
+        <span class="text-xl">ℹ️</span>
+        <h2 class="font-semibold text-blue-900">Also worth knowing</h2>
+      </div>
+      <ul class="text-sm text-gray-700 space-y-1 ml-6 list-disc">
+        <li>Estimated print time: <strong>2 h 47 min</strong> — fits in a double period.</li>
+        <li>Estimated filament: <strong>18 g</strong> PLA.</li>
+        <li>Triangle count: 41,203 (fine — slicer handles it in a second).</li>
+        <li><span class="text-purple-600">✨</span> <span class="font-mono text-xs text-purple-600">R-AI-02</span> <strong>Intent check:</strong> the geometry does look like a phone stand (flat base with angled support face). No mismatch flag. <span class="devnote text-indigo-600 font-mono">Same Haiku call as R-AI-01; FYI when no issue.</span></li>
+        <li><span class="text-purple-600">✨</span> <span class="font-mono text-xs text-purple-600">R-AI-03</span> <strong>Material fit:</strong> PLA is a fine choice for this design. No flex joints or high-stress areas detected.</li>
+      </ul>
+    </div>
+
+    <!-- History -->
+    <div class="bg-white border border-gray-200 rounded-lg p-5 mb-6">
+      <h3 class="font-semibold text-sm text-gray-500 uppercase tracking-wide mb-3">Your attempts on this project</h3>
+      <div class="space-y-1 text-sm">
+        <div class="flex justify-between py-1"><span><strong>Rev 1</strong> · just now · needs revision (2 must-fix)</span><a class="text-indigo-600 cursor-pointer hover:underline">viewing</a></div>
+      </div>
+      <div class="devnote text-xs text-indigo-600 font-mono mt-2">Source: fabrication_job_revisions WHERE job_id = current ORDER BY revision_number DESC</div>
+    </div>
+
+    <div class="flex items-center justify-between bg-gray-100 border border-gray-200 rounded-lg p-4">
+      <div class="text-xs muted">
+        Scanner ruleset v1.0.0 · No teacher overrides on this profile.
+        <div class="devnote font-mono text-indigo-600 mt-1">Source: jobs.scan_ruleset_version + count of machine_profiles.rule_overrides keys</div>
+      </div>
+      <div class="flex gap-2">
+        <button class="px-4 py-2 text-sm border border-gray-300 rounded hover:bg-white font-medium">Re-upload fixed file</button>
+        <button class="px-4 py-2 text-sm bg-gray-300 text-gray-500 rounded cursor-not-allowed" disabled>Submit (disabled)</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================== -->
+  <!-- STUDENT #5: RESULTS — SVG (LASER) — inline SVG with path overlays    -->
+  <!-- ================================================================== -->
+  <section class="screen" id="student-results-svg">
+    <div class="mb-4">
+      <div class="flex items-center gap-3">
+        <a class="text-sm text-indigo-600 hover:underline cursor-pointer">← My submissions</a>
+      </div>
+      <h1 class="text-2xl font-semibold mt-2">bookmark.svg</h1>
+      <p class="text-sm muted">Glowforge Pro · Revision 1 · 12 KB · <span class="text-red-600 font-medium">Needs revision</span></p>
+    </div>
+
+    <div class="bg-white border border-gray-200 rounded-lg overflow-hidden mb-6">
+      <div class="p-5 border-b border-gray-100">
+        <div class="flex gap-2 mb-3">
+          <button class="px-3 py-1 text-xs bg-gray-900 text-white rounded">Your SVG with problems highlighted</button>
+          <button class="px-3 py-1 text-xs border border-gray-300 rounded hover:bg-gray-100">Just the file</button>
+          <button class="px-3 py-1 text-xs border border-gray-300 rounded hover:bg-gray-100">Layer breakdown</button>
+          <div class="devnote text-xs text-indigo-600 font-mono ml-auto self-center">SVG rendered inline in browser — native, no conversion. Overlays = generated &lt;rect&gt;/&lt;circle&gt; elements on top of the student's paths.</div>
+        </div>
+
+        <!-- Inline illustrative SVG of a bookmark with problem overlays -->
+        <div class="bg-gray-50 border border-gray-200 rounded p-4 flex justify-center">
+          <svg viewBox="0 0 300 400" class="w-64 h-auto bg-white border border-gray-300">
+            <!-- Outline cut path (correct, green stroke) -->
+            <rect x="60" y="40" width="180" height="320" rx="15" fill="none" stroke="#16a34a" stroke-width="1"/>
+            <!-- Text (problem: not outlined!) -->
+            <text x="150" y="210" text-anchor="middle" font-family="cursive" font-size="28" fill="#000000">Read On</text>
+            <!-- Decorative scroll (problem: wrong stroke color — cyan, not in op map) -->
+            <path d="M 90 280 Q 150 260, 210 280 Q 150 300, 90 280" fill="none" stroke="#06b6d4" stroke-width="2"/>
+            <!-- Hairline cut that's too thick (problem) -->
+            <rect x="100" y="80" width="100" height="20" fill="none" stroke="#ef4444" stroke-width="4"/>
+            <!-- Problem overlay: red halo around text -->
+            <rect x="80" y="185" width="140" height="40" fill="none" stroke="#dc2626" stroke-width="2" stroke-dasharray="5,3"/>
+            <!-- Problem overlay: red dashed box around the cyan scroll -->
+            <rect x="80" y="260" width="140" height="40" fill="none" stroke="#dc2626" stroke-width="2" stroke-dasharray="5,3"/>
+            <!-- Problem overlay: red halo around thick stroke rect -->
+            <rect x="85" y="70" width="130" height="40" fill="none" stroke="#dc2626" stroke-width="2" stroke-dasharray="5,3"/>
+            <!-- Legend key arrows -->
+            <text x="232" y="90" font-size="10" fill="#dc2626" font-weight="bold">→ 1</text>
+            <text x="232" y="210" font-size="10" fill="#dc2626" font-weight="bold">→ 2</text>
+            <text x="232" y="285" font-size="10" fill="#dc2626" font-weight="bold">→ 3</text>
+          </svg>
+        </div>
+
+        <div class="mt-3 text-xs text-gray-600 flex justify-center gap-4">
+          <span><span class="text-red-600 font-semibold">1</span> stroke too thick</span>
+          <span><span class="text-red-600 font-semibold">2</span> text not outlined</span>
+          <span><span class="text-red-600 font-semibold">3</span> unknown colour (cyan)</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Must fix -->
+    <div class="bg-red-50 border border-red-200 rounded-lg p-5 mb-4">
+      <div class="flex items-baseline gap-2 mb-4">
+        <span class="text-xl">🛑</span>
+        <h2 class="font-semibold text-red-900">2 must fix</h2>
+      </div>
+
+      <div class="space-y-4">
+        <div class="bg-white rounded p-4 border border-red-100">
+          <div class="flex justify-between items-start mb-2">
+            <div>
+              <span class="font-mono text-xs text-red-600 font-semibold">R-SVG-10</span>
+              <h3 class="font-semibold">"Read On" text isn't outlined</h3>
+            </div>
+            <button class="text-xs text-indigo-600 hover:underline">Show in preview ↑ (#2)</button>
+          </div>
+          <p class="text-sm text-gray-700">The Glowforge software needs letter shapes as actual paths, not as text. If the font isn't installed on the Glowforge computer, your text comes out as boxes or blank.</p>
+          <p class="text-sm text-gray-600 mt-2"><strong>How to fix:</strong> In Inkscape: select text → <em>Path → Object to Path</em>. In Illustrator: <em>Type → Create Outlines</em>. <a class="text-indigo-600 hover:underline cursor-pointer">Skills Library → Outlining text →</a></p>
+        </div>
+
+        <div class="bg-white rounded p-4 border border-red-100">
+          <div class="flex justify-between items-start mb-2">
+            <div>
+              <span class="font-mono text-xs text-red-600 font-semibold">R-SVG-04</span>
+              <h3 class="font-semibold">Unknown stroke colour — <span class="inline-block w-3 h-3 align-middle rounded-sm" style="background:#06b6d4"></span> cyan</h3>
+            </div>
+            <button class="text-xs text-indigo-600 hover:underline">Show in preview ↑ (#3)</button>
+          </div>
+          <p class="text-sm text-gray-700">The Glowforge Pro uses stroke colour to decide what to <strong>cut</strong>, <strong>score</strong>, or <strong>engrave</strong>. The cyan scroll on your design isn't mapped — the Glowforge won't know what to do with it.</p>
+          <p class="text-sm text-gray-600 mt-2"><strong>Convention on this machine:</strong> <span class="inline-block w-3 h-3 align-middle rounded-sm" style="background:#FF0000"></span> red = cut · <span class="inline-block w-3 h-3 align-middle rounded-sm" style="background:#0000FF"></span> blue = score · <span class="inline-block w-3 h-3 align-middle rounded-sm" style="background:#000000"></span> black = engrave. Change the cyan scroll to the colour you meant.</p>
+          <p class="devnote text-xs text-indigo-600 font-mono mt-2">Convention source: machine_profiles.operation_color_map JSONB for Glowforge Pro</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Should fix -->
+    <div class="bg-amber-50 border border-amber-200 rounded-lg p-5 mb-4">
+      <div class="flex items-baseline gap-2 mb-4">
+        <span class="text-xl">⚠️</span>
+        <h2 class="font-semibold text-amber-900">1 should fix</h2>
+      </div>
+      <div class="bg-white rounded p-4 border border-amber-100">
+        <div class="flex justify-between items-start mb-2">
+          <div>
+            <span class="font-mono text-xs text-amber-600 font-semibold">R-SVG-05</span>
+            <h3 class="font-semibold">Cut stroke is too thick (#1 in preview)</h3>
+          </div>
+        </div>
+        <p class="text-sm text-gray-700 mb-3">Your cut line is 4 px wide. On most lasers, cut strokes should be ≤0.01 mm (hairline). Thick strokes get interpreted as <em>fill engrave</em> — the rectangle near the top will get burned as a solid block instead of cut out.</p>
+        <div class="space-y-1.5 text-sm">
+          <label class="flex gap-2 cursor-pointer"><input type="checkbox"> I'll change the stroke to hairline in my editor.</label>
+          <label class="flex gap-2 cursor-pointer"><input type="checkbox"> It's intentional — I want a thick engraved bar.</label>
+        </div>
+      </div>
+    </div>
+
+    <!-- FYI -->
+    <div class="bg-blue-50 border border-blue-200 rounded-lg p-5 mb-4">
+      <div class="flex items-baseline gap-2 mb-3">
+        <span class="text-xl">ℹ️</span>
+        <h2 class="font-semibold text-blue-900">Also worth knowing</h2>
+      </div>
+      <ul class="text-sm text-gray-700 space-y-1 ml-6 list-disc">
+        <li>3 layers detected — 1 cut, 0 score, 1 engrave (the thick stroke), 1 unknown (the cyan scroll)</li>
+        <li>Estimated cut time: <strong>2 min 40 s</strong></li>
+        <li>Material size needed: 180 × 320 mm — fits on Glowforge bed (495 × 279 mm)</li>
+        <li><span class="text-purple-600">✨</span> <span class="font-mono text-xs text-purple-600">R-AI-01</span> 320 mm tall is on the tall side for a bookmark — most are 150–200 mm. Did you mean this size?</li>
+      </ul>
+    </div>
+
+    <div class="flex items-center justify-between bg-gray-100 border border-gray-200 rounded-lg p-4">
+      <div class="text-xs muted">Scanner ruleset v1.0.0 · No teacher overrides on this profile.</div>
+      <div class="flex gap-2">
+        <button class="px-4 py-2 text-sm border border-gray-300 rounded hover:bg-white font-medium">Re-upload fixed file</button>
+        <button class="px-4 py-2 text-sm bg-gray-300 text-gray-500 rounded cursor-not-allowed" disabled>Submit</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================== -->
+  <!-- STUDENT #6: RESULTS — PASSED                                         -->
+  <!-- ================================================================== -->
+  <section class="screen" id="student-results-pass">
+    <div class="max-w-2xl mx-auto">
+      <div class="bg-white border border-gray-200 rounded-lg p-8 text-center">
+        <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <svg class="w-12 h-12 text-green-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg>
+        </div>
+        <h1 class="text-2xl font-semibold mb-2">phone-stand-v3.stl is clear</h1>
+        <p class="text-gray-600 mb-6">All checks passed. 1 warning acknowledged (overhang — you said you'll add supports).</p>
+
+        <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 text-left mb-6">
+          <p class="text-sm text-amber-900"><strong>Waiting for Mr Burton to approve.</strong> He usually reviews within a day — you'll get a notification. After approval, <strong>Cynthia</strong> will queue it on the Bambu X1C.</p>
+          <div class="devnote text-xs text-indigo-600 font-mono mt-2">Source: machine_profiles.requires_teacher_approval = true → jobs.status = 'pending_approval'. If false → status = 'approved' (goes straight to Fabricator queue).</div>
+        </div>
+
+        <div class="flex justify-center gap-3">
+          <button class="px-4 py-2 text-sm border border-gray-300 rounded hover:bg-gray-50">View my submissions</button>
+          <button class="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded font-medium">Back to dashboard</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================== -->
+  <!-- FABRICATOR #1: LOGIN                                                 -->
+  <!-- ================================================================== -->
+  <section class="screen" id="fab-login">
+    <div class="max-w-sm mx-auto mt-12">
+      <div class="bg-white border border-gray-200 rounded-lg p-8">
+        <div class="text-center mb-6">
+          <svg class="w-12 h-12 mx-auto text-indigo-600 mb-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 4l16 8-16 8V4z"/></svg>
+          <h1 class="text-xl font-semibold">Preflight — Fabricator</h1>
+          <p class="text-sm muted mt-1">Sign in to pick up print and cut jobs</p>
+        </div>
+
+        <div class="space-y-3">
+          <div>
+            <label class="block text-sm font-medium mb-1">Email</label>
+            <input type="email" value="cynthia@nis.edu" class="w-full border border-gray-300 rounded px-3 py-2 text-sm">
+          </div>
+          <div>
+            <label class="block text-sm font-medium mb-1">Password</label>
+            <input type="password" value="••••••••" class="w-full border border-gray-300 rounded px-3 py-2 text-sm">
+          </div>
+          <button class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded font-medium text-sm">Sign in</button>
+        </div>
+
+        <div class="mt-5 text-xs muted text-center">
+          Forgot your password? Ask your teacher to send a new invite.
+        </div>
+      </div>
+
+      <div class="devnote mt-4 p-4 bg-indigo-50 border border-indigo-200 rounded text-xs text-indigo-900">
+        <div class="font-semibold mb-1">Auth flow</div>
+        <div>POST → lookup <code class="bg-white px-1 rounded">fabricators WHERE LOWER(email) = LOWER(:email)</code> → bcrypt verify against <code class="bg-white px-1 rounded">password_hash</code> → create <code class="bg-white px-1 rounded">fabricator_sessions</code> row with bcrypt-hashed token → set cookie → redirect /fab/queue.</div>
+        <div class="mt-1">No Supabase Auth — same pattern as students (Lesson #4).</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================== -->
+  <!-- FABRICATOR #2: QUEUE                                                 -->
+  <!-- ================================================================== -->
+  <section class="screen" id="fab-queue">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-2xl font-semibold">Machine queue</h1>
+        <p class="text-sm muted mt-1">Cynthia Chen · 2 machines · 3 waiting jobs</p>
+      </div>
+      <button class="text-sm text-gray-600 hover:text-gray-900">Sign out</button>
+    </div>
+
+    <!-- Machine 1 -->
+    <div class="bg-white border border-gray-200 rounded-lg mb-6">
+      <div class="px-5 py-3 border-b border-gray-200 flex items-center justify-between">
+        <div>
+          <h2 class="font-semibold">Bambu Lab X1 Carbon</h2>
+          <div class="text-xs muted">Room 204 · 3D Printer</div>
+        </div>
+        <span class="bg-amber-100 text-amber-800 text-xs px-2 py-1 rounded font-medium">2 waiting · 1 printing</span>
+      </div>
+
+      <!-- Queued row -->
+      <div class="flex items-center gap-4 px-5 py-3 border-b border-gray-100">
+        <div class="w-16 h-16 thumb-stl rounded flex items-center justify-center flex-shrink-0">
+          <svg class="w-10 h-10 text-indigo-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M12 2L2 7v10l10 5 10-5V7L12 2z"/><path d="M2 7l10 5 10-5M12 12v10"/></svg>
+        </div>
+        <div class="flex-1">
+          <div class="font-medium">phone-stand-v3.stl</div>
+          <div class="text-sm muted">Ella Chen · Y10 · Phone accessories</div>
+        </div>
+        <div class="text-right mr-2">
+          <div class="text-sm">3.2 MB · 2h 47min est.</div>
+          <div class="text-xs muted">submitted 14 min ago</div>
+        </div>
+        <button class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-1.5 rounded text-sm font-medium">Pick up</button>
+      </div>
+
+      <!-- Queued row 2 -->
+      <div class="flex items-center gap-4 px-5 py-3 border-b border-gray-100">
+        <div class="w-16 h-16 thumb-stl rounded flex items-center justify-center flex-shrink-0">
+          <svg class="w-10 h-10 text-indigo-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 2"/></svg>
+        </div>
+        <div class="flex-1">
+          <div class="font-medium">keychain-v2.stl</div>
+          <div class="text-sm muted">Oliver Li · Y9 · Gift design</div>
+        </div>
+        <div class="text-right mr-2">
+          <div class="text-sm">480 KB · 35 min est.</div>
+          <div class="text-xs muted">submitted 1h ago</div>
+        </div>
+        <button class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-1.5 rounded text-sm font-medium">Pick up</button>
+      </div>
+
+      <!-- Printing row -->
+      <div class="flex items-center gap-4 px-5 py-3 bg-indigo-50">
+        <div class="w-16 h-16 thumb-stl rounded flex items-center justify-center flex-shrink-0">
+          <svg class="w-10 h-10 text-indigo-600 animate-pulse" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M3 12l3-3m0 0l3 3m-3-3v12M21 12l-3 3m0 0l-3-3m3 3V3"/></svg>
+        </div>
+        <div class="flex-1">
+          <div class="font-medium">chess-king.stl <span class="ml-1 inline-block bg-indigo-600 text-white text-xs px-1.5 py-0.5 rounded">printing</span></div>
+          <div class="text-sm muted">Jisoo Park · Y11 · Chess set</div>
+        </div>
+        <div class="text-right mr-2">
+          <div class="text-sm">started 45 min ago</div>
+          <div class="text-xs muted">~1h 15min remaining</div>
+        </div>
+        <div class="flex flex-col gap-1.5">
+          <button class="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded text-xs font-medium">Mark printed</button>
+          <button class="border border-red-300 text-red-700 hover:bg-red-50 px-3 py-1.5 rounded text-xs">Failed + note</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Machine 2 -->
+    <div class="bg-white border border-gray-200 rounded-lg">
+      <div class="px-5 py-3 border-b border-gray-200 flex items-center justify-between">
+        <div>
+          <h2 class="font-semibold">Glowforge Pro</h2>
+          <div class="text-xs muted">Room 205 · Laser Cutter</div>
+        </div>
+        <span class="bg-amber-100 text-amber-800 text-xs px-2 py-1 rounded font-medium">1 waiting</span>
+      </div>
+
+      <div class="flex items-center gap-4 px-5 py-3">
+        <div class="w-16 h-16 thumb-svg rounded flex items-center justify-center flex-shrink-0">
+          <svg class="w-10 h-10 text-amber-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 4v16M15 4v16"/></svg>
+        </div>
+        <div class="flex-1">
+          <div class="font-medium">name-tag.svg</div>
+          <div class="text-sm muted">Mika Tanaka · Y7 · Laser intro</div>
+        </div>
+        <div class="text-right mr-2">
+          <div class="text-sm">120 KB · 3 min est.</div>
+          <div class="text-xs muted">submitted 25 min ago</div>
+        </div>
+        <button class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-1.5 rounded text-sm font-medium">Pick up</button>
+      </div>
+    </div>
+
+    <div class="devnote mt-4 p-4 bg-indigo-50 border border-indigo-200 rounded text-xs text-indigo-900">
+      <div class="font-semibold mb-1">Query shape</div>
+      <div class="font-mono text-[11px]">SELECT j.*, r.thumbnail_path, s.display_name, u.title FROM fabrication_jobs j
+      JOIN fabrication_job_revisions r ON r.job_id=j.id AND r.revision_number=j.current_revision
+      LEFT JOIN students s ON s.id=j.student_id LEFT JOIN units u ON u.id=j.unit_id
+      WHERE j.machine_profile_id IN (SELECT machine_profile_id FROM fabricator_machines WHERE fabricator_id=:me)
+      AND j.status IN ('approved','picked_up') ORDER BY ...;</div>
+      <div class="mt-2">Runs with service role. Fabricator's auth.uid() is NULL so RLS denies — we scope manually via fabricator_sessions → fabricator_machines.</div>
+    </div>
+  </section>
+
+  <!-- ================================================================== -->
+  <!-- FABRICATOR #3: JOB PICKUP                                            -->
+  <!-- ================================================================== -->
+  <section class="screen" id="fab-job">
+    <div class="mb-4">
+      <a class="text-sm text-indigo-600 hover:underline cursor-pointer">← Back to queue</a>
+    </div>
+
+    <div class="bg-white border border-gray-200 rounded-lg p-6 mb-4">
+      <div class="flex gap-6 mb-4">
+        <div class="w-48 h-48 thumb-stl rounded flex items-center justify-center flex-shrink-0">
+          <svg class="w-24 h-24 text-indigo-400" fill="none" stroke="currentColor" stroke-width="1" viewBox="0 0 24 24"><path d="M12 2L2 7v10l10 5 10-5V7L12 2z"/><path d="M2 7l10 5 10-5M12 12v10"/></svg>
+        </div>
+        <div class="flex-1">
+          <h1 class="text-xl font-semibold">phone-stand-v3.stl</h1>
+          <div class="text-sm muted">Ella Chen · Y10 · Phone accessories</div>
+          <div class="mt-3 text-sm"><span class="muted">For:</span> <strong>Bambu Lab X1 Carbon</strong> · Room 204</div>
+
+          <div class="mt-4 bg-green-50 border border-green-200 rounded p-3">
+            <div class="font-semibold text-sm text-green-900 mb-1">✓ Passed Preflight</div>
+            <div class="text-xs text-green-800 space-y-0.5">
+              <div>Bounding box 58 × 32 × 12 mm · Est. 2 h 47 min · 18 g PLA</div>
+              <div>1 warning acknowledged: student said they'll add supports for the 52° overhang</div>
+              <div class="muted mt-1">Ruleset v1.0.0</div>
+            </div>
+          </div>
+
+          <div class="mt-3 bg-amber-50 border border-amber-200 rounded p-3">
+            <div class="font-semibold text-sm text-amber-900 mb-1">Teacher note (Mr Burton)</div>
+            <p class="text-sm text-amber-800">"Please use PLA+ for this — I've set aside a spool in the drawer."</p>
+            <div class="devnote text-xs text-indigo-600 font-mono mt-1">Source: jobs.teacher_review_note (nullable)</div>
+          </div>
+        </div>
+      </div>
+
+      <button class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded font-medium">Download .stl & mark picked up</button>
+      <div class="devnote text-xs text-indigo-600 font-mono mt-2 text-center">On click: sets jobs.lab_tech_picked_up_by = me, _at = now(), status = 'picked_up'. File delivered via signed URL.</div>
+    </div>
+
+    <div class="bg-white border border-gray-200 rounded-lg p-6">
+      <h3 class="font-semibold mb-3">After printing</h3>
+      <div class="space-y-3">
+        <label class="flex items-start gap-3 cursor-pointer">
+          <input type="radio" name="outcome" class="mt-1">
+          <div>
+            <div class="font-medium text-sm">Printed — all good</div>
+            <div class="text-xs muted">Job complete. Student gets a notification.</div>
+          </div>
+        </label>
+        <label class="flex items-start gap-3 cursor-pointer">
+          <input type="radio" name="outcome" class="mt-1">
+          <div class="flex-1">
+            <div class="font-medium text-sm">Failed — needs a reprint</div>
+            <div class="text-xs muted mb-2">Leave a reason so the student + teacher can see what happened.</div>
+            <textarea class="w-full border border-gray-300 rounded px-2 py-1.5 text-sm" rows="2" placeholder="e.g. 'Bed adhesion failed after 1h. Brim might help.'"></textarea>
+          </div>
+        </label>
+      </div>
+      <button class="mt-4 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-sm font-medium">Submit outcome</button>
+      <div class="devnote text-xs text-indigo-600 font-mono mt-2">Sets jobs.completion_status ('printed' | 'failed'), jobs.completion_note, jobs.completed_at = now(), status = 'completed'. Triggers retention_clock_started_at.</div>
+    </div>
+  </section>
+
+  <!-- ================================================================== -->
+  <!-- TEACHER #1: QUEUE                                                    -->
+  <!-- ================================================================== -->
+  <section class="screen" id="teacher-queue">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-2xl font-semibold">Preflight queue</h1>
+        <p class="text-sm muted mt-1">4 pending approval · 12 in machine queue · 38 completed this term</p>
+      </div>
+      <button class="text-sm border border-gray-300 rounded px-3 py-1.5 hover:bg-gray-100">Machine profiles</button>
+    </div>
+
+    <div class="flex gap-1 mb-4 border-b border-gray-200">
+      <button class="px-3 py-2 text-sm border-b-2 border-indigo-600 font-medium">Pending approval (4)</button>
+      <button class="px-3 py-2 text-sm text-gray-600 hover:text-gray-900">In queue (12)</button>
+      <button class="px-3 py-2 text-sm text-gray-600 hover:text-gray-900">Needs revision (6)</button>
+      <button class="px-3 py-2 text-sm text-gray-600 hover:text-gray-900">Completed (38)</button>
+      <button class="px-3 py-2 text-sm text-gray-600 hover:text-gray-900">All</button>
+    </div>
+
+    <div class="flex gap-3 mb-4 text-sm">
+      <select class="border border-gray-300 rounded px-2 py-1 text-sm">
+        <option>All classes</option>
+        <option>Y10 Design</option>
+        <option>Y9 Design</option>
+      </select>
+      <select class="border border-gray-300 rounded px-2 py-1 text-sm">
+        <option>All machines</option>
+      </select>
+      <select class="border border-gray-300 rounded px-2 py-1 text-sm">
+        <option>All units</option>
+      </select>
+    </div>
+
+    <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
+      <!-- Row 1 -->
+      <div class="flex items-center gap-4 px-4 py-3 border-b border-gray-100 hover:bg-gray-50">
+        <div class="w-16 h-16 thumb-stl rounded flex items-center justify-center flex-shrink-0">
+          <svg class="w-10 h-10 text-indigo-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M12 2L2 7v10l10 5 10-5V7L12 2z"/></svg>
+        </div>
+        <div class="flex-1">
+          <div class="font-medium">Ella Chen · phone-stand-v3.stl</div>
+          <div class="text-sm muted">Y10 · Phone accessories · Bambu X1C</div>
+        </div>
+        <div class="text-center px-4">
+          <div class="text-sm font-medium">Rev 1</div>
+          <div class="text-xs text-green-600">✓ Passed</div>
+        </div>
+        <div class="text-center px-4">
+          <div class="text-xs muted">14 min ago</div>
+        </div>
+        <button class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded text-sm font-medium">Review</button>
+      </div>
+
+      <!-- Row 2: coaching flag -->
+      <div class="flex items-center gap-4 px-4 py-3 border-b border-gray-100 hover:bg-gray-50 bg-red-50/30">
+        <div class="w-16 h-16 thumb-svg rounded flex items-center justify-center flex-shrink-0">
+          <svg class="w-10 h-10 text-amber-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+        </div>
+        <div class="flex-1">
+          <div class="font-medium flex items-center gap-2">
+            Marcus Wong · phone-case-final.svg
+            <span title="Coaching opportunity: 3+ revisions with same rule failing" class="bg-red-100 text-red-700 text-xs px-2 py-0.5 rounded">🚩 Coaching</span>
+          </div>
+          <div class="text-sm muted">Y10 · Phone accessories · Glowforge Pro</div>
+          <div class="text-xs text-red-700 mt-0.5">Rev 5 · R-SVG-02 (unit mismatch) fired in revisions 1, 3, 5</div>
+        </div>
+        <div class="text-center px-4">
+          <div class="text-sm font-medium">Rev 5</div>
+          <div class="text-xs text-red-600">1 must-fix</div>
+        </div>
+        <div class="text-center px-4">
+          <div class="text-xs muted">3 min ago</div>
+        </div>
+        <button class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded text-sm font-medium">Review</button>
+      </div>
+
+      <!-- Row 3 -->
+      <div class="flex items-center gap-4 px-4 py-3 border-b border-gray-100 hover:bg-gray-50">
+        <div class="w-16 h-16 thumb-stl rounded flex items-center justify-center flex-shrink-0"><svg class="w-10 h-10 text-indigo-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/></svg></div>
+        <div class="flex-1">
+          <div class="font-medium">Oliver Li · keychain-v2.stl</div>
+          <div class="text-sm muted">Y9 · Gift design · Prusa MK4S</div>
+        </div>
+        <div class="text-center px-4">
+          <div class="text-sm font-medium">Rev 2</div>
+          <div class="text-xs text-amber-600">⚠ 1 warn ack'd</div>
+        </div>
+        <div class="text-center px-4">
+          <div class="text-xs muted">1 h ago</div>
+        </div>
+        <button class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded text-sm font-medium">Review</button>
+      </div>
+
+      <!-- Row 4 -->
+      <div class="flex items-center gap-4 px-4 py-3 hover:bg-gray-50">
+        <div class="w-16 h-16 thumb-svg rounded flex items-center justify-center flex-shrink-0"><svg class="w-10 h-10 text-amber-600" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/></svg></div>
+        <div class="flex-1">
+          <div class="font-medium">Mika Tanaka · name-tag.svg</div>
+          <div class="text-sm muted">Y7 · Laser intro · xTool P2</div>
+        </div>
+        <div class="text-center px-4">
+          <div class="text-sm font-medium">Rev 1</div>
+          <div class="text-xs text-green-600">✓ Passed</div>
+        </div>
+        <div class="text-center px-4">
+          <div class="text-xs muted">2 h ago</div>
+        </div>
+        <button class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded text-sm font-medium">Review</button>
+      </div>
+    </div>
+
+    <div class="devnote mt-4 p-4 bg-indigo-50 border border-indigo-200 rounded text-xs text-indigo-900">
+      <div class="font-semibold mb-1">Coaching flag 🚩 source</div>
+      <div>Derived client-side: revision count ≥3 AND ≥2 revisions fired the same rule. Not a schema column — computed from fabrication_job_revisions.scan_results JSONB across all rows for this job.</div>
+    </div>
+  </section>
+
+  <!-- ================================================================== -->
+  <!-- TEACHER #2: REVIEW                                                   -->
+  <!-- ================================================================== -->
+  <section class="screen" id="teacher-review">
+    <div class="mb-4">
+      <a class="text-sm text-indigo-600 hover:underline cursor-pointer">← Back to queue</a>
+      <h1 class="text-xl font-semibold mt-2">Ella Chen · phone-stand-v3.stl</h1>
+      <p class="text-sm muted">Y10 Phone accessories · Bambu X1C · Rev 1 of 1 · 3.2 MB · submitted 14 min ago</p>
+    </div>
+
+    <div class="grid grid-cols-3 gap-6">
+      <!-- Left 2 cols: review -->
+      <div class="col-span-2 space-y-4">
+        <div class="bg-white border border-gray-200 rounded-lg p-5">
+          <div class="flex gap-5">
+            <div class="w-44 h-44 thumb-stl rounded flex items-center justify-center flex-shrink-0">
+              <svg class="w-24 h-24 text-indigo-400" fill="none" stroke="currentColor" stroke-width="1" viewBox="0 0 24 24"><path d="M12 2L2 7v10l10 5 10-5V7L12 2z"/></svg>
+            </div>
+            <div class="flex-1 text-sm space-y-2">
+              <div><span class="muted">Bounding box:</span> <strong>58 × 32 × 12 mm</strong></div>
+              <div><span class="muted">Est. print time:</span> 2 h 47 min</div>
+              <div><span class="muted">Est. filament:</span> 18 g PLA (student intent)</div>
+              <div><span class="muted">Student said:</span> "A4 or smaller", designed in mm, PLA</div>
+              <div class="devnote text-xs text-indigo-600 font-mono">Source: jobs.student_intent JSONB (proposed migration 098)</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white border border-gray-200 rounded-lg p-5">
+          <h3 class="font-semibold text-sm text-gray-500 uppercase tracking-wide mb-3">Scan result</h3>
+          <ul class="text-sm space-y-2">
+            <li class="flex items-start gap-3"><span class="text-green-600 font-bold">✓</span><span>0 must-fix</span></li>
+            <li class="flex items-start gap-3">
+              <span class="text-amber-600 font-bold">⚠</span>
+              <span>1 should-fix <strong>acknowledged</strong>: <span class="font-mono text-xs bg-gray-100 px-1 py-0.5 rounded">R-STL-11</span> Overhang at 52°
+                <span class="block text-xs muted mt-0.5">Student chose: "I'll add supports in the slicer"</span>
+              </span>
+            </li>
+            <li class="flex items-start gap-3"><span class="text-blue-600 font-bold">ℹ</span><span>3 FYI (print time, filament, triangle count)</span></li>
+          </ul>
+          <div class="mt-3 text-xs muted">Ruleset v1.0.0 · 0 rule overrides on Bambu X1C.</div>
+        </div>
+
+        <div class="bg-white border border-gray-200 rounded-lg p-5">
+          <h3 class="font-semibold text-sm text-gray-500 uppercase tracking-wide mb-2">Teacher notes <span class="muted normal-case font-normal">(optional — visible to Cynthia when she picks up)</span></h3>
+          <textarea class="w-full border border-gray-300 rounded px-3 py-2 text-sm" rows="2" placeholder="e.g., 'Please use PLA+ for this…'"></textarea>
+          <div class="devnote text-xs text-indigo-600 font-mono mt-1">Saves to jobs.teacher_review_note</div>
+        </div>
+
+        <div class="bg-white border border-gray-200 rounded-lg p-5">
+          <h3 class="font-semibold mb-3">Decision</h3>
+          <div class="grid grid-cols-3 gap-2">
+            <button class="bg-green-600 hover:bg-green-700 text-white px-4 py-3 rounded text-sm font-medium">Approve & queue</button>
+            <button class="border border-amber-300 text-amber-800 hover:bg-amber-50 px-4 py-3 rounded text-sm font-medium">Return for revision</button>
+            <button class="border border-red-300 text-red-700 hover:bg-red-50 px-4 py-3 rounded text-sm font-medium">Reject</button>
+          </div>
+          <div class="devnote text-xs text-indigo-600 font-mono mt-2">Approve: status='approved', teacher_reviewed_by=me, teacher_reviewed_at=now(). Return: status='needs_revision'. Reject: status='rejected' (terminal, starts retention clock).</div>
+        </div>
+      </div>
+
+      <!-- Right col: history -->
+      <div>
+        <div class="bg-white border border-gray-200 rounded-lg p-5">
+          <h3 class="font-semibold text-sm text-gray-500 uppercase tracking-wide mb-3">Revision history</h3>
+          <div class="space-y-3 text-sm">
+            <div class="border-l-2 border-green-500 pl-3">
+              <div class="font-medium">Rev 1 <span class="text-green-600">✓</span></div>
+              <div class="muted text-xs">just now · passed, 1 warn ack'd</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white border border-gray-200 rounded-lg p-5 mt-4">
+          <h3 class="font-semibold text-sm text-gray-500 uppercase tracking-wide mb-3">Ella's Preflight pattern</h3>
+          <div class="text-sm space-y-2">
+            <div>This term: <strong>12 submissions</strong></div>
+            <div>Pass rate: <strong>67%</strong> (8 passed, 4 needed revision)</div>
+            <div>Most common fail: <span class="font-mono text-xs bg-gray-100 px-1 rounded">R-STL-09</span> wall thickness (3 times)</div>
+            <div class="text-xs text-amber-700 mt-2 border-t pt-2">💡 Wall thickness keeps coming up for her. Maybe a 10-min refresher in next class?</div>
+          </div>
+          <div class="devnote text-xs text-indigo-600 font-mono mt-3">Derived: aggregate over fabrication_jobs + revisions for this student this term</div>
+        </div>
+
+        <div class="bg-white border border-gray-200 rounded-lg p-5 mt-4">
+          <h3 class="font-semibold text-sm text-gray-500 uppercase tracking-wide mb-2">Advanced</h3>
+          <button class="text-sm text-indigo-600 hover:underline">Override a scanner rule for Bambu X1C →</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================================================================== -->
+  <!-- TEACHER #3: RULE OVERRIDE DRAWER                                     -->
+  <!-- ================================================================== -->
+  <section class="screen" id="teacher-override">
+    <h1 class="text-2xl font-semibold mb-2">Rule overrides — Bambu Lab X1 Carbon</h1>
+    <p class="text-sm muted mb-6">Soften or switch off individual scanner rules for this machine profile. Applies to all future scans. Rules you haven't touched stay at the default severity.</p>
+
+    <div class="bg-white border border-gray-200 rounded-lg">
+      <div class="px-5 py-3 border-b border-gray-200 text-xs uppercase tracking-wide font-semibold text-gray-500">3D Printer rules · 17 total · 2 overridden</div>
+
+      <div class="divide-y divide-gray-100">
+        <!-- Rule: overridden -->
+        <div class="px-5 py-4 bg-amber-50/40">
+          <div class="flex justify-between items-start gap-4 mb-2">
+            <div>
+              <span class="font-mono text-xs text-gray-500">R-STL-09</span>
+              <h3 class="font-semibold">Wall thickness below nozzle × 1.5</h3>
+              <p class="text-xs muted mt-0.5">Default: BLOCK at 0.6 mm (0.4 nozzle × 1.5)</p>
+            </div>
+            <span class="bg-amber-100 text-amber-800 text-xs px-2 py-0.5 rounded font-medium">overridden</span>
+          </div>
+          <div class="flex gap-2 items-center mt-2">
+            <span class="text-sm muted">Severity:</span>
+            <label class="flex items-center gap-1 text-sm"><input type="radio" name="r09" value="block"> BLOCK</label>
+            <label class="flex items-center gap-1 text-sm"><input type="radio" name="r09" value="warn" checked> WARN</label>
+            <label class="flex items-center gap-1 text-sm"><input type="radio" name="r09" value="fyi"> FYI</label>
+            <label class="flex items-center gap-1 text-sm"><input type="radio" name="r09" value="off"> OFF</label>
+            <span class="ml-4 text-sm muted">Threshold: nozzle ×</span>
+            <input type="number" value="1.2" step="0.1" class="border border-gray-300 rounded px-2 py-0.5 text-sm w-16">
+          </div>
+        </div>
+
+        <!-- Rule: default -->
+        <div class="px-5 py-4">
+          <div class="flex justify-between items-start gap-4">
+            <div>
+              <span class="font-mono text-xs text-gray-500">R-STL-01</span>
+              <h3 class="font-semibold">Non-watertight mesh</h3>
+              <p class="text-xs muted mt-0.5">Default: BLOCK. <em>Strongly recommend keeping this on — it's the #1 print killer.</em></p>
+            </div>
+            <span class="bg-gray-100 text-gray-600 text-xs px-2 py-0.5 rounded">default</span>
+          </div>
+        </div>
+
+        <!-- Rule: default -->
+        <div class="px-5 py-4">
+          <div class="flex justify-between items-start gap-4">
+            <div>
+              <span class="font-mono text-xs text-gray-500">R-STL-07</span>
+              <h3 class="font-semibold">Unit mismatch (mm vs inch)</h3>
+              <p class="text-xs muted mt-0.5">Default: WARN. Bounding box under 5mm or over 2m.</p>
+            </div>
+            <span class="bg-gray-100 text-gray-600 text-xs px-2 py-0.5 rounded">default</span>
+          </div>
+        </div>
+
+        <!-- Rule: overridden off -->
+        <div class="px-5 py-4 bg-amber-50/40">
+          <div class="flex justify-between items-start gap-4 mb-2">
+            <div>
+              <span class="font-mono text-xs text-gray-500">R-STL-17</span>
+              <h3 class="font-semibold">Triangle count above 500k</h3>
+              <p class="text-xs muted mt-0.5">Default: FYI. Slicer pain.</p>
+            </div>
+            <span class="bg-amber-100 text-amber-800 text-xs px-2 py-0.5 rounded font-medium">overridden</span>
+          </div>
+          <div class="flex gap-2 items-center mt-2">
+            <span class="text-sm muted">Severity:</span>
+            <label class="flex items-center gap-1 text-sm"><input type="radio" name="r17"> BLOCK</label>
+            <label class="flex items-center gap-1 text-sm"><input type="radio" name="r17"> WARN</label>
+            <label class="flex items-center gap-1 text-sm"><input type="radio" name="r17"> FYI</label>
+            <label class="flex items-center gap-1 text-sm"><input type="radio" name="r17" checked> OFF</label>
+          </div>
+        </div>
+
+        <div class="px-5 py-3 text-center text-sm muted italic">… 13 more rules shown in full UI …</div>
+      </div>
+
+      <div class="px-5 py-3 border-t border-gray-200 flex justify-between items-center bg-gray-50">
+        <div class="text-xs muted">
+          Override history is audited. Any rule overridden >20% of the time across profiles flags for catalogue review.
+        </div>
+        <div class="flex gap-2">
+          <button class="px-4 py-1.5 text-sm border border-gray-300 rounded hover:bg-white">Reset all to default</button>
+          <button class="px-4 py-1.5 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded font-medium">Save overrides</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="devnote mt-4 p-4 bg-indigo-50 border border-indigo-200 rounded text-xs text-indigo-900">
+      <div class="font-semibold mb-1">Writes to</div>
+      <div class="font-mono text-[11px]">machine_profiles.rule_overrides JSONB = { "R-STL-09": { severity: "warn", threshold: 1.2 }, "R-STL-17": { severity: "off" } }</div>
+    </div>
+  </section>
+
+  <!-- ================================================================== -->
+  <!-- TEACHER #4: FABRICATOR ADMIN                                         -->
+  <!-- ================================================================== -->
+  <section class="screen" id="teacher-fabricators">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-2xl font-semibold">Fabricators</h1>
+        <p class="text-sm muted mt-1">Lab techs who pick up scanned jobs and run them on the machines</p>
+      </div>
+      <button class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded text-sm font-medium">+ Invite Fabricator</button>
+    </div>
+
+    <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
+      <table class="w-full">
+        <thead class="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+          <tr>
+            <th class="text-left px-4 py-2 font-semibold">Name</th>
+            <th class="text-left px-4 py-2 font-semibold">Email</th>
+            <th class="text-left px-4 py-2 font-semibold">Assigned machines</th>
+            <th class="text-left px-4 py-2 font-semibold">Last login</th>
+            <th class="text-left px-4 py-2 font-semibold">Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody class="text-sm divide-y divide-gray-100">
+          <tr class="hover:bg-gray-50">
+            <td class="px-4 py-3 font-medium">Cynthia Chen</td>
+            <td class="px-4 py-3 muted">cynthia@nis.edu</td>
+            <td class="px-4 py-3"><span class="bg-indigo-100 text-indigo-800 text-xs px-2 py-0.5 rounded">Bambu X1C</span> <span class="bg-indigo-100 text-indigo-800 text-xs px-2 py-0.5 rounded">Glowforge Pro</span></td>
+            <td class="px-4 py-3 text-xs muted">2 h ago</td>
+            <td class="px-4 py-3"><span class="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded font-medium">Active</span></td>
+            <td class="px-4 py-3 text-right"><button class="text-gray-500 hover:text-gray-700">⋯</button></td>
+          </tr>
+          <tr class="hover:bg-gray-50">
+            <td class="px-4 py-3 font-medium">Raj Patel</td>
+            <td class="px-4 py-3 muted">raj.patel@nis.edu</td>
+            <td class="px-4 py-3"><span class="bg-indigo-100 text-indigo-800 text-xs px-2 py-0.5 rounded">Prusa MK4S</span> <span class="bg-indigo-100 text-indigo-800 text-xs px-2 py-0.5 rounded">xTool P2</span></td>
+            <td class="px-4 py-3 text-xs muted">yesterday</td>
+            <td class="px-4 py-3"><span class="bg-green-100 text-green-700 text-xs px-2 py-0.5 rounded font-medium">Active</span></td>
+            <td class="px-4 py-3 text-right"><button class="text-gray-500 hover:text-gray-700">⋯</button></td>
+          </tr>
+          <tr class="hover:bg-gray-50">
+            <td class="px-4 py-3 font-medium">Sam (Y13 aide)</td>
+            <td class="px-4 py-3 muted">sam.k@nis.edu</td>
+            <td class="px-4 py-3"><span class="bg-indigo-100 text-indigo-800 text-xs px-2 py-0.5 rounded">Bambu X1C</span></td>
+            <td class="px-4 py-3 text-xs muted italic">never logged in</td>
+            <td class="px-4 py-3"><span class="bg-amber-100 text-amber-700 text-xs px-2 py-0.5 rounded font-medium">Invite pending</span></td>
+            <td class="px-4 py-3 text-right"><button class="text-gray-500 hover:text-gray-700">⋯</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Invite modal preview -->
+    <div class="mt-6 bg-white border-2 border-dashed border-gray-300 rounded-lg p-6 max-w-md">
+      <div class="text-xs uppercase tracking-wide text-gray-500 font-semibold mb-3">Invite modal (preview)</div>
+      <h3 class="font-semibold mb-3">Invite a Fabricator</h3>
+      <div class="space-y-3 text-sm">
+        <div>
+          <label class="block text-xs font-medium mb-1 uppercase tracking-wide text-gray-500">Email</label>
+          <input type="email" class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm" placeholder="lab.tech@school.edu">
+        </div>
+        <div>
+          <label class="block text-xs font-medium mb-1 uppercase tracking-wide text-gray-500">Display name</label>
+          <input type="text" class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm" placeholder="e.g. Cynthia Chen">
+        </div>
+        <div>
+          <label class="block text-xs font-medium mb-1 uppercase tracking-wide text-gray-500">Assign machines</label>
+          <div class="space-y-1">
+            <label class="flex items-center gap-2 text-sm"><input type="checkbox" checked> Bambu Lab X1 Carbon</label>
+            <label class="flex items-center gap-2 text-sm"><input type="checkbox"> Prusa MK4S</label>
+            <label class="flex items-center gap-2 text-sm"><input type="checkbox" checked> Glowforge Pro</label>
+            <label class="flex items-center gap-2 text-sm"><input type="checkbox"> xTool P2</label>
+          </div>
+        </div>
+        <button class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded text-sm font-medium">Send invite email</button>
+      </div>
+    </div>
+
+    <div class="devnote mt-4 p-4 bg-indigo-50 border border-indigo-200 rounded text-xs text-indigo-900">
+      <div class="font-semibold mb-1">Invite backend</div>
+      <ol class="list-decimal ml-4 space-y-1">
+        <li>INSERT <code class="bg-white px-1 rounded">fabricators</code> (email, placeholder password_hash, display_name, invited_by_teacher_id=auth.uid())</li>
+        <li>INSERT <code class="bg-white px-1 rounded">fabricator_machines</code> rows for each selected machine</li>
+        <li>INSERT <code class="bg-white px-1 rounded">fabricator_sessions</code> with <code class="bg-white px-1 rounded">is_setup=true</code> (proposed migration 098), 24h TTL</li>
+        <li>Email a one-time link <code class="bg-white px-1 rounded">/fab/set-password?token=…</code> — on use, sets real password, deletes is_setup session, creates a real session.</li>
+      </ol>
+      <div class="mt-2 text-amber-700 font-medium">⟨SCHEMA GAP⟩ — fabricator_sessions.is_setup BOOLEAN DEFAULT false — migration 098 candidate.</div>
+    </div>
+  </section>
+
+  <!-- ================================================================== -->
+  <!-- TEACHER #5: MACHINE PROFILES                                         -->
+  <!-- ================================================================== -->
+  <section class="screen" id="teacher-machines">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-2xl font-semibold">Machine profiles</h1>
+        <p class="text-sm muted mt-1">The machines in your lab. Clone a system template and customise, or create from scratch.</p>
+      </div>
+      <button class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded text-sm font-medium">+ Custom profile</button>
+    </div>
+
+    <div class="bg-white border border-gray-200 rounded-lg mb-5 overflow-hidden">
+      <div class="px-5 py-3 border-b border-gray-200 bg-gray-50">
+        <div class="font-semibold text-sm">My profiles</div>
+        <div class="text-xs muted">Cloned from templates and customised. Only visible to you.</div>
+      </div>
+      <div class="divide-y divide-gray-100">
+        <div class="flex items-center gap-4 px-5 py-3">
+          <div class="flex-1">
+            <div class="font-medium">Bambu X1C — Room 204</div>
+            <div class="text-xs muted">3D Printer · 256×256×256 mm · 0.4 mm nozzle · PETG + PLA only · <span class="text-amber-700">2 rule overrides</span></div>
+          </div>
+          <button class="text-sm text-indigo-600 hover:underline">Edit</button>
+          <button class="text-sm text-red-600 hover:underline">Delete</button>
+        </div>
+        <div class="flex items-center gap-4 px-5 py-3">
+          <div class="flex-1">
+            <div class="font-medium">Glowforge Pro — Room 205</div>
+            <div class="text-xs muted">Laser · 495×279 mm · kerf 0.2 mm · default stroke colour map</div>
+          </div>
+          <button class="text-sm text-indigo-600 hover:underline">Edit</button>
+          <button class="text-sm text-red-600 hover:underline">Delete</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
+      <div class="px-5 py-3 border-b border-gray-200 bg-gray-50">
+        <div class="font-semibold text-sm">System templates (12)</div>
+        <div class="text-xs muted">Maintained by StudioLoom. Clone one to customise, or leave alone to use as-is.</div>
+      </div>
+      <div class="divide-y divide-gray-100">
+        <div class="flex items-center gap-4 px-5 py-3">
+          <div class="flex-1">
+            <div class="font-medium">Bambu Lab X1 Carbon</div>
+            <div class="text-xs muted">3D Printer · 256×256×256 · 0.4 mm</div>
+          </div>
+          <button class="text-sm text-indigo-600 hover:underline">Clone</button>
+        </div>
+        <div class="flex items-center gap-4 px-5 py-3">
+          <div class="flex-1">
+            <div class="font-medium">Bambu Lab P1S</div>
+            <div class="text-xs muted">3D Printer · 256×256×256 · 0.4 mm</div>
+          </div>
+          <button class="text-sm text-indigo-600 hover:underline">Clone</button>
+        </div>
+        <div class="flex items-center gap-4 px-5 py-3">
+          <div class="flex-1">
+            <div class="font-medium">Prusa MK4S</div>
+            <div class="text-xs muted">3D Printer · 250×210×220 · 0.4 mm</div>
+          </div>
+          <button class="text-sm text-indigo-600 hover:underline">Clone</button>
+        </div>
+        <div class="flex items-center gap-4 px-5 py-3">
+          <div class="flex-1">
+            <div class="font-medium">Glowforge Pro</div>
+            <div class="text-xs muted">Laser · 495×279 · kerf 0.2 mm</div>
+          </div>
+          <button class="text-sm text-indigo-600 hover:underline">Clone</button>
+        </div>
+        <div class="px-5 py-3 text-center text-xs muted italic">… 8 more (Ultimaker S3, Makerbot Replicator+, Ender 3 V2, Glowforge Plus, xTool M1/P2/S1, Gweike Cloud Pro) …</div>
+      </div>
+    </div>
+
+    <div class="devnote mt-4 p-4 bg-indigo-50 border border-indigo-200 rounded text-xs text-indigo-900">
+      <div class="font-semibold mb-1">RLS model</div>
+      <div>SELECT: teacher sees own rows (teacher_id = auth.uid()) + all system templates (is_system_template = true).</div>
+      <div class="mt-1">Cloning: INSERT copy with teacher_id=me, is_system_template=false. CHECK constraint enforces XOR ownership.</div>
+    </div>
+  </section>
+
+  <!-- ================================================================== -->
+  <!-- FREE PUBLIC                                                          -->
+  <!-- ================================================================== -->
+  <section class="screen" id="free-landing">
+    <div class="max-w-3xl mx-auto">
+      <div class="text-center mb-8 pt-4">
+        <h1 class="text-3xl font-semibold mb-2">Preflight — check your design before the machine</h1>
+        <p class="text-gray-600">Drop an <strong>.stl</strong> or <strong>.svg</strong>. We'll tell you in seconds whether it'll actually run on your school's 3D printer or laser cutter. Free. Nothing saved. No sign-up.</p>
+      </div>
+
+      <div class="bg-white border border-gray-200 rounded-lg p-6 mb-6">
+        <div class="grid grid-cols-3 gap-4 mb-6">
+          <div>
+            <label class="block text-xs font-medium mb-1 uppercase tracking-wide text-gray-500">Machine</label>
+            <select class="w-full border border-gray-300 rounded px-3 py-2 text-sm">
+              <option>Bambu Lab X1 Carbon</option>
+              <option>Prusa MK4S</option>
+              <option>Glowforge Pro</option>
+              <option>xTool P2</option>
+              <option>Other / generic 3D printer</option>
+              <option>Other / generic laser</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-medium mb-1 uppercase tracking-wide text-gray-500">Intended size</label>
+            <select class="w-full border border-gray-300 rounded px-3 py-2 text-sm">
+              <option>Fits in your hand</option>
+              <option>A4 or smaller</option>
+              <option>Bigger than A4</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-medium mb-1 uppercase tracking-wide text-gray-500">Designed in</label>
+            <select class="w-full border border-gray-300 rounded px-3 py-2 text-sm">
+              <option>Millimetres (mm)</option>
+              <option>Centimetres (cm)</option>
+              <option>Inches</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="border-2 border-dashed border-gray-300 rounded-lg p-10 text-center bg-gray-50">
+          <svg class="w-14 h-14 mx-auto text-gray-400 mb-3" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M12 4v16m8-8l-8 8-8-8"/></svg>
+          <div class="text-sm font-medium">Drop your .stl or .svg file here</div>
+          <div class="text-xs muted mt-1">or <a class="text-indigo-600 hover:underline cursor-pointer">browse</a> · Max 100 MB</div>
+        </div>
+
+        <div class="mt-4 text-xs muted text-center">
+          Your file is checked entirely in your browser. Nothing is uploaded to our servers.
+        </div>
+      </div>
+
+      <div class="text-center text-sm muted mb-6">↓ After the check, you'd see the same traffic-light result screen the logged-in student sees (with cover-ups on the deeper checks) ↓</div>
+
+      <div class="bg-gradient-to-br from-indigo-50 to-amber-50 border border-indigo-200 rounded-lg p-6 text-center">
+        <h2 class="text-xl font-semibold mb-2">The free check catches the big mistakes</h2>
+        <p class="text-sm text-gray-700 mb-4">mm/cm/inch mix-ups · bed overflow · wrong stroke colours on laser files · un-outlined text · ~30% of what kills student prints.</p>
+
+        <h3 class="font-semibold text-gray-900 mb-1">For the deeper stuff — you'll want StudioLoom</h3>
+        <p class="text-sm text-gray-700 mb-4">Watertight mesh checks, wall thickness ray-casting, overhang heatmaps, rule-override per machine, a teacher approval queue, a lab-tech queue, full submission history and coaching signals for teachers.</p>
+
+        <div class="flex justify-center gap-3">
+          <a class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded font-medium text-sm cursor-pointer">Try StudioLoom for your school →</a>
+          <a class="border border-indigo-300 text-indigo-700 hover:bg-indigo-50 px-5 py-2.5 rounded font-medium text-sm cursor-pointer">See what's different</a>
+        </div>
+      </div>
+
+      <div class="devnote mt-4 p-4 bg-indigo-50 border border-indigo-200 rounded text-xs text-indigo-900">
+        <div class="font-semibold mb-1">No schema activity</div>
+        <div>Free public page writes nothing to the database. No fabrication_jobs rows, no revisions, no scan_jobs. Scanner runs purely client-side in JS: parse binary STL for bbox + triangle count, parse SVG for viewBox + units + stroke colours. Watertight / wall-thickness / overhang checks are gated behind login as value-prop. Shared codebase with logged-in student for the results UI component (`src/components/preflight/ResultsPanel.tsx`).</div>
+      </div>
+    </div>
+  </section>
+
+  </main>
+</div>
+
+<script>
+  // Role switching
+  document.querySelectorAll('.role-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const role = btn.dataset.role;
+      document.querySelectorAll('.role-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelectorAll('.role-nav').forEach(n => n.classList.toggle('hidden', n.dataset.role !== role));
+      // Activate first screen for this role
+      const firstNav = document.querySelector(`.role-nav[data-role="${role}"] .nav-btn`);
+      if (firstNav) firstNav.click();
+    });
+  });
+
+  // Screen switching
+  document.querySelectorAll('.nav-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const screen = btn.dataset.screen;
+      // Highlight nav button
+      btn.parentElement.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      // Show screen
+      document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === screen));
+      // Scroll to top
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  });
+
+  // Dev note toggle
+  document.getElementById('dev-toggle').addEventListener('change', e => {
+    document.body.classList.toggle('show-devnotes', e.target.checked);
+  });
+</script>
+
+</body>
+</html>
