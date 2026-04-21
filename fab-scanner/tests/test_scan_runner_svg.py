@@ -40,9 +40,14 @@ def _make_svg_job(fixture_relpath: str) -> ClaimedJob:
 @pytest.mark.parametrize(
     "relpath",
     [
-        "known-good/svg/anon-student-i-box-297x420.svg",
+        # Known truly-clean fixtures — zero geometry quirks. Using
+        # these rather than the full known-good set because a handful
+        # of makercase + student-authored fixtures carry a single
+        # duplicate cut path each (R-SVG-08 authoring quirk tracked
+        # as FU-SVG-FIXTURE-METADATA-DRIFT).
         "known-good/svg/inkscape-single-path-a4.svg",
-        "known-good/svg/makercase-box-all-panels.svg",
+        "known-good/svg/makercase-box-back-panel.svg",
+        "known-good/svg/coaster-clove-no-stroke-attr.svg",
     ],
     ids=lambda p: p.rsplit("/", 1)[-1],
 )
@@ -51,10 +56,10 @@ def test_known_good_svg_scans_clean(
     mock_supabase,
     mock_storage,
 ) -> None:
-    """Phase 2B-1: known-good SVG dispatches to empty rules[], no crashes.
-
-    All stub rule modules return []; the dispatcher must route through
-    them and emit a populated ScanResults with the combined ruleset tag.
+    """End-to-end dispatch: known-clean SVGs route through all rule
+    groups and emit empty rules[] + combined ruleset tag. Rules
+    themselves are covered by their respective test_rules_svg_*.py
+    modules.
     """
     job = _make_svg_job(relpath)
 
