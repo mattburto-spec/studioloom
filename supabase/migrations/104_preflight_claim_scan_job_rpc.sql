@@ -85,8 +85,14 @@ $$;
 
 -- Grant: only the service-role can call this. The worker uses the
 -- service-role key. Authenticated/anon users have no business claiming
--- scan jobs.
-REVOKE EXECUTE ON FUNCTION claim_next_scan_job(TEXT) FROM PUBLIC;
+-- scan jobs — it would let them steal pending scans from the worker.
+--
+-- Supabase auto-grants EXECUTE to anon + authenticated on public-schema
+-- functions at CREATE time, so we must revoke from those roles
+-- explicitly. `REVOKE FROM PUBLIC` alone does NOT remove the direct
+-- anon/authenticated grants — caught during first migration-104 apply
+-- in Phase 2A-6b. Keep all three revokes together going forward.
+REVOKE EXECUTE ON FUNCTION claim_next_scan_job(TEXT) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION claim_next_scan_job(TEXT) TO service_role;
 
 COMMENT ON FUNCTION claim_next_scan_job(TEXT) IS

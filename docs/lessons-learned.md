@@ -418,3 +418,37 @@ The SQL is valid PL/pgSQL — migration 092 uses the identical pattern without i
 **The fix in 093:** Removed the DO block entirely (commit `1d68f29`). Verification now lives as three separate SELECT queries documented in the migration comments + run post-apply in the dashboard. Matt confirmed with `relrowsecurity=t`, 4 policies, and CHECK-constraint violation test — the same invariants the DO block would have asserted.
 
 ---
+
+### Lesson #52 — `REVOKE EXECUTE FROM PUBLIC` does NOT revoke Supabase's auto-grants to `anon` + `authenticated`
+**Date:** 21 Apr 2026
+**Phase:** Preflight Phase 2A-6b (migration 104 apply — claim_next_scan_job RPC)
+**Trigger:** Migration 104 used the textbook locked-down pattern:
+```sql
+REVOKE EXECUTE ON FUNCTION claim_next_scan_job(TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION claim_next_scan_job(TEXT) TO service_role;
+```
+Post-apply permission check showed EXECUTE granted to `postgres`, `anon`, `authenticated`, AND `service_role` — the two we explicitly did NOT want on a function that bypasses RLS (`SECURITY DEFINER`) to claim in-flight scan jobs from a queue.
+
+**What happened:** Supabase configures default privileges on the `public` schema so that any function created there receives EXECUTE grants to `anon` + `authenticated` roles at `CREATE FUNCTION` time — independent of the PUBLIC role. `REVOKE FROM PUBLIC` removes the PUBLIC-role grant but leaves the direct `anon` / `authenticated` grants untouched. Net result: our "locked down to service_role" function was callable by any authenticated student.
+
+**Security implication (prevented before harm):** An authenticated student calling `claim_next_scan_job('stolen-worker-id')` would have:
+- Claimed a pending scan job meant for the worker, marking it `running` with their fake worker id
+- Starved the real worker (that job would never be scanned)
+- Received the file's storage path (enough to then call `createSignedUrl` on the uploads bucket and download it — if the student has read access to that bucket, which they do not, but the function shouldn't be telegraphing the path regardless)
+
+**Fix:** Explicitly revoke from all three:
+```sql
+REVOKE EXECUTE ON FUNCTION claim_next_scan_job(TEXT) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION claim_next_scan_job(TEXT) TO service_role;
+```
+Post-fix verification shows only `postgres` + `service_role` with EXECUTE.
+
+**Rules:**
+- **Every `CREATE FUNCTION` in a Supabase `public` schema must include `REVOKE EXECUTE FROM PUBLIC, anon, authenticated` — all three, together.** The two-role revoke alone is not enough; all three in one statement is the safe default.
+- **Always run the `information_schema.routine_privileges` verify query** after a privileged-function migration. The template is in migration 104's comment block — copy it into every RPC migration going forward.
+- **For SECURITY DEFINER functions especially**, the penalty for a mis-grant is an RLS bypass. Treat the grant check as part of the migration's acceptance criteria, not a follow-up nice-to-have.
+- **Document in the migration file** that `REVOKE FROM PUBLIC` alone is insufficient — future migrations copying this pattern need to see the reason in the file, not just the working SQL.
+
+**Why this was invisible in review:** The PUBLIC-only REVOKE is a textbook Postgres pattern that works on vanilla installations. Supabase's implicit grants are a vendor-specific behavior that doesn't announce itself in the migration DSL. Discovered via the explicit routine_privileges check; would have been missed on a "did it apply without error" happy-path review.
+
+---
