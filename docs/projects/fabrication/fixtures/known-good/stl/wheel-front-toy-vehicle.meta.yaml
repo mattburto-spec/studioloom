@@ -1,10 +1,13 @@
 source: "Matt (archive)"
 source_filename: "Front Wheel.stl"
 intended_machine: "bambu_x1c"
-expected_result: "pass"
-triggers_rules: []
+expected_result: "warn"
+triggers_rules:
+  - R-STL-13
 notes: |
   Front wheel partner to back-wheel. 12 components — used to document upper bound of
-  acceptable component count on a single print.
+  acceptable component count on a single print. Fires R-STL-13 (no flat base) because a
+  wheel has a round base smaller than its bbox footprint — legitimate WARN that a student
+  should acknowledge (brim helps).
 date_added: 2026-04-21
 anonymised: false

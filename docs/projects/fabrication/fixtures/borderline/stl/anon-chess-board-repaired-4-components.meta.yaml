@@ -1,12 +1,16 @@
 source: "Year X student C (anonymised)"
 source_filename: "Yueun Park - White_fixed (1).stl"
 intended_machine: "bambu_x1c"
-expected_result: "pass"
-triggers_rules: []
+expected_result: "block"
+triggers_rules:
+  - R-STL-01
+  - R-STL-04
+  - R-STL-13
 notes: |
-  Repaired version of anon-chess-board-174-components.stl — now only 4 components AND
-  watertight. At v1 R-STL-04 threshold (fires only when non-watertight) this file passes. If
-  we tighten R-STL-04 to 'component_count > N regardless of watertight' in v2, this flips to
-  WARN — this fixture exists to document that threshold choice and catch its regression.
+  Repaired version of anon-chess-board-174-components.stl — the repair reduced 174
+  components to 4 but did NOT produce a fully watertight mesh (post-anonymisation-strip the
+  file still has micro-gaps). R-STL-01 + R-STL-04 fire. R-STL-13 fires on the small per-
+  piece flat base. File stays in borderline because it's the best example we have of an 'in-
+  progress repair' state — useful for documenting that a partial fix isn't a full fix.
 date_added: 2026-04-21
 anonymised: true

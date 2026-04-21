@@ -5,8 +5,12 @@ expected_result: "block"
 triggers_rules:
   - R-STL-01
   - R-STL-04
+  - R-STL-11
+  - R-STL-13
 notes: |
   Student chess board with 174 disconnected components (board + every piece as separate
-  mesh). Violates single-print assumption. 175k faces.
+  mesh). Violates single-print assumption. 175k faces. Also fires overhang + flat-base
+  warnings because the individual pieces have round bases and chess-piece overhangs — these
+  pile on the primary R-STL-01/04 blockers but don't change the block verdict.
 date_added: 2026-04-21
 anonymised: true

@@ -1,13 +1,14 @@
 source: "Matt (archive)"
 source_filename: "15mm thing.stl"
 intended_machine: "bambu_x1c"
-expected_result: "warn"
-triggers_rules:
-  - R-STL-09
-  - R-STL-13
+expected_result: "pass"
+triggers_rules: []
 notes: |
-  Z=1.2 mm — right at the edge of R-STL-09 (wall < nozzle×1.5 = 0.6 mm, so 1.2 mm is twice
-  nozzle and PASSES at default threshold). Also tests R-STL-13 flat-base rule since the
-  whole part IS a flat base. Useful for threshold-tuning discussions.
+  Z=1.2 mm flat sheet. At v1 R-STL-09 threshold (<0.6 mm) passes — 1.2 mm is twice nozzle.
+  At v1 R-STL-13 threshold (<10% flat-base ratio) passes — the whole part IS the flat base
+  so ratio is 100%. Lives in borderline because the 'flat thin sheet' class of fixture is a
+  natural prompt for both threshold-tuning conversations even when it currently emits
+  nothing. Regression target: if R-STL-09 tightens to block at nozzle×3 (1.2 mm), this file
+  would flip to WARN.
 date_added: 2026-04-21
 anonymised: false

@@ -5,10 +5,12 @@ expected_result: "block"
 triggers_rules:
   - R-STL-06
   - R-STL-08
+  - R-STL-11
+  - R-STL-13
 notes: |
   SYNTHETIC FIXTURE. Derived from mount-bracket-130mm.stl scaled 5×. Bbox 650×300×175 mm —
   exceeds Bambu X1C (256mm bed) on X and Y. R-STL-08 also fires because the scaled volume
-  (~2.87M mm³) far exceeds the 120-min lab ceiling at the v1 throughput estimate of 4.8
-  mm³/s.
+  (~2.87M mm³) far exceeds the 120-min lab ceiling at v1 throughput of 15 mm³/s. R-STL-11 +
+  R-STL-13 inherit from the base bracket (L-shape with small flat base).
 date_added: 2026-04-21
 anonymised: false

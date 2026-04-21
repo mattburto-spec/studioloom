@@ -1,10 +1,14 @@
 source: "Matt (archive)"
 source_filename: "mount.stl"
 intended_machine: "bambu_x1c"
-expected_result: "pass"
-triggers_rules: []
+expected_result: "warn"
+triggers_rules:
+  - R-STL-11
+  - R-STL-13
 notes: |
   Utility mount bracket, 130×60×35 mm, 23k faces, watertight single component. Largest clean
-  fixture — good for asserting scan time on a realistic part.
+  fixture — good for asserting scan time on a realistic part. Fires R-STL-11 (overhangs) and
+  R-STL-13 (small flat base relative to footprint) — both legit WARNs for an L-shape bracket
+  that needs supports + brim. Student acknowledges and proceeds.
 date_added: 2026-04-21
 anonymised: false
