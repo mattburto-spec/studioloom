@@ -218,6 +218,7 @@ Each sub-phase gets its own pre-flight → audit → write → test → NC → c
 | Future FU | GitHub Action auto-deploy on push to `fab-scanner/**`. Phase 2B. |
 | Future FU | Parallel workers (needs row-level locking review). V1 runs 1 instance. |
 | Future FU | Auto-repair of non-watertight meshes — explicitly OUT of scope per spec §3 (teaching moment > convenience). |
+| Future FU | **FU-SCANNER-RENDER**: swap matplotlib Poly3DCollection thumbnail renderer for moderngl + EGL headless GL. Matplotlib hits ~500 ms on 10k-face strided meshes and 3–5 s on the untrimmed 175k-face outliers; moderngl would be 10–50× faster (~50–100 ms). Cost: 3–4 h engineering, ~300 MB Docker image bloat (libegl1-mesa, libglvnd0, libgl1-mesa-dri), new GL-context-creation failure modes. **Do not touch until**: (a) teachers report scans feeling slow, (b) concurrent-scan queue depth becomes visible, or (c) v2 UI asks for higher-resolution thumbnails. Rendering is server-side on the Fly container; student MacBook perf is unaffected either way. |
 
 ---
 
