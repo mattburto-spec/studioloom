@@ -1,6 +1,6 @@
 {
   "registry": "vendors.yaml",
-  "timestamp": "2026-04-21T11:59:35.306495+00:00",
+  "timestamp": "2026-04-21T22:34:37.529602+00:00",
   "version": 1,
   "drift": {
     "orphaned": [],
@@ -26,8 +26,8 @@
       ],
       "env_found": [
         "SUPABASE_SERVICE_ROLE_KEY",
-        "NEXT_PUBLIC_SUPABASE_ANON_KEY",
-        "NEXT_PUBLIC_SUPABASE_URL"
+        "NEXT_PUBLIC_SUPABASE_URL",
+        "NEXT_PUBLIC_SUPABASE_ANON_KEY"
       ],
       "http_found": [
         "supabase.co"

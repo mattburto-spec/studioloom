@@ -1114,3 +1114,37 @@ Trying to handle both in one route produces silent failures — either "PKCE ver
 **Test counts:** 1037 → 1103 (+66 across 5C–5F).
 
 **Systems affected:** `content-safety` (v2→v3, all sub-phases complete), `student-experience` (all submission endpoints now moderated), build config (next.config.ts noParse + version pins).
+
+---
+
+### 22 April 2026 — Preflight scanner thumbnail_path column-writeback fix (Lesson #53)
+
+**What changed:**
+- **Bug identified via smoke test:** Checkpoint 3.1 verification showed `thumbnail_path: null` and `thumbnail_rendered: false` even though the scan completed with `status: done`, `attempt_count: 1`, no error. Diagnostic queries confirmed the thumbnail PNG was in storage (5 objects in `fabrication-thumbnails` bucket) and the path existed inside `scan_results->>'thumbnail_path'` JSONB — the denormalised `thumbnail_path` column on `fabrication_job_revisions` was never written. Affected every Phase 2A (STL) and Phase 2B-6 (SVG) scan.
+- **Root cause:** `fab-scanner/src/worker/supabase_real.py:write_scan_results()` writes to three tables but the `fabrication_job_revisions` UPDATE only set `scan_results`, `scan_status`, `scan_error`, `scan_completed_at`, `scan_ruleset_version` — never `thumbnail_path`. The Python `ScanResults` dataclass carries the field and `model_dump()` lands it inside the JSONB; the code assumed that was enough, but UI reads the column directly. Pattern bug affecting both STL and SVG paths.
+- **Fix:** 8-line change — added `"thumbnail_path": scan_results.get("thumbnail_path")` to the revisions update dict. `.get()` returns None on missing key so scan errors (no thumbnail attempted) still write cleanly.
+- **Tests:** new `fab-scanner/tests/test_supabase_real.py` with 3 cases — (a) thumbnail present in JSONB → column gets the value, (b) thumbnail absent → column is None (not KeyError), (c) all three tables get an update in stable order. First unit-test coverage for the real `SupabaseServiceClient`; prior tests only exercised `MockSupabase` via conftest.py, which is why the missing column write was invisible to CI.
+- **Deploy:** Fly app `preflight-scanner` redeployed (image `deployment-01KPS282RPKV0BAYAYJN84KKWK`, 208 MB), both machines healthy after rolling update.
+- **E2E verification:** Fresh smoke-test SVG scan (`coaster-orange-unmapped.svg`) wrote `thumbnail_path: f3af1426-b10e-4aea-802c-00c6bbb15b87.png` through to the column. Checkpoint 3.1 2B-7 verification can now close.
+- **Backfill:** `UPDATE fabrication_job_revisions SET thumbnail_path = scan_results->>'thumbnail_path' WHERE thumbnail_path IS NULL AND scan_results->>'thumbnail_path' IS NOT NULL` returned 11 rows — all orphaned scans from 21 Apr now have column populated. All storage objects still within 30-day retention window so no dead references.
+- **Lesson #53 added** to `docs/lessons-learned.md` — "Denormalised columns need explicit writes; stuffing the whole payload in JSONB doesn't fan them out". Captures the JSONB-vs-column drift pattern + the rule that mock-based tests can't validate DB adapter surface.
+- **WIRING.yaml preflight-scanner entry updated:** summary rewritten (116 → 245 pytest tests, STL-only → combined `stl-v1.0.0+svg-v1.0.0` ruleset, cairosvg thumbnail rendering), `external_deps` updated (cairo → cairosvg + cairocffi + pillow).
+
+**Files modified:**
+- `fab-scanner/src/worker/supabase_real.py` — +7/-1
+- `fab-scanner/tests/test_supabase_real.py` — NEW (+126 lines)
+- `docs/lessons-learned.md` — Lesson #53 appended
+- `docs/projects/WIRING.yaml` — preflight-scanner entry refreshed
+- `CLAUDE.md` — status + What's next refreshed
+- `docs/projects/ALL-PROJECTS.md` — header "Last updated" block rewritten
+- `/Users/matt/CWORK/CLAUDE.md` (master index) — status block rewritten
+- `docs/changelog.md` — this entry
+- `docs/doc-manifest.yaml` — last_verified bumped for touched docs
+
+**Test counts:** 242 → 245 pytest (+3 new regression tests in `test_supabase_real.py`). `npm test` baseline 1409 untouched (no TS sources changed).
+
+**Commits:** 1 new local commit on `main` (`345cd51`). WIP backup branch `preflight-thumbnail-column-wip` created at same sha. **Pending-push count: 9 → 10.** Hold for Matt's sign-off before pushing per push-discipline memory.
+
+**Systems affected:** `preflight-scanner` (v1 — writeback column correctness fix; now truly end-to-end correct on both STL and SVG paths).
+
+**Session context:** Continued from previous day's Checkpoint 3.1 verification work where the NULL `thumbnail_path` was first observed. Root-caused inside the Python adapter, fixed, tested, deployed, verified, backfilled, documented, and filed as Lesson #53 — all in one session on main. Changelog drift note: entries between 13 Apr and today (22 Apr) are missing — Dimensions3 Phases 7+ and Preflight Phases 1A/1B-1/1B-2/2A/2B-1..6 all shipped in that window without changelog appends. Out of scope to backfill now; project state is captured in ALL-PROJECTS.md + WIRING.yaml + CLAUDE.md master header instead.

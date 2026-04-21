@@ -2368,7 +2368,7 @@ systems:
     category: Infrastructure
     status: deployed
     currentVersion: 1
-    summary: "Python worker on Fly.io (app: preflight-scanner, region: syd, shared-cpu-1x@512MB). Polls fabrication_scan_jobs queue every 5s via claim_next_scan_job RPC (SELECT FOR UPDATE SKIP LOCKED), downloads file from Storage via signed URL, runs rule catalogue (trimesh for STL, svgpathtools for SVG Phase 2B), uploads thumbnails, writes scan results to fabrication_job_revisions + denormalizes onto fabrication_jobs. Deployed 21 Apr 2026 Phase 2A. STL ruleset: stl-v1.0.0 (17 rules, R-STL-01..17). Checkpoint 2.1 passed 21 Apr with prod smoke tests on 3 fixtures (small-cube-25mm known-good, seahorse-not-watertight + chess-pawn-inverted-winding + whale-not-watertight known-broken) and 116 pytest tests passing. 512MB tier needed for >10k-face meshes (OOM on 256MB discovered during Checkpoint 2.1)."
+    summary: "Python worker on Fly.io (app: preflight-scanner, region: syd, shared-cpu-1x@512MB). Polls fabrication_scan_jobs queue every 5s via claim_next_scan_job RPC (SELECT FOR UPDATE SKIP LOCKED), downloads file from Storage via signed URL, runs rule catalogue (trimesh for STL, svgpathtools for SVG), renders thumbnails (matplotlib for STL, cairosvg for SVG), uploads PNGs to fabrication-thumbnails bucket, writes scan results + thumbnail_path column to fabrication_job_revisions + denormalizes onto fabrication_jobs. Deployed 21 Apr 2026 Phase 2A (STL); Phase 2B SVG rules shipped through 2B-6 (22 Apr). Combined ruleset: stl-v1.0.0+svg-v1.0.0. Checkpoint 2.1 passed 21 Apr with prod smoke tests on 4 STL fixtures. 512MB tier needed for >10k-face meshes (OOM on 256MB discovered during Checkpoint 2.1). 22 Apr: thumbnail_path column-writeback bug fixed (Lesson #53) — ScanResults JSONB had the path but column was NULL; affected every Phase 2A/2B scan until fix. Test suite 245 passing (116 Phase 2A + 126 Phase 2B SVG + 3 supabase_real writeback regression guards)."
     depends_on: [storage, preflight-pipeline, machine-profiles, admin_settings]
     affects: [preflight-pipeline]
     docs:
@@ -2393,7 +2393,9 @@ systems:
       - svgpathtools
       - lxml
       - matplotlib
-      - cairo
+      - cairosvg
+      - cairocffi
+      - pillow
       - supabase-py
     future_needs: "CNC, vinyl, embroidery scanners via pluggable registry (v2). Auto-repair deferred per spec — teaching moment beats convenience."
     adrs: []

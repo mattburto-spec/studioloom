@@ -24,9 +24,9 @@ docs:
     title: "Session Changelog"
     purpose: "Rolling log of changes across sessions for cross-session context"
     category: root
-    last_verified: "2026-04-20"
+    last_verified: "2026-04-22"
     max_age_days: 90
-    last_scanned: "2026-04-20"
+    last_scanned: "2026-04-22"
 
   - path: docs/decisions-log.md
     title: "Key Decisions Log"
@@ -38,9 +38,9 @@ docs:
 
   - path: docs/lessons-learned.md
     title: "Lessons Learned"
-    purpose: "50 hard-won lessons from production bugs, build disasters, Supabase/Vercel gotchas. #48-50 (15 Apr 2026): Supabase Site URL fallback strips params except code, layout auth gates need public allowlist, Next.js route.ts/page.tsx mutual exclusion."
+    purpose: "53 hard-won lessons from production bugs, build disasters, Supabase/Vercel gotchas. #51-53 (14-22 Apr 2026): Supabase dashboard mis-parses PL/pgSQL variable names as tables, REVOKE EXECUTE FROM PUBLIC doesn't revoke Supabase anon/authenticated auto-grants, denormalised columns need explicit writes (JSONB doesn't fan out to columns)."
     category: root
-    last_verified: "2026-04-15"
+    last_verified: "2026-04-22"
     max_age_days: 90
     last_scanned: null
 
@@ -313,10 +313,10 @@ docs:
     title: "StudioLoom — Master Project Index"
     purpose: "CANONICAL project tracker. ALL project status, new projects, completions. Single source of truth."
     category: projects
-    last_verified: "2026-04-20"
+    last_verified: "2026-04-22"
     referenced_from: ["CLAUDE.md project tracking section"]
     max_age_days: 90
-    last_scanned: "2026-04-20"
+    last_scanned: "2026-04-22"
 
   - path: docs/projects/discovery-engine-cognitive-layer.md
     title: "Discovery Engine — Cognitive Layer (MindPrint-Informed)"
@@ -384,10 +384,10 @@ docs:
     title: "WIRING — Machine-Readable System Registry"
     purpose: "82+ systems with dependencies, affects relationships, data fields, docs, change impacts. CRITICAL: check before making changes."
     category: projects
-    last_verified: "2026-04-20"
+    last_verified: "2026-04-22"
     referenced_from: ["CLAUDE.md impact analysis section"]
     max_age_days: 30
-    last_scanned: "2026-04-20"
+    last_scanned: "2026-04-22"
 
   - path: docs/schema-registry.yaml
     title: "Schema Registry — Table-Level Truth"
