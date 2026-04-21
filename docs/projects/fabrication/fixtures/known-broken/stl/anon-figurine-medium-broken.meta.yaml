@@ -4,6 +4,7 @@ intended_machine: "bambu_x1c"
 expected_result: "block"
 triggers_rules:
   - R-STL-01
+  - R-STL-04
 notes: |
   Medium-complexity figurine, 34k faces, 75×15×61 mm. Not watertight.
 date_added: 2026-04-21

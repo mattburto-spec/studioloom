@@ -4,6 +4,7 @@ intended_machine: "bambu_x1c"
 expected_result: "block"
 triggers_rules:
   - R-STL-01
+  - R-STL-04
 notes: |
   Low-poly chess queen, 418 faces, not watertight. Same student / iteration as quwei repair
   chain.

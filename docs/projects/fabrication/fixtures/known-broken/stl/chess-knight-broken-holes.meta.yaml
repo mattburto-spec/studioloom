@@ -4,6 +4,7 @@ intended_machine: "bambu_x1c"
 expected_result: "block"
 triggers_rules:
   - R-STL-01
+  - R-STL-04
 notes: |
   Chess knight, 36 faces only — extremely low-poly. Not watertight. Original filename had
   typo ('whte').

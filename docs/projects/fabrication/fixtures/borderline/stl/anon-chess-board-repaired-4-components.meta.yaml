@@ -1,12 +1,12 @@
 source: "Year X student C (anonymised)"
 source_filename: "Yueun Park - White_fixed (1).stl"
 intended_machine: "bambu_x1c"
-expected_result: "warn"
-triggers_rules:
-  - R-STL-04
+expected_result: "pass"
+triggers_rules: []
 notes: |
-  Repaired version of anon-chess-board-174-components.stl — now only 4 components. Is
-  R-STL-04 'floating islands' threshold exceeded at 4? Depends on rule config. Used to
-  document threshold rationale.
+  Repaired version of anon-chess-board-174-components.stl — now only 4 components AND
+  watertight. At v1 R-STL-04 threshold (fires only when non-watertight) this file passes. If
+  we tighten R-STL-04 to 'component_count > N regardless of watertight' in v2, this flips to
+  WARN — this fixture exists to document that threshold choice and catch its regression.
 date_added: 2026-04-21
 anonymised: true

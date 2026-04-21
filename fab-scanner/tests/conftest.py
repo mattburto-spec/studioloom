@@ -13,12 +13,61 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import yaml  # type: ignore
 
 from worker.supabase_client import ClaimedJob
 
 # Resolved at import time: …/questerra/docs/projects/fabrication/fixtures/
 REPO_ROOT = Path(__file__).resolve().parents[2]
 FIXTURES_DIR = REPO_ROOT / "docs" / "projects" / "fabrication" / "fixtures"
+
+
+@dataclass(frozen=True)
+class FixtureSpec:
+    """One bucketed fixture + its sidecar metadata. Produced by discovery
+    helpers and fed into pytest.mark.parametrize."""
+
+    relpath: str  # e.g. "known-good/stl/small-cube-25mm.stl"
+    bucket: str  # "known-good" | "known-broken" | "borderline"
+    kind: str  # "stl" | "svg"
+    intended_machine: str
+    expected_result: str  # "pass" | "warn" | "block"
+    triggers_rules: tuple[str, ...]
+
+    @property
+    def id_for_parametrize(self) -> str:
+        return self.relpath
+
+
+def _load_sidecar(fixture_path: Path) -> dict[str, Any]:
+    sidecar = fixture_path.parent / f"{fixture_path.stem}.meta.yaml"
+    if not sidecar.exists():
+        raise FileNotFoundError(f"missing sidecar for {fixture_path.name}")
+    with sidecar.open() as f:
+        return yaml.safe_load(f)
+
+
+def discover_fixtures(bucket: str, kind: str) -> list[FixtureSpec]:
+    """Walk a bucket + kind dir, return a FixtureSpec per file.
+
+    Sidecars that fail to parse are raised loudly — tests shouldn't run
+    against unparseable metadata.
+    """
+    base = FIXTURES_DIR / bucket / kind
+    specs: list[FixtureSpec] = []
+    for f in sorted(base.glob(f"*.{kind}")):
+        meta = _load_sidecar(f)
+        specs.append(
+            FixtureSpec(
+                relpath=str(f.relative_to(FIXTURES_DIR)),
+                bucket=bucket,
+                kind=kind,
+                intended_machine=meta["intended_machine"],
+                expected_result=meta["expected_result"],
+                triggers_rules=tuple(meta.get("triggers_rules") or ()),
+            )
+        )
+    return specs
 
 
 @dataclass

@@ -4,6 +4,7 @@ intended_machine: "bambu_x1c"
 expected_result: "block"
 triggers_rules:
   - R-STL-01
+  - R-STL-04
 notes: |
   Chess king, 300 faces, not watertight. Geometry has holes.
 date_added: 2026-04-21

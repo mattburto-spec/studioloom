@@ -7,6 +7,11 @@ readme = "README.md"
 
 dependencies = [
   "trimesh>=4.11,<5.0",
+  # trimesh.split() requires a graph engine at runtime. scipy covers
+  # most use cases; networkx is a cheap backup for components we don't
+  # want scipy's heavier matrix path for.
+  "scipy>=1.13",
+  "networkx>=3.2",
   "lxml>=5.0",
   "matplotlib>=3.8",
   "numpy>=2.0",
@@ -21,6 +26,7 @@ dev = [
   "pytest>=8.0",
   "pytest-mock>=3.12",
   "ruff>=0.4",
+  "pyyaml>=6.0",  # fixture sidecar loader in tests
 ]
 
 [tool.setuptools.packages.find]
@@ -30,6 +36,14 @@ where = ["src"]
 testpaths = ["tests"]
 pythonpath = ["src", "tests"]
 addopts = "-ra --strict-markers"
+# trimesh computes moment-of-inertia on every mesh, which divides by
+# volume — on degenerate / inverted-winding fixtures we intentionally
+# hand it a ~zero-volume mesh and it emits numpy divide-by-zero warnings.
+# These are expected; filter them so real warnings stay visible.
+filterwarnings = [
+  "ignore:divide by zero encountered in divide:RuntimeWarning:trimesh.triangles",
+  "ignore:invalid value encountered in scalar multiply:RuntimeWarning:trimesh.triangles",
+]
 
 [tool.ruff]
 target-version = "py311"

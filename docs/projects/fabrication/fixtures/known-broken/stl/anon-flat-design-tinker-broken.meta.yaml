@@ -4,6 +4,7 @@ intended_machine: "bambu_x1c"
 expected_result: "block"
 triggers_rules:
   - R-STL-01
+  - R-STL-04
 notes: |
   Tinkercad flat design, 132×108×34 mm, 153k faces. Not watertight. Tests R-STL-01 on a
   large flat geometry rather than a figurine.

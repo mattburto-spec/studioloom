@@ -4,9 +4,12 @@ intended_machine: "bambu_x1c"
 expected_result: "block"
 triggers_rules:
   - R-STL-02
+  - R-STL-05
 notes: |
   SYNTHETIC FIXTURE. Derived from chess-pawn-40mm.stl by reversing vertex winding on every
-  other face. Result: is_winding_consistent=False. Authored because the natural corpus had
-  zero R-STL-02 coverage (all 31 original STLs were winding-consistent).
+  other face. Primary target is R-STL-02 (is_winding_consistent=False). As a side-effect,
+  reversing half the faces drives signed volume close to zero, so R-STL-05 also fires at our
+  v1 epsilon of 0.01 mm³. Both rules firing is correct — the file is genuinely broken across
+  two dimensions.
 date_added: 2026-04-21
 anonymised: false

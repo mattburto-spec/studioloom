@@ -4,6 +4,7 @@ intended_machine: "bambu_x1c"
 expected_result: "block"
 triggers_rules:
   - R-STL-01
+  - R-STL-04
 notes: |
   Tinkercad seahorse, 29k faces, not watertight, 14 disconnected components. Classic
   Tinkercad-exports-a-mesh-with-holes failure.

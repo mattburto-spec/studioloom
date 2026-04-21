@@ -5,6 +5,8 @@
 # or manually pin to a known-good resolved set before `fly deploy`.
 
 trimesh==4.11.5
+scipy==1.13.1
+networkx==3.4.2
 lxml==6.1.0
 matplotlib==3.9.2
 numpy==2.0.2

@@ -4,6 +4,7 @@ intended_machine: "bambu_x1c"
 expected_result: "block"
 triggers_rules:
   - R-STL-01
+  - R-STL-04
 notes: |
   Raw student export, not watertight (418 faces only — low-poly). Start of the quwei repair
   chain. PAIRS with known-good/stl/anon-chess-piece-repaired.stl for teaching-moment
