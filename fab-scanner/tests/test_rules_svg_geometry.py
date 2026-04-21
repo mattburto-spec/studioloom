@@ -125,19 +125,55 @@ def test_r_svg_10_skips_on_3d_printer_profile() -> None:
     assert "R-SVG-10" not in ids
 
 
-def test_r_svg_10_ignores_text_inside_defs() -> None:
-    """drawing-mixed-colors-with-text has no <text> inside <defs>, only
-    shape-inside'd flowed text at the top level. Baseline: R-SVG-10
-    fires on the top-level text regardless of whether any other <text>
-    sits inside <defs> (and none do in this corpus). This is a
-    regression guard — any future fixture that puts <text> inside
-    <defs> must not drive a false positive from that path."""
-    doc = _load_fixture("known-broken/svg/drawing-mixed-colors-with-text.svg")
+def test_r_svg_10_defs_only_text_does_not_fire() -> None:
+    """Inline SVG with <text> ONLY inside <defs> — R-SVG-10 must NOT fire.
+
+    Phase 2B-4a: authored in response to reviewer finding that the
+    original `test_r_svg_10_ignores_text_inside_defs` did not actually
+    exercise a defs-nested <text>, just asserted on top-level text.
+    This test uses an in-memory SVG string so we exercise the skip
+    path deterministically without committing a one-off fixture.
+    """
+    from worker.svg_loader import load_svg_document
+
+    svg_bytes = (
+        b'<svg xmlns="http://www.w3.org/2000/svg" '
+        b'width="100mm" height="100mm" viewBox="0 0 100 100">'
+        b'<defs>'
+        b'<text id="hidden-text" x="0" y="0">only in defs</text>'
+        b'</defs>'
+        b'<path d="M 0 0 L 100 0 L 100 100 L 0 100 Z" '
+        b'stroke="#ff0000" fill="none"/>'
+        b'</svg>'
+    )
+    doc = load_svg_document(svg_bytes)
     results = run_geometry_integrity_rules(doc, _glowforge_plus())
-    r = next(r for r in results if r.id == "R-SVG-10")
-    # Total should reflect actual top-level <text>, not any inside <defs>.
-    # This fixture has a handful of top-level <text> — assert > 0.
-    assert r.evidence["total_text_elements"] > 0
+    ids = [r.id for r in results]
+    assert "R-SVG-10" not in ids, (
+        f"R-SVG-10 must ignore <text> inside <defs>; got {ids}"
+    )
+
+
+def test_r_svg_10_top_level_text_does_fire_on_inline_svg() -> None:
+    """Mirror of the defs-only test — same SVG shape, but <text> at the
+    top level. R-SVG-10 MUST fire. Proves the defs skip isn't just
+    suppressing everything."""
+    from worker.svg_loader import load_svg_document
+
+    svg_bytes = (
+        b'<svg xmlns="http://www.w3.org/2000/svg" '
+        b'width="100mm" height="100mm" viewBox="0 0 100 100">'
+        b'<text id="visible-text" x="10" y="50">this renders</text>'
+        b'<path d="M 0 0 L 100 0 L 100 100 L 0 100 Z" '
+        b'stroke="#ff0000" fill="none"/>'
+        b'</svg>'
+    )
+    doc = load_svg_document(svg_bytes)
+    results = run_geometry_integrity_rules(doc, _glowforge_plus())
+    ids = [r.id for r in results]
+    assert "R-SVG-10" in ids, (
+        f"R-SVG-10 MUST fire on top-level <text>; got {ids}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -168,6 +204,58 @@ def test_r_svg_08_does_not_fire_on_back_panel() -> None:
 def test_r_svg_09_does_not_fire_on_known_good_makercase() -> None:
     """No cut features below a 0.2mm kerf on clean makercase exports."""
     doc = _load_fixture("known-good/svg/makercase-box-back-panel.svg")
+    results = run_geometry_integrity_rules(doc, _glowforge_plus())
+    ids = [r.id for r in results]
+    assert "R-SVG-09" not in ids
+
+
+def test_r_svg_09_fires_on_sub_kerf_feature() -> None:
+    """Phase 2B-4a fix: R-SVG-09 now uses bbox-min-dimension, not
+    total path length. A 50mm-long, 0.05mm-wide slot has total length
+    ~100mm (way above kerf) but bbox_h = 0.05mm (below 0.2mm kerf).
+
+    Pre-fix: silent miss. Post-fix: fires with bbox_min_mm=0.05 on the
+    evidence. This test encodes the before/after behaviour change.
+    """
+    from worker.svg_loader import load_svg_document
+
+    # Long thin horizontal line: bbox is 50mm × 0 — width 50, height 0.
+    # min dim = 0 < 0.2mm kerf → fires.
+    svg_bytes = (
+        b'<svg xmlns="http://www.w3.org/2000/svg" '
+        b'width="100mm" height="100mm" viewBox="0 0 100 100">'
+        b'<path id="zero-height-line" d="M 10 50 L 60 50" '
+        b'stroke="#ff0000" fill="none"/>'
+        b'</svg>'
+    )
+    doc = load_svg_document(svg_bytes)
+    results = run_geometry_integrity_rules(doc, _glowforge_plus())
+    ids = [r.id for r in results]
+    assert "R-SVG-09" in ids, (
+        f"R-SVG-09 must fire on bbox-min 0mm feature; got {ids}"
+    )
+    r = next(r for r in results if r.id == "R-SVG-09")
+    assert r.severity == "warn"
+    assert r.evidence["total_sub_kerf_features"] == 1
+    offender = r.evidence["offending_paths"][0]
+    assert offender["element_id"] == "zero-height-line"
+    assert offender["bbox_min_mm"] == 0.0
+    # Proves the bbox-based check is catching it, not total-length.
+    assert offender["bbox_width_mm"] == 50.0
+
+
+def test_r_svg_09_does_not_fire_when_min_dim_above_kerf() -> None:
+    """A 10mm × 10mm square must not trigger R-SVG-09 at 0.2mm kerf."""
+    from worker.svg_loader import load_svg_document
+
+    svg_bytes = (
+        b'<svg xmlns="http://www.w3.org/2000/svg" '
+        b'width="100mm" height="100mm" viewBox="0 0 100 100">'
+        b'<path id="square" d="M 10 10 L 20 10 L 20 20 L 10 20 Z" '
+        b'stroke="#ff0000" fill="none"/>'
+        b'</svg>'
+    )
+    doc = load_svg_document(svg_bytes)
     results = run_geometry_integrity_rules(doc, _glowforge_plus())
     ids = [r.id for r in results]
     assert "R-SVG-09" not in ids

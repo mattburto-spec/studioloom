@@ -151,17 +151,59 @@ def _normalize_colour(raw: str | None) -> str | None:
     return None
 
 
+def _resolve_inherited_attr(
+    el: etree._Element, prop: str
+) -> str | None:
+    """Resolve an SVG presentation property (stroke/fill/stroke-width) by
+    walking self + ancestors per the SVG cascade. First non-None match wins.
+
+    Lookup order on each element:
+      1. inline `style="prop:...;"`
+      2. presentation attribute `prop="..."`
+    Then walk up the tree via iterancestors() until either a value is
+    found or we hit the root.
+
+    Treats an explicit `"inherit"` as "keep walking" per CSS2 spec — the
+    browser does the same. Any other value (including 'none' and
+    'transparent') terminates the walk because it's a definite statement.
+
+    Phase 2B-4a: addresses reviewer finding that R-SVG-04/05/06 were
+    silently missing strokes inherited from `<g stroke="...">` parent
+    groups — the most common Inkscape-layers / Illustrator-groups pattern
+    in school DT lab files.
+    """
+    cur: etree._Element | None = el
+    while cur is not None:
+        style = _parse_style(cur.get("style"))
+        for source in (style.get(prop), cur.get(prop)):
+            if source is None:
+                continue
+            value = source.strip()
+            if value.lower() == "inherit":
+                continue  # keep walking
+            if not value:
+                continue
+            return value
+        cur = cur.getparent()
+    return None
+
+
 def _extract_stroke_spec(el: etree._Element) -> _StrokeSpec:
-    """Read stroke + fill from attr or inline style. Style beats attr."""
-    style = _parse_style(el.get("style"))
-    stroke_raw = style.get("stroke") or el.get("stroke")
-    fill_raw = style.get("fill") or el.get("fill")
-    stroke_width_raw = style.get("stroke-width") or el.get("stroke-width")
+    """Read stroke + fill from self and ancestors per the SVG cascade.
+
+    Returns _StrokeSpec with normalized stroke/fill colours and raw
+    stroke-width. Inheritance walk lives in _resolve_inherited_attr —
+    see its docstring for the cascade rules.
+    """
     return _StrokeSpec(
         element_id=el.get("id") or "",
-        stroke_normalized=_normalize_colour(stroke_raw),
-        stroke_width_raw=stroke_width_raw,
-        fill_normalized=_normalize_colour(fill_raw),
+        stroke_normalized=_normalize_colour(
+            _resolve_inherited_attr(el, "stroke")
+        ),
+        stroke_width_raw=_resolve_inherited_attr(el, "stroke-width"),
+        fill_normalized=_normalize_colour(
+            _resolve_inherited_attr(el, "fill")
+        ),
     )
 
 

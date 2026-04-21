@@ -11,11 +11,12 @@ R-SVG-07 | WARN*    | cut-layer paths aren't closed with Z/z.
                      fixture is authored. Tracked as FU-R-SVG-07-FIXTURE.
 R-SVG-08 | WARN     | two cut-layer paths share the same normalised
                      `d` string — duplicate burn on the same geometry.
-R-SVG-09 | WARN     | cut-layer paths contain segments below the
-                     machine's kerf width. Only fired when a clean
-                     viewBox-to-mm conversion is available (stated
-                     dims in mm AND viewBox ratio near 1:1); otherwise
-                     the rule stays silent rather than emit noise.
+R-SVG-09 | WARN     | cut-layer paths whose bounding-box minimum
+                     dimension is below the machine's kerf width.
+                     Only fired when a clean viewBox-to-mm conversion
+                     is available (stated dims in mm AND viewBox ratio
+                     near 1:1); otherwise the rule stays silent rather
+                     than emit noise.
 R-SVG-10 | BLOCK    | any rendering <text> element survives outside
                      <defs>. Lasers without the authoring font will
                      substitute or fail — text must be converted to
@@ -33,10 +34,18 @@ Design notes:
   refinement — real-world Inkscape exports produce identical `d`
   strings for duplicated paths, so the cheap check catches the
   intended case.
-- R-SVG-09 requires svgpathtools path parsing + unit conversion. When
-  stated dims are mm and viewBox ratio is ~1:1 we compare segment
-  length in viewBox units directly to kerf_mm. Other unit situations
-  defer to R-SVG-02 / R-SVG-03 rather than force a best-guess.
+- R-SVG-09 uses path.bbox() (via svgpathtools) and compares the
+  shorter of (bbox_width, bbox_height) against profile.kerf_mm. This
+  catches tiny features and thin strips — the two real-world cases.
+  A path with one narrow slot buried inside a larger shape will NOT
+  be caught; per-segment parallel-line distance analysis is a v2
+  refinement. Fired only when stated dims are mm AND viewBox ratio
+  ~1:1; other unit situations defer to R-SVG-02 / R-SVG-03.
+
+  Phase 2B-4a: switched from path.length() to bbox_min_dim per
+  reviewer finding — total length measures distance along the path,
+  not feature thickness. A 50mm × 0.05mm slot has length ~100mm and
+  would never fire under the old metric.
 - R-SVG-10 doesn't need to check cut-vs-engrave operation — ANY text
   element in a laser file is a font-substitution risk. Spec wording
   mentions cut/engrave layer; practical implementation is broader
@@ -273,19 +282,24 @@ def _rule_09_features_below_kerf(
             path = parse_path(d)
         except Exception:
             continue
-        # Total path length. Sub-kerf feature would be one of these
-        # with length below kerf_mm. A proper per-segment check is
-        # complex; total length is a solid first pass for v1.
         try:
-            length = float(path.length())
+            xmin, xmax, ymin, ymax = path.bbox()
         except Exception:
             continue
-        if length >= profile.kerf_mm:
+        bbox_w = float(xmax - xmin)
+        bbox_h = float(ymax - ymin)
+        # min dimension of the bounding box = narrowest extent of the
+        # feature. A thin slot has small bbox_h; a tiny dot has both
+        # dimensions small. Either should fire.
+        min_dim = min(bbox_w, bbox_h)
+        if min_dim >= profile.kerf_mm:
             continue
         offenders.append(
             {
                 "element_id": spec.element_id,
-                "length_mm": round(length, 3),
+                "bbox_min_mm": round(min_dim, 3),
+                "bbox_width_mm": round(bbox_w, 3),
+                "bbox_height_mm": round(bbox_h, 3),
                 "kerf_mm": profile.kerf_mm,
             }
         )

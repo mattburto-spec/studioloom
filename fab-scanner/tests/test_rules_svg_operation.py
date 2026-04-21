@@ -169,6 +169,81 @@ def test_r_svg_04_skips_on_3d_printer_profile() -> None:
     assert "R-SVG-04" not in ids
 
 
+def test_r_svg_04_resolves_inherited_stroke_from_group() -> None:
+    """Phase 2B-4a fix: R-SVG-04 must fire on a path whose stroke is
+    inherited from a parent <g stroke="#ff6600">. Pre-fix, this was a
+    silent false-negative — the rule only looked at the element's own
+    stroke attribute, so every child of an Inkscape Layers group with
+    group-level colour was skipped. The single most common real-world
+    DT-lab pattern.
+    """
+    from worker.svg_loader import load_svg_document
+
+    svg_bytes = (
+        b'<svg xmlns="http://www.w3.org/2000/svg" '
+        b'width="100mm" height="100mm" viewBox="0 0 100 100">'
+        b'<g stroke="#ff6600" fill="none">'
+        b'<path id="child-a" d="M 0 0 L 10 10"/>'
+        b'<path id="child-b" d="M 20 20 L 30 30"/>'
+        b'</g>'
+        b'</svg>'
+    )
+    doc = load_svg_document(svg_bytes)
+    results = run_operation_mapping_rules(doc, _glowforge_plus())
+    fired_ids = [r.id for r in results]
+    assert "R-SVG-04" in fired_ids, (
+        f"R-SVG-04 must inherit stroke from <g>; got {fired_ids}"
+    )
+    r = next(r for r in results if r.id == "R-SVG-04")
+    assert "#FF6600" in r.evidence["unmapped_colours"]
+    assert r.evidence["total_offending_elements"] == 2
+
+
+def test_r_svg_04_nested_group_cascade() -> None:
+    """Inner <g> stroke beats outer <g> stroke (closest ancestor wins)."""
+    from worker.svg_loader import load_svg_document
+
+    svg_bytes = (
+        b'<svg xmlns="http://www.w3.org/2000/svg" '
+        b'width="100mm" height="100mm" viewBox="0 0 100 100">'
+        b'<g stroke="#ff0000">'  # outer: mapped (cut)
+        b'<g stroke="#ff6600">'  # inner: unmapped
+        b'<path id="inherits-inner" d="M 0 0 L 10 10"/>'
+        b'</g>'
+        b'<path id="inherits-outer" d="M 20 20 L 30 30"/>'
+        b'</g>'
+        b'</svg>'
+    )
+    doc = load_svg_document(svg_bytes)
+    results = run_operation_mapping_rules(doc, _glowforge_plus())
+    fired_ids = [r.id for r in results]
+    assert "R-SVG-04" in fired_ids
+    r = next(r for r in results if r.id == "R-SVG-04")
+    # Only the inner-group child should count as unmapped (#FF6600).
+    # The outer-group child inherits #FF0000 which IS mapped.
+    assert r.evidence["unmapped_colours"] == ["#FF6600"]
+    assert r.evidence["total_offending_elements"] == 1
+
+
+def test_r_svg_04_explicit_none_on_child_overrides_group() -> None:
+    """Explicit stroke='none' on the child terminates the cascade and
+    the path is treated as not-a-cut-line (no R-SVG-04 fire)."""
+    from worker.svg_loader import load_svg_document
+
+    svg_bytes = (
+        b'<svg xmlns="http://www.w3.org/2000/svg" '
+        b'width="100mm" height="100mm" viewBox="0 0 100 100">'
+        b'<g stroke="#ff6600">'
+        b'<path id="no-stroke" d="M 0 0 L 10 10" stroke="none"/>'
+        b'</g>'
+        b'</svg>'
+    )
+    doc = load_svg_document(svg_bytes)
+    results = run_operation_mapping_rules(doc, _glowforge_plus())
+    ids = [r.id for r in results]
+    assert "R-SVG-04" not in ids
+
+
 def test_r_svg_04_ignores_defs_children() -> None:
     """Gradient <stop> elements inside <defs> must not be treated as
     rendered strokes. drawing-mixed-colors-with-text has many
