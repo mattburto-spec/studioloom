@@ -29,6 +29,18 @@ class ClaimedJob:
     storage_path: str  # path in the fabrication-uploads bucket
     file_type: str  # 'stl' | 'svg'
     machine_profile_id: str
+    student_id: str  # fabrication_jobs.student_id — used for email dispatch
+
+
+@dataclass(frozen=True)
+class StudentForEmail:
+    """Subset of students columns the worker needs to send a scan-complete
+    email — keeps the Supabase Protocol surface minimal."""
+
+    student_id: str
+    email: str | None  # NULL when no email on file → skip dispatch
+    display_name: str | None
+    notify_email_opt_in: bool  # students.fabrication_notify_email
 
 
 class SupabaseClient(Protocol):
@@ -72,4 +84,11 @@ class SupabaseClient(Protocol):
           - fabrication_jobs: latest_scan_results (denormalised) + version
         Updates fabrication_scan_jobs.status='done' or 'error'.
         """
+        ...
+
+    def load_student_for_email(self, student_id: str) -> StudentForEmail | None:
+        """Fetch the columns the worker needs to dispatch a scan-complete
+        email. Returns None if the student row is missing — caller treats
+        this as 'skip dispatch'. notify_email_opt_in defaults true per
+        migration 100, so an opted-out student is the only no-op case."""
         ...

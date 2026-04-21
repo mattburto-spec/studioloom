@@ -95,6 +95,7 @@ def main() -> int:
         storage_path=args.fixture_relpath,
         file_type=file_type,
         machine_profile_id=args.machine,
+        student_id="sandbox-student",
     )
 
     results: ScanResults = scan_one_revision(job, supabase, storage)

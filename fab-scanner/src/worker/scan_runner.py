@@ -185,4 +185,53 @@ def process_one_job(
         duration_ms=results.scan_duration_ms,
         highest_severity=str(results.highest_severity()),
     )
+
+    # Best-effort scan-complete email. Failure must not flip a successful
+    # scan back to error status — students would re-submit unnecessarily.
+    _maybe_dispatch_scan_complete_email(supabase, job, results)
     return True
+
+
+def _maybe_dispatch_scan_complete_email(
+    supabase: SupabaseClient,
+    job: ClaimedJob,
+    results: ScanResults,
+) -> None:
+    """Lookup the student, honour their opt-in, then dispatch.
+
+    Wrapped in broad try/except — every failure path is logged but
+    swallowed. The scan status is already 'done' by the time we get here.
+    """
+    try:
+        student = supabase.load_student_for_email(job.student_id)
+        if student is None:
+            log.info("email.skipped", reason="student_not_found", job_id=job.job_id)
+            return
+        if not student.notify_email_opt_in:
+            log.info("email.skipped", reason="opted_out", job_id=job.job_id)
+            return
+        if not student.email:
+            log.info("email.skipped", reason="no_email_on_file", job_id=job.job_id)
+            return
+
+        # Local import keeps the email module's httpx import out of the
+        # cold-start path on workers that may not be configured for email.
+        from worker.email_dispatch import dispatch_scan_complete_email
+
+        severity = results.highest_severity()
+        outcome = dispatch_scan_complete_email(
+            supabase=supabase,  # type: ignore[arg-type]
+            job_id=job.job_id,
+            to=student.email,
+            display_name=student.display_name,
+            highest_severity=severity.value if severity else None,
+        )
+        log.info(
+            "email.dispatch_done",
+            job_id=job.job_id,
+            sent=outcome.sent,
+            skipped=outcome.skipped,
+            reason=outcome.reason,
+        )
+    except Exception:
+        log.exception("email.dispatch_failed", job_id=job.job_id)

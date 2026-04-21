@@ -15,7 +15,7 @@ from typing import Any
 import pytest
 import yaml  # type: ignore
 
-from worker.supabase_client import ClaimedJob
+from worker.supabase_client import ClaimedJob, StudentForEmail
 
 # Resolved at import time: …/questerra/docs/projects/fabrication/fixtures/
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -81,6 +81,8 @@ class MockSupabase:
     pending_jobs: list[ClaimedJob] = field(default_factory=list)
     machine_profiles: dict[str, dict[str, Any]] = field(default_factory=dict)
     writes: list[dict[str, Any]] = field(default_factory=list)
+    students: dict[str, StudentForEmail] = field(default_factory=dict)
+    student_lookups: list[str] = field(default_factory=list)
 
     def claim_next_job(self) -> ClaimedJob | None:
         if not self.pending_jobs:
@@ -114,6 +116,10 @@ class MockSupabase:
                 "scan_error": scan_error,
             }
         )
+
+    def load_student_for_email(self, student_id: str) -> StudentForEmail | None:
+        self.student_lookups.append(student_id)
+        return self.students.get(student_id)
 
 
 @dataclass
@@ -209,6 +215,7 @@ def make_stl_job(
     scan_job_id: str = "scan-job-test-1",
     job_id: str = "job-test-1",
     job_revision_id: str = "rev-test-1",
+    student_id: str = "student-test-1",
 ) -> ClaimedJob:
     """Build a ClaimedJob pointing at a fixture under fixtures/."""
     return ClaimedJob(
@@ -218,4 +225,5 @@ def make_stl_job(
         storage_path=fixture_relpath,
         file_type="stl",
         machine_profile_id=machine_profile_id,
+        student_id=student_id,
     )

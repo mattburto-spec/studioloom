@@ -1,8 +1,13 @@
 """Worker entrypoint: infinite poll loop over fabrication_scan_jobs.
 
-Phase 2A-1 ships this skeleton with a "NotImplementedError if real Supabase
-credentials are set" guard — we don't want a half-built worker accidentally
-connecting to prod before Phase 2A-6's Checkpoint.
+Phase 2A-6a: real SupabaseServiceClient + SupabaseStorageClient land,
+gated on env vars. Until SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY are
+set (Phase 2A-6b), the worker raises NotImplementedError on startup so
+we cannot accidentally connect to prod from a half-configured laptop.
+
+scan_complete email dispatch is wired here too — fired after a
+successful scan when the recipient student has opted-in via
+students.fabrication_notify_email (default true per migration 100).
 """
 
 from __future__ import annotations
@@ -17,20 +22,35 @@ import structlog
 from worker.observability import configure_logging
 
 
-def _real_supabase_client():
-    """Phase 2A-6 will implement. Until then, halt if prod env is set."""
-    raise NotImplementedError(
-        "Real SupabaseServiceClient is minted at Phase 2A-6 just before "
-        "the first Fly deploy. Until then, use MockSupabaseClient via the "
-        "sandbox CLI or pytest."
-    )
+def _build_supabase_client():
+    """Construct the production SupabaseServiceClient. Raises if env is
+    not configured — guards against accidental prod connection from
+    laptops that haven't gone through the 2A-6b setup."""
+    url = os.environ.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    if not url or not key:
+        raise NotImplementedError(
+            "SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY required. "
+            "Use the sandbox CLI for local fixture testing; the worker "
+            "starts only when prod credentials are set (Phase 2A-6b)."
+        )
+    from worker.supabase_real import SupabaseServiceClient
+
+    return SupabaseServiceClient()
 
 
-def _real_storage_client():
-    """Phase 2A-6 will implement."""
-    raise NotImplementedError(
-        "Real StorageClient (signed-URL) is minted at Phase 2A-6."
-    )
+def _build_storage_client():
+    """Construct the production SupabaseStorageClient. Same env guard
+    as _build_supabase_client — both clients share the same key surface."""
+    url = os.environ.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    if not url or not key:
+        raise NotImplementedError(
+            "SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY required for storage."
+        )
+    from worker.supabase_real import SupabaseStorageClient
+
+    return SupabaseStorageClient()
 
 
 def main() -> int:
@@ -59,15 +79,16 @@ def main() -> int:
     signal.signal(signal.SIGTERM, request_shutdown)
     signal.signal(signal.SIGINT, request_shutdown)
 
-    supabase = _real_supabase_client()
-    storage = _real_storage_client()
+    supabase = _build_supabase_client()
+    storage = _build_storage_client()
 
-    from worker.scan_runner import process_one_job  # local import: heavy deps
+    # Local imports so the heavy deps (trimesh, matplotlib) don't load
+    # until the env guard above has succeeded.
+    from worker.scan_runner import process_one_job
 
     while not shutdown_requested:
         did_work = process_one_job(supabase, storage)
         if not did_work:
-            # Queue empty — poll again after interval.
             time.sleep(poll_interval)
 
     log.info("worker.shutdown_complete")
