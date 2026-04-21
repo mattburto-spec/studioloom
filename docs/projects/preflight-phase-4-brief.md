@@ -1,6 +1,6 @@
 # Preflight Phase 4 — Student Upload + Job Orchestration
 
-**Status:** DRAFT — awaiting Matt sign-off before first sub-phase opens
+**Status:** READY — all 5 pre-build open questions resolved 22 Apr 2026 (§10). First sub-phase (4-1) can open whenever Matt kicks it off.
 **Date drafted:** 22 April 2026
 **Spec source:** `docs/projects/fabrication-pipeline.md` §4 Stage 1, §4 Stage 2, §13 Phase 4
 **Predecessor:** Phase 2B complete + Checkpoint 3.1 signed off 22 Apr 2026. Commit `0554947` is HEAD on `origin/main`.
@@ -45,9 +45,9 @@ The first user-facing producer of rows on the `fabrication_*` tables. Phases 1A�
 - **Auth:** student cookie-token sessions (`SESSION_COOKIE_NAME` → `student_sessions` → `student_id`). Per Lesson #4 + #9 — students are NOT Supabase Auth users. All 3 new API routes live under `/api/student/*` and use `requireStudentAuth` (NOT `requireTeacherAuth`).
 - **Storage buckets:** `fabrication-uploads` (private, service-role RLS) for student uploads; `fabrication-thumbnails` (private, service-role RLS) for worker-rendered PNGs. Both seeded in migration 102. Student never reads the uploads bucket directly — results UI (Phase 5) will mint signed URLs via a teacher/Fabricator route.
 - **Signed-URL TTL:** 15 min for upload (student picks a file, may pause before confirming) → enough buffer. 10 min for thumbnail display.
-- **File size cap:** 200 MB (spec §4 Stage 1). Enforced client-side in the picker AND server-side in the orchestration API (reject before minting URL). Supabase Storage per-object cap is 50 MB on free tier — verify the project's tier supports 200 MB before wiring the picker cap. If not, drop to 50 MB in Phase 4 and raise after upgrade.
+- **File size cap: 50 MB** (Supabase Free Plan per-object ceiling — verified 22 Apr 2026 via `supabase.com/dashboard/org/.../usage`; raising to spec-target 200 MB requires Pro upgrade, tracked as `FU-FAB-UPLOAD-200MB`). Enforced client-side in the picker AND server-side in the orchestration API (reject before minting URL). Matches the existing 50 MB precedent on `teacher/knowledge/media/route.ts:40`. Every realistic student STL / SVG fits comfortably.
 - **MIME type:** accept `.stl` (mapped to `application/sla`, `application/vnd.ms-pki.stl`, or `model/stl` — varies by browser) and `.svg` (`image/svg+xml`). Reject on extension mismatch client-side; worker validates on download via magic-bytes sniffing (already in place).
-- **Rate limit:** per-student max 10 uploads per hour (simple in-memory counter in the API route, reset hourly; proper Redis rate-limit is a follow-up).
+- **Rate limit: deferred.** No throttle in Phase 4 — pilot traffic (30 students) won't hit natural ceilings. Tracked as `FU-SCANNER-RATE-LIMIT` P3 — revisit when a class abuses the endpoint or when approaching a public-beta launch.
 
 ---
 
@@ -92,14 +92,14 @@ Each sub-phase: pre-flight → assumptions block → audit → write → test �
 
 ### 4-3 — Student upload page scaffold + class/machine picker
 
-**Goal:** `/student/fabrication/new` page with class-dropdown (from student's `class_students` enrolments) + machine-profile dropdown (filtered to machines linked to the selected class via a teacher/class config row — OR fallback to all seeded profiles if no per-class linking is wired yet).
+**Goal:** `/student/fabrication/new` page with class-dropdown (from student's `class_students` enrolments) + machine-profile dropdown (all 12 seeded `machine_profiles` rows where `is_system_template = true`, plus any teacher-owned clones for the student's class teacher).
 
 **Files touched:**
 - `src/app/(student)/fabrication/new/page.tsx` (NEW)
 - `src/components/fabrication/ClassMachinePicker.tsx` (NEW)
 - `src/components/fabrication/ClassMachinePicker.test.tsx` (NEW)
 
-**Open question flagged to Matt:** is there a `class_machine_profiles` junction table, or does each student see all 12 seeded profiles? **Audit step must answer this** — if no junction, v1 shows all 12; if junction exists and is populated, filter by class. Either answer is fine for Phase 4 — just no silent "zero profiles shown because the join is empty" case.
+**Decision locked in (22 Apr):** there is no `class_machine_profiles` junction in the schema. Phase 4 ships unfiltered — students pick from all 12 seeded profiles. Per-class filtering is a Phase 8 concern when the teacher machine-admin UI lands. Tracked as `FU-CLASS-MACHINE-LINK` P3.
 
 **Commit:** `feat(preflight): Phase 4-3 student upload page + class/machine picker`
 
@@ -109,7 +109,7 @@ Each sub-phase: pre-flight → assumptions block → audit → write → test �
 
 ### 4-4 — File picker + upload progress + enqueue wiring
 
-**Goal:** Drag-drop file picker on the upload page, progress bar during PUT to the signed URL, button to confirm + enqueue scan.
+**Goal:** Drag-drop file picker on the upload page (50 MB cap enforced client-side + server-side), progress bar during PUT to the signed URL, button to confirm + enqueue scan.
 
 **Files touched:**
 - `src/components/fabrication/FileDropzone.tsx` (NEW — drag-drop, extension check, size check, preview filename)
@@ -162,7 +162,7 @@ Each sub-phase: pre-flight → assumptions block → audit → write → test �
 
 **Goal:** End-to-end verification on prod with 2 real files uploaded from Matt's own test student account.
 
-**Fixtures:** reuse `small-cube-25mm.stl` (known-good) + `coaster-orange-unmapped.svg` (known-broken — R-SVG-04 + R-SVG-02). Upload both via the new UI, watch the staged messaging, verify results stub page loads with correct rule firings + thumbnail. Verify re-upload creates revision_number=2.
+**Fixtures:** reuse `small-cube-25mm.stl` (known-good) + `coaster-orange-unmapped.svg` (known-broken — R-SVG-04 + R-SVG-02). **Test student:** `Matt Burton` (`id = f24ff3a8-65dc-4b87-9148-7cb603b1654a`, class `7c534538-c047-4753-b250-d0bd082c8131`) — same account that the Phase 2B-7 smoke scans used, so Phase 4 uploads will sit alongside the existing scan rows and column-backfill history stays clean. Upload both fixtures via the new UI, watch the staged messaging, verify results stub page loads with correct rule firings + thumbnail. Verify re-upload creates revision_number=2.
 
 **Checkpoint 4.1 report:** `docs/projects/preflight-phase-4-checkpoint-4-1.md` — mirror the 2.1/3.1 structure. 10-criterion matrix covering: both APIs deployed, upload UI rendered, 2 fixtures round-trip successfully, revision_number increments on re-upload, scan_status polling lands terminal state, thumbnail renders in UI, error path tested (upload a `.txt` → reject client-side, upload a corrupt STL → `scan_status='error'` surfaces in UI), pytest delta, npm test delta, WIRING.yaml updated.
 
@@ -178,7 +178,7 @@ Each sub-phase: pre-flight → assumptions block → audit → write → test �
 - [ ] `POST /api/student/fabrication/jobs/[jobId]/enqueue-scan` idempotent — duplicate pending/running returns existing, fresh revision creates new. Tested.
 - [ ] `GET /api/student/fabrication/jobs/[jobId]/status` returns denormalised status + thumbnail signed URL. Tested.
 - [ ] `/student/fabrication/new` page renders class + machine pickers from real data (or stated fallback per 4-3 audit).
-- [ ] Drag-drop file picker enforces `.stl,.svg` + 200 MB (or documented lower cap) + rejects other types client-side.
+- [ ] Drag-drop file picker enforces `.stl,.svg` + 50 MB (Free Plan ceiling) + rejects other types client-side.
 - [ ] Progress bar fires during Storage upload; falls back to indeterminate spinner if progress events unavailable.
 - [ ] Status page staged messaging advances through 4+ stages on a real STL scan (3–15 s expected duration).
 - [ ] Re-upload on same `jobId` creates `revision_number = 2` row; scan job re-enqueues and runs; both revisions queryable.
@@ -195,12 +195,10 @@ Each sub-phase: pre-flight → assumptions block → audit → write → test �
 
 ## 5. Stop triggers (halt, report, wait for Matt)
 
-1. **Supabase Storage tier caps upload at < 50 MB.** Phase 4 assumed 200 MB. If the project tier is lower, stop and confirm: drop cap to 50 MB for Phase 4 and raise after an upgrade, OR upgrade tier first.
-2. **`class_machine_profiles` junction doesn't exist AND per-class machine filtering was implied.** Sub-phase 4-3 audit answers this. If missing and Matt expected it, stop — schema decision before building the picker.
-3. **RLS blocks the student from reading their own `fabrication_jobs` row.** `fabrication_jobs` RLS policy may be scoped to teachers only (service-role is how the worker reads). Students need their own SELECT policy for status polling. Stop and add the migration if missing.
-4. **`requireStudentAuth` + Supabase signed-URL minting can't coexist cleanly.** Signed URLs require the service-role Supabase client (from `createAdminClient()`), which per Lesson #3 must not be imported in client components. Route handler is server-side so it's fine — but verify this works end-to-end before committing 4-1.
-5. **Rate-limit counter state loss across serverless invocations.** Vercel serverless doesn't persist in-memory counters across invocations — if per-student rate limit is needed urgently, use a `student_fabrication_throttle` table with `count + window_start` row per student. If not urgent, document and defer.
-6. **Scanner worker polling cadence (5 s) + client polling cadence (2 s) race conditions.** If the worker is still claiming a scan when the student's polling starts, `scan_status` may be `pending` briefly even after enqueue. Expected + benign — but if tests flap, stop and tighten the `enqueue-scan` handler to wait for the INSERT to commit before returning.
+1. **RLS blocks the student from reading their own `fabrication_jobs` row.** `fabrication_jobs` RLS policy may be scoped to teachers only (service-role is how the worker reads). Students need their own SELECT policy for status polling. Stop and add the migration if missing.
+2. **`requireStudentAuth` + Supabase signed-URL minting can't coexist cleanly.** Signed URLs require the service-role Supabase client (from `createAdminClient()`), which per Lesson #3 must not be imported in client components. Route handler is server-side so it's fine — but verify this works end-to-end before committing 4-1.
+3. **Scanner worker polling cadence (5 s) + client polling cadence (2 s) race conditions.** If the worker is still claiming a scan when the student's polling starts, `scan_status` may be `pending` briefly even after enqueue. Expected + benign — but if tests flap, stop and tighten the `enqueue-scan` handler to wait for the INSERT to commit before returning.
+4. **50 MB Supabase Free Plan ceiling bites a real fixture.** Spec called for 200 MB; Free Plan caps at 50 MB. The STL/SVG fixtures in the smoke-test set all fit, but if a student's real-world file during pilot exceeds 50 MB, stop and either upgrade to Pro OR document a "keep under 50 MB" student-facing message. Tracked as `FU-FAB-UPLOAD-200MB`.
 
 ---
 
@@ -228,7 +226,9 @@ Each sub-phase: pre-flight → assumptions block → audit → write → test �
 | Analytics: class-level rule-failure heatmap, revision distribution | Phase 9 |
 | Safety alert routing for weapon-shaped models | Phase 6 (wires to existing safety alert feed) |
 | Realtime subscriptions (replace polling) | Phase 4.5 or Phase 5 if polling pressure observed |
-| Per-student rate-limit in a durable store | FU-SCANNER-RATE-LIMIT-DURABLE (file during 4-1 if it matters) |
+| Per-student rate-limit | `FU-SCANNER-RATE-LIMIT` P3 (filed 22 Apr) |
+| Per-class machine profile filtering | `FU-CLASS-MACHINE-LINK` P3 (filed 22 Apr) |
+| 200 MB upload cap (spec target) | `FU-FAB-UPLOAD-200MB` P3 (filed 22 Apr — requires Supabase Pro upgrade) |
 | GitHub Action auto-deploy for the scanner worker | FU-SCANNER-CICD (opened Checkpoint 3.1) |
 | `notifications_sent` verification for scan-complete email with a real student | FU-SCANNER-EMAIL-VERIFY (opened Checkpoint 2.1; Phase 4 traffic gives the first real shot at closing this) |
 
@@ -258,12 +258,14 @@ Each sub-phase: pre-flight → assumptions block → audit → write → test �
 
 ---
 
-## 10. Open questions for Matt before 4-1 opens
+## 10. Resolved decisions (22 Apr 2026, pre-opening)
 
-1. **File size cap** — is the Supabase Storage tier on `studioloom` able to accept 200 MB objects? If not, what's the cap? (Answer shifts picker + server-side validation constants.)
-2. **Class → machine profile linkage** — is there a `class_machine_profiles` junction, or do students pick from all 12 seeded profiles? (Phase 4-3 audit answers this but earlier is cheaper.)
-3. **Test student account** — which student in prod should the Checkpoint 4.1 smoke test use? Matt creates a test student via the teacher dashboard or reuses an existing one?
-4. **Rate limit** — is 10 uploads/hour/student reasonable, or is it fine to defer any throttle to a follow-up? (Affects 4-1 scope.)
-5. **Realtime or polling for v1** — polling keeps Phase 4 smaller. Realtime is a clearer UX win but adds Supabase subscription wiring. Confirm polling-for-v1 or pivot early.
+All five pre-build open questions answered before 4-1 opens. Evidence gathered via code inspection + Supabase dashboard check.
 
-Answer inline before opening 4-1.
+1. **File size cap — 50 MB.** Supabase Free Plan per-object ceiling (verified via `supabase.com/dashboard/org/.../usage` — Free Plan confirmed, Storage Size 0.029 / 1 GB, Egress 0.232 / 5 GB). Matches existing 50 MB precedent on `teacher/knowledge/media/route.ts:40`. Raising to spec-target 200 MB requires Pro upgrade. **Follow-up filed: `FU-FAB-UPLOAD-200MB` P3** — revisit on upgrade.
+2. **Class → machine profile linkage — no junction.** Zero matches across all 11 Preflight migrations (093–103) for a `class_machine_profiles` table. Schema registry confirms only `machine_profiles` (system templates + teacher-owned clones) and `fabricator_machines` (Fabricator→Machine, not Class→Machine). Phase 4 ships unfiltered; all 12 seeded profiles visible. **Follow-up filed: `FU-CLASS-MACHINE-LINK` P3** — wire per-class filtering in Phase 8 alongside teacher machine-admin UI.
+3. **Test student account — Matt Burton.** `id = f24ff3a8-65dc-4b87-9148-7cb603b1654a`, `class_id = 7c534538-c047-4753-b250-d0bd082c8131`. Same student account used for Phase 2B-7 smoke scans (coaster-orange-unmapped.svg, etc.), so Phase 4 uploads will sit alongside the existing scan rows and backfilled revisions — no cleanup cross-talk.
+4. **Rate limit — deferred.** No throttle in Phase 4. Pilot traffic (30 students) won't approach natural ceilings. **Follow-up filed: `FU-SCANNER-RATE-LIMIT` P3** — revisit on first abuse signal or approaching public-beta launch.
+5. **Realtime vs polling — polling.** Zero Realtime usage anywhere in the codebase (no matches for `supabase.channel` / `postgres_changes` / `.on(...postgres)`). Realtime IS included on the Free Plan (0 / 200 concurrent, 0 / 2M messages) — the cost of adding it is code complexity (subscription lifecycle, auth scoping, unmount cleanup), not quota. Polling with 2 s interval + 90 s ceiling is sufficient for Phase 4. Revisit if polling pressure becomes visible post-pilot.
+
+No outstanding questions. 4-1 can open whenever.
