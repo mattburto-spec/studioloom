@@ -1,0 +1,11 @@
+source: "Year X student D (anonymised)"
+source_filename: "qw whte Knight.stl"
+intended_machine: "bambu_x1c"
+expected_result: "block"
+triggers_rules:
+  - R-STL-01
+notes: |
+  Chess knight, 36 faces only — extremely low-poly. Not watertight. Original filename had
+  typo ('whte').
+date_added: 2026-04-21
+anonymised: true

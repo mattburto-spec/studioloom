@@ -1,0 +1,14 @@
+source: "Matt (Inkscape / mixed)"
+source_filename: "new svgs/HingeBox (done).svg"
+intended_machine: "glowforge_plus"
+expected_result: "block"
+triggers_rules:
+  - R-SVG-04
+  - R-SVG-10
+  - R-SVG-12
+notes: |
+  Multi-violation fixture: 4 stroke colors (#000000 black OK, #0000ff blue OK, #ff0000 red
+  OK, rgb(0,0,0) ALSO black but different syntax may confuse strict mappers) + un-outlined
+  <text> + embedded raster. Rich test case.
+date_added: 2026-04-21
+anonymised: false

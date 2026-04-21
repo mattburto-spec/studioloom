@@ -1,0 +1,12 @@
+source: "Year X student B (anonymised)"
+source_filename: "Kohta Pawn.stl"
+intended_machine: "bambu_x1c"
+expected_result: "block"
+triggers_rules:
+  - R-STL-05
+notes: |
+  Bounding box is 0×0×0 mm despite having 1658 faces. Volume = 0. Mesh is structurally
+  degenerate — vertices collapsed or coordinates NaN'd out by the exporter. Textbook
+  R-STL-05 case.
+date_added: 2026-04-21
+anonymised: true

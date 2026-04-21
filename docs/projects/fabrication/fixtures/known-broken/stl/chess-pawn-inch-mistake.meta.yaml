@@ -1,0 +1,13 @@
+source: "Authored from chess-pawn-40mm.stl (21 Apr 2026)"
+source_filename: null
+intended_machine: "bambu_x1c"
+expected_result: "block"
+triggers_rules:
+  - R-STL-07
+  - R-STL-06
+notes: |
+  SYNTHETIC FIXTURE. Derived from chess-pawn-40mm.stl scaled by 25.4 — the classic mm→inch
+  confusion factor. Bbox diagonal ~1500 mm. Triggers both R-STL-07 (unit mismatch) and
+  R-STL-06 (exceeds bed).
+date_added: 2026-04-21
+anonymised: false

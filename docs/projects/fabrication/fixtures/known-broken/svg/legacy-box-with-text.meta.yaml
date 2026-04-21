@@ -1,0 +1,11 @@
+source: "Matt (archive)"
+source_filename: "box.svg"
+intended_machine: "glowforge_plus"
+expected_result: "block"
+triggers_rules:
+  - R-SVG-10
+notes: |
+  Legacy root-level box.svg with un-outlined <text>. 4 red paths at 297×420 mm. Distinct
+  from new svgs/box.svg (which has EMPTY <text> — see borderline).
+date_added: 2026-04-21
+anonymised: false

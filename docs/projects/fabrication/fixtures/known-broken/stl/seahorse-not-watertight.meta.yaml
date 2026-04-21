@@ -1,0 +1,11 @@
+source: "Matt (Tinkercad export)"
+source_filename: "Seahorse Tinker.stl"
+intended_machine: "bambu_x1c"
+expected_result: "block"
+triggers_rules:
+  - R-STL-01
+notes: |
+  Tinkercad seahorse, 29k faces, not watertight, 14 disconnected components. Classic
+  Tinkercad-exports-a-mesh-with-holes failure.
+date_added: 2026-04-21
+anonymised: false

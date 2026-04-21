@@ -1,0 +1,11 @@
+source: "Year X student D (anonymised)"
+source_filename: "qw white new.stl"
+intended_machine: "bambu_x1c"
+expected_result: "block"
+triggers_rules:
+  - R-STL-01
+notes: |
+  Chess queen variant, 5424 faces, not watertight. Slightly higher poly count than other
+  broken pieces.
+date_added: 2026-04-21
+anonymised: true

@@ -1,0 +1,12 @@
+source: "Year X student J (anonymised)"
+source_filename: "new svgs/그리기-1.svg"
+intended_machine: "glowforge_plus"
+expected_result: "block"
+triggers_rules:
+  - R-SVG-02
+  - R-SVG-12
+notes: |
+  CLASSIC R-SVG-02 case: width='297mm' but viewBox width=742.5 (ratio ≠ 1). Result: drawing
+  is scaled wrong at output. Also has embedded raster → R-SVG-12 WARN possibility.
+date_added: 2026-04-21
+anonymised: true

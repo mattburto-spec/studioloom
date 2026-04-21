@@ -1,0 +1,12 @@
+source: "Year X student C (anonymised)"
+source_filename: "Yueun Park - White.stl"
+intended_machine: "bambu_x1c"
+expected_result: "block"
+triggers_rules:
+  - R-STL-01
+  - R-STL-04
+notes: |
+  Student chess board with 174 disconnected components (board + every piece as separate
+  mesh). Violates single-print assumption. 175k faces.
+date_added: 2026-04-21
+anonymised: true

@@ -1,0 +1,12 @@
+source: "Matt (Inkscape)"
+source_filename: "new svgs/drawing.svg"
+intended_machine: "glowforge_plus"
+expected_result: "block"
+triggers_rules:
+  - R-SVG-04
+  - R-SVG-10
+notes: |
+  Mixed black/cyan/red strokes (cyan #00ffff unmapped) + un-outlined text. Two BLOCK
+  violations.
+date_added: 2026-04-21
+anonymised: false

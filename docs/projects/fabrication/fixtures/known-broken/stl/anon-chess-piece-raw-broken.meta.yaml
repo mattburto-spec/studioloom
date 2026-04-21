@@ -1,0 +1,12 @@
+source: "Year X student D (anonymised)"
+source_filename: "quwei white.stl"
+intended_machine: "bambu_x1c"
+expected_result: "block"
+triggers_rules:
+  - R-STL-01
+notes: |
+  Raw student export, not watertight (418 faces only — low-poly). Start of the quwei repair
+  chain. PAIRS with known-good/stl/anon-chess-piece-repaired.stl for teaching-moment
+  before/after.
+date_added: 2026-04-21
+anonymised: true

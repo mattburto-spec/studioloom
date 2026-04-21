@@ -1,0 +1,11 @@
+source: "Matt (Inkscape)"
+source_filename: "new svgs/Flower coaster.svg"
+intended_machine: "glowforge_plus"
+expected_result: "warn"
+triggers_rules:
+  - R-SVG-03
+notes: |
+  width='100%' with no explicit mm or in — Inkscape quirk. Machine guesses units, usually
+  wrong. R-SVG-03 WARN target.
+date_added: 2026-04-21
+anonymised: false

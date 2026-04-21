@@ -1,0 +1,12 @@
+source: "Authored from chess-pawn-40mm.stl (21 Apr 2026)"
+source_filename: null
+intended_machine: "bambu_x1c"
+expected_result: "block"
+triggers_rules:
+  - R-STL-02
+notes: |
+  SYNTHETIC FIXTURE. Derived from chess-pawn-40mm.stl by reversing vertex winding on every
+  other face. Result: is_winding_consistent=False. Authored because the natural corpus had
+  zero R-STL-02 coverage (all 31 original STLs were winding-consistent).
+date_added: 2026-04-21
+anonymised: false

@@ -1,0 +1,11 @@
+source: "Year X student H (anonymised, Tinkercad)"
+source_filename: "yunji anycolout design tinker.stl"
+intended_machine: "bambu_x1c"
+expected_result: "block"
+triggers_rules:
+  - R-STL-01
+notes: |
+  Tinkercad flat design, 132×108×34 mm, 153k faces. Not watertight. Tests R-STL-01 on a
+  large flat geometry rather than a figurine.
+date_added: 2026-04-21
+anonymised: true

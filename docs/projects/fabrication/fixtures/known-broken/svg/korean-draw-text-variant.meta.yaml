@@ -1,0 +1,10 @@
+source: "Year X student (anonymised)"
+source_filename: "그리기2.svg"
+intended_machine: "glowforge_plus"
+expected_result: "block"
+triggers_rules:
+  - R-SVG-10
+notes: |
+  Variant of korean-draw-text-with-strokes.svg. Same size + issue.
+date_added: 2026-04-21
+anonymised: true

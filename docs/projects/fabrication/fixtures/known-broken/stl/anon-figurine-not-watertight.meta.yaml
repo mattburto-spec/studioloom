@@ -1,0 +1,10 @@
+source: "Year X student E (anonymised)"
+source_filename: "devin1 blue1 white.stl"
+intended_machine: "bambu_x1c"
+expected_result: "block"
+triggers_rules:
+  - R-STL-01
+notes: |
+  Complex figurine with interior holes. 9k faces, 38×47×97 mm.
+date_added: 2026-04-21
+anonymised: true

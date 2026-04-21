@@ -1,0 +1,11 @@
+source: "Year X student F (anonymised)"
+source_filename: "enhao31.stl"
+intended_machine: "bambu_x1c"
+expected_result: "block"
+triggers_rules:
+  - R-STL-01
+  - R-STL-04
+notes: |
+  Small 10×10×8 mm mesh, not watertight, 2 components.
+date_added: 2026-04-21
+anonymised: true

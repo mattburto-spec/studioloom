@@ -1,0 +1,12 @@
+source: "Authored from makercase-box-back-panel.svg (21 Apr 2026)"
+source_filename: null
+intended_machine: "glowforge_plus"
+expected_result: "block"
+triggers_rules:
+  - R-SVG-01
+notes: |
+  SYNTHETIC FIXTURE. Derived from makercase-box-back-panel.svg with width/height/viewBox
+  rewritten to 10000mm × 10000mm. Exceeds every machine in the seeded profile set (largest
+  bed is ~600 mm). Authored to cover R-SVG-01.
+date_added: 2026-04-21
+anonymised: false

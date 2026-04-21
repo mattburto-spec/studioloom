@@ -1,0 +1,11 @@
+source: "Matt (Inkscape)"
+source_filename: "new svgs/coaster new.svg"
+intended_machine: "glowforge_plus"
+expected_result: "block"
+triggers_rules:
+  - R-SVG-04
+notes: |
+  Single path with stroke='#ff6600' (orange). Matt's default machine color map is
+  red/blue/black only — orange is unmapped. R-SVG-04 BLOCK.
+date_added: 2026-04-21
+anonymised: false

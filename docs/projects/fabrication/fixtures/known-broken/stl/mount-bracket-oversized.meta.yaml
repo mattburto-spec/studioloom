@@ -1,0 +1,12 @@
+source: "Authored from mount-bracket-130mm.stl (21 Apr 2026)"
+source_filename: null
+intended_machine: "bambu_x1c"
+expected_result: "block"
+triggers_rules:
+  - R-STL-06
+notes: |
+  SYNTHETIC FIXTURE. Derived from mount-bracket-130mm.stl scaled 5×. Bbox 650×300×175 mm —
+  exceeds Bambu X1C (256mm bed) on all axes. Exists because the natural corpus had no
+  oversize file.
+date_added: 2026-04-21
+anonymised: false

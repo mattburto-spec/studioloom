@@ -1,0 +1,12 @@
+source: "Matt (Makercase variant)"
+source_filename: "new svgs/box-allcc.svg"
+intended_machine: "glowforge_plus"
+expected_result: "block"
+triggers_rules:
+  - R-SVG-04
+  - R-SVG-10
+notes: |
+  Uses non-standard stroke colors #304fbf (navy-ish) and #da0000 (dark red) — neither maps
+  to Glowforge convention cleanly. Also has un-outlined text.
+date_added: 2026-04-21
+anonymised: false

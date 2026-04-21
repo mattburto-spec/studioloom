@@ -1,0 +1,12 @@
+source: "Year X student A (anonymised)"
+source_filename: "jisoo gold.stl"
+intended_machine: "bambu_x1c"
+expected_result: "block"
+triggers_rules:
+  - R-STL-01
+  - R-STL-04
+notes: |
+  Combined chess set export: 92k faces, 16 disconnected components, 110×29×66 mm bbox. Not
+  watertight. Student intended single print but geometry has holes between pieces.
+date_added: 2026-04-21
+anonymised: true
