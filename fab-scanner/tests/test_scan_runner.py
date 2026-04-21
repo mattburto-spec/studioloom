@@ -13,27 +13,33 @@ from schemas.scan_results import ScanResults
 from worker.scan_runner import process_one_job, scan_one_revision
 
 
-def test_scan_one_revision_on_known_good_stl_returns_empty_rules(
+def test_scan_one_revision_on_known_good_stl_returns_empty_block_warn_rules(
     mock_supabase: MockSupabase, mock_storage: MockStorage
 ):
-    """2A-1 pipe check: scan_one_revision loads the file, calls the empty
-    rule catalogue, and emits a well-formed ScanResults with no rules.
+    """End-to-end pipe check: scan_one_revision loads the file, runs the
+    full rule catalogue, and emits a well-formed ScanResults with no
+    BLOCK/WARN rules. FYI rules (R-STL-15, R-STL-16) fire on every
+    valid mesh as informational — we filter them out of this assertion
+    because their presence is behaviour, not breakage.
 
-    This will FAIL in 2A-2 onwards if rules accidentally fire on a
-    known-good fixture — caught by this same assertion (per Lesson #38,
-    an assertion on expected content, not just non-null).
+    Lesson #38: assertion on expected content within the relevant
+    severity tier, not just existence.
     """
     job = make_stl_job("known-good/stl/small-cube-25mm.stl")
 
     results = scan_one_revision(job, mock_supabase, mock_storage)
 
     assert isinstance(results, ScanResults)
-    assert results.rules == [], (
-        f"Expected 0 rules on known-good fixture; got {[r.id for r in results.rules]}"
+    non_fyi = [r.id for r in results.rules if r.severity != "fyi"]
+    assert non_fyi == [], (
+        f"Expected 0 BLOCK/WARN rules on known-good fixture; got {non_fyi}"
     )
     assert results.ruleset_version == "stl-v1.0.0"
     assert results.scan_duration_ms >= 0
-    assert results.thumbnail_path is None  # 2A-5 populates
+    # 2A-5: thumbnail is rendered and uploaded via the mock. Path is the
+    # deterministic fake from MockStorage.upload_thumbnail.
+    assert results.thumbnail_path is not None
+    assert results.thumbnail_path.startswith("fabrication-thumbnails/")
 
 
 def test_process_one_job_writes_done_status_and_results(
@@ -53,9 +59,11 @@ def test_process_one_job_writes_done_status_and_results(
     assert w["scan_status"] == "done"
     assert w["scan_error"] is None
     assert w["ruleset_version"] == "stl-v1.0.0"
-    assert w["scan_results"]["rules"] == []
+    non_fyi = [r for r in w["scan_results"]["rules"] if r["severity"] != "fyi"]
+    assert non_fyi == []
     assert w["scan_results"]["ruleset_version"] == "stl-v1.0.0"
     assert w["scan_results"]["scan_duration_ms"] >= 0
+    assert w["scan_results"]["thumbnail_path"] is not None
 
 
 def test_process_one_job_empty_queue_returns_false(

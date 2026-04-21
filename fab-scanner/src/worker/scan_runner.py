@@ -25,6 +25,7 @@ from schemas.ruleset_version import SCAN_RULESET_VERSION
 from schemas.scan_results import ScanResults
 from worker.storage import StorageClient
 from worker.supabase_client import ClaimedJob, SupabaseClient
+from worker.thumbnail import safe_render
 
 log = structlog.get_logger(__name__)
 
@@ -108,11 +109,25 @@ def scan_one_revision(
     )
     data = storage.download_fixture(job.storage_path)
 
+    thumbnail_path: str | None = None
+
     if job.file_type == "stl":
         mesh = _load_stl_mesh(data)
         rules = _run_all_stl_rules(mesh, profile)
+        # Thumbnail rendering is best-effort — a failed render must not
+        # fail the scan. safe_render returns None on any exception.
+        png = safe_render(mesh)
+        if png is not None:
+            try:
+                thumbnail_path = storage.upload_thumbnail(job.job_revision_id, png)
+            except Exception:
+                log.warning(
+                    "thumbnail.upload_failed",
+                    scan_job_id=job.scan_job_id,
+                    job_revision_id=job.job_revision_id,
+                )
     elif job.file_type == "svg":
-        # Phase 2B populates.
+        # Phase 2B populates rules + cairo thumbnail.
         rules = []
     else:
         raise ValueError(f"unsupported file_type: {job.file_type}")
@@ -122,7 +137,7 @@ def scan_one_revision(
         rules=rules,
         ruleset_version=SCAN_RULESET_VERSION,
         scan_duration_ms=duration_ms,
-        thumbnail_path=None,  # Phase 2A-5
+        thumbnail_path=thumbnail_path,
     )
 
 
