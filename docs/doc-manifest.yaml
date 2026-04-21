@@ -2321,6 +2321,14 @@ docs:
     max_age_days: 90
     last_scanned: "2026-04-21"
 
+  - path: docs/projects/preflight-phase-2a-brief.md
+    title: "Preflight Phase 2A Brief — Python scanner worker + STL rule catalogue"
+    purpose: "Phase 2A build brief: 6 sub-tasks delivering the Fly.io Python worker with the full R-STL-01..17 rule catalogue, fixture-driven tests, matplotlib thumbnails, and Checkpoint 2.1 prod verification. Signed off 21 Apr 2026. Sub-phases 2A-1 through 2A-6 each ship in their own commit."
+    category: projects
+    last_verified: "2026-04-21"
+    max_age_days: 90
+    last_scanned: "2026-04-21"
+
   - path: docs/projects/fabrication-pipeline-phase-0-brief.md
     title: "Preflight Phase 0 Brief — Spec & Pre-Build Checklist"
     purpose: "Phase 0 pre-build ritual: fixture gathering, rule threshold sign-off, machine profile verification, Fabricator kickoff call, decision doc template, Checkpoint 0.1 gates"
