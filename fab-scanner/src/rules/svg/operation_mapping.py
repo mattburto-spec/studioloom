@@ -155,35 +155,50 @@ def _resolve_inherited_attr(
     el: etree._Element, prop: str
 ) -> str | None:
     """Resolve an SVG presentation property (stroke/fill/stroke-width) by
-    walking self + ancestors per the SVG cascade. First non-None match wins.
+    walking self + ancestors per the SVG/CSS cascade.
 
-    Lookup order on each element:
-      1. inline `style="prop:...;"`
-      2. presentation attribute `prop="..."`
-    Then walk up the tree via iterancestors() until either a value is
-    found or we hit the root.
+    On each element, inline style takes precedence over the attribute —
+    so if style declares the property, the attribute on the same element
+    is IGNORED (even if style says 'inherit', attr doesn't get a second
+    chance at this level). This matches CSS2 specificity: inline style
+    wins, `inherit` means 'use parent', which forces the walk up.
 
-    Treats an explicit `"inherit"` as "keep walking" per CSS2 spec — the
-    browser does the same. Any other value (including 'none' and
-    'transparent') terminates the walk because it's a definite statement.
+    If neither style nor attribute has a value at this level, walk up.
+    If the value is empty ('') or explicitly 'inherit', walk up.
+    Any other value (including 'none' / 'transparent' / hex / named)
+    terminates the walk and returns the stripped raw string — callers
+    normalise via _normalize_colour / _parse_stroke_width_units.
 
     Phase 2B-4a: addresses reviewer finding that R-SVG-04/05/06 were
-    silently missing strokes inherited from `<g stroke="...">` parent
+    silently missing strokes inherited from `<g stroke='...'>` parent
     groups — the most common Inkscape-layers / Illustrator-groups pattern
     in school DT lab files.
+
+    Phase 2B-4b: fixed precedence ordering per 2nd review — previous
+    implementation had a loop over (style, attr) that fell through
+    inherit-in-style to attr-on-same-element, deviating from CSS2.
     """
     cur: etree._Element | None = el
     while cur is not None:
         style = _parse_style(cur.get("style"))
-        for source in (style.get(prop), cur.get(prop)):
-            if source is None:
-                continue
-            value = source.strip()
-            if value.lower() == "inherit":
-                continue  # keep walking
-            if not value:
-                continue
-            return value
+        # Inline style takes precedence even if it says 'inherit'.
+        if prop in style:
+            value = style[prop].strip()
+            if value and value.lower() != "inherit":
+                return value
+            # style explicitly set but inherit/empty — walk up without
+            # falling through to this element's attribute.
+            cur = cur.getparent()
+            continue
+        attr = cur.get(prop)
+        if attr is not None:
+            value = attr.strip()
+            if value and value.lower() != "inherit":
+                return value
+            # attr explicit but inherit/empty — same walk-up behaviour.
+            cur = cur.getparent()
+            continue
+        # Neither style nor attr at this level — walk up.
         cur = cur.getparent()
     return None
 

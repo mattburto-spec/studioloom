@@ -225,6 +225,60 @@ def test_r_svg_04_nested_group_cascade() -> None:
     assert r.evidence["total_offending_elements"] == 1
 
 
+def test_r_svg_04_ancestor_with_inline_style() -> None:
+    """Regression guard (Phase 2B-4b): ancestor uses inline style=
+    rather than attribute for stroke. Cascade resolver must find it.
+    """
+    from worker.svg_loader import load_svg_document
+
+    svg_bytes = (
+        b'<svg xmlns="http://www.w3.org/2000/svg" '
+        b'width="100mm" height="100mm" viewBox="0 0 100 100">'
+        b'<g style="stroke:#ff6600;fill:none">'
+        b'<path id="inline-style-group-child" d="M 0 0 L 10 10"/>'
+        b'</g>'
+        b'</svg>'
+    )
+    doc = load_svg_document(svg_bytes)
+    results = run_operation_mapping_rules(doc, _glowforge_plus())
+    fired_ids = [r.id for r in results]
+    assert "R-SVG-04" in fired_ids
+    r = next(r for r in results if r.id == "R-SVG-04")
+    assert "#FF6600" in r.evidence["unmapped_colours"]
+
+
+def test_r_svg_04_inherit_in_style_forces_ancestor_walk() -> None:
+    """Regression guard (Phase 2B-4b): explicit `style="stroke:inherit"`
+    on an element must cause the walk to continue past this element,
+    even when the element ALSO has a stroke= attribute. Per CSS2: inline
+    style wins, `inherit` means 'use parent'.
+
+    Pre-2B-4b: code fell through from style-says-inherit to attr-on-same-element,
+    returning attr value. Post-2B-4b: walks to parent correctly.
+    """
+    from worker.svg_loader import load_svg_document
+
+    # Outer group has unmapped orange. Middle element has explicit
+    # style="stroke:inherit" (should walk up) and a stroke="red" attr
+    # (correctly ignored because inline style wins).
+    svg_bytes = (
+        b'<svg xmlns="http://www.w3.org/2000/svg" '
+        b'width="100mm" height="100mm" viewBox="0 0 100 100">'
+        b'<g stroke="#ff6600">'
+        b'<g style="stroke:inherit" stroke="#ff0000">'
+        b'<path id="walks-past-middle" d="M 0 0 L 10 10"/>'
+        b'</g>'
+        b'</g>'
+        b'</svg>'
+    )
+    doc = load_svg_document(svg_bytes)
+    results = run_operation_mapping_rules(doc, _glowforge_plus())
+    r = next(r for r in results if r.id == "R-SVG-04")
+    # Must resolve to #FF6600 (outer group), not #FF0000 (middle attr).
+    assert "#FF6600" in r.evidence["unmapped_colours"]
+    assert "#FF0000" not in r.evidence["unmapped_colours"]
+
+
 def test_r_svg_04_explicit_none_on_child_overrides_group() -> None:
     """Explicit stroke='none' on the child terminates the cascade and
     the path is treated as not-a-cut-line (no R-SVG-04 fire)."""
