@@ -1,0 +1,37 @@
+# fly.toml — Preflight scanner worker configuration
+#
+# This is a background worker, NOT an HTTP service. Deliberately omits
+# [http_service] so Fly doesn't try to health-check a port we never open.
+# The worker polls fabrication_scan_jobs every 5s via Postgres; no
+# inbound traffic to route.
+#
+# Scaling: single instance only in v1. Adding parallel workers requires
+# reviewing fabrication_scan_jobs row-level locking; tracked as
+# "Phase 8+ parallel workers" in preflight-phase-2a-brief.md §7.
+
+app = 'preflight-scanner'
+primary_region = 'syd'
+
+[build]
+
+# One always-on machine, no autoscaling, no autostop. A polling worker
+# with queue-empty sleeps consumes almost nothing idle — no benefit to
+# scaling this to zero, and autostop would add latency when a scan lands.
+[[vm]]
+  size = 'shared-cpu-1x'
+  memory = '256mb'
+  cpus = 1
+  cpu_kind = 'shared'
+
+# No service block. This worker exposes no ports.
+# Verification post-deploy: `fly logs --app preflight-scanner` should show
+#   {"event":"worker.starting","poll_interval_seconds":5,...}
+# and then steady-state silence when the queue is empty.
+
+# Environment variables that aren't secrets. Set here so they're visible
+# in `fly config show` and version-controlled in the repo.
+[env]
+  POLL_INTERVAL_SECONDS = "5"
+  LOG_LEVEL = "info"
+  BILLING_TAG = "trial"
+  DRY_RUN = "false"
