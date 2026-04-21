@@ -1,0 +1,9 @@
+source: "Year X student I (anonymised)"
+source_filename: "yubo2.svg"
+intended_machine: "glowforge_plus"
+expected_result: "pass"
+triggers_rules: []
+notes: |
+  6 red-stroke paths, 420×297 mm. Landscape variant of yubo1.
+date_added: 2026-04-21
+anonymised: true

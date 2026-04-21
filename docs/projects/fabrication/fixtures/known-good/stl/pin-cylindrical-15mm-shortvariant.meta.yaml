@@ -1,0 +1,10 @@
+source: "Matt (archive)"
+source_filename: "inside bit 3.stl"
+intended_machine: "bambu_x1c"
+expected_result: "pass"
+triggers_rules: []
+notes: |
+  Shorter variant of pin-cylindrical-15mm (Z=18.3 instead of 20). Same structural
+  properties.
+date_added: 2026-04-21
+anonymised: false

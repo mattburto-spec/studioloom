@@ -1,0 +1,10 @@
+source: "Year X student D (anonymised)"
+source_filename: "qw white Pawn.stl"
+intended_machine: "bambu_x1c"
+expected_result: "pass"
+triggers_rules: []
+notes: |
+  Low-poly chess pawn, 30×30×40 mm, 96 faces, watertight. BASIS FIXTURE for authored
+  R-STL-02 + R-STL-07 broken variants.
+date_added: 2026-04-21
+anonymised: true

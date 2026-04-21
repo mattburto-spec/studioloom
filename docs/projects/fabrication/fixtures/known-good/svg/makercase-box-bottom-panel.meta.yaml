@@ -1,0 +1,9 @@
+source: "Matt (Makercase export)"
+source_filename: "new svgs/bottom.svg"
+intended_machine: "glowforge_plus"
+expected_result: "pass"
+triggers_rules: []
+notes: |
+  2 red-stroke paths, 210×297 mm. Bottom panel.
+date_added: 2026-04-21
+anonymised: false

@@ -1,0 +1,10 @@
+source: "Year X student D (anonymised)"
+source_filename: "quwei white_fixed_fixed.stl"
+intended_machine: "bambu_x1c"
+expected_result: "pass"
+triggers_rules: []
+notes: |
+  Endpoint of a repair chain: raw → _fixed → _fixed_fixed. Watertight, clean. Paired with
+  known-broken/stl/anon-chess-piece-raw-broken.stl to demonstrate before/after on R-STL-01.
+date_added: 2026-04-21
+anonymised: true

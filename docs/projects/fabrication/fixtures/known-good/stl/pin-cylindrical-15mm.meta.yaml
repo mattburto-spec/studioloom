@@ -1,0 +1,9 @@
+source: "Matt (archive)"
+source_filename: "inside bit.stl"
+intended_machine: "bambu_x1c"
+expected_result: "pass"
+triggers_rules: []
+notes: |
+  Small cylindrical pin, 15×15×20 mm, watertight. Tests small-but-valid feature handling.
+date_added: 2026-04-21
+anonymised: false

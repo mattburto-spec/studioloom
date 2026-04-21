@@ -1,0 +1,9 @@
+source: "Matt (Makercase export)"
+source_filename: "new svgs/right.svg"
+intended_machine: "glowforge_plus"
+expected_result: "pass"
+triggers_rules: []
+notes: |
+  2 red-stroke paths, 297×420 mm. Right panel.
+date_added: 2026-04-21
+anonymised: false

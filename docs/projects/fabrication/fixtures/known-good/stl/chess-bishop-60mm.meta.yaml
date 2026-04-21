@@ -1,0 +1,10 @@
+source: "Year X student D (anonymised)"
+source_filename: "qw white Bishop.stl"
+intended_machine: "bambu_x1c"
+expected_result: "pass"
+triggers_rules: []
+notes: |
+  Low-poly chess bishop, 30×30×60 mm, 96 faces, watertight. Useful as a small-but-valid
+  piece.
+date_added: 2026-04-21
+anonymised: true

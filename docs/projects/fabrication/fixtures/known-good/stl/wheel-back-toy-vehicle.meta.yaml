@@ -1,0 +1,11 @@
+source: "Matt (archive)"
+source_filename: "Back Wheel.stl"
+intended_machine: "bambu_x1c"
+expected_result: "pass"
+triggers_rules: []
+notes: |
+  Watertight toy-vehicle wheel with 6 connected components (hub + spokes). Good multi-
+  component-but-valid test — R-STL-04 threshold should NOT fire on intentional mechanical
+  parts.
+date_added: 2026-04-21
+anonymised: false

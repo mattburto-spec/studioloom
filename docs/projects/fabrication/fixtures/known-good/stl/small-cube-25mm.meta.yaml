@@ -1,0 +1,10 @@
+source: "Matt (archive)"
+source_filename: "15mm thing 3.stl"
+intended_machine: "bambu_x1c"
+expected_result: "pass"
+triggers_rules: []
+notes: |
+  Clean small test cube, 22×19×25 mm, 1208 faces, watertight. Good baseline for asserting
+  the scanner passes a trivially-correct mesh.
+date_added: 2026-04-21
+anonymised: false

@@ -1,0 +1,11 @@
+source: "Matt (Inkscape)"
+source_filename: "new svgs/clove coaster.svg"
+intended_machine: "glowforge_plus"
+expected_result: "pass"
+triggers_rules: []
+notes: |
+  6 paths with no explicit stroke color (stroke=none). Tests the 'default stroke' path
+  through R-SVG-04 — if machine profile has a default operation, this passes; if not, flips
+  to R-SVG-04 BLOCK.
+date_added: 2026-04-21
+anonymised: false

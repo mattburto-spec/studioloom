@@ -1,0 +1,10 @@
+source: "Matt (Makercase export)"
+source_filename: "new svgs/box-all.svg"
+intended_machine: "glowforge_plus"
+expected_result: "pass"
+triggers_rules: []
+notes: |
+  All 12 paths of an assembled box, 466×383 mm. Bigger composition, all valid red-stroke cut
+  lines.
+date_added: 2026-04-21
+anonymised: false

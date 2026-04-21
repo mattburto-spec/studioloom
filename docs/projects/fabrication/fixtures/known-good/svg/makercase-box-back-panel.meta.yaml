@@ -1,0 +1,9 @@
+source: "Matt (Makercase export)"
+source_filename: "new svgs/back.svg"
+intended_machine: "glowforge_plus"
+expected_result: "pass"
+triggers_rules: []
+notes: |
+  2 red-stroke paths, 297×420 mm. Clean Makercase laser-cut box back panel.
+date_added: 2026-04-21
+anonymised: false

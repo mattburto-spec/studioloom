@@ -1,0 +1,9 @@
+source: "Matt (Inkscape)"
+source_filename: "new svgs/Zeichnung.svg"
+intended_machine: "glowforge_plus"
+expected_result: "pass"
+triggers_rules: []
+notes: |
+  Single red-stroke path on A4 (210×297 mm). Textbook minimal happy-path SVG.
+date_added: 2026-04-21
+anonymised: false

@@ -1,0 +1,10 @@
+source: "Matt (archive)"
+source_filename: "Front Wheel.stl"
+intended_machine: "bambu_x1c"
+expected_result: "pass"
+triggers_rules: []
+notes: |
+  Front wheel partner to back-wheel. 12 components — used to document upper bound of
+  acceptable component count on a single print.
+date_added: 2026-04-21
+anonymised: false

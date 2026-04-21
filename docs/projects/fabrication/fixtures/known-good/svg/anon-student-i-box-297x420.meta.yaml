@@ -1,0 +1,9 @@
+source: "Year X student I (anonymised)"
+source_filename: "yubo1.svg"
+intended_machine: "glowforge_plus"
+expected_result: "pass"
+triggers_rules: []
+notes: |
+  6 red-stroke paths, 297×420 mm. Student box design.
+date_added: 2026-04-21
+anonymised: true

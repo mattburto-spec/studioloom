@@ -1,0 +1,10 @@
+source: "Matt (archive)"
+source_filename: "mount.stl"
+intended_machine: "bambu_x1c"
+expected_result: "pass"
+triggers_rules: []
+notes: |
+  Utility mount bracket, 130×60×35 mm, 23k faces, watertight single component. Largest clean
+  fixture — good for asserting scan time on a realistic part.
+date_added: 2026-04-21
+anonymised: false
