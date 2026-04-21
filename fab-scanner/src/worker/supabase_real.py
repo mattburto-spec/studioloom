@@ -124,7 +124,12 @@ class SupabaseServiceClient(SupabaseClient):
         scan_jobs table status is the authoritative source for retry
         eligibility, and we update it last.
         """
-        # 1. fabrication_job_revisions — full scan_results JSONB + status
+        # 1. fabrication_job_revisions — full scan_results JSONB + status.
+        # thumbnail_path is a denormalised column (migration 095) — the UI
+        # and admin queries read it directly rather than digging into the
+        # scan_results JSONB. Pull it out of the payload explicitly so the
+        # render+upload work in scan_runner doesn't get stranded inside
+        # the JSONB with a NULL column. None on missing key = no thumbnail.
         self._client.table("fabrication_job_revisions").update(
             {
                 "scan_results": scan_results,
@@ -132,6 +137,7 @@ class SupabaseServiceClient(SupabaseClient):
                 "scan_error": scan_error,
                 "scan_completed_at": "now()",
                 "scan_ruleset_version": ruleset_version,
+                "thumbnail_path": scan_results.get("thumbnail_path"),
             }
         ).eq("id", job_revision_id).execute()
 

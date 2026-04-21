@@ -452,3 +452,28 @@ Post-fix verification shows only `postgres` + `service_role` with EXECUTE.
 **Why this was invisible in review:** The PUBLIC-only REVOKE is a textbook Postgres pattern that works on vanilla installations. Supabase's implicit grants are a vendor-specific behavior that doesn't announce itself in the migration DSL. Discovered via the explicit routine_privileges check; would have been missed on a "did it apply without error" happy-path review.
 
 ---
+
+### Lesson #53 — Denormalised columns need explicit writes; stuffing the whole payload in JSONB doesn't fan them out
+
+**Context (22 Apr 2026):** The Preflight scanner's `write_scan_results()` writes to three tables. For `fabrication_job_revisions` it updates `scan_results` (JSONB), `scan_status`, `scan_error`, `scan_completed_at`, and `scan_ruleset_version` — but **not** `thumbnail_path`, even though `thumbnail_path` is a direct column on the same row (migration 095:150). The Python worker's `ScanResults` Pydantic model carries a `thumbnail_path: str | None` field which lands inside the JSONB via `model_dump()`, and the code assumed that was enough.
+
+It wasn't. The UI and admin queries read `r.thumbnail_path` (the column) — not `r.scan_results->>'thumbnail_path'`. Every STL scan in Phase 2A and every SVG scan in Phase 2B-6 rendered + uploaded a thumbnail successfully, then silently stranded the path inside JSONB with a NULL column. 11 prod revisions needed backfill.
+
+**What this is really about:** When a worker returns a structured payload that Postgres stores as both JSONB *and* denormalised columns, every denormalised column needs an explicit assignment in the UPDATE statement. The JSONB-assignment doesn't fan out through any trigger, generated column, or magic. The drift between "Python thinks the field is set" and "SQL column is actually NULL" is invisible at the Python layer.
+
+**Why it slipped past tests:** Every scan_runner test in `tests/` used `MockSupabase` (conftest.py), which records the `write_scan_results` call shape but never simulates the real PostgREST update. Assertions were at the JSONB level (`w["scan_results"]["thumbnail_path"] is not None`), never the column level. The real `SupabaseServiceClient.write_scan_results` in `supabase_real.py` had zero test coverage — so the missing column write was invisible to CI.
+
+**Fix:**
+1. **Code** — add `"thumbnail_path": scan_results.get("thumbnail_path")` to the revisions update dict in `supabase_real.py:write_scan_results()`.
+2. **Test** — new `tests/test_supabase_real.py` exercises `SupabaseServiceClient.write_scan_results` with a mocked supabase-py client and asserts the literal column payload. Three cases: (a) thumbnail_path present in JSONB → column gets the value, (b) thumbnail_path absent → column is None (not KeyError), (c) all three tables get an update in order.
+3. **Backfill** — `UPDATE fabrication_job_revisions SET thumbnail_path = scan_results->>'thumbnail_path' WHERE thumbnail_path IS NULL AND scan_results->>'thumbnail_path' IS NOT NULL;` — patches existing orphaned rows.
+
+**Rules:**
+- **When adding a new denormalised column alongside a JSONB payload, audit the writeback path in the same commit.** If the column is "the JSONB value hoisted out", the writeback must hoist it. Add a column→JSONB-key mapping comment above the UPDATE dict so future maintainers see the intent.
+- **Cover the real DB adapter with its own unit test**, not just mock-based tests. Mock-based tests validate glue code shape but give zero coverage for "does the real implementation pass every required field to the DB". The symmetric mock (conftest's `MockSupabase`) was sufficient for rule-authoring tests but covered the wrong surface for writeback regression.
+- **Verify at the column level in smoke tests.** When a scan completes successfully, SELECT `thumbnail_path` (the column), not just `status`. The Phase 2B-7 smoke query added `r.thumbnail_path` explicitly — that's how we caught this. Column-level asserts belong in any "scan completed" smoke test going forward.
+- **Assume ORM-ish payloads don't fan out.** supabase-py's `.update({...})` is a straight INSERT/UPDATE on the dict keys given. There's no JSONB→columns back-reflection. Same trap will apply to any denormalised column added to fabrication_jobs, content_items, etc.
+
+**Why this was invisible in review:** The existing JSONB assertion in tests reads as if it covers both paths (JSONB has the value → column will too). Python → Postgres has no such guarantee. The deploy succeeded, the scan status was `done`, the storage upload succeeded, the bucket had the files — every signal said "working" except the one column the UI actually reads.
+
+---
