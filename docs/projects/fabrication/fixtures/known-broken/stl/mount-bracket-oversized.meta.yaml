@@ -4,9 +4,11 @@ intended_machine: "bambu_x1c"
 expected_result: "block"
 triggers_rules:
   - R-STL-06
+  - R-STL-08
 notes: |
   SYNTHETIC FIXTURE. Derived from mount-bracket-130mm.stl scaled 5×. Bbox 650×300×175 mm —
-  exceeds Bambu X1C (256mm bed) on all axes. Exists because the natural corpus had no
-  oversize file.
+  exceeds Bambu X1C (256mm bed) on X and Y. R-STL-08 also fires because the scaled volume
+  (~2.87M mm³) far exceeds the 120-min lab ceiling at the v1 throughput estimate of 4.8
+  mm³/s.
 date_added: 2026-04-21
 anonymised: false

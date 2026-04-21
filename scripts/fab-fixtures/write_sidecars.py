@@ -268,8 +268,8 @@ FIXTURES: dict[str, dict] = {
         "source_filename": None,
         "intended_machine": BAMBU,
         "expected_result": "block",
-        "triggers_rules": ["R-STL-06"],
-        "notes": "SYNTHETIC FIXTURE. Derived from mount-bracket-130mm.stl scaled 5×. Bbox 650×300×175 mm — exceeds Bambu X1C (256mm bed) on all axes. Exists because the natural corpus had no oversize file.",
+        "triggers_rules": ["R-STL-06", "R-STL-08"],
+        "notes": "SYNTHETIC FIXTURE. Derived from mount-bracket-130mm.stl scaled 5×. Bbox 650×300×175 mm — exceeds Bambu X1C (256mm bed) on X and Y. R-STL-08 also fires because the scaled volume (~2.87M mm³) far exceeds the 120-min lab ceiling at the v1 throughput estimate of 4.8 mm³/s.",
         "anonymised": False,
     },
     "known-broken/stl/chess-pawn-inch-mistake.stl": {
@@ -277,8 +277,8 @@ FIXTURES: dict[str, dict] = {
         "source_filename": None,
         "intended_machine": BAMBU,
         "expected_result": "block",
-        "triggers_rules": ["R-STL-07", "R-STL-06"],
-        "notes": "SYNTHETIC FIXTURE. Derived from chess-pawn-40mm.stl scaled by 25.4 — the classic mm→inch confusion factor. Bbox diagonal ~1500 mm. Triggers both R-STL-07 (unit mismatch) and R-STL-06 (exceeds bed).",
+        "triggers_rules": ["R-STL-06", "R-STL-08"],
+        "notes": "SYNTHETIC FIXTURE. Derived from chess-pawn-40mm.stl scaled by 25.4 — the classic mm→inch confusion factor. Bbox 762×762×1016 mm (diagonal 1481 mm). Originally intended as an R-STL-07 fixture, but 1481 mm is BELOW the v1 threshold (>2000 mm = 'impossibly large'). R-STL-06 (exceeds bed) and R-STL-08 (time ceiling) fire instead — R-STL-06 is the more useful rule for this case anyway. FOLLOW-UP: a dedicated R-STL-07 fixture needs a larger base part (e.g. mount-bracket-130mm scaled by 25.4 gives diagonal ~3700 mm, firing R-STL-07 + R-STL-06). Tracked in ALL-PROJECTS.md Preflight Phase 2 TODOs.",
         "anonymised": False,
     },
 

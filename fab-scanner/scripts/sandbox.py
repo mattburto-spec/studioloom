@@ -64,6 +64,7 @@ def main() -> int:
                 "nozzle_diameter_mm": 0.4,
                 "kerf_mm": None,
                 "operation_color_map": None,
+                "max_print_time_min": 120,
                 "rule_overrides": None,
             },
             "glowforge_plus": {

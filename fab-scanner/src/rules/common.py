@@ -35,4 +35,7 @@ class MachineProfile:
     nozzle_diameter_mm: float | None
     kerf_mm: float | None
     operation_color_map: dict[str, Any] | None
+    # Lab-admin "kill switch" for runaway prints. NULL = no ceiling.
+    # R-STL-08 compares a rough mm³-based time estimate against this.
+    max_print_time_min: int | None = None
     rule_overrides: dict[str, Any] | None = None

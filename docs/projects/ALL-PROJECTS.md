@@ -126,6 +126,7 @@
 - **Phase 2 prep TODOs (Matt):**
   - ✅ Fly.io account active (7-day free trial). App creation deferred to 2A (`fly launch` from `fab-scanner/`).
   - ✅ Added 17 SVG fixtures to `docs/projects/fabrication/fixtures/new svgs/` (21 Apr) — Makercase box parts, coasters, student drawings. Good for known-good + borderline buckets.
+  - ⏳ **Author R-STL-07 unit-mismatch STL fixture (Phase 2A-3 follow-up)** — `chess-pawn-inch-mistake.stl` was intended to cover R-STL-07 but its bbox diagonal (1481 mm from a 40mm-pawn scaled 25.4×) is BELOW the v1 R-STL-07 threshold of 2000 mm. R-STL-06 catches it correctly instead. Fix: author `mount-bracket-inch-mistake.stl` by scaling `mount-bracket-130mm.stl` by 25.4 — that gives diagonal ~3700 mm which fires R-STL-07 as intended. Easy to add via `scripts/fab-fixtures/author_missing_fixtures.py`.
   - ⏳ **Author 4 rule-targeted "known-broken" SVG fixtures** (5–20 min each, Inkscape) — blocks Phase 2B SVG scanner tests, NOT Phase 2A:
     - **R-SVG-02** unit mismatch: viewBox in px, `width="100mm"` / `height="100mm"` stated. Expected result: BLOCK.
     - **R-SVG-04** stroke colour not in machine map: any path with `stroke="#8B4513"` (random brown) or similar. Expected: BLOCK.

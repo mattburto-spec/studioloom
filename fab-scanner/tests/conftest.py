@@ -164,6 +164,10 @@ def fixtures_dir() -> Path:
 def _default_bambu_x1c_profile() -> dict[str, Any]:
     """Mirror of the bambu_x1c seed row from migration 093 — only the
     columns rules actually use. Full schema in fabrication-pipeline.md §11.
+
+    max_print_time_min=120 is a reasonable lab-class ceiling (2 hours per
+    student job). Seed data in migration 093 may choose a different value
+    per school; this is just the test default.
     """
     return {
         "id": "bambu_x1c",
@@ -175,6 +179,7 @@ def _default_bambu_x1c_profile() -> dict[str, Any]:
         "nozzle_diameter_mm": 0.4,
         "kerf_mm": None,
         "operation_color_map": None,
+        "max_print_time_min": 120,
         "rule_overrides": None,
     }
 

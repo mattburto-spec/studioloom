@@ -50,6 +50,9 @@ def _machine_profile_from_dict(row: dict) -> MachineProfile:
         ),
         kerf_mm=float(row["kerf_mm"]) if row.get("kerf_mm") is not None else None,
         operation_color_map=row.get("operation_color_map"),
+        max_print_time_min=(
+            int(row["max_print_time_min"]) if row.get("max_print_time_min") is not None else None
+        ),
         rule_overrides=row.get("rule_overrides"),
     )
 

@@ -3,11 +3,15 @@ source_filename: null
 intended_machine: "bambu_x1c"
 expected_result: "block"
 triggers_rules:
-  - R-STL-07
   - R-STL-06
+  - R-STL-08
 notes: |
   SYNTHETIC FIXTURE. Derived from chess-pawn-40mm.stl scaled by 25.4 — the classic mm→inch
-  confusion factor. Bbox diagonal ~1500 mm. Triggers both R-STL-07 (unit mismatch) and
-  R-STL-06 (exceeds bed).
+  confusion factor. Bbox 762×762×1016 mm (diagonal 1481 mm). Originally intended as an
+  R-STL-07 fixture, but 1481 mm is BELOW the v1 threshold (>2000 mm = 'impossibly large').
+  R-STL-06 (exceeds bed) and R-STL-08 (time ceiling) fire instead — R-STL-06 is the more
+  useful rule for this case anyway. FOLLOW-UP: a dedicated R-STL-07 fixture needs a larger
+  base part (e.g. mount-bracket-130mm scaled by 25.4 gives diagonal ~3700 mm, firing
+  R-STL-07 + R-STL-06). Tracked in ALL-PROJECTS.md Preflight Phase 2 TODOs.
 date_added: 2026-04-21
 anonymised: false
