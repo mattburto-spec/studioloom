@@ -4,6 +4,36 @@
 
 ---
 
+## 21 Apr 2026 — Preflight Phase 2A shipped + Checkpoint 2.1 PASSED (smoke test session)
+
+**Context:** Resume of Phase 2A build after 11 commits landed in prior sessions (`5e00518..262ae0c`). This session ran the prod smoke test validation portion of Checkpoint 2.1 — the criterion-by-criterion sign-off, not new code. One real bug surfaced (OOM on 256MB Fly tier) and was fixed inline.
+
+**What changed:**
+- **WIRING.yaml** — `preflight-scanner` status `in-progress` → `deployed`. Summary rewritten to cover Phase 2A completion: Fly.io `preflight-scanner` SYD at 512MB, poll loop via `claim_next_scan_job` RPC, ruleset `stl-v1.0.0`, 116 pytests passing, Checkpoint 2.1 smoke-test evidence.
+- **New doc** — `docs/projects/preflight-phase-2a-checkpoint-2-1.md` (~170 lines): 12-criterion pass/fail matrix, prod smoke test evidence on 4 fixtures, 4 follow-ups (FU-SCANNER-OOM, FU-SCANNER-SIDECAR-DRIFT, FU-SCANNER-LEASE-REAPER, FU-SCANNER-EMAIL-VERIFY), commit list.
+- **ALL-PROJECTS.md** — Preflight block: status header adds 2A; bullet expanded to cover Phase 2-0b (Gate B — 53 fixtures bucketed) + Phase 2A shipping summary + 4 follow-ups; "Phase 2 next" replaced with "Phase 2B next".
+- **Fly infra** — `fly scale memory 512 -a preflight-scanner` applied to both primary + standby machines. Was on `shared-cpu-1x@256MB`, now `shared-cpu-1x@512MB` (~+$3/mo). Root cause: trimesh + matplotlib combined working set exceeds 256MB on ~30k-face meshes; Phase 2A brief §2 prediction ("upgrade when first school reports OOM") proved conservative — we hit it in internal validation.
+
+**Smoke test evidence (prod, 21 Apr):**
+- `small-cube-25mm.stl` (known-good) — scan 2.6s, 0 BLOCK/WARN rules, thumbnail uploaded 12.1 KB.
+- `seahorse-not-watertight.stl` (known-broken, 29,612 faces) — attempt 1 OOM on 256MB → bumped to 512MB → attempt 2 passed with R-STL-01 BLOCK + R-STL-04 WARN + 2 FYI.
+- `chess-pawn-inverted-winding.stl` (authored, 96 faces) — R-STL-02 BLOCK + R-STL-05 BLOCK (sidecar drift logged as FU).
+- `whale-not-watertight.stl` (known-broken, 2,086 faces) — R-STL-01 BLOCK + R-STL-04 WARN + 2 FYI.
+
+**Operational learnings:**
+- **OOM kill → stuck lease.** When worker is SIGKILLed mid-scan, `fabrication_scan_jobs.locked_by` + `locked_at` never release. The unique index `uq_fabrication_scan_jobs_active_per_revision` then blocks retries forever. Manual clear required (UPDATE status='error', null lease). FU-SCANNER-LEASE-REAPER opened (P2) — needed before horizontal scaling.
+- **Fly hobby tier sizing.** Phase 2A brief documented 256MB as starting tier with a "512MB when first school reports OOM" plan. In practice, 29k faces tripped it — suggests 512MB should be the minimum going forward. Brief §2 needs a small update.
+- **Dashboard UX gotcha.** Supabase's "Run without RLS" / "Run and enable RLS" popup warned incorrectly on `fabrication_scan_jobs` INSERT — false positive because RLS is enabled with 0 policies (intentional deny-all per migration 096 + FU-FF). Clicked "Run without RLS" to preserve the deny-all pattern.
+
+**Systems affected:** `preflight-scanner` (status change + summary rewrite).
+**Registries touched:** WIRING.yaml (1 entry). Other 5 registries: no changes expected (no new migrations, no new API routes, no new AI call sites in this session — pytest is Python-side only).
+**Commits:** Zero new code commits this session — Phase 2A code had already landed in prior sessions. This session captured the checkpoint report doc + WIRING status flip + ALL-PROJECTS update.
+**Tests:** pytest 116/116 passing locally (83s run). `npm test` baseline unchanged at 1409.
+
+**Next:** Preflight Phase 2B (SVG rule catalogue R-SVG-01..15 — same worker, new `src/rules/svg/` module). R-SVG-07 fixture outstanding but can ship at WARN. Separate brief + session per methodology.
+
+---
+
 ## 21 Apr 2026 — Preflight Phase 1B-2 shipped: Fabricator auth + invite + email + student pref
 
 **Context:** Continuation session from 1B-1. Phase brief `docs/projects/preflight-phase-1b-2-brief.md` (commit `b4f4661` on 20 Apr late) organised the work into six surgical sub-tasks. This session executed 1B-2-1 through 1B-2-6 end-to-end plus one preview-caught hotfix.

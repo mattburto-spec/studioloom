@@ -2329,6 +2329,14 @@ docs:
     max_age_days: 90
     last_scanned: "2026-04-21"
 
+  - path: docs/projects/preflight-phase-2a-checkpoint-2-1.md
+    title: "Preflight Phase 2A Checkpoint 2.1 Report"
+    purpose: "Phase 2A exit report (21 Apr 2026): 12-criterion pass/fail matrix, prod smoke test evidence on 4 STL fixtures (small-cube-25mm, seahorse-not-watertight, chess-pawn-inverted-winding, whale-not-watertight), 116 pytest pass count, 4 follow-ups opened (FU-SCANNER-OOM resolved, FU-SCANNER-SIDECAR-DRIFT, FU-SCANNER-LEASE-REAPER, FU-SCANNER-EMAIL-VERIFY), commit list."
+    category: projects
+    last_verified: "2026-04-21"
+    max_age_days: 180
+    last_scanned: "2026-04-21"
+
   - path: docs/projects/fabrication-pipeline-phase-0-brief.md
     title: "Preflight Phase 0 Brief — Spec & Pre-Build Checklist"
     purpose: "Phase 0 pre-build ritual: fixture gathering, rule threshold sign-off, machine profile verification, Fabricator kickoff call, decision doc template, Checkpoint 0.1 gates"
