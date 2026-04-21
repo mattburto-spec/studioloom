@@ -31,6 +31,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY --from=builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH" \
+    PYTHONPATH="/app/src" \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     MPLBACKEND=Agg
