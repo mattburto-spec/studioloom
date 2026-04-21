@@ -1,0 +1,11 @@
+source: "Year X student (anonymised)"
+source_filename: "new svgs/그리기.svg"
+intended_machine: "glowforge_plus"
+expected_result: "warn"
+triggers_rules:
+  - R-SVG-12
+notes: |
+  Mix of vector paths + 1 embedded raster. R-SVG-12 threshold (< 150 DPI) is image-dependent
+  — borderline case for documenting how to resolve DPI on arbitrary rasters.
+date_added: 2026-04-21
+anonymised: true

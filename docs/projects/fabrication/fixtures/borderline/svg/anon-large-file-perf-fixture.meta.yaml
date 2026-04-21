@@ -1,0 +1,11 @@
+source: "Year X student J (anonymised)"
+source_filename: "new svgs/jordan2.svg"
+intended_machine: "glowforge_plus"
+expected_result: "pass"
+triggers_rules: []
+notes: |
+  2.3 MB SVG with embedded raster. PRIMARILY a perf stress-test fixture — Phase 2A/2B tests
+  should assert scan completes in < N seconds against this file. Not a rule-coverage
+  fixture. May also test R-SVG-13 raster-transparency if the raster has alpha.
+date_added: 2026-04-21
+anonymised: true

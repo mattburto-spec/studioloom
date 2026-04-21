@@ -1,0 +1,13 @@
+source: "Matt (Makercase export)"
+source_filename: "new svgs/box.svg"
+intended_machine: "glowforge_plus"
+expected_result: "pass"
+triggers_rules:
+  - R-SVG-10
+notes: |
+  Contains 3 EMPTY <text> elements at root (Makercase placeholder fields the user never
+  filled). Strict R-SVG-10 implementation fires on any <text>; lenient implementation
+  filters empty. Documents the 'ignore empty text' threshold decision — Matt's call:
+  lenient, because students shouldn't be blocked by metadata they never saw.
+date_added: 2026-04-21
+anonymised: false

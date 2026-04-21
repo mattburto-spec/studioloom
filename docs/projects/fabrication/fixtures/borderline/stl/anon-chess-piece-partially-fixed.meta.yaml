@@ -1,0 +1,10 @@
+source: "Year X student D (anonymised)"
+source_filename: "quwei white_fixed.stl"
+intended_machine: "bambu_x1c"
+expected_result: "pass"
+triggers_rules: []
+notes: |
+  Intermediate step in the quwei repair chain — after one fix pass. Watertight. Used to
+  document that R-STL-01 can be satisfied without a full '_fixed_fixed' re-run.
+date_added: 2026-04-21
+anonymised: true

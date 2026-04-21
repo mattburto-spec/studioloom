@@ -1,0 +1,13 @@
+source: "Matt (archive)"
+source_filename: "15mm thing.stl"
+intended_machine: "bambu_x1c"
+expected_result: "warn"
+triggers_rules:
+  - R-STL-09
+  - R-STL-13
+notes: |
+  Z=1.2 mm — right at the edge of R-STL-09 (wall < nozzle×1.5 = 0.6 mm, so 1.2 mm is twice
+  nozzle and PASSES at default threshold). Also tests R-STL-13 flat-base rule since the
+  whole part IS a flat base. Useful for threshold-tuning discussions.
+date_added: 2026-04-21
+anonymised: false
