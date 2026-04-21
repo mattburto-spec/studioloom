@@ -154,6 +154,7 @@ def mock_supabase() -> MockSupabase:
     mock = MockSupabase()
     mock.machine_profiles["bambu_x1c"] = _default_bambu_x1c_profile()
     mock.machine_profiles["glowforge_plus"] = _default_glowforge_plus_profile()
+    mock.machine_profiles["generic_large_laser"] = _default_generic_large_laser_profile()
     return mock
 
 
@@ -197,6 +198,31 @@ def _default_glowforge_plus_profile() -> dict[str, Any]:
         "machine_category": "laser_cutter",
         "bed_size_x_mm": 495,
         "bed_size_y_mm": 279,
+        "bed_size_z_mm": None,
+        "nozzle_diameter_mm": None,
+        "kerf_mm": 0.2,
+        "operation_color_map": {
+            "#ff0000": "cut",
+            "#0000ff": "score",
+            "#000000": "engrave",
+        },
+        "rule_overrides": None,
+    }
+
+
+def _default_generic_large_laser_profile() -> dict[str, Any]:
+    """600×500mm bed — big enough to fit every known-good SVG fixture
+    regardless of whether its sidecar's intended_machine is internally
+    consistent. Used by tests that need known-good SVG throughput without
+    being derailed by FU-SVG-FIXTURE-MACHINE-MISMATCH (the corpus includes
+    A3-portrait and 466×383 fixtures that don't fit a real Glowforge Plus).
+    """
+    return {
+        "id": "generic_large_laser",
+        "name": "Generic Large Laser (test-only)",
+        "machine_category": "laser_cutter",
+        "bed_size_x_mm": 600,
+        "bed_size_y_mm": 500,
         "bed_size_z_mm": None,
         "nozzle_diameter_mm": None,
         "kerf_mm": 0.2,

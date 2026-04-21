@@ -18,8 +18,13 @@ from worker.supabase_client import ClaimedJob
 
 
 def _make_svg_job(fixture_relpath: str) -> ClaimedJob:
-    """Build a ClaimedJob pointing at an SVG fixture. Uses the Glowforge
-    Plus profile because SVGs belong to laser cutters, not 3D printers.
+    """Build a ClaimedJob pointing at an SVG fixture.
+
+    Uses generic_large_laser (600×500mm bed) rather than glowforge_plus
+    because the known-good SVG corpus contains A3 and 466×383 fixtures
+    that don't physically fit a Glowforge Plus bed — the machine-fit
+    rule correctly flags them on that profile. Sidecar metadata drift
+    is tracked separately as FU-SVG-FIXTURE-MACHINE-MISMATCH.
     """
     return ClaimedJob(
         scan_job_id="scan-svg-test-1",
@@ -27,7 +32,7 @@ def _make_svg_job(fixture_relpath: str) -> ClaimedJob:
         job_revision_id="rev-svg-test-1",
         storage_path=fixture_relpath,
         file_type="svg",
-        machine_profile_id="glowforge_plus",
+        machine_profile_id="generic_large_laser",
         student_id="student-svg-test-1",
     )
 
