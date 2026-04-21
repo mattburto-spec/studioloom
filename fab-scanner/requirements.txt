@@ -1,0 +1,14 @@
+# Runtime dependencies for the Fly.io container. Pinned conservatively; the
+# sidecar `pyproject.toml` is the source of truth for range constraints.
+# Regenerate with:
+#   pip-compile --output-file=requirements.txt pyproject.toml
+# or manually pin to a known-good resolved set before `fly deploy`.
+
+trimesh==4.11.5
+lxml==6.1.0
+matplotlib==3.9.2
+numpy==2.0.2
+httpx==0.27.2
+structlog==24.4.0
+pydantic==2.9.2
+supabase==2.9.1

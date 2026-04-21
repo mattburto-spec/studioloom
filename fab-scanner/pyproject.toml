@@ -1,0 +1,37 @@
+[project]
+name = "preflight-scanner"
+version = "0.1.0"
+description = "Preflight fabrication scanner — Python worker that validates student STL/SVG uploads before they hit the printer/laser."
+requires-python = ">=3.11"
+readme = "README.md"
+
+dependencies = [
+  "trimesh>=4.11,<5.0",
+  "lxml>=5.0",
+  "matplotlib>=3.8",
+  "numpy>=2.0",
+  "httpx>=0.27",
+  "structlog>=24.1",
+  "pydantic>=2.6",
+  "supabase>=2.3",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "pytest-mock>=3.12",
+  "ruff>=0.4",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "tests"]
+addopts = "-ra --strict-markers"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+extend-exclude = [".venv"]
