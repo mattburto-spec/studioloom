@@ -14,3 +14,8 @@ httpx==0.27.2
 structlog==24.4.0
 pydantic==2.9.2
 supabase==2.9.1
+# Phase 2B: SVG path geometry + cairo thumbnail rendering.
+# cairocffi needs libcairo2-dev + libpango1.0-dev + pkg-config at build time;
+# runtime needs libcairo2 + libpango-1.0-0. See Dockerfile.
+svgpathtools==1.7.1
+cairocffi==1.7.1

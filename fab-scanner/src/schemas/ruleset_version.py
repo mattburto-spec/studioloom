@@ -12,10 +12,15 @@ Version bump policy (from docs/projects/preflight-phase-2a-brief.md §8):
 History:
   2026-04-21  stl-v1.0.0  Phase 2A launch — 17 STL rules implemented.
                           Initial thresholds per fabrication-pipeline.md §5.
+  2026-04-21  svg-v1.0.0  Phase 2B-1 — SVG scaffold + dispatch wiring.
+                          Rule catalogue filled in sub-phases 2B-2..2B-6.
+                          Combined tag stl-v1.0.0+svg-v1.0.0 stored on
+                          every scan result.
 """
 
 STL_RULESET_VERSION = "stl-v1.0.0"
+SVG_RULESET_VERSION = "svg-v1.0.0"
 
 # Combined version label stored on fabrication_jobs.scan_ruleset_version.
-# Phase 2B will extend this to "stl-v1.0.0+svg-v1.0.0".
-SCAN_RULESET_VERSION = STL_RULESET_VERSION
+# Teachers can answer "what ruleset saw this file?" with one string.
+SCAN_RULESET_VERSION = f"{STL_RULESET_VERSION}+{SVG_RULESET_VERSION}"

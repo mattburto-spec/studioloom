@@ -19,6 +19,9 @@ dependencies = [
   "structlog>=24.1",
   "pydantic>=2.6",
   "supabase>=2.3",
+  # Phase 2B - SVG scanning.
+  "svgpathtools>=1.7,<2.0",
+  "cairocffi>=1.7,<2.0",
 ]
 
 [project.optional-dependencies]

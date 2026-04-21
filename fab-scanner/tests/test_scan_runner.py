@@ -34,7 +34,8 @@ def test_scan_one_revision_on_known_good_stl_returns_empty_block_warn_rules(
     assert non_fyi == [], (
         f"Expected 0 BLOCK/WARN rules on known-good fixture; got {non_fyi}"
     )
-    assert results.ruleset_version == "stl-v1.0.0"
+    # 2B-1: combined STL+SVG ruleset tag stored on every scan.
+    assert results.ruleset_version == "stl-v1.0.0+svg-v1.0.0"
     assert results.scan_duration_ms >= 0
     # 2A-5: thumbnail is rendered and uploaded via the mock. Path is the
     # deterministic fake from MockStorage.upload_thumbnail.
@@ -58,10 +59,12 @@ def test_process_one_job_writes_done_status_and_results(
     w = mock_supabase.writes[0]
     assert w["scan_status"] == "done"
     assert w["scan_error"] is None
-    assert w["ruleset_version"] == "stl-v1.0.0"
+    # 2B-1: combined STL+SVG ruleset tag now appears on both the writeback
+    # row-level field and the JSONB scan_results.ruleset_version mirror.
+    assert w["ruleset_version"] == "stl-v1.0.0+svg-v1.0.0"
     non_fyi = [r for r in w["scan_results"]["rules"] if r["severity"] != "fyi"]
     assert non_fyi == []
-    assert w["scan_results"]["ruleset_version"] == "stl-v1.0.0"
+    assert w["scan_results"]["ruleset_version"] == "stl-v1.0.0+svg-v1.0.0"
     assert w["scan_results"]["scan_duration_ms"] >= 0
     assert w["scan_results"]["thumbnail_path"] is not None
 

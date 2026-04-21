@@ -6,6 +6,9 @@ subsequent sub-phase fills in one rule group:
   2A-3 — machine fit (R-STL-06..08)
   2A-4 — printability (R-STL-09..14)
   2A-5 — informational (R-STL-15..17) + thumbnail rendering
+Phase 2B extends the same dispatcher with SVG support:
+  2B-1 — SVG scaffold + empty dispatch (this file's svg branch)
+  2B-2..2B-6 — rule groups + cairo thumbnail
 """
 
 from __future__ import annotations
@@ -21,10 +24,23 @@ from rules.stl.geometry_integrity import run_geometry_integrity_rules
 from rules.stl.informational import run_informational_rules
 from rules.stl.machine_fit import run_machine_fit_rules
 from rules.stl.printability import run_printability_rules
+# SVG rule modules - aliased to avoid symbol collision with rules.stl.*
+from rules.svg.geometry_integrity import (
+    run_geometry_integrity_rules as run_svg_geometry_integrity,
+)
+from rules.svg.informational import (
+    run_informational_rules as run_svg_informational,
+)
+from rules.svg.machine_fit import run_machine_fit_rules as run_svg_machine_fit
+from rules.svg.operation_mapping import (
+    run_operation_mapping_rules as run_svg_operation_mapping,
+)
+from rules.svg.raster import run_raster_rules as run_svg_raster
 from schemas.ruleset_version import SCAN_RULESET_VERSION
 from schemas.scan_results import ScanResults
 from worker.storage import StorageClient
 from worker.supabase_client import ClaimedJob, SupabaseClient
+from worker.svg_loader import SvgDocument, load_svg_document
 from worker.thumbnail import safe_render
 
 log = structlog.get_logger(__name__)
@@ -94,6 +110,24 @@ def _run_all_stl_rules(
     return results
 
 
+def _run_all_svg_rules(
+    doc: SvgDocument, profile: MachineProfile
+) -> list[RuleResult]:
+    """Dispatcher — concatenates every SVG rule group's output.
+
+    Order parallels the STL dispatcher: machine fit → operation mapping
+    → geometry integrity → raster → informational. UI buckets by
+    severity, not order, but stable order keeps test snapshots stable.
+    """
+    results: list[RuleResult] = []
+    results.extend(run_svg_machine_fit(doc, profile))
+    results.extend(run_svg_operation_mapping(doc, profile))
+    results.extend(run_svg_geometry_integrity(doc, profile))
+    results.extend(run_svg_raster(doc, profile))
+    results.extend(run_svg_informational(doc, profile))
+    return results
+
+
 def scan_one_revision(
     job: ClaimedJob,
     supabase: SupabaseClient,
@@ -127,8 +161,9 @@ def scan_one_revision(
                     job_revision_id=job.job_revision_id,
                 )
     elif job.file_type == "svg":
-        # Phase 2B populates rules + cairo thumbnail.
-        rules = []
+        doc = load_svg_document(data)
+        rules = _run_all_svg_rules(doc, profile)
+        # Thumbnail rendering lands in Phase 2B-6 (cairo-based).
     else:
         raise ValueError(f"unsupported file_type: {job.file_type}")
 
