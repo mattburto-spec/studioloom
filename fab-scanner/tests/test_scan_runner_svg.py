@@ -57,28 +57,31 @@ def test_known_good_svg_scans_clean(
     mock_storage,
 ) -> None:
     """End-to-end dispatch: known-clean SVGs route through all rule
-    groups and emit empty rules[] + combined ruleset tag. Rules
-    themselves are covered by their respective test_rules_svg_*.py
-    modules.
+    groups with no BLOCK / WARN rules firing. FYI rules (R-SVG-14
+    time-estimate + R-SVG-15 layer-summary) always fire on laser
+    profiles per spec §6 — assert NON-FYI rules are empty.
     """
     job = _make_svg_job(relpath)
 
     results = scan_one_revision(job, mock_supabase, mock_storage)
 
-    # Lesson #38: assert EXACT expected values.
-    assert results.rules == [], (
-        f"expected no rules on known-good SVG, got {results.rules}"
+    # Lesson #38: assert EXACT expected values on the severities that
+    # actually matter. FYI rules are informational chrome.
+    non_fyi = [r.id for r in results.rules if r.severity != "fyi"]
+    assert non_fyi == [], (
+        f"expected no BLOCK/WARN rules on known-good SVG, got {non_fyi}"
     )
     assert results.ruleset_version == "stl-v1.0.0+svg-v1.0.0", (
         f"ruleset tag drift - expected combined stl+svg, got "
         f"{results.ruleset_version!r}"
     )
-    # Phase 2B-6 adds cairo thumbnails; for 2B-1 the SVG branch
-    # intentionally skips rendering.
-    assert results.thumbnail_path is None, (
-        f"Phase 2B-1 must not emit a thumbnail, got {results.thumbnail_path!r}"
+    # Phase 2B-6 wires a cairo-based thumbnail. On dev machines without
+    # libcairo installed (typical macOS), safe_render_svg returns None
+    # and thumbnail_path stays None. In prod on Fly, libcairo is
+    # installed via the Dockerfile and thumbnail_path will be set.
+    # Either case is valid for the dispatch test.
+    assert results.thumbnail_path is None or results.thumbnail_path.startswith(
+        "fabrication-thumbnails/"
     )
-    # Scan duration is recorded for perf monitoring - just check it's
-    # a non-negative int, not a specific value.
     assert isinstance(results.scan_duration_ms, int)
     assert results.scan_duration_ms >= 0

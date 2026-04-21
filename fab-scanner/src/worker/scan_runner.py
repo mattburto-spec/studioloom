@@ -42,6 +42,7 @@ from worker.storage import StorageClient
 from worker.supabase_client import ClaimedJob, SupabaseClient
 from worker.svg_loader import SvgDocument, load_svg_document
 from worker.thumbnail import safe_render
+from worker.thumbnail_svg import safe_render_svg
 
 log = structlog.get_logger(__name__)
 
@@ -163,7 +164,19 @@ def scan_one_revision(
     elif job.file_type == "svg":
         doc = load_svg_document(data)
         rules = _run_all_svg_rules(doc, profile)
-        # Thumbnail rendering lands in Phase 2B-6 (cairo-based).
+        # Phase 2B-6: cairosvg-based thumbnail. safe_render_svg returns
+        # None on missing libcairo or malformed input — scan continues
+        # without a thumbnail, matching the STL path's behaviour.
+        png = safe_render_svg(data)
+        if png is not None:
+            try:
+                thumbnail_path = storage.upload_thumbnail(job.job_revision_id, png)
+            except Exception:
+                log.warning(
+                    "svg_thumbnail.upload_failed",
+                    scan_job_id=job.scan_job_id,
+                    job_revision_id=job.job_revision_id,
+                )
     else:
         raise ValueError(f"unsupported file_type: {job.file_type}")
 

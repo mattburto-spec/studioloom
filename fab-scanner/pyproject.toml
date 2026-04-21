@@ -24,6 +24,8 @@ dependencies = [
   "cairocffi>=1.7,<2.0",
   # Phase 2B-5 - embedded-raster inspection (R-SVG-12/13).
   "pillow>=10.0,<13.0",
+  # Phase 2B-6 - SVG thumbnail rendering via cairosvg.
+  "cairosvg>=2.7,<3.0",
 ]
 
 [project.optional-dependencies]
