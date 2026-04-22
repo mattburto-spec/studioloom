@@ -1247,7 +1247,7 @@ function BadgesSkeleton() {
 }
 
 // ================= APP =================
-export default function DashboardV2Client() {
+export default function DashboardClient() {
   const [student, setStudent] = useState<SessionStudent>(STUDENT_MOCK);
   const [sessionLoading, setSessionLoading] = useState(true);
   // Initial state is null so we render skeletons until the fetch resolves.

@@ -34,8 +34,10 @@ export default function StudentLayout({
   const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
-    // v2 scaffold opts out of auth during Phase 1
-    if (pathname === "/dashboard/v2") {
+    // Bold dashboard owns its own session fetch — opt out of the layout's
+    // auth redirect so we don't double-fetch/race. (The dashboard's own
+    // fetch still calls /api/auth/student-session for student details.)
+    if (pathname === "/dashboard") {
       setLoading(false);
       return;
     }
@@ -138,10 +140,10 @@ export default function StudentLayout({
     );
   }
 
-  // v2 dashboard is scaffold-only during Phase 1 — opts out of the student shell
-  // (no auth redirect, no header, no onboarding). It renders its own nav.
-  // Remove this escape hatch in Phase 8 when v2 becomes the real /dashboard.
-  if (pathname === "/dashboard/v2") {
+  // The Bold dashboard renders its own TopNav and shouldn't be wrapped in the
+  // legacy student shell (which has its own header + onboarding). Other student
+  // routes (unit, gallery, safety, my-tools, etc.) still use the shell.
+  if (pathname === "/dashboard") {
     return <>{children}</>;
   }
 

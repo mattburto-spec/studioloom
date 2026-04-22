@@ -12,13 +12,14 @@ Shipped behind `sl_v2=1` cookie at `/dashboard/v2` during build.
 | 1 | Scaffold at `/dashboard/v2`, mock data | ✅ Done | `b89e89d` |
 | 2 | Wire TopNav + hero greeting to session | ✅ Done | `b2a8d12` |
 | 3A | Wire hero unit identity (title, subtitle, class, color, image, %) | ✅ Done | `a88b330` + `934ddfe` |
-| 3B | Wire hero current task (activity block) + lesson progress + due | ✅ Done | _(this commit)_ |
+| 3B | Wire hero current task (activity block) + lesson progress + due | ✅ Done | `cfa2a00` |
 | 3C | Teacher note — **deferred to end-of-project**, see below | ⏸ Deferred | — |
-| 4 | Wire Priority queue | ✅ Done | _(this commit)_ |
-| 5 | Wire Units grid | ✅ Done | _(this commit)_ |
-| 6 | Wire Badges | ✅ Done | _(this commit)_ |
-| 7 | Feedback section — dropped, no backing data until notes system | ✅ Done (dropped) | _(this commit)_ |
-| 8 | Cutover `/dashboard` → v2, remove opt-out hatch | ⏳ Planned | — |
+| 4 | Wire Priority queue | ✅ Done | `454f98b` |
+| 4.5 | Continue button + mock-flash fix | ✅ Done | `97b3046` + `67bacab` |
+| 5 | Wire Units grid | ✅ Done | `20f40f7` |
+| 6 | Wire Badges | ✅ Done | `d913fe8` |
+| 7 | Feedback section — dropped, no backing data until notes system | ✅ Done (dropped) | `8d6483b` |
+| 8 | Cutover `/dashboard` → v2; old kept at `/dashboard-legacy` | ✅ Done | _(this commit)_ |
 
 ## End-of-project TODO list
 
@@ -47,11 +48,13 @@ Items Matt has flagged to handle before or during Phase 8 cutover.
       title + continue button). Removes the priority queue, units grid,
       badges, feedback. Student gets a minimal single-task view to avoid
       overwhelm. Exit button returns to full dashboard. _(Matt, 22 Apr 2026)_
-- [ ] Remove the `pathname === "/dashboard/v2"` opt-out escape hatch from
-      `(student)/layout.tsx` (introduced in Phase 1, tagged with a
-      "remove at Phase 8 cutover" comment).
-- [ ] Drop the `sl_v2` cookie gate — v2 becomes the default `/dashboard`.
-- [ ] Keep old `/dashboard` as `_legacy` for one week post-cutover, then delete.
+- [x] ~~Remove the `pathname === "/dashboard/v2"` opt-out escape hatch~~ — done
+      at Phase 8 cutover; layout still opts out of its shell on `/dashboard`
+      because the Bold TopNav replaces the legacy header.
+- [x] ~~Drop the `sl_v2` cookie gate~~ — removed at Phase 8 cutover.
+- [ ] Delete `/dashboard-legacy` route once one week of stable prod use has
+      passed (cutover 2026-04-22). Currently kept as a one-click rollback
+      path in case of urgent issues with the Bold dashboard.
 - [ ] Theme system — Phase 1 hardcoded the Bold cream palette. Decide whether
       to honor student `theme_id` (Option a from Phase 0), slot Bold in as a
       new theme (Option c), or retire themes entirely.
