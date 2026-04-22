@@ -393,6 +393,460 @@ export function isOrchestrationError(r: unknown): r is OrchestrationError {
   );
 }
 
+// ============================================================
+// Phase 5-1 — revisions + acknowledge + submit
+// ============================================================
+
+/** Choice values from the 3-option radio group in the should-fix UI. */
+export const ACK_CHOICES = ["intentional", "will-fix-slicer", "acknowledged"] as const;
+export type AckChoice = (typeof ACK_CHOICES)[number];
+
+/**
+ * Shape of acknowledged_warnings JSONB on fabrication_jobs.
+ * Keyed `revision_<N>` → `{rule_id: {choice, timestamp}}`. Nested structure
+ * gives per-revision audit trail which the teacher queue (Phase 6) will need.
+ *
+ * Note: migration 095's comment suggested a flat `[{rule_id, ack_at}]` array
+ * — that was written in Phase 1A before the spec matured. JSONB column has
+ * no CHECK constraint, so this nested shape is a conscious deviation for
+ * better multi-revision audit.
+ */
+export type AcknowledgedWarnings = {
+  [revisionKey: string]: {
+    [ruleId: string]: { choice: AckChoice; timestamp: string };
+  };
+};
+
+export interface CreateRevisionRequest {
+  studentId: string;
+  jobId: string;
+  fileType: string;
+  originalFilename: string;
+  fileSizeBytes: number;
+}
+
+export type CreateRevisionResult = CreateUploadJobSuccess | CreateUploadJobError;
+
+/**
+ * Create revision N+1 on an existing job. Minimal version of createUploadJob
+ * — skips the enrolment + machine-profile lookups (those were validated when
+ * the job was first created) and just bumps the revision_number.
+ */
+export async function createRevision(
+  db: SupabaseLike,
+  req: CreateRevisionRequest
+): Promise<CreateRevisionResult> {
+  // 0. Validate body shape — mirror the Phase 4-1 validator rules but without
+  //    classId / machineProfileId (those are locked to the existing job).
+  if (!req.originalFilename || req.originalFilename.trim().length === 0) {
+    return { error: { status: 400, message: "originalFilename required" } };
+  }
+  const trimmedFilename = req.originalFilename.trim();
+  const ext = trimmedFilename.toLowerCase().split(".").pop() ?? "";
+  if (!ALLOWED_FILE_TYPES.includes(req.fileType as FileType)) {
+    return {
+      error: {
+        status: 400,
+        message: `fileType must be one of: ${ALLOWED_FILE_TYPES.join(", ")}`,
+      },
+    };
+  }
+  if (ext !== req.fileType) {
+    return {
+      error: {
+        status: 400,
+        message: `originalFilename extension (.${ext}) does not match fileType (${req.fileType})`,
+      },
+    };
+  }
+  if (
+    typeof req.fileSizeBytes !== "number" ||
+    !Number.isFinite(req.fileSizeBytes) ||
+    req.fileSizeBytes <= 0
+  ) {
+    return { error: { status: 400, message: "fileSizeBytes must be a positive number" } };
+  }
+  if (req.fileSizeBytes > MAX_UPLOAD_SIZE_BYTES) {
+    return {
+      error: {
+        status: 413,
+        message: `File exceeds ${MAX_UPLOAD_SIZE_BYTES} byte limit (${MAX_UPLOAD_SIZE_BYTES / 1024 / 1024} MB)`,
+      },
+    };
+  }
+
+  // 1. Load job + verify ownership.
+  const ownership = await db
+    .from("fabrication_jobs")
+    .select("id, student_id, teacher_id, current_revision, file_type")
+    .eq("id", req.jobId)
+    .maybeSingle();
+  if (ownership.error) {
+    return {
+      error: { status: 500, message: `Job lookup failed: ${ownership.error.message}` },
+    };
+  }
+  if (!ownership.data) {
+    return { error: { status: 404, message: "Job not found" } };
+  }
+  if (ownership.data.student_id !== req.studentId) {
+    // 404 not 403 — don't telegraph job existence to non-owners (same
+    // convention as the Phase 4-2 enqueue/status endpoints).
+    return { error: { status: 404, message: "Job not found" } };
+  }
+
+  // 2. Validate re-upload file_type matches the job's file_type. A student
+  //    who started with STL can't switch to SVG mid-job — machine profile
+  //    applicability depends on file type.
+  if (ownership.data.file_type !== req.fileType) {
+    return {
+      error: {
+        status: 400,
+        message: `Re-upload fileType (${req.fileType}) must match the original job fileType (${ownership.data.file_type})`,
+      },
+    };
+  }
+
+  // 3. Find the highest existing revision_number — we bump from there rather
+  //    than trusting fabrication_jobs.current_revision (which may lag).
+  const latestRev = await db
+    .from("fabrication_job_revisions")
+    .select("revision_number")
+    .eq("job_id", req.jobId)
+    .order("revision_number", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (latestRev.error) {
+    return {
+      error: {
+        status: 500,
+        message: `Latest revision lookup failed: ${latestRev.error.message}`,
+      },
+    };
+  }
+  const nextRevisionNumber: number = (latestRev.data?.revision_number ?? 0) + 1;
+
+  // 4. Build storage path for the new revision and INSERT.
+  const teacherId: string = ownership.data.teacher_id;
+  const storagePath = buildStoragePath({
+    teacherId,
+    studentId: req.studentId,
+    jobId: req.jobId,
+    revisionNumber: nextRevisionNumber,
+    fileType: req.fileType as FileType,
+  });
+
+  const revInsert = await db
+    .from("fabrication_job_revisions")
+    .insert({
+      job_id: req.jobId,
+      revision_number: nextRevisionNumber,
+      storage_path: storagePath,
+      file_size_bytes: req.fileSizeBytes,
+      scan_status: "pending",
+    })
+    .select("id")
+    .single();
+  if (revInsert.error || !revInsert.data) {
+    return {
+      error: {
+        status: 500,
+        message: `Revision insert failed: ${revInsert.error?.message ?? "unknown"}`,
+      },
+    };
+  }
+  const revisionId: string = revInsert.data.id;
+
+  // 5. Also bump fabrication_jobs.current_revision so the denormalised column
+  //    stays in sync (status endpoint reads current_revision to find the
+  //    latest revision via join).
+  const bump = await db
+    .from("fabrication_jobs")
+    .update({ current_revision: nextRevisionNumber })
+    .eq("id", req.jobId);
+  if (bump.error) {
+    // Not fatal — revision row exists. Log via error path but don't delete
+    // the revision (cleanup would cascade to undo the whole attempt).
+    // Phase 6 can reconcile via max(revision_number) if current_revision
+    // ever drifts.
+  }
+
+  // 6. Mint the signed upload URL.
+  const urlResult = await db.storage
+    .from(FABRICATION_UPLOAD_BUCKET)
+    .createSignedUploadUrl(storagePath);
+  if (urlResult.error || !urlResult.data) {
+    // Delete the revision row we just created — no orphan storage path.
+    await db.from("fabrication_job_revisions").delete().eq("id", revisionId);
+    // Roll current_revision back only if we successfully bumped it above.
+    if (!bump.error) {
+      await db
+        .from("fabrication_jobs")
+        .update({ current_revision: nextRevisionNumber - 1 })
+        .eq("id", req.jobId);
+    }
+    return {
+      error: {
+        status: 500,
+        message: `Signed URL mint failed: ${urlResult.error?.message ?? "unknown"}`,
+      },
+    };
+  }
+
+  return {
+    jobId: req.jobId,
+    revisionId,
+    uploadUrl: urlResult.data.signedUrl,
+    storagePath,
+  };
+}
+
+// ------------------------------------------------------------
+// acknowledgeWarning
+// ------------------------------------------------------------
+
+export interface AcknowledgeWarningRequest {
+  studentId: string;
+  jobId: string;
+  revisionNumber: number;
+  ruleId: string;
+  choice: AckChoice;
+}
+
+export type AcknowledgeWarningResult =
+  | { acknowledgedWarnings: AcknowledgedWarnings }
+  | OrchestrationError;
+
+/**
+ * Persist a single rule acknowledgement. Merge-patches
+ * fabrication_jobs.acknowledged_warnings JSONB — READ-MODIFY-WRITE (no
+ * atomic JSONB update RPC in v1; concurrent acks by the same student
+ * would race but the same student can't realistically click two radios
+ * simultaneously).
+ */
+export async function acknowledgeWarning(
+  db: SupabaseLike,
+  req: AcknowledgeWarningRequest
+): Promise<AcknowledgeWarningResult> {
+  if (!ACK_CHOICES.includes(req.choice)) {
+    return {
+      error: {
+        status: 400,
+        message: `choice must be one of: ${ACK_CHOICES.join(", ")}`,
+      },
+    };
+  }
+  if (!req.ruleId || typeof req.ruleId !== "string") {
+    return { error: { status: 400, message: "ruleId required" } };
+  }
+  if (!Number.isInteger(req.revisionNumber) || req.revisionNumber < 1) {
+    return { error: { status: 400, message: "revisionNumber must be a positive integer" } };
+  }
+
+  // 1. Load job + verify ownership + read current acknowledged_warnings.
+  const ownership = await db
+    .from("fabrication_jobs")
+    .select("student_id, acknowledged_warnings")
+    .eq("id", req.jobId)
+    .maybeSingle();
+  if (ownership.error) {
+    return {
+      error: { status: 500, message: `Job lookup failed: ${ownership.error.message}` },
+    };
+  }
+  if (!ownership.data || ownership.data.student_id !== req.studentId) {
+    return { error: { status: 404, message: "Job not found" } };
+  }
+
+  // 2. Merge-patch.
+  const existing: AcknowledgedWarnings = ownership.data.acknowledged_warnings ?? {};
+  const revisionKey = `revision_${req.revisionNumber}`;
+  const updated: AcknowledgedWarnings = {
+    ...existing,
+    [revisionKey]: {
+      ...(existing[revisionKey] ?? {}),
+      [req.ruleId]: {
+        choice: req.choice,
+        timestamp: new Date().toISOString(),
+      },
+    },
+  };
+
+  // 3. Write back.
+  const write = await db
+    .from("fabrication_jobs")
+    .update({ acknowledged_warnings: updated })
+    .eq("id", req.jobId);
+  if (write.error) {
+    return {
+      error: {
+        status: 500,
+        message: `Ack write failed: ${write.error.message}`,
+      },
+    };
+  }
+
+  return { acknowledgedWarnings: updated };
+}
+
+// ------------------------------------------------------------
+// submitJob
+// ------------------------------------------------------------
+
+export interface SubmitJobRequest {
+  studentId: string;
+  jobId: string;
+}
+
+export type SubmitJobResult =
+  | {
+      jobId: string;
+      newStatus: "pending_approval" | "approved";
+      requiresTeacherApproval: boolean;
+    }
+  | OrchestrationError;
+
+interface ScanResultsRule {
+  id: string;
+  severity: string; // 'block' | 'warn' | 'fyi' | lowercase per worker contract
+}
+
+/**
+ * Validate + transition. Reads the latest revision's scan_results, confirms
+ * zero BLOCK rules fired AND every WARN rule has an ack for the current
+ * revision, then transitions fabrication_jobs.status to 'pending_approval'
+ * or 'approved' based on machine_profiles.requires_teacher_approval.
+ */
+export async function submitJob(
+  db: SupabaseLike,
+  req: SubmitJobRequest
+): Promise<SubmitJobResult> {
+  // 1. Load job (student ownership + machine profile id + current revision +
+  //    acknowledged warnings + status).
+  const jobResult = await db
+    .from("fabrication_jobs")
+    .select(
+      "id, student_id, machine_profile_id, current_revision, acknowledged_warnings, status"
+    )
+    .eq("id", req.jobId)
+    .maybeSingle();
+  if (jobResult.error) {
+    return {
+      error: { status: 500, message: `Job lookup failed: ${jobResult.error.message}` },
+    };
+  }
+  if (!jobResult.data || jobResult.data.student_id !== req.studentId) {
+    return { error: { status: 404, message: "Job not found" } };
+  }
+  const job = jobResult.data;
+
+  // 2. Guard against double-submit — once the job has progressed past
+  //    'uploaded' / 'scanning' / 'needs_revision', it's in the teacher's
+  //    or lab tech's court.
+  const submittableStatuses = new Set(["uploaded", "scanning", "needs_revision"]);
+  if (!submittableStatuses.has(job.status)) {
+    return {
+      error: {
+        status: 409,
+        message: `Job is in status '${job.status}' — can't submit from this state`,
+      },
+    };
+  }
+
+  // 3. Load the current revision's scan results.
+  const revResult = await db
+    .from("fabrication_job_revisions")
+    .select("scan_status, scan_results, revision_number")
+    .eq("job_id", req.jobId)
+    .eq("revision_number", job.current_revision)
+    .maybeSingle();
+  if (revResult.error) {
+    return {
+      error: { status: 500, message: `Revision lookup failed: ${revResult.error.message}` },
+    };
+  }
+  if (!revResult.data) {
+    return { error: { status: 500, message: "Current revision not found" } };
+  }
+  if (revResult.data.scan_status !== "done") {
+    return {
+      error: {
+        status: 400,
+        message: `Scan not complete — status is '${revResult.data.scan_status}'`,
+      },
+    };
+  }
+
+  // 4. Validate: no BLOCK rules + every WARN rule acknowledged.
+  const rules: ScanResultsRule[] = revResult.data.scan_results?.rules ?? [];
+  const blockers = rules.filter((r) => r.severity === "block");
+  if (blockers.length > 0) {
+    return {
+      error: {
+        status: 400,
+        message: `Must-fix rules still firing: ${blockers.map((r) => r.id).join(", ")}. Re-upload a fixed version first.`,
+      },
+    };
+  }
+  const warnings = rules.filter((r) => r.severity === "warn");
+  const acks: AcknowledgedWarnings = job.acknowledged_warnings ?? {};
+  const revisionKey = `revision_${revResult.data.revision_number}`;
+  const acksForRevision = acks[revisionKey] ?? {};
+  const missingAcks = warnings
+    .filter((w) => !acksForRevision[w.id])
+    .map((w) => w.id);
+  if (missingAcks.length > 0) {
+    return {
+      error: {
+        status: 400,
+        message: `Each warning needs an acknowledgement before submit. Missing: ${missingAcks.join(", ")}`,
+      },
+    };
+  }
+
+  // 5. Look up machine profile for approval routing.
+  const profileResult = await db
+    .from("machine_profiles")
+    .select("requires_teacher_approval")
+    .eq("id", job.machine_profile_id)
+    .maybeSingle();
+  if (profileResult.error) {
+    return {
+      error: {
+        status: 500,
+        message: `Machine profile lookup failed: ${profileResult.error.message}`,
+      },
+    };
+  }
+  if (!profileResult.data) {
+    return { error: { status: 500, message: "Machine profile not found" } };
+  }
+  const requiresTeacherApproval: boolean = !!profileResult.data.requires_teacher_approval;
+  const newStatus: "pending_approval" | "approved" = requiresTeacherApproval
+    ? "pending_approval"
+    : "approved";
+
+  // 6. Transition status.
+  const write = await db
+    .from("fabrication_jobs")
+    .update({ status: newStatus })
+    .eq("id", req.jobId);
+  if (write.error) {
+    return {
+      error: {
+        status: 500,
+        message: `Status transition failed: ${write.error.message}`,
+      },
+    };
+  }
+
+  return {
+    jobId: req.jobId,
+    newStatus,
+    requiresTeacherApproval,
+  };
+}
+
 /**
  * Verify the student owns this fabrication job. All student-facing job
  * routes (enqueue, status, future re-upload, future cancel) share this
