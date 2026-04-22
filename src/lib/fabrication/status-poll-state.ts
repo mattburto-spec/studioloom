@@ -153,21 +153,34 @@ export function statusPollReducer(
 // ============================================================
 
 /**
- * Picks the visible copy for the progress card based on how long we've
- * been waiting. The worker doesn't emit per-stage signals, so this is
- * purely an elapsed-time heuristic — a best-guess "what we're probably
- * doing right now" story arc that feels honest without lying about the
- * worker's internal state.
+ * Picks the visible copy for the progress card based on scan state +
+ * elapsed. The worker doesn't emit per-stage signals, so this is
+ * purely an elapsed-time heuristic — a best-guess "what we're
+ * probably doing right now" story arc.
  *
- * Brief heuristic (exact thresholds):
- *   t < 2 s           → Uploading your file…
- *   2–5 s  + pending/running → Checking your geometry…
- *   5–15 s + pending/running → Checking machine fit…
- *  15–30 s + pending/running → Rendering preview…
- *  > 30 s  + pending/running → Still checking — this one's taking a bit longer…
+ * Phase 6-6b (smoke feedback): the original arc opened with
+ * "Uploading your file…" during the first 2 seconds. That copy was
+ * written for the flow where /fabrication/new immediately redirects
+ * to this status page — the assumption was the upload XHR had just
+ * completed and the copy was still emotionally true. It breaks
+ * every other way a student can reach this page (navigation back, a
+ * teacher-return-for-revision email, a bookmark), where the file
+ * was uploaded minutes or hours ago. Replaced with a neutral
+ * "Loading your submission…" that's honest in every case, gated on
+ * `scanStatus === null` so it only shows in the pre-first-poll gap
+ * (~100–500ms).
  *
- * For states outside the "polling" arc (idle before first poll, other
- * scan_status values) the early messages still apply based on elapsed.
+ * New arc (exact thresholds):
+ *   scanStatus null (pre-first-poll) → Loading your submission…
+ *   pending/running, t < 5 s  → Checking your geometry…
+ *   pending/running, 5–15 s   → Checking machine fit…
+ *   pending/running, 15–30 s  → Rendering preview…
+ *   pending/running, > 30 s   → Still checking — this one's taking a bit longer…
+ *
+ * Terminal scanStatus values (done / error) are handled by the
+ * reducer transitioning the state out of "polling"; this helper
+ * shouldn't be called in those cases. `Working on it…` is the
+ * defensive fallback for unexpected scanStatus strings.
  */
 export function selectStagedMessage(params: {
   scanStatus: string | null;
@@ -175,10 +188,10 @@ export function selectStagedMessage(params: {
 }): string {
   const { scanStatus, elapsedMs } = params;
 
-  if (elapsedMs < 2000) {
-    return "Uploading your file…";
+  if (scanStatus === null) {
+    return "Loading your submission…";
   }
-  if (scanStatus === "pending" || scanStatus === "running" || scanStatus === null) {
+  if (scanStatus === "pending" || scanStatus === "running") {
     if (elapsedMs < 5000) return "Checking your geometry…";
     if (elapsedMs < 15000) return "Checking machine fit…";
     if (elapsedMs < 30000) return "Rendering preview…";

@@ -393,16 +393,32 @@ describe("statusPollReducer — TIMEOUT", () => {
 // ============================================================
 
 describe("selectStagedMessage", () => {
-  it("uses 'Uploading your file…' when elapsed < 2s, regardless of scanStatus", () => {
-    expect(selectStagedMessage({ scanStatus: null, elapsedMs: 500 })).toBe(
-      "Uploading your file…"
+  // Phase 6-6b (smoke feedback): pre-first-poll copy switched from
+  // "Uploading your file…" to "Loading your submission…" — see
+  // status-poll-state.ts for rationale. Status page is reached via
+  // nav + bookmarks + teacher-action links, not just post-upload
+  // redirect, so the "uploading" framing was misleading in most of
+  // the entry paths.
+  it("uses 'Loading your submission…' when scanStatus is null (pre-first-poll)", () => {
+    expect(selectStagedMessage({ scanStatus: null, elapsedMs: 0 })).toBe(
+      "Loading your submission…"
     );
-    expect(selectStagedMessage({ scanStatus: "pending", elapsedMs: 1999 })).toBe(
-      "Uploading your file…"
+    expect(selectStagedMessage({ scanStatus: null, elapsedMs: 500 })).toBe(
+      "Loading your submission…"
+    );
+    // Stays as "Loading" even past the old 2s threshold — the
+    // threshold was an artifact of the "just uploaded" framing,
+    // which no longer applies. Once scanStatus is known, the arc
+    // takes over.
+    expect(selectStagedMessage({ scanStatus: null, elapsedMs: 10000 })).toBe(
+      "Loading your submission…"
     );
   });
 
-  it("uses 'Checking your geometry…' between 2 and 5 seconds", () => {
+  it("uses 'Checking your geometry…' from t=0 up to 5 seconds when scanning", () => {
+    expect(selectStagedMessage({ scanStatus: "pending", elapsedMs: 0 })).toBe(
+      "Checking your geometry…"
+    );
     expect(selectStagedMessage({ scanStatus: "pending", elapsedMs: 2000 })).toBe(
       "Checking your geometry…"
     );
@@ -441,15 +457,6 @@ describe("selectStagedMessage", () => {
   it("falls back to 'Working on it…' for unexpected scanStatus values", () => {
     expect(selectStagedMessage({ scanStatus: "weird", elapsedMs: 10000 })).toBe(
       "Working on it…"
-    );
-  });
-
-  it("accepts null scanStatus through the whole arc (same copy as pending/running)", () => {
-    expect(selectStagedMessage({ scanStatus: null, elapsedMs: 3000 })).toBe(
-      "Checking your geometry…"
-    );
-    expect(selectStagedMessage({ scanStatus: null, elapsedMs: 20000 })).toBe(
-      "Rendering preview…"
     );
   });
 });
