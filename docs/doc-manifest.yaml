@@ -336,6 +336,15 @@ docs:
     max_age_days: 90
     last_scanned: null
 
+  - path: docs/projects/student-dashboard-v2.md
+    title: "Student Dashboard v2 (Bold) — Build Tracker"
+    purpose: "Build tracker for the Bold-redesign student dashboard. Phases 1-8 SHIPPED 22 Apr 2026 — now the production /dashboard for all students, old kept at /dashboard-legacy until ≥ 2026-04-29. Phases 9-16 (bell count, unified header, responsive, focus mode, snooze, notes system, legacy cleanup, a11y) ordered and ready to resume via 'continue dashboard' trigger. Captures product decisions: hero framed as project management, notes system deferred until bidirectional, Open Studio gets its own card, no 'phase' terminology in student copy."
+    category: projects
+    last_verified: "2026-04-22"
+    referenced_from: ["CLAUDE.md Student Dashboard v2 section"]
+    max_age_days: 90
+    last_scanned: "2026-04-22"
+
   - path: docs/dashboard/studio-desk-session-summary.docx
     title: "Student Dashboard — Studio Desk Session Summary"
     purpose: "Design session notes for Student Dashboard reimagination as Studio Desk workspace. Chosen direction, growth-over-gamification decision, map parked, 7 open questions."

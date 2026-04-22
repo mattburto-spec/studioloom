@@ -341,6 +341,7 @@
 - **Discovery Engine (8-Station Journey)** — ~9,500 lines. Kit mentor. Archetype scoring. Two modes. Migration 047.
 - **Student Onboarding / Studio Setup** — 4-screen character creation. 3 mentors. 4 themes. Migration 050.
 - **Student Dashboard Redesign** — Framework-colored cards. Smart subject detection. Multi-class support.
+- **Student Dashboard v2 (Bold)** — Redesigned dashboard shipped 22 Apr 2026. Bold design language (Manrope display + DM Sans body, cream palette, saturated per-unit colors). Hero framed as project-management tool (current activity block + lesson progress + continue CTA). Priority queue (overdue/today/soon) classified from `/api/student/insights`. Units grid, safety badges, no Feedback section (deferred). Old dashboard kept at `/dashboard-legacy` until 2026-04-29. Phases 9-16 planned in `docs/projects/student-dashboard-v2.md`.
 - **Open Studio v1** — Self-directed working. AI studio critic. 5 interaction types. 3-level drift escalation. Migration 029.
 - **Student Learning Profile** — 7-system profiling. Wired into Open Studio AI. Glowing banner. Migration 048.
 - **Safety Badges** — Workshop safety certification. 5 question types. Unit access gating. Migration 035.

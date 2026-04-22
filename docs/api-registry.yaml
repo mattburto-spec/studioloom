@@ -5,7 +5,7 @@
 # Cross-referenced with docs/schema-registry.yaml (tables) and docs/ai-call-sites.yaml (AI calls).
 #
 # Last synced: 2026-04-14
-# Total routes: 306
+# Total routes: 310
 
 routes:
 - path: /api/admin/ai-model
@@ -641,6 +641,44 @@ routes:
   - class_units
   - design_conversations
   - students
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/student/fabrication/jobs/[jobId]/enqueue-scan
+  method: POST
+  file: src/app/api/student/fabrication/jobs/[jobId]/enqueue-scan/route.ts
+  auth: student
+  tables_read: []
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/student/fabrication/jobs/[jobId]/status
+  method: GET
+  file: src/app/api/student/fabrication/jobs/[jobId]/status/route.ts
+  auth: student
+  tables_read: []
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/student/fabrication/picker-data
+  method: GET
+  file: src/app/api/student/fabrication/picker-data/route.ts
+  auth: student
+  tables_read:
+  - class_students
+  - machine_profiles
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/student/fabrication/upload
+  method: POST
+  file: src/app/api/student/fabrication/upload/route.ts
+  auth: student
+  tables_read: []
   tables_written: []
   ai_call_sites: []
   cost_ceiling_usd: null

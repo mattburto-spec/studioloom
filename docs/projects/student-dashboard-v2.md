@@ -19,7 +19,15 @@ Shipped behind `sl_v2=1` cookie at `/dashboard/v2` during build.
 | 5 | Wire Units grid | ✅ Done | `20f40f7` |
 | 6 | Wire Badges | ✅ Done | `d913fe8` |
 | 7 | Feedback section — dropped, no backing data until notes system | ✅ Done (dropped) | `8d6483b` |
-| 8 | Cutover `/dashboard` → v2; old kept at `/dashboard-legacy` | ✅ Done | _(this commit)_ |
+| 8 | Cutover `/dashboard` → v2; old kept at `/dashboard-legacy` | ✅ Done | `be5c1d6` |
+| 9 | Quick wins — bell count, pill anchors, dead-link cleanup, hide fake teacher note | ⏳ Next | — |
+| 10 | Unified student header across all routes | ⏳ Planned | — |
+| 11 | Responsive pass (mobile + tablet) | ⏳ Planned | — |
+| 12 | Focus mode (hides everything except next step) | ⏳ Planned | — |
+| 13 | Snooze button behaviour experiment | ⏳ Planned | — |
+| 14 | General bidirectional notes system | ⏳ Planned | — |
+| 15 | Delete `/dashboard-legacy` rollback (≥ 2026-04-29) | ⏳ Scheduled | — |
+| 16 | Accessibility pass | ⏳ Planned | — |
 
 ## End-of-project TODO list
 
@@ -60,6 +68,121 @@ Items Matt has flagged to handle before or during Phase 8 cutover.
       new theme (Option c), or retire themes entirely.
 - [ ] Responsive pass (mobile + tablet) — Phase 1–7 were desktop-only.
 - [ ] Accessibility audit (contrast, focus states, keyboard nav).
+
+## Next steps — ordered plan (post-cutover)
+
+When Matt says **"continue dashboard"** or **"dashboard next"**, start from
+the top of this list and pick up the first unchecked item. Each item has
+a rough size estimate and a scope note.
+
+### Phase 9 — Quick wins (~30 min total)
+Small, high-impact polish. Do these as one batch.
+
+- [ ] **9.1 Bell notifications count** (~5 min)
+  Show red badge on the bell icon = count of overdue + today items from
+  `buckets`. Null/0 → hide the dot. Already have the data; just wire.
+
+- [ ] **9.2 Pill nav → in-page anchor scroll** (~15 min)
+  Currently dead links. Wire the 3 pills that have matching content:
+  `My work` → hero, `Units` → units grid, `Badges` → badges section.
+  Use smooth scroll. `Journal` and `Resources` stay disabled (no pages yet)
+  — show them dimmed or with a "soon" cursor.
+
+- [ ] **9.3 Remove dead "See all X" links** (~5 min)
+  "See all upcoming", "All badges", "All messages" have no target routes.
+  Either remove or point somewhere real. Simplest: remove for now.
+
+- [ ] **9.4 Hero teacher note — gate on data** (~5 min)
+  Currently the Mr. Griffiths mock note is always rendered. Since Phase 3C
+  (real teacher note) is deferred, hide the note card entirely until the
+  notes system ships. Otherwise every student sees the same fake
+  "Mr. Griffiths" message.
+
+### Phase 10 — Unified student header (~2 hours)
+Biggest single-visit polish. Right now `/dashboard` has the Bold TopNav
+but `/unit/*`, `/gallery/*`, `/safety/*`, `/my-tools/*` show the legacy
+student-layout header. Pick one and make it consistent everywhere.
+
+- [ ] **10.1 Decide unified header direction** — options: (a) install Bold
+      TopNav in `(student)/layout.tsx` so every page uses it; (b) keep both
+      and style them similarly so the switch is less jarring; (c) strip the
+      legacy header entirely, let each page own its chrome. Recommend (a).
+- [ ] **10.2 Implement** — move TopNav into the layout (or a shared header
+      component it imports). Handle per-route "active pill" state.
+- [ ] **10.3 Remove `if (pathname === "/dashboard")` escape hatch** in
+      layout.tsx once the shared header is in place.
+
+### Phase 11 — Responsive pass (~3 hours)
+Desktop-only right now. Real students use Chromebooks, iPads, phones.
+
+- [ ] **11.1 Hero** — single-column stack under ~900px, drop teacher note
+      card to below the task card (or hide).
+- [ ] **11.2 Priority queue** — 3-col → single column under ~900px with
+      overdue first. Tabs under ~600px?
+- [ ] **11.3 Units grid** — 3 → 2 → 1 col at tablet/mobile breakpoints.
+- [ ] **11.4 Badges** — 5/7 col grid → stack.
+- [ ] **11.5 TopNav** — pill nav collapses to hamburger at mobile.
+- [ ] **11.6 Test on real devices** (Matt can bring his iPad / phone).
+
+### Phase 12 — Focus mode (~1-2 hours)
+Matt flagged this as a future idea during Phase 3B. Single "Focus" button
+on hero. Hides everything except the next step.
+
+- [ ] **12.1 Add Focus button to hero** (next to Continue)
+- [ ] **12.2 Local state `focusMode: boolean`** — no persistence needed.
+- [ ] **12.3 When true** — render only the hero task card (centered,
+      enlarged) + a "Back to dashboard" exit button. Hide TopNav,
+      priority queue, units, badges.
+- [ ] **12.4 Keyboard escape** — Esc key exits focus mode.
+
+### Phase 13 — Snooze button (~2-3 hours, needs schema change)
+Behaviour experiment Matt wants to try with students. Deferral tracking.
+
+- [ ] **13.1 Schema** — decide where `snoozed_until` lives. Probably on
+      `student_progress` (per-page) or a new `snoozes` table keyed by
+      `(student_id, source_type, source_id)`.
+- [ ] **13.2 Migration** — add column/table.
+- [ ] **13.3 API** — `POST /api/student/insights/snooze` takes
+      `(insightType, sourceId, until)` → writes row.
+- [ ] **13.4 Insights filter** — exclude snoozed items from the feed.
+- [ ] **13.5 UI** — wire the Snooze button on overdue cards to a snooze
+      picker (tomorrow / next week / custom).
+- [ ] **13.6 Analytics stub** — log snooze events for Matt to review
+      with students.
+
+### Phase 14 — Notes system (bigger, ~3-5 days)
+The general bidirectional notes feature. Restores the hero teacher note
+card (9.4) and a Feedback section (dropped in Phase 7).
+
+- [ ] **14.1 Spec** — decide anchor model (unit? lesson? block? class?),
+      visibility (1:1, class-wide, public), writer roles (teacher +
+      student, per Matt's note about breaking silos).
+- [ ] **14.2 Schema + migration**
+- [ ] **14.3 API** — list, post, edit, delete
+- [ ] **14.4 Hero card** — pull latest note for the current unit
+- [ ] **14.5 Feedback section** — restore on the dashboard, list view of
+      recent notes received
+- [ ] **14.6 Notes tab / panel** on unit detail pages
+
+### Phase 15 — Legacy cleanup (~10 min, do 2026-04-29+)
+One week post-cutover. Only do if prod has been stable.
+
+- [ ] **15.1 Delete `/dashboard-legacy`** route + page file
+- [ ] **15.2 Purge stale TODO notes** about the legacy rollback
+- [ ] **15.3 Close the Phase 15 entry** here
+
+### Phase 16 — Accessibility pass (~4 hours)
+Last polish before calling v2 shipped-and-done.
+
+- [ ] **16.1 Contrast audit** — hero text on saturated color bg, pill nav,
+      ring-progress numbers. Check WCAG AA at minimum.
+- [ ] **16.2 Keyboard navigation** — tab order through cards, Enter
+      activates Links, Escape closes overlays.
+- [ ] **16.3 Focus states** — visible outlines on all interactive elements.
+- [ ] **16.4 Screen reader** — alt text on unit images, aria-labels on
+      icon-only buttons (bell, search, avatar).
+
+---
 
 ## Key product decisions (captured during build)
 

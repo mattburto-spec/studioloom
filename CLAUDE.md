@@ -11,6 +11,11 @@
 ### ShipReady — active build plan
 - **[`docs/projects/ship-ready-build-plan.md`](docs/projects/ship-ready-build-plan.md)** is the current build plan. When Matt says **"continue next phase in shipready"** or **"shipready"**, read that file, find the first phase with status NOT STARTED, and write a build brief for it using the `build-phase-prep` skill. Update the phase status as work progresses (NOT STARTED → IN PROGRESS → COMPLETE).
 
+### Student Dashboard v2 (Bold) — post-cutover polish
+- **[`docs/projects/student-dashboard-v2.md`](docs/projects/student-dashboard-v2.md)** is the build tracker. Phases 1–8 SHIPPED 22 Apr 2026 — the Bold dashboard is now the production `/dashboard` for all students; old dashboard kept at `/dashboard-legacy` as a rollback until ≥ 2026-04-29. Phases 9–16 are ordered polish work (bell count, unified header, responsive, focus mode, snooze, notes system, legacy cleanup, a11y).
+- **Worktree:** Dashboard polish happens in `/Users/matt/CWORK/questerra-dashboard` on branch `dashboard-v2-build`. Merge into main when a phase is signed off.
+- When Matt says **"continue dashboard"** or **"dashboard next"**, read the tracker's "Next steps — ordered plan" section, find the first unchecked item in the lowest-numbered phase, and propose a Phase X brief using the `build-phase-prep` skill. After each Checkpoint passes, tick the item and commit the tracker update in the same PR.
+
 ### Preflight — active build plan
 - **Master spec:** [`docs/projects/fabrication-pipeline.md`](docs/projects/fabrication-pipeline.md) §13 has the full 10-phase plan (Phases 0–9) with named Matt Checkpoints.
 - **Current status (22 Apr 2026):** Phases 0, 1A, 1B-1, 1B-2, 2 (STL scanner — Checkpoint 2.1 PASSED), 3 (SVG scanner — Checkpoint 3.1 PASSED with Lesson #53 writeback fix) all SHIPPED and pushed. Earlier briefs used "Phase 2A / 2B / 2C" naming before the spec was re-numbered — treat "Phase 2A" = spec Phase 2 (STL), "Phase 2B" = spec Phase 3 (SVG), "Phase 2C" = spec Phase 4 (upload UI), etc.
