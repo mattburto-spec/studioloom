@@ -1,88 +1,27 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { JSX } from "react";
 import Link from "next/link";
 import { getPageList, getPageById } from "@/lib/unit-adapter";
 import type { UnitContentData, StudentProgress } from "@/types";
+import { useStudent } from "../student-context";
+import { useBellCount } from "@/components/student/BellCountContext";
+import {
+  Icon,
+  type IconName,
+  type SessionStudent,
+  studentToSession,
+} from "@/components/student/BoldTopNav";
 
 /* ================================================================
  * Student Dashboard v2 — Bold redesign
- * Phase 1: static scaffold with hard-coded mock data.
- * Ported from docs/newlook/PYPX Student Dashboard/student_bold.jsx.
- * No real data wired yet — see Phase 2+.
+ * Content sections (hero, priority queue, units, badges) + their
+ * data-loading effects. Header/nav and session fetch now live in
+ * (student)/layout.tsx + BoldTopNav since Phase 10.
  * ================================================================ */
 
-// ================= SESSION =================
-type SessionStudent = {
-  name: string;
-  first: string;
-  initials: string;
-  avatarGrad: string;
-  classTag: string | null;
-};
-
-// Gradient palette for the avatar — deterministic per-name pick.
-const AVATAR_GRADS = [
-  "from-[#E86F2C] to-[#EC4899]", // orange → pink  (matches mock)
-  "from-[#0EA5A4] to-[#3B82F6]", // teal → blue
-  "from-[#9333EA] to-[#E86F2C]", // violet → orange
-  "from-[#EC4899] to-[#F59E0B]", // pink → amber
-  "from-[#10B981] to-[#0EA5A4]", // emerald → teal
-  "from-[#6366F1] to-[#9333EA]", // indigo → violet
-];
-
-function getInitials(name: string): string {
-  const parts = name.trim().split(/\s+/);
-  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-  return name.slice(0, 2).toUpperCase();
-}
-
-function gradFor(name: string): string {
-  let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-  return AVATAR_GRADS[Math.abs(hash) % AVATAR_GRADS.length];
-}
-
-// Fallback used when session isn't available (scaffold/preview mode).
-const STUDENT_MOCK: SessionStudent = {
-  name: "Sam",
-  first: "Sam",
-  initials: "SM",
-  avatarGrad: "from-[#E86F2C] to-[#EC4899]",
-  classTag: "Year 7 · Design",
-};
-
-type SessionResponse = {
-  student: {
-    id: string;
-    username: string;
-    display_name: string | null;
-    classes: { id: string; name: string; code: string; framework?: string | null } | null;
-  };
-};
-
-function toSessionStudent(data: SessionResponse): SessionStudent {
-  const name = data.student.display_name?.trim() || data.student.username;
-  const first = name.split(/\s+/)[0];
-  return {
-    name,
-    first,
-    initials: getInitials(name),
-    avatarGrad: gradFor(name),
-    classTag: data.student.classes?.name ?? null,
-  };
-}
-
-// Pill nav. `anchor` = element id to smooth-scroll to. Items without an
-// anchor render as disabled (no target route yet).
-const NAV_S: { label: string; anchor: string | null }[] = [
-  { label: "My work",   anchor: "dashboard-hero" },
-  { label: "Units",     anchor: "dashboard-units" },
-  { label: "Badges",    anchor: "dashboard-badges" },
-  { label: "Journal",   anchor: null },
-  { label: "Resources", anchor: null },
-];
+// SessionStudent, AVATAR_GRADS, getInitials, gradFor, STUDENT_MOCK,
+// toSessionStudent, and NAV_S moved to BoldTopNav.tsx in Phase 10.
 
 // Phase 3A: hero identity (title/subtitle/class/color/image/%) is wired.
 // Task card + teacher note still mock — Phase 3B wires the task card;
@@ -634,69 +573,7 @@ function toBadgesState(resp: SafetyResponse): BadgesState {
 // teacher-to-student messages. Returns when the general notes system
 // ships (see docs/projects/student-dashboard-v2.md end-of-project TODO).
 
-// ================= ICONS =================
-type IconName =
-  | "arrow" | "play" | "check" | "chev" | "chevR" | "plus" | "more"
-  | "bell" | "search" | "alert" | "clock" | "shield" | "star" | "book"
-  | "wrench" | "bolt" | "print" | "flame" | "trophy" | "msg" | "sparkle";
-
-function Icon({ name, size = 16, s = 2 }: { name: IconName; size?: number; s?: number }) {
-  const p = {
-    strokeWidth: s,
-    stroke: "currentColor",
-    fill: "none",
-    strokeLinecap: "round" as const,
-    strokeLinejoin: "round" as const,
-    width: size,
-    height: size,
-    viewBox: "0 0 24 24",
-  };
-  const shapes: Record<IconName, JSX.Element> = {
-    arrow: <path d="M5 12h14M13 6l6 6-6 6" />,
-    play:  <path d="M6 4l14 8-14 8z" fill="currentColor" stroke="none" />,
-    check: <path d="M20 6L9 17l-5-5" />,
-    chev:  <path d="M6 9l6 6 6-6" />,
-    chevR: <path d="M9 6l6 6-6 6" />,
-    plus:  <path d="M12 5v14M5 12h14" />,
-    more: (
-      <>
-        <circle cx="5" cy="12" r="1.5" fill="currentColor" />
-        <circle cx="12" cy="12" r="1.5" fill="currentColor" />
-        <circle cx="19" cy="12" r="1.5" fill="currentColor" />
-      </>
-    ),
-    bell:  <path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0" />,
-    search: (
-      <>
-        <circle cx="11" cy="11" r="7" />
-        <path d="M21 21l-4.35-4.35" />
-      </>
-    ),
-    alert: <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01" />,
-    clock: (
-      <>
-        <circle cx="12" cy="12" r="9" />
-        <path d="M12 7v5l3 2" />
-      </>
-    ),
-    shield: <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />,
-    star:   <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />,
-    book:   <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5v14zM4 19.5V21h15" />,
-    wrench: <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />,
-    bolt:   <path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z" />,
-    print: (
-      <>
-        <path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
-        <rect x="6" y="14" width="12" height="8" />
-      </>
-    ),
-    flame: <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z" />,
-    trophy: <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M12 15v6M8 21h8M6 4v5a6 6 0 0 0 12 0V4z" />,
-    msg:    <path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9 8.5 8.5 0 0 1 7.6 4.7 8.4 8.4 0 0 1 .9 3.8z" />,
-    sparkle: <path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8" />,
-  };
-  return <svg {...p}>{shapes[name]}</svg>;
-}
+// Icon + IconName now imported from @/components/student/BoldTopNav.
 
 // ================= RING PROGRESS =================
 function RingProgress({ pct, size = 96, stroke = 8, color }: { pct: number; size?: number; stroke?: number; color: string }) {
@@ -713,85 +590,8 @@ function RingProgress({ pct, size = 96, stroke = 8, color }: { pct: number; size
   );
 }
 
-// ================= TOP NAV =================
-function TopNav({ student, loading, bellCount }: { student: SessionStudent; loading: boolean; bellCount: number }) {
-  const scrollTo = (anchor: string | null) => {
-    if (!anchor) return;
-    const el = document.getElementById(anchor);
-    if (!el) return;
-    // Offset for the sticky nav (h-16 = 64px) plus a little breathing room
-    const top = el.getBoundingClientRect().top + window.scrollY - 80;
-    window.scrollTo({ top, behavior: "smooth" });
-  };
-
-  return (
-    <header className="sticky top-0 z-30 bg-[var(--sl-bg)]/80 backdrop-blur-lg border-b border-[var(--sl-hair)]">
-      <div className="max-w-[1400px] mx-auto px-6 h-16 flex items-center gap-4">
-        <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-2xl bg-[var(--sl-ink)] flex items-center justify-center text-white display text-[15px]">#</div>
-          <div className="display text-[17px] leading-none">StudioLoom</div>
-        </div>
-        <div className="w-px h-6 bg-[var(--sl-hair)] mx-1" />
-        <nav className="flex items-center gap-0.5">
-          {NAV_S.map((n, i) => {
-            const disabled = n.anchor === null;
-            const active = i === 0;
-            return (
-              <button
-                key={n.label}
-                onClick={() => scrollTo(n.anchor)}
-                disabled={disabled}
-                aria-disabled={disabled}
-                title={disabled ? "Coming soon" : undefined}
-                className={`px-3 py-1.5 rounded-full text-[12.5px] font-semibold transition ${
-                  active
-                    ? "bg-[var(--sl-ink)] text-white"
-                    : disabled
-                      ? "text-[var(--sl-ink-3)]/50 cursor-not-allowed"
-                      : "text-[var(--sl-ink-2)] hover:bg-white"
-                }`}
-              >
-                {n.label}
-              </button>
-            );
-          })}
-        </nav>
-        <div className="flex-1" />
-        <button className="w-9 h-9 rounded-full hover:bg-white flex items-center justify-center text-[var(--sl-ink-2)]">
-          <Icon name="search" size={16} />
-        </button>
-        <button className="w-9 h-9 rounded-full hover:bg-white flex items-center justify-center text-[var(--sl-ink-2)] relative" aria-label={bellCount > 0 ? `${bellCount} urgent items` : "Notifications"}>
-          <Icon name="bell" size={16} />
-          {bellCount > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-1 rounded-full bg-[#DC2626] border-2 border-[var(--sl-bg)] text-white text-[9px] font-extrabold tnum flex items-center justify-center leading-none">
-              {bellCount > 9 ? "9+" : bellCount}
-            </span>
-          )}
-        </button>
-        <div className="flex items-center gap-2.5 pl-1">
-          <div className="text-right">
-            {loading ? (
-              <>
-                <div className="h-3 w-16 rounded bg-[var(--sl-hair)] animate-pulse" />
-                <div className="h-2.5 w-20 rounded bg-[var(--sl-hair)] animate-pulse mt-1" />
-              </>
-            ) : (
-              <>
-                <div className="text-[12px] font-bold leading-none">{student.name}</div>
-                {student.classTag && (
-                  <div className="text-[10.5px] text-[var(--sl-ink-3)] mt-0.5 leading-none">{student.classTag}</div>
-                )}
-              </>
-            )}
-          </div>
-          <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${student.avatarGrad} text-white flex items-center justify-center font-bold text-[11px]`}>
-            {loading ? "" : student.initials}
-          </div>
-        </div>
-      </div>
-    </header>
-  );
-}
+// TopNav moved to @/components/student/BoldTopNav and is now mounted
+// from (student)/layout.tsx so every student route shares it.
 
 // ================= RESUME HERO =================
 function ResumeHero({ student, hero }: { student: SessionStudent; hero: HeroUnit }) {
@@ -1136,84 +936,8 @@ function Badges({ data }: { data: BadgesState }) {
 // Feedback section (teacher messages) removed in Phase 7. Will return
 // when the general notes system ships — see end-of-project TODO.
 
-// ================= SCOPED STYLES =================
-// All custom CSS scoped under .sl-v2 so it can't leak elsewhere.
-const SCOPED_CSS = `
-.sl-v2 {
-  --sl-bg: #F7F6F2;
-  --sl-surface: #FFFFFF;
-  --sl-ink: #0A0A0A;
-  --sl-ink-2: #3A3A3A;
-  --sl-ink-3: #6B6B6B;
-  --sl-hair: #E8E6DF;
-  --sl-display-tracking: -0.035em;
-  font-family: var(--font-dm-sans), system-ui, sans-serif;
-  background: var(--sl-bg);
-  color: var(--sl-ink);
-  -webkit-font-smoothing: antialiased;
-  min-height: 100vh;
-}
-.sl-v2 .display, .sl-v2 .display-lg {
-  font-family: var(--font-manrope), system-ui, sans-serif;
-  letter-spacing: var(--sl-display-tracking);
-  font-weight: 700;
-}
-.sl-v2 .display-lg { letter-spacing: -0.045em; }
-.sl-v2 .tnum { font-variant-numeric: tabular-nums; }
-.sl-v2 .cap {
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-weight: 700;
-  font-size: 10.5px;
-}
-.sl-v2 .card-shadow {
-  box-shadow: 0 1px 2px rgba(10,10,10,0.04), 0 8px 24px -12px rgba(10,10,10,0.08);
-}
-.sl-v2 .card-shadow-lg {
-  box-shadow: 0 1px 2px rgba(10,10,10,0.04), 0 16px 48px -20px rgba(10,10,10,0.18);
-}
-.sl-v2 .glow-inner::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  border-radius: inherit;
-  background: radial-gradient(circle at 20% 15%, rgba(255,255,255,0.28), transparent 55%);
-}
-.sl-v2 .pulse {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background: currentColor;
-  position: relative;
-}
-.sl-v2 .pulse::after {
-  content: "";
-  position: absolute;
-  inset: -6px;
-  border-radius: 999px;
-  border: 2px solid currentColor;
-  opacity: 0;
-  animation: sl-v2-ring 2s ease-out infinite;
-}
-@keyframes sl-v2-ring {
-  0%   { opacity: 0.6; transform: scale(0.6); }
-  100% { opacity: 0;   transform: scale(1.8); }
-}
-.sl-v2 .btn-primary {
-  background: var(--sl-ink);
-  color: white;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  transition: transform 150ms ease, box-shadow 150ms ease;
-}
-.sl-v2 .btn-primary:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 12px 28px -12px rgba(10,10,10,0.35);
-}
-.sl-v2 .ring-track { stroke: var(--sl-hair); }
-`;
+// Scoped .sl-v2 CSS now lives alongside BoldTopNav and is injected from
+// there — covers every student route since Phase 10, not just this page.
 
 // ================= LOADING SKELETONS =================
 // Shown until each section's fetch resolves — prevents the "mock flashes
@@ -1286,8 +1010,16 @@ function BadgesSkeleton() {
 
 // ================= APP =================
 export default function DashboardClient() {
-  const [student, setStudent] = useState<SessionStudent>(STUDENT_MOCK);
-  const [sessionLoading, setSessionLoading] = useState(true);
+  // Session comes from the layout via StudentContext (Phase 10). The hero
+  // derives its SessionStudent view-model from the raw Student + classInfo
+  // using the same helper BoldTopNav uses.
+  const { student, classInfo } = useStudent();
+  const sessionStudent: SessionStudent = studentToSession(student, classInfo?.name);
+
+  // The nav's bell badge is provided via BellCountContext — dashboard owns
+  // the insights fetch, so it pushes the count up to the layout-owned nav.
+  const { setCount: setBellCount } = useBellCount();
+
   // Initial state is null so we render skeletons until the fetch resolves.
   // On success → real data. On 401/error → fall back to MOCK (preview mode).
   // This prevents the "mock flashes, then swaps to real data" behaviour.
@@ -1296,38 +1028,10 @@ export default function DashboardClient() {
   const [units, setUnits] = useState<StudentUnit[] | null>(null);
   const [badges, setBadges] = useState<BadgesState | null>(null);
 
-  // Mount-time style inject (scoped via .sl-v2).
+  // Keep the nav's bell badge in sync with the priority queue.
   useEffect(() => {
-    const id = "sl-v2-scoped-styles";
-    if (document.getElementById(id)) return;
-    const el = document.createElement("style");
-    el.id = id;
-    el.textContent = SCOPED_CSS;
-    document.head.appendChild(el);
-    return () => {
-      el.remove();
-    };
-  }, []);
-
-  // Load real session if available; fall back to mock for scaffold/preview mode.
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch("/api/auth/student-session");
-        if (!res.ok) return; // 401 → stay on mock (preview mode)
-        const data: SessionResponse = await res.json();
-        if (!cancelled && data.student) setStudent(toSessionStudent(data));
-      } catch {
-        /* silent — keep mock */
-      } finally {
-        if (!cancelled) setSessionLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    setBellCount((buckets?.overdue.length ?? 0) + (buckets?.today.length ?? 0));
+  }, [buckets, setBellCount]);
 
   // Load badges (earned + pending) from the safety API (Phase 6).
   // Sets MOCK on 401/error so preview mode still renders, just without
@@ -1433,18 +1137,13 @@ export default function DashboardClient() {
   }, []);
 
   return (
-    <div className="sl-v2">
-      <TopNav
-        student={student}
-        loading={sessionLoading}
-        bellCount={(buckets?.overdue.length ?? 0) + (buckets?.today.length ?? 0)}
-      />
-      {hero ? <ResumeHero student={student} hero={hero} /> : <HeroSkeleton />}
+    <>
+      {hero ? <ResumeHero student={sessionStudent} hero={hero} /> : <HeroSkeleton />}
       {buckets ? <Priority buckets={buckets} /> : <PrioritySkeleton />}
       {units ? <UnitsGrid units={units} /> : <UnitsGridSkeleton />}
       {badges ? <Badges data={badges} /> : <BadgesSkeleton />}
       {/* Bottom padding — replaces old <Feedback /> slot (dropped Phase 7) */}
       <div className="pb-20" />
-    </div>
+    </>
   );
 }
