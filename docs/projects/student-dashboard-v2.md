@@ -20,7 +20,7 @@ Shipped behind `sl_v2=1` cookie at `/dashboard/v2` during build.
 | 6 | Wire Badges | ✅ Done | `d913fe8` |
 | 7 | Feedback section — dropped, no backing data until notes system | ✅ Done (dropped) | `8d6483b` |
 | 8 | Cutover `/dashboard` → v2; old kept at `/dashboard-legacy` | ✅ Done | `be5c1d6` |
-| 9 | Quick wins — bell count, pill anchors, dead-link cleanup, hide fake teacher note | ⏳ Next | — |
+| 9 | Quick wins — bell count, pill anchors, dead-link cleanup, hide fake teacher note | ✅ Done | _(this commit)_ |
 | 10 | Unified student header across all routes | ⏳ Planned | — |
 | 11 | Responsive pass (mobile + tablet) | ⏳ Planned | — |
 | 12 | Focus mode (hides everything except next step) | ⏳ Planned | — |
@@ -75,28 +75,30 @@ When Matt says **"continue dashboard"** or **"dashboard next"**, start from
 the top of this list and pick up the first unchecked item. Each item has
 a rough size estimate and a scope note.
 
-### Phase 9 — Quick wins (~30 min total)
-Small, high-impact polish. Do these as one batch.
+### Phase 9 — Quick wins (~30 min total) ✅ Done
+Small, high-impact polish. Shipped as one batch.
 
-- [ ] **9.1 Bell notifications count** (~5 min)
-  Show red badge on the bell icon = count of overdue + today items from
-  `buckets`. Null/0 → hide the dot. Already have the data; just wire.
+- [x] **9.1 Bell notifications count** — red badge shows count of
+  `overdue + today` items, capped at `9+`, hidden at 0. Computed from
+  the existing `buckets` state.
 
-- [ ] **9.2 Pill nav → in-page anchor scroll** (~15 min)
-  Currently dead links. Wire the 3 pills that have matching content:
-  `My work` → hero, `Units` → units grid, `Badges` → badges section.
-  Use smooth scroll. `Journal` and `Resources` stay disabled (no pages yet)
-  — show them dimmed or with a "soon" cursor.
+- [x] **9.2 Pill nav → in-page anchor scroll** — hero, units, badges
+  sections gained stable IDs (`dashboard-hero` / `-units` / `-badges`).
+  Pills smooth-scroll to target with 80px offset for the sticky nav.
+  `Journal` and `Resources` render with `disabled` + `aria-disabled` +
+  dimmed style + "Coming soon" title.
 
-- [ ] **9.3 Remove dead "See all X" links** (~5 min)
-  "See all upcoming", "All badges", "All messages" have no target routes.
-  Either remove or point somewhere real. Simplest: remove for now.
+- [x] **9.3 Remove dead "See all X" links** — removed "See all
+  upcoming →" and "All badges" buttons. "All messages" already gone
+  with the Feedback section in Phase 7.
 
-- [ ] **9.4 Hero teacher note — gate on data** (~5 min)
-  Currently the Mr. Griffiths mock note is always rendered. Since Phase 3C
-  (real teacher note) is deferred, hide the note card entirely until the
-  notes system ships. Otherwise every student sees the same fake
-  "Mr. Griffiths" message.
+- [x] **9.4 Hero teacher note — hidden on real data** — `HeroUnit.teacherNote`
+  is now `{...} | null`; `buildHeroUnit()` sets it to `null` so real
+  students don't see a fake Mr. Griffiths message. Preview/mock path
+  still renders the note because `HERO_MOCK.teacherNote` is preserved.
+  Note: in the real render path the avatar initials are now derived
+  from `teacherNote.from` so Phase 14's notes system can reuse the
+  same card as-is when it wires real teacher/student writers.
 
 ### Phase 10 — Unified student header (~2 hours)
 Biggest single-visit polish. Right now `/dashboard` has the Bold TopNav
