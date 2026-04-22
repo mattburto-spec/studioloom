@@ -778,90 +778,96 @@ function FocusOverlay({ hero, onExit }: { hero: HeroUnit; onExit: () => void }) 
 }
 
 // ================= PRIORITY QUEUE =================
-function Priority({ buckets }: { buckets: PriorityBuckets }) {
-  const { overdue, today, soon } = buckets;
+/**
+ * Dashboard middle row.
+ *
+ * Used to be the 3-col priority queue (Overdue · Due today · Coming up)
+ * plus a separate full-width Badges section below. Matt's call 23 Apr:
+ * those big red Overdue / accent-rule Today cards felt heavy for what
+ * was usually 0-1 items. Collapsed into a single 3-col row:
+ *
+ *   [ Earned badges ]  [ Next to unlock ]  [ Coming up ]
+ *
+ * Keeps the #dashboard-priority anchor so the nav bell still scrolls here.
+ */
+function MiddleRow({ buckets, badges }: { buckets: PriorityBuckets; badges: BadgesState }) {
+  const { soon } = buckets;
+  const { earned, next } = badges;
+  const earnedCount = earned.length;
+  const headline =
+    earnedCount === 0
+      ? "No badges yet."
+      : `${earnedCount} badge${earnedCount === 1 ? "" : "s"}`;
 
   return (
     <section id="dashboard-priority" className="max-w-[1400px] mx-auto px-6 pt-10">
       <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
-        {/* Overdue */}
-        <div className="md:col-span-4">
-          <div className="cap text-[#DC2626] mb-3">Overdue · {overdue.length}</div>
-          {overdue.map((q, i) => (
-            <article key={i} className="relative rounded-3xl p-6 card-shadow-lg glow-inner overflow-hidden text-white" style={{ background: "linear-gradient(135deg, #DC2626 0%, #991B1B 100%)" }}>
-              <div className="inline-flex items-center gap-2 bg-white/15 backdrop-blur rounded-full px-3 py-1 text-[10.5px] font-extrabold">
-                <Icon name="alert" size={11} s={3} /> {q.dueText}
+        {/* Earned badges card */}
+        <div className="md:col-span-5 relative rounded-3xl overflow-hidden card-shadow-lg glow-inner p-6 text-white" style={{ background: "linear-gradient(135deg, #1F2937 0%, #111827 100%)" }}>
+          <div className="relative">
+            <div className="cap text-white/60 inline-flex items-center gap-2"><Icon name="trophy" size={12} s={2.5} /> You&apos;ve earned</div>
+            <h2 className="display text-[40px] leading-none mt-1">
+              {headline}{earnedCount > 0 && <span className="text-[#FBBF24]">.</span>}
+            </h2>
+            {earned.length > 0 && (
+              <div className="mt-5 flex items-center gap-4 flex-wrap">
+                {earned.slice(0, 4).map((b, i) => (
+                  <BadgeCircle key={i} b={{ ...b, when: null }} size={64} />
+                ))}
               </div>
-              <h3 className="display text-[26px] leading-tight mt-4">{q.title}</h3>
-              <p className="text-[13px] text-white/85 mt-1">{q.sub}</p>
-              <div className="flex items-center gap-2 mt-5">
-                {q.href ? (
-                  <Link href={q.href} className="bg-white text-[#991B1B] rounded-full px-4 py-2 font-extrabold text-[12.5px] inline-flex items-center gap-1.5 hover:shadow-lg">
-                    Complete now <Icon name="arrow" size={11} s={2.5} />
-                  </Link>
-                ) : (
-                  <button className="bg-white text-[#991B1B] rounded-full px-4 py-2 font-extrabold text-[12.5px] inline-flex items-center gap-1.5 hover:shadow-lg">
-                    Complete now <Icon name="arrow" size={11} s={2.5} />
-                  </button>
-                )}
-                {/* Snooze button removed — Phase 13 dropped, "too many buttons" per Matt. */}
+            )}
+            {earnedCount === 0 && (
+              <div className="text-[12px] text-white/70 mt-2">
+                Pass a safety test to earn your first badge.
               </div>
-            </article>
-          ))}
+            )}
+          </div>
+          <div className="absolute top-5 right-5 text-[#FBBF24] opacity-60"><Icon name="sparkle" size={36} s={1.5} /></div>
         </div>
 
-        {/* Today */}
+        {/* Next to unlock */}
         <div className="md:col-span-4">
-          <div className="cap text-[var(--sl-ink-2)] mb-3">Due today · {today.length}</div>
-          {today.map((q, i) => (
-            <article key={i} className="relative bg-white rounded-3xl p-6 card-shadow overflow-hidden" style={{ borderLeft: `6px solid ${q.color}` }}>
-              <div className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-[10.5px] font-extrabold" style={{ background: `${q.color}1a`, color: q.color }}>
-                <Icon name="clock" size={11} s={3} /> {q.dueText}
-              </div>
-              <h3 className="display text-[22px] leading-tight mt-4">{q.title}</h3>
-              <p className="text-[12.5px] text-[var(--sl-ink-3)] mt-1">{q.sub}</p>
-              <div className="flex items-center gap-2 mt-5">
-                {q.href ? (
-                  <Link href={q.href} className="btn-primary rounded-full px-4 py-2 font-extrabold text-[12.5px] inline-flex items-center gap-1.5">
-                    Open task <Icon name="arrow" size={11} s={2.5} />
-                  </Link>
-                ) : (
-                  <button className="btn-primary rounded-full px-4 py-2 font-extrabold text-[12.5px] inline-flex items-center gap-1.5">
-                    Open task <Icon name="arrow" size={11} s={2.5} />
-                  </button>
-                )}
-              </div>
-            </article>
-          ))}
+          <div className="cap text-[var(--sl-ink-3)] mb-3">Next to unlock · {next.length}</div>
+          {next.length === 0 ? (
+            <div className="bg-white rounded-2xl p-6 border border-[var(--sl-hair)] text-[13px] text-[var(--sl-ink-3)]">
+              Nothing to unlock right now.
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2.5">
+              {next.slice(0, 3).map((b, i) => <BadgeProgress key={i} b={b} />)}
+            </div>
+          )}
         </div>
 
         {/* Coming up */}
-        <div className="md:col-span-4">
+        <div className="md:col-span-3">
           <div className="cap text-[var(--sl-ink-2)] mb-3">Coming up · {soon.length}</div>
           <div className="bg-white rounded-3xl p-2 card-shadow">
-            {soon.map((q, i) => {
-              const rowClass = "w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-[var(--sl-bg)] transition text-left";
-              const rowContent = (
-                <>
-                  <div className="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center" style={{ background: `${q.color}1a`, color: q.color }}>
-                    <Icon name={q.icon} size={14} s={2.2} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[12.5px] font-extrabold leading-tight truncate">{q.title}</div>
-                    <div className="text-[11px] text-[var(--sl-ink-3)] truncate mt-0.5">{q.sub}</div>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <div className="text-[10.5px] font-extrabold" style={{ color: q.color }}>{q.dueText.replace("Due ", "")}</div>
-                    <div className="text-[10px] text-[var(--sl-ink-3)] tnum">{q.due}</div>
-                  </div>
-                </>
-              );
-              return q.href ? (
-                <Link key={i} href={q.href} className={rowClass}>{rowContent}</Link>
-              ) : (
-                <button key={i} className={rowClass}>{rowContent}</button>
-              );
-            })}
+            {soon.length === 0 ? (
+              <div className="p-4 text-[12px] text-[var(--sl-ink-3)] text-center">
+                Nothing upcoming.
+              </div>
+            ) : (
+              soon.map((q, i) => {
+                const rowClass = "w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-[var(--sl-bg)] transition text-left";
+                const rowContent = (
+                  <>
+                    <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center" style={{ background: `${q.color}1a`, color: q.color }}>
+                      <Icon name={q.icon} size={14} s={2.2} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[12px] font-extrabold leading-tight truncate">{q.title}</div>
+                      <div className="text-[10.5px] text-[var(--sl-ink-3)] truncate mt-0.5">{q.sub}</div>
+                    </div>
+                  </>
+                );
+                return q.href ? (
+                  <Link key={i} href={q.href} className={rowClass}>{rowContent}</Link>
+                ) : (
+                  <button key={i} className={rowClass}>{rowContent}</button>
+                );
+              })
+            )}
           </div>
         </div>
       </div>
@@ -1001,56 +1007,10 @@ function BadgeProgress({ b }: { b: NextBadge }) {
   );
 }
 
-function Badges({ data }: { data: BadgesState }) {
-  const { earned, next } = data;
-  const earnedCount = earned.length;
-  const headline =
-    earnedCount === 0
-      ? "No badges yet."
-      : `${earnedCount} badge${earnedCount === 1 ? "" : "s"}`;
-  const subline =
-    earnedCount === 0
-      ? "Pass a safety test to earn your first badge."
-      : "Nice work — earned through your workshop safety tests.";
-
-  return (
-    <section id="dashboard-badges" className="max-w-[1400px] mx-auto px-6 pt-12">
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
-        <div className="md:col-span-5 relative rounded-3xl overflow-hidden card-shadow-lg glow-inner p-8 text-white" style={{ background: "linear-gradient(135deg, #1F2937 0%, #111827 100%)" }}>
-          <div className="relative">
-            <div className="cap text-white/60 inline-flex items-center gap-2"><Icon name="trophy" size={12} s={2.5} /> You&apos;ve earned</div>
-            <h2 className="display text-[56px] leading-none mt-1">
-              {headline}{earnedCount > 0 && <span className="text-[#FBBF24]">.</span>}
-            </h2>
-            <div className="text-[13px] text-white/70 mt-2">{subline}</div>
-            {earned.length > 0 && (
-              <div className="mt-8 flex items-center gap-6 flex-wrap">
-                {earned.slice(0, 4).map((b, i) => (
-                  <BadgeCircle key={i} b={{ ...b, when: null }} size={76} />
-                ))}
-              </div>
-            )}
-          </div>
-          <div className="absolute top-6 right-6 text-[#FBBF24] opacity-70"><Icon name="sparkle" size={48} s={1.5} /></div>
-          <div className="absolute bottom-6 right-20 text-[#FBBF24] opacity-40"><Icon name="sparkle" size={24} s={1.5} /></div>
-        </div>
-
-        <div className="md:col-span-7">
-          <div className="cap text-[var(--sl-ink-3)] mb-3">Next to unlock · {next.length}</div>
-          {next.length === 0 ? (
-            <div className="bg-white rounded-2xl p-6 border border-[var(--sl-hair)] text-[13px] text-[var(--sl-ink-3)]">
-              Nothing to unlock right now — your units haven&apos;t required any safety tests yet.
-            </div>
-          ) : (
-            <div className="flex flex-col gap-2.5">
-              {next.map((b, i) => <BadgeProgress key={i} b={b} />)}
-            </div>
-          )}
-        </div>
-      </div>
-    </section>
-  );
-}
+// Standalone Badges section removed 23 Apr 2026 — earned + next-to-unlock
+// now render inline within <MiddleRow />, replacing the Overdue and
+// Due-today slots from the old priority queue. BadgeCircle + BadgeProgress
+// sub-components are still used by MiddleRow.
 
 // Feedback section (teacher messages) removed in Phase 7. Will return
 // when the general notes system ships — see end-of-project TODO.
@@ -1081,13 +1041,20 @@ function HeroSkeleton() {
   );
 }
 
-function PrioritySkeleton() {
+function MiddleRowSkeleton() {
   return (
     <section className="max-w-[1400px] mx-auto px-6 pt-10">
       <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
-        <div className="md:col-span-4 space-y-3">{skelBlock("h-3 w-24")}{skelBlock("h-52 w-full")}</div>
-        <div className="md:col-span-4 space-y-3">{skelBlock("h-3 w-24")}{skelBlock("h-52 w-full")}</div>
-        <div className="md:col-span-4 space-y-3">{skelBlock("h-3 w-24")}{skelBlock("h-52 w-full")}</div>
+        {skelBlock("md:col-span-5 h-52")}
+        <div className="md:col-span-4 space-y-3">
+          {skelBlock("h-3 w-24")}
+          {skelBlock("h-16 w-full")}
+          {skelBlock("h-16 w-full")}
+        </div>
+        <div className="md:col-span-3 space-y-3">
+          {skelBlock("h-3 w-20")}
+          {skelBlock("h-52 w-full")}
+        </div>
       </div>
     </section>
   );
@@ -1111,21 +1078,8 @@ function UnitsGridSkeleton() {
   );
 }
 
-function BadgesSkeleton() {
-  return (
-    <section className="max-w-[1400px] mx-auto px-6 pt-12">
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
-        {skelBlock("md:col-span-5 h-64")}
-        <div className="md:col-span-7 space-y-3">
-          {skelBlock("h-3 w-32")}
-          {skelBlock("h-16 w-full")}
-          {skelBlock("h-16 w-full")}
-          {skelBlock("h-16 w-full")}
-        </div>
-      </div>
-    </section>
-  );
-}
+// BadgesSkeleton removed — badges now live inside the middle row, covered
+// by MiddleRowSkeleton.
 
 // ================= APP =================
 export default function DashboardClient() {
@@ -1261,9 +1215,10 @@ export default function DashboardClient() {
   return (
     <>
       {hero ? <ResumeHero student={sessionStudent} hero={hero} onFocus={() => setFocusMode(true)} /> : <HeroSkeleton />}
-      {buckets ? <Priority buckets={buckets} /> : <PrioritySkeleton />}
+      {buckets && badges
+        ? <MiddleRow buckets={buckets} badges={badges} />
+        : <MiddleRowSkeleton />}
       {units ? <UnitsGrid units={units} /> : <UnitsGridSkeleton />}
-      {badges ? <Badges data={badges} /> : <BadgesSkeleton />}
       {/* Bottom padding — replaces old <Feedback /> slot (dropped Phase 7) */}
       <div className="pb-20" />
 
