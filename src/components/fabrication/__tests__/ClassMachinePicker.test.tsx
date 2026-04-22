@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
   formatMachineLabel,
+  formatFileSize,
+  detectFileType,
+  validateUploadFile,
+  MAX_UPLOAD_SIZE_BYTES_CLIENT,
   type MachineProfileOption,
 } from "../picker-helpers";
 
@@ -63,5 +67,89 @@ describe("formatMachineLabel", () => {
       bed_size_y_mm: 235,
     };
     expect(formatMachineLabel(p)).toBe("Ender 3 — 3D Printer, 235×235mm");
+  });
+});
+
+// ============================================================
+// Phase 4-4 helpers
+// ============================================================
+
+describe("detectFileType", () => {
+  it("returns 'stl' for .stl filenames", () => {
+    expect(detectFileType("cube.stl")).toBe("stl");
+  });
+  it("returns 'svg' for .svg filenames", () => {
+    expect(detectFileType("coaster.svg")).toBe("svg");
+  });
+  it("is case-insensitive on the extension", () => {
+    expect(detectFileType("MODEL.STL")).toBe("stl");
+    expect(detectFileType("Logo.SVG")).toBe("svg");
+  });
+  it("handles filenames with multiple dots — uses the final segment", () => {
+    expect(detectFileType("my.final.design.stl")).toBe("stl");
+  });
+  it("returns null for unsupported extensions", () => {
+    expect(detectFileType("document.pdf")).toBeNull();
+    expect(detectFileType("photo.jpg")).toBeNull();
+  });
+  it("returns null for extensionless filenames", () => {
+    expect(detectFileType("README")).toBeNull();
+  });
+});
+
+describe("validateUploadFile", () => {
+  it("accepts a valid STL file under the size limit", () => {
+    const r = validateUploadFile({ name: "cube.stl", size: 1024 });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.fileType).toBe("stl");
+  });
+  it("accepts a valid SVG file", () => {
+    const r = validateUploadFile({ name: "coaster.svg", size: 2048 });
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.fileType).toBe("svg");
+  });
+  it("rejects a file with zero size", () => {
+    const r = validateUploadFile({ name: "x.stl", size: 0 });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/empty/);
+  });
+  it("rejects an empty filename", () => {
+    const r = validateUploadFile({ name: "", size: 100 });
+    expect(r.ok).toBe(false);
+  });
+  it("rejects unsupported extensions with a helpful message", () => {
+    const r = validateUploadFile({ name: "doc.pdf", size: 1024 });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.error).toMatch(/\.stl.*\.svg/);
+  });
+  it("rejects files larger than the 50 MB ceiling", () => {
+    const r = validateUploadFile({
+      name: "big.stl",
+      size: MAX_UPLOAD_SIZE_BYTES_CLIENT + 1,
+    });
+    expect(r.ok).toBe(false);
+    if (!r.ok) {
+      expect(r.error).toMatch(/maximum is 50 MB/);
+      expect(r.error).toMatch(/50\.0 MB/); // actual size rendered
+    }
+  });
+  it("accepts exactly the ceiling (boundary)", () => {
+    const r = validateUploadFile({
+      name: "exact.stl",
+      size: MAX_UPLOAD_SIZE_BYTES_CLIENT,
+    });
+    expect(r.ok).toBe(true);
+  });
+});
+
+describe("formatFileSize", () => {
+  it("uses bytes below 1 KB", () => {
+    expect(formatFileSize(500)).toBe("500 B");
+  });
+  it("uses KB between 1 KB and 1 MB", () => {
+    expect(formatFileSize(2048)).toBe("2.0 KB");
+  });
+  it("uses MB at or above 1 MB", () => {
+    expect(formatFileSize(5 * 1024 * 1024)).toBe("5.0 MB");
   });
 });

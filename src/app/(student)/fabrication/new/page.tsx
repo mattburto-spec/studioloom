@@ -1,27 +1,40 @@
 "use client";
 
 /**
- * /student/fabrication/new — Preflight Phase 4-3 scaffold.
+ * /student/fabrication/new — Preflight Phase 4-3 + 4-4.
  *
- * Page scaffold for the upload flow. This sub-phase lands class + machine
- * pickers; 4-4 adds the file picker + upload orchestration wiring; 4-5
- * wires the redirect to the status page.
+ * Student-facing upload flow. 4-3 shipped the class/machine pickers +
+ * picker-data fetch. 4-4 lands here: file picker + XHR PUT with progress
+ * + enqueue wiring + redirect to the status page.
  *
- * Data fetching: hits /api/student/fabrication/picker-data on mount
- * (can't use createAdminClient() directly in a client component per
- * Lesson #3). The layout already handles student auth globally.
+ * Upload sequence (orchestrated below, state in the uploadReducer):
+ *   1. User picks file + class + machine
+ *   2. Click "Upload and scan" → POST /api/student/fabrication/upload
+ *      → returns { jobId, revisionId, uploadUrl, storagePath }
+ *   3. XHR PUT file → uploadUrl with progress events (fetch() doesn't
+ *      expose upload progress — XHR is the only path)
+ *   4. POST /api/student/fabrication/jobs/{jobId}/enqueue-scan
+ *   5. Redirect to /student/fabrication/jobs/{jobId} (4-5 status page)
  *
- * File picker + Upload button are stubbed here — visible but disabled
- * until 4-4 lands the logic. Shipping the full page shell now so 4-4
- * is a pure additive commit (no layout shift on students mid-pilot).
+ * Error paths surface via uploadReducer → UploadProgress; the user can
+ * reset and retry without losing their class/machine selection.
  */
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import {
   ClassMachinePicker,
   type ClassOption,
   type MachineProfileOption,
 } from "@/components/fabrication/ClassMachinePicker";
+import { FileDropzone } from "@/components/fabrication/FileDropzone";
+import { UploadProgress } from "@/components/fabrication/UploadProgress";
+import {
+  uploadReducer,
+  initialUploadState,
+  type UploadAction,
+} from "@/components/fabrication/upload-state";
+import type { FabricationFileType } from "@/components/fabrication/picker-helpers";
 
 interface PickerData {
   classes: ClassOption[];
@@ -34,11 +47,16 @@ type LoadState =
   | { kind: "ready"; data: PickerData };
 
 export default function FabricationNewPage() {
+  const router = useRouter();
   const [loadState, setLoadState] = React.useState<LoadState>({ kind: "loading" });
   const [selectedClassId, setSelectedClassId] = React.useState<string | null>(null);
   const [selectedMachineProfileId, setSelectedMachineProfileId] = React.useState<
     string | null
   >(null);
+  const [file, setFile] = React.useState<File | null>(null);
+  const [fileType, setFileType] = React.useState<FabricationFileType | null>(null);
+  const [validationError, setValidationError] = React.useState<string | null>(null);
+  const [uploadState, dispatch] = React.useReducer(uploadReducer, initialUploadState);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -76,7 +94,155 @@ export default function FabricationNewPage() {
   const canUpload =
     loadState.kind === "ready" &&
     selectedClassId !== null &&
-    selectedMachineProfileId !== null;
+    selectedMachineProfileId !== null &&
+    file !== null &&
+    fileType !== null &&
+    (uploadState.kind === "idle" || uploadState.kind === "error");
+
+  const isBusy =
+    uploadState.kind === "uploading" || uploadState.kind === "enqueuing";
+
+  async function handleUpload() {
+    if (!file || !fileType || !selectedClassId || !selectedMachineProfileId) return;
+    setValidationError(null);
+
+    // Step 1: POST /upload to create rows + mint signed URL.
+    let initResult: {
+      jobId: string;
+      revisionId: string;
+      uploadUrl: string;
+      storagePath: string;
+    };
+    try {
+      const res = await fetch("/api/student/fabrication/upload", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          classId: selectedClassId,
+          machineProfileId: selectedMachineProfileId,
+          fileType,
+          originalFilename: file.name,
+          fileSizeBytes: file.size,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        dispatch({
+          type: "ERROR",
+          message: body.error || `Upload init failed (HTTP ${res.status})`,
+        });
+        return;
+      }
+      initResult = await res.json();
+    } catch (e) {
+      dispatch({
+        type: "ERROR",
+        message: e instanceof Error ? e.message : "Upload init failed",
+      });
+      return;
+    }
+
+    dispatch({
+      type: "START_UPLOAD",
+      jobId: initResult.jobId,
+      revisionId: initResult.revisionId,
+      totalBytes: file.size,
+    });
+
+    // Step 2: PUT file to the signed URL with XHR progress.
+    //
+    // We use XMLHttpRequest instead of fetch() because fetch doesn't
+    // expose upload-direction progress events (ReadableStream request
+    // bodies aren't widely supported, and even when they are the browser
+    // doesn't surface progress to the caller). If a proxy strips the
+    // progress events we fall back to the indeterminate spinner via
+    // PROGRESS_INDETERMINATE (brief §5 stop trigger — don't block on it).
+    const uploadOk = await new Promise<boolean>((resolve) => {
+      const xhr = new XMLHttpRequest();
+      let anyProgressSeen = false;
+      xhr.open("PUT", initResult.uploadUrl, true);
+      xhr.upload.onprogress = (ev) => {
+        if (ev.lengthComputable) {
+          anyProgressSeen = true;
+          dispatch({ type: "PROGRESS", loaded: ev.loaded, total: ev.total });
+        }
+      };
+      // If no progress events have fired within 1.5s, flip to indeterminate
+      // so the user knows we're still working.
+      const indeterminateTimer = window.setTimeout(() => {
+        if (!anyProgressSeen) dispatch({ type: "PROGRESS_INDETERMINATE" });
+      }, 1500);
+      xhr.onload = () => {
+        window.clearTimeout(indeterminateTimer);
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve(true);
+        } else {
+          dispatch({
+            type: "ERROR",
+            message: `Upload failed (HTTP ${xhr.status}). Try again.`,
+          });
+          resolve(false);
+        }
+      };
+      xhr.onerror = () => {
+        window.clearTimeout(indeterminateTimer);
+        dispatch({
+          type: "ERROR",
+          message: "Upload network error — check your connection and try again.",
+        });
+        resolve(false);
+      };
+      xhr.onabort = () => {
+        window.clearTimeout(indeterminateTimer);
+        dispatch({ type: "ERROR", message: "Upload was cancelled." });
+        resolve(false);
+      };
+      // Supabase signed URLs accept the raw file body. Content-Type
+      // should match the object's type — best-effort mapping below,
+      // with octet-stream fallback.
+      const contentType = fileType === "svg" ? "image/svg+xml" : "model/stl";
+      xhr.setRequestHeader("Content-Type", contentType);
+      xhr.send(file);
+    });
+
+    if (!uploadOk) return;
+
+    dispatch({ type: "UPLOAD_COMPLETE" });
+
+    // Step 3: enqueue scan. Idempotent per 4-2 — safe to retry without
+    // creating duplicate scan_jobs.
+    try {
+      const enqRes = await fetch(
+        `/api/student/fabrication/jobs/${initResult.jobId}/enqueue-scan`,
+        {
+          method: "POST",
+          credentials: "same-origin",
+        }
+      );
+      if (!enqRes.ok) {
+        const body = await enqRes.json().catch(() => ({ error: `HTTP ${enqRes.status}` }));
+        dispatch({
+          type: "ERROR",
+          message: body.error || `Couldn't queue the scan (HTTP ${enqRes.status})`,
+        });
+        return;
+      }
+    } catch (e) {
+      dispatch({
+        type: "ERROR",
+        message: e instanceof Error ? e.message : "Couldn't queue the scan",
+      });
+      return;
+    }
+
+    dispatch({ type: "ENQUEUE_COMPLETE" });
+
+    // Step 4: redirect to the (yet-to-land 4-5) status page. The page
+    // will show a placeholder until 4-5 lands — that's fine; the URL
+    // is what matters for the smoke test.
+    router.push(`/student/fabrication/jobs/${initResult.jobId}`);
+  }
 
   return (
     <main className="max-w-2xl mx-auto px-6 py-10">
@@ -113,26 +279,36 @@ export default function FabricationNewPage() {
             selectedMachineProfileId={selectedMachineProfileId}
             onClassChange={setSelectedClassId}
             onMachineChange={setSelectedMachineProfileId}
+            disabled={isBusy}
           />
 
-          {/*
-           * File picker placeholder — Phase 4-4 lands FileDropzone +
-           * UploadProgress + the enqueue wiring. Keeping the space
-           * reserved now so the layout doesn't shift later.
-           */}
-          <div className="rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 p-6 text-center">
-            <p className="text-sm font-medium text-gray-700">File picker</p>
-            <p className="text-xs text-gray-500 mt-1">
-              Coming in the next sub-phase — you&apos;ll drag a file here.
-            </p>
-          </div>
+          <FileDropzone
+            file={file}
+            onFilePicked={(picked, ft) => {
+              setFile(picked);
+              setFileType(ft);
+              setValidationError(null);
+              if (uploadState.kind === "error") dispatch({ type: "RESET" });
+            }}
+            onValidationError={(msg) => setValidationError(msg)}
+            disabled={isBusy}
+          />
+
+          {validationError && (
+            <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+              <p className="text-sm text-amber-900">{validationError}</p>
+            </div>
+          )}
+
+          <UploadProgress state={uploadState} />
 
           <button
             type="button"
+            onClick={handleUpload}
             disabled={!canUpload}
             className="w-full py-2.5 rounded-xl bg-brand-purple text-white text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            Upload and scan
+            {uploadState.kind === "error" ? "Try again" : "Upload and scan"}
           </button>
 
           {loadState.data.classes.length === 0 && (
