@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import type { JSX } from "react";
 
 /* ================================================================
@@ -10,13 +10,66 @@ import type { JSX } from "react";
  * No real data wired yet — see Phase 2+.
  * ================================================================ */
 
-// ================= MOCK DATA =================
-const STUDENT = {
+// ================= SESSION =================
+type SessionStudent = {
+  name: string;
+  first: string;
+  initials: string;
+  avatarGrad: string;
+  classTag: string | null;
+};
+
+// Gradient palette for the avatar — deterministic per-name pick.
+const AVATAR_GRADS = [
+  "from-[#E86F2C] to-[#EC4899]", // orange → pink  (matches mock)
+  "from-[#0EA5A4] to-[#3B82F6]", // teal → blue
+  "from-[#9333EA] to-[#E86F2C]", // violet → orange
+  "from-[#EC4899] to-[#F59E0B]", // pink → amber
+  "from-[#10B981] to-[#0EA5A4]", // emerald → teal
+  "from-[#6366F1] to-[#9333EA]", // indigo → violet
+];
+
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  return name.slice(0, 2).toUpperCase();
+}
+
+function gradFor(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return AVATAR_GRADS[Math.abs(hash) % AVATAR_GRADS.length];
+}
+
+// Fallback used when session isn't available (scaffold/preview mode).
+const STUDENT_MOCK: SessionStudent = {
   name: "Sam",
   first: "Sam",
   initials: "SM",
   avatarGrad: "from-[#E86F2C] to-[#EC4899]",
+  classTag: "Year 7 · Design",
 };
+
+type SessionResponse = {
+  student: {
+    id: string;
+    username: string;
+    display_name: string | null;
+    classes: { id: string; name: string; code: string; framework?: string | null } | null;
+  };
+};
+
+function toSessionStudent(data: SessionResponse): SessionStudent {
+  const name = data.student.display_name?.trim() || data.student.username;
+  const first = name.split(/\s+/)[0];
+  return {
+    name,
+    first,
+    initials: getInitials(name),
+    avatarGrad: gradFor(name),
+    classTag: data.student.classes?.name ?? null,
+  };
+}
 
 const NAV_S = ["My work", "Units", "Badges", "Journal", "Resources"] as const;
 
@@ -176,7 +229,7 @@ function RingProgress({ pct, size = 96, stroke = 8, color }: { pct: number; size
 }
 
 // ================= TOP NAV =================
-function TopNav() {
+function TopNav({ student, loading }: { student: SessionStudent; loading: boolean }) {
   return (
     <header className="sticky top-0 z-30 bg-[var(--sl-bg)]/80 backdrop-blur-lg border-b border-[var(--sl-hair)]">
       <div className="max-w-[1400px] mx-auto px-6 h-16 flex items-center gap-4">
@@ -207,11 +260,22 @@ function TopNav() {
         </button>
         <div className="flex items-center gap-2.5 pl-1">
           <div className="text-right">
-            <div className="text-[12px] font-bold leading-none">{STUDENT.name}</div>
-            <div className="text-[10.5px] text-[var(--sl-ink-3)] mt-0.5 leading-none">Year 7 · Design</div>
+            {loading ? (
+              <>
+                <div className="h-3 w-16 rounded bg-[var(--sl-hair)] animate-pulse" />
+                <div className="h-2.5 w-20 rounded bg-[var(--sl-hair)] animate-pulse mt-1" />
+              </>
+            ) : (
+              <>
+                <div className="text-[12px] font-bold leading-none">{student.name}</div>
+                {student.classTag && (
+                  <div className="text-[10.5px] text-[var(--sl-ink-3)] mt-0.5 leading-none">{student.classTag}</div>
+                )}
+              </>
+            )}
           </div>
-          <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${STUDENT.avatarGrad} text-white flex items-center justify-center font-bold text-[11px]`}>
-            {STUDENT.initials}
+          <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${student.avatarGrad} text-white flex items-center justify-center font-bold text-[11px]`}>
+            {loading ? "" : student.initials}
           </div>
         </div>
       </div>
@@ -220,13 +284,13 @@ function TopNav() {
 }
 
 // ================= RESUME HERO =================
-function ResumeHero() {
+function ResumeHero({ student }: { student: SessionStudent }) {
   const n = CURRENT;
   return (
     <section className="max-w-[1400px] mx-auto px-6 pt-8">
       <div className="flex items-end justify-between mb-4 px-1">
         <div>
-          <div className="cap text-[var(--sl-ink-3)]">Good morning, {STUDENT.first}</div>
+          <div className="cap text-[var(--sl-ink-3)]">Good morning, {student.first}</div>
           <h1 className="display-lg text-[44px] leading-[0.95] mt-1">Let&apos;s pick up where you left off.</h1>
         </div>
         <div className="text-[12px] text-[var(--sl-ink-3)] font-semibold hidden md:block">
@@ -625,6 +689,9 @@ const SCOPED_CSS = `
 
 // ================= APP =================
 export default function DashboardV2Client() {
+  const [student, setStudent] = useState<SessionStudent>(STUDENT_MOCK);
+  const [sessionLoading, setSessionLoading] = useState(true);
+
   // Mount-time style inject (scoped via .sl-v2).
   useEffect(() => {
     const id = "sl-v2-scoped-styles";
@@ -638,10 +705,30 @@ export default function DashboardV2Client() {
     };
   }, []);
 
+  // Load real session if available; fall back to mock for scaffold/preview mode.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/auth/student-session");
+        if (!res.ok) return; // 401 → stay on mock (preview mode)
+        const data: SessionResponse = await res.json();
+        if (!cancelled && data.student) setStudent(toSessionStudent(data));
+      } catch {
+        /* silent — keep mock */
+      } finally {
+        if (!cancelled) setSessionLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <div className="sl-v2">
-      <TopNav />
-      <ResumeHero />
+      <TopNav student={student} loading={sessionLoading} />
+      <ResumeHero student={student} />
       <Priority />
       <UnitsGrid />
       <Badges />
