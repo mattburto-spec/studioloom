@@ -129,43 +129,11 @@ function UnitPageViewInner({
 
   return (
     <div className="min-h-screen bg-white">
-      {/* ── Sticky lesson bar — sits below the global BoldTopNav (h-16 = 4rem). ── */}
-      <div className="sticky top-16 z-20 bg-white/95 backdrop-blur-sm border-b border-gray-100 shadow-sm">
-        <div className="max-w-5xl mx-auto px-4 py-2 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {unitNav && (
-              <button
-                onClick={() => unitNav.setSidebarOpen(true)}
-                className="md:hidden w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-200 transition"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="3" y1="6" x2="21" y2="6" />
-                  <line x1="3" y1="12" x2="21" y2="12" />
-                  <line x1="3" y1="18" x2="21" y2="18" />
-                </svg>
-              </button>
-            )}
-            {currentPage && (
-              <span className="text-xs text-gray-400 font-medium hidden sm:block">
-                {currentIndex + 1}/{enabledPages.length}
-              </span>
-            )}
-          </div>
-          <span className="text-sm font-semibold text-gray-700 truncate max-w-[50%]">
-            {displayTitle}
-          </span>
-          <button
-            onClick={() => router.push("/dashboard")}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 rounded-lg transition"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-              <polyline points="9 22 9 12 15 12 15 22" />
-            </svg>
-            Dashboard
-          </button>
-        </div>
-      </div>
+      {/* Lesson sticky bar removed in Phase 10 follow-up — its mobile
+          hamburger now lives in the layout-owned BoldTopNav via
+          SidebarSlotContext. The Dashboard button was redundant with the
+          nav logo. Progress + title are already shown in the hero block
+          below. */}
 
       {/* ── Hero header — full-width gradient block ── */}
       {currentPage ? (

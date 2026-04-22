@@ -20,6 +20,7 @@ import type { JSX } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { Student } from "@/types";
+import { useSidebarSlot } from "./SidebarSlotContext";
 
 // ================= SESSION STUDENT =================
 
@@ -85,7 +86,7 @@ export type IconName =
   | "arrow" | "play" | "check" | "chev" | "chevR" | "plus" | "more"
   | "bell" | "search" | "alert" | "clock" | "shield" | "star" | "book"
   | "wrench" | "bolt" | "print" | "flame" | "trophy" | "msg" | "sparkle"
-  | "gear" | "logout";
+  | "gear" | "logout" | "menu";
 
 export function Icon({ name, size = 16, s = 2 }: { name: IconName; size?: number; s?: number }) {
   const p = {
@@ -152,6 +153,13 @@ export function Icon({ name, size = 16, s = 2 }: { name: IconName; size?: number
         <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
         <polyline points="16 17 21 12 16 7" />
         <line x1="21" y1="12" x2="9" y2="12" />
+      </>
+    ),
+    menu: (
+      <>
+        <line x1="3" y1="6" x2="21" y2="6" />
+        <line x1="3" y1="12" x2="21" y2="12" />
+        <line x1="3" y1="18" x2="21" y2="18" />
       </>
     ),
   };
@@ -285,6 +293,7 @@ export function BoldTopNav({
   const onDashboard = pathname === "/dashboard";
   const session = studentToSession(student, classInfo?.name);
   const showMock = !student && !loading; // preview / unauthenticated fallback
+  const { handler: sidebarHandler } = useSidebarSlot();
 
   const scrollTo = (anchor: string | null) => {
     if (!anchor) return;
@@ -314,6 +323,17 @@ export function BoldTopNav({
   return (
     <header className="sticky top-0 z-30 bg-[var(--sl-bg)]/80 backdrop-blur-lg border-b border-[var(--sl-hair)]">
       <div className="max-w-[1400px] mx-auto px-6 h-16 flex items-center gap-4">
+        {/* Mobile-only sidebar hamburger — rendered when a child route
+            (currently /unit/*) has registered a handler via SidebarSlotContext. */}
+        {sidebarHandler && (
+          <button
+            onClick={sidebarHandler}
+            className="md:hidden w-9 h-9 rounded-full hover:bg-white flex items-center justify-center text-[var(--sl-ink-2)]"
+            aria-label="Open lesson list"
+          >
+            <Icon name="menu" size={18} />
+          </button>
+        )}
         <Link href="/dashboard" className="flex items-center gap-2.5" aria-label="Dashboard">
           <div className="w-9 h-9 rounded-2xl bg-[var(--sl-ink)] flex items-center justify-center text-white display text-[15px]">#</div>
           <div className="display text-[17px] leading-none">StudioLoom</div>
