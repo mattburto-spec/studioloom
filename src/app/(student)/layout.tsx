@@ -8,6 +8,7 @@ import { StudioSetup } from "@/components/student/StudioSetup";
 import { BugReportButton } from "@/components/shared/BugReportButton";
 import { BoldTopNav } from "@/components/student/BoldTopNav";
 import { BellCountContext } from "@/components/student/BellCountContext";
+import { SidebarSlotContext } from "@/components/student/SidebarSlotContext";
 import { getThemeStyles, type ThemeId, THEMES } from "@/lib/student/themes";
 import { MENTORS, type MentorId } from "@/lib/student/mentors";
 import type { Student, Class } from "@/types";
@@ -28,6 +29,10 @@ export default function StudentLayout({
   // BoldTopNav bell badge — Dashboard sets this via context after its
   // insights fetch. Other routes leave it at 0 for now.
   const [bellCount, setBellCount] = useState(0);
+
+  // BoldTopNav mobile hamburger — /unit/[id]/layout.tsx registers a handler
+  // to open its lesson drawer; other routes leave it null (no button shown).
+  const [sidebarHandler, setSidebarHandler] = useState<(() => void) | null>(null);
 
   useEffect(() => {
     async function loadSession() {
@@ -132,6 +137,7 @@ export default function StudentLayout({
   return (
     <StudentContext.Provider value={{ student, classInfo }}>
       <BellCountContext.Provider value={{ count: bellCount, setCount: setBellCount }}>
+        <SidebarSlotContext.Provider value={{ handler: sidebarHandler, setHandler: setSidebarHandler }}>
         <div className="sl-v2">
           <BoldTopNav
             student={student}
@@ -263,6 +269,7 @@ export default function StudentLayout({
             </div>
           )}
         </div>
+        </SidebarSlotContext.Provider>
       </BellCountContext.Provider>
     </StudentContext.Provider>
   );

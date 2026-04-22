@@ -23,7 +23,8 @@ import { useUnitNav } from "@/contexts/UnitNavContext";
 import { ScrollReveal } from "@/components/student/ScrollReveal";
 import { toEmbedUrl } from "@/lib/video-embed";
 import StudentFeedbackPulse from "@/components/teacher/knowledge/StudentFeedbackPulse";
-import DesignAssistantWidget from "@/components/student/DesignAssistantWidget";
+// DesignAssistantWidget import removed in Phase 10 polish. Component file
+// still exists — will be re-integrated via a unified AI-mentor surface.
 import { useStudent } from "@/app/(student)/student-context";
 import { OpenStudioBanner } from "@/components/open-studio";
 import { useOpenStudio } from "@/hooks/useOpenStudio";
@@ -129,43 +130,11 @@ function UnitPageViewInner({
 
   return (
     <div className="min-h-screen bg-white">
-      {/* ── Sticky top nav bar ── */}
-      <div className="sticky top-0 z-40 bg-white/95 backdrop-blur-sm border-b border-gray-100 shadow-sm">
-        <div className="max-w-5xl mx-auto px-4 py-2 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {unitNav && (
-              <button
-                onClick={() => unitNav.setSidebarOpen(true)}
-                className="md:hidden w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-200 transition"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="3" y1="6" x2="21" y2="6" />
-                  <line x1="3" y1="12" x2="21" y2="12" />
-                  <line x1="3" y1="18" x2="21" y2="18" />
-                </svg>
-              </button>
-            )}
-            {currentPage && (
-              <span className="text-xs text-gray-400 font-medium hidden sm:block">
-                {currentIndex + 1}/{enabledPages.length}
-              </span>
-            )}
-          </div>
-          <span className="text-sm font-semibold text-gray-700 truncate max-w-[50%]">
-            {displayTitle}
-          </span>
-          <button
-            onClick={() => router.push("/dashboard")}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 rounded-lg transition"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-              <polyline points="9 22 9 12 15 12 15 22" />
-            </svg>
-            Dashboard
-          </button>
-        </div>
-      </div>
+      {/* Lesson sticky bar removed in Phase 10 follow-up — its mobile
+          hamburger now lives in the layout-owned BoldTopNav via
+          SidebarSlotContext. The Dashboard button was redundant with the
+          nav logo. Progress + title are already shown in the hero block
+          below. */}
 
       {/* ── Hero header — full-width gradient block ── */}
       {currentPage ? (
@@ -540,19 +509,19 @@ function UnitPageViewInner({
 
       {/* Save indicator — subtle auto-save status in top bar area */}
       {saving && (
-        <div className="fixed top-[3.25rem] right-4 z-50 flex items-center gap-1.5 px-3 py-1 bg-gray-100 text-gray-500 text-xs font-medium rounded-full shadow-sm">
+        <div className="fixed top-[4.5rem] right-4 z-50 flex items-center gap-1.5 px-3 py-1 bg-gray-100 text-gray-500 text-xs font-medium rounded-full shadow-sm">
           <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
           Saving...
         </div>
       )}
       {showSaveToast && (
-        <div className="fixed top-[3.25rem] right-4 z-50 flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-600 text-xs font-medium rounded-full shadow-sm">
+        <div className="fixed top-[4.5rem] right-4 z-50 flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-600 text-xs font-medium rounded-full shadow-sm">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
           Saved
         </div>
       )}
       {moderationError && (
-        <div className="fixed top-[3.25rem] left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2 bg-red-50 border border-red-200 text-red-700 text-sm font-medium rounded-lg shadow-md max-w-md text-center">
+        <div className="fixed top-[4.5rem] left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2 bg-red-50 border border-red-200 text-red-700 text-sm font-medium rounded-lg shadow-md max-w-md text-center">
           <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd"/></svg>
           {moderationError}
         </div>
@@ -586,11 +555,12 @@ function UnitPageViewInner({
         <div className="fixed right-4 z-40 flex flex-col-reverse items-end gap-3" style={{ bottom: "5.5rem" }}>
           <div className="group flex items-center gap-2 animate-pop-in">
             <span className="px-2.5 py-1 rounded-lg bg-gray-900/80 text-white text-xs font-medium shadow-lg opacity-0 translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 pointer-events-none whitespace-nowrap">
-              Portfolio
+              Journal
             </span>
             <button
               onClick={() => setPortfolioOpen(true)}
               className="w-11 h-11 rounded-full gradient-cta text-white shadow-lg shadow-brand-pink/30 hover:scale-110 hover:shadow-xl active:scale-95 transition-all duration-150 flex items-center justify-center"
+              aria-label="Journal"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
@@ -649,23 +619,8 @@ function UnitPageViewInner({
             </button>
           </div>
 
-          <div className="group flex items-center gap-2 animate-pop-in" style={{ animationDelay: "200ms" }}>
-            <span className="px-2.5 py-1 rounded-lg bg-gray-900/80 text-white text-xs font-medium shadow-lg opacity-0 translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 pointer-events-none whitespace-nowrap">
-              Design Tools
-            </span>
-            <button
-              onClick={() => window.dispatchEvent(new Event('questerra:open-tools'))}
-              className="w-11 h-11 rounded-full text-white shadow-lg hover:scale-110 hover:shadow-xl active:scale-95 transition-all duration-150 flex items-center justify-center"
-              style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)", boxShadow: "0 4px 14px rgba(123, 47, 242, 0.35)" }}
-            >
-              <svg width="16" height="16" viewBox="0 0 32 32" fill="none">
-                <rect x="2" y="8" width="28" height="5" rx="2.5" fill="white" />
-                <rect x="2" y="19" width="28" height="5" rx="2.5" fill="white" />
-                <rect x="8" y="2" width="5" height="28" rx="2.5" fill="white" />
-                <rect x="19" y="2" width="5" height="28" rx="2.5" fill="white" />
-              </svg>
-            </button>
-          </div>
+          {/* Design Tools floating button removed in Phase 10 polish — not
+              project-management and not relevant to non-Design units. */}
         </div>
       )}
 
@@ -692,14 +647,9 @@ function UnitPageViewInner({
         }}
       />
 
-      {/* Design Assistant — Socratic mentor chat widget */}
-      {student?.id && (
-        <DesignAssistantWidget
-          unitId={unitId}
-          pageId={pageId}
-          studentId={student.id}
-        />
-      )}
+      {/* Design Assistant chat widget removed in Phase 10 polish.
+          Will return in a later phase with a unified integration — Matt
+          wants to rethink how the AI mentor surfaces across the shell. */}
     </div>
   );
 }

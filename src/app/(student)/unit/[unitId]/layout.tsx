@@ -1,8 +1,9 @@
 "use client";
 
-import { use } from "react";
+import { use, useEffect } from "react";
 import { UnitNavProvider, useUnitNav } from "@/contexts/UnitNavContext";
 import { LessonSidebar } from "@/components/student/LessonSidebar";
+import { useSidebarSlot } from "@/components/student/SidebarSlotContext";
 
 function UnitLayoutInner({
   unitId,
@@ -12,6 +13,15 @@ function UnitLayoutInner({
   children: React.ReactNode;
 }) {
   const ctx = useUnitNav();
+  const { setHandler } = useSidebarSlot();
+
+  // Register the mobile hamburger handler with the layout-owned BoldTopNav
+  // so /unit/* routes can open the lesson drawer from the global nav.
+  useEffect(() => {
+    if (!ctx) return;
+    setHandler(() => ctx.setSidebarOpen(true));
+    return () => setHandler(null);
+  }, [ctx, setHandler]);
 
   if (!ctx || ctx.loading || !ctx.data) {
     return (
