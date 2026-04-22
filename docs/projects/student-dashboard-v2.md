@@ -23,7 +23,7 @@ Shipped behind `sl_v2=1` cookie at `/dashboard/v2` during build.
 | 9 | Quick wins — bell count, pill anchors, dead-link cleanup, hide fake teacher note | ✅ Done | _(this commit)_ |
 | 10 | Unified student header across all routes | ✅ Done | _(this commit)_ |
 | 11 | Responsive pass (mobile + tablet) | ✅ Done | _(this commit)_ |
-| 12 | Focus mode (hides everything except next step) | ⏳ Planned | — |
+| 12 | Focus mode (hides everything except next step) | ✅ Done | _(this commit)_ |
 | 13 | Snooze button behaviour experiment | ⏳ Planned | — |
 | 14 | General bidirectional notes system | ⏳ Planned | — |
 | 15 | Delete `/dashboard-legacy` rollback (≥ 2026-04-29) | ⏳ Scheduled | — |

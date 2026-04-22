@@ -594,7 +594,7 @@ function RingProgress({ pct, size = 96, stroke = 8, color }: { pct: number; size
 // from (student)/layout.tsx so every student route shares it.
 
 // ================= RESUME HERO =================
-function ResumeHero({ student, hero }: { student: SessionStudent; hero: HeroUnit }) {
+function ResumeHero({ student, hero, onFocus }: { student: SessionStudent; hero: HeroUnit; onFocus: () => void }) {
   const n = hero;
   return (
     <section id="dashboard-hero" className="max-w-[1400px] mx-auto px-6 pt-8">
@@ -652,6 +652,15 @@ function ResumeHero({ student, hero }: { student: SessionStudent; hero: HeroUnit
               <button className="bg-white/15 backdrop-blur hover:bg-white/25 text-white rounded-full px-5 py-3 font-bold text-[13.5px]">
                 Open journal
               </button>
+              {/* Focus — hides everything except the next step (Phase 12). */}
+              <button
+                onClick={onFocus}
+                className="bg-white/15 backdrop-blur hover:bg-white/25 text-white rounded-full px-5 py-3 font-bold text-[13.5px] inline-flex items-center gap-1.5"
+                aria-label="Enter focus mode"
+              >
+                <Icon name="sparkle" size={12} s={2.5} />
+                Focus
+              </button>
             </div>
           </div>
 
@@ -688,6 +697,78 @@ function ResumeHero({ student, hero }: { student: SessionStudent; hero: HeroUnit
         </div>
       </div>
     </section>
+  );
+}
+
+// ================= FOCUS OVERLAY (Phase 12) =================
+// Full-screen replacement of the dashboard when the student hits "Focus".
+// Renders above the BoldTopNav (z-50), shows only the next-step card,
+// exits on Esc or the "Back to dashboard" button.
+function FocusOverlay({ hero, onExit }: { hero: HeroUnit; onExit: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onExit();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onExit]);
+
+  const pct = hero.taskTotal > 0 ? (hero.taskProgress / hero.taskTotal) * 100 : 0;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-[var(--sl-bg)] overflow-auto">
+      <button
+        onClick={onExit}
+        className="absolute top-5 right-5 flex items-center gap-1.5 text-[12.5px] font-bold text-[var(--sl-ink-2)] hover:text-[var(--sl-ink)] bg-white rounded-full px-4 py-2 card-shadow"
+        aria-label="Exit focus mode"
+      >
+        ← Back to dashboard
+      </button>
+
+      <div className="min-h-screen flex items-center justify-center p-6">
+        <div className="max-w-xl w-full text-center">
+          <div className="cap text-[var(--sl-ink-3)]">Your next step</div>
+          <div className="mt-6 mx-auto relative" style={{ width: 128, height: 128 }}>
+            <RingProgress pct={pct} size={128} stroke={10} color={hero.color} />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="display text-[26px] tnum" style={{ color: hero.colorDark }}>
+                {hero.taskProgress}
+                <span className="text-[14px] text-[var(--sl-ink-3)]">/{hero.taskTotal}</span>
+              </div>
+            </div>
+          </div>
+          <h1 className="display-lg text-[40px] md:text-[56px] leading-[0.95] mt-8">
+            {hero.currentTask}
+          </h1>
+          {hero.dueIn && (
+            <div className="text-[14px] text-[var(--sl-ink-3)] mt-3 font-semibold">
+              Due <span className="text-[var(--sl-ink)] font-bold">{hero.dueIn}</span>
+            </div>
+          )}
+          <div className="mt-8 flex items-center justify-center gap-2">
+            {hero.continueHref ? (
+              <Link
+                href={hero.continueHref}
+                className="text-white rounded-full px-8 py-3.5 font-bold text-[15px] inline-flex items-center gap-2 hover:brightness-110 transition"
+                style={{ background: hero.color }}
+              >
+                <Icon name="play" size={12} s={0} /> Continue
+              </Link>
+            ) : (
+              <button
+                className="text-white rounded-full px-8 py-3.5 font-bold text-[15px] inline-flex items-center gap-2"
+                style={{ background: hero.color }}
+              >
+                <Icon name="play" size={12} s={0} /> Continue
+              </button>
+            )}
+          </div>
+          <div className="text-[11px] text-[var(--sl-ink-3)] mt-6 font-semibold">
+            Press <kbd className="px-1.5 py-0.5 rounded bg-white border border-[var(--sl-hair)] text-[var(--sl-ink-2)]">Esc</kbd> to exit
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -1030,6 +1111,9 @@ export default function DashboardClient() {
   const [units, setUnits] = useState<StudentUnit[] | null>(null);
   const [badges, setBadges] = useState<BadgesState | null>(null);
 
+  // Phase 12 — focus mode. Hides everything except the current next step.
+  const [focusMode, setFocusMode] = useState(false);
+
   // Keep the nav's bell badge in sync with the priority queue.
   useEffect(() => {
     setBellCount((buckets?.overdue.length ?? 0) + (buckets?.today.length ?? 0));
@@ -1140,12 +1224,18 @@ export default function DashboardClient() {
 
   return (
     <>
-      {hero ? <ResumeHero student={sessionStudent} hero={hero} /> : <HeroSkeleton />}
+      {hero ? <ResumeHero student={sessionStudent} hero={hero} onFocus={() => setFocusMode(true)} /> : <HeroSkeleton />}
       {buckets ? <Priority buckets={buckets} /> : <PrioritySkeleton />}
       {units ? <UnitsGrid units={units} /> : <UnitsGridSkeleton />}
       {badges ? <Badges data={badges} /> : <BadgesSkeleton />}
       {/* Bottom padding — replaces old <Feedback /> slot (dropped Phase 7) */}
       <div className="pb-20" />
+
+      {/* Phase 12 — focus overlay. Renders above everything (including the
+          layout-owned BoldTopNav) when focusMode is true. */}
+      {focusMode && hero && (
+        <FocusOverlay hero={hero} onExit={() => setFocusMode(false)} />
+      )}
     </>
   );
 }
