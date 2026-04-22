@@ -40,6 +40,11 @@ export interface ScanResultsViewerProps {
   /** Drives the fileType-aware ack option labels (STL: slicer, SVG:
    *  design software). Defaults to 'stl' — page should always pass. */
   fileType?: "stl" | "svg";
+  /** Phase 6-2: teacher-side read-only view. When true: Submit +
+   *  Re-upload buttons + gate explainer are hidden, radios show the
+   *  student's choices but can't be changed, empty-state hint labels
+   *  flip from "ready to submit" to "student saw no issues". */
+  readOnly?: boolean;
 }
 
 export function ScanResultsViewer(props: ScanResultsViewerProps) {
@@ -57,6 +62,7 @@ export function ScanResultsViewer(props: ScanResultsViewerProps) {
     thumbnailUrl,
     machineLabel,
     fileType = "stl",
+    readOnly = false,
   } = props;
 
   const buckets = classifyRules(scanResults);
@@ -128,6 +134,7 @@ export function ScanResultsViewer(props: ScanResultsViewerProps) {
               onAcknowledge={onAcknowledge}
               disabled={disabledFromAction}
               fileType={fileType}
+              readOnly={readOnly}
             />
           ))}
         </section>
@@ -153,40 +160,43 @@ export function ScanResultsViewer(props: ScanResultsViewerProps) {
         buckets.shouldFix.length === 0 &&
         buckets.fyi.length === 0 && (
           <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-900">
-            No issues found. Your file is ready to submit.
+            {readOnly
+              ? "Scan passed with no rules fired — clean submission."
+              : "No issues found. Your file is ready to submit."}
           </div>
         )}
 
-      {/* Submit + Re-upload actions */}
-      <div className="flex flex-col sm:flex-row gap-3 pt-2">
-        <button
-          type="button"
-          onClick={onSubmit}
-          disabled={!canSubmitState.ok || disabledFromAction}
-          className="flex-1 py-2.5 rounded-xl bg-brand-purple text-white text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          {isSubmitting ? "Submitting…" : "Submit for approval"}
-        </button>
-        <button
-          type="button"
-          onClick={onReupload}
-          disabled={disabledFromAction}
-          className="flex-1 py-2.5 rounded-xl border border-gray-300 bg-white text-sm font-semibold text-gray-800 disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          Re-upload a fixed version
-        </button>
-      </div>
+      {/* Submit + Re-upload actions (hidden in teacher readOnly view) */}
+      {!readOnly && (
+        <>
+          <div className="flex flex-col sm:flex-row gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onSubmit}
+              disabled={!canSubmitState.ok || disabledFromAction}
+              className="flex-1 py-2.5 rounded-xl bg-brand-purple text-white text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {isSubmitting ? "Submitting…" : "Submit for approval"}
+            </button>
+            <button
+              type="button"
+              onClick={onReupload}
+              disabled={disabledFromAction}
+              className="flex-1 py-2.5 rounded-xl border border-gray-300 bg-white text-sm font-semibold text-gray-800 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Re-upload a fixed version
+            </button>
+          </div>
 
-      {/* Gate-failure explainer */}
-      {!canSubmitState.ok && canSubmitState.reason && (
-        <p
-          role="status"
-          className="text-xs text-gray-600 italic"
-        >
-          {canSubmitState.reason === "blockers_present"
-            ? "Submit is disabled until all must-fix issues are resolved in a re-uploaded version."
-            : "Submit is disabled until every should-fix warning has an acknowledgement above."}
-        </p>
+          {/* Gate-failure explainer (student-only) */}
+          {!canSubmitState.ok && canSubmitState.reason && (
+            <p role="status" className="text-xs text-gray-600 italic">
+              {canSubmitState.reason === "blockers_present"
+                ? "Submit is disabled until all must-fix issues are resolved in a re-uploaded version."
+                : "Submit is disabled until every should-fix warning has an acknowledgement above."}
+            </p>
+          )}
+        </>
       )}
     </div>
   );

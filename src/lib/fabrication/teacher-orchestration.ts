@@ -24,7 +24,10 @@ import {
   FABRICATION_THUMBNAIL_BUCKET,
   THUMBNAIL_URL_TTL_SECONDS,
 } from "./orchestration";
-import type { OrchestrationError } from "./orchestration";
+import type {
+  OrchestrationError,
+  AcknowledgedWarnings,
+} from "./orchestration";
 
 // Re-export for callers that import from this module only.
 export type { OrchestrationError } from "./orchestration";
@@ -497,5 +500,262 @@ export async function getTeacherQueue(
   return {
     total: count ?? built.length,
     rows: built,
+  };
+}
+
+// ============================================================
+// getTeacherJobDetail — Phase 6-2
+// ============================================================
+
+/**
+ * Compact summary of a historical revision, shown in the teacher's
+ * detail-page history panel. Parallel to RevisionSummary on the
+ * student side (listRevisions in orchestration.ts) but fetched via
+ * the teacher-auth path.
+ */
+export interface TeacherRevisionSummary {
+  id: string;
+  revisionNumber: number;
+  scanStatus: string | null;
+  scanError: string | null;
+  scanCompletedAt: string | null;
+  thumbnailUrl: string | null;
+  ruleCounts: { block: number; warn: number; fyi: number };
+  createdAt: string;
+}
+
+export interface TeacherJobDetailSuccess {
+  job: {
+    id: string;
+    status: string;
+    currentRevision: number;
+    fileType: string; // 'stl' | 'svg' — validated at insert time
+    originalFilename: string;
+    createdAt: string;
+    updatedAt: string;
+    teacherReviewNote: string | null;
+    teacherReviewedAt: string | null;
+  };
+  student: { id: string; name: string };
+  classInfo: { id: string; name: string } | null;
+  unit: { id: string; title: string } | null;
+  machine: { id: string; name: string; category: string | null };
+  currentRevisionData: {
+    id: string;
+    revisionNumber: number;
+    scanStatus: string | null;
+    scanError: string | null;
+    scanCompletedAt: string | null;
+    scanRulesetVersion: string | null;
+    thumbnailUrl: string | null;
+    scanResults: {
+      rules?: Array<{ id: string; severity: string; [k: string]: unknown }> | null;
+    } | null;
+  } | null;
+  acknowledgedWarnings: AcknowledgedWarnings | null;
+  revisions: TeacherRevisionSummary[];
+}
+
+export type TeacherJobDetailResult = TeacherJobDetailSuccess | OrchestrationError;
+
+interface RawDetailJob {
+  id: string;
+  teacher_id: string;
+  status: string;
+  current_revision: number;
+  file_type: string;
+  original_filename: string;
+  created_at: string;
+  updated_at: string;
+  teacher_review_note: string | null;
+  teacher_reviewed_at: string | null;
+  acknowledged_warnings: AcknowledgedWarnings | null;
+  student_id: string;
+  class_id: string | null;
+  unit_id: string | null;
+  machine_profile_id: string;
+  students: { id?: string; display_name: string | null; username: string | null } | null;
+  classes: { id?: string; name: string | null } | null;
+  units: { id?: string; title: string | null } | null;
+  machine_profiles: {
+    id?: string;
+    name: string | null;
+    machine_category: string | null;
+  } | null;
+}
+
+interface RawDetailRevision {
+  id: string;
+  revision_number: number;
+  scan_status: string | null;
+  scan_error: string | null;
+  scan_completed_at: string | null;
+  scan_ruleset_version: string | null;
+  thumbnail_path: string | null;
+  scan_results: { rules?: Array<{ severity?: string }> | null } | null;
+  uploaded_at: string;
+}
+
+function pickFirst<T>(v: T | T[] | null | undefined): T | null {
+  if (!v) return null;
+  return Array.isArray(v) ? v[0] ?? null : v;
+}
+
+function countSeverities(
+  rules: Array<{ severity?: string }> | null | undefined
+): { block: number; warn: number; fyi: number } {
+  const c = { block: 0, warn: 0, fyi: 0 };
+  for (const r of rules ?? []) {
+    if (r.severity === "block") c.block++;
+    else if (r.severity === "warn") c.warn++;
+    else if (r.severity === "fyi") c.fyi++;
+  }
+  return c;
+}
+
+/**
+ * Load a single job + its context for the teacher detail page. One
+ * round-trip (join) for the job + student + class + unit + machine;
+ * one round-trip for all revisions; N parallel signed-URL mints for
+ * thumbnails.
+ *
+ * Ownership: 404 when job not found OR teacher_id does not match the
+ * requesting teacher (same as the 4 action endpoints).
+ */
+export async function getTeacherJobDetail(
+  db: SupabaseLike,
+  params: { teacherId: string; jobId: string }
+): Promise<TeacherJobDetailResult> {
+  const { teacherId, jobId } = params;
+
+  // 1. Job row with joins.
+  const jobResult = await db
+    .from("fabrication_jobs")
+    .select(
+      `
+      id, teacher_id, status, current_revision, file_type, original_filename,
+      created_at, updated_at, teacher_review_note, teacher_reviewed_at,
+      acknowledged_warnings,
+      student_id, class_id, unit_id, machine_profile_id,
+      students(id, display_name, username),
+      classes(id, name),
+      units(id, title),
+      machine_profiles(id, name, machine_category)
+      `
+    )
+    .eq("id", jobId)
+    .maybeSingle();
+  if (jobResult.error) {
+    return {
+      error: { status: 500, message: `Job lookup failed: ${jobResult.error.message}` },
+    };
+  }
+  const rawJob = jobResult.data as RawDetailJob | null;
+  if (!rawJob || rawJob.teacher_id !== teacherId) {
+    return { error: { status: 404, message: "Job not found" } };
+  }
+
+  // 2. All revisions, newest-first.
+  const revResult = await db
+    .from("fabrication_job_revisions")
+    .select(
+      "id, revision_number, scan_status, scan_error, scan_completed_at, scan_ruleset_version, thumbnail_path, scan_results, uploaded_at"
+    )
+    .eq("job_id", jobId)
+    .order("revision_number", { ascending: false });
+  const { data: revData, error: revError } = revResult as {
+    data: RawDetailRevision[] | null;
+    error: { message: string } | null;
+  };
+  if (revError) {
+    return {
+      error: { status: 500, message: `Revisions lookup failed: ${revError.message}` },
+    };
+  }
+  const rawRevs = revData ?? [];
+
+  // 3. Mint thumbnail signed URLs for every revision that has a
+  //    thumbnail_path. Parallel. 10-min TTL matches status endpoint.
+  const mintedThumbs = new Map<string, string>();
+  await Promise.all(
+    rawRevs
+      .filter((r) => r.thumbnail_path)
+      .map(async (r) => {
+        const signed = await db.storage
+          .from(FABRICATION_THUMBNAIL_BUCKET)
+          .createSignedUrl(r.thumbnail_path as string, THUMBNAIL_URL_TTL_SECONDS);
+        if (!signed.error && signed.data) {
+          mintedThumbs.set(r.id, signed.data.signedUrl);
+        }
+      })
+  );
+
+  // 4. Build the revision summary list + pick out the current revision
+  //    (spec-correct: current_revision on fabrication_jobs points at
+  //    the authoritative latest; revisions.max(revision_number) should
+  //    match in practice but we trust the job row).
+  const revisionSummaries: TeacherRevisionSummary[] = rawRevs.map((r) => ({
+    id: r.id,
+    revisionNumber: r.revision_number,
+    scanStatus: r.scan_status,
+    scanError: r.scan_error,
+    scanCompletedAt: r.scan_completed_at,
+    thumbnailUrl: mintedThumbs.get(r.id) ?? null,
+    ruleCounts: countSeverities(r.scan_results?.rules),
+    createdAt: r.uploaded_at,
+  }));
+
+  const currentRawRev = rawRevs.find(
+    (r) => r.revision_number === rawJob.current_revision
+  );
+  const currentRevisionData: TeacherJobDetailSuccess["currentRevisionData"] =
+    currentRawRev
+      ? {
+          id: currentRawRev.id,
+          revisionNumber: currentRawRev.revision_number,
+          scanStatus: currentRawRev.scan_status,
+          scanError: currentRawRev.scan_error,
+          scanCompletedAt: currentRawRev.scan_completed_at,
+          scanRulesetVersion: currentRawRev.scan_ruleset_version,
+          thumbnailUrl: mintedThumbs.get(currentRawRev.id) ?? null,
+          scanResults: currentRawRev.scan_results as NonNullable<
+            TeacherJobDetailSuccess["currentRevisionData"]
+          >["scanResults"],
+        }
+      : null;
+
+  // 5. Normalize nested-table shapes (single-object vs array-of-one).
+  const studentRow = pickFirst(rawJob.students);
+  const classRow = pickFirst(rawJob.classes);
+  const unitRow = pickFirst(rawJob.units);
+  const machineRow = pickFirst(rawJob.machine_profiles);
+
+  const studentName =
+    studentRow?.display_name || studentRow?.username || "Unknown student";
+  const machineName = machineRow?.name ?? "Unknown machine";
+
+  return {
+    job: {
+      id: rawJob.id,
+      status: rawJob.status,
+      currentRevision: rawJob.current_revision,
+      fileType: rawJob.file_type,
+      originalFilename: rawJob.original_filename,
+      createdAt: rawJob.created_at,
+      updatedAt: rawJob.updated_at,
+      teacherReviewNote: rawJob.teacher_review_note,
+      teacherReviewedAt: rawJob.teacher_reviewed_at,
+    },
+    student: { id: rawJob.student_id, name: studentName },
+    classInfo: classRow && classRow.name ? { id: rawJob.class_id ?? "", name: classRow.name } : null,
+    unit: unitRow && unitRow.title ? { id: rawJob.unit_id ?? "", title: unitRow.title } : null,
+    machine: {
+      id: rawJob.machine_profile_id,
+      name: machineName,
+      category: machineRow?.machine_category ?? null,
+    },
+    currentRevisionData,
+    acknowledgedWarnings: rawJob.acknowledged_warnings,
+    revisions: revisionSummaries,
   };
 }
