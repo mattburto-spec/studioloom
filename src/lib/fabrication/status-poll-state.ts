@@ -77,11 +77,33 @@ export function statusPollReducer(
 
     case "POLL_SUCCESS": {
       const { status, elapsedMs } = action;
-      // If we already landed on a terminal state, freeze — a late-
-      // arriving poll response shouldn't resurrect the UI.
-      if (state.kind === "done" || state.kind === "error" || state.kind === "timeout") {
+
+      // Phase 6-0 auto-unfreeze (PH5-FU-REUPLOAD-POLL-STUCK fix):
+      // when a polled response carries a HIGHER currentRevision than the
+      // frozen 'done' state's revision, treat it as a fresh revision and
+      // fall through to the normal transition logic. Without this, a
+      // re-upload from the ReuploadModal creates Rev N+1 but the
+      // reducer rejects the Rev N+1 poll response as "late arrival after
+      // terminal" and the UI stays frozen on Rev N forever. See
+      // PH5-FU-REUPLOAD-POLL-STUCK in CLAUDE.md and the Phase 6 brief
+      // §3 6-0 for full context.
+      //
+      // Error + timeout states don't carry a currentRevision value so
+      // they can't auto-unfreeze — user still needs to refresh or take
+      // explicit action from those states (rare, and scan-error is
+      // typically terminal for a revision anyway).
+      if (state.kind === "done") {
+        if (status.currentRevision > state.status.currentRevision) {
+          // New revision arrived — fall through to transition logic.
+        } else {
+          // Same (or older — shouldn't happen, but defensive) revision —
+          // keep frozen.
+          return state;
+        }
+      } else if (state.kind === "error" || state.kind === "timeout") {
         return state;
       }
+
       if (isTerminalScanStatus(status.revision?.scanStatus)) {
         // Use the scanStatus to decide done vs error. Explicit error
         // status lands on the error branch with the scan_error text.

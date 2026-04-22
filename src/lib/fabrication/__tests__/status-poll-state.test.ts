@@ -14,11 +14,15 @@ import type { JobStatusSuccess } from "../orchestration";
  * (src/hooks/useFabricationStatus.ts).
  */
 
-function makeStatus(partialRevision: Partial<NonNullable<JobStatusSuccess["revision"]>> | null): JobStatusSuccess {
+function makeStatus(
+  partialRevision: Partial<NonNullable<JobStatusSuccess["revision"]>> | null,
+  overrides: Partial<JobStatusSuccess> = {}
+): JobStatusSuccess {
   return {
     jobId: "job-1",
     jobStatus: "scanning",
     currentRevision: 1,
+    fileType: "stl",
     revision: partialRevision
       ? {
           id: "rev-1",
@@ -32,6 +36,7 @@ function makeStatus(partialRevision: Partial<NonNullable<JobStatusSuccess["revis
         }
       : null,
     scanJob: null,
+    ...overrides,
   };
 }
 
@@ -174,7 +179,9 @@ describe("statusPollReducer — POLL_SUCCESS", () => {
     expect(next.kind).toBe("done");
   });
 
-  it("done state is frozen — late POLL_SUCCESS is a no-op (no resurrection)", () => {
+  it("done state freezes same-revision late POLL_SUCCESS (no resurrection)", () => {
+    // Both state and late-arrival are for currentRevision=1 (default).
+    // Reducer keeps the frozen state.
     const doneState: FabricationPollState = {
       kind: "done",
       status: makeStatus({ scanStatus: "done" }),
@@ -186,6 +193,119 @@ describe("statusPollReducer — POLL_SUCCESS", () => {
       elapsedMs: 7000,
     });
     expect(next).toBe(doneState);
+  });
+
+  // Phase 6-0: auto-unfreeze on revision bump (PH5-FU-REUPLOAD-POLL-STUCK fix)
+
+  it("done state UNFREEZES when polled currentRevision > frozen revision (new rev pending)", () => {
+    const doneState: FabricationPollState = {
+      kind: "done",
+      status: makeStatus({ scanStatus: "done" }, { currentRevision: 1 }),
+      elapsedMs: 5000,
+    };
+    const next = statusPollReducer(doneState, {
+      type: "POLL_SUCCESS",
+      status: makeStatus({ scanStatus: "pending" }, { currentRevision: 2 }),
+      elapsedMs: 7000,
+    });
+    expect(next.kind).toBe("polling");
+    if (next.kind === "polling") {
+      expect(next.status.currentRevision).toBe(2);
+    }
+  });
+
+  it("done state UNFREEZES straight to done when new revision already terminal (fast scan)", () => {
+    // Edge case: re-upload, next poll fires after scanner already
+    // completed the new revision. Should go done→done (different rev)
+    // not done→polling→done.
+    const doneState: FabricationPollState = {
+      kind: "done",
+      status: makeStatus({ scanStatus: "done" }, { currentRevision: 1 }),
+      elapsedMs: 5000,
+    };
+    const next = statusPollReducer(doneState, {
+      type: "POLL_SUCCESS",
+      status: makeStatus({ scanStatus: "done" }, { currentRevision: 2 }),
+      elapsedMs: 7000,
+    });
+    expect(next.kind).toBe("done");
+    if (next.kind === "done") {
+      expect(next.status.currentRevision).toBe(2);
+    }
+  });
+
+  it("done state UNFREEZES to error when new revision scan failed", () => {
+    const doneState: FabricationPollState = {
+      kind: "done",
+      status: makeStatus({ scanStatus: "done" }, { currentRevision: 1 }),
+      elapsedMs: 5000,
+    };
+    const next = statusPollReducer(doneState, {
+      type: "POLL_SUCCESS",
+      status: makeStatus(
+        { scanStatus: "error", scanError: "trimesh parse failed" },
+        { currentRevision: 2 }
+      ),
+      elapsedMs: 7000,
+    });
+    expect(next.kind).toBe("error");
+    if (next.kind === "error") {
+      expect(next.message).toBe("trimesh parse failed");
+    }
+  });
+
+  it("done state STAYS FROZEN when polled currentRevision equals frozen revision", () => {
+    // Belt-and-braces — same-rev late arrival is the common case.
+    const doneState: FabricationPollState = {
+      kind: "done",
+      status: makeStatus({ scanStatus: "done" }, { currentRevision: 3 }),
+      elapsedMs: 5000,
+    };
+    const next = statusPollReducer(doneState, {
+      type: "POLL_SUCCESS",
+      status: makeStatus({ scanStatus: "done" }, { currentRevision: 3 }),
+      elapsedMs: 6000,
+    });
+    expect(next).toBe(doneState);
+  });
+
+  it("done state STAYS FROZEN when polled currentRevision is LOWER than frozen (defensive)", () => {
+    // Shouldn't happen in practice (revisions only increment) but the
+    // guard should be strict-greater, not not-equal.
+    const doneState: FabricationPollState = {
+      kind: "done",
+      status: makeStatus({ scanStatus: "done" }, { currentRevision: 3 }),
+      elapsedMs: 5000,
+    };
+    const next = statusPollReducer(doneState, {
+      type: "POLL_SUCCESS",
+      status: makeStatus({ scanStatus: "done" }, { currentRevision: 2 }),
+      elapsedMs: 6000,
+    });
+    expect(next).toBe(doneState);
+  });
+
+  it("error state stays frozen regardless of polled currentRevision (no auto-unfreeze for errors)", () => {
+    // Unlike done, error state doesn't carry revision info so we can't
+    // safely compare. User must take explicit action (page refresh) to
+    // exit an error state.
+    const errState: FabricationPollState = { kind: "error", message: "x", elapsedMs: 1 };
+    const next = statusPollReducer(errState, {
+      type: "POLL_SUCCESS",
+      status: makeStatus({ scanStatus: "done" }, { currentRevision: 99 }),
+      elapsedMs: 2,
+    });
+    expect(next).toBe(errState);
+  });
+
+  it("timeout state stays frozen regardless of polled currentRevision", () => {
+    const timeoutState: FabricationPollState = { kind: "timeout", elapsedMs: 90000 };
+    const next = statusPollReducer(timeoutState, {
+      type: "POLL_SUCCESS",
+      status: makeStatus({ scanStatus: "done" }, { currentRevision: 99 }),
+      elapsedMs: 92000,
+    });
+    expect(next).toBe(timeoutState);
   });
 
   it("error state is frozen against late POLL_SUCCESS", () => {
