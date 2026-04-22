@@ -601,7 +601,7 @@ function ResumeHero({ student, hero }: { student: SessionStudent; hero: HeroUnit
       <div className="flex items-end justify-between mb-4 px-1">
         <div>
           <div className="cap text-[var(--sl-ink-3)]">Good morning, {student.first}</div>
-          <h1 className="display-lg text-[44px] leading-[0.95] mt-1">Let&apos;s pick up where you left off.</h1>
+          <h1 className="display-lg text-[30px] md:text-[44px] leading-[0.95] mt-1">Let&apos;s pick up where you left off.</h1>
         </div>
         <div className="text-[12px] text-[var(--sl-ink-3)] font-semibold hidden md:block">
           Mon 20 Apr · 9:00 AM · <span className="text-[var(--sl-ink)] font-extrabold">Period 1 starting soon</span>
@@ -609,15 +609,15 @@ function ResumeHero({ student, hero }: { student: SessionStudent; hero: HeroUnit
       </div>
 
       <div className="relative rounded-[32px] overflow-hidden card-shadow-lg glow-inner" style={{ background: n.color }}>
-        <div className="grid grid-cols-12 gap-0 items-stretch">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-0 items-stretch">
           {/* Left — content */}
-          <div className="col-span-7 p-9 text-white relative z-10">
+          <div className="md:col-span-7 p-6 md:p-9 text-white relative z-10">
             <div className="inline-flex items-center gap-2 bg-white/15 backdrop-blur rounded-full px-3 py-1.5 text-[11.5px] font-bold">
               <span className="pulse" style={{ color: "#FFF" }} />
               Currently working on · {n.class}
             </div>
-            <h2 className="display-lg text-[88px] leading-[0.88] mt-5 text-white">{n.unitTitle}.</h2>
-            <p className="text-[20px] leading-snug mt-2 text-white/85 max-w-md font-medium">{n.unitSub}</p>
+            <h2 className="display-lg text-[52px] md:text-[88px] leading-[0.88] mt-5 text-white">{n.unitTitle}.</h2>
+            <p className="text-[16px] md:text-[20px] leading-snug mt-2 text-white/85 max-w-md font-medium">{n.unitSub}</p>
 
             <div className="mt-7 bg-white rounded-2xl p-4 flex items-center gap-4 max-w-lg text-[var(--sl-ink)]">
               <div className="relative flex-shrink-0">
@@ -655,8 +655,10 @@ function ResumeHero({ student, hero }: { student: SessionStudent; hero: HeroUnit
             </div>
           </div>
 
-          {/* Right — image + teacher note */}
-          <div className="col-span-5 relative">
+          {/* Right — image + teacher note. Hidden below md — the hero card
+              is already expressive enough with the unit colour, and the
+              teacher note hides on real data anyway. */}
+          <div className="hidden md:block md:col-span-5 relative">
             <div className="absolute inset-0" style={{ background: n.color }}>
               {n.img && (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -695,9 +697,9 @@ function Priority({ buckets }: { buckets: PriorityBuckets }) {
 
   return (
     <section className="max-w-[1400px] mx-auto px-6 pt-10">
-      <div className="grid grid-cols-12 gap-5">
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
         {/* Overdue */}
-        <div className="col-span-4">
+        <div className="md:col-span-4">
           <div className="cap text-[#DC2626] mb-3">Overdue · {overdue.length}</div>
           {overdue.map((q, i) => (
             <article key={i} className="relative rounded-3xl p-6 card-shadow-lg glow-inner overflow-hidden text-white" style={{ background: "linear-gradient(135deg, #DC2626 0%, #991B1B 100%)" }}>
@@ -723,7 +725,7 @@ function Priority({ buckets }: { buckets: PriorityBuckets }) {
         </div>
 
         {/* Today */}
-        <div className="col-span-4">
+        <div className="md:col-span-4">
           <div className="cap text-[var(--sl-ink-2)] mb-3">Due today · {today.length}</div>
           {today.map((q, i) => (
             <article key={i} className="relative bg-white rounded-3xl p-6 card-shadow overflow-hidden" style={{ borderLeft: `6px solid ${q.color}` }}>
@@ -748,7 +750,7 @@ function Priority({ buckets }: { buckets: PriorityBuckets }) {
         </div>
 
         {/* Coming up */}
-        <div className="col-span-4">
+        <div className="md:col-span-4">
           <div className="cap text-[var(--sl-ink-2)] mb-3">Coming up · {soon.length}</div>
           <div className="bg-white rounded-3xl p-2 card-shadow">
             {soon.map((q, i) => {
@@ -836,7 +838,7 @@ function UnitsGrid({ units }: { units: StudentUnit[] }) {
           <button className="bg-white border border-[var(--sl-hair)] rounded-full px-4 py-2 text-[12.5px] font-bold hover:shadow-sm text-[var(--sl-ink-3)]">All</button>
         </div>
       </div>
-      <div className="grid grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
         {units.map((u) => <UnitCard key={u.id} u={u} />)}
       </div>
     </section>
@@ -896,8 +898,8 @@ function Badges({ data }: { data: BadgesState }) {
 
   return (
     <section id="dashboard-badges" className="max-w-[1400px] mx-auto px-6 pt-12">
-      <div className="grid grid-cols-12 gap-5">
-        <div className="col-span-5 relative rounded-3xl overflow-hidden card-shadow-lg glow-inner p-8 text-white" style={{ background: "linear-gradient(135deg, #1F2937 0%, #111827 100%)" }}>
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
+        <div className="md:col-span-5 relative rounded-3xl overflow-hidden card-shadow-lg glow-inner p-8 text-white" style={{ background: "linear-gradient(135deg, #1F2937 0%, #111827 100%)" }}>
           <div className="relative">
             <div className="cap text-white/60 inline-flex items-center gap-2"><Icon name="trophy" size={12} s={2.5} /> You&apos;ve earned</div>
             <h2 className="display text-[56px] leading-none mt-1">
@@ -916,7 +918,7 @@ function Badges({ data }: { data: BadgesState }) {
           <div className="absolute bottom-6 right-20 text-[#FBBF24] opacity-40"><Icon name="sparkle" size={24} s={1.5} /></div>
         </div>
 
-        <div className="col-span-7">
+        <div className="md:col-span-7">
           <div className="cap text-[var(--sl-ink-3)] mb-3">Next to unlock · {next.length}</div>
           {next.length === 0 ? (
             <div className="bg-white rounded-2xl p-6 border border-[var(--sl-hair)] text-[13px] text-[var(--sl-ink-3)]">
@@ -965,10 +967,10 @@ function HeroSkeleton() {
 function PrioritySkeleton() {
   return (
     <section className="max-w-[1400px] mx-auto px-6 pt-10">
-      <div className="grid grid-cols-12 gap-5">
-        <div className="col-span-4 space-y-3">{skelBlock("h-3 w-24")}{skelBlock("h-52 w-full")}</div>
-        <div className="col-span-4 space-y-3">{skelBlock("h-3 w-24")}{skelBlock("h-52 w-full")}</div>
-        <div className="col-span-4 space-y-3">{skelBlock("h-3 w-24")}{skelBlock("h-52 w-full")}</div>
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
+        <div className="md:col-span-4 space-y-3">{skelBlock("h-3 w-24")}{skelBlock("h-52 w-full")}</div>
+        <div className="md:col-span-4 space-y-3">{skelBlock("h-3 w-24")}{skelBlock("h-52 w-full")}</div>
+        <div className="md:col-span-4 space-y-3">{skelBlock("h-3 w-24")}{skelBlock("h-52 w-full")}</div>
       </div>
     </section>
   );
@@ -983,7 +985,7 @@ function UnitsGridSkeleton() {
           {skelBlock("h-8 w-80")}
         </div>
       </div>
-      <div className="grid grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
         {Array.from({ length: 6 }).map((_, i) => (
           <div key={i} className="rounded-xl bg-[var(--sl-hair)]/50 animate-pulse h-80 w-full" />
         ))}
@@ -995,9 +997,9 @@ function UnitsGridSkeleton() {
 function BadgesSkeleton() {
   return (
     <section className="max-w-[1400px] mx-auto px-6 pt-12">
-      <div className="grid grid-cols-12 gap-5">
-        {skelBlock("col-span-5 h-64")}
-        <div className="col-span-7 space-y-3">
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
+        {skelBlock("md:col-span-5 h-64")}
+        <div className="md:col-span-7 space-y-3">
           {skelBlock("h-3 w-32")}
           {skelBlock("h-16 w-full")}
           {skelBlock("h-16 w-full")}

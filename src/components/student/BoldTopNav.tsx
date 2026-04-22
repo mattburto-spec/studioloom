@@ -336,10 +336,11 @@ export function BoldTopNav({
         )}
         <Link href="/dashboard" className="flex items-center gap-2.5" aria-label="Dashboard">
           <div className="w-9 h-9 rounded-2xl bg-[var(--sl-ink)] flex items-center justify-center text-white display text-[15px]">#</div>
-          <div className="display text-[17px] leading-none">StudioLoom</div>
+          <div className="display text-[17px] leading-none hidden sm:block">StudioLoom</div>
         </Link>
-        <div className="w-px h-6 bg-[var(--sl-hair)] mx-1" />
-        <nav className="flex items-center gap-0.5">
+        <div className="w-px h-6 bg-[var(--sl-hair)] mx-1 hidden md:block" />
+        {/* Pill nav hides below md — mobile students scroll through sections rather than jump. */}
+        <nav className="hidden md:flex items-center gap-0.5">
           {NAV_S.map((n) => {
             const disabled = n.anchor === null;
             const active = onDashboard && n.anchor === "dashboard-hero"; // "My work" active on dashboard
@@ -397,7 +398,8 @@ export function BoldTopNav({
             aria-label="Account menu"
             aria-expanded={menuOpen}
           >
-            <div className="text-right">
+            {/* Name + class hidden below sm — just the avatar circle on phones to save width. */}
+            <div className="text-right hidden sm:block">
               {loading ? (
                 <>
                   <div className="h-3 w-16 rounded bg-[var(--sl-hair)] animate-pulse" />
