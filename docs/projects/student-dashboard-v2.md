@@ -15,7 +15,7 @@ Shipped behind `sl_v2=1` cookie at `/dashboard/v2` during build.
 | 3B | Wire hero current task (activity block) + lesson progress + due | ✅ Done | _(this commit)_ |
 | 3C | Teacher note — **deferred to end-of-project**, see below | ⏸ Deferred | — |
 | 4 | Wire Priority queue | ✅ Done | _(this commit)_ |
-| 5 | Wire Units grid | ⏳ Planned | — |
+| 5 | Wire Units grid | ✅ Done | _(this commit)_ |
 | 6 | Wire Badges | ⏳ Planned | — |
 | 7 | Wire Feedback section | ⏳ Planned | — |
 | 8 | Cutover `/dashboard` → v2, remove opt-out hatch | ⏳ Planned | — |
@@ -67,3 +67,13 @@ Items Matt has flagged to handle before or during Phase 8 cutover.
 - **Notes system:** notes card on hero is deferred because the right model
   is a general bidirectional notes system, not a teacher-only feature.
   _(Matt, 22 Apr 2026)_
+- **Open Studio placement:** no inline "Open Studio available" marker on
+  regular unit cards. Instead, when a student has Open Studio enabled, it
+  becomes **its own card in the grid** (treated like a class). If it's the
+  primary thing they're working on, it takes the **hero card** slot.
+  Rationale: mixing OS state into unit cards confuses students; a separate
+  card is cleaner. Not for v1 build — wire when the separate-card treatment
+  is designed. _(Matt, 22 Apr 2026)_
+- **Per-card due dates:** dropped from unit grid cards for v1. Matt will
+  wire due dates into cards as part of the assessment/grading work. Due
+  info stays visible via the priority queue. _(Matt, 22 Apr 2026)_

@@ -446,21 +446,71 @@ function classifyInsights(insights: InsightRow[]): PriorityBuckets {
   return { overdue, today, soon: soonItems };
 }
 
-type UnitState = "in-progress" | "open-studio" | "not-started";
+// Phase 5: Open Studio state intentionally NOT represented here. When a
+// student has Open Studio enabled, it becomes its own card in the grid
+// (or the hero card if it's their active focus), not an inline marker on
+// a regular unit card. See docs/projects/student-dashboard-v2.md "Key
+// product decisions" for context.
+type UnitState = "in-progress" | "not-started";
 type StudentUnit = {
-  id: string; title: string; kicker: string; classTag: string;
-  color: string; tint: string; img: string; progress: number;
-  state: UnitState; task: string; due: string;
+  id: string;
+  title: string;
+  kicker: string;
+  classTag: string;
+  color: string;
+  img: string | null;
+  progress: number;
+  state: UnitState;
+  task: string;
+  href: string;
 };
 
-const S_UNITS: StudentUnit[] = [
-  { id: "biom",    title: "Biomimicry",                     kicker: "Plastic pouch inspired by nature",      classTag: "7 Design",  color: "#0EA5A4", tint: "#CCFBF1", img: "https://images.unsplash.com/photo-1466692476868-aef1dfb1e735?w=900&h=600&fit=crop",    progress: 34, state: "in-progress", task: "Sketch 3 ideas",            due: "Sketchbook · Apr 25" },
-  { id: "arcade",  title: "Arcade Machine",                 kicker: "Build a working coin-op arcade",        classTag: "Service",   color: "#EC4899", tint: "#FCE7F3", img: "https://images.unsplash.com/photo-1511512578047-dfb367046420?w=900&h=600&fit=crop",    progress: 62, state: "in-progress", task: "Discovery journey",         due: "First playtest · May 2" },
-  { id: "coffee",  title: "Coffee Table",                   kicker: "Designing and building a coffee table", classTag: "10 Design", color: "#9333EA", tint: "#E9D5FF", img: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=900&h=600&fit=crop",    progress: 12, state: "open-studio", task: "Open Studio available",     due: "Prototype · May 3" },
-  { id: "pinball", title: "Engineering a Pinball Machine",  kicker: "Workshop unit · mechanical systems",    classTag: "Workshop",  color: "#F59E0B", tint: "#FEF3C7", img: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=900&h=600&fit=crop",    progress: 0,  state: "not-started", task: "Start this unit",           due: "Starts Apr 22" },
-  { id: "recycle", title: "Recycling Awareness",            kicker: "Correct bins across campus",            classTag: "Service",   color: "#10B981", tint: "#D1FAE5", img: "https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?w=900&h=600&fit=crop",    progress: 0,  state: "not-started", task: "Start this unit",           due: "Starts Apr 24" },
-  { id: "co2",     title: "CO2 Racer",                      kicker: "Speed Through Science & Design",        classTag: "10 Design", color: "#E86F2C", tint: "#FFEDD5", img: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=900&h=600&fit=crop",    progress: 0,  state: "not-started", task: "Start this unit",           due: "Starts Apr 28" },
+const S_UNITS_MOCK: StudentUnit[] = [
+  { id: "biom",    title: "Biomimicry",                     kicker: "Plastic pouch inspired by nature",      classTag: "7 Design",  color: "#0EA5A4", img: "https://images.unsplash.com/photo-1466692476868-aef1dfb1e735?w=900&h=600&fit=crop",    progress: 34, state: "in-progress", task: "Continue lesson",  href: "#" },
+  { id: "arcade",  title: "Arcade Machine",                 kicker: "Build a working coin-op arcade",        classTag: "Service",   color: "#EC4899", img: "https://images.unsplash.com/photo-1511512578047-dfb367046420?w=900&h=600&fit=crop",    progress: 62, state: "in-progress", task: "Continue lesson",  href: "#" },
+  { id: "coffee",  title: "Coffee Table",                   kicker: "Designing and building a coffee table", classTag: "10 Design", color: "#9333EA", img: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=900&h=600&fit=crop",    progress: 12, state: "in-progress", task: "Continue lesson",  href: "#" },
+  { id: "pinball", title: "Engineering a Pinball Machine",  kicker: "Workshop unit · mechanical systems",    classTag: "Workshop",  color: "#F59E0B", img: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=900&h=600&fit=crop",    progress: 0,  state: "not-started", task: "Start this unit",  href: "#" },
+  { id: "recycle", title: "Recycling Awareness",            kicker: "Correct bins across campus",            classTag: "Service",   color: "#10B981", img: "https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?w=900&h=600&fit=crop",    progress: 0,  state: "not-started", task: "Start this unit",  href: "#" },
+  { id: "co2",     title: "CO2 Racer",                      kicker: "Speed Through Science & Design",        classTag: "10 Design", color: "#E86F2C", img: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=900&h=600&fit=crop",    progress: 0,  state: "not-started", task: "Start this unit",  href: "#" },
 ];
+
+/** Build a grid card from a /api/student/units row. */
+function unitRowToStudentUnit(unit: UnitRow): StudentUnit {
+  const palette = detectUnitPalette({
+    classSubject: unit.class_subject,
+    className: unit.class_name,
+    title: unit.title,
+    id: unit.id,
+  });
+  const pages = getPageList(unit.content_data);
+  const completeCount = unit.progress.filter((p) => p.status === "complete").length;
+  const progressPct = pages.length === 0 ? 0 : Math.round((completeCount / pages.length) * 100);
+
+  // Resume at the most-recently-touched page if there's one, else first page.
+  const sortedProgress = [...unit.progress].sort(
+    (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
+  );
+  const resumePageId =
+    sortedProgress.find((p) => pages.some((pg) => pg.id === p.page_id))?.page_id ??
+    pages[0]?.id ??
+    null;
+  const href = resumePageId ? `/unit/${unit.id}/${resumePageId}` : `/unit/${unit.id}/narrative`;
+
+  const state: UnitState = unit.progress.length === 0 ? "not-started" : "in-progress";
+
+  return {
+    id: unit.id,
+    title: unit.title,
+    kicker: unit.description || "",
+    classTag: unit.class_name || "",
+    color: palette.color,
+    img: unit.thumbnail_url,
+    progress: progressPct,
+    state,
+    task: state === "not-started" ? "Start this unit" : "Continue lesson",
+    href,
+  };
+}
 
 type EarnedBadge = { name: string; icon: IconName; color: string; when: string };
 type NextBadge = { name: string; icon: IconName; color: string; progress: number; unlock: string };
@@ -797,17 +847,21 @@ function Priority({ buckets }: { buckets: PriorityBuckets }) {
 // ================= UNITS GRID =================
 function UnitCard({ u }: { u: StudentUnit }) {
   const isNotStarted = u.state === "not-started";
-  const cta = isNotStarted ? "Start unit" : u.state === "open-studio" ? "Open Studio" : "Continue";
+  const cta = isNotStarted ? "Start unit" : "Continue";
   return (
-    <article className="group bg-white rounded-3xl overflow-hidden card-shadow hover:card-shadow-lg hover:-translate-y-0.5 transition-all">
+    <Link href={u.href} className="group bg-white rounded-3xl overflow-hidden card-shadow hover:card-shadow-lg hover:-translate-y-0.5 transition-all flex flex-col">
       <div className="aspect-[16/9] relative overflow-hidden" style={{ background: u.color }}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={u.img} alt="" className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500" />
+        {u.img && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={u.img} alt="" className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500" />
+        )}
         <div className="absolute inset-0" style={{ background: `linear-gradient(to top, ${u.color}cc 0%, transparent 45%)` }} />
-        <div className="absolute top-3 left-3 bg-white/95 backdrop-blur rounded-full pl-1 pr-3 py-1 flex items-center gap-1.5 text-[11px] font-extrabold" style={{ color: u.color }}>
-          <span className="w-5 h-5 rounded-full" style={{ background: u.color }} />
-          {u.classTag}
-        </div>
+        {u.classTag && (
+          <div className="absolute top-3 left-3 bg-white/95 backdrop-blur rounded-full pl-1 pr-3 py-1 flex items-center gap-1.5 text-[11px] font-extrabold" style={{ color: u.color }}>
+            <span className="w-5 h-5 rounded-full" style={{ background: u.color }} />
+            {u.classTag}
+          </div>
+        )}
         <div className="absolute top-3 right-3 bg-white/95 backdrop-blur rounded-full p-1 flex items-center gap-1.5 pr-2.5">
           <div className="relative w-7 h-7 flex-shrink-0">
             <RingProgress pct={Math.max(u.progress, 0.5)} size={28} stroke={3} color={u.color} />
@@ -815,30 +869,29 @@ function UnitCard({ u }: { u: StudentUnit }) {
           <div className="text-[10.5px] font-extrabold tnum" style={{ color: u.color }}>{u.progress}%</div>
         </div>
       </div>
-      <div className="p-5">
+      <div className="p-5 flex-1 flex flex-col">
         <h3 className="display text-[22px] leading-none">{u.title}</h3>
-        <p className="text-[12.5px] text-[var(--sl-ink-3)] mt-1.5 leading-snug">{u.kicker}</p>
-        <div className="mt-4 flex items-center justify-between gap-3 pt-4 border-t border-[var(--sl-hair)]">
+        {u.kicker && <p className="text-[12.5px] text-[var(--sl-ink-3)] mt-1.5 leading-snug">{u.kicker}</p>}
+        <div className="mt-auto flex items-center justify-between gap-3 pt-4 border-t border-[var(--sl-hair)]">
           <div>
             <div className="text-[10.5px] text-[var(--sl-ink-3)] font-semibold">{isNotStarted ? "Starts" : "Current task"}</div>
             <div className="text-[12px] font-extrabold leading-tight mt-0.5" style={{ color: u.color }}>{u.task}</div>
           </div>
-          <button className="text-white rounded-full px-4 py-2 font-extrabold text-[12px] inline-flex items-center gap-1.5 whitespace-nowrap hover:brightness-110 transition" style={{ background: u.color }}>
+          <span className="text-white rounded-full px-4 py-2 font-extrabold text-[12px] inline-flex items-center gap-1.5 whitespace-nowrap group-hover:brightness-110 transition" style={{ background: u.color }}>
             {cta} <Icon name="arrow" size={10} s={2.5} />
-          </button>
+          </span>
         </div>
-        <div className="text-[10.5px] text-[var(--sl-ink-3)] mt-2 font-semibold">{u.due}</div>
       </div>
-    </article>
+    </Link>
   );
 }
 
-function UnitsGrid() {
+function UnitsGrid({ units }: { units: StudentUnit[] }) {
   return (
     <section className="max-w-[1400px] mx-auto px-6 pt-12">
       <div className="flex items-end justify-between mb-4">
         <div>
-          <div className="cap text-[var(--sl-ink-3)]">Your units · {S_UNITS.length}</div>
+          <div className="cap text-[var(--sl-ink-3)]">Your units · {units.length}</div>
           <h2 className="display text-[32px] leading-none mt-1">Everything you&apos;re working on.</h2>
         </div>
         <div className="flex items-center gap-2">
@@ -847,7 +900,7 @@ function UnitsGrid() {
         </div>
       </div>
       <div className="grid grid-cols-3 gap-5">
-        {S_UNITS.map((u) => <UnitCard key={u.id} u={u} />)}
+        {units.map((u) => <UnitCard key={u.id} u={u} />)}
       </div>
     </section>
   );
@@ -1046,6 +1099,7 @@ export default function DashboardV2Client() {
   const [sessionLoading, setSessionLoading] = useState(true);
   const [hero, setHero] = useState<HeroUnit>(HERO_MOCK);
   const [buckets, setBuckets] = useState<PriorityBuckets>(MOCK_BUCKETS);
+  const [units, setUnits] = useState<StudentUnit[]>(S_UNITS_MOCK);
 
   // Mount-time style inject (scoped via .sl-v2).
   useEffect(() => {
@@ -1110,7 +1164,14 @@ export default function DashboardV2Client() {
         const res = await fetch("/api/student/units");
         if (!res.ok) return;
         const data = (await res.json()) as { units?: UnitRow[] };
-        const selected = selectHeroUnit(data.units ?? []);
+        const unitRows = data.units ?? [];
+
+        // Phase 5: populate the grid from the same fetch.
+        if (!cancelled && unitRows.length > 0) {
+          setUnits(unitRows.map(unitRowToStudentUnit));
+        }
+
+        const selected = selectHeroUnit(unitRows);
         if (!selected) return;
         if (cancelled) return;
         // First render: hero identity (fast — no second fetch needed yet).
@@ -1150,7 +1211,7 @@ export default function DashboardV2Client() {
       <TopNav student={student} loading={sessionLoading} />
       <ResumeHero student={student} hero={hero} />
       <Priority buckets={buckets} />
-      <UnitsGrid />
+      <UnitsGrid units={units} />
       <Badges />
       <Feedback />
     </div>
