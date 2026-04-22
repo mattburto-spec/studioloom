@@ -1,6 +1,8 @@
 # Preflight Phase 5 — Checkpoint 5.1 Report
 
-**Status:** DRAFT — awaiting Matt's prod smoke evidence (⏳ markers in the matrix below)
+**Status:** ✅ PASS (14/14 criteria; 1 new P2 follow-up opened + 1 new P3 follow-up opened)
+**Date signed off:** 22 April 2026 PM late
+**Signed off by:** Matt (4 scenarios run end-to-end against studioloom.org)
 **Date drafted:** 22 April 2026 PM
 **Brief:** [`preflight-phase-5-brief.md`](./preflight-phase-5-brief.md)
 **Phase scope:** Soft-gate results UI — three-bucket viewer, acknowledge-each-one radios, re-upload flow with revision history, submit transition.
@@ -14,22 +16,22 @@ Criteria transcribed from `preflight-phase-5-brief.md` §4.
 
 | # | Criterion | Status | Evidence |
 |---|---|:---:|---|
-| 1 | `POST /revisions` creates revision N+1 with fresh signed URL. Tested + prod smoke. | ✅ | `orchestration.ts:createRevision` (Phase 5-1) — 13 unit tests + 7 route tests. Ships inline via ReuploadModal (Phase 5-5). Closes PH4-FU-REVISION-ENDPOINT P1. **Prod smoke:** ⏳ pending Matt run of Scenario 3 (hard-gate → re-upload). |
-| 2 | `POST /acknowledge-warning` persists to `acknowledged_warnings` JSONB keyed by `{revision_N: {rule_id: {choice, timestamp}}}`. Tested. | ✅ | `orchestration.ts:acknowledgeWarning` — 7 unit tests covering validation, ownership, merge behaviour (null init, preserve-existing, overwrite, all 3 ACK_CHOICES, DB error). Route: 6 tests. **Prod smoke:** ⏳ Scenario 2 (soft-gate ack click). |
-| 3 | `POST /submit` validates (scan done + zero BLOCK + every WARN acked) and transitions job status. Tested with all validation failure modes + happy path. | ✅ | `orchestration.ts:submitJob` — 12 unit tests covering ownership (404×2), double-submit guard (409), scan-not-done (400), BLOCK-fires (400 with ids), missing-acks (400 with missing ids), revision-isolation (acks from other revisions ignored), both approval paths (`approved` / `pending_approval`), DB failures (500×2). Route: 8 tests. **Prod smoke:** ⏳ Scenario 1 (happy-path submit). |
+| 1 | `POST /revisions` creates revision N+1 with fresh signed URL. Tested + prod smoke. | ✅ | `orchestration.ts:createRevision` (Phase 5-1) — 13 unit tests + 7 route tests. Ships inline via ReuploadModal (Phase 5-5). Closes PH4-FU-REVISION-ENDPOINT P1. **Prod smoke:** ✅ Scenario 3 verified — jobId `4614a742-90e2-42aa-8aec-93a5c119daf1`, Rev 2 created via ReuploadModal with `storage_path: .../v2.stl`, scan completed in 8s (scan_completed_at 07:41:45). |
+| 2 | `POST /acknowledge-warning` persists to `acknowledged_warnings` JSONB keyed by `{revision_N: {rule_id: {choice, timestamp}}}`. Tested. | ✅ | `orchestration.ts:acknowledgeWarning` — 7 unit tests covering validation, ownership, merge behaviour (null init, preserve-existing, overwrite, all 3 ACK_CHOICES, DB error). Route: 6 tests. **Prod smoke:** ✅ Scenario 2 verified — jobId `22f05868-231b-457b-b33a-858b44e99030`, coaster-flower-percent-width.svg, both WARN rules (R-SVG-03 + R-SVG-05) acked with `choice: "acknowledged"`, JSONB shape matches spec exactly: `{"revision_1": {"R-SVG-03": {...}, "R-SVG-05": {...}}}`. |
+| 3 | `POST /submit` validates (scan done + zero BLOCK + every WARN acked) and transitions job status. Tested with all validation failure modes + happy path. | ✅ | `orchestration.ts:submitJob` — 12 unit tests covering ownership (404×2), double-submit guard (409), scan-not-done (400), BLOCK-fires (400 with ids), missing-acks (400 with missing ids), revision-isolation (acks from other revisions ignored), both approval paths (`approved` / `pending_approval`), DB failures (500×2). Route: 8 tests. **Prod smoke:** ✅ Scenario 1 verified — jobId `6aefdc0b-45c8-4da3-8bdb-785413c0608f`, small-cube-25mm.stl, 2 FYI rules only, status transitioned `uploaded → approved` (3D printer profile, auto-approve). |
 | 4 | `classifyRules` + `canSubmit` pure helpers: ≥ 20 unit tests across severity permutations + ack permutations. | ✅ | `rule-buckets.ts` — 23 tests (exceeds target). Every severity variant, bucket isolation, priority-when-both-fail (blockers > missing_acks), revision isolation, realistic scenarios (coaster SVG / seahorse STL / fix-and-reupload), regression guard locking canSubmit's error message text to what submit endpoint returns. Delegated-to by submitJob (single source of truth — no drift). |
-| 5 | `ScanResultsViewer` renders 3 buckets with correct severity badges, disabled Submit until canSubmit. | ✅ | Phase 5-3 `ScanResultsViewer.tsx` + `RuleCard.tsx`. Button `disabled={!canSubmitState.ok \|\| disabledFromAction}`. Gate-failure explainer sentence picks message from `canSubmitState.reason`. 17 pure-helper tests in `rule-card-helpers.test.ts` cover label / icon / tint / ack option map. **DOM smoke:** ⏳ Scenarios 1+2+3 visually confirm bucket rendering. |
-| 6 | Acknowledge click fires a single endpoint call, updates state optimistically, falls back on error. | ✅ | Phase 5-4 `page.tsx:handleAcknowledge` — setLocalAcks optimistic, POST, setLocalAcks(previousAcks) on failure, surfaces error via action-error banner. **Prod smoke:** ⏳ Scenario 2 visual confirm. |
+| 5 | `ScanResultsViewer` renders 3 buckets with correct severity badges, disabled Submit until canSubmit. | ✅ | Phase 5-3 `ScanResultsViewer.tsx` + `RuleCard.tsx`. Button `disabled={!canSubmitState.ok \|\| disabledFromAction}`. Gate-failure explainer sentence picks message from `canSubmitState.reason`. 17 pure-helper tests in `rule-card-helpers.test.ts` cover label / icon / tint / ack option map. **DOM smoke:** ✅ S1 (2 FYI cards only), S2 (2 should-fix cards w/ radios + gate explainer + Submit disabled until acked), S3 (1 must-fix card red + Submit disabled even post-acks, re-upload CTA active) all visually confirmed. |
+| 6 | Acknowledge click fires a single endpoint call, updates state optimistically, falls back on error. | ✅ | Phase 5-4 `page.tsx:handleAcknowledge` — setLocalAcks optimistic, POST, setLocalAcks(previousAcks) on failure, surfaces error via action-error banner. **Prod smoke:** ✅ S2 radio click → Submit enables within 500ms (optimistic) → server persists under `revision_1` ack key for both R-SVG-03 and R-SVG-05 (~2s apart, matching click cadence). |
 | 7 | Status page delegates to `ScanProgressCard` for in-progress + `ScanResultsViewer` for terminal states without layout flicker. | ✅ | Phase 5-4 `page.tsx` — ternary `pollState.kind === "done"` switches between DoneStateView (with viewer) and ScanProgressCard. Phase 5-3 `ScanProgressCard` done-branch removed (returns null defensively). |
-| 8 | Re-upload flow: click → modal → file pick → upload → fresh scan → new revision visible in history panel. | ✅ | Phase 5-5 `ReuploadModal.tsx` — mirrors Phase 4-4 upload orchestration (POST /revisions → XHR PUT → POST /enqueue-scan), locked to original fileType. Hook `reset()` un-freezes terminal state so new revision polls through. Page re-fetches revisions after success. **Prod smoke:** ⏳ Scenario 3 visual confirm. |
-| 9 | Revision history panel shows all prior revisions with mini thumbnails + rule counts. | ✅ | Phase 5-5 `RevisionHistoryPanel.tsx` — collapsible `<details>`, mini thumbnails (10-min signed URL), rule count pill `2B · 1W · 3I`, current-revision highlight, relative time ("3m ago"), hidden entirely for single-revision jobs. 18 helper tests. **Prod smoke:** ⏳ Scenario 4 (multi-revision view). |
-| 10 | Submit success redirects to `/fabrication/submitted/[jobId]` with `fabrication_jobs.status` set correctly per `machine_profiles.requires_teacher_approval`. | ✅ | Phase 5-6 `submitted/[jobId]/page.tsx` stub — fetches /status once, keys display on jobStatus (6 known states mapped to icon + heading + body). Server transitions happen in Phase 5-1 `submitJob`. **Prod smoke:** ⏳ Scenarios 1+2 visual confirm. |
-| 11 | Prod smoke: all 4 scenarios from Matt Burton student account. | ⏳ | **Pending Matt.** See "Production smoke scenarios" below for the 4 scripts. |
+| 8 | Re-upload flow: click → modal → file pick → upload → fresh scan → new revision visible in history panel. | ✅ | Phase 5-5 `ReuploadModal.tsx` — mirrors Phase 4-4 upload orchestration (POST /revisions → XHR PUT → POST /enqueue-scan), locked to original fileType. Hook `reset()` un-freezes terminal state so new revision polls through. Page re-fetches revisions after success. **Prod smoke:** ⚠️ Scenario 3 re-upload flow works END-TO-END in data layer (Rev 2 created, signed URL minted, PUT succeeded, scan_job queued, scan completed in 8s, DB state correct) BUT **client polling stays frozen on Rev 1's `done` state until user hard-refreshes**. Scan results are accurate on refresh. Filed as `PH5-FU-REUPLOAD-POLL-STUCK P2` — race between ReuploadModal's onSuccess async chain (setIsReuploadOpen → await fetchRevisions → resetPoll) and the in-flight poll that arrives with Rev 2 data before the reducer's terminal-freeze is lifted. Fix options documented in the follow-up. **Workaround for pilot: hard refresh after re-upload.** Doesn't block checkpoint — functional behavior verified; only live state transition is wonky. |
+| 9 | Revision history panel shows all prior revisions with mini thumbnails + rule counts. | ✅ | Phase 5-5 `RevisionHistoryPanel.tsx` — collapsible `<details>`, mini thumbnails (10-min signed URL), rule count pill `2B · 1W · 3I`, current-revision highlight, relative time ("3m ago"), hidden entirely for single-revision jobs. 18 helper tests. **Prod smoke:** ✅ Scenario 4 verified (post-refresh from S3) — panel shows 2 rows: Revision 2 (current, purple highlight) `2I` pill + cube thumbnail + "10m ago"; Revision 1 `1B · 1W · 2I` pill + broken-mesh thumbnail + "33m ago". Both signed-URL thumbnails render correctly. |
+| 10 | Submit success redirects to `/fabrication/submitted/[jobId]` with `fabrication_jobs.status` set correctly per `machine_profiles.requires_teacher_approval`. | ✅ | Phase 5-6 `submitted/[jobId]/page.tsx` stub — fetches /status once, keys display on jobStatus (6 known states mapped to icon + heading + body). Server transitions happen in Phase 5-1 `submitJob`. **Prod smoke:** ✅ S1 + S2 both redirected to `/fabrication/submitted/[jobId]` successfully. S1 rendered "Submitted — ready for the lab tech to queue" (approved, 3D printer auto-approve). S2 same (approved, laser profile auto-approve — FU-FAB-MACHINE-APPROVAL-SEED still not flipped; that's a one-off SQL pre-pilot). S3 final Submit on Rev 2 also reached `status: approved, current_revision: 2`. |
+| 11 | Prod smoke: all 4 scenarios from Matt Burton student account. | ✅ | All 4 scenarios verified 22 Apr PM late. Matt used test-student `test` (screenshot avatars showed "TE" / "test") not the originally-named Matt Burton — doesn't change the test validity, just a lookup path nuance. S1 jobId `6aefdc0b...`, S2 jobId `22f05868...`, S3+S4 jobId `4614a742...`. Full evidence in individual criteria rows above. |
 | 12 | `npm test`: +N tests (target ~60–80). | ✅ | **1545 → 1665 (+120 tests over Phases 5-1..5-5).** 5-1: +53 (14 createRevision + 10 acknowledgeWarning + 14 submitJob + 15 route tests). 5-2: +23 (classifyRules + canSubmit). 5-3: +17 (rule-card-helpers). 5-4: +1 (route includeResults). 5-5: +26 (18 revision-history-helpers + 6 listRevisions + 2 RESET reducer). Exceeds target. |
-| 13 | `docs/projects/WIRING.yaml` + dashboard + ALL-PROJECTS.md updated (saveme). | ⏳ | Pending — will sync at Checkpoint 5.1 sign-off alongside this report. |
+| 13 | `docs/projects/WIRING.yaml` + dashboard + ALL-PROJECTS.md updated (saveme). | ✅ | Saveme commit `1a3bb67` on preflight-active (22 Apr PM mid-smoke). Dashboard card progress 80 → 90 → (will bump to 100 on this final saveme). ALL-PROJECTS.md header rewritten for Phase 5 SHIPPED. |
 | 14 | Checkpoint 5.1 report doc filed. | ✅ | This document. |
 
-**Overall (pre-smoke): 12 PASS on unit + implementation, 4 criteria carry ⏳ markers pending Matt's prod smoke evidence (#1, #2, #3, #11 roll-ups).** Code + tests + tsc clean on every sub-phase commit.
+**Overall: 14/14 PASS. Criterion #8 includes a ⚠️ note for the reupload-polling client race (filed as `PH5-FU-REUPLOAD-POLL-STUCK` P2 with a trivial hard-refresh workaround). All other criteria clean.** Code + tests + tsc clean on every sub-phase commit. 1668 tests passing (Phase 5: 1545 → 1668, +123 across sub-phases + ack-label hotfix).
 
 ---
 
@@ -67,7 +69,10 @@ All scenarios use student **Matt Burton** (`f24ff3a8-65dc-4b87-9148-7cb603b1654a
 
 **Expected:** submitted page renders "Submitted — waiting for your teacher to review" (if pending_approval) or "Submitted — ready for the lab tech to queue" (if approved).
 
-**Result:** ⏳ pending
+**Result:** ✅ **PASS** (jobId `6aefdc0b-45c8-4da3-8bdb-785413c0608f`, file `small-cube-25mm.stl`, 3D printer profile).
+- Upload → scan ~9s → 2 FYI cards (R-STL-15 ~3 min print, R-STL-16 ~4 g filament) → Submit enabled → clicked → redirected to `/fabrication/submitted/{jobId}`.
+- Submitted page rendered "✅ Submitted — ready for the lab tech to queue" + correct body + Back-to-dashboard + Submit-another actions. Auto-approve path (3D printer profile has `requires_teacher_approval = false`).
+- SQL final state: `status: 'approved'`, `acknowledged_warnings: null` (no WARNs fired, nothing to ack).
 
 ---
 
@@ -83,7 +88,11 @@ All scenarios use student **Matt Burton** (`f24ff3a8-65dc-4b87-9148-7cb603b1654a
 
 **Expected:** Submit succeeds, redirects to submitted page.
 
-**Result:** ⏳ pending
+**Result:** ✅ **PASS** (jobId `22f05868-231b-457b-b33a-858b44e99030`, file `coaster-flower-percent-width.svg`, laser cutter profile).
+- Upload → scan → 2 should-fix cards fired: R-SVG-03 (units ambiguous) + R-SVG-05 (cut-layer stroke exceeds hairline). Sidecar declared only R-SVG-03; R-SVG-05 is a legit co-firing not declared → filed as `FU-SCANNER-SIDECAR-DRIFT-SVG P3`.
+- **First attempt revealed a UX bug:** middle radio option said "I'll add supports in the slicer" on SVG rules — 3D-printer jargon in a laser-cut context. Fixed in commit `7401c71` (Phase 5-5b hotfix): fileType-aware `ackOptionLabelsForFileType(fileType)` — STL keeps slicer language, SVG uses "I'll fix this in my design software (Inkscape / Illustrator)". +3 new tests locking the domain-specific wording. Merged to main, redeployed, re-verified in this scenario.
+- Second attempt (post-fix): clicked `acknowledged` on both WARNs (2s apart). Submit enabled after second ack → clicked → redirected to submitted page.
+- SQL final state: `status: 'approved'`, `acknowledged_warnings: {"revision_1": {"R-SVG-03": {"choice": "acknowledged", "timestamp": "2026-04-22T07:08:42.216Z"}, "R-SVG-05": {"choice": "acknowledged", "timestamp": "2026-04-22T07:08:44.299Z"}}}`. JSONB shape matches Phase 5-1 spec exactly.
 
 ---
 
@@ -104,7 +113,14 @@ All scenarios use student **Matt Burton** (`f24ff3a8-65dc-4b87-9148-7cb603b1654a
 
 **Expected:** end-to-end works without leaving the job page between attempts.
 
-**Result:** ⏳ pending
+**Result:** ⚠️ **PASS w/ hard-refresh workaround** (jobId `4614a742-90e2-42aa-8aec-93a5c119daf1`, files `anon-small-holes-10mm.stl` → `small-cube-25mm.stl`, 3D printer profile).
+- Rev 1 upload: fired R-STL-01 BLOCK + R-STL-04 WARN + R-STL-15/16 FYI (`1B · 1W · 2I`). Submit disabled, red must-fix card rendered correctly, Re-upload CTA enabled.
+- Click Re-upload → **ReuploadModal opened in-place** (URL stayed at `/fabrication/jobs/{jobId}`, no navigation away — the Phase 5-5 goal verified).
+- Modal enforced .stl lock (dropzone `accept=".stl"` + server would 400 on mismatch). Dropped `small-cube-25mm.stl` → progress bar → modal closed on success.
+- **Client polling stayed stuck on Rev 1's `done` state.** DB investigation confirmed Rev 2's scan COMPLETED successfully in 8s (uploaded 07:41:37, scan_completed_at 07:41:45, sj_status=done, attempt_count=1, no error_detail). **Hard refresh (Cmd+Shift+R) unfroze the UI** — rendered Rev 2 empty-state "No issues found" card + revision history panel with both revisions.
+- Filed as `PH5-FU-REUPLOAD-POLL-STUCK P2`. Root cause: race between the modal's onSuccess async chain (setIsReuploadOpen → await fetchRevisions → resetPoll) and the poll fetching Rev 2 data during the fetchRevisions await, which gets rejected by the reducer's terminal-freeze guard because state is still 'done' from Rev 1. Fix options (documented in the follow-up): (a) dispatch RESET synchronously before any async work, (b) hook auto-resets on currentRevision change in polled payload, (c) terminal-freeze guard allows transitions when response.revisionNumber > state.status.revisionNumber.
+- **Not a checkpoint blocker** — functional behaviour verified end-to-end, only live state transition is wonky. Hard-refresh is an acceptable pilot workaround; fix lands in Phase 6 cycle or as a standalone hotfix.
+- Submit on Rev 2 after refresh: SQL confirms `status: 'approved'`, `current_revision: 2`.
 
 ---
 
@@ -117,7 +133,14 @@ After Scenario 3 completes with 2 revisions, verify the history panel:
    - Revision 2 — Scanned — no pill (or just `2I` for the FYIs) — mini thumb — current highlighted
 3. Verify revision 1's mini thumbnail image loads (signed URL mint working).
 
-**Result:** ⏳ pending
+**Result:** ✅ **PASS** (same jobId as S3, post-refresh view).
+- Panel expanded to 2 rows:
+  - **Revision 2 (current)** — purple-tint highlight, `2I` rule-count pill (R-STL-15/16 FYIs), mini cube thumbnail, "10m ago"
+  - **Revision 1** — `1B · 1W · 2I` rule-count pill, mini broken-mesh thumbnail, "33m ago"
+- Both signed thumbnail URLs resolved to different images (confirming per-revision path minting works).
+- Collapsible `<details>` "click to collapse" affordance visible.
+- Compact rule-count formatter correctly abbreviates to B/W/I with severity priority order.
+- Screenshot archived in smoke session transcript.
 
 ---
 
@@ -131,7 +154,13 @@ After Scenario 3 completes with 2 revisions, verify the history panel:
 
 ## Follow-ups
 
-None new in Phase 5. Pre-existing:
+**New in Phase 5 (3 filed during smoke):**
+
+- **`PH5-FU-REUPLOAD-POLL-STUCK` P2 (NEW 22 Apr)** — status page client stays frozen on Rev N's `done` state after ReuploadModal onSuccess creates Rev N+1. Backend works end-to-end; only live state transition is wonky. Hard-refresh is the pilot workaround. Root cause: race between async handler chain and in-flight poll that gets rejected by terminal-freeze guard. 3 fix options documented in the follow-up body. Fix should land before the Phase 6 teacher queue ships, so no student hits this mid-class.
+- **`PH5-FU-PER-RULE-ACKS` P3 (NEW 22 Apr)** — current ack radio options are generic 3-option set with fileType-aware middle label (post-hotfix). Better UX = each rule defines 2-3 context-specific responses AND a Skills Library deep-link video keyed by rule+choice. E.g. R-SVG-03 offers "I'll set units in Inkscape → watch how" + "My machine handles 96dpi — skip this check". Needs rule-schema extension + content library population. High-value post-pilot, low-urgency now.
+- **`FU-SCANNER-SIDECAR-DRIFT-SVG` P3 (NEW 22 Apr)** — `coaster-flower-percent-width.svg` sidecar declared only R-SVG-03 but scanner also fires R-SVG-05 (stroke width > hairline). R-SVG-05 firing is correct — the file genuinely has a non-hairline cut stroke. Sidecar metadata needs updating. Same class as Phase 2A's chess-pawn STL drift.
+
+**Pre-existing follow-ups — status unchanged:**
 
 - FU-SCANNER-LEASE-REAPER P2 — still required before horizontal-scaling the worker.
 - FU-SCANNER-CICD P2 — GitHub Action still untracked + FLY_API_TOKEN still not minted.
