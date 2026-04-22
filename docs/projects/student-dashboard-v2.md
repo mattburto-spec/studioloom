@@ -11,8 +11,8 @@ Shipped behind `sl_v2=1` cookie at `/dashboard/v2` during build.
 | 0 | Pre-flight audit + decisions | ✅ Done | — |
 | 1 | Scaffold at `/dashboard/v2`, mock data | ✅ Done | `b89e89d` |
 | 2 | Wire TopNav + hero greeting to session | ✅ Done | `b2a8d12` |
-| 3A | Wire hero unit identity (title, subtitle, class, color, image, %) | ⏳ Next | — |
-| 3B | Wire hero current task (activity block) + lesson progress + due | ⏳ Planned | — |
+| 3A | Wire hero unit identity (title, subtitle, class, color, image, %) | ✅ Done | `a88b330` + `934ddfe` |
+| 3B | Wire hero current task (activity block) + lesson progress + due | ✅ Done | _(this commit)_ |
 | 3C | Teacher note — **deferred to end-of-project**, see below | ⏸ Deferred | — |
 | 4 | Wire Priority queue | ⏳ Planned | — |
 | 5 | Wire Units grid | ⏳ Planned | — |

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { JSX } from "react";
+import { getPageList, getPageById } from "@/lib/unit-adapter";
 import type { UnitContentData, StudentProgress } from "@/types";
 
 /* ================================================================
@@ -197,13 +198,112 @@ function buildHeroUnit(unit: UnitRow): HeroUnit {
     color: palette.color,
     colorDark: palette.colorDark,
     img: unit.thumbnail_url,
-    // Phase 3B placeholders
+    // Phase 3B placeholders — filled by loadUnitDetail() after the second fetch
     currentTask: HERO_MOCK.currentTask,
     taskProgress: HERO_MOCK.taskProgress,
     taskTotal: HERO_MOCK.taskTotal,
     dueIn: HERO_MOCK.dueIn,
     teacherNote: HERO_MOCK.teacherNote,
   };
+}
+
+// ================= PHASE 3B: CURRENT TASK / LESSON PROGRESS =================
+
+type UnitDetailResponse = {
+  unit: { id: string; title: string; content_data: UnitContentData | null };
+  progress: Array<StudentProgress & { responses?: Record<string, unknown> }>;
+  pageDueDates: Record<string, string>;
+};
+
+/** Pick the page the student should resume. */
+function selectCurrentPageId(
+  contentData: UnitContentData | null,
+  progress: UnitDetailResponse["progress"],
+): string | null {
+  const pages = getPageList(contentData);
+  if (pages.length === 0) return null;
+
+  // 1. Most-recently-updated in_progress page (preferred)
+  const inProgress = progress
+    .filter((p) => p.status === "in_progress" && p.page_id)
+    .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
+  if (inProgress.length > 0 && pages.some((p) => p.id === inProgress[0].page_id)) {
+    return inProgress[0].page_id;
+  }
+
+  // 2. First page whose progress row is not "complete" (next unfinished)
+  const incompleteIds = new Set(
+    progress.filter((p) => p.status !== "complete").map((p) => p.page_id),
+  );
+  const nextUnfinished = pages.find((p) => !progress.some((pr) => pr.page_id === p.id && pr.status === "complete"));
+  if (nextUnfinished) return nextUnfinished.id;
+  // (incompleteIds is unused but kept for future; silence TS via void)
+  void incompleteIds;
+
+  // 3. Fallback: first page
+  return pages[0].id;
+}
+
+/** Build the {task, num, total} triple from the selected page + responses. */
+type TaskState = { currentTask: string; taskProgress: number; taskTotal: number };
+
+function computeTaskState(
+  contentData: UnitContentData | null,
+  pageId: string | null,
+  responses: Record<string, unknown>,
+): TaskState | null {
+  if (!pageId) return null;
+  const page = getPageById(contentData, pageId);
+  if (!page) return null;
+  const sections = page.content?.sections ?? [];
+  const total = sections.length;
+
+  // No blocks on this page — task = the lesson itself
+  if (total === 0) {
+    return { currentTask: page.title || page.content?.title || "Continue lesson", taskProgress: 0, taskTotal: 1 };
+  }
+
+  // Find first section with no response
+  const firstUnresponded = sections.findIndex((s, i) => {
+    const key = s.activityId ? `activity_${s.activityId}` : `section_${i}`;
+    const v = responses[key];
+    return v === undefined || v === null || v === "";
+  });
+
+  // All responded → show the last block as "current" with progress = total
+  const currentIdx = firstUnresponded >= 0 ? firstUnresponded : total - 1;
+  const section = sections[currentIdx];
+  const prompt = (section.prompt || "").trim();
+  const title = prompt.length > 0 ? truncatePrompt(prompt) : `Block ${currentIdx + 1}`;
+
+  return {
+    currentTask: title,
+    taskProgress: firstUnresponded >= 0 ? currentIdx : total, // "X of N" where X=done+1 while working, or N when done
+    taskTotal: total,
+  };
+}
+
+/** Trim a prompt to a hero-friendly length at a word boundary. */
+function truncatePrompt(prompt: string, max = 90): string {
+  if (prompt.length <= max) return prompt;
+  const cut = prompt.slice(0, max);
+  const lastSpace = cut.lastIndexOf(" ");
+  return (lastSpace > 40 ? cut.slice(0, lastSpace) : cut).trimEnd() + "…";
+}
+
+/** Turn an ISO date string into a student-friendly "due" phrase, or null if none. */
+function computeDueInText(dueDate: string | undefined, now: Date = new Date()): string | null {
+  if (!dueDate) return null;
+  const due = new Date(dueDate);
+  if (isNaN(due.getTime())) return null;
+  // Strip time — compare by calendar day
+  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const diffDays = Math.round((startOfDay(due).getTime() - startOfDay(now).getTime()) / 86400000);
+  if (diffDays < 0) return `${Math.abs(diffDays)} day${Math.abs(diffDays) === 1 ? "" : "s"} overdue`;
+  if (diffDays === 0) return "today";
+  if (diffDays === 1) return "tomorrow";
+  if (diffDays <= 14) return `in ${diffDays} days`;
+  return due.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
 type QueueItem = {
@@ -840,7 +940,8 @@ export default function DashboardV2Client() {
     };
   }, []);
 
-  // Load real units + pick hero unit. Fall back silently to HERO_MOCK.
+  // Load real units + pick hero unit. Then fetch unit detail to wire the
+  // current-task card (Phase 3B). Fall back silently to HERO_MOCK.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -849,7 +950,31 @@ export default function DashboardV2Client() {
         if (!res.ok) return;
         const data = (await res.json()) as { units?: UnitRow[] };
         const selected = selectHeroUnit(data.units ?? []);
-        if (!cancelled && selected) setHero(buildHeroUnit(selected));
+        if (!selected) return;
+        if (cancelled) return;
+        // First render: hero identity (fast — no second fetch needed yet).
+        const heroIdentity = buildHeroUnit(selected);
+        setHero(heroIdentity);
+
+        // Second fetch: full progress + responses + due dates for the selected
+        // unit — needed to resolve the current activity block.
+        const detailRes = await fetch(`/api/student/unit?unitId=${selected.id}`);
+        if (!detailRes.ok || cancelled) return;
+        const detail = (await detailRes.json()) as UnitDetailResponse;
+        const pageId = selectCurrentPageId(detail.unit.content_data, detail.progress);
+        const currentProgress = detail.progress.find((p) => p.page_id === pageId);
+        const responses = (currentProgress?.responses ?? {}) as Record<string, unknown>;
+        const task = computeTaskState(detail.unit.content_data, pageId, responses);
+        const dueInText = pageId ? computeDueInText(detail.pageDueDates[pageId]) : null;
+
+        if (cancelled) return;
+        setHero({
+          ...heroIdentity,
+          currentTask: task?.currentTask ?? heroIdentity.currentTask,
+          taskProgress: task?.taskProgress ?? heroIdentity.taskProgress,
+          taskTotal: task?.taskTotal ?? heroIdentity.taskTotal,
+          dueIn: dueInText ?? heroIdentity.dueIn,
+        });
       } catch {
         /* silent — keep mock */
       }
