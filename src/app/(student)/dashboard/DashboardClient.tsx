@@ -622,8 +622,25 @@ function ResumeHero({ student, hero, onFocus }: { student: SessionStudent; hero:
               <span className="pulse" style={{ color: "#FFF" }} />
               Currently working on · {n.class}
             </div>
-            <h2 className="display-lg text-[52px] md:text-[88px] leading-[0.88] mt-5 text-white">{n.unitTitle}.</h2>
-            <p className="text-[16px] md:text-[20px] leading-snug mt-2 text-white/85 max-w-md font-medium">{n.unitSub}</p>
+            {/* Auto-scale title: short unit names stay dramatic, long ones
+                shrink so they're more likely to fit a single line. Buckets
+                tuned for col-span-7 width at lg breakpoint. */}
+            {(() => {
+              const len = n.unitTitle.length;
+              const cls =
+                len > 22 ? "text-[40px] md:text-[52px]"
+                : len > 16 ? "text-[48px] md:text-[64px]"
+                : len > 10 ? "text-[52px] md:text-[76px]"
+                : "text-[52px] md:text-[88px]";
+              return (
+                <h2 className={`display-lg ${cls} leading-[0.88] mt-5 text-white`}>{n.unitTitle}.</h2>
+              );
+            })()}
+            {n.unitSub && (
+              <p className="text-[16px] md:text-[20px] leading-snug mt-2 text-white/85 max-w-md font-medium line-clamp-2">
+                {n.unitSub}
+              </p>
+            )}
 
             <div className="mt-7 bg-white rounded-2xl p-4 flex items-center gap-4 max-w-lg text-[var(--sl-ink)]">
               <div className="relative flex-shrink-0">
