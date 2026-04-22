@@ -1,49 +1,333 @@
 "use client";
 
 /**
- * /fabrication/jobs/[jobId] — Preflight Phase 4-5 status page.
- * (File path uses the `(student)` route group — parens mean no URL
- * contribution. URL is `/fabrication/jobs/[jobId]`.)
+ * /fabrication/jobs/[jobId] — Preflight Phase 5-4 status + results page.
+ * (File path uses the `(student)` route group — URL is /fabrication/jobs/X,
+ * NOT /student/fabrication/jobs/X. PH4-FINDING-01.)
  *
- * Destination for the Phase 4-4 router.push after an upload completes.
- * Polls the scan status every 2 s, shows staged messaging based on
- * elapsed time, lands on a success/error/timeout card as soon as the
- * scan settles.
+ * Flow:
+ *   1. Polls /api/student/fabrication/jobs/[jobId]/status?include=results
+ *      via useFabricationStatus hook (Phase 4-5, extended 5-4).
+ *   2. While scan is pending/running → renders ScanProgressCard
+ *      (Phase 4-5 staged-messaging spinner).
+ *   3. On scan_status === 'done' → delegates to ScanResultsViewer
+ *      (Phase 5-3) for the 3-bucket soft-gate UI.
+ *   4. On scan_status === 'error' OR polling error → renders error card
+ *      via ScanProgressCard's error state (untouched).
+ *   5. On 90s timeout → ScanProgressCard's timeout state.
  *
- * Uses useFabricationStatus — first extracted hook in the codebase.
- * Transitions are covered in the reducer tests; the hook itself is
- * exercised end-to-end at Checkpoint 4.1 via a real prod upload.
+ * User actions from the results viewer:
+ *   - onAcknowledge(ruleId, choice) → POST /acknowledge-warning, update
+ *     local ack state optimistically.
+ *   - onSubmit() → POST /submit, router.push /fabrication/submitted/[jobId]
+ *     on success (submitted stub page lands in Phase 5-6).
+ *   - onReupload() → stub for Phase 5-5 (ReuploadModal). For now, simple
+ *     inline redirect to /fabrication/new — user loses the jobId context
+ *     but the flow still works end-to-end for the Checkpoint 5.1 smoke.
  */
 
 import * as React from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { useFabricationStatus } from "@/hooks/useFabricationStatus";
 import { ScanProgressCard } from "@/components/fabrication/ScanProgressCard";
+import { ScanResultsViewer } from "@/components/fabrication/ScanResultsViewer";
+import { RevisionHistoryPanel } from "@/components/fabrication/RevisionHistoryPanel";
+import { ReuploadModal } from "@/components/fabrication/ReuploadModal";
+import { canSubmit, type Rule } from "@/lib/fabrication/rule-buckets";
+import type {
+  AckChoice,
+  AcknowledgedWarnings,
+  JobStatusSuccess,
+  RevisionSummary,
+} from "@/lib/fabrication/orchestration";
+import type { FabricationFileType } from "@/components/fabrication/picker-helpers";
 
 export default function FabricationJobStatusPage() {
   const params = useParams<{ jobId: string }>();
+  const router = useRouter();
   const jobId = params?.jobId;
-  const state = useFabricationStatus(jobId ?? "");
+
+  const { state: pollState, reset: resetPoll } = useFabricationStatus(
+    jobId ?? "",
+    { includeResults: true }
+  );
+
+  // Local ack state — mirrors server-side acknowledged_warnings but
+  // allows optimistic updates when the student clicks a radio. Hydrated
+  // from the first poll response that carries acknowledged_warnings;
+  // subsequent polls don't overwrite (student's in-flight clicks win).
+  const [localAcks, setLocalAcks] = React.useState<AcknowledgedWarnings>({});
+  const hydratedFromServerRef = React.useRef(false);
+
+  React.useEffect(() => {
+    if (hydratedFromServerRef.current) return;
+    if (pollState.kind !== "polling" && pollState.kind !== "done") return;
+    const serverAcks = (pollState.status as JobStatusSuccess).acknowledgedWarnings;
+    if (serverAcks !== undefined) {
+      // Server types `choice` as a loose string for forward-compat
+      // (manual SQL edits, migrations adding new choices, etc). Local
+      // state trusts the DB shape — if the choice doesn't match any
+      // AckChoice, the radio renders with no selection (graceful
+      // degrade, no crash).
+      setLocalAcks((serverAcks ?? {}) as AcknowledgedWarnings);
+      hydratedFromServerRef.current = true;
+    }
+  }, [pollState]);
+
+  const [isAckInFlight, setIsAckInFlight] = React.useState(false);
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [actionError, setActionError] = React.useState<string | null>(null);
+
+  // Phase 5-5: revision history panel + re-upload modal state.
+  const [revisions, setRevisions] = React.useState<RevisionSummary[]>([]);
+  const [revisionsError, setRevisionsError] = React.useState<string | null>(null);
+  const [isReuploadOpen, setIsReuploadOpen] = React.useState(false);
+
+  // Fetch revisions list once on jobId mount. Re-fetched after a
+  // successful re-upload so the new revision appears in the history.
+  const fetchRevisions = React.useCallback(async () => {
+    if (!jobId) return;
+    try {
+      const res = await fetch(
+        `/api/student/fabrication/jobs/${jobId}/revisions`,
+        { credentials: "same-origin" }
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: "" }));
+        setRevisionsError(body.error || `Couldn't load revision history (HTTP ${res.status})`);
+        return;
+      }
+      const body = await res.json();
+      setRevisions(body.revisions ?? []);
+      setRevisionsError(null);
+    } catch (e) {
+      setRevisionsError(e instanceof Error ? e.message : "Network error");
+    }
+  }, [jobId]);
+
+  React.useEffect(() => {
+    fetchRevisions();
+  }, [fetchRevisions]);
+
+  async function handleAcknowledge(ruleId: string, choice: AckChoice) {
+    if (pollState.kind !== "done" || !jobId) return;
+    const revisionNumber = pollState.status.currentRevision;
+    const revisionKey = `revision_${revisionNumber}`;
+
+    // Optimistic update — roll back on failure.
+    const previousAcks = localAcks;
+    setLocalAcks({
+      ...localAcks,
+      [revisionKey]: {
+        ...(localAcks[revisionKey] ?? {}),
+        [ruleId]: { choice, timestamp: new Date().toISOString() },
+      },
+    });
+    setActionError(null);
+    setIsAckInFlight(true);
+
+    try {
+      const res = await fetch(
+        `/api/student/fabrication/jobs/${jobId}/acknowledge-warning`,
+        {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ revisionNumber, ruleId, choice }),
+        }
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: "" }));
+        setLocalAcks(previousAcks);
+        setActionError(
+          body.error || `Couldn't save acknowledgement (HTTP ${res.status})`
+        );
+      } else {
+        const body = await res.json();
+        if (body.acknowledgedWarnings) setLocalAcks(body.acknowledgedWarnings);
+      }
+    } catch (e) {
+      setLocalAcks(previousAcks);
+      setActionError(
+        e instanceof Error ? e.message : "Network error saving acknowledgement"
+      );
+    } finally {
+      setIsAckInFlight(false);
+    }
+  }
+
+  async function handleSubmit() {
+    if (pollState.kind !== "done" || !jobId) return;
+    setActionError(null);
+    setIsSubmitting(true);
+    try {
+      const res = await fetch(`/api/student/fabrication/jobs/${jobId}/submit`, {
+        method: "POST",
+        credentials: "same-origin",
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: "" }));
+        setActionError(body.error || `Submit failed (HTTP ${res.status})`);
+        setIsSubmitting(false);
+        return;
+      }
+      // Redirect to submitted stub (Phase 5-6 lands the page).
+      router.push(`/fabrication/submitted/${jobId}`);
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : "Network error submitting");
+      setIsSubmitting(false);
+    }
+  }
+
+  function handleReupload() {
+    setActionError(null);
+    setIsReuploadOpen(true);
+  }
+
+  async function handleReuploadSuccess() {
+    setIsReuploadOpen(false);
+    // Re-fetch the revision history so the new revision appears.
+    await fetchRevisions();
+    // Reset the poll reducer so the current 'done' state unfreezes —
+    // the next POLL_SUCCESS will transition to 'polling' for the new
+    // revision, and then 'done' again once it scans.
+    resetPoll();
+    // Drop local ack state — acks are per-revision and the new
+    // revision starts with none.
+    setLocalAcks({});
+    hydratedFromServerRef.current = false;
+  }
 
   return (
     <main className="max-w-2xl mx-auto px-6 py-10">
       <header className="mb-8">
-        <h1 className="text-2xl font-bold">Checking your file</h1>
-        <p className="text-sm text-gray-600 mt-1">
-          We&apos;re running a quick machine-readiness check before your file
-          goes to the lab tech.
-        </p>
+        <h1 className="text-2xl font-bold">
+          {pollState.kind === "done" ? "Your scan is ready" : "Checking your file"}
+        </h1>
+        {pollState.kind !== "done" && (
+          <p className="text-sm text-gray-600 mt-1">
+            We&apos;re running a quick machine-readiness check before your file
+            goes to the lab tech.
+          </p>
+        )}
       </header>
 
-      {jobId ? (
-        <ScanProgressCard state={state} />
-      ) : (
+      {!jobId && (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4">
           <p className="text-sm text-red-900">
             Missing job id — this page needs a valid URL.
           </p>
         </div>
       )}
+
+      {jobId && pollState.kind === "done" ? (
+        <DoneStateView
+          pollState={pollState}
+          localAcks={localAcks}
+          revisions={revisions}
+          revisionsError={revisionsError}
+          onAcknowledge={handleAcknowledge}
+          onSubmit={handleSubmit}
+          onReupload={handleReupload}
+          isAckInFlight={isAckInFlight}
+          isSubmitting={isSubmitting}
+          actionError={actionError}
+        />
+      ) : jobId ? (
+        <ScanProgressCard state={pollState} />
+      ) : null}
+
+      {/* Re-upload modal — only opens when student clicks re-upload on a
+          'done' state with must-fix rules (or any time they want to try
+          a fresh version). */}
+      {jobId && isReuploadOpen && pollState.kind === "done" && (
+        <ReuploadModal
+          jobId={jobId}
+          originalFileType={
+            (pollState.status as JobStatusSuccess).fileType as FabricationFileType
+          }
+          onClose={() => setIsReuploadOpen(false)}
+          onSuccess={handleReuploadSuccess}
+        />
+      )}
     </main>
+  );
+}
+
+/**
+ * Extracted so the main component stays readable. Computes canSubmit
+ * from the live ack state + renders the soft-gate UI + any action error.
+ */
+function DoneStateView(props: {
+  pollState: Extract<ReturnType<typeof useFabricationStatus>["state"], { kind: "done" }>;
+  localAcks: AcknowledgedWarnings;
+  revisions: RevisionSummary[];
+  revisionsError: string | null;
+  onAcknowledge: (ruleId: string, choice: AckChoice) => void;
+  onSubmit: () => void;
+  onReupload: () => void;
+  isAckInFlight: boolean;
+  isSubmitting: boolean;
+  actionError: string | null;
+}) {
+  const {
+    pollState,
+    localAcks,
+    revisions,
+    revisionsError,
+    onAcknowledge,
+    onSubmit,
+    onReupload,
+    isAckInFlight,
+    isSubmitting,
+    actionError,
+  } = props;
+
+  const status = pollState.status as JobStatusSuccess;
+  const revisionNumber = status.currentRevision;
+  const scanResults = (status.scanResults ?? { rules: [] }) as { rules?: Rule[] | null };
+  const gate = canSubmit({
+    results: scanResults,
+    acknowledgedWarnings: localAcks,
+    revisionNumber,
+  });
+
+  return (
+    <div className="space-y-4">
+      {actionError && (
+        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3">
+          <p className="text-sm text-red-900">{actionError}</p>
+        </div>
+      )}
+
+      <ScanResultsViewer
+        scanResults={scanResults}
+        acknowledgedWarnings={localAcks}
+        revisionNumber={revisionNumber}
+        canSubmitState={gate}
+        onAcknowledge={onAcknowledge}
+        onSubmit={onSubmit}
+        onReupload={onReupload}
+        isAckInFlight={isAckInFlight}
+        isSubmitting={isSubmitting}
+        thumbnailUrl={status.revision?.thumbnailUrl ?? null}
+      />
+
+      {/* Revision history — hidden when only 1 revision exists */}
+      <RevisionHistoryPanel
+        revisions={revisions}
+        currentRevision={revisionNumber}
+      />
+      {revisionsError && (
+        <p className="text-xs text-gray-500 italic">{revisionsError}</p>
+      )}
+
+      <div className="pt-4 text-xs text-gray-500">
+        <Link href="/dashboard" className="underline hover:no-underline">
+          ← Back to dashboard
+        </Link>
+      </div>
+    </div>
   );
 }

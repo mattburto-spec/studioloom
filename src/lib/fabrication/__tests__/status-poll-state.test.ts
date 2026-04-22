@@ -333,3 +333,47 @@ describe("selectStagedMessage", () => {
     );
   });
 });
+
+// ============================================================
+// statusPollReducer — RESET (Phase 5-5)
+// ============================================================
+
+describe("statusPollReducer — RESET", () => {
+  it("returns to idle from any state (enables re-upload un-freeze)", () => {
+    const states: FabricationPollState[] = [
+      { kind: "idle", elapsedMs: 500 },
+      {
+        kind: "polling",
+        status: makeStatus({ scanStatus: "pending" }),
+        elapsedMs: 3000,
+      },
+      {
+        kind: "done",
+        status: makeStatus({ scanStatus: "done" }),
+        elapsedMs: 9000,
+      },
+      { kind: "error", message: "boom", elapsedMs: 5000 },
+      { kind: "timeout", elapsedMs: 90000 },
+    ];
+    for (const s of states) {
+      const next = statusPollReducer(s, { type: "RESET" });
+      expect(next).toEqual({ kind: "idle", elapsedMs: 0 });
+    }
+  });
+
+  it("RESET + subsequent POLL_SUCCESS transitions normally (no lingering freeze)", () => {
+    const done: FabricationPollState = {
+      kind: "done",
+      status: makeStatus({ scanStatus: "done" }),
+      elapsedMs: 9000,
+    };
+    const afterReset = statusPollReducer(done, { type: "RESET" });
+    expect(afterReset.kind).toBe("idle");
+    const afterPoll = statusPollReducer(afterReset, {
+      type: "POLL_SUCCESS",
+      status: makeStatus({ scanStatus: "pending" }),
+      elapsedMs: 500,
+    });
+    expect(afterPoll.kind).toBe("polling");
+  });
+});
