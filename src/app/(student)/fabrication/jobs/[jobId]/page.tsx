@@ -192,16 +192,31 @@ export default function FabricationJobStatusPage() {
 
   async function handleReuploadSuccess() {
     setIsReuploadOpen(false);
-    // Re-fetch the revision history so the new revision appears.
-    await fetchRevisions();
-    // Reset the poll reducer so the current 'done' state unfreezes —
-    // the next POLL_SUCCESS will transition to 'polling' for the new
-    // revision, and then 'done' again once it scans.
+
+    // PH5-FU-REUPLOAD-POLL-STUCK fix (Phase 6-5b): reset all local
+    // state + the poll reducer BEFORE awaiting the revision-history
+    // fetch. This matters because the poll hook keeps ticking every
+    // 2s regardless of reducer state — the ~100-500ms fetchRevisions
+    // window is exactly when a Rev N+1 POLL_SUCCESS is most likely to
+    // land. Old order (await then reset) meant:
+    //   (a) poll fires during await → reducer auto-unfreezes to
+    //       polling/done for Rev N+1 (via Phase 6-0 fix), THEN
+    //       resetPoll() wipes that state back to idle → ~2s "flash
+    //       of idle" until the next poll re-transitions.
+    //   (b) if resetPoll ever broke (future refactor), we'd be back
+    //       to the original stuck-on-Rev-N bug.
+    // New order: reducer is idle BEFORE the poll can land → single
+    // clean transition idle → polling/done on the first Rev N+1
+    // response. Phase 6-0's reducer auto-unfreeze stays as a
+    // defensive safety net, not the primary mechanism.
     resetPoll();
-    // Drop local ack state — acks are per-revision and the new
-    // revision starts with none.
     setLocalAcks({});
     hydratedFromServerRef.current = false;
+
+    // Re-fetch the revision history so the new revision appears.
+    // Any poll that lands during this await transitions the now-idle
+    // reducer to polling/done for the new revision without racing.
+    await fetchRevisions();
   }
 
   return (

@@ -496,4 +496,55 @@ describe("statusPollReducer — RESET", () => {
     });
     expect(afterPoll.kind).toBe("polling");
   });
+
+  // Phase 6-5b: codifies the "reset-before-poll" sequence the page's
+  // handleReuploadSuccess handler uses. The page dispatches RESET
+  // BEFORE awaiting the revision-history fetch, then any Rev N+1 poll
+  // that lands during the await window transitions cleanly from idle
+  // to polling/done. If this test ever fails, someone probably
+  // reordered the handler to await-then-reset, which re-introduces
+  // the PH5-FU-REUPLOAD-POLL-STUCK timing hole (flash-of-idle after
+  // a clean auto-unfreeze).
+  it("reset-before-poll sequence: done(Rev 1) → RESET → POLL_SUCCESS(Rev 2 pending) lands cleanly in polling", () => {
+    // Initial terminal state — Rev 1 has scanned + student has a result.
+    const doneRev1: FabricationPollState = {
+      kind: "done",
+      status: makeStatus({ scanStatus: "done" }, { currentRevision: 1 }),
+      elapsedMs: 9000,
+    };
+    // Page handler fires RESET before awaiting revisions fetch.
+    const afterReset = statusPollReducer(doneRev1, { type: "RESET" });
+    expect(afterReset).toEqual({ kind: "idle", elapsedMs: 0 });
+    // Poll fires during the await window — returns Rev 2 pending.
+    const afterPoll = statusPollReducer(afterReset, {
+      type: "POLL_SUCCESS",
+      status: makeStatus({ scanStatus: "pending" }, { currentRevision: 2 }),
+      elapsedMs: 250,
+    });
+    expect(afterPoll.kind).toBe("polling");
+    if (afterPoll.kind === "polling") {
+      expect(afterPoll.status.currentRevision).toBe(2);
+      expect(afterPoll.status.revision?.scanStatus).toBe("pending");
+    }
+  });
+
+  it("reset-before-poll sequence: done(Rev 1) → RESET → POLL_SUCCESS(Rev 2 DONE) lands directly in done", () => {
+    // Fast-scan case — Rev 2 is already scanned by the time the first
+    // post-reset poll lands. Single transition idle → done.
+    const doneRev1: FabricationPollState = {
+      kind: "done",
+      status: makeStatus({ scanStatus: "done" }, { currentRevision: 1 }),
+      elapsedMs: 9000,
+    };
+    const afterReset = statusPollReducer(doneRev1, { type: "RESET" });
+    const afterPoll = statusPollReducer(afterReset, {
+      type: "POLL_SUCCESS",
+      status: makeStatus({ scanStatus: "done" }, { currentRevision: 2 }),
+      elapsedMs: 1200,
+    });
+    expect(afterPoll.kind).toBe("done");
+    if (afterPoll.kind === "done") {
+      expect(afterPoll.status.currentRevision).toBe(2);
+    }
+  });
 });
