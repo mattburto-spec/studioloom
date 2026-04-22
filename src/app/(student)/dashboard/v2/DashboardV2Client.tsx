@@ -1177,14 +1177,86 @@ const SCOPED_CSS = `
 .sl-v2 .ring-track { stroke: var(--sl-hair); }
 `;
 
+// ================= LOADING SKELETONS =================
+// Shown until each section's fetch resolves — prevents the "mock flashes
+// then swaps to real data" behaviour that surfaces on slow networks or
+// cold Vercel serverless cold-starts.
+
+function skelBlock(className: string) {
+  return <div className={`rounded-xl bg-[var(--sl-hair)]/50 animate-pulse ${className}`} />;
+}
+
+function HeroSkeleton() {
+  return (
+    <section className="max-w-[1400px] mx-auto px-6 pt-8">
+      <div className="flex items-end justify-between mb-4 px-1">
+        <div className="space-y-3">
+          {skelBlock("h-3 w-40")}
+          {skelBlock("h-10 w-[440px]")}
+        </div>
+      </div>
+      <div className="rounded-[32px] overflow-hidden card-shadow-lg h-[380px] bg-[var(--sl-hair)]/40 animate-pulse" />
+    </section>
+  );
+}
+
+function PrioritySkeleton() {
+  return (
+    <section className="max-w-[1400px] mx-auto px-6 pt-10">
+      <div className="grid grid-cols-12 gap-5">
+        <div className="col-span-4 space-y-3">{skelBlock("h-3 w-24")}{skelBlock("h-52 w-full")}</div>
+        <div className="col-span-4 space-y-3">{skelBlock("h-3 w-24")}{skelBlock("h-52 w-full")}</div>
+        <div className="col-span-4 space-y-3">{skelBlock("h-3 w-24")}{skelBlock("h-52 w-full")}</div>
+      </div>
+    </section>
+  );
+}
+
+function UnitsGridSkeleton() {
+  return (
+    <section className="max-w-[1400px] mx-auto px-6 pt-12">
+      <div className="flex items-end justify-between mb-4">
+        <div className="space-y-2">
+          {skelBlock("h-3 w-32")}
+          {skelBlock("h-8 w-80")}
+        </div>
+      </div>
+      <div className="grid grid-cols-3 gap-5">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="rounded-xl bg-[var(--sl-hair)]/50 animate-pulse h-80 w-full" />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function BadgesSkeleton() {
+  return (
+    <section className="max-w-[1400px] mx-auto px-6 pt-12">
+      <div className="grid grid-cols-12 gap-5">
+        {skelBlock("col-span-5 h-64")}
+        <div className="col-span-7 space-y-3">
+          {skelBlock("h-3 w-32")}
+          {skelBlock("h-16 w-full")}
+          {skelBlock("h-16 w-full")}
+          {skelBlock("h-16 w-full")}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 // ================= APP =================
 export default function DashboardV2Client() {
   const [student, setStudent] = useState<SessionStudent>(STUDENT_MOCK);
   const [sessionLoading, setSessionLoading] = useState(true);
-  const [hero, setHero] = useState<HeroUnit>(HERO_MOCK);
-  const [buckets, setBuckets] = useState<PriorityBuckets>(MOCK_BUCKETS);
-  const [units, setUnits] = useState<StudentUnit[]>(S_UNITS_MOCK);
-  const [badges, setBadges] = useState<BadgesState>(BADGES_MOCK);
+  // Initial state is null so we render skeletons until the fetch resolves.
+  // On success → real data. On 401/error → fall back to MOCK (preview mode).
+  // This prevents the "mock flashes, then swaps to real data" behaviour.
+  const [hero, setHero] = useState<HeroUnit | null>(null);
+  const [buckets, setBuckets] = useState<PriorityBuckets | null>(null);
+  const [units, setUnits] = useState<StudentUnit[] | null>(null);
+  const [badges, setBadges] = useState<BadgesState | null>(null);
 
   // Mount-time style inject (scoped via .sl-v2).
   useEffect(() => {
@@ -1220,19 +1292,22 @@ export default function DashboardV2Client() {
   }, []);
 
   // Load badges (earned + pending) from the safety API (Phase 6).
-  // Fall back silently to BADGES_MOCK on 401 or error.
+  // Sets MOCK on 401/error so preview mode still renders, just without
+  // the mock flashing first.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const res = await fetch("/api/student/safety/pending");
-        if (!res.ok) return;
+        if (!res.ok) { if (!cancelled) setBadges(BADGES_MOCK); return; }
         const data = (await res.json()) as SafetyResponse;
-        // Keep mock if both arrays are empty (preview mode)
-        if ((data.earned ?? []).length === 0 && (data.pending ?? []).length === 0) return;
+        if ((data.earned ?? []).length === 0 && (data.pending ?? []).length === 0) {
+          if (!cancelled) setBadges(BADGES_MOCK);
+          return;
+        }
         if (!cancelled) setBadges(toBadgesState(data));
       } catch {
-        /* silent — keep mock */
+        if (!cancelled) setBadges(BADGES_MOCK);
       }
     })();
     return () => {
@@ -1241,19 +1316,18 @@ export default function DashboardV2Client() {
   }, []);
 
   // Load real insights → classify into priority buckets (Phase 4).
-  // Fall back silently to MOCK_BUCKETS on 401 or error.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const res = await fetch("/api/student/insights");
-        if (!res.ok) return;
+        if (!res.ok) { if (!cancelled) setBuckets(MOCK_BUCKETS); return; }
         const data = (await res.json()) as { insights?: InsightRow[] };
         const list = data.insights ?? [];
-        if (list.length === 0) return; // no real insights → keep mock for preview
+        if (list.length === 0) { if (!cancelled) setBuckets(MOCK_BUCKETS); return; }
         if (!cancelled) setBuckets(classifyInsights(list));
       } catch {
-        /* silent — keep mock */
+        if (!cancelled) setBuckets(MOCK_BUCKETS);
       }
     })();
     return () => {
@@ -1262,23 +1336,27 @@ export default function DashboardV2Client() {
   }, []);
 
   // Load real units + pick hero unit. Then fetch unit detail to wire the
-  // current-task card (Phase 3B). Fall back silently to HERO_MOCK.
+  // current-task card (Phase 3B).
   useEffect(() => {
     let cancelled = false;
+    const fallback = () => {
+      if (cancelled) return;
+      setUnits(S_UNITS_MOCK);
+      setHero(HERO_MOCK);
+    };
     (async () => {
       try {
         const res = await fetch("/api/student/units");
-        if (!res.ok) return;
+        if (!res.ok) { fallback(); return; }
         const data = (await res.json()) as { units?: UnitRow[] };
         const unitRows = data.units ?? [];
 
-        // Phase 5: populate the grid from the same fetch.
-        if (!cancelled && unitRows.length > 0) {
-          setUnits(unitRows.map(unitRowToStudentUnit));
-        }
+        if (unitRows.length === 0) { fallback(); return; }
+
+        if (!cancelled) setUnits(unitRows.map(unitRowToStudentUnit));
 
         const selected = selectHeroUnit(unitRows);
-        if (!selected) return;
+        if (!selected) { if (!cancelled) setHero(HERO_MOCK); return; }
         if (cancelled) return;
         // First render: hero identity (fast — no second fetch needed yet).
         const heroIdentity = buildHeroUnit(selected);
@@ -1296,8 +1374,6 @@ export default function DashboardV2Client() {
         const dueInText = pageId ? computeDueInText(detail.pageDueDates[pageId]) : null;
 
         if (cancelled) return;
-        // Refine continueHref using the authoritative current page from the
-        // detail fetch (may differ from the provisional one buildHeroUnit chose).
         const refinedContinueHref = pageId
           ? `/unit/${selected.id}/${pageId}`
           : heroIdentity.continueHref;
@@ -1310,7 +1386,7 @@ export default function DashboardV2Client() {
           dueIn: dueInText ?? heroIdentity.dueIn,
         });
       } catch {
-        /* silent — keep mock */
+        fallback();
       }
     })();
     return () => {
@@ -1321,10 +1397,10 @@ export default function DashboardV2Client() {
   return (
     <div className="sl-v2">
       <TopNav student={student} loading={sessionLoading} />
-      <ResumeHero student={student} hero={hero} />
-      <Priority buckets={buckets} />
-      <UnitsGrid units={units} />
-      <Badges data={badges} />
+      {hero ? <ResumeHero student={student} hero={hero} /> : <HeroSkeleton />}
+      {buckets ? <Priority buckets={buckets} /> : <PrioritySkeleton />}
+      {units ? <UnitsGrid units={units} /> : <UnitsGridSkeleton />}
+      {badges ? <Badges data={badges} /> : <BadgesSkeleton />}
       {/* Bottom padding — replaces old <Feedback /> slot (dropped Phase 7) */}
       <div className="pb-20" />
     </div>
