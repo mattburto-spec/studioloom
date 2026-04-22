@@ -129,8 +129,8 @@ function UnitPageViewInner({
 
   return (
     <div className="min-h-screen bg-white">
-      {/* ── Sticky top nav bar ── */}
-      <div className="sticky top-0 z-40 bg-white/95 backdrop-blur-sm border-b border-gray-100 shadow-sm">
+      {/* ── Sticky lesson bar — sits below the global BoldTopNav (h-16 = 4rem). ── */}
+      <div className="sticky top-16 z-20 bg-white/95 backdrop-blur-sm border-b border-gray-100 shadow-sm">
         <div className="max-w-5xl mx-auto px-4 py-2 flex items-center justify-between">
           <div className="flex items-center gap-2">
             {unitNav && (
@@ -540,19 +540,19 @@ function UnitPageViewInner({
 
       {/* Save indicator — subtle auto-save status in top bar area */}
       {saving && (
-        <div className="fixed top-[3.25rem] right-4 z-50 flex items-center gap-1.5 px-3 py-1 bg-gray-100 text-gray-500 text-xs font-medium rounded-full shadow-sm">
+        <div className="fixed top-[4.5rem] right-4 z-50 flex items-center gap-1.5 px-3 py-1 bg-gray-100 text-gray-500 text-xs font-medium rounded-full shadow-sm">
           <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
           Saving...
         </div>
       )}
       {showSaveToast && (
-        <div className="fixed top-[3.25rem] right-4 z-50 flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-600 text-xs font-medium rounded-full shadow-sm">
+        <div className="fixed top-[4.5rem] right-4 z-50 flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-600 text-xs font-medium rounded-full shadow-sm">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
           Saved
         </div>
       )}
       {moderationError && (
-        <div className="fixed top-[3.25rem] left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2 bg-red-50 border border-red-200 text-red-700 text-sm font-medium rounded-lg shadow-md max-w-md text-center">
+        <div className="fixed top-[4.5rem] left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2 bg-red-50 border border-red-200 text-red-700 text-sm font-medium rounded-lg shadow-md max-w-md text-center">
           <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd"/></svg>
           {moderationError}
         </div>
