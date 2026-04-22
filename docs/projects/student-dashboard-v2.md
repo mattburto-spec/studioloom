@@ -11,14 +11,15 @@ Shipped behind `sl_v2=1` cookie at `/dashboard/v2` during build.
 | 0 | Pre-flight audit + decisions | ✅ Done | — |
 | 1 | Scaffold at `/dashboard/v2`, mock data | ✅ Done | `b89e89d` |
 | 2 | Wire TopNav + hero greeting to session | ✅ Done | `b2a8d12` |
-| 3A | Wire hero unit identity (title, subtitle, class, color, image, %) | ⏳ Next | — |
-| 3B | Wire hero current task (activity block) + lesson progress + due | ⏳ Planned | — |
+| 3A | Wire hero unit identity (title, subtitle, class, color, image, %) | ✅ Done | `a88b330` + `934ddfe` |
+| 3B | Wire hero current task (activity block) + lesson progress + due | ✅ Done | `cfa2a00` |
 | 3C | Teacher note — **deferred to end-of-project**, see below | ⏸ Deferred | — |
-| 4 | Wire Priority queue | ⏳ Planned | — |
-| 5 | Wire Units grid | ⏳ Planned | — |
-| 6 | Wire Badges | ⏳ Planned | — |
-| 7 | Wire Feedback section | ⏳ Planned | — |
-| 8 | Cutover `/dashboard` → v2, remove opt-out hatch | ⏳ Planned | — |
+| 4 | Wire Priority queue | ✅ Done | `454f98b` |
+| 4.5 | Continue button + mock-flash fix | ✅ Done | `97b3046` + `67bacab` |
+| 5 | Wire Units grid | ✅ Done | `20f40f7` |
+| 6 | Wire Badges | ✅ Done | `d913fe8` |
+| 7 | Feedback section — dropped, no backing data until notes system | ✅ Done (dropped) | `8d6483b` |
+| 8 | Cutover `/dashboard` → v2; old kept at `/dashboard-legacy` | ✅ Done | _(this commit)_ |
 
 ## End-of-project TODO list
 
@@ -37,11 +38,23 @@ Items Matt has flagged to handle before or during Phase 8 cutover.
       in-page tabs before cutover.
 - [ ] Search button functionality.
 - [ ] Bell/notifications count — tie to insights/priority queue.
-- [ ] Remove the `pathname === "/dashboard/v2"` opt-out escape hatch from
-      `(student)/layout.tsx` (introduced in Phase 1, tagged with a
-      "remove at Phase 8 cutover" comment).
-- [ ] Drop the `sl_v2` cookie gate — v2 becomes the default `/dashboard`.
-- [ ] Keep old `/dashboard` as `_legacy` for one week post-cutover, then delete.
+- [ ] **Snooze button (priority queue)** — currently a visual stub. Wire up
+      so overdue items can be snoozed. Matt wants to play with this with
+      students — potential behaviour experiment around deferral/avoidance.
+      Needs a `snoozed_until` column on the relevant source table and a
+      filter in `/api/student/insights`.
+- [ ] **Focus mode** — a "Focus" button on the hero (or elsewhere) that
+      hides everything except the current next step (the activity block
+      title + continue button). Removes the priority queue, units grid,
+      badges, feedback. Student gets a minimal single-task view to avoid
+      overwhelm. Exit button returns to full dashboard. _(Matt, 22 Apr 2026)_
+- [x] ~~Remove the `pathname === "/dashboard/v2"` opt-out escape hatch~~ — done
+      at Phase 8 cutover; layout still opts out of its shell on `/dashboard`
+      because the Bold TopNav replaces the legacy header.
+- [x] ~~Drop the `sl_v2` cookie gate~~ — removed at Phase 8 cutover.
+- [ ] Delete `/dashboard-legacy` route once one week of stable prod use has
+      passed (cutover 2026-04-22). Currently kept as a one-click rollback
+      path in case of urgent issues with the Bold dashboard.
 - [ ] Theme system — Phase 1 hardcoded the Bold cream palette. Decide whether
       to honor student `theme_id` (Option a from Phase 0), slot Bold in as a
       new theme (Option c), or retire themes entirely.
@@ -57,3 +70,13 @@ Items Matt has flagged to handle before or during Phase 8 cutover.
 - **Notes system:** notes card on hero is deferred because the right model
   is a general bidirectional notes system, not a teacher-only feature.
   _(Matt, 22 Apr 2026)_
+- **Open Studio placement:** no inline "Open Studio available" marker on
+  regular unit cards. Instead, when a student has Open Studio enabled, it
+  becomes **its own card in the grid** (treated like a class). If it's the
+  primary thing they're working on, it takes the **hero card** slot.
+  Rationale: mixing OS state into unit cards confuses students; a separate
+  card is cleaner. Not for v1 build — wire when the separate-card treatment
+  is designed. _(Matt, 22 Apr 2026)_
+- **Per-card due dates:** dropped from unit grid cards for v1. Matt will
+  wire due dates into cards as part of the assessment/grading work. Due
+  info stays visible via the priority queue. _(Matt, 22 Apr 2026)_
