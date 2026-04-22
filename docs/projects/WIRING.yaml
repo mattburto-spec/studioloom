@@ -2305,7 +2305,7 @@ systems:
     category: Submission
     status: in-progress
     currentVersion: 1
-    summary: "Upload, scan, gate, route, pickup, complete pipeline for student fabrication submissions (3D print, laser). User-facing brand Preflight. Schema tables prefixed fabrication_*. Phase 1A schema applied; Phase 1B-1 (additive columns 098-101 + storage buckets 102 + AI-guardrail seed 103) applied; Phase 1B-2 (teacher invite UI, /fab/login, email dispatch) and Phase 2 (scanner worker + upload UI) upcoming."
+    summary: "Upload, scan, gate, route, pickup, complete pipeline for student fabrication submissions (3D print, laser). User-facing brand Preflight. Schema tables prefixed fabrication_*. Phases 0, 1A, 1B-1, 1B-2, 2 (STL scanner — Checkpoint 2.1 PASSED), 3 (SVG scanner — Checkpoint 3.1 PASSED), 4 (student upload UI — Checkpoint 4.1 PASSED 22 Apr 2026) all SHIPPED. 4 new student-facing routes (POST /api/student/fabrication/upload, POST .../jobs/[jobId]/enqueue-scan, GET .../jobs/[jobId]/status, GET .../picker-data) + upload page + status page with polling hook. Multi-revision upload deferred to Phase 5 (soft-gate). Next: Phase 5 — per-rule evidence viewer + acknowledge-each-one flow + re-upload endpoint."
     depends_on: [storage, preflight-scanner, auth-system, machine-profiles]
     affects: [teacher-dashboard, student-dashboard, audit-log, students]
     docs:
