@@ -514,7 +514,9 @@ function unitRowToStudentUnit(unit: UnitRow): StudentUnit {
 
 type EarnedBadge = { name: string; icon: IconName; color: string; when: string };
 type NextBadge = { name: string; icon: IconName; color: string; progress: number; unlock: string };
-const BADGES: { earned: EarnedBadge[]; next: NextBadge[] } = {
+type BadgesState = { earned: EarnedBadge[]; next: NextBadge[] };
+
+const BADGES_MOCK: BadgesState = {
   earned: [
     { name: "General Workshop Safety", icon: "shield", color: "#10B981", when: "Earned 2 weeks ago" },
     { name: "Hand Tool Safety",        icon: "wrench", color: "#0EA5A4", when: "Earned 2 weeks ago" },
@@ -525,6 +527,78 @@ const BADGES: { earned: EarnedBadge[]; next: NextBadge[] } = {
     { name: "Design Journal Streak",   icon: "flame", color: "#EC4899", progress: 70, unlock: "7-day streak · 5/7" },
   ],
 };
+
+// ================= PHASE 6: BADGES FROM SAFETY API =================
+
+type SafetyBadgeEarned = {
+  badge_id: string;
+  badge_name: string;
+  badge_icon: string;
+  badge_color: string;
+  earned_at: string;
+};
+
+type SafetyBadgePending = {
+  badge_id: string;
+  badge_name: string;
+  badge_icon: string;
+  badge_color: string;
+  student_status: "not_started" | "cooldown" | "expired";
+  cooldown_until?: string;
+};
+
+type SafetyResponse = { earned?: SafetyBadgeEarned[]; pending?: SafetyBadgePending[] };
+
+// Map backend icon slug → our IconName. Fallback to "shield".
+function mapBadgeIcon(slug: string | undefined): IconName {
+  const iconSet: Record<string, IconName> = {
+    shield: "shield", wrench: "wrench", bolt: "bolt", print: "print",
+    flame: "flame", trophy: "trophy", star: "star", book: "book",
+    check: "check", plus: "plus",
+  };
+  return (slug && iconSet[slug.toLowerCase()]) || "shield";
+}
+
+/** Human-friendly "earned X ago" / "earned today" string. */
+function relativeTimeAgo(iso: string, now: Date = new Date()): string {
+  const then = new Date(iso);
+  if (isNaN(then.getTime())) return "Earned recently";
+  const seconds = Math.floor((now.getTime() - then.getTime()) / 1000);
+  if (seconds < 60)     return "Earned just now";
+  if (seconds < 3600)   return `Earned ${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400)  return `Earned ${Math.floor(seconds / 3600)}h ago`;
+  const days = Math.floor(seconds / 86400);
+  if (days === 1)       return "Earned yesterday";
+  if (days < 14)        return `Earned ${days} days ago`;
+  const weeks = Math.floor(days / 7);
+  if (weeks < 9)        return `Earned ${weeks} weeks ago`;
+  return then.toLocaleDateString(undefined, { month: "short", year: "numeric" });
+}
+
+/** Convert the safety API response into the view-model the Badges section uses. */
+function toBadgesState(resp: SafetyResponse): BadgesState {
+  const earned: EarnedBadge[] = (resp.earned ?? []).map((b) => ({
+    name: b.badge_name,
+    icon: mapBadgeIcon(b.badge_icon),
+    color: b.badge_color || "#10B981",
+    when: relativeTimeAgo(b.earned_at),
+  }));
+
+  const next: NextBadge[] = (resp.pending ?? []).map((b) => ({
+    name: b.badge_name,
+    icon: mapBadgeIcon(b.badge_icon),
+    color: b.badge_color || "#D97706",
+    progress: 0, // safety badges are binary — pass/not pass, no partial progress
+    unlock:
+      b.student_status === "cooldown"
+        ? "In cooldown · try again soon"
+        : b.student_status === "expired"
+          ? "Needs retake"
+          : "Pass safety test",
+  }));
+
+  return { earned, next };
+}
 
 type FeedbackItem = { from: string; initials: string; grad: string; unit: string; msg: string; when: string };
 const FEEDBACK: FeedbackItem[] = [
@@ -945,7 +1019,18 @@ function BadgeProgress({ b }: { b: NextBadge }) {
   );
 }
 
-function Badges() {
+function Badges({ data }: { data: BadgesState }) {
+  const { earned, next } = data;
+  const earnedCount = earned.length;
+  const headline =
+    earnedCount === 0
+      ? "No badges yet."
+      : `${earnedCount} badge${earnedCount === 1 ? "" : "s"}`;
+  const subline =
+    earnedCount === 0
+      ? "Pass a safety test to earn your first badge."
+      : "Nice work — earned through your workshop safety tests.";
+
   return (
     <section className="max-w-[1400px] mx-auto px-6 pt-12">
       <div className="grid grid-cols-12 gap-5">
@@ -953,24 +1038,32 @@ function Badges() {
           <div className="relative">
             <div className="cap text-white/60 inline-flex items-center gap-2"><Icon name="trophy" size={12} s={2.5} /> You&apos;ve earned</div>
             <h2 className="display text-[56px] leading-none mt-1">
-              {BADGES.earned.length} badges<span className="text-[#FBBF24]">.</span>
+              {headline}{earnedCount > 0 && <span className="text-[#FBBF24]">.</span>}
             </h2>
-            <div className="text-[13px] text-white/70 mt-2">Nice work — both earned through your workshop safety tests.</div>
-            <div className="mt-8 flex items-center gap-6">
-              {BADGES.earned.map((b, i) => (
-                <BadgeCircle key={i} b={{ ...b, when: null }} size={76} />
-              ))}
-            </div>
+            <div className="text-[13px] text-white/70 mt-2">{subline}</div>
+            {earned.length > 0 && (
+              <div className="mt-8 flex items-center gap-6 flex-wrap">
+                {earned.slice(0, 4).map((b, i) => (
+                  <BadgeCircle key={i} b={{ ...b, when: null }} size={76} />
+                ))}
+              </div>
+            )}
           </div>
           <div className="absolute top-6 right-6 text-[#FBBF24] opacity-70"><Icon name="sparkle" size={48} s={1.5} /></div>
           <div className="absolute bottom-6 right-20 text-[#FBBF24] opacity-40"><Icon name="sparkle" size={24} s={1.5} /></div>
         </div>
 
         <div className="col-span-7">
-          <div className="cap text-[var(--sl-ink-3)] mb-3">Next to unlock · {BADGES.next.length}</div>
-          <div className="flex flex-col gap-2.5">
-            {BADGES.next.map((b, i) => <BadgeProgress key={i} b={b} />)}
-          </div>
+          <div className="cap text-[var(--sl-ink-3)] mb-3">Next to unlock · {next.length}</div>
+          {next.length === 0 ? (
+            <div className="bg-white rounded-2xl p-6 border border-[var(--sl-hair)] text-[13px] text-[var(--sl-ink-3)]">
+              Nothing to unlock right now — your units haven&apos;t required any safety tests yet.
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2.5">
+              {next.map((b, i) => <BadgeProgress key={i} b={b} />)}
+            </div>
+          )}
           <button className="text-[12px] font-bold text-[var(--sl-ink-3)] hover:text-[var(--sl-ink)] mt-3 inline-flex items-center gap-1">
             All badges <Icon name="chevR" size={11} s={2.5} />
           </button>
@@ -1100,6 +1193,7 @@ export default function DashboardV2Client() {
   const [hero, setHero] = useState<HeroUnit>(HERO_MOCK);
   const [buckets, setBuckets] = useState<PriorityBuckets>(MOCK_BUCKETS);
   const [units, setUnits] = useState<StudentUnit[]>(S_UNITS_MOCK);
+  const [badges, setBadges] = useState<BadgesState>(BADGES_MOCK);
 
   // Mount-time style inject (scoped via .sl-v2).
   useEffect(() => {
@@ -1127,6 +1221,27 @@ export default function DashboardV2Client() {
         /* silent — keep mock */
       } finally {
         if (!cancelled) setSessionLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Load badges (earned + pending) from the safety API (Phase 6).
+  // Fall back silently to BADGES_MOCK on 401 or error.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/student/safety/pending");
+        if (!res.ok) return;
+        const data = (await res.json()) as SafetyResponse;
+        // Keep mock if both arrays are empty (preview mode)
+        if ((data.earned ?? []).length === 0 && (data.pending ?? []).length === 0) return;
+        if (!cancelled) setBadges(toBadgesState(data));
+      } catch {
+        /* silent — keep mock */
       }
     })();
     return () => {
@@ -1212,7 +1327,7 @@ export default function DashboardV2Client() {
       <ResumeHero student={student} hero={hero} />
       <Priority buckets={buckets} />
       <UnitsGrid units={units} />
-      <Badges />
+      <Badges data={badges} />
       <Feedback />
     </div>
   );

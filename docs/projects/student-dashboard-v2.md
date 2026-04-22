@@ -16,7 +16,7 @@ Shipped behind `sl_v2=1` cookie at `/dashboard/v2` during build.
 | 3C | Teacher note — **deferred to end-of-project**, see below | ⏸ Deferred | — |
 | 4 | Wire Priority queue | ✅ Done | _(this commit)_ |
 | 5 | Wire Units grid | ✅ Done | _(this commit)_ |
-| 6 | Wire Badges | ⏳ Planned | — |
+| 6 | Wire Badges | ✅ Done | _(this commit)_ |
 | 7 | Wire Feedback section | ⏳ Planned | — |
 | 8 | Cutover `/dashboard` → v2, remove opt-out hatch | ⏳ Planned | — |
 
