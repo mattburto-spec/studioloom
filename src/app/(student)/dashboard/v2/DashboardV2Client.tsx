@@ -86,6 +86,8 @@ type HeroUnit = {
   color: string;
   colorDark: string;
   img: string | null;
+  /** Continue button target — URL of the current task's page. null = inert. */
+  continueHref: string | null;
   // Placeholders until Phase 3B:
   currentTask: string;
   taskProgress: number;
@@ -101,6 +103,7 @@ const HERO_MOCK: HeroUnit = {
   color: "#0EA5A4",
   colorDark: "#0F766E",
   img: "https://images.unsplash.com/photo-1466692476868-aef1dfb1e735?w=1000&h=1200&fit=crop",
+  continueHref: null,
   currentTask: "Sketch 3 structural ideas",
   taskProgress: 1,
   taskTotal: 3,
@@ -192,6 +195,19 @@ function buildHeroUnit(unit: UnitRow): HeroUnit {
     title: unit.title,
     id: unit.id,
   });
+  // Provisional Continue target — resumes at the most-recently-touched page
+  // we know about from /api/student/units. Gets refined by the unit-detail
+  // fetch which has full content_data + responses.
+  const pages = getPageList(unit.content_data);
+  const sortedProgress = [...unit.progress].sort(
+    (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
+  );
+  const resumePageId =
+    sortedProgress.find((p) => pages.some((pg) => pg.id === p.page_id))?.page_id ??
+    pages[0]?.id ??
+    null;
+  const continueHref = resumePageId ? `/unit/${unit.id}/${resumePageId}` : null;
+
   return {
     unitTitle: unit.title,
     unitSub: unit.description || "",
@@ -199,6 +215,7 @@ function buildHeroUnit(unit: UnitRow): HeroUnit {
     color: palette.color,
     colorDark: palette.colorDark,
     img: unit.thumbnail_url,
+    continueHref,
     // Phase 3B placeholders — filled by loadUnitDetail() after the second fetch
     currentTask: HERO_MOCK.currentTask,
     taskProgress: HERO_MOCK.taskProgress,
@@ -784,9 +801,16 @@ function ResumeHero({ student, hero }: { student: SessionStudent; hero: HeroUnit
             </div>
 
             <div className="flex items-center gap-2 mt-6">
-              <button className="bg-white text-[var(--sl-ink)] rounded-full px-6 py-3 font-bold text-[14px] inline-flex items-center gap-2 hover:shadow-lg transition">
-                <Icon name="play" size={11} s={0} /> Continue
-              </button>
+              {n.continueHref ? (
+                <Link href={n.continueHref} className="bg-white text-[var(--sl-ink)] rounded-full px-6 py-3 font-bold text-[14px] inline-flex items-center gap-2 hover:shadow-lg transition">
+                  <Icon name="play" size={11} s={0} /> Continue
+                </Link>
+              ) : (
+                <button className="bg-white text-[var(--sl-ink)] rounded-full px-6 py-3 font-bold text-[14px] inline-flex items-center gap-2 hover:shadow-lg transition">
+                  <Icon name="play" size={11} s={0} /> Continue
+                </button>
+              )}
+              {/* Open journal — no backing route yet; stub until unit-level journal ships */}
               <button className="bg-white/15 backdrop-blur hover:bg-white/25 text-white rounded-full px-5 py-3 font-bold text-[13.5px]">
                 Open journal
               </button>
@@ -1272,8 +1296,14 @@ export default function DashboardV2Client() {
         const dueInText = pageId ? computeDueInText(detail.pageDueDates[pageId]) : null;
 
         if (cancelled) return;
+        // Refine continueHref using the authoritative current page from the
+        // detail fetch (may differ from the provisional one buildHeroUnit chose).
+        const refinedContinueHref = pageId
+          ? `/unit/${selected.id}/${pageId}`
+          : heroIdentity.continueHref;
         setHero({
           ...heroIdentity,
+          continueHref: refinedContinueHref,
           currentTask: task?.currentTask ?? heroIdentity.currentTask,
           taskProgress: task?.taskProgress ?? heroIdentity.taskProgress,
           taskTotal: task?.taskTotal ?? heroIdentity.taskTotal,
