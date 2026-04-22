@@ -1,6 +1,6 @@
 # Preflight Phase 6 — Teacher Queue + Approval
 
-**Status:** DRAFT — awaiting Matt sign-off on §10 open questions before first sub-phase opens
+**Status:** READY — all 8 pre-build open questions resolved 22 Apr 2026 PM (§10). First sub-phase (6-0, the PH5 reupload fix) opens next.
 **Date drafted:** 22 April 2026 PM late
 **Spec source:** `docs/projects/fabrication-pipeline.md` §9 (Teacher UX), §13 Phase 6
 **Predecessor:** Phase 5 SHIPPED + Checkpoint 5.1 PASSED 14/14 (preflight-active HEAD `3580cad`).
@@ -324,21 +324,23 @@ interface QueueRow {
 
 ---
 
-## 10. Open questions for Matt before 6-1 opens
+## 10. Resolved decisions (22 Apr 2026 PM, pre-opening)
 
-1. **Route naming** — spec says `/teacher/fabrication` but Phase 1B-2 shipped `/teacher/preflight/*`. Stick with `/teacher/preflight` (existing, consistent with Fabricator admin) or split (`/teacher/fabrication` = queue, `/teacher/preflight/fabricators` = fabricator admin)? **Recommendation: stay with `/teacher/preflight` — `/teacher/preflight/jobs/[jobId]` for detail, `/teacher/preflight/fabricators` stays as-is.**
-2. **"Return for revision" vs "Reject" semantics** — both push the submission back. Return = "fix this and resubmit, keeps the job alive". Reject = "no, this submission won't happen". Student UX differs:
-   - Return: amber card + teacher note + Re-upload CTA (goes to Rev N+1)
-   - Reject: red card, read-only, "Start a fresh submission" link to `/fabrication/new`
-   **Recommendation: both ship in Phase 6 with the semantics above. Reject is rarer but needed for safety-flagged content (weapon STLs) or plagiarism etc.**
-3. **Teacher-note single field vs thread** — `teacher_review_note` is a single TEXT column in migration 095. V1 ships single-field (overwritten on each action). A history/thread needs a new table. Ship v1 as-is, file `PH6-FU-NOTE-HISTORY` P3 for post-pilot?
-4. **Teacher email on new submission** — every time a student submits, email the teacher? Opt-in per teacher? No email by default? **Recommendation: no email in Phase 6, file `PH6-FU-TEACHER-EMAIL` P3. Teacher checks queue when they're ready to triage. Email can be added when real-world use shows the pain.**
-5. **Approve flow — does teacher need to see the scan results first?** Options:
-   - A (cheap): Approve button on the queue row, no detail page view required → fastest triage
-   - B (safer): Approve button only on the detail page → forces the teacher to look at the rules before approving
-   **Recommendation: ship both. Row-level Approve for already-seen submissions, detail-page Approve for new ones. Queue can indicate which rows the teacher has already viewed (e.g., clicked through to detail at least once).**
-6. **Class-level fabrication tab in Phase 6 vs deferred** — spec §9 lists it under teacher UX but Phase 6 scope is tight. Include (6-4) or defer to Phase 9 polish?
-7. **Class_id NULL handling** — some jobs might have NULL class_id (if a student uploads without a class context — but Phase 4-1 always sets class_id). Defensive: teachers see their own jobs by `teacher_id` regardless of class_id. Confirm this scope is correct.
-8. **`requires_teacher_approval` seed flip** — Phase 5 §10 decision 6 said "flip lasers to true via one-off SQL". Has this been run? If not, Phase 6's whole reason to exist (teacher-approves-pending submissions) won't have data to show unless the seed is flipped OR a teacher-owned machine has the flag set. Matt should run the SQL before Checkpoint 6.1 smoke.
+All 8 pre-build open questions answered with the recommended defaults. Baked into sub-phase specs above. Matt: "all recommended".
 
-Answer inline before opening 6-1 (or 6-0 if you want the PH5 reupload fix first).
+1. **Route naming — `/teacher/preflight/*`** (stay with Phase 1B-2 convention). Queue at `/teacher/preflight`, detail at `/teacher/preflight/jobs/[jobId]`, fabricator admin stays at `/teacher/preflight/fabricators`.
+2. **Return + Reject both ship in Phase 6.** Return = amber card + teacher note + Re-upload CTA (status → `needs_revision`; student creates Rev N+1). Reject = red card, read-only, "Start fresh" link (status → `rejected`; no re-upload on this job).
+3. **Teacher-note single field (v1).** Overwritten on each action. File `PH6-FU-NOTE-HISTORY` P3 for post-pilot thread/audit-log.
+4. **No teacher email on new submission in Phase 6.** File `PH6-FU-TEACHER-EMAIL` P3. Teacher pulls queue when ready. Add only when real-world use shows pain.
+5. **Approve from both queue row AND detail page.** Row-level Approve for already-viewed submissions (queue tracks "viewed" status via click-through). Detail-page Approve always available. Gives fast-triage for repeat patterns + safety for first-look.
+6. **Class-level fabrication tab IN Phase 6** (6-4 includes it). Per-student + per-class both ship together.
+7. **Class_id NULL handling — scope by `teacher_id` primarily.** `verifyTeacherOwnsClass` is belt-and-braces for the class_id case. Phase 4-1 always sets class_id anyway so this is defensive only.
+8. **`requires_teacher_approval` seed flip — Matt runs one-off SQL BEFORE Checkpoint 6.1 smoke:**
+   ```sql
+   UPDATE machine_profiles
+   SET requires_teacher_approval = true
+   WHERE is_system_template = true AND machine_category = 'laser_cutter';
+   ```
+   Without this, Phase 6 has no `pending_approval` rows to exercise the queue on. Run it before 6-6 opens.
+
+No outstanding questions. 6-0 (PH5 reupload polling fix) opens next.
