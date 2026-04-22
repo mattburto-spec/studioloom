@@ -1041,6 +1041,30 @@ function HeroSkeleton() {
   );
 }
 
+/** Rendered when the student has no assigned units — skips the "pick up
+ *  where you left off" framing entirely. */
+function EmptyHero({ firstName }: { firstName: string }) {
+  const hour = new Date().getHours();
+  const greet = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+  return (
+    <section className="max-w-[1400px] mx-auto px-6 pt-8">
+      <div className="mb-4 px-1">
+        <div className="cap text-[var(--sl-ink-3)]">{greet}, {firstName}</div>
+        <h1 className="display-lg text-[30px] md:text-[44px] leading-[0.95] mt-1">No units yet.</h1>
+      </div>
+      <div className="rounded-[32px] bg-white card-shadow p-10 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-[var(--sl-hair)]/60 mx-auto flex items-center justify-center">
+          <Icon name="book" size={28} s={1.8} />
+        </div>
+        <h2 className="display text-[22px] mt-5">Nothing assigned yet</h2>
+        <p className="text-[13.5px] text-[var(--sl-ink-3)] mt-2 max-w-md mx-auto">
+          Your teacher will add units for you to work through. Check back soon, or head to the Safety page to earn your workshop badges while you wait.
+        </p>
+      </div>
+    </section>
+  );
+}
+
 function MiddleRowSkeleton() {
   return (
     <section className="max-w-[1400px] mx-auto px-6 pt-10">
@@ -1100,6 +1124,10 @@ export default function DashboardClient() {
   const [buckets, setBuckets] = useState<PriorityBuckets | null>(null);
   const [units, setUnits] = useState<StudentUnit[] | null>(null);
   const [badges, setBadges] = useState<BadgesState | null>(null);
+  // Distinguishes "hero fetch resolved with no unit" from "hero fetch still
+  // in flight". Lets us render an empty-state hero instead of the skeleton
+  // forever when a student genuinely has no assigned units.
+  const [heroLoaded, setHeroLoaded] = useState(false);
 
   // Phase 12 — focus mode. Hides everything except the current next step.
   const [focusMode, setFocusMode] = useState(false);
@@ -1114,18 +1142,17 @@ export default function DashboardClient() {
   // the mock flashing first.
   useEffect(() => {
     let cancelled = false;
+    const empty: BadgesState = { earned: [], next: [] };
     (async () => {
       try {
         const res = await fetch("/api/student/safety/pending");
-        if (!res.ok) { if (!cancelled) setBadges(BADGES_MOCK); return; }
+        if (!res.ok) { if (!cancelled) setBadges(empty); return; }
         const data = (await res.json()) as SafetyResponse;
-        if ((data.earned ?? []).length === 0 && (data.pending ?? []).length === 0) {
-          if (!cancelled) setBadges(BADGES_MOCK);
-          return;
-        }
+        // toBadgesState handles empty earned/pending gracefully; no need
+        // to fall back to mock data when the real student has nothing yet.
         if (!cancelled) setBadges(toBadgesState(data));
       } catch {
-        if (!cancelled) setBadges(BADGES_MOCK);
+        if (!cancelled) setBadges(empty);
       }
     })();
     return () => {
@@ -1136,16 +1163,17 @@ export default function DashboardClient() {
   // Load real insights → classify into priority buckets (Phase 4).
   useEffect(() => {
     let cancelled = false;
+    const empty: PriorityBuckets = { overdue: [], today: [], soon: [] };
     (async () => {
       try {
         const res = await fetch("/api/student/insights");
-        if (!res.ok) { if (!cancelled) setBuckets(MOCK_BUCKETS); return; }
+        if (!res.ok) { if (!cancelled) setBuckets(empty); return; }
         const data = (await res.json()) as { insights?: InsightRow[] };
         const list = data.insights ?? [];
-        if (list.length === 0) { if (!cancelled) setBuckets(MOCK_BUCKETS); return; }
+        // classifyInsights([]) returns the empty shape — no mock fallback needed.
         if (!cancelled) setBuckets(classifyInsights(list));
       } catch {
-        if (!cancelled) setBuckets(MOCK_BUCKETS);
+        if (!cancelled) setBuckets(empty);
       }
     })();
     return () => {
@@ -1157,28 +1185,30 @@ export default function DashboardClient() {
   // current-task card (Phase 3B).
   useEffect(() => {
     let cancelled = false;
-    const fallback = () => {
+    const setEmpty = () => {
       if (cancelled) return;
-      setUnits(S_UNITS_MOCK);
-      setHero(HERO_MOCK);
+      setUnits([]);
+      setHero(null); // sentinel for "no unit" — paired with heroLoaded flag below
+      setHeroLoaded(true);
     };
     (async () => {
       try {
         const res = await fetch("/api/student/units");
-        if (!res.ok) { fallback(); return; }
+        if (!res.ok) { setEmpty(); return; }
         const data = (await res.json()) as { units?: UnitRow[] };
         const unitRows = data.units ?? [];
 
-        if (unitRows.length === 0) { fallback(); return; }
+        if (unitRows.length === 0) { setEmpty(); return; }
 
         if (!cancelled) setUnits(unitRows.map(unitRowToStudentUnit));
 
         const selected = selectHeroUnit(unitRows);
-        if (!selected) { if (!cancelled) setHero(HERO_MOCK); return; }
+        if (!selected) { setEmpty(); return; }
         if (cancelled) return;
         // First render: hero identity (fast — no second fetch needed yet).
         const heroIdentity = buildHeroUnit(selected);
         setHero(heroIdentity);
+        setHeroLoaded(true);
 
         // Second fetch: full progress + responses + due dates for the selected
         // unit — needed to resolve the current activity block.
@@ -1204,7 +1234,7 @@ export default function DashboardClient() {
           dueIn: dueInText ?? heroIdentity.dueIn,
         });
       } catch {
-        fallback();
+        setEmpty();
       }
     })();
     return () => {
@@ -1214,7 +1244,11 @@ export default function DashboardClient() {
 
   return (
     <>
-      {hero ? <ResumeHero student={sessionStudent} hero={hero} onFocus={() => setFocusMode(true)} /> : <HeroSkeleton />}
+      {hero
+        ? <ResumeHero student={sessionStudent} hero={hero} onFocus={() => setFocusMode(true)} />
+        : heroLoaded
+          ? <EmptyHero firstName={sessionStudent.first} />
+          : <HeroSkeleton />}
       {buckets && badges
         ? <MiddleRow buckets={buckets} badges={badges} />
         : <MiddleRowSkeleton />}
