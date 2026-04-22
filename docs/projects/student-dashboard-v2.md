@@ -14,7 +14,7 @@ Shipped behind `sl_v2=1` cookie at `/dashboard/v2` during build.
 | 3A | Wire hero unit identity (title, subtitle, class, color, image, %) | ✅ Done | `a88b330` + `934ddfe` |
 | 3B | Wire hero current task (activity block) + lesson progress + due | ✅ Done | _(this commit)_ |
 | 3C | Teacher note — **deferred to end-of-project**, see below | ⏸ Deferred | — |
-| 4 | Wire Priority queue | ⏳ Planned | — |
+| 4 | Wire Priority queue | ✅ Done | _(this commit)_ |
 | 5 | Wire Units grid | ⏳ Planned | — |
 | 6 | Wire Badges | ⏳ Planned | — |
 | 7 | Wire Feedback section | ⏳ Planned | — |
@@ -37,6 +37,16 @@ Items Matt has flagged to handle before or during Phase 8 cutover.
       in-page tabs before cutover.
 - [ ] Search button functionality.
 - [ ] Bell/notifications count — tie to insights/priority queue.
+- [ ] **Snooze button (priority queue)** — currently a visual stub. Wire up
+      so overdue items can be snoozed. Matt wants to play with this with
+      students — potential behaviour experiment around deferral/avoidance.
+      Needs a `snoozed_until` column on the relevant source table and a
+      filter in `/api/student/insights`.
+- [ ] **Focus mode** — a "Focus" button on the hero (or elsewhere) that
+      hides everything except the current next step (the activity block
+      title + continue button). Removes the priority queue, units grid,
+      badges, feedback. Student gets a minimal single-task view to avoid
+      overwhelm. Exit button returns to full dashboard. _(Matt, 22 Apr 2026)_
 - [ ] Remove the `pathname === "/dashboard/v2"` opt-out escape hatch from
       `(student)/layout.tsx` (introduced in Phase 1, tagged with a
       "remove at Phase 8 cutover" comment).

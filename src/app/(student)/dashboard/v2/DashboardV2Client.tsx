@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { JSX } from "react";
+import Link from "next/link";
 import { getPageList, getPageById } from "@/lib/unit-adapter";
 import type { UnitContentData, StudentProgress } from "@/types";
 
@@ -314,9 +315,10 @@ type QueueItem = {
   due: string;
   color: string;
   icon: IconName;
+  href?: string;
 };
 
-const QUEUE: QueueItem[] = [
+const QUEUE_MOCK: QueueItem[] = [
   { kind: "overdue", title: "Electronics & Soldering Safety", sub: "Complete required safety test", dueText: "Overdue · 10 days", due: "10/04/2026", color: "#DC2626", icon: "alert" },
   { kind: "today",   title: "Sketch 3 structural ideas",      sub: "Biomimicry · 7 Design",          dueText: "Today · by end of P1", due: "20/04/2026", color: "#0EA5A4", icon: "clock" },
   { kind: "soon",    title: "PPE Fundamentals",               sub: "Complete required safety test",  dueText: "Due in 3 days",         due: "23/04/2026", color: "#D97706", icon: "shield" },
@@ -324,6 +326,125 @@ const QUEUE: QueueItem[] = [
   { kind: "soon",    title: "New Metrics checkpoint",         sub: "Complete your self-assessment",  dueText: "Due in 5 days",         due: "25/04/2026", color: "#EC4899", icon: "star" },
   { kind: "soon",    title: "Sketchbook review",              sub: "Upload this week's pages",       dueText: "Due in 5 days",         due: "25/04/2026", color: "#0EA5A4", icon: "book" },
 ];
+
+// ================= PHASE 4: PRIORITY QUEUE FROM INSIGHTS =================
+
+type InsightType =
+  | "safety_test"
+  | "overdue_work"
+  | "gallery_review"
+  | "gallery_submit"
+  | "gallery_feedback"
+  | "nm_checkpoint"
+  | "continue_work"
+  | "due_soon"
+  | "unit_complete";
+
+type InsightRow = {
+  type: InsightType;
+  title: string;
+  subtitle?: string;
+  href?: string;
+  priority: number;
+  timestamp?: string;
+};
+
+// Per-type visual mapping. Mirrors the Bold palette used elsewhere.
+const INSIGHT_ICON: Record<InsightType, IconName> = {
+  overdue_work:      "alert",
+  safety_test:       "shield",
+  gallery_review:    "star",
+  gallery_submit:    "star",
+  gallery_feedback:  "msg",
+  nm_checkpoint:     "star",
+  continue_work:     "play",
+  due_soon:          "clock",
+  unit_complete:     "check",
+};
+
+const INSIGHT_COLOR: Record<InsightType, string> = {
+  overdue_work:      "#DC2626", // red
+  safety_test:       "#D97706", // amber
+  gallery_review:    "#EC4899", // pink
+  gallery_submit:    "#EC4899",
+  gallery_feedback:  "#EC4899",
+  nm_checkpoint:     "#EC4899",
+  continue_work:     "#0EA5A4", // teal
+  due_soon:          "#D97706", // amber
+  unit_complete:     "#10B981", // emerald
+};
+
+/** Format an ISO timestamp for the compact "Coming up" card's date column. */
+function formatShortDate(iso: string | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  return `${dd}/${mm}/${yyyy}`;
+}
+
+/** Map a single insight row into the shape the Priority cards consume. */
+function insightToQueueItem(insight: InsightRow, kind: QueueItem["kind"]): QueueItem {
+  const color = INSIGHT_COLOR[insight.type] ?? "#0EA5A4";
+  const icon = INSIGHT_ICON[insight.type] ?? "clock";
+  // Prefer the insight's own subtitle — already human-friendly ("3 days remaining", etc.).
+  const dueText =
+    kind === "overdue"
+      ? insight.subtitle || "Overdue"
+      : kind === "today"
+        ? "Today · focus"
+        : insight.subtitle || "Coming up";
+  return {
+    kind,
+    title: insight.title,
+    sub: insight.subtitle || "",
+    dueText,
+    due: formatShortDate(insight.timestamp),
+    color,
+    icon,
+    href: insight.href,
+  };
+}
+
+type PriorityBuckets = { overdue: QueueItem[]; today: QueueItem[]; soon: QueueItem[] };
+
+const MOCK_BUCKETS: PriorityBuckets = {
+  overdue: QUEUE_MOCK.filter((q) => q.kind === "overdue"),
+  today:   QUEUE_MOCK.filter((q) => q.kind === "today"),
+  soon:    QUEUE_MOCK.filter((q) => q.kind === "soon"),
+};
+
+/** Classify insights into 3 queue buckets by type.
+ *  - Overdue: type === "overdue_work"
+ *  - Today:   type === "continue_work" (top 1 — the unit the student was working on)
+ *  - Soon:    everything else, capped at 5 by priority
+ */
+function classifyInsights(insights: InsightRow[]): PriorityBuckets {
+  const overdue: QueueItem[] = [];
+  const todayCandidates: InsightRow[] = [];
+  const soon: InsightRow[] = [];
+
+  for (const i of insights) {
+    if (i.type === "overdue_work") {
+      overdue.push(insightToQueueItem(i, "overdue"));
+    } else if (i.type === "continue_work") {
+      todayCandidates.push(i);
+    } else {
+      soon.push(i);
+    }
+  }
+
+  // Take the highest-priority continue_work as today's focus
+  const todayTop = todayCandidates.sort((a, b) => b.priority - a.priority)[0];
+  const today = todayTop ? [insightToQueueItem(todayTop, "today")] : [];
+
+  soon.sort((a, b) => b.priority - a.priority);
+  const soonItems = soon.slice(0, 5).map((i) => insightToQueueItem(i, "soon"));
+
+  return { overdue, today, soon: soonItems };
+}
 
 type UnitState = "in-progress" | "open-studio" | "not-started";
 type StudentUnit = {
@@ -581,10 +702,8 @@ function ResumeHero({ student, hero }: { student: SessionStudent; hero: HeroUnit
 }
 
 // ================= PRIORITY QUEUE =================
-function Priority() {
-  const overdue = QUEUE.filter((q) => q.kind === "overdue");
-  const today = QUEUE.filter((q) => q.kind === "today");
-  const soon = QUEUE.filter((q) => q.kind === "soon");
+function Priority({ buckets }: { buckets: PriorityBuckets }) {
+  const { overdue, today, soon } = buckets;
 
   return (
     <section className="max-w-[1400px] mx-auto px-6 pt-10">
@@ -600,9 +719,15 @@ function Priority() {
               <h3 className="display text-[26px] leading-tight mt-4">{q.title}</h3>
               <p className="text-[13px] text-white/85 mt-1">{q.sub}</p>
               <div className="flex items-center gap-2 mt-5">
-                <button className="bg-white text-[#991B1B] rounded-full px-4 py-2 font-extrabold text-[12.5px] inline-flex items-center gap-1.5 hover:shadow-lg">
-                  Complete now <Icon name="arrow" size={11} s={2.5} />
-                </button>
+                {q.href ? (
+                  <Link href={q.href} className="bg-white text-[#991B1B] rounded-full px-4 py-2 font-extrabold text-[12.5px] inline-flex items-center gap-1.5 hover:shadow-lg">
+                    Complete now <Icon name="arrow" size={11} s={2.5} />
+                  </Link>
+                ) : (
+                  <button className="bg-white text-[#991B1B] rounded-full px-4 py-2 font-extrabold text-[12.5px] inline-flex items-center gap-1.5 hover:shadow-lg">
+                    Complete now <Icon name="arrow" size={11} s={2.5} />
+                  </button>
+                )}
                 <button className="bg-white/15 hover:bg-white/25 rounded-full px-3 py-2 font-bold text-[12px]">Snooze</button>
               </div>
             </article>
@@ -620,9 +745,15 @@ function Priority() {
               <h3 className="display text-[22px] leading-tight mt-4">{q.title}</h3>
               <p className="text-[12.5px] text-[var(--sl-ink-3)] mt-1">{q.sub}</p>
               <div className="flex items-center gap-2 mt-5">
-                <button className="btn-primary rounded-full px-4 py-2 font-extrabold text-[12.5px] inline-flex items-center gap-1.5">
-                  Open task <Icon name="arrow" size={11} s={2.5} />
-                </button>
+                {q.href ? (
+                  <Link href={q.href} className="btn-primary rounded-full px-4 py-2 font-extrabold text-[12.5px] inline-flex items-center gap-1.5">
+                    Open task <Icon name="arrow" size={11} s={2.5} />
+                  </Link>
+                ) : (
+                  <button className="btn-primary rounded-full px-4 py-2 font-extrabold text-[12.5px] inline-flex items-center gap-1.5">
+                    Open task <Icon name="arrow" size={11} s={2.5} />
+                  </button>
+                )}
               </div>
             </article>
           ))}
@@ -632,21 +763,29 @@ function Priority() {
         <div className="col-span-4">
           <div className="cap text-[var(--sl-ink-2)] mb-3">Coming up · {soon.length}</div>
           <div className="bg-white rounded-3xl p-2 card-shadow">
-            {soon.map((q, i) => (
-              <button key={i} className="w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-[var(--sl-bg)] transition text-left">
-                <div className="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center" style={{ background: `${q.color}1a`, color: q.color }}>
-                  <Icon name={q.icon} size={14} s={2.2} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-[12.5px] font-extrabold leading-tight truncate">{q.title}</div>
-                  <div className="text-[11px] text-[var(--sl-ink-3)] truncate mt-0.5">{q.sub}</div>
-                </div>
-                <div className="text-right flex-shrink-0">
-                  <div className="text-[10.5px] font-extrabold" style={{ color: q.color }}>{q.dueText.replace("Due ", "")}</div>
-                  <div className="text-[10px] text-[var(--sl-ink-3)] tnum">{q.due}</div>
-                </div>
-              </button>
-            ))}
+            {soon.map((q, i) => {
+              const rowClass = "w-full flex items-center gap-3 p-3 rounded-2xl hover:bg-[var(--sl-bg)] transition text-left";
+              const rowContent = (
+                <>
+                  <div className="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center" style={{ background: `${q.color}1a`, color: q.color }}>
+                    <Icon name={q.icon} size={14} s={2.2} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[12.5px] font-extrabold leading-tight truncate">{q.title}</div>
+                    <div className="text-[11px] text-[var(--sl-ink-3)] truncate mt-0.5">{q.sub}</div>
+                  </div>
+                  <div className="text-right flex-shrink-0">
+                    <div className="text-[10.5px] font-extrabold" style={{ color: q.color }}>{q.dueText.replace("Due ", "")}</div>
+                    <div className="text-[10px] text-[var(--sl-ink-3)] tnum">{q.due}</div>
+                  </div>
+                </>
+              );
+              return q.href ? (
+                <Link key={i} href={q.href} className={rowClass}>{rowContent}</Link>
+              ) : (
+                <button key={i} className={rowClass}>{rowContent}</button>
+              );
+            })}
             <button className="w-full text-[11.5px] font-bold text-[var(--sl-ink-3)] hover:text-[var(--sl-ink)] py-2">See all upcoming →</button>
           </div>
         </div>
@@ -906,6 +1045,7 @@ export default function DashboardV2Client() {
   const [student, setStudent] = useState<SessionStudent>(STUDENT_MOCK);
   const [sessionLoading, setSessionLoading] = useState(true);
   const [hero, setHero] = useState<HeroUnit>(HERO_MOCK);
+  const [buckets, setBuckets] = useState<PriorityBuckets>(MOCK_BUCKETS);
 
   // Mount-time style inject (scoped via .sl-v2).
   useEffect(() => {
@@ -933,6 +1073,27 @@ export default function DashboardV2Client() {
         /* silent — keep mock */
       } finally {
         if (!cancelled) setSessionLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Load real insights → classify into priority buckets (Phase 4).
+  // Fall back silently to MOCK_BUCKETS on 401 or error.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/student/insights");
+        if (!res.ok) return;
+        const data = (await res.json()) as { insights?: InsightRow[] };
+        const list = data.insights ?? [];
+        if (list.length === 0) return; // no real insights → keep mock for preview
+        if (!cancelled) setBuckets(classifyInsights(list));
+      } catch {
+        /* silent — keep mock */
       }
     })();
     return () => {
@@ -988,7 +1149,7 @@ export default function DashboardV2Client() {
     <div className="sl-v2">
       <TopNav student={student} loading={sessionLoading} />
       <ResumeHero student={student} hero={hero} />
-      <Priority />
+      <Priority buckets={buckets} />
       <UnitsGrid />
       <Badges />
       <Feedback />
