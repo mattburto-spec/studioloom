@@ -37,6 +37,9 @@ export interface ScanResultsViewerProps {
   thumbnailUrl?: string | null;
   /** Machine profile label for the header strip. */
   machineLabel?: string;
+  /** Drives the fileType-aware ack option labels (STL: slicer, SVG:
+   *  design software). Defaults to 'stl' — page should always pass. */
+  fileType?: "stl" | "svg";
 }
 
 export function ScanResultsViewer(props: ScanResultsViewerProps) {
@@ -53,6 +56,7 @@ export function ScanResultsViewer(props: ScanResultsViewerProps) {
     filename,
     thumbnailUrl,
     machineLabel,
+    fileType = "stl",
   } = props;
 
   const buckets = classifyRules(scanResults);
@@ -123,6 +127,7 @@ export function ScanResultsViewer(props: ScanResultsViewerProps) {
               currentChoice={acksForRevision[rule.id]?.choice}
               onAcknowledge={onAcknowledge}
               disabled={disabledFromAction}
+              fileType={fileType}
             />
           ))}
         </section>

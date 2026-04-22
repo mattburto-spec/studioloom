@@ -24,7 +24,7 @@ import {
   severityDisplay,
   skillsLibraryUrl,
   formatEvidence,
-  ACK_OPTION_LABELS,
+  ackOptionLabelsForFileType,
   ACK_OPTION_ORDER,
 } from "./rule-card-helpers";
 
@@ -37,6 +37,10 @@ export interface RuleCardProps {
   onAcknowledge?: (ruleId: string, choice: AckChoice) => void;
   /** Disable interaction (during a submit or ack in flight). */
   disabled?: boolean;
+  /** Phase 5-5b (post-Checkpoint-5.1 smoke fix): drives the fileType-
+   *  aware middle ack label so SVG rules don't talk about "slicer".
+   *  Defaults to 'stl' for backwards compat. */
+  fileType?: "stl" | "svg";
 }
 
 export function RuleCard({
@@ -44,7 +48,9 @@ export function RuleCard({
   currentChoice,
   onAcknowledge,
   disabled = false,
+  fileType = "stl",
 }: RuleCardProps) {
+  const ackLabels = ackOptionLabelsForFileType(fileType);
   const display = severityDisplay(rule.severity);
   const skillsUrl = skillsLibraryUrl(rule.id);
   const evidenceText = formatEvidence(rule.evidence);
@@ -110,7 +116,7 @@ export function RuleCard({
                         className="mt-0.5"
                       />
                       <span className="text-gray-800">
-                        {ACK_OPTION_LABELS[choice]}
+                        {ackLabels[choice]}
                       </span>
                     </label>
                   );

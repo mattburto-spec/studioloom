@@ -312,6 +312,7 @@ function DoneStateView(props: {
         isAckInFlight={isAckInFlight}
         isSubmitting={isSubmitting}
         thumbnailUrl={status.revision?.thumbnailUrl ?? null}
+        fileType={status.fileType}
       />
 
       {/* Revision history — hidden when only 1 revision exists */}

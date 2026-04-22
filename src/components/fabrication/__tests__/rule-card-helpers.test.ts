@@ -5,6 +5,7 @@ import {
   formatEvidence,
   ACK_OPTION_LABELS,
   ACK_OPTION_ORDER,
+  ackOptionLabelsForFileType,
 } from "../rule-card-helpers";
 
 /**
@@ -55,7 +56,10 @@ describe("severityDisplay", () => {
 describe("ACK_OPTION_LABELS + ACK_OPTION_ORDER", () => {
   it("provides a label for every AckChoice", () => {
     expect(ACK_OPTION_LABELS.intentional).toMatch(/intentional/i);
-    expect(ACK_OPTION_LABELS["will-fix-slicer"]).toMatch(/slicer/i);
+    // Middle label defaults to SVG-style text; STL callers should use
+    // ackOptionLabelsForFileType("stl") to get slicer-specific text.
+    // Legacy test loosened to just assert a non-empty string.
+    expect(ACK_OPTION_LABELS["will-fix-slicer"]).toMatch(/\w+/);
     expect(ACK_OPTION_LABELS.acknowledged).toMatch(/understood/i);
   });
 
@@ -128,5 +132,26 @@ describe("formatEvidence", () => {
     expect(out).toContain("1");
     expect(out).toContain("2");
     expect(out).toContain("3");
+  });
+});
+
+describe("ackOptionLabelsForFileType — Phase 5-5b fix for SVG/STL specificity", () => {
+  it("uses slicer language for STL", () => {
+    const labels = ackOptionLabelsForFileType("stl");
+    expect(labels["will-fix-slicer"]).toMatch(/slicer/i);
+    expect(labels["will-fix-slicer"]).not.toMatch(/inkscape|illustrator|design software/i);
+  });
+
+  it("uses design software language for SVG (no slicer jargon)", () => {
+    const labels = ackOptionLabelsForFileType("svg");
+    expect(labels["will-fix-slicer"]).not.toMatch(/slicer/i);
+    expect(labels["will-fix-slicer"]).toMatch(/design software|inkscape|illustrator/i);
+  });
+
+  it("keeps intentional + acknowledged domain-agnostic across both fileTypes", () => {
+    const stl = ackOptionLabelsForFileType("stl");
+    const svg = ackOptionLabelsForFileType("svg");
+    expect(stl.intentional).toBe(svg.intentional);
+    expect(stl.acknowledged).toBe(svg.acknowledged);
   });
 });

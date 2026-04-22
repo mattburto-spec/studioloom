@@ -58,11 +58,37 @@ export function severityDisplay(severity: Severity): SeverityDisplay {
 // to the radio group in RuleCard for severity='warn'. Order follows the
 // spec §8 mock-up: intentional > will-fix-slicer > acknowledged.
 
+/**
+ * Static per-choice labels. The middle option is fileType-aware —
+ * STL talks about the slicer (Cura/Bambu/etc.), SVG talks about the
+ * design software (Inkscape/Illustrator). Returned by the
+ * fileType-aware selector below; the legacy flat map is retained so
+ * existing tests + callers that don't know the fileType still work.
+ * Follow-up for per-rule ack options: PH5-FU-PER-RULE-ACKS P3.
+ */
 export const ACK_OPTION_LABELS: Record<AckChoice, string> = {
   intentional: "I've checked — this is intentional",
-  "will-fix-slicer": "I'll add supports in the slicer",
+  "will-fix-slicer": "I'll fix this in my design software",
   acknowledged: "Understood",
 };
+
+/**
+ * fileType-aware variant. Rewrites only the middle option to match the
+ * downstream tool the student will use. Intentional + acknowledged are
+ * domain-agnostic.
+ */
+export function ackOptionLabelsForFileType(
+  fileType: "stl" | "svg"
+): Record<AckChoice, string> {
+  return {
+    intentional: "I've checked — this is intentional",
+    "will-fix-slicer":
+      fileType === "stl"
+        ? "I'll handle this in my slicer"
+        : "I'll fix this in my design software (Inkscape / Illustrator)",
+    acknowledged: "Understood",
+  };
+}
 
 /**
  * Order in which to render the radio options. Explicit rather than
