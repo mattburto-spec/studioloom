@@ -32,6 +32,8 @@
 
 export const MAX_UPLOAD_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB — Supabase Free Plan ceiling
 export const FABRICATION_UPLOAD_BUCKET = "fabrication-uploads";
+export const FABRICATION_THUMBNAIL_BUCKET = "fabrication-thumbnails";
+export const THUMBNAIL_URL_TTL_SECONDS = 10 * 60; // 10 min — enough for UI to render
 export const ALLOWED_FILE_TYPES = ["stl", "svg"] as const;
 
 type FileType = (typeof ALLOWED_FILE_TYPES)[number];
@@ -80,6 +82,13 @@ interface SupabaseLike {
         path: string
       ) => Promise<{
         data: { signedUrl: string; token: string; path: string } | null;
+        error: { message: string } | null;
+      }>;
+      createSignedUrl: (
+        path: string,
+        expiresIn: number
+      ) => Promise<{
+        data: { signedUrl: string } | null;
         error: { message: string } | null;
       }>;
     };
@@ -325,4 +334,317 @@ export async function createUploadJob(
 // union return type without a user-defined guard.
 export function isUploadJobError(r: CreateUploadJobResult): r is CreateUploadJobError {
   return (r as CreateUploadJobError).error !== undefined;
+}
+
+// ============================================================
+// Phase 4-2 — scan enqueue + status
+// ============================================================
+
+export interface OrchestrationError {
+  error: {
+    status: number;
+    message: string;
+  };
+}
+
+export interface EnqueueScanSuccess {
+  scanJobId: string;
+  status: "pending" | "running" | "done" | "error";
+  attemptCount: number;
+  isNew: boolean; // false if this call was idempotent-no-op
+  jobRevisionId: string;
+}
+
+export type EnqueueScanResult = EnqueueScanSuccess | OrchestrationError;
+
+export interface JobStatusRevision {
+  id: string;
+  revisionNumber: number;
+  scanStatus: string | null;
+  scanError: string | null;
+  scanCompletedAt: string | null;
+  scanRulesetVersion: string | null;
+  thumbnailUrl: string | null; // signed, 10-min TTL; null if no thumbnail_path set yet
+}
+
+export interface JobStatusScanJob {
+  id: string;
+  status: "pending" | "running" | "done" | "error";
+  attemptCount: number;
+  errorDetail: string | null;
+}
+
+export interface JobStatusSuccess {
+  jobId: string;
+  jobStatus: string; // fabrication_jobs.status ('uploaded' | 'scanning' | ...)
+  currentRevision: number;
+  revision: JobStatusRevision | null;
+  scanJob: JobStatusScanJob | null;
+}
+
+export type JobStatusResult = JobStatusSuccess | OrchestrationError;
+
+export function isOrchestrationError(r: unknown): r is OrchestrationError {
+  return (
+    typeof r === "object" &&
+    r !== null &&
+    "error" in r &&
+    typeof (r as { error: unknown }).error === "object"
+  );
+}
+
+/**
+ * Verify the student owns this fabrication job. All student-facing job
+ * routes (enqueue, status, future re-upload, future cancel) share this
+ * check — pull it into one helper so every route path is identical.
+ * Also confirms the job exists at all — a missing row returns 404, not
+ * 403, so clients can distinguish.
+ */
+async function loadOwnedJob(
+  db: SupabaseLike,
+  studentId: string,
+  jobId: string
+): Promise<
+  | { job: { id: string; student_id: string; status: string; current_revision: number } }
+  | OrchestrationError
+> {
+  const result = await db
+    .from("fabrication_jobs")
+    .select("id, student_id, status, current_revision")
+    .eq("id", jobId)
+    .maybeSingle();
+  if (result.error) {
+    return {
+      error: { status: 500, message: `Job lookup failed: ${result.error.message}` },
+    };
+  }
+  if (!result.data) {
+    return { error: { status: 404, message: "Job not found" } };
+  }
+  if (result.data.student_id !== studentId) {
+    // 404 not 403 — don't telegraph that a job with this id exists but
+    // belongs to someone else. Same-shape response for "doesn't exist"
+    // and "not yours".
+    return { error: { status: 404, message: "Job not found" } };
+  }
+  return { job: result.data };
+}
+
+/**
+ * Idempotent enqueue. Finds the latest revision for the job, checks for
+ * an existing active (pending|running) scan_job via the unique index,
+ * and either returns the existing row or INSERTs a new one.
+ *
+ * Race behaviour: the SELECT→INSERT pair isn't atomic. If two concurrent
+ * enqueues both find no existing row, both try to INSERT; the DB's
+ * `uq_fabrication_scan_jobs_active_per_revision` unique index (migration
+ * 096) rejects the second with 23505. We catch + retry the SELECT so
+ * the loser still returns the winner's row — idempotent from both
+ * clients' perspective.
+ */
+export async function enqueueScanJob(
+  db: SupabaseLike,
+  params: { studentId: string; jobId: string }
+): Promise<EnqueueScanResult> {
+  const { studentId, jobId } = params;
+
+  const ownership = await loadOwnedJob(db, studentId, jobId);
+  if (isOrchestrationError(ownership)) return ownership;
+
+  // Find the latest revision. Order desc + limit 1.
+  const latestRev = await db
+    .from("fabrication_job_revisions")
+    .select("id, revision_number")
+    .eq("job_id", jobId)
+    .order("revision_number", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (latestRev.error) {
+    return {
+      error: {
+        status: 500,
+        message: `Revision lookup failed: ${latestRev.error.message}`,
+      },
+    };
+  }
+  if (!latestRev.data) {
+    return { error: { status: 404, message: "No revision found for this job" } };
+  }
+  const revisionId: string = latestRev.data.id;
+
+  // Check for an existing active scan job for this revision.
+  const existing = await db
+    .from("fabrication_scan_jobs")
+    .select("id, status, attempt_count")
+    .eq("job_revision_id", revisionId)
+    .in("status", ["pending", "running"])
+    .maybeSingle();
+  if (existing.error) {
+    return {
+      error: {
+        status: 500,
+        message: `Existing scan lookup failed: ${existing.error.message}`,
+      },
+    };
+  }
+  if (existing.data) {
+    return {
+      scanJobId: existing.data.id,
+      status: existing.data.status,
+      attemptCount: existing.data.attempt_count,
+      isNew: false,
+      jobRevisionId: revisionId,
+    };
+  }
+
+  // Insert a fresh scan_job row. status defaults to 'pending' per the
+  // schema CHECK constraint, but we set it explicitly for readability.
+  const insert = await db
+    .from("fabrication_scan_jobs")
+    .insert({ job_revision_id: revisionId, status: "pending" })
+    .select("id, status, attempt_count")
+    .single();
+  if (insert.error || !insert.data) {
+    // Handle the unique-violation race. PostgREST returns code '23505'
+    // or the message includes 'duplicate key'. Either way, re-read.
+    const msg = insert.error?.message ?? "";
+    const isUniqueViolation =
+      msg.includes("23505") ||
+      msg.toLowerCase().includes("duplicate key") ||
+      msg.toLowerCase().includes("uq_fabrication_scan_jobs_active_per_revision");
+    if (isUniqueViolation) {
+      const retry = await db
+        .from("fabrication_scan_jobs")
+        .select("id, status, attempt_count")
+        .eq("job_revision_id", revisionId)
+        .in("status", ["pending", "running"])
+        .maybeSingle();
+      if (retry.data) {
+        return {
+          scanJobId: retry.data.id,
+          status: retry.data.status,
+          attemptCount: retry.data.attempt_count,
+          isNew: false,
+          jobRevisionId: revisionId,
+        };
+      }
+    }
+    return {
+      error: {
+        status: 500,
+        message: `Scan job insert failed: ${insert.error?.message ?? "unknown"}`,
+      },
+    };
+  }
+
+  return {
+    scanJobId: insert.data.id,
+    status: insert.data.status,
+    attemptCount: insert.data.attempt_count,
+    isNew: true,
+    jobRevisionId: revisionId,
+  };
+}
+
+/**
+ * Load the denormalised status payload for the student-facing poll. Joins
+ * the latest revision and the latest scan_job, mints a fresh thumbnail
+ * signed URL if thumbnail_path is set.
+ *
+ * Lesson #53 applies: we read `thumbnail_path` off the column directly,
+ * not from `scan_results->>'thumbnail_path'`. The column is authoritative
+ * post-22-Apr.
+ */
+export async function getJobStatus(
+  db: SupabaseLike,
+  params: { studentId: string; jobId: string }
+): Promise<JobStatusResult> {
+  const { studentId, jobId } = params;
+
+  const ownership = await loadOwnedJob(db, studentId, jobId);
+  if (isOrchestrationError(ownership)) return ownership;
+  const job = ownership.job;
+
+  // Latest revision for the job.
+  const revResult = await db
+    .from("fabrication_job_revisions")
+    .select(
+      "id, revision_number, scan_status, scan_error, scan_completed_at, scan_ruleset_version, thumbnail_path"
+    )
+    .eq("job_id", jobId)
+    .order("revision_number", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (revResult.error) {
+    return {
+      error: {
+        status: 500,
+        message: `Revision lookup failed: ${revResult.error.message}`,
+      },
+    };
+  }
+
+  let revision: JobStatusRevision | null = null;
+  let scanJob: JobStatusScanJob | null = null;
+
+  if (revResult.data) {
+    // Mint a fresh thumbnail URL if the column is populated. If the bucket
+    // says the object doesn't exist yet (worker hasn't uploaded), skip.
+    let thumbnailUrl: string | null = null;
+    if (revResult.data.thumbnail_path) {
+      const signed = await db.storage
+        .from(FABRICATION_THUMBNAIL_BUCKET)
+        .createSignedUrl(revResult.data.thumbnail_path, THUMBNAIL_URL_TTL_SECONDS);
+      if (signed.error) {
+        // Non-fatal — log path would be nice but keep this lib dep-free.
+        // UI just sees null and falls back to a placeholder.
+        thumbnailUrl = null;
+      } else if (signed.data) {
+        thumbnailUrl = signed.data.signedUrl;
+      }
+    }
+
+    revision = {
+      id: revResult.data.id,
+      revisionNumber: revResult.data.revision_number,
+      scanStatus: revResult.data.scan_status ?? null,
+      scanError: revResult.data.scan_error ?? null,
+      scanCompletedAt: revResult.data.scan_completed_at ?? null,
+      scanRulesetVersion: revResult.data.scan_ruleset_version ?? null,
+      thumbnailUrl,
+    };
+
+    // Latest scan_job for that revision (if any exist yet).
+    const sjResult = await db
+      .from("fabrication_scan_jobs")
+      .select("id, status, attempt_count, error_detail")
+      .eq("job_revision_id", revResult.data.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (sjResult.error) {
+      return {
+        error: {
+          status: 500,
+          message: `Scan job lookup failed: ${sjResult.error.message}`,
+        },
+      };
+    }
+    if (sjResult.data) {
+      scanJob = {
+        id: sjResult.data.id,
+        status: sjResult.data.status,
+        attemptCount: sjResult.data.attempt_count,
+        errorDetail: sjResult.data.error_detail ?? null,
+      };
+    }
+  }
+
+  return {
+    jobId: job.id,
+    jobStatus: job.status,
+    currentRevision: job.current_revision,
+    revision,
+    scanJob,
+  };
 }

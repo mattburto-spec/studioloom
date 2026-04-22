@@ -2,10 +2,15 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
   MAX_UPLOAD_SIZE_BYTES,
   FABRICATION_UPLOAD_BUCKET,
+  FABRICATION_THUMBNAIL_BUCKET,
+  THUMBNAIL_URL_TTL_SECONDS,
   buildStoragePath,
   validateUploadRequest,
   createUploadJob,
+  enqueueScanJob,
+  getJobStatus,
   isUploadJobError,
+  isOrchestrationError,
 } from "../orchestration";
 
 /**
@@ -376,5 +381,430 @@ describe("createUploadJob — error paths", () => {
     const del = log.find((e) => e.op === "delete");
     expect(del?.table).toBe("fabrication_jobs");
     expect(del?.eq).toEqual([["id", createdJobId]]);
+  });
+});
+
+// ============================================================
+// Phase 4-2 — enqueueScanJob
+// ============================================================
+//
+// Another query-builder chain fake, sharper this time: the routes only
+// touch 3 tables (jobs, revisions, scan_jobs) and thumbnails storage.
+
+interface EnqueueFakeOpts {
+  jobFound?: boolean;
+  jobStudentId?: string;
+  jobLookupError?: string;
+  latestRevision?: { id: string; revision_number: number } | null;
+  revisionLookupError?: string;
+  existingActiveScanJob?: {
+    id: string;
+    status: "pending" | "running";
+    attempt_count: number;
+  } | null;
+  existingScanJobLookupError?: string;
+  insertError?: string;
+  insertedScanJob?: { id: string; status: string; attempt_count: number };
+  // For retry-after-unique-violation test
+  retryFindExisting?: { id: string; status: string; attempt_count: number };
+}
+
+function makeEnqueueClient(opts: EnqueueFakeOpts) {
+  const {
+    jobFound = true,
+    jobStudentId = "student-1",
+    jobLookupError,
+    latestRevision = { id: "rev-latest", revision_number: 1 },
+    revisionLookupError,
+    existingActiveScanJob = null,
+    existingScanJobLookupError,
+    insertError,
+    insertedScanJob = { id: "sj-new", status: "pending", attempt_count: 0 },
+    retryFindExisting,
+  } = opts;
+
+  const log: Array<{ table: string; op: string; eq?: Array<[string, unknown]>; payload?: unknown }> = [];
+  // Tracks consecutive lookups on fabrication_scan_jobs to simulate
+  // the retry-after-unique-violation path.
+  let scanJobSelectCount = 0;
+
+  const tableHandler = (table: string) => {
+    const entry: { table: string; op: string; eq: Array<[string, unknown]>; payload?: unknown; inFilter?: { col: string; vals: unknown[] }; order?: { col: string; asc: boolean }; limit?: number } = {
+      table,
+      op: "select",
+      eq: [],
+    };
+
+    const chain: Record<string, unknown> = {};
+    chain.eq = (col: string, val: unknown) => {
+      entry.eq.push([col, val]);
+      return chain;
+    };
+    chain.in = (col: string, vals: unknown[]) => {
+      entry.inFilter = { col, vals };
+      return chain;
+    };
+    chain.order = (col: string, opts: { ascending: boolean }) => {
+      entry.order = { col, asc: opts.ascending };
+      return chain;
+    };
+    chain.limit = (n: number) => {
+      entry.limit = n;
+      return chain;
+    };
+    chain.maybeSingle = async () => {
+      log.push({ ...entry });
+      if (table === "fabrication_jobs") {
+        if (jobLookupError) return { data: null, error: { message: jobLookupError } };
+        if (!jobFound) return { data: null, error: null };
+        return {
+          data: {
+            id: entry.eq[0][1],
+            student_id: jobStudentId,
+            status: "uploaded",
+            current_revision: 1,
+          },
+          error: null,
+        };
+      }
+      if (table === "fabrication_job_revisions") {
+        if (revisionLookupError) return { data: null, error: { message: revisionLookupError } };
+        return { data: latestRevision, error: null };
+      }
+      if (table === "fabrication_scan_jobs") {
+        scanJobSelectCount++;
+        if (existingScanJobLookupError) return { data: null, error: { message: existingScanJobLookupError } };
+        // First select — look for existing active.
+        if (scanJobSelectCount === 1) return { data: existingActiveScanJob, error: null };
+        // Retry select (after unique violation) — return retryFindExisting.
+        return { data: retryFindExisting ?? null, error: null };
+      }
+      return { data: null, error: null };
+    };
+    chain.single = async () => {
+      log.push({ ...entry });
+      if (table === "fabrication_scan_jobs" && entry.op === "insert") {
+        if (insertError) return { data: null, error: { message: insertError } };
+        return { data: insertedScanJob, error: null };
+      }
+      return { data: null, error: null };
+    };
+
+    return {
+      select: (_cols: string) => {
+        entry.op = "select";
+        return chain;
+      },
+      insert: (payload: unknown) => {
+        entry.op = "insert";
+        entry.payload = payload;
+        return {
+          select: (_cols: string) => ({ single: chain.single }),
+        };
+      },
+    };
+  };
+
+  return {
+    client: { from: tableHandler, storage: { from: () => ({}) } } as unknown as Parameters<typeof enqueueScanJob>[0],
+    log,
+  };
+}
+
+describe("enqueueScanJob — happy paths", () => {
+  it("inserts a new scan_job when none active exists (isNew: true)", async () => {
+    const { client, log } = makeEnqueueClient({});
+    const r = await enqueueScanJob(client, { studentId: "student-1", jobId: "job-1" });
+    if (isOrchestrationError(r)) throw new Error(`unexpected error: ${r.error.message}`);
+    expect(r.isNew).toBe(true);
+    expect(r.scanJobId).toBe("sj-new");
+    expect(r.status).toBe("pending");
+    expect(r.attemptCount).toBe(0);
+    expect(r.jobRevisionId).toBe("rev-latest");
+
+    // Insert payload shape check
+    const insert = log.find((e) => e.table === "fabrication_scan_jobs" && e.op === "insert");
+    expect(insert?.payload).toEqual({ job_revision_id: "rev-latest", status: "pending" });
+  });
+
+  it("returns existing scan_job when one is already pending (isNew: false, no INSERT)", async () => {
+    const { client, log } = makeEnqueueClient({
+      existingActiveScanJob: { id: "sj-existing", status: "pending", attempt_count: 0 },
+    });
+    const r = await enqueueScanJob(client, { studentId: "student-1", jobId: "job-1" });
+    if (isOrchestrationError(r)) throw new Error(`unexpected error: ${r.error.message}`);
+    expect(r.isNew).toBe(false);
+    expect(r.scanJobId).toBe("sj-existing");
+    expect(r.status).toBe("pending");
+
+    // No INSERT should have happened.
+    expect(log.find((e) => e.table === "fabrication_scan_jobs" && e.op === "insert")).toBeUndefined();
+  });
+
+  it("returns existing scan_job when one is currently running (isNew: false)", async () => {
+    const { client } = makeEnqueueClient({
+      existingActiveScanJob: { id: "sj-running", status: "running", attempt_count: 1 },
+    });
+    const r = await enqueueScanJob(client, { studentId: "student-1", jobId: "job-1" });
+    if (isOrchestrationError(r)) throw new Error(`unexpected error: ${r.error.message}`);
+    expect(r.isNew).toBe(false);
+    expect(r.status).toBe("running");
+    expect(r.attemptCount).toBe(1);
+  });
+
+  it("recovers from unique-violation race by re-reading the existing row", async () => {
+    const { client } = makeEnqueueClient({
+      insertError: "duplicate key value violates unique constraint \"uq_fabrication_scan_jobs_active_per_revision\"",
+      retryFindExisting: { id: "sj-winner", status: "pending", attempt_count: 0 },
+    });
+    const r = await enqueueScanJob(client, { studentId: "student-1", jobId: "job-1" });
+    if (isOrchestrationError(r)) throw new Error(`unexpected error: ${r.error.message}`);
+    expect(r.isNew).toBe(false);
+    expect(r.scanJobId).toBe("sj-winner");
+  });
+});
+
+describe("enqueueScanJob — ownership + error paths", () => {
+  it("returns 404 when job does not exist", async () => {
+    const { client } = makeEnqueueClient({ jobFound: false });
+    const r = await enqueueScanJob(client, { studentId: "student-1", jobId: "does-not-exist" });
+    if (!isOrchestrationError(r)) throw new Error("expected error");
+    expect(r.error.status).toBe(404);
+    expect(r.error.message).toMatch(/Job not found/);
+  });
+
+  it("returns 404 when student does not own the job (no 403 — don't telegraph existence)", async () => {
+    const { client } = makeEnqueueClient({ jobStudentId: "other-student" });
+    const r = await enqueueScanJob(client, { studentId: "student-1", jobId: "job-1" });
+    if (!isOrchestrationError(r)) throw new Error("expected error");
+    expect(r.error.status).toBe(404);
+    expect(r.error.message).toMatch(/Job not found/);
+  });
+
+  it("returns 500 when job lookup errors", async () => {
+    const { client } = makeEnqueueClient({ jobLookupError: "db down" });
+    const r = await enqueueScanJob(client, { studentId: "student-1", jobId: "job-1" });
+    if (!isOrchestrationError(r)) throw new Error("expected error");
+    expect(r.error.status).toBe(500);
+    expect(r.error.message).toMatch(/Job lookup failed.*db down/);
+  });
+
+  it("returns 404 when no revision exists for the job", async () => {
+    const { client } = makeEnqueueClient({ latestRevision: null });
+    const r = await enqueueScanJob(client, { studentId: "student-1", jobId: "job-1" });
+    if (!isOrchestrationError(r)) throw new Error("expected error");
+    expect(r.error.status).toBe(404);
+    expect(r.error.message).toMatch(/No revision/);
+  });
+
+  it("returns 500 when scan_job insert fails with a non-unique-violation error", async () => {
+    const { client } = makeEnqueueClient({ insertError: "connection timeout" });
+    const r = await enqueueScanJob(client, { studentId: "student-1", jobId: "job-1" });
+    if (!isOrchestrationError(r)) throw new Error("expected error");
+    expect(r.error.status).toBe(500);
+    expect(r.error.message).toMatch(/Scan job insert failed.*connection timeout/);
+  });
+});
+
+// ============================================================
+// Phase 4-2 — getJobStatus
+// ============================================================
+
+interface StatusFakeOpts {
+  jobFound?: boolean;
+  jobStudentId?: string;
+  jobStatus?: string;
+  currentRevision?: number;
+  revision?: {
+    id: string;
+    revision_number: number;
+    scan_status: string | null;
+    scan_error: string | null;
+    scan_completed_at: string | null;
+    scan_ruleset_version: string | null;
+    thumbnail_path: string | null;
+  } | null;
+  scanJob?: {
+    id: string;
+    status: string;
+    attempt_count: number;
+    error_detail: string | null;
+  } | null;
+  thumbnailSignedUrl?: string;
+  thumbnailError?: string;
+}
+
+function makeStatusClient(opts: StatusFakeOpts = {}) {
+  const {
+    jobFound = true,
+    jobStudentId = "student-1",
+    jobStatus = "scanning",
+    currentRevision = 1,
+    revision = {
+      id: "rev-1",
+      revision_number: 1,
+      scan_status: "done",
+      scan_error: null,
+      scan_completed_at: "2026-04-22T22:14:21Z",
+      scan_ruleset_version: "stl-v1.0.0+svg-v1.0.0",
+      thumbnail_path: "abc-123.png",
+    },
+    scanJob = { id: "sj-1", status: "done", attempt_count: 1, error_detail: null },
+    thumbnailSignedUrl = "https://stor.example.com/thumb?token=xyz",
+    thumbnailError,
+  } = opts;
+
+  const log: Array<{ table: string; op: string; args?: unknown }> = [];
+
+  const tableHandler = (table: string) => {
+    const chain: Record<string, unknown> = {};
+    chain.eq = (_col: string, _val: unknown) => chain;
+    chain.order = (_col: string, _opts: unknown) => chain;
+    chain.limit = (_n: number) => chain;
+    chain.maybeSingle = async () => {
+      log.push({ table, op: "select" });
+      if (table === "fabrication_jobs") {
+        if (!jobFound) return { data: null, error: null };
+        return {
+          data: {
+            id: "job-1",
+            student_id: jobStudentId,
+            status: jobStatus,
+            current_revision: currentRevision,
+          },
+          error: null,
+        };
+      }
+      if (table === "fabrication_job_revisions") {
+        return { data: revision, error: null };
+      }
+      if (table === "fabrication_scan_jobs") {
+        return { data: scanJob, error: null };
+      }
+      return { data: null, error: null };
+    };
+
+    return {
+      select: (_cols: string) => chain,
+    };
+  };
+
+  const storage = {
+    from: (bucket: string) => ({
+      createSignedUrl: async (path: string, ttl: number) => {
+        log.push({ table: `storage:${bucket}`, op: "signed-download", args: { path, ttl } });
+        if (thumbnailError) return { data: null, error: { message: thumbnailError } };
+        return { data: { signedUrl: thumbnailSignedUrl }, error: null };
+      },
+    }),
+  };
+
+  return {
+    client: { from: tableHandler, storage } as unknown as Parameters<typeof getJobStatus>[0],
+    log,
+  };
+}
+
+describe("getJobStatus — happy path", () => {
+  it("returns full denormalised payload with signed thumbnail URL", async () => {
+    const { client, log } = makeStatusClient();
+    const r = await getJobStatus(client, { studentId: "student-1", jobId: "job-1" });
+    if (isOrchestrationError(r)) throw new Error(`unexpected error: ${r.error.message}`);
+
+    expect(r.jobId).toBe("job-1");
+    expect(r.jobStatus).toBe("scanning");
+    expect(r.currentRevision).toBe(1);
+    expect(r.revision).toMatchObject({
+      id: "rev-1",
+      revisionNumber: 1,
+      scanStatus: "done",
+      scanRulesetVersion: "stl-v1.0.0+svg-v1.0.0",
+      thumbnailUrl: "https://stor.example.com/thumb?token=xyz",
+    });
+    expect(r.scanJob).toEqual({
+      id: "sj-1",
+      status: "done",
+      attemptCount: 1,
+      errorDetail: null,
+    });
+
+    // Verify signed URL was minted against the right bucket + TTL.
+    const sign = log.find((e) => e.op === "signed-download");
+    expect(sign?.table).toBe(`storage:${FABRICATION_THUMBNAIL_BUCKET}`);
+    expect((sign?.args as { path: string; ttl: number }).path).toBe("abc-123.png");
+    expect((sign?.args as { path: string; ttl: number }).ttl).toBe(THUMBNAIL_URL_TTL_SECONDS);
+  });
+
+  it("reads thumbnail_path from the column, not from scan_results JSONB (Lesson #53)", async () => {
+    // Sanity check — the fake's revision object exposes thumbnail_path at
+    // the top level (column). If the impl ever regressed to scan_results
+    // -> thumbnail_path lookup, our fake wouldn't expose it and the
+    // signed-URL mint would be skipped → thumbnailUrl null.
+    const { client } = makeStatusClient({
+      revision: {
+        id: "rev-1",
+        revision_number: 1,
+        scan_status: "done",
+        scan_error: null,
+        scan_completed_at: "x",
+        scan_ruleset_version: "y",
+        thumbnail_path: "column-path.png",
+      },
+    });
+    const r = await getJobStatus(client, { studentId: "student-1", jobId: "job-1" });
+    if (isOrchestrationError(r)) throw new Error("expected success");
+    expect(r.revision?.thumbnailUrl).toMatch(/thumb/);
+  });
+
+  it("returns thumbnailUrl: null when thumbnail_path column is empty", async () => {
+    const { client } = makeStatusClient({
+      revision: {
+        id: "rev-1",
+        revision_number: 1,
+        scan_status: "pending",
+        scan_error: null,
+        scan_completed_at: null,
+        scan_ruleset_version: null,
+        thumbnail_path: null,
+      },
+      scanJob: { id: "sj-1", status: "pending", attempt_count: 0, error_detail: null },
+    });
+    const r = await getJobStatus(client, { studentId: "student-1", jobId: "job-1" });
+    if (isOrchestrationError(r)) throw new Error("expected success");
+    expect(r.revision?.thumbnailUrl).toBeNull();
+  });
+
+  it("returns thumbnailUrl: null when signed URL minting fails (non-fatal)", async () => {
+    const { client } = makeStatusClient({ thumbnailError: "bucket not found" });
+    const r = await getJobStatus(client, { studentId: "student-1", jobId: "job-1" });
+    if (isOrchestrationError(r)) throw new Error("expected success despite thumb error");
+    expect(r.revision?.thumbnailUrl).toBeNull();
+    // Rest of the payload still populated.
+    expect(r.revision?.scanStatus).toBe("done");
+  });
+
+  it("returns revision: null and scanJob: null for a job with no revisions yet", async () => {
+    const { client } = makeStatusClient({ revision: null });
+    const r = await getJobStatus(client, { studentId: "student-1", jobId: "job-1" });
+    if (isOrchestrationError(r)) throw new Error("expected success");
+    expect(r.revision).toBeNull();
+    expect(r.scanJob).toBeNull();
+  });
+});
+
+describe("getJobStatus — ownership", () => {
+  it("returns 404 when job does not exist", async () => {
+    const { client } = makeStatusClient({ jobFound: false });
+    const r = await getJobStatus(client, { studentId: "student-1", jobId: "job-1" });
+    if (!isOrchestrationError(r)) throw new Error("expected error");
+    expect(r.error.status).toBe(404);
+  });
+
+  it("returns 404 when student does not own the job", async () => {
+    const { client } = makeStatusClient({ jobStudentId: "other-student" });
+    const r = await getJobStatus(client, { studentId: "student-1", jobId: "job-1" });
+    if (!isOrchestrationError(r)) throw new Error("expected error");
+    expect(r.error.status).toBe(404);
+    expect(r.error.message).toMatch(/Job not found/);
   });
 });
