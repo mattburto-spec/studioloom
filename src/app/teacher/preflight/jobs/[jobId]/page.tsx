@@ -92,6 +92,15 @@ export default function TeacherJobDetailPage() {
       }
       setActionSuccess(successMessage);
       await fetchDetail();
+      // Scroll to top so the teacher sees the success banner + the
+      // updated status pill in the header. Without this, clicking
+      // Approve from the bottom TeacherActionBar flashes a success
+      // banner at the very top of the page — out of view behind the
+      // teacher's current scroll position. Smooth scroll so it reads
+      // as "page acknowledging your action" not a jarring teleport.
+      if (typeof window !== "undefined") {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
     } catch (e) {
       setActionError(e instanceof Error ? e.message : "Network error");
     } finally {
@@ -228,7 +237,11 @@ function ReadyView(props: {
         </div>
       )}
 
-      {/* Scan results (read-only) */}
+      {/* Scan results (read-only) — pass filename + machineLabel so the
+          viewer's header strip next to the thumbnail has informative
+          context instead of just rendering as a floating preview. The
+          student-side status page already passes these; omitting them
+          here was an oversight in Phase 6-2. */}
       <ScanResultsViewer
         scanResults={scanResults}
         acknowledgedWarnings={detail.acknowledgedWarnings}
@@ -238,6 +251,8 @@ function ReadyView(props: {
         onSubmit={() => {}}
         onReupload={() => {}}
         thumbnailUrl={detail.currentRevisionData?.thumbnailUrl ?? null}
+        filename={detail.job.originalFilename}
+        machineLabel={detail.machine.name}
         fileType={fileType}
         readOnly
       />

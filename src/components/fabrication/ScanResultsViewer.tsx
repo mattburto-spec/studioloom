@@ -80,7 +80,7 @@ export function ScanResultsViewer(props: ScanResultsViewerProps) {
             <img
               src={thumbnailUrl}
               alt="Scan preview"
-              className="w-20 h-20 rounded-lg border border-gray-200 object-contain bg-gray-50"
+              className="w-40 h-40 rounded-lg border border-gray-200 object-contain bg-gray-50 shrink-0"
             />
           )}
           <div className="flex-1 min-w-0">
