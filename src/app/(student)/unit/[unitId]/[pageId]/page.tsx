@@ -23,7 +23,8 @@ import { useUnitNav } from "@/contexts/UnitNavContext";
 import { ScrollReveal } from "@/components/student/ScrollReveal";
 import { toEmbedUrl } from "@/lib/video-embed";
 import StudentFeedbackPulse from "@/components/teacher/knowledge/StudentFeedbackPulse";
-import DesignAssistantWidget from "@/components/student/DesignAssistantWidget";
+// DesignAssistantWidget import removed in Phase 10 polish. Component file
+// still exists — will be re-integrated via a unified AI-mentor surface.
 import { useStudent } from "@/app/(student)/student-context";
 import { OpenStudioBanner } from "@/components/open-studio";
 import { useOpenStudio } from "@/hooks/useOpenStudio";
@@ -554,11 +555,12 @@ function UnitPageViewInner({
         <div className="fixed right-4 z-40 flex flex-col-reverse items-end gap-3" style={{ bottom: "5.5rem" }}>
           <div className="group flex items-center gap-2 animate-pop-in">
             <span className="px-2.5 py-1 rounded-lg bg-gray-900/80 text-white text-xs font-medium shadow-lg opacity-0 translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 pointer-events-none whitespace-nowrap">
-              Portfolio
+              Journal
             </span>
             <button
               onClick={() => setPortfolioOpen(true)}
               className="w-11 h-11 rounded-full gradient-cta text-white shadow-lg shadow-brand-pink/30 hover:scale-110 hover:shadow-xl active:scale-95 transition-all duration-150 flex items-center justify-center"
+              aria-label="Journal"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
@@ -617,23 +619,8 @@ function UnitPageViewInner({
             </button>
           </div>
 
-          <div className="group flex items-center gap-2 animate-pop-in" style={{ animationDelay: "200ms" }}>
-            <span className="px-2.5 py-1 rounded-lg bg-gray-900/80 text-white text-xs font-medium shadow-lg opacity-0 translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 pointer-events-none whitespace-nowrap">
-              Design Tools
-            </span>
-            <button
-              onClick={() => window.dispatchEvent(new Event('questerra:open-tools'))}
-              className="w-11 h-11 rounded-full text-white shadow-lg hover:scale-110 hover:shadow-xl active:scale-95 transition-all duration-150 flex items-center justify-center"
-              style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)", boxShadow: "0 4px 14px rgba(123, 47, 242, 0.35)" }}
-            >
-              <svg width="16" height="16" viewBox="0 0 32 32" fill="none">
-                <rect x="2" y="8" width="28" height="5" rx="2.5" fill="white" />
-                <rect x="2" y="19" width="28" height="5" rx="2.5" fill="white" />
-                <rect x="8" y="2" width="5" height="28" rx="2.5" fill="white" />
-                <rect x="19" y="2" width="5" height="28" rx="2.5" fill="white" />
-              </svg>
-            </button>
-          </div>
+          {/* Design Tools floating button removed in Phase 10 polish — not
+              project-management and not relevant to non-Design units. */}
         </div>
       )}
 
@@ -660,14 +647,9 @@ function UnitPageViewInner({
         }}
       />
 
-      {/* Design Assistant — Socratic mentor chat widget */}
-      {student?.id && (
-        <DesignAssistantWidget
-          unitId={unitId}
-          pageId={pageId}
-          studentId={student.id}
-        />
-      )}
+      {/* Design Assistant chat widget removed in Phase 10 polish.
+          Will return in a later phase with a unified integration — Matt
+          wants to rethink how the AI mentor surfaces across the shell. */}
     </div>
   );
 }
