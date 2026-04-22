@@ -74,7 +74,15 @@ function toSessionStudent(data: SessionResponse): SessionStudent {
   };
 }
 
-const NAV_S = ["My work", "Units", "Badges", "Journal", "Resources"] as const;
+// Pill nav. `anchor` = element id to smooth-scroll to. Items without an
+// anchor render as disabled (no target route yet).
+const NAV_S: { label: string; anchor: string | null }[] = [
+  { label: "My work",   anchor: "dashboard-hero" },
+  { label: "Units",     anchor: "dashboard-units" },
+  { label: "Badges",    anchor: "dashboard-badges" },
+  { label: "Journal",   anchor: null },
+  { label: "Resources", anchor: null },
+];
 
 // Phase 3A: hero identity (title/subtitle/class/color/image/%) is wired.
 // Task card + teacher note still mock — Phase 3B wires the task card;
@@ -93,7 +101,11 @@ type HeroUnit = {
   taskProgress: number;
   taskTotal: number;
   dueIn: string;
-  teacherNote: { from: string; msg: string; when: string };
+  /** Teacher note card — null until Phase 14 (notes system) ships.
+   *  HERO_MOCK keeps a value so the preview/scaffold path can still show
+   *  the card, but buildHeroUnit() returns null so real students never
+   *  see a fake Mr. Griffiths message. */
+  teacherNote: { from: string; msg: string; when: string } | null;
 };
 
 const HERO_MOCK: HeroUnit = {
@@ -221,7 +233,8 @@ function buildHeroUnit(unit: UnitRow): HeroUnit {
     taskProgress: HERO_MOCK.taskProgress,
     taskTotal: HERO_MOCK.taskTotal,
     dueIn: HERO_MOCK.dueIn,
-    teacherNote: HERO_MOCK.teacherNote,
+    // Phase 9.4 — hide teacher note on real data until Phase 14 notes system
+    teacherNote: null,
   };
 }
 
@@ -701,7 +714,16 @@ function RingProgress({ pct, size = 96, stroke = 8, color }: { pct: number; size
 }
 
 // ================= TOP NAV =================
-function TopNav({ student, loading }: { student: SessionStudent; loading: boolean }) {
+function TopNav({ student, loading, bellCount }: { student: SessionStudent; loading: boolean; bellCount: number }) {
+  const scrollTo = (anchor: string | null) => {
+    if (!anchor) return;
+    const el = document.getElementById(anchor);
+    if (!el) return;
+    // Offset for the sticky nav (h-16 = 64px) plus a little breathing room
+    const top = el.getBoundingClientRect().top + window.scrollY - 80;
+    window.scrollTo({ top, behavior: "smooth" });
+  };
+
   return (
     <header className="sticky top-0 z-30 bg-[var(--sl-bg)]/80 backdrop-blur-lg border-b border-[var(--sl-hair)]">
       <div className="max-w-[1400px] mx-auto px-6 h-16 flex items-center gap-4">
@@ -711,24 +733,40 @@ function TopNav({ student, loading }: { student: SessionStudent; loading: boolea
         </div>
         <div className="w-px h-6 bg-[var(--sl-hair)] mx-1" />
         <nav className="flex items-center gap-0.5">
-          {NAV_S.map((n, i) => (
-            <button
-              key={n}
-              className={`px-3 py-1.5 rounded-full text-[12.5px] font-semibold transition ${
-                i === 0 ? "bg-[var(--sl-ink)] text-white" : "text-[var(--sl-ink-2)] hover:bg-white"
-              }`}
-            >
-              {n}
-            </button>
-          ))}
+          {NAV_S.map((n, i) => {
+            const disabled = n.anchor === null;
+            const active = i === 0;
+            return (
+              <button
+                key={n.label}
+                onClick={() => scrollTo(n.anchor)}
+                disabled={disabled}
+                aria-disabled={disabled}
+                title={disabled ? "Coming soon" : undefined}
+                className={`px-3 py-1.5 rounded-full text-[12.5px] font-semibold transition ${
+                  active
+                    ? "bg-[var(--sl-ink)] text-white"
+                    : disabled
+                      ? "text-[var(--sl-ink-3)]/50 cursor-not-allowed"
+                      : "text-[var(--sl-ink-2)] hover:bg-white"
+                }`}
+              >
+                {n.label}
+              </button>
+            );
+          })}
         </nav>
         <div className="flex-1" />
         <button className="w-9 h-9 rounded-full hover:bg-white flex items-center justify-center text-[var(--sl-ink-2)]">
           <Icon name="search" size={16} />
         </button>
-        <button className="w-9 h-9 rounded-full hover:bg-white flex items-center justify-center text-[var(--sl-ink-2)] relative">
+        <button className="w-9 h-9 rounded-full hover:bg-white flex items-center justify-center text-[var(--sl-ink-2)] relative" aria-label={bellCount > 0 ? `${bellCount} urgent items` : "Notifications"}>
           <Icon name="bell" size={16} />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#DC2626] border-2 border-[var(--sl-bg)]" />
+          {bellCount > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-[16px] px-1 rounded-full bg-[#DC2626] border-2 border-[var(--sl-bg)] text-white text-[9px] font-extrabold tnum flex items-center justify-center leading-none">
+              {bellCount > 9 ? "9+" : bellCount}
+            </span>
+          )}
         </button>
         <div className="flex items-center gap-2.5 pl-1">
           <div className="text-right">
@@ -759,7 +797,7 @@ function TopNav({ student, loading }: { student: SessionStudent; loading: boolea
 function ResumeHero({ student, hero }: { student: SessionStudent; hero: HeroUnit }) {
   const n = hero;
   return (
-    <section className="max-w-[1400px] mx-auto px-6 pt-8">
+    <section id="dashboard-hero" className="max-w-[1400px] mx-auto px-6 pt-8">
       <div className="flex items-end justify-between mb-4 px-1">
         <div>
           <div className="cap text-[var(--sl-ink-3)]">Good morning, {student.first}</div>
@@ -826,20 +864,24 @@ function ResumeHero({ student, hero }: { student: SessionStudent; hero: HeroUnit
               )}
               <div className="absolute inset-0" style={{ background: `linear-gradient(to right, ${n.color} 0%, transparent 35%)` }} />
             </div>
-            <div className="absolute bottom-6 right-6 left-6 bg-white/95 backdrop-blur rounded-2xl p-4 card-shadow">
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#9333EA] to-[#E86F2C] text-white flex items-center justify-center font-extrabold text-[10px]">MG</div>
-                <div>
-                  <div className="text-[11.5px] font-extrabold">
-                    Mr. Griffiths <span className="font-semibold text-[var(--sl-ink-3)]">· {n.teacherNote.when}</span>
+            {n.teacherNote && (
+              <div className="absolute bottom-6 right-6 left-6 bg-white/95 backdrop-blur rounded-2xl p-4 card-shadow">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#9333EA] to-[#E86F2C] text-white flex items-center justify-center font-extrabold text-[10px]">
+                    {n.teacherNote.from.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase()}
+                  </div>
+                  <div>
+                    <div className="text-[11.5px] font-extrabold">
+                      {n.teacherNote.from} <span className="font-semibold text-[var(--sl-ink-3)]">· {n.teacherNote.when}</span>
+                    </div>
                   </div>
                 </div>
+                <p className="text-[12.5px] mt-2 leading-relaxed text-[var(--sl-ink-2)]">&ldquo;{n.teacherNote.msg}&rdquo;</p>
+                <button className="text-[11px] font-extrabold mt-2 hover:underline" style={{ color: n.colorDark }}>
+                  Reply in journal →
+                </button>
               </div>
-              <p className="text-[12.5px] mt-2 leading-relaxed text-[var(--sl-ink-2)]">&ldquo;{n.teacherNote.msg}&rdquo;</p>
-              <button className="text-[11px] font-extrabold mt-2 hover:underline" style={{ color: n.colorDark }}>
-                Reply in journal →
-              </button>
-            </div>
+            )}
           </div>
         </div>
       </div>
@@ -932,7 +974,6 @@ function Priority({ buckets }: { buckets: PriorityBuckets }) {
                 <button key={i} className={rowClass}>{rowContent}</button>
               );
             })}
-            <button className="w-full text-[11.5px] font-bold text-[var(--sl-ink-3)] hover:text-[var(--sl-ink)] py-2">See all upcoming →</button>
           </div>
         </div>
       </div>
@@ -984,7 +1025,7 @@ function UnitCard({ u }: { u: StudentUnit }) {
 
 function UnitsGrid({ units }: { units: StudentUnit[] }) {
   return (
-    <section className="max-w-[1400px] mx-auto px-6 pt-12">
+    <section id="dashboard-units" className="max-w-[1400px] mx-auto px-6 pt-12">
       <div className="flex items-end justify-between mb-4">
         <div>
           <div className="cap text-[var(--sl-ink-3)]">Your units · {units.length}</div>
@@ -1054,7 +1095,7 @@ function Badges({ data }: { data: BadgesState }) {
       : "Nice work — earned through your workshop safety tests.";
 
   return (
-    <section className="max-w-[1400px] mx-auto px-6 pt-12">
+    <section id="dashboard-badges" className="max-w-[1400px] mx-auto px-6 pt-12">
       <div className="grid grid-cols-12 gap-5">
         <div className="col-span-5 relative rounded-3xl overflow-hidden card-shadow-lg glow-inner p-8 text-white" style={{ background: "linear-gradient(135deg, #1F2937 0%, #111827 100%)" }}>
           <div className="relative">
@@ -1086,9 +1127,6 @@ function Badges({ data }: { data: BadgesState }) {
               {next.map((b, i) => <BadgeProgress key={i} b={b} />)}
             </div>
           )}
-          <button className="text-[12px] font-bold text-[var(--sl-ink-3)] hover:text-[var(--sl-ink)] mt-3 inline-flex items-center gap-1">
-            All badges <Icon name="chevR" size={11} s={2.5} />
-          </button>
         </div>
       </div>
     </section>
@@ -1396,7 +1434,11 @@ export default function DashboardClient() {
 
   return (
     <div className="sl-v2">
-      <TopNav student={student} loading={sessionLoading} />
+      <TopNav
+        student={student}
+        loading={sessionLoading}
+        bellCount={(buckets?.overdue.length ?? 0) + (buckets?.today.length ?? 0)}
+      />
       {hero ? <ResumeHero student={student} hero={hero} /> : <HeroSkeleton />}
       {buckets ? <Priority buckets={buckets} /> : <PrioritySkeleton />}
       {units ? <UnitsGrid units={units} /> : <UnitsGridSkeleton />}
