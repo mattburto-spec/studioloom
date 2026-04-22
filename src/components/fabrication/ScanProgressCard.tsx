@@ -64,7 +64,7 @@ export function ScanProgressCard({ state }: ScanProgressCardProps) {
         </h2>
         <p className="text-sm text-red-800">{state.message}</p>
         <Link
-          href="/student/fabrication/new"
+          href="/fabrication/new"
           className="inline-block mt-4 text-sm font-semibold text-red-900 underline"
         >
           Try uploading again →
@@ -120,7 +120,7 @@ export function ScanProgressCard({ state }: ScanProgressCardProps) {
           </p>
           <div className="mt-4 flex gap-3">
             <Link
-              href="/student/fabrication/new"
+              href="/fabrication/new"
               className="text-sm font-semibold text-green-900 underline"
             >
               Submit another file →

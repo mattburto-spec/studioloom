@@ -1,7 +1,9 @@
 "use client";
 
 /**
- * /student/fabrication/new — Preflight Phase 4-3 + 4-4.
+ * /fabrication/new — Preflight Phase 4-3 + 4-4.
+ * (File path uses the `(student)` route group — parens mean no URL
+ * contribution. URL is `/fabrication/new`, NOT `/student/fabrication/new`.)
  *
  * Student-facing upload flow. 4-3 shipped the class/machine pickers +
  * picker-data fetch. 4-4 lands here: file picker + XHR PUT with progress
@@ -14,7 +16,7 @@
  *   3. XHR PUT file → uploadUrl with progress events (fetch() doesn't
  *      expose upload progress — XHR is the only path)
  *   4. POST /api/student/fabrication/jobs/{jobId}/enqueue-scan
- *   5. Redirect to /student/fabrication/jobs/{jobId} (4-5 status page)
+ *   5. Redirect to /fabrication/jobs/{jobId} (4-5 status page)
  *
  * Error paths surface via uploadReducer → UploadProgress; the user can
  * reset and retry without losing their class/machine selection.
@@ -238,10 +240,12 @@ export default function FabricationNewPage() {
 
     dispatch({ type: "ENQUEUE_COMPLETE" });
 
-    // Step 4: redirect to the (yet-to-land 4-5) status page. The page
-    // will show a placeholder until 4-5 lands — that's fine; the URL
-    // is what matters for the smoke test.
-    router.push(`/student/fabrication/jobs/${initResult.jobId}`);
+    // Step 4: redirect to the 4-5 status page.
+    // Note: `(student)` is a Next.js route group — the parens mean it
+    // doesn't contribute to the URL. So pages under src/app/(student)/
+    // live at `/...` not `/student/...`. Same convention as existing
+    // links (Link href="/dashboard", "/my-tools" throughout the codebase).
+    router.push(`/fabrication/jobs/${initResult.jobId}`);
   }
 
   return (

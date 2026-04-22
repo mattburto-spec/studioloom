@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { JSX } from "react";
+import type { UnitContentData, StudentProgress } from "@/types";
 
 /* ================================================================
  * Student Dashboard v2 — Bold redesign
@@ -73,26 +74,137 @@ function toSessionStudent(data: SessionResponse): SessionStudent {
 
 const NAV_S = ["My work", "Units", "Badges", "Journal", "Resources"] as const;
 
-const CURRENT = {
+// Phase 3A: hero identity (title/subtitle/class/color/image/%) is wired.
+// Task card + teacher note still mock — Phase 3B wires the task card;
+// teacher note is deferred pending the general-notes system.
+type HeroUnit = {
+  unitTitle: string;
+  unitSub: string;
+  class: string;
+  color: string;
+  colorDark: string;
+  img: string | null;
+  // Placeholders until Phase 3B:
+  currentTask: string;
+  taskProgress: number;
+  taskTotal: number;
+  dueIn: string;
+  teacherNote: { from: string; msg: string; when: string };
+};
+
+const HERO_MOCK: HeroUnit = {
   unitTitle: "Biomimicry",
   unitSub: "Plastic pouch inspired by nature",
   class: "7 Design",
   color: "#0EA5A4",
   colorDark: "#0F766E",
-  colorTint: "#CCFBF1",
-  phase: "Developing ideas",
-  phasePct: 34,
+  img: "https://images.unsplash.com/photo-1466692476868-aef1dfb1e735?w=1000&h=1200&fit=crop",
   currentTask: "Sketch 3 structural ideas",
   taskProgress: 1,
   taskTotal: 3,
   dueIn: "in 2 days",
-  img: "https://images.unsplash.com/photo-1466692476868-aef1dfb1e735?w=1000&h=1200&fit=crop",
   teacherNote: {
     from: "Mr. Griffiths",
     msg: "Your leaf sketch from Monday is a great start — try one with a radial vein pattern next?",
     when: "yesterday",
   },
 };
+
+// Subject-based per-unit color palette. Mirrors the SUBJECT_MAP in the
+// current student dashboard but returns hex pairs for the Bold design.
+type UnitPalette = { color: string; colorDark: string };
+const SUBJECT_PALETTE: { keywords: string[]; palette: UnitPalette }[] = [
+  { keywords: ["service as action", "service", "community"],         palette: { color: "#EC4899", colorDark: "#BE185D" } },
+  { keywords: ["personal project", " pp ", "pp"],                     palette: { color: "#9333EA", colorDark: "#7E22CE" } },
+  { keywords: ["pypx", "exhibition", "primary years exhibition"],     palette: { color: "#F59E0B", colorDark: "#B45309" } },
+  { keywords: ["inquiry", "interdisciplinary", "transdisciplinary"],  palette: { color: "#3B82F6", colorDark: "#1D4ED8" } },
+  { keywords: ["digital design", "digital"],                          palette: { color: "#06B6D4", colorDark: "#0E7490" } },
+  { keywords: ["workshop"],                                           palette: { color: "#F59E0B", colorDark: "#B45309" } },
+  { keywords: ["product design", "design tech", "design & tech", "design"], palette: { color: "#0EA5A4", colorDark: "#0F766E" } },
+  { keywords: ["technology", "tech"],                                 palette: { color: "#0284C7", colorDark: "#075985" } },
+  { keywords: ["art", "visual"],                                      palette: { color: "#D946EF", colorDark: "#A21CAF" } },
+  { keywords: ["science", "biology", "chemistry", "physics"],         palette: { color: "#10B981", colorDark: "#047857" } },
+  { keywords: ["math", "maths"],                                      palette: { color: "#E86F2C", colorDark: "#C2410C" } },
+  { keywords: ["english", "language", "literature"],                  palette: { color: "#EF4444", colorDark: "#B91C1C" } },
+];
+
+const FALLBACK_PALETTES: UnitPalette[] = [
+  { color: "#0EA5A4", colorDark: "#0F766E" }, // teal
+  { color: "#9333EA", colorDark: "#7E22CE" }, // violet
+  { color: "#EC4899", colorDark: "#BE185D" }, // pink
+  { color: "#0284C7", colorDark: "#075985" }, // sky
+  { color: "#F59E0B", colorDark: "#B45309" }, // amber
+];
+
+function detectUnitPalette(opts: { classSubject?: string | null; className?: string | null; title?: string | null; id: string }): UnitPalette {
+  const candidates = [opts.classSubject, opts.className, opts.title]
+    .filter(Boolean)
+    .map((s) => ` ${(s as string).toLowerCase()} `);
+  for (const candidate of candidates) {
+    for (const { keywords, palette } of SUBJECT_PALETTE) {
+      if (keywords.some((kw) => candidate.includes(kw))) return palette;
+    }
+  }
+  // Deterministic fallback by id hash
+  let hash = 0;
+  for (let i = 0; i < opts.id.length; i++) hash = ((hash << 5) - hash + opts.id.charCodeAt(i)) | 0;
+  return FALLBACK_PALETTES[Math.abs(hash) % FALLBACK_PALETTES.length];
+}
+
+// Unit shape returned by /api/student/units
+type UnitRow = {
+  id: string;
+  title: string;
+  description: string | null;
+  thumbnail_url: string | null;
+  content_data: UnitContentData | null;
+  progress: StudentProgress[];
+  class_id: string | null;
+  class_name: string | null;
+  class_subject: string | null;
+};
+
+function latestActivity(unit: UnitRow): number {
+  if (unit.progress.length === 0) return 0;
+  return unit.progress.reduce((max, p) => {
+    const t = new Date(p.updated_at).getTime();
+    return t > max ? t : max;
+  }, 0);
+}
+
+function selectHeroUnit(units: UnitRow[]): UnitRow | null {
+  if (units.length === 0) return null;
+  // Prefer most-recently-updated in-progress unit
+  const inProgress = units
+    .filter((u) => u.progress.some((p) => p.status === "in_progress" || p.status === "complete"))
+    .sort((a, b) => latestActivity(b) - latestActivity(a));
+  if (inProgress.length > 0) return inProgress[0];
+  // Else first unit
+  return units[0];
+}
+
+function buildHeroUnit(unit: UnitRow): HeroUnit {
+  const palette = detectUnitPalette({
+    classSubject: unit.class_subject,
+    className: unit.class_name,
+    title: unit.title,
+    id: unit.id,
+  });
+  return {
+    unitTitle: unit.title,
+    unitSub: unit.description || "",
+    class: unit.class_name || "",
+    color: palette.color,
+    colorDark: palette.colorDark,
+    img: unit.thumbnail_url,
+    // Phase 3B placeholders
+    currentTask: HERO_MOCK.currentTask,
+    taskProgress: HERO_MOCK.taskProgress,
+    taskTotal: HERO_MOCK.taskTotal,
+    dueIn: HERO_MOCK.dueIn,
+    teacherNote: HERO_MOCK.teacherNote,
+  };
+}
 
 type QueueItem = {
   kind: "overdue" | "today" | "soon";
@@ -284,8 +396,8 @@ function TopNav({ student, loading }: { student: SessionStudent; loading: boolea
 }
 
 // ================= RESUME HERO =================
-function ResumeHero({ student }: { student: SessionStudent }) {
-  const n = CURRENT;
+function ResumeHero({ student, hero }: { student: SessionStudent; hero: HeroUnit }) {
+  const n = hero;
   return (
     <section className="max-w-[1400px] mx-auto px-6 pt-8">
       <div className="flex items-end justify-between mb-4 px-1">
@@ -340,9 +452,11 @@ function ResumeHero({ student }: { student: SessionStudent }) {
 
           {/* Right — image + teacher note */}
           <div className="col-span-5 relative">
-            <div className="absolute inset-0">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={n.img} alt="" className="w-full h-full object-cover" />
+            <div className="absolute inset-0" style={{ background: n.color }}>
+              {n.img && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={n.img} alt="" className="w-full h-full object-cover" />
+              )}
               <div className="absolute inset-0" style={{ background: `linear-gradient(to right, ${n.color} 0%, transparent 35%)` }} />
             </div>
             <div className="absolute bottom-6 right-6 left-6 bg-white/95 backdrop-blur rounded-2xl p-4 card-shadow">
@@ -691,6 +805,7 @@ const SCOPED_CSS = `
 export default function DashboardV2Client() {
   const [student, setStudent] = useState<SessionStudent>(STUDENT_MOCK);
   const [sessionLoading, setSessionLoading] = useState(true);
+  const [hero, setHero] = useState<HeroUnit>(HERO_MOCK);
 
   // Mount-time style inject (scoped via .sl-v2).
   useEffect(() => {
@@ -725,10 +840,29 @@ export default function DashboardV2Client() {
     };
   }, []);
 
+  // Load real units + pick hero unit. Fall back silently to HERO_MOCK.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/student/units");
+        if (!res.ok) return;
+        const data = (await res.json()) as { units?: UnitRow[] };
+        const selected = selectHeroUnit(data.units ?? []);
+        if (!cancelled && selected) setHero(buildHeroUnit(selected));
+      } catch {
+        /* silent — keep mock */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <div className="sl-v2">
       <TopNav student={student} loading={sessionLoading} />
-      <ResumeHero student={student} />
+      <ResumeHero student={student} hero={hero} />
       <Priority />
       <UnitsGrid />
       <Badges />

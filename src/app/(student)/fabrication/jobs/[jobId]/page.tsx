@@ -1,7 +1,9 @@
 "use client";
 
 /**
- * /student/fabrication/jobs/[jobId] — Preflight Phase 4-5 status page.
+ * /fabrication/jobs/[jobId] — Preflight Phase 4-5 status page.
+ * (File path uses the `(student)` route group — parens mean no URL
+ * contribution. URL is `/fabrication/jobs/[jobId]`.)
  *
  * Destination for the Phase 4-4 router.push after an upload completes.
  * Polls the scan status every 2 s, shows staged messaging based on
