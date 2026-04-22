@@ -648,10 +648,9 @@ function ResumeHero({ student, hero, onFocus }: { student: SessionStudent; hero:
                   <Icon name="play" size={11} s={0} /> Continue
                 </button>
               )}
-              {/* Open journal — no backing route yet; stub until unit-level journal ships */}
-              <button className="bg-white/15 backdrop-blur hover:bg-white/25 text-white rounded-full px-5 py-3 font-bold text-[13.5px]">
-                Open journal
-              </button>
+              {/* "Open journal" button removed 23 Apr 2026 — no backing route
+                  and duplicated Continue's destination. Returns in Phase 14
+                  when the notes/journal system ships. */}
               {/* Focus — hides everything except the next step (Phase 12). */}
               <button
                 onClick={onFocus}
@@ -777,7 +776,7 @@ function Priority({ buckets }: { buckets: PriorityBuckets }) {
   const { overdue, today, soon } = buckets;
 
   return (
-    <section className="max-w-[1400px] mx-auto px-6 pt-10">
+    <section id="dashboard-priority" className="max-w-[1400px] mx-auto px-6 pt-10">
       <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
         {/* Overdue */}
         <div className="md:col-span-4">
@@ -799,7 +798,7 @@ function Priority({ buckets }: { buckets: PriorityBuckets }) {
                     Complete now <Icon name="arrow" size={11} s={2.5} />
                   </button>
                 )}
-                <button className="bg-white/15 hover:bg-white/25 rounded-full px-3 py-2 font-bold text-[12px]">Snooze</button>
+                {/* Snooze button removed — Phase 13 dropped, "too many buttons" per Matt. */}
               </div>
             </article>
           ))}
@@ -907,21 +906,52 @@ function UnitCard({ u }: { u: StudentUnit }) {
 }
 
 function UnitsGrid({ units }: { units: StudentUnit[] }) {
+  const [filter, setFilter] = useState<"in-progress" | "all">("in-progress");
+  const visible = filter === "in-progress"
+    ? units.filter((u) => u.state === "in-progress")
+    : units;
+
+  // If "In progress" filter yields 0 but there ARE units, the student hasn't
+  // started any yet — fall back to showing all rather than an empty grid.
+  const shownUnits = filter === "in-progress" && visible.length === 0 ? units : visible;
+  const shownCount = shownUnits.length;
+
+  const chipClass = (active: boolean) =>
+    `bg-white border border-[var(--sl-hair)] rounded-full px-4 py-2 text-[12.5px] font-bold transition ${
+      active ? "text-[var(--sl-ink)] shadow-sm" : "text-[var(--sl-ink-3)] hover:shadow-sm"
+    }`;
+
   return (
     <section id="dashboard-units" className="max-w-[1400px] mx-auto px-6 pt-12">
       <div className="flex items-end justify-between mb-4">
         <div>
-          <div className="cap text-[var(--sl-ink-3)]">Your units · {units.length}</div>
+          <div className="cap text-[var(--sl-ink-3)]">Your units · {shownCount}</div>
           <h2 className="display text-[32px] leading-none mt-1">Everything you&apos;re working on.</h2>
         </div>
         <div className="flex items-center gap-2">
-          <button className="bg-white border border-[var(--sl-hair)] rounded-full px-4 py-2 text-[12.5px] font-bold hover:shadow-sm">In progress</button>
-          <button className="bg-white border border-[var(--sl-hair)] rounded-full px-4 py-2 text-[12.5px] font-bold hover:shadow-sm text-[var(--sl-ink-3)]">All</button>
+          <button
+            onClick={() => setFilter("in-progress")}
+            className={chipClass(filter === "in-progress")}
+          >
+            In progress
+          </button>
+          <button
+            onClick={() => setFilter("all")}
+            className={chipClass(filter === "all")}
+          >
+            All
+          </button>
         </div>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-        {units.map((u) => <UnitCard key={u.id} u={u} />)}
-      </div>
+      {shownUnits.length === 0 ? (
+        <div className="bg-white rounded-2xl border border-[var(--sl-hair)] p-8 text-center text-[13px] text-[var(--sl-ink-3)]">
+          No units assigned yet — your teacher will add some soon.
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          {shownUnits.map((u) => <UnitCard key={u.id} u={u} />)}
+        </div>
+      )}
     </section>
   );
 }

@@ -24,7 +24,7 @@ Shipped behind `sl_v2=1` cookie at `/dashboard/v2` during build.
 | 10 | Unified student header across all routes | ✅ Done | _(this commit)_ |
 | 11 | Responsive pass (mobile + tablet) | ✅ Done | _(this commit)_ |
 | 12 | Focus mode (hides everything except next step) | ✅ Done | _(this commit)_ |
-| 13 | Snooze button behaviour experiment | ⏳ Planned | — |
+| 13 | Snooze button — **dropped** (too many buttons) | ✅ Done (dropped) | _(this commit)_ |
 | 14 | General bidirectional notes system | ⏳ Planned | — |
 | 15 | Delete `/dashboard-legacy` rollback (≥ 2026-04-29) | ⏳ Scheduled | — |
 | 16 | Accessibility pass | ⏳ Planned | — |
@@ -46,11 +46,8 @@ Items Matt has flagged to handle before or during Phase 8 cutover.
       in-page tabs before cutover.
 - [ ] Search button functionality.
 - [ ] Bell/notifications count — tie to insights/priority queue.
-- [ ] **Snooze button (priority queue)** — currently a visual stub. Wire up
-      so overdue items can be snoozed. Matt wants to play with this with
-      students — potential behaviour experiment around deferral/avoidance.
-      Needs a `snoozed_until` column on the relevant source table and a
-      filter in `/api/student/insights`.
+- [x] ~~**Snooze button (priority queue)**~~ — dropped 23 Apr 2026. Matt's
+      call: "too many buttons". Visual stub removed from the overdue card.
 - [ ] **Focus mode** — a "Focus" button on the hero (or elsewhere) that
       hides everything except the current next step (the activity block
       title + continue button). Removes the priority queue, units grid,
@@ -137,20 +134,10 @@ on hero. Hides everything except the next step.
       priority queue, units, badges.
 - [ ] **12.4 Keyboard escape** — Esc key exits focus mode.
 
-### Phase 13 — Snooze button (~2-3 hours, needs schema change)
-Behaviour experiment Matt wants to try with students. Deferral tracking.
-
-- [ ] **13.1 Schema** — decide where `snoozed_until` lives. Probably on
-      `student_progress` (per-page) or a new `snoozes` table keyed by
-      `(student_id, source_type, source_id)`.
-- [ ] **13.2 Migration** — add column/table.
-- [ ] **13.3 API** — `POST /api/student/insights/snooze` takes
-      `(insightType, sourceId, until)` → writes row.
-- [ ] **13.4 Insights filter** — exclude snoozed items from the feed.
-- [ ] **13.5 UI** — wire the Snooze button on overdue cards to a snooze
-      picker (tomorrow / next week / custom).
-- [ ] **13.6 Analytics stub** — log snooze events for Matt to review
-      with students.
+### Phase 13 — Snooze button — DROPPED (23 Apr 2026)
+Matt's call: "too many buttons". Visual stub removed from the overdue
+priority card; no schema or API work needed. Can resurrect later if
+student behaviour around overdue items suggests it'd help.
 
 ### Phase 14 — Notes system (bigger, ~3-5 days)
 The general bidirectional notes feature. Restores the hero teacher note
