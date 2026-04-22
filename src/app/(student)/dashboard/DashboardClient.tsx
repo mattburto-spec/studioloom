@@ -799,7 +799,7 @@ function Priority({ buckets }: { buckets: PriorityBuckets }) {
                     Complete now <Icon name="arrow" size={11} s={2.5} />
                   </button>
                 )}
-                <button className="bg-white/15 hover:bg-white/25 rounded-full px-3 py-2 font-bold text-[12px]">Snooze</button>
+                {/* Snooze button removed — Phase 13 dropped, "too many buttons" per Matt. */}
               </div>
             </article>
           ))}
