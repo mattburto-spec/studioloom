@@ -435,7 +435,7 @@ function ResumeHero({ student, hero }: { student: SessionStudent; hero: HeroUnit
                 <div className="cap text-[var(--sl-ink-3)]">Your current task</div>
                 <div className="display text-[18px] leading-tight mt-0.5">{n.currentTask}</div>
                 <div className="text-[11.5px] text-[var(--sl-ink-3)] mt-1 font-semibold">
-                  Phase: <span className="text-[var(--sl-ink)] font-bold">{n.phase}</span> · Due {n.dueIn}
+                  Due <span className="text-[var(--sl-ink)] font-bold">{n.dueIn}</span>
                 </div>
               </div>
             </div>
