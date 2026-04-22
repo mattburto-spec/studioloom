@@ -600,11 +600,9 @@ function toBadgesState(resp: SafetyResponse): BadgesState {
   return { earned, next };
 }
 
-type FeedbackItem = { from: string; initials: string; grad: string; unit: string; msg: string; when: string };
-const FEEDBACK: FeedbackItem[] = [
-  { from: "Mr. Griffiths", initials: "MG", grad: "from-[#9333EA] to-[#E86F2C]", unit: "Biomimicry",     msg: "Your leaf sketch from Monday is a great start — try one with a radial vein pattern next?", when: "1d" },
-  { from: "Ms. Tanaka",    initials: "KT", grad: "from-[#0EA5A4] to-[#3B82F6]", unit: "Arcade Machine", msg: "Excellent discovery journey entries this week. Love your research on marquee art history!",  when: "3d" },
-];
+// Feedback section dropped in Phase 7 — no backing data model yet for
+// teacher-to-student messages. Returns when the general notes system
+// ships (see docs/projects/student-dashboard-v2.md end-of-project TODO).
 
 // ================= ICONS =================
 type IconName =
@@ -1073,39 +1071,8 @@ function Badges({ data }: { data: BadgesState }) {
   );
 }
 
-// ================= FEEDBACK =================
-function Feedback() {
-  return (
-    <section className="max-w-[1400px] mx-auto px-6 pt-12 pb-20">
-      <div className="flex items-end justify-between mb-4">
-        <div>
-          <div className="cap text-[var(--sl-ink-3)]">Recent feedback · from teachers</div>
-          <h2 className="display text-[32px] leading-none mt-1">What your teachers said.</h2>
-        </div>
-        <button className="text-[12.5px] font-bold text-[var(--sl-ink-2)] hover:text-[var(--sl-ink)] inline-flex items-center gap-1">
-          All messages <Icon name="chevR" size={12} s={2.5} />
-        </button>
-      </div>
-      <div className="grid grid-cols-2 gap-5">
-        {FEEDBACK.map((f, i) => (
-          <article key={i} className="bg-white rounded-3xl p-6 card-shadow flex gap-4 items-start">
-            <div className={`w-12 h-12 rounded-full bg-gradient-to-br ${f.grad} text-white flex items-center justify-center font-extrabold text-[13px] flex-shrink-0`}>{f.initials}</div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-[13px] font-extrabold">{f.from}</div>
-                  <div className="text-[11px] text-[var(--sl-ink-3)]">On {f.unit} · {f.when} ago</div>
-                </div>
-                <button className="text-[11px] font-extrabold hover:underline">Reply →</button>
-              </div>
-              <p className="text-[13.5px] mt-2 leading-relaxed text-[var(--sl-ink-2)]">&ldquo;{f.msg}&rdquo;</p>
-            </div>
-          </article>
-        ))}
-      </div>
-    </section>
-  );
-}
+// Feedback section (teacher messages) removed in Phase 7. Will return
+// when the general notes system ships — see end-of-project TODO.
 
 // ================= SCOPED STYLES =================
 // All custom CSS scoped under .sl-v2 so it can't leak elsewhere.
@@ -1328,7 +1295,8 @@ export default function DashboardV2Client() {
       <Priority buckets={buckets} />
       <UnitsGrid units={units} />
       <Badges data={badges} />
-      <Feedback />
+      {/* Bottom padding — replaces old <Feedback /> slot (dropped Phase 7) */}
+      <div className="pb-20" />
     </div>
   );
 }

@@ -17,7 +17,7 @@ Shipped behind `sl_v2=1` cookie at `/dashboard/v2` during build.
 | 4 | Wire Priority queue | ✅ Done | _(this commit)_ |
 | 5 | Wire Units grid | ✅ Done | _(this commit)_ |
 | 6 | Wire Badges | ✅ Done | _(this commit)_ |
-| 7 | Wire Feedback section | ⏳ Planned | — |
+| 7 | Feedback section — dropped, no backing data until notes system | ✅ Done (dropped) | _(this commit)_ |
 | 8 | Cutover `/dashboard` → v2, remove opt-out hatch | ⏳ Planned | — |
 
 ## End-of-project TODO list
