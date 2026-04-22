@@ -594,12 +594,20 @@ function RingProgress({ pct, size = 96, stroke = 8, color }: { pct: number; size
 // from (student)/layout.tsx so every student route shares it.
 
 // ================= RESUME HERO =================
+/** Time-of-day greeting based on the student's browser clock. */
+function timeGreeting(now: Date = new Date()): string {
+  const h = now.getHours();
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  return "Good evening";
+}
+
 function ResumeHero({ student, hero, onFocus }: { student: SessionStudent; hero: HeroUnit; onFocus: () => void }) {
   const n = hero;
   return (
     <section id="dashboard-hero" className="max-w-[1400px] mx-auto px-6 pt-8">
       <div className="mb-4 px-1">
-        <div className="cap text-[var(--sl-ink-3)]">Good morning, {student.first}</div>
+        <div className="cap text-[var(--sl-ink-3)]">{timeGreeting()}, {student.first}</div>
         <h1 className="display-lg text-[30px] md:text-[44px] leading-[0.95] mt-1">Let&apos;s pick up where you left off.</h1>
         {/* Date / time / period-status removed 23 Apr 2026 — was hard-coded
             mock never wired to real timetable data. Return when timetable
