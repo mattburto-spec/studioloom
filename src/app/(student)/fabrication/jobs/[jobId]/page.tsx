@@ -34,6 +34,11 @@ import { ScanProgressCard } from "@/components/fabrication/ScanProgressCard";
 import { ScanResultsViewer } from "@/components/fabrication/ScanResultsViewer";
 import { RevisionHistoryPanel } from "@/components/fabrication/RevisionHistoryPanel";
 import { ReuploadModal } from "@/components/fabrication/ReuploadModal";
+import { TeacherReviewNoteCard } from "@/components/fabrication/TeacherReviewNoteCard";
+import {
+  shouldShowReviewCard,
+  studentActionsLocked,
+} from "@/components/fabrication/teacher-review-note-helpers";
 import { canSubmit, type Rule } from "@/lib/fabrication/rule-buckets";
 import type {
   AckChoice,
@@ -203,7 +208,11 @@ export default function FabricationJobStatusPage() {
     <main className="max-w-2xl mx-auto px-6 py-10">
       <header className="mb-8">
         <h1 className="text-2xl font-bold">
-          {pollState.kind === "done" ? "Your scan is ready" : "Checking your file"}
+          {pollState.kind === "done"
+            ? headerTitleForStatus(
+                (pollState.status as JobStatusSuccess).jobStatus
+              )
+            : "Checking your file"}
         </h1>
         {pollState.kind !== "done" && (
           <p className="text-sm text-gray-600 mt-1">
@@ -256,6 +265,28 @@ export default function FabricationJobStatusPage() {
 }
 
 /**
+ * Header title selector — keyed on jobStatus so a student returning
+ * to the page after a teacher action lands on the right framing
+ * instead of a generic "Your scan is ready".
+ */
+function headerTitleForStatus(jobStatus: string): string {
+  switch (jobStatus) {
+    case "needs_revision":
+      return "Revision requested";
+    case "rejected":
+      return "Submission rejected";
+    case "approved":
+    case "picked_up":
+    case "completed":
+      return "Submission approved";
+    case "pending_approval":
+      return "Waiting for teacher approval";
+    default:
+      return "Your scan is ready";
+  }
+}
+
+/**
  * Extracted so the main component stays readable. Computes canSubmit
  * from the live ack state + renders the soft-gate UI + any action error.
  */
@@ -292,6 +323,11 @@ function DoneStateView(props: {
     acknowledgedWarnings: localAcks,
     revisionNumber,
   });
+  const jobStatus = status.jobStatus;
+  const teacherNote = status.teacherReviewNote ?? null;
+  const teacherReviewedAt = status.teacherReviewedAt ?? null;
+  const showReviewCard = shouldShowReviewCard(jobStatus, teacherNote);
+  const actionsLocked = studentActionsLocked(jobStatus);
 
   return (
     <div className="space-y-4">
@@ -301,19 +337,37 @@ function DoneStateView(props: {
         </div>
       )}
 
-      <ScanResultsViewer
-        scanResults={scanResults}
-        acknowledgedWarnings={localAcks}
-        revisionNumber={revisionNumber}
-        canSubmitState={gate}
-        onAcknowledge={onAcknowledge}
-        onSubmit={onSubmit}
-        onReupload={onReupload}
-        isAckInFlight={isAckInFlight}
-        isSubmitting={isSubmitting}
-        thumbnailUrl={status.revision?.thumbnailUrl ?? null}
-        fileType={status.fileType}
-      />
+      {showReviewCard && (
+        <TeacherReviewNoteCard
+          jobStatus={jobStatus}
+          teacherNote={teacherNote}
+          teacherReviewedAt={teacherReviewedAt}
+        />
+      )}
+
+      {/* Rejected jobs are terminal — student can't re-upload on this
+          job (spec §10 Q2 — "no re-upload on this job") so we skip the
+          scan results viewer entirely. They've already seen it pre-
+          submission; the decision is final. */}
+      {jobStatus === "rejected" ? null : (
+        <ScanResultsViewer
+          scanResults={scanResults}
+          acknowledgedWarnings={localAcks}
+          revisionNumber={revisionNumber}
+          canSubmitState={gate}
+          onAcknowledge={onAcknowledge}
+          onSubmit={onSubmit}
+          onReupload={onReupload}
+          isAckInFlight={isAckInFlight}
+          isSubmitting={isSubmitting}
+          thumbnailUrl={status.revision?.thumbnailUrl ?? null}
+          fileType={status.fileType}
+          // Approved/completed/picked_up jobs are still visible to the
+          // student via direct URL, but actions are locked — same
+          // readOnly treatment the teacher detail page uses.
+          readOnly={actionsLocked}
+        />
+      )}
 
       {/* Revision history — hidden when only 1 revision exists */}
       <RevisionHistoryPanel
