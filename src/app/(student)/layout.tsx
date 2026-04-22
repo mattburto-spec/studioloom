@@ -34,6 +34,11 @@ export default function StudentLayout({
   const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
+    // v2 scaffold opts out of auth during Phase 1
+    if (pathname === "/dashboard/v2") {
+      setLoading(false);
+      return;
+    }
     async function loadSession() {
       try {
         const res = await fetch("/api/auth/student-session");
@@ -58,7 +63,7 @@ export default function StudentLayout({
       }
     }
     loadSession();
-  }, [router]);
+  }, [router, pathname]);
 
   // Compute theme styles from student preference
   const themeStyles = useMemo(() => {
@@ -131,6 +136,13 @@ export default function StudentLayout({
         onComplete={handleOnboardingComplete}
       />
     );
+  }
+
+  // v2 dashboard is scaffold-only during Phase 1 — opts out of the student shell
+  // (no auth redirect, no header, no onboarding). It renders its own nav.
+  // Remove this escape hatch in Phase 8 when v2 becomes the real /dashboard.
+  if (pathname === "/dashboard/v2") {
+    return <>{children}</>;
   }
 
   return (
