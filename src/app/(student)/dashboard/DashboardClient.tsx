@@ -936,14 +936,10 @@ function UnitCard({ u }: { u: StudentUnit }) {
 
 function UnitsGrid({ units }: { units: StudentUnit[] }) {
   const [filter, setFilter] = useState<"in-progress" | "all">("in-progress");
+  const inProgressCount = units.filter((u) => u.state === "in-progress").length;
   const visible = filter === "in-progress"
     ? units.filter((u) => u.state === "in-progress")
     : units;
-
-  // If "In progress" filter yields 0 but there ARE units, the student hasn't
-  // started any yet — fall back to showing all rather than an empty grid.
-  const shownUnits = filter === "in-progress" && visible.length === 0 ? units : visible;
-  const shownCount = shownUnits.length;
 
   const chipClass = (active: boolean) =>
     `bg-white border border-[var(--sl-hair)] rounded-full px-4 py-2 text-[12.5px] font-bold transition ${
@@ -954,7 +950,9 @@ function UnitsGrid({ units }: { units: StudentUnit[] }) {
     <section id="dashboard-units" className="max-w-[1400px] mx-auto px-6 pt-12">
       <div className="flex items-end justify-between mb-4">
         <div>
-          <div className="cap text-[var(--sl-ink-3)]">Your units · {shownCount}</div>
+          <div className="cap text-[var(--sl-ink-3)]">
+            Your units · {filter === "in-progress" ? `${inProgressCount} in progress` : `${units.length} total`}
+          </div>
           <h2 className="display text-[32px] leading-none mt-1">Everything you&apos;re working on.</h2>
         </div>
         <div className="flex items-center gap-2">
@@ -962,23 +960,37 @@ function UnitsGrid({ units }: { units: StudentUnit[] }) {
             onClick={() => setFilter("in-progress")}
             className={chipClass(filter === "in-progress")}
           >
-            In progress
+            In progress · {inProgressCount}
           </button>
           <button
             onClick={() => setFilter("all")}
             className={chipClass(filter === "all")}
           >
-            All
+            All · {units.length}
           </button>
         </div>
       </div>
-      {shownUnits.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-[var(--sl-hair)] p-8 text-center text-[13px] text-[var(--sl-ink-3)]">
-          No units assigned yet — your teacher will add some soon.
-        </div>
+      {visible.length === 0 ? (
+        filter === "in-progress" ? (
+          <div className="bg-white rounded-2xl border border-[var(--sl-hair)] p-8 text-center">
+            <div className="text-[13px] text-[var(--sl-ink-3)]">
+              No units in progress yet. Start one below — open a unit and save a response to get going.
+            </div>
+            <button
+              onClick={() => setFilter("all")}
+              className="mt-4 btn-primary rounded-full px-4 py-2 text-[12.5px] inline-flex items-center gap-1.5"
+            >
+              Show all units <Icon name="arrow" size={11} s={2.5} />
+            </button>
+          </div>
+        ) : (
+          <div className="bg-white rounded-2xl border border-[var(--sl-hair)] p-8 text-center text-[13px] text-[var(--sl-ink-3)]">
+            No units assigned yet — your teacher will add some soon.
+          </div>
+        )
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {shownUnits.map((u) => <UnitCard key={u.id} u={u} />)}
+          {visible.map((u) => <UnitCard key={u.id} u={u} />)}
         </div>
       )}
     </section>
