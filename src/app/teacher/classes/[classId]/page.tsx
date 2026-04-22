@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { ELL_LEVELS } from "@/lib/constants";
 import type { Class, Student, Unit, ClassUnit } from "@/types";
 import type { EllLevel } from "@/lib/constants";
+import { ClassFabricationHistorySection } from "@/components/fabrication/ClassFabricationHistorySection";
 
 // Avatar gradient helper — deterministic by name hash
 const AVATAR_GRADIENTS = [
@@ -1828,6 +1829,11 @@ export default function ClassDetailPage({
         classId={classId}
         onToggle={toggleUnit}
       />
+
+      {/* Fabrication submissions — Phase 6-4 */}
+      <div className="mt-6">
+        <ClassFabricationHistorySection classId={classId} />
+      </div>
     </main>
   );
 }

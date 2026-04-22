@@ -759,3 +759,317 @@ export async function getTeacherJobDetail(
     revisions: revisionSummaries,
   };
 }
+
+// ============================================================
+// getTeacherFabricationHistory — Phase 6-4
+// ============================================================
+
+/**
+ * Shared summary metrics + job list used by both the per-student
+ * fabrication tab (`/teacher/students/[studentId]` → Fabrication) and
+ * the per-class section (`/teacher/classes/[classId]`).
+ *
+ * `perStudent` only populates for the class scope — it's the
+ * per-student drill-down row list.
+ */
+export interface HistoryJobRow {
+  jobId: string;
+  status: string;
+  currentRevision: number;
+  createdAt: string;
+  updatedAt: string;
+  originalFilename: string;
+  machineLabel: string;
+  machineCategory: "3d_printer" | "laser_cutter" | null;
+  unitTitle: string | null;
+  /** Only present on class-scope responses (so the student column
+   *  renders). Null on student-scope responses. */
+  studentId: string | null;
+  studentName: string | null;
+  /** Rule ids that fired as block/warn on the current revision's
+   *  scan — used client-side for the top-failure-rule aggregation.
+   *  (We could recompute client-side but that's extra work; easier to
+   *  ship it baked.) */
+  currentRevisionFailingRuleIds: string[];
+  /** Severity breakdown for the current-revision scan. */
+  ruleCounts: { block: number; warn: number; fyi: number };
+}
+
+export interface HistorySummaryPayload {
+  totalSubmissions: number;
+  passed: number;
+  /** 0–1. */
+  passRate: number;
+  avgRevisions: number;
+  medianRevisions: number;
+  topFailureRule: { ruleId: string; count: number } | null;
+}
+
+export interface PerStudentHistoryRow {
+  studentId: string;
+  studentName: string;
+  totalJobs: number;
+  passed: number;
+  passRate: number;
+  latestJobStatus: string | null;
+  latestJobCreatedAt: string | null;
+}
+
+export interface HistorySuccess {
+  jobs: HistoryJobRow[];
+  summary: HistorySummaryPayload;
+  /** Class scope only — null on student scope. */
+  perStudent: PerStudentHistoryRow[] | null;
+}
+
+export type HistoryResult = HistorySuccess | OrchestrationError;
+
+interface RawHistoryJob {
+  id: string;
+  status: string;
+  current_revision: number;
+  created_at: string;
+  updated_at: string;
+  original_filename: string;
+  student_id: string;
+  unit_id: string | null;
+  students: { display_name: string | null; username: string | null } | null;
+  units: { title: string | null } | null;
+  machine_profiles: { name: string | null; machine_category: string | null } | null;
+  fabrication_job_revisions: Array<{
+    revision_number: number;
+    scan_results: {
+      rules?: Array<{ id?: string; severity?: string }> | null;
+    } | null;
+  }> | null;
+}
+
+/**
+ * Shared query runner + row builder for both scopes. Student-scope
+ * filters by `.eq("student_id", ...)`; class-scope by
+ * `.eq("class_id", ...)`. Both always filter by teacher_id first so a
+ * teacher can never see another teacher's rows.
+ */
+async function fetchHistoryJobs(
+  db: SupabaseLike,
+  filter: { teacherId: string; studentId?: string; classId?: string }
+): Promise<HistoryJobRow[] | OrchestrationError> {
+  let query = db
+    .from("fabrication_jobs")
+    .select(
+      `
+      id, status, current_revision, created_at, updated_at, original_filename,
+      student_id, unit_id,
+      students(display_name, username),
+      units(title),
+      machine_profiles(name, machine_category),
+      fabrication_job_revisions(revision_number, scan_results)
+      `
+    )
+    .eq("teacher_id", filter.teacherId)
+    .order("created_at", { ascending: false });
+
+  if (filter.studentId) {
+    query = query.eq("student_id", filter.studentId);
+  }
+  if (filter.classId) {
+    query = query.eq("class_id", filter.classId);
+  }
+
+  const result = await query;
+  const { data, error } = result as {
+    data: RawHistoryJob[] | null;
+    error: { message: string } | null;
+  };
+  if (error) {
+    return {
+      error: { status: 500, message: `History lookup failed: ${error.message}` },
+    };
+  }
+
+  const rows: HistoryJobRow[] = (data ?? []).map((raw) => {
+    const latestRev = (raw.fabrication_job_revisions ?? []).find(
+      (r) => r.revision_number === raw.current_revision
+    );
+    const rules = latestRev?.scan_results?.rules ?? [];
+    const counts = { block: 0, warn: 0, fyi: 0 };
+    const failingRuleIds: string[] = [];
+    for (const r of rules) {
+      if (r.severity === "block") counts.block++;
+      else if (r.severity === "warn") counts.warn++;
+      else if (r.severity === "fyi") counts.fyi++;
+      if (
+        typeof r.id === "string" &&
+        (r.severity === "block" || r.severity === "warn")
+      ) {
+        failingRuleIds.push(r.id);
+      }
+    }
+
+    const studentRow = pickFirst(raw.students);
+    const unitRow = pickFirst(raw.units);
+    const machineRow = pickFirst(raw.machine_profiles);
+    const studentName =
+      studentRow?.display_name || studentRow?.username || "Unknown student";
+    const machineName = machineRow?.name ?? "Unknown machine";
+
+    return {
+      jobId: raw.id,
+      status: raw.status,
+      currentRevision: raw.current_revision,
+      createdAt: raw.created_at,
+      updatedAt: raw.updated_at,
+      originalFilename: raw.original_filename,
+      machineLabel: machineName,
+      machineCategory:
+        (machineRow?.machine_category as HistoryJobRow["machineCategory"]) ??
+        null,
+      unitTitle: unitRow?.title ?? null,
+      studentId: raw.student_id,
+      studentName,
+      currentRevisionFailingRuleIds: failingRuleIds,
+      ruleCounts: counts,
+    };
+  });
+
+  return rows;
+}
+
+/**
+ * Tiny summary builder — kept inline rather than importing
+ * `buildHistorySummary` from the components folder because
+ * orchestration shouldn't reach into components for server-side
+ * code. The math is the same; tests on the component-side helper
+ * cover the algorithm.
+ */
+function summariseHistoryJobs(jobs: HistoryJobRow[]): HistorySummaryPayload {
+  const total = jobs.length;
+  const passed = jobs.filter((j) =>
+    ["approved", "picked_up", "completed"].includes(j.status)
+  ).length;
+  const passRate = total === 0 ? 0 : passed / total;
+
+  const revisionCounts = jobs.map((j) => j.currentRevision);
+  const avgRevisions =
+    revisionCounts.length === 0
+      ? 0
+      : revisionCounts.reduce((a, b) => a + b, 0) / revisionCounts.length;
+
+  const sorted = [...revisionCounts].sort((a, b) => a - b);
+  const medianRevisions =
+    sorted.length === 0
+      ? 0
+      : sorted.length % 2 === 0
+        ? (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2
+        : sorted[Math.floor(sorted.length / 2)];
+
+  const ruleCounts = new Map<string, number>();
+  for (const j of jobs) {
+    for (const id of j.currentRevisionFailingRuleIds) {
+      ruleCounts.set(id, (ruleCounts.get(id) ?? 0) + 1);
+    }
+  }
+  let topFailureRule: { ruleId: string; count: number } | null = null;
+  for (const [ruleId, count] of ruleCounts) {
+    if (!topFailureRule || count > topFailureRule.count) {
+      topFailureRule = { ruleId, count };
+    }
+  }
+
+  return {
+    totalSubmissions: total,
+    passed,
+    passRate,
+    avgRevisions,
+    medianRevisions,
+    topFailureRule,
+  };
+}
+
+/**
+ * Per-student drill-down builder — groups the flat job list by
+ * studentId, summarises each group. Returned in descending
+ * "totalJobs" order so the most active students rise to the top.
+ */
+function buildPerStudentRows(jobs: HistoryJobRow[]): PerStudentHistoryRow[] {
+  const byStudent = new Map<string, HistoryJobRow[]>();
+  for (const j of jobs) {
+    if (!j.studentId) continue;
+    const bucket = byStudent.get(j.studentId) ?? [];
+    bucket.push(j);
+    byStudent.set(j.studentId, bucket);
+  }
+
+  const rows: PerStudentHistoryRow[] = [];
+  for (const [studentId, studentJobs] of byStudent) {
+    const passed = studentJobs.filter((j) =>
+      ["approved", "picked_up", "completed"].includes(j.status)
+    ).length;
+    const totalJobs = studentJobs.length;
+    const passRate = totalJobs === 0 ? 0 : passed / totalJobs;
+    // Jobs are already sorted created_at DESC by the orchestration
+    // query — [0] is the most recent.
+    const latest = studentJobs[0];
+    rows.push({
+      studentId,
+      studentName: latest.studentName ?? "Unknown student",
+      totalJobs,
+      passed,
+      passRate,
+      latestJobStatus: latest.status,
+      latestJobCreatedAt: latest.createdAt,
+    });
+  }
+
+  rows.sort((a, b) => b.totalJobs - a.totalJobs);
+  return rows;
+}
+
+/**
+ * Per-student fabrication history. Scoped to the teacher's owned jobs
+ * AND the requested student. The teacher could reach this page for a
+ * student in any of their classes — we don't require class ownership
+ * on top of teacher ownership because the student must be in the
+ * teacher's student pool to be selected from `/teacher/students/`.
+ */
+export async function getTeacherStudentHistory(
+  db: SupabaseLike,
+  params: { teacherId: string; studentId: string }
+): Promise<HistoryResult> {
+  const jobsResult = await fetchHistoryJobs(db, {
+    teacherId: params.teacherId,
+    studentId: params.studentId,
+  });
+  if ("error" in jobsResult) return jobsResult;
+
+  return {
+    jobs: jobsResult,
+    summary: summariseHistoryJobs(jobsResult),
+    perStudent: null,
+  };
+}
+
+/**
+ * Per-class fabrication history. Scoped to the teacher's owned jobs
+ * AND the requested class. Teacher ownership of the class is
+ * additionally verified by the `teacher_id = teacherId` filter — if
+ * the teacher doesn't own any job in this class, an empty history
+ * comes back (which is the correct response for "no submissions
+ * yet", indistinguishable from "wrong class" by design).
+ */
+export async function getTeacherClassHistory(
+  db: SupabaseLike,
+  params: { teacherId: string; classId: string }
+): Promise<HistoryResult> {
+  const jobsResult = await fetchHistoryJobs(db, {
+    teacherId: params.teacherId,
+    classId: params.classId,
+  });
+  if ("error" in jobsResult) return jobsResult;
+
+  return {
+    jobs: jobsResult,
+    summary: summariseHistoryJobs(jobsResult),
+    perStudent: buildPerStudentRows(jobsResult),
+  };
+}
