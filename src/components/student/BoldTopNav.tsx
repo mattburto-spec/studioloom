@@ -379,8 +379,16 @@ export function BoldTopNav({
           <Icon name="search" size={16} />
         </button>
         <button
+          onClick={() => {
+            // On dashboard → smooth scroll to priority queue. Elsewhere → navigate.
+            if (onDashboard) {
+              scrollTo("dashboard-priority");
+            } else {
+              window.location.href = "/dashboard#dashboard-priority";
+            }
+          }}
           className="w-9 h-9 rounded-full hover:bg-white flex items-center justify-center text-[var(--sl-ink-2)] relative"
-          aria-label={bellCount > 0 ? `${bellCount} urgent items` : "Notifications"}
+          aria-label={bellCount > 0 ? `${bellCount} urgent items — open priority queue` : "Notifications"}
         >
           <Icon name="bell" size={16} />
           {bellCount > 0 && (
