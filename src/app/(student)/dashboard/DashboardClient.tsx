@@ -598,14 +598,12 @@ function ResumeHero({ student, hero, onFocus }: { student: SessionStudent; hero:
   const n = hero;
   return (
     <section id="dashboard-hero" className="max-w-[1400px] mx-auto px-6 pt-8">
-      <div className="flex items-end justify-between mb-4 px-1">
-        <div>
-          <div className="cap text-[var(--sl-ink-3)]">Good morning, {student.first}</div>
-          <h1 className="display-lg text-[30px] md:text-[44px] leading-[0.95] mt-1">Let&apos;s pick up where you left off.</h1>
-        </div>
-        <div className="text-[12px] text-[var(--sl-ink-3)] font-semibold hidden md:block">
-          Mon 20 Apr · 9:00 AM · <span className="text-[var(--sl-ink)] font-extrabold">Period 1 starting soon</span>
-        </div>
+      <div className="mb-4 px-1">
+        <div className="cap text-[var(--sl-ink-3)]">Good morning, {student.first}</div>
+        <h1 className="display-lg text-[30px] md:text-[44px] leading-[0.95] mt-1">Let&apos;s pick up where you left off.</h1>
+        {/* Date / time / period-status removed 23 Apr 2026 — was hard-coded
+            mock never wired to real timetable data. Return when timetable
+            integration lands. */}
       </div>
 
       <div className="relative rounded-[32px] overflow-hidden card-shadow-lg glow-inner" style={{ background: n.color }}>
