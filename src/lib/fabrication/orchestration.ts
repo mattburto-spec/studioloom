@@ -383,6 +383,18 @@ export interface JobStatusSuccess {
   currentRevision: number;
   revision: JobStatusRevision | null;
   scanJob: JobStatusScanJob | null;
+  /**
+   * Phase 5-4: full scan_results JSONB when `includeResults` was passed.
+   * Omitted when absent to keep the 2s-poll payload light. Shape is the
+   * worker's scan_results JSONB: { rules: Rule[], ruleset_version,
+   *   scan_duration_ms, thumbnail_path }.
+   */
+  scanResults?: { rules?: Array<{ id: string; severity: string; [k: string]: unknown }> | null } | null;
+  /**
+   * Phase 5-4: acknowledged_warnings JSONB from fabrication_jobs when
+   * includeResults=true. Omitted on thin polls.
+   */
+  acknowledgedWarnings?: { [revisionKey: string]: { [ruleId: string]: { choice: string; timestamp: string } } } | null;
 }
 
 export type JobStatusResult = JobStatusSuccess | OrchestrationError;
@@ -998,20 +1010,48 @@ export async function enqueueScanJob(
  */
 export async function getJobStatus(
   db: SupabaseLike,
-  params: { studentId: string; jobId: string }
+  params: { studentId: string; jobId: string; includeResults?: boolean }
 ): Promise<JobStatusResult> {
-  const { studentId, jobId } = params;
+  const { studentId, jobId, includeResults = false } = params;
 
-  const ownership = await loadOwnedJob(db, studentId, jobId);
-  if (isOrchestrationError(ownership)) return ownership;
-  const job = ownership.job;
+  // Phase 5-4: when includeResults=true, fetch acknowledged_warnings from
+  // the job row inline. Otherwise use loadOwnedJob's lean SELECT for the
+  // 2s poll case. One DB round trip either way.
+  let ackWarnings: { [k: string]: { [r: string]: { choice: string; timestamp: string } } } | null =
+    null;
+  let job: { id: string; student_id: string; status: string; current_revision: number };
 
-  // Latest revision for the job.
+  if (includeResults) {
+    const full = await db
+      .from("fabrication_jobs")
+      .select("id, student_id, status, current_revision, acknowledged_warnings")
+      .eq("id", jobId)
+      .maybeSingle();
+    if (full.error) {
+      return {
+        error: { status: 500, message: `Job lookup failed: ${full.error.message}` },
+      };
+    }
+    if (!full.data || full.data.student_id !== studentId) {
+      return { error: { status: 404, message: "Job not found" } };
+    }
+    ackWarnings = full.data.acknowledged_warnings ?? null;
+    job = full.data;
+  } else {
+    const ownership = await loadOwnedJob(db, studentId, jobId);
+    if (isOrchestrationError(ownership)) return ownership;
+    job = ownership.job;
+  }
+
+  // Latest revision for the job. Include scan_results JSONB when
+  // includeResults is set.
+  const selectCols = includeResults
+    ? "id, revision_number, scan_status, scan_error, scan_completed_at, scan_ruleset_version, thumbnail_path, scan_results"
+    : "id, revision_number, scan_status, scan_error, scan_completed_at, scan_ruleset_version, thumbnail_path";
+
   const revResult = await db
     .from("fabrication_job_revisions")
-    .select(
-      "id, revision_number, scan_status, scan_error, scan_completed_at, scan_ruleset_version, thumbnail_path"
-    )
+    .select(selectCols)
     .eq("job_id", jobId)
     .order("revision_number", { ascending: false })
     .limit(1)
@@ -1087,5 +1127,11 @@ export async function getJobStatus(
     currentRevision: job.current_revision,
     revision,
     scanJob,
+    ...(includeResults
+      ? {
+          scanResults: revResult.data?.scan_results ?? null,
+          acknowledgedWarnings: ackWarnings,
+        }
+      : {}),
   };
 }

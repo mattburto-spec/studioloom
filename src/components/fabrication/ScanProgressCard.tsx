@@ -2,14 +2,15 @@
 
 /**
  * ScanProgressCard — Phase 4-5 view component for the student status
- * page. Pure view: takes a FabricationPollState + elapsed message, no
- * data fetching. The page wires useFabricationStatus + feeds the card.
+ * page, narrowed in Phase 5-3.
  *
- * Five visual states mapped directly from the poll state machine:
+ * Four visual states (done-state dropped — ScanResultsViewer owns it now):
  *   idle / polling → animated progress card with staged message
- *   done           → success card with thumbnail + rule-count summary
  *   error          → red error card with scan_error text + retry link
  *   timeout        → amber "come back later" card
+ *
+ * When called with state.kind === 'done', returns null (defensive — the
+ * caller should have delegated to ScanResultsViewer before reaching here).
  */
 
 import * as React from "react";
@@ -90,46 +91,12 @@ export function ScanProgressCard({ state }: ScanProgressCardProps) {
     );
   }
 
-  // state.kind === "done"
-  const rev = state.status.revision;
-  const rulesJson = rev?.scanRulesetVersion ?? "unknown";
-  // The scan_results JSONB isn't exposed on the status payload (4-2
-  // deliberately kept it thin); rule count is an enhancement for Phase 5
-  // once the results viewer lands. For now we show the ruleset version +
-  // thumbnail + a link placeholder.
-  return (
-    <div className="rounded-xl border border-green-200 bg-green-50 p-6">
-      <div className="flex items-start gap-4">
-        {rev?.thumbnailUrl && (
-          <img
-            src={rev.thumbnailUrl}
-            alt="Scan preview"
-            className="w-24 h-24 rounded-lg border border-green-300 object-contain bg-white"
-          />
-        )}
-        <div className="flex-1">
-          <h2 className="text-sm font-semibold text-green-900">
-            Scan complete
-          </h2>
-          <p className="text-sm text-green-800 mt-1">
-            Your file has been checked with ruleset {rulesJson}.
-          </p>
-          <p className="text-xs text-green-700 mt-2">
-            Detailed results viewer coming soon. Your submission is safely
-            stored for your teacher to review.
-          </p>
-          <div className="mt-4 flex gap-3">
-            <Link
-              href="/fabrication/new"
-              className="text-sm font-semibold text-green-900 underline"
-            >
-              Submit another file →
-            </Link>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  // state.kind === "done" — Phase 5-3 ScanResultsViewer now owns this
+  // state. The status page delegates to ScanResultsViewer before reaching
+  // ScanProgressCard. Returning null here is defensive: if a caller still
+  // passes a done state to this component (legacy code path, test), we
+  // render nothing rather than the stale "Scan complete" card.
+  return null;
 }
 
 export default ScanProgressCard;

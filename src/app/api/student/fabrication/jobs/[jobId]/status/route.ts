@@ -48,8 +48,17 @@ export async function GET(
     );
   }
 
+  // Phase 5-4: optional ?include=results flag. When present, the response
+  // includes scan_results JSONB + acknowledged_warnings for the soft-gate
+  // UI. Absent = thin payload for the 2s poll cadence.
+  const includeResults = request.nextUrl.searchParams.get("include") === "results";
+
   const db = createAdminClient();
-  const result = await getJobStatus(db, { studentId: auth.studentId, jobId });
+  const result = await getJobStatus(db, {
+    studentId: auth.studentId,
+    jobId,
+    includeResults,
+  });
 
   if (isOrchestrationError(result)) {
     return NextResponse.json(
