@@ -40,10 +40,21 @@ export interface UseFabricationStatusOptions {
   includeResults?: boolean;
 }
 
+/**
+ * Returned alongside the poll state so callers can force-reset after a
+ * re-upload (Phase 5-5). Without this, the reducer's terminal-state
+ * freeze would keep the UI stuck on the previous revision's "done" card
+ * even after a new revision starts scanning.
+ */
+export interface UseFabricationStatusReturn {
+  state: FabricationPollState;
+  reset: () => void;
+}
+
 export function useFabricationStatus(
   jobId: string,
   options: UseFabricationStatusOptions = {}
-): FabricationPollState {
+): UseFabricationStatusReturn {
   const {
     pollIntervalMs = 2000,
     timeoutMs = 90000,
@@ -147,5 +158,14 @@ export function useFabricationStatus(
   // reducer itself already freezes terminal states against late events,
   // so no extra logic needed here.
 
-  return state;
+  // reset() — dispatched by the page after a successful re-upload so
+  // the next POLL_SUCCESS can move the reducer off the frozen 'done'
+  // state into a fresh 'polling' state for the new revision. We also
+  // reset startedAtRef so the staged messaging elapsed-time restarts.
+  const reset = React.useCallback(() => {
+    startedAtRef.current = Date.now();
+    dispatch({ type: "RESET" });
+  }, []);
+
+  return { state, reset };
 }

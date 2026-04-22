@@ -38,7 +38,10 @@ export type FabricationPollAction =
   | { type: "TICK"; elapsedMs: number }
   | { type: "POLL_SUCCESS"; status: JobStatusSuccess; elapsedMs: number }
   | { type: "POLL_ERROR"; message: string; elapsedMs: number }
-  | { type: "TIMEOUT"; elapsedMs: number };
+  | { type: "TIMEOUT"; elapsedMs: number }
+  /** Phase 5-5: un-freeze terminal states after a re-upload. Resets the
+   *  reducer to idle so the next POLL_SUCCESS can transition again. */
+  | { type: "RESET" };
 
 export const initialStatusPollState: FabricationPollState = {
   kind: "idle",
@@ -111,6 +114,12 @@ export function statusPollReducer(
         return state;
       }
       return { kind: "timeout", elapsedMs: action.elapsedMs };
+
+    case "RESET":
+      // Full reset — any state transitions to idle. Phase 5-5 dispatches
+      // this after a re-upload so the polling flow re-runs for the new
+      // revision without a page reload.
+      return initialStatusPollState;
 
     default:
       return state;

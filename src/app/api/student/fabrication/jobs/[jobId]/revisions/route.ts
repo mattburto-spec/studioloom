@@ -23,7 +23,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireStudentAuth } from "@/lib/auth/student";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createRevision, isOrchestrationError } from "@/lib/fabrication/orchestration";
+import {
+  createRevision,
+  listRevisions,
+  isOrchestrationError,
+} from "@/lib/fabrication/orchestration";
 
 const NO_CACHE_HEADERS = {
   "Cache-Control": "private, no-cache, no-store, must-revalidate",
@@ -84,6 +88,50 @@ export async function POST(
       uploadUrl: result.uploadUrl,
       storagePath: result.storagePath,
     },
+    { status: 200, headers: NO_CACHE_HEADERS }
+  );
+}
+
+/**
+ * GET /api/student/fabrication/jobs/[jobId]/revisions
+ *
+ * Phase 5-5. Returns all revisions for a job, newest first, with
+ * thumbnail signed URLs + rule-count summaries. Powers the
+ * RevisionHistoryPanel on the status page.
+ *
+ * Response 200:
+ *   { revisions: [{ id, revisionNumber, scanStatus, scanError,
+ *                   scanCompletedAt, thumbnailUrl, ruleCounts,
+ *                   createdAt }, ...] }
+ * Errors: 401, 404 (job not found OR not owned), 500.
+ */
+export async function GET(
+  request: NextRequest,
+  context: { params: Promise<{ jobId: string }> }
+) {
+  const auth = await requireStudentAuth(request);
+  if (auth.error) return auth.error;
+
+  const { jobId } = await context.params;
+  if (!jobId || typeof jobId !== "string") {
+    return NextResponse.json(
+      { error: "jobId required" },
+      { status: 400, headers: NO_CACHE_HEADERS }
+    );
+  }
+
+  const db = createAdminClient();
+  const result = await listRevisions(db, { studentId: auth.studentId, jobId });
+
+  if (isOrchestrationError(result)) {
+    return NextResponse.json(
+      { error: result.error.message },
+      { status: result.error.status, headers: NO_CACHE_HEADERS }
+    );
+  }
+
+  return NextResponse.json(
+    { revisions: result.revisions },
     { status: 200, headers: NO_CACHE_HEADERS }
   );
 }

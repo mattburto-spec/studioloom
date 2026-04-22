@@ -700,3 +700,190 @@ describe("submitJob — DB failures", () => {
     expect(r.error.message).toMatch(/Machine profile lookup failed/);
   });
 });
+
+// ============================================================
+// listRevisions (Phase 5-5)
+// ============================================================
+//
+// The list query uses `.order(...)` without a terminal `.single/.maybeSingle`
+// — the chain is thenable at that point. Below fake implements that via
+// a custom chain object.
+
+import { listRevisions } from "../orchestration";
+
+interface ListRevFakeOpts {
+  jobFound?: boolean;
+  jobStudentId?: string;
+  rows?: Array<{
+    id: string;
+    revision_number: number;
+    scan_status: string | null;
+    scan_error: string | null;
+    scan_completed_at: string | null;
+    thumbnail_path: string | null;
+    scan_results: { rules?: Array<{ severity?: string }> | null } | null;
+    uploaded_at: string;
+  }>;
+  rowsError?: string;
+  signedUrl?: string;
+}
+
+function makeListClient(opts: ListRevFakeOpts = {}) {
+  const {
+    jobFound = true,
+    jobStudentId = "student-1",
+    rows = [],
+    rowsError,
+    signedUrl = "https://stor.example.com/thumb",
+  } = opts;
+
+  const tableHandler = (table: string) => {
+    const entry: { table: string; op: string; eq: Array<[string, unknown]>; order?: unknown } = {
+      table,
+      op: "select",
+      eq: [],
+    };
+    // Chain object that doubles as a thenable after .order() for the
+    // list case. For single-row calls, .maybeSingle() is terminal.
+    const chain: Record<string, unknown> = {};
+    chain.eq = (col: string, val: unknown) => {
+      entry.eq.push([col, val]);
+      return chain;
+    };
+    chain.order = (_col: string, _opts: unknown) => {
+      entry.order = _opts;
+      // After .order, awaiting the chain yields the rows result.
+      (chain as { then: unknown }).then = (resolve: (v: unknown) => void) => {
+        if (table !== "fabrication_job_revisions") {
+          return resolve({ data: null, error: null });
+        }
+        if (rowsError) return resolve({ data: null, error: { message: rowsError } });
+        return resolve({ data: rows, error: null });
+      };
+      return chain;
+    };
+    chain.maybeSingle = async () => {
+      if (table === "fabrication_jobs") {
+        if (!jobFound) return { data: null, error: null };
+        return {
+          data: {
+            id: entry.eq[0][1],
+            student_id: jobStudentId,
+            status: "uploaded",
+            current_revision: 1,
+            file_type: "stl",
+          },
+          error: null,
+        };
+      }
+      return { data: null, error: null };
+    };
+    return {
+      select: (_cols: string) => chain,
+    };
+  };
+
+  const storage = {
+    from: (_bucket: string) => ({
+      createSignedUrl: async (_path: string, _ttl: number) => ({
+        data: { signedUrl },
+        error: null,
+      }),
+    }),
+  };
+
+  return {
+    client: { from: tableHandler, storage } as unknown as Parameters<typeof listRevisions>[0],
+  };
+}
+
+describe("listRevisions", () => {
+  it("returns 404 when job not found (ownership gate)", async () => {
+    const { client } = makeListClient({ jobFound: false });
+    const r = await listRevisions(client, { studentId: "student-1", jobId: "job-1" });
+    if (!isOrchestrationError(r)) throw new Error("expected error");
+    expect(r.error.status).toBe(404);
+  });
+
+  it("returns 404 when student does not own the job", async () => {
+    const { client } = makeListClient({ jobStudentId: "other" });
+    const r = await listRevisions(client, { studentId: "student-1", jobId: "job-1" });
+    if (!isOrchestrationError(r)) throw new Error("expected error");
+    expect(r.error.status).toBe(404);
+  });
+
+  it("returns empty array when job has no revisions", async () => {
+    const { client } = makeListClient({ rows: [] });
+    const r = await listRevisions(client, { studentId: "student-1", jobId: "job-1" });
+    if (isOrchestrationError(r)) throw new Error("expected success");
+    expect(r.revisions).toEqual([]);
+  });
+
+  it("maps rows to summaries with thumbnail URLs minted", async () => {
+    const { client } = makeListClient({
+      rows: [
+        {
+          id: "rev-1",
+          revision_number: 1,
+          scan_status: "done",
+          scan_error: null,
+          scan_completed_at: "2026-04-22T00:00:00Z",
+          thumbnail_path: "rev-1.png",
+          scan_results: {
+            rules: [
+              { severity: "block" },
+              { severity: "block" },
+              { severity: "warn" },
+              { severity: "fyi" },
+              { severity: "fyi" },
+              { severity: "fyi" },
+            ],
+          },
+          uploaded_at: "2026-04-22T00:00:00Z",
+        },
+      ],
+    });
+    const r = await listRevisions(client, { studentId: "student-1", jobId: "job-1" });
+    if (isOrchestrationError(r)) throw new Error("expected success");
+    expect(r.revisions).toHaveLength(1);
+    expect(r.revisions[0]).toEqual({
+      id: "rev-1",
+      revisionNumber: 1,
+      scanStatus: "done",
+      scanError: null,
+      scanCompletedAt: "2026-04-22T00:00:00Z",
+      thumbnailUrl: "https://stor.example.com/thumb",
+      ruleCounts: { block: 2, warn: 1, fyi: 3 },
+      createdAt: "2026-04-22T00:00:00Z",
+    });
+  });
+
+  it("handles revisions with null thumbnail_path gracefully", async () => {
+    const { client } = makeListClient({
+      rows: [
+        {
+          id: "rev-1",
+          revision_number: 1,
+          scan_status: "pending",
+          scan_error: null,
+          scan_completed_at: null,
+          thumbnail_path: null,
+          scan_results: null,
+          uploaded_at: "2026-04-22T00:00:00Z",
+        },
+      ],
+    });
+    const r = await listRevisions(client, { studentId: "student-1", jobId: "job-1" });
+    if (isOrchestrationError(r)) throw new Error("expected success");
+    expect(r.revisions[0].thumbnailUrl).toBeNull();
+    expect(r.revisions[0].ruleCounts).toEqual({ block: 0, warn: 0, fyi: 0 });
+  });
+
+  it("returns 500 on revision lookup error", async () => {
+    const { client } = makeListClient({ rowsError: "rls denied" });
+    const r = await listRevisions(client, { studentId: "student-1", jobId: "job-1" });
+    if (!isOrchestrationError(r)) throw new Error("expected error");
+    expect(r.error.status).toBe(500);
+    expect(r.error.message).toMatch(/rls denied/);
+  });
+});

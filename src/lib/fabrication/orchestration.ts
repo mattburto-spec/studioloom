@@ -381,6 +381,9 @@ export interface JobStatusSuccess {
   jobId: string;
   jobStatus: string; // fabrication_jobs.status ('uploaded' | 'scanning' | ...)
   currentRevision: number;
+  /** Phase 5-5: file_type of the job (stl | svg). Needed by ReuploadModal
+   *  to lock the new revision to the same type as the original. */
+  fileType: "stl" | "svg";
   revision: JobStatusRevision | null;
   scanJob: JobStatusScanJob | null;
   /**
@@ -858,12 +861,20 @@ async function loadOwnedJob(
   studentId: string,
   jobId: string
 ): Promise<
-  | { job: { id: string; student_id: string; status: string; current_revision: number } }
+  | {
+      job: {
+        id: string;
+        student_id: string;
+        status: string;
+        current_revision: number;
+        file_type: "stl" | "svg";
+      };
+    }
   | OrchestrationError
 > {
   const result = await db
     .from("fabrication_jobs")
-    .select("id, student_id, status, current_revision")
+    .select("id, student_id, status, current_revision, file_type")
     .eq("id", jobId)
     .maybeSingle();
   if (result.error) {
@@ -1019,12 +1030,18 @@ export async function getJobStatus(
   // 2s poll case. One DB round trip either way.
   let ackWarnings: { [k: string]: { [r: string]: { choice: string; timestamp: string } } } | null =
     null;
-  let job: { id: string; student_id: string; status: string; current_revision: number };
+  let job: {
+    id: string;
+    student_id: string;
+    status: string;
+    current_revision: number;
+    file_type: "stl" | "svg";
+  };
 
   if (includeResults) {
     const full = await db
       .from("fabrication_jobs")
-      .select("id, student_id, status, current_revision, acknowledged_warnings")
+      .select("id, student_id, status, current_revision, acknowledged_warnings, file_type")
       .eq("id", jobId)
       .maybeSingle();
     if (full.error) {
@@ -1125,6 +1142,7 @@ export async function getJobStatus(
     jobId: job.id,
     jobStatus: job.status,
     currentRevision: job.current_revision,
+    fileType: job.file_type,
     revision,
     scanJob,
     ...(includeResults
@@ -1134,4 +1152,121 @@ export async function getJobStatus(
         }
       : {}),
   };
+}
+
+// ============================================================
+// Phase 5-5 — listRevisions
+// ============================================================
+
+export interface RevisionSummary {
+  id: string;
+  revisionNumber: number;
+  scanStatus: string | null;
+  scanError: string | null;
+  scanCompletedAt: string | null;
+  thumbnailUrl: string | null;
+  /** Counts derived from scan_results JSONB. Zero if scan not done or no rules. */
+  ruleCounts: { block: number; warn: number; fyi: number };
+  createdAt: string;
+}
+
+export interface ListRevisionsSuccess {
+  revisions: RevisionSummary[];
+}
+export type ListRevisionsResult = ListRevisionsSuccess | OrchestrationError;
+
+interface RevisionRow {
+  id: string;
+  revision_number: number;
+  scan_status: string | null;
+  scan_error: string | null;
+  scan_completed_at: string | null;
+  thumbnail_path: string | null;
+  scan_results: { rules?: Array<{ severity?: string }> | null } | null;
+  uploaded_at: string;
+}
+
+/**
+ * Count rules by severity for the history panel summary strip.
+ * Lowercase per worker contract — anything else is dropped.
+ */
+function countRulesBySeverity(rules: Array<{ severity?: string }> | null | undefined): {
+  block: number;
+  warn: number;
+  fyi: number;
+} {
+  const counts = { block: 0, warn: 0, fyi: 0 };
+  for (const r of rules ?? []) {
+    if (r.severity === "block") counts.block++;
+    else if (r.severity === "warn") counts.warn++;
+    else if (r.severity === "fyi") counts.fyi++;
+  }
+  return counts;
+}
+
+/**
+ * Return all revisions for a job, newest first, with mini-thumbnail
+ * signed URLs + rule-count summaries. Used by the RevisionHistoryPanel
+ * on the status page.
+ */
+export async function listRevisions(
+  db: SupabaseLike,
+  params: { studentId: string; jobId: string }
+): Promise<ListRevisionsResult> {
+  const { studentId, jobId } = params;
+
+  // 1. Ownership via the existing helper.
+  const ownership = await loadOwnedJob(db, studentId, jobId);
+  if (isOrchestrationError(ownership)) return ownership;
+
+  // 2. Fetch all revisions. Order DESC so most recent is first.
+  const result = await db
+    .from("fabrication_job_revisions")
+    .select(
+      "id, revision_number, scan_status, scan_error, scan_completed_at, thumbnail_path, scan_results, uploaded_at"
+    )
+    .eq("job_id", jobId)
+    .order("revision_number", { ascending: false });
+
+  // `order` on supabase-js returns a thenable at the bottom of the chain —
+  // treat as an array result.
+  const { data, error } = result as {
+    data: RevisionRow[] | null;
+    error: { message: string } | null;
+  };
+  if (error) {
+    return {
+      error: { status: 500, message: `Revisions lookup failed: ${error.message}` },
+    };
+  }
+
+  const rows = data ?? [];
+
+  // 3. Mint signed thumbnail URLs in parallel. 10-min TTL matches the
+  //    status endpoint's thumbnail minting.
+  const summaries: RevisionSummary[] = await Promise.all(
+    rows.map(async (row) => {
+      let thumbnailUrl: string | null = null;
+      if (row.thumbnail_path) {
+        const signed = await db.storage
+          .from(FABRICATION_THUMBNAIL_BUCKET)
+          .createSignedUrl(row.thumbnail_path, THUMBNAIL_URL_TTL_SECONDS);
+        if (!signed.error && signed.data) {
+          thumbnailUrl = signed.data.signedUrl;
+        }
+      }
+      return {
+        id: row.id,
+        revisionNumber: row.revision_number,
+        scanStatus: row.scan_status,
+        scanError: row.scan_error,
+        scanCompletedAt: row.scan_completed_at,
+        thumbnailUrl,
+        ruleCounts: countRulesBySeverity(row.scan_results?.rules),
+        createdAt: row.uploaded_at,
+      };
+    })
+  );
+
+  return { revisions: summaries };
 }

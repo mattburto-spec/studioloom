@@ -32,19 +32,26 @@ import Link from "next/link";
 import { useFabricationStatus } from "@/hooks/useFabricationStatus";
 import { ScanProgressCard } from "@/components/fabrication/ScanProgressCard";
 import { ScanResultsViewer } from "@/components/fabrication/ScanResultsViewer";
+import { RevisionHistoryPanel } from "@/components/fabrication/RevisionHistoryPanel";
+import { ReuploadModal } from "@/components/fabrication/ReuploadModal";
 import { canSubmit, type Rule } from "@/lib/fabrication/rule-buckets";
 import type {
   AckChoice,
   AcknowledgedWarnings,
   JobStatusSuccess,
+  RevisionSummary,
 } from "@/lib/fabrication/orchestration";
+import type { FabricationFileType } from "@/components/fabrication/picker-helpers";
 
 export default function FabricationJobStatusPage() {
   const params = useParams<{ jobId: string }>();
   const router = useRouter();
   const jobId = params?.jobId;
 
-  const pollState = useFabricationStatus(jobId ?? "", { includeResults: true });
+  const { state: pollState, reset: resetPoll } = useFabricationStatus(
+    jobId ?? "",
+    { includeResults: true }
+  );
 
   // Local ack state — mirrors server-side acknowledged_warnings but
   // allows optimistic updates when the student clicks a radio. Hydrated
@@ -71,6 +78,37 @@ export default function FabricationJobStatusPage() {
   const [isAckInFlight, setIsAckInFlight] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [actionError, setActionError] = React.useState<string | null>(null);
+
+  // Phase 5-5: revision history panel + re-upload modal state.
+  const [revisions, setRevisions] = React.useState<RevisionSummary[]>([]);
+  const [revisionsError, setRevisionsError] = React.useState<string | null>(null);
+  const [isReuploadOpen, setIsReuploadOpen] = React.useState(false);
+
+  // Fetch revisions list once on jobId mount. Re-fetched after a
+  // successful re-upload so the new revision appears in the history.
+  const fetchRevisions = React.useCallback(async () => {
+    if (!jobId) return;
+    try {
+      const res = await fetch(
+        `/api/student/fabrication/jobs/${jobId}/revisions`,
+        { credentials: "same-origin" }
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: "" }));
+        setRevisionsError(body.error || `Couldn't load revision history (HTTP ${res.status})`);
+        return;
+      }
+      const body = await res.json();
+      setRevisions(body.revisions ?? []);
+      setRevisionsError(null);
+    } catch (e) {
+      setRevisionsError(e instanceof Error ? e.message : "Network error");
+    }
+  }, [jobId]);
+
+  React.useEffect(() => {
+    fetchRevisions();
+  }, [fetchRevisions]);
 
   async function handleAcknowledge(ruleId: string, choice: AckChoice) {
     if (pollState.kind !== "done" || !jobId) return;
@@ -143,12 +181,22 @@ export default function FabricationJobStatusPage() {
   }
 
   function handleReupload() {
-    // Phase 5-5 will replace this with an inline modal that creates
-    // revision N+1 on the existing job (preserving class/machine/unit
-    // context). For 5-4 the simplest end-to-end path: drop the student
-    // back to /fabrication/new. They'll create a fresh job — not ideal
-    // but validates the rest of the flow.
-    router.push("/fabrication/new");
+    setActionError(null);
+    setIsReuploadOpen(true);
+  }
+
+  async function handleReuploadSuccess() {
+    setIsReuploadOpen(false);
+    // Re-fetch the revision history so the new revision appears.
+    await fetchRevisions();
+    // Reset the poll reducer so the current 'done' state unfreezes —
+    // the next POLL_SUCCESS will transition to 'polling' for the new
+    // revision, and then 'done' again once it scans.
+    resetPoll();
+    // Drop local ack state — acks are per-revision and the new
+    // revision starts with none.
+    setLocalAcks({});
+    hydratedFromServerRef.current = false;
   }
 
   return (
@@ -177,6 +225,8 @@ export default function FabricationJobStatusPage() {
         <DoneStateView
           pollState={pollState}
           localAcks={localAcks}
+          revisions={revisions}
+          revisionsError={revisionsError}
           onAcknowledge={handleAcknowledge}
           onSubmit={handleSubmit}
           onReupload={handleReupload}
@@ -187,6 +237,20 @@ export default function FabricationJobStatusPage() {
       ) : jobId ? (
         <ScanProgressCard state={pollState} />
       ) : null}
+
+      {/* Re-upload modal — only opens when student clicks re-upload on a
+          'done' state with must-fix rules (or any time they want to try
+          a fresh version). */}
+      {jobId && isReuploadOpen && pollState.kind === "done" && (
+        <ReuploadModal
+          jobId={jobId}
+          originalFileType={
+            (pollState.status as JobStatusSuccess).fileType as FabricationFileType
+          }
+          onClose={() => setIsReuploadOpen(false)}
+          onSuccess={handleReuploadSuccess}
+        />
+      )}
     </main>
   );
 }
@@ -196,8 +260,10 @@ export default function FabricationJobStatusPage() {
  * from the live ack state + renders the soft-gate UI + any action error.
  */
 function DoneStateView(props: {
-  pollState: Extract<ReturnType<typeof useFabricationStatus>, { kind: "done" }>;
+  pollState: Extract<ReturnType<typeof useFabricationStatus>["state"], { kind: "done" }>;
   localAcks: AcknowledgedWarnings;
+  revisions: RevisionSummary[];
+  revisionsError: string | null;
   onAcknowledge: (ruleId: string, choice: AckChoice) => void;
   onSubmit: () => void;
   onReupload: () => void;
@@ -208,6 +274,8 @@ function DoneStateView(props: {
   const {
     pollState,
     localAcks,
+    revisions,
+    revisionsError,
     onAcknowledge,
     onSubmit,
     onReupload,
@@ -245,6 +313,15 @@ function DoneStateView(props: {
         isSubmitting={isSubmitting}
         thumbnailUrl={status.revision?.thumbnailUrl ?? null}
       />
+
+      {/* Revision history — hidden when only 1 revision exists */}
+      <RevisionHistoryPanel
+        revisions={revisions}
+        currentRevision={revisionNumber}
+      />
+      {revisionsError && (
+        <p className="text-xs text-gray-500 italic">{revisionsError}</p>
+      )}
 
       <div className="pt-4 text-xs text-gray-500">
         <Link href="/dashboard" className="underline hover:no-underline">
