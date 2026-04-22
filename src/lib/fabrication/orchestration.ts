@@ -30,6 +30,9 @@
  *                             noted for the status route)
  */
 
+// rule-buckets module imports only types from this file, so no cycle.
+import { canSubmit } from "./rule-buckets";
+
 export const MAX_UPLOAD_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB — Supabase Free Plan ceiling
 export const FABRICATION_UPLOAD_BUCKET = "fabrication-uploads";
 export const FABRICATION_THUMBNAIL_BUCKET = "fabrication-thumbnails";
@@ -706,11 +709,6 @@ export type SubmitJobResult =
     }
   | OrchestrationError;
 
-interface ScanResultsRule {
-  id: string;
-  severity: string; // 'block' | 'warn' | 'fyi' | lowercase per worker contract
-}
-
 /**
  * Validate + transition. Reads the latest revision's scan_results, confirms
  * zero BLOCK rules fired AND every WARN rule has an ack for the current
@@ -777,30 +775,19 @@ export async function submitJob(
     };
   }
 
-  // 4. Validate: no BLOCK rules + every WARN rule acknowledged.
-  const rules: ScanResultsRule[] = revResult.data.scan_results?.rules ?? [];
-  const blockers = rules.filter((r) => r.severity === "block");
-  if (blockers.length > 0) {
+  // 4. Validate via the shared gate (Phase 5-2). canSubmit is the single
+  //    source of truth for "is this student cleared to submit" — same
+  //    predicate the results viewer uses to enable the Submit button.
+  //    Lesson #39: pattern bugs get fixed in one place, not duplicated.
+  //    rule-buckets uses type-only imports from this file so no cycle.
+  const gate = canSubmit({
+    results: revResult.data.scan_results ?? { rules: [] },
+    acknowledgedWarnings: job.acknowledged_warnings ?? {},
+    revisionNumber: revResult.data.revision_number,
+  });
+  if (!gate.ok) {
     return {
-      error: {
-        status: 400,
-        message: `Must-fix rules still firing: ${blockers.map((r) => r.id).join(", ")}. Re-upload a fixed version first.`,
-      },
-    };
-  }
-  const warnings = rules.filter((r) => r.severity === "warn");
-  const acks: AcknowledgedWarnings = job.acknowledged_warnings ?? {};
-  const revisionKey = `revision_${revResult.data.revision_number}`;
-  const acksForRevision = acks[revisionKey] ?? {};
-  const missingAcks = warnings
-    .filter((w) => !acksForRevision[w.id])
-    .map((w) => w.id);
-  if (missingAcks.length > 0) {
-    return {
-      error: {
-        status: 400,
-        message: `Each warning needs an acknowledgement before submit. Missing: ${missingAcks.join(", ")}`,
-      },
+      error: { status: 400, message: gate.message },
     };
   }
 
