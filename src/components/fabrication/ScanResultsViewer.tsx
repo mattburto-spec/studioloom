@@ -45,6 +45,14 @@ export interface ScanResultsViewerProps {
    *  student's choices but can't be changed, empty-state hint labels
    *  flip from "ready to submit" to "student saw no issues". */
   readOnly?: boolean;
+  /** Phase 6-6c: hide ONLY the Submit button (keep Re-upload visible
+   *  + interactive). Used on the student-side status page when the
+   *  job is in `needs_revision` or `pending_approval` — Submit is
+   *  inappropriate (teacher asked for a fix / already submitted) but
+   *  re-uploading a new revision is still the valid next step.
+   *  Caller derives via shouldHideSubmitButton(jobStatus). Ignored
+   *  when readOnly is true (that hides both anyway). */
+  hideSubmit?: boolean;
 }
 
 export function ScanResultsViewer(props: ScanResultsViewerProps) {
@@ -63,6 +71,7 @@ export function ScanResultsViewer(props: ScanResultsViewerProps) {
     machineLabel,
     fileType = "stl",
     readOnly = false,
+    hideSubmit = false,
   } = props;
 
   const buckets = classifyRules(scanResults);
@@ -166,30 +175,39 @@ export function ScanResultsViewer(props: ScanResultsViewerProps) {
           </div>
         )}
 
-      {/* Submit + Re-upload actions (hidden in teacher readOnly view) */}
+      {/* Submit + Re-upload actions (hidden in teacher readOnly view).
+          When hideSubmit is set (jobStatus = needs_revision or
+          pending_approval — see shouldHideSubmitButton), Submit is
+          omitted and Re-upload becomes the primary purple action. */}
       {!readOnly && (
         <>
           <div className="flex flex-col sm:flex-row gap-3 pt-2">
-            <button
-              type="button"
-              onClick={onSubmit}
-              disabled={!canSubmitState.ok || disabledFromAction}
-              className="flex-1 py-2.5 rounded-xl bg-brand-purple text-white text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              {isSubmitting ? "Submitting…" : "Submit for approval"}
-            </button>
+            {!hideSubmit && (
+              <button
+                type="button"
+                onClick={onSubmit}
+                disabled={!canSubmitState.ok || disabledFromAction}
+                className="flex-1 py-2.5 rounded-xl bg-brand-purple text-white text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {isSubmitting ? "Submitting…" : "Submit for approval"}
+              </button>
+            )}
             <button
               type="button"
               onClick={onReupload}
               disabled={disabledFromAction}
-              className="flex-1 py-2.5 rounded-xl border border-gray-300 bg-white text-sm font-semibold text-gray-800 disabled:opacity-40 disabled:cursor-not-allowed"
+              className={
+                hideSubmit
+                  ? "flex-1 py-2.5 rounded-xl bg-brand-purple text-white text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
+                  : "flex-1 py-2.5 rounded-xl border border-gray-300 bg-white text-sm font-semibold text-gray-800 disabled:opacity-40 disabled:cursor-not-allowed"
+              }
             >
               Re-upload a fixed version
             </button>
           </div>
 
-          {/* Gate-failure explainer (student-only) */}
-          {!canSubmitState.ok && canSubmitState.reason && (
+          {/* Gate-failure explainer (student-only, pre-submit only) */}
+          {!hideSubmit && !canSubmitState.ok && canSubmitState.reason && (
             <p role="status" className="text-xs text-gray-600 italic">
               {canSubmitState.reason === "blockers_present"
                 ? "Submit is disabled until all must-fix issues are resolved in a re-uploaded version."

@@ -4,6 +4,7 @@ import {
   studentActionsLocked,
   formatReviewedAt,
   shouldShowReviewCard,
+  shouldHideSubmitButton,
 } from "../teacher-review-note-helpers";
 
 /**
@@ -97,6 +98,28 @@ describe("formatReviewedAt", () => {
     expect(
       formatReviewedAt(new Date(NOW - 2 * 24 * 60 * 60_000).toISOString())
     ).toBe("reviewed 2d ago");
+  });
+});
+
+describe("shouldHideSubmitButton", () => {
+  it("hides Submit on needs_revision (teacher asked for a fix)", () => {
+    expect(shouldHideSubmitButton("needs_revision")).toBe(true);
+  });
+  it("hides Submit on pending_approval (already submitted, would 409)", () => {
+    expect(shouldHideSubmitButton("pending_approval")).toBe(true);
+  });
+  it("keeps Submit for pre-submit statuses (uploaded/scanning)", () => {
+    expect(shouldHideSubmitButton("uploaded")).toBe(false);
+    expect(shouldHideSubmitButton("scanning")).toBe(false);
+  });
+  it("keeps Submit visible for terminal statuses (studentActionsLocked handles the lockdown)", () => {
+    // These return false here because the UI uses the broader
+    // studentActionsLocked to hide all actions at once — this helper
+    // only controls the Submit-vs-Re-upload split for interactive
+    // statuses. Defensive for callers that compose both.
+    expect(shouldHideSubmitButton("approved")).toBe(false);
+    expect(shouldHideSubmitButton("rejected")).toBe(false);
+    expect(shouldHideSubmitButton("completed")).toBe(false);
   });
 });
 

@@ -38,6 +38,7 @@ import { TeacherReviewNoteCard } from "@/components/fabrication/TeacherReviewNot
 import {
   shouldShowReviewCard,
   studentActionsLocked,
+  shouldHideSubmitButton,
 } from "@/components/fabrication/teacher-review-note-helpers";
 import { canSubmit, type Rule } from "@/lib/fabrication/rule-buckets";
 import type {
@@ -343,6 +344,7 @@ function DoneStateView(props: {
   const teacherReviewedAt = status.teacherReviewedAt ?? null;
   const showReviewCard = shouldShowReviewCard(jobStatus, teacherNote);
   const actionsLocked = studentActionsLocked(jobStatus);
+  const hideSubmit = shouldHideSubmitButton(jobStatus);
 
   return (
     <div className="space-y-4">
@@ -381,6 +383,12 @@ function DoneStateView(props: {
           // student via direct URL, but actions are locked — same
           // readOnly treatment the teacher detail page uses.
           readOnly={actionsLocked}
+          // Hide Submit button on needs_revision (teacher explicitly
+          // asked for a fix) and pending_approval (already submitted).
+          // Re-upload remains available + becomes the primary purple
+          // action. shouldHideSubmitButton is the single source of
+          // truth for that decision.
+          hideSubmit={hideSubmit}
         />
       )}
 

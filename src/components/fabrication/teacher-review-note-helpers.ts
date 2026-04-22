@@ -104,6 +104,32 @@ export function studentActionsLocked(jobStatus: string): boolean {
 }
 
 /**
+ * Phase 6-6c: the student can interact with the scan results viewer
+ * (acknowledge, re-upload) but the "Submit for approval" button is
+ * inappropriate in two cases:
+ *
+ *   needs_revision  — teacher explicitly asked for a fix. Clicking
+ *                     Submit without re-uploading either 409s (if
+ *                     server rejects) or re-queues the same content
+ *                     for re-review, which is rude to the teacher.
+ *                     Re-upload is the only meaningful next action.
+ *   pending_approval — already submitted; re-submitting 409s. Student
+ *                     can still re-upload to replace the in-flight
+ *                     revision.
+ *
+ * For `uploaded` / `scanning` (pre-submit) and everything else where
+ * actions aren't locked entirely, Submit stays visible.
+ *
+ * Returns true when Submit should be hidden. `studentActionsLocked`
+ * already hides it along with re-upload + radios for terminal
+ * statuses, so this helper only matters for the "interactive but
+ * submit-inappropriate" middle ground.
+ */
+export function shouldHideSubmitButton(jobStatus: string): boolean {
+  return jobStatus === "needs_revision" || jobStatus === "pending_approval";
+}
+
+/**
  * Format the teacher-reviewed-at ISO timestamp as a "reviewed 3h ago"
  * footer. Returns null for null/invalid inputs — the UI just omits
  * the footer rather than rendering something ugly.
