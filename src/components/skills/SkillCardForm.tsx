@@ -10,7 +10,7 @@
  * the rendered blocks.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { BlockEditor } from "./BlockEditor";
 import { BlockRenderer } from "./BlockRenderer";
 import "./skills.css";
@@ -38,9 +38,25 @@ interface Props {
   mode: "create" | "edit";
   initial?: SkillCardHydrated;
   categories: Category[];
-  onSubmit: (payload: CreateSkillCardPayload) => Promise<void>;
+  /**
+   * Called with the validated payload + submit intent.
+   * - In "create" mode, `publishImmediately` is true when the teacher
+   *   clicked "Create & publish" (chain a publish call after create).
+   * - In "edit" mode, always false.
+   */
+  onSubmit: (
+    payload: CreateSkillCardPayload,
+    opts: { publishImmediately: boolean }
+  ) => Promise<void>;
   submitting: boolean;
   submitError: string | null;
+  /** Status line shown to the left of the submit button. Used by /edit
+   *  for "Saved at 3:45 PM" and similar. */
+  statusSlot?: React.ReactNode;
+  /** Extra buttons injected into the sticky bottom action bar, to the
+   *  left of the submit button. Used by /edit to mirror the Publish
+   *  action so it sits next to Save. */
+  extraActions?: React.ReactNode;
 }
 
 function slugify(title: string): string {
@@ -59,7 +75,12 @@ export function SkillCardForm({
   onSubmit,
   submitting,
   submitError,
+  statusSlot,
+  extraActions,
 }: Props) {
+  // Which button was clicked? Set by each button's onClick just before
+  // the native submit fires, read inside handleSubmit.
+  const publishIntentRef = useRef<boolean>(false);
   const [title, setTitle] = useState(initial?.title ?? "");
   const [slug, setSlug] = useState(initial?.slug ?? "");
   const [slugTouched, setSlugTouched] = useState(Boolean(initial?.slug));
@@ -175,24 +196,29 @@ export function SkillCardForm({
     if (!title.trim() || !slug || !categoryId || !difficulty) {
       return;
     }
-    await onSubmit({
-      slug,
-      title: title.trim(),
-      summary: summary.trim() || undefined,
-      category_id: categoryId,
-      difficulty,
-      body,
-      estimated_min: estimatedMin ? parseInt(estimatedMin, 10) : null,
-      tags,
-      external_links: links
-        .filter((l) => l.url.trim())
-        .map((l) => ({
-          url: l.url.trim(),
-          title: l.title.trim() || undefined,
-          kind: (l.kind as "video" | "pdf" | "doc" | "website" | "other") || undefined,
-        })),
-      prerequisite_ids: prereqIds,
-    });
+    const publishImmediately = publishIntentRef.current;
+    publishIntentRef.current = false; // reset for next click
+    await onSubmit(
+      {
+        slug,
+        title: title.trim(),
+        summary: summary.trim() || undefined,
+        category_id: categoryId,
+        difficulty,
+        body,
+        estimated_min: estimatedMin ? parseInt(estimatedMin, 10) : null,
+        tags,
+        external_links: links
+          .filter((l) => l.url.trim())
+          .map((l) => ({
+            url: l.url.trim(),
+            title: l.title.trim() || undefined,
+            kind: (l.kind as "video" | "pdf" | "doc" | "website" | "other") || undefined,
+          })),
+        prerequisite_ids: prereqIds,
+      },
+      { publishImmediately }
+    );
   }
 
   return (
@@ -503,18 +529,53 @@ export function SkillCardForm({
         </div>
       )}
 
-      <div className="flex justify-end gap-3 sticky bottom-0 bg-white border-t border-gray-100 -mx-6 px-6 py-3">
-        <button
-          type="submit"
-          disabled={submitting || !title.trim() || !categoryId || !difficulty}
-          className="px-5 py-2 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {submitting
-            ? "Saving…"
-            : mode === "create"
-              ? "Create draft"
-              : "Save changes"}
-        </button>
+      <div className="flex items-center gap-3 sticky bottom-0 bg-white border-t border-gray-100 -mx-6 px-6 py-3">
+        {/* Left: status (e.g. "Saved at 3:45 PM") */}
+        <div className="flex-1 text-sm text-gray-500 min-w-0 truncate">
+          {statusSlot}
+        </div>
+
+        {/* Right: extra actions (e.g. mirrored Publish on /edit) + submit(s) */}
+        <div className="flex items-center gap-2">
+          {extraActions}
+          {mode === "create" && (
+            <button
+              type="submit"
+              onClick={() => {
+                publishIntentRef.current = true;
+              }}
+              disabled={
+                submitting ||
+                !title.trim() ||
+                !categoryId ||
+                !difficulty ||
+                body.length === 0
+              }
+              title={
+                body.length === 0
+                  ? "Add at least one content block before publishing"
+                  : "Create and publish this card"
+              }
+              className="px-5 py-2 rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {submitting ? "Saving…" : "Create & publish"}
+            </button>
+          )}
+          <button
+            type="submit"
+            onClick={() => {
+              publishIntentRef.current = false;
+            }}
+            disabled={submitting || !title.trim() || !categoryId || !difficulty}
+            className="px-5 py-2 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {submitting
+              ? "Saving…"
+              : mode === "create"
+                ? "Create draft"
+                : "Save changes"}
+          </button>
+        </div>
       </div>
     </form>
   );

@@ -29,10 +29,14 @@ export default function NewSkillCardPage() {
       .catch(() => setCategories([]));
   }, []);
 
-  async function handleSubmit(payload: CreateSkillCardPayload) {
+  async function handleSubmit(
+    payload: CreateSkillCardPayload,
+    opts: { publishImmediately: boolean }
+  ) {
     setSubmitting(true);
     setSubmitError(null);
     try {
+      // 1. Create as draft (the endpoint always starts is_published=false).
       const res = await fetch("/api/teacher/skills/cards", {
         method: "POST",
         credentials: "include",
@@ -45,6 +49,35 @@ export default function NewSkillCardPage() {
         setSubmitting(false);
         return;
       }
+
+      // 2. If the teacher asked for immediate publish, chain the publish
+      //    call. If publish fails (e.g. validation regression), land them
+      //    on the edit page with the error surfaced there — the draft has
+      //    been created either way.
+      if (opts.publishImmediately) {
+        const pubRes = await fetch(
+          `/api/teacher/skills/cards/${json.card.id}/publish`,
+          {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "publish" }),
+          }
+        );
+        if (!pubRes.ok) {
+          const pubJson = await pubRes.json().catch(() => ({}));
+          // Redirect to edit so the teacher can fix and retry; surface
+          // the message as a query string the edit page can show.
+          const msg = encodeURIComponent(
+            pubJson.error ?? "Publish failed — card saved as draft."
+          );
+          router.push(
+            `/teacher/skills/${json.card.id}/edit?publishError=${msg}`
+          );
+          return;
+        }
+      }
+
       router.push(`/teacher/skills/${json.card.id}/edit`);
     } catch (err) {
       console.error(err);

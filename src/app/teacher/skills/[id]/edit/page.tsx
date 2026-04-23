@@ -10,7 +10,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { SkillCardForm } from "@/components/skills/SkillCardForm";
 import type { CreateSkillCardPayload, SkillCardHydrated } from "@/types/skills";
 
@@ -23,6 +23,7 @@ interface Category {
 export default function EditSkillCardPage() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const id = params.id as string;
 
   const [card, setCard] = useState<SkillCardHydrated | null>(null);
@@ -33,6 +34,24 @@ export default function EditSkillCardPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [publishBusy, setPublishBusy] = useState(false);
   const [deleteArmed, setDeleteArmed] = useState(false);
+
+  // Save feedback: lastSavedAt tracks the most recent successful PATCH so
+  // the sticky bottom bar can say "Saved at 3:45 PM". saveToast is a
+  // transient 3-second flash ("Changes saved") after each save.
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const [saveToast, setSaveToast] = useState<string | null>(null);
+
+  // If the teacher used "Create & publish" on /new and the publish step
+  // failed, /new routes here with ?publishError=<msg>. Surface it once.
+  useEffect(() => {
+    const err = searchParams.get("publishError");
+    if (err) {
+      setSubmitError(decodeURIComponent(err));
+      // Strip the query param so a reload doesn't resurface the error.
+      router.replace(`/teacher/skills/${id}/edit`, { scroll: false });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     fetch("/api/teacher/skills/categories", { credentials: "include" })
@@ -84,6 +103,8 @@ export default function EditSkillCardPage() {
         return;
       }
       setCard(json.card);
+      setLastSavedAt(new Date());
+      setSaveToast("Changes saved");
       setSubmitting(false);
     } catch (err) {
       console.error(err);
@@ -91,6 +112,13 @@ export default function EditSkillCardPage() {
       setSubmitting(false);
     }
   }
+
+  // Auto-hide the save toast after 3 seconds.
+  useEffect(() => {
+    if (!saveToast) return;
+    const t = window.setTimeout(() => setSaveToast(null), 3000);
+    return () => window.clearTimeout(t);
+  }, [saveToast]);
 
   async function togglePublish() {
     if (!card) return;
@@ -242,6 +270,51 @@ export default function EditSkillCardPage() {
         onSubmit={handleSubmit}
         submitting={submitting}
         submitError={submitError}
+        statusSlot={
+          saveToast ? (
+            <span className="inline-flex items-center gap-1.5 text-emerald-700">
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              {saveToast}
+            </span>
+          ) : lastSavedAt ? (
+            <span>
+              Last saved at{" "}
+              {lastSavedAt.toLocaleTimeString([], {
+                hour: "numeric",
+                minute: "2-digit",
+              })}
+            </span>
+          ) : null
+        }
+        extraActions={
+          <button
+            type="button"
+            onClick={togglePublish}
+            disabled={publishBusy}
+            className={`px-4 py-2 rounded-lg text-sm font-medium ${
+              card.is_published
+                ? "bg-amber-100 text-amber-700 hover:bg-amber-200"
+                : "bg-emerald-600 text-white hover:bg-emerald-700"
+            } disabled:opacity-50`}
+          >
+            {publishBusy
+              ? "…"
+              : card.is_published
+                ? "Unpublish"
+                : "Publish"}
+          </button>
+        }
       />
     </main>
   );

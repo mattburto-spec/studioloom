@@ -195,6 +195,12 @@
   color: var(--sl-skill-muted);
   font-style: italic;
 }
+.sl-skill-prose {
+  /* Cap prose at a readable width inside a wider card viewer so lines
+     don't stretch edge-to-edge on a 6xl page. Media blocks (image,
+     video, worked_example) aren't capped so they fill the container. */
+  max-width: 44rem;
+}
 .sl-skill-prose p {
   margin: 0 0 0.75rem 0;
   line-height: 1.65;
