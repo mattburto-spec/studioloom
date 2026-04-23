@@ -32,6 +32,22 @@ function isPublicTeacherPath(pathname: string): boolean {
   return PUBLIC_TEACHER_PATHS.includes(pathname);
 }
 
+/**
+ * Chromeless teacher paths render without the shared header/nav but
+ * still pass through auth + teacher-context. Used by the Bold
+ * dashboard v2 which ships its own TopNav — double chrome would
+ * stack the legacy header on top. Removed at Phase 8 cutover when
+ * the Bold nav becomes universal (tracker:
+ * docs/projects/teacher-dashboard-v1.md).
+ */
+const CHROMELESS_TEACHER_PATHS: readonly string[] = [
+  "/teacher/dashboard/v2",
+];
+
+function isChromelessTeacherPath(pathname: string): boolean {
+  return CHROMELESS_TEACHER_PATHS.includes(pathname);
+}
+
 const NAV_ITEMS = [
   { href: "/teacher/dashboard", label: "Dashboard", icon: (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -171,6 +187,16 @@ export default function TeacherLayout({
   // Bare-render any of the public auth-flow pages without the header /
   // nav — these screens manage their own visual chrome.
   if (isPublicTeacherPath(pathname)) {
+    return (
+      <TeacherContext.Provider value={{ teacher }}>
+        {children}
+      </TeacherContext.Provider>
+    );
+  }
+
+  // Chromeless paths (Bold dashboard v2 preview) keep auth + context but
+  // drop the legacy header/nav so the v2's own TopNav is the only chrome.
+  if (isChromelessTeacherPath(pathname)) {
     return (
       <TeacherContext.Provider value={{ teacher }}>
         {children}
