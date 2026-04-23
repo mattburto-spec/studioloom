@@ -12,9 +12,9 @@ import Link from "next/link";
  *  and avoids the flash-of-mock that Phases 1-8 tolerated. */
 export function DashboardSkeleton() {
   return (
-    <div className="max-w-[1400px] mx-auto px-6 pt-8">
-      <div className="rounded-[32px] h-[360px] bg-white/60 animate-pulse" />
-      <div className="mt-10 grid grid-cols-4 gap-3">
+    <div className="max-w-[1400px] mx-auto px-4 md:px-6 pt-6 md:pt-8">
+      <div className="rounded-[24px] lg:rounded-[32px] h-[280px] lg:h-[360px] bg-white/60 animate-pulse" />
+      <div className="mt-8 md:mt-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {[0, 1, 2, 3].map((i) => (
           <div
             key={i}
@@ -22,7 +22,7 @@ export function DashboardSkeleton() {
           />
         ))}
       </div>
-      <div className="mt-12 grid grid-cols-4 gap-4">
+      <div className="mt-10 md:mt-12 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[0, 1, 2, 3].map((i) => (
           <div
             key={i}
@@ -30,7 +30,7 @@ export function DashboardSkeleton() {
           />
         ))}
       </div>
-      <div className="mt-12 grid grid-cols-2 gap-5">
+      <div className="mt-10 md:mt-12 grid grid-cols-1 md:grid-cols-2 gap-5">
         {[0, 1].map((i) => (
           <div
             key={i}
@@ -49,21 +49,21 @@ export function DashboardSkeleton() {
 export function NoClassesWelcome({ teacherName }: { teacherName: string }) {
   const first = teacherName?.trim().split(/\s+/)[0] || "there";
   return (
-    <section className="max-w-[1400px] mx-auto px-6 pt-8">
+    <section className="max-w-[1400px] mx-auto px-4 md:px-6 pt-6 md:pt-8">
       <div
-        className="relative rounded-[32px] overflow-hidden card-shadow-lg glow-inner p-12 min-h-[360px] flex flex-col justify-center"
+        className="relative rounded-[24px] lg:rounded-[32px] overflow-hidden card-shadow-lg glow-inner p-6 md:p-8 lg:p-12 min-h-[320px] md:min-h-[360px] flex flex-col justify-center"
         style={{ background: "#0A0A0A" }}
       >
         <div className="max-w-2xl text-white">
           <div className="cap text-white/60 mb-4">Welcome to StudioLoom</div>
-          <h1 className="display-lg text-[72px] leading-[0.95] tracking-tight">
+          <h1 className="display-lg text-[48px] sm:text-[56px] md:text-[72px] leading-[0.95] tracking-tight">
             Hi {first}.
           </h1>
-          <p className="text-[20px] leading-snug mt-4 text-white/80 font-medium">
+          <p className="text-[16px] md:text-[20px] leading-snug mt-3 md:mt-4 text-white/80 font-medium">
             Your dashboard comes alive once you have a class. Start by creating
             one, then assign a unit and invite your students.
           </p>
-          <div className="flex items-center gap-3 mt-8 flex-wrap">
+          <div className="flex items-center gap-3 mt-6 md:mt-8 flex-wrap">
             <Link
               href="/teacher/classes"
               className="bg-white text-[var(--ink)] rounded-full px-6 py-3 font-bold text-[14px] inline-flex items-center gap-2 hover:shadow-lg transition"

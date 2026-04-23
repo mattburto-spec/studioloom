@@ -251,7 +251,7 @@ export function UnitsGrid({ cards, loaded }: UnitsGridProps) {
           </Link>
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {vms.map((u) => (
           <UnitCard key={u.key} u={u} />
         ))}

@@ -47,25 +47,27 @@ export function TopNav({
 
   return (
     <header className="sticky top-0 z-30 bg-[var(--bg)]/80 backdrop-blur-lg border-b border-[var(--hair)]">
-      <div className="max-w-[1400px] mx-auto px-6 h-16 flex items-center gap-4">
+      <div className="max-w-[1400px] mx-auto px-4 md:px-6 h-16 flex items-center gap-2 md:gap-4">
         {/* Brand */}
         <Link
           href="/teacher/dashboard"
-          className="flex items-center gap-2.5"
+          className="flex items-center gap-2.5 shrink-0"
         >
           <div className="w-9 h-9 rounded-2xl bg-[var(--ink)] flex items-center justify-center text-white display text-[15px]">
             #
           </div>
-          <div className="display text-[17px] leading-none">StudioLoom</div>
+          <div className="hidden sm:block display text-[17px] leading-none">
+            StudioLoom
+          </div>
         </Link>
 
-        <div className="w-px h-6 bg-[var(--hair)] mx-1" />
+        <div className="hidden md:block w-px h-6 bg-[var(--hair)] mx-1" />
 
         {/* Scope chip — class filter */}
         <div className="relative">
           <button
             onClick={() => setOpen((v) => !v)}
-            className="inline-flex items-center gap-2 bg-white border border-[var(--hair)] rounded-full pl-2 pr-3 py-1.5 hover:shadow-sm transition"
+            className="inline-flex items-center gap-2 bg-white border border-[var(--hair)] rounded-full pl-2 pr-3 py-1.5 hover:shadow-sm transition whitespace-nowrap"
           >
             <span
               className="w-6 h-6 rounded-full flex items-center justify-center text-[12px]"
@@ -113,15 +115,17 @@ export function TopNav({
           )}
         </div>
 
-        {/* Nav */}
-        <nav className="flex items-center gap-0.5 ml-2">
+        {/* Nav — horizontally scrolls on tablet/mobile so all items stay
+         *  reachable without a hamburger. Still fits inline on desktop
+         *  ≥ 1024px since the 8 items + pills + chrome are ~1040px. */}
+        <nav className="hidden md:flex items-center gap-0.5 ml-2 overflow-x-auto scrollbar-hide">
           {NAV_ITEMS.map((item) => {
             const isActive = item.href === activeHref;
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`px-3 py-1.5 rounded-full text-[12.5px] font-semibold transition ${
+                className={`whitespace-nowrap px-3 py-1.5 rounded-full text-[12.5px] font-semibold transition ${
                   isActive
                     ? "bg-[var(--ink)] text-white"
                     : "text-[var(--ink-2)] hover:bg-white"
@@ -137,19 +141,19 @@ export function TopNav({
 
         {/* Right */}
         <button
-          className="w-9 h-9 rounded-full hover:bg-white flex items-center justify-center text-[var(--ink-2)]"
+          className="hidden sm:flex w-9 h-9 rounded-full hover:bg-white items-center justify-center text-[var(--ink-2)] shrink-0"
           aria-label="Search"
         >
           <I name="search" size={16} />
         </button>
         <button
-          className="w-9 h-9 rounded-full hover:bg-white flex items-center justify-center text-[var(--ink-2)] relative"
+          className="w-9 h-9 rounded-full hover:bg-white flex items-center justify-center text-[var(--ink-2)] relative shrink-0"
           aria-label="Notifications"
         >
           <I name="bell" size={16} />
           <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#E86F2C] border-2 border-[var(--bg)]" />
         </button>
-        <div className="flex items-center gap-2 pl-1">
+        <div className="flex items-center gap-2 pl-1 shrink-0">
           <div
             className="w-8 h-8 rounded-full bg-gradient-to-br from-[#9333EA] to-[#E86F2C] text-white flex items-center justify-center font-bold text-[11px]"
             title={teacher?.name ?? undefined}

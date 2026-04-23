@@ -58,17 +58,17 @@ function fromCurrent(c: CurrentPeriod): HeroVM {
 /** "No class right now" hero — black background, nothing pulsing. */
 function NoClassHero() {
   return (
-    <section className="max-w-[1400px] mx-auto px-6 pt-8">
+    <section className="max-w-[1400px] mx-auto px-4 md:px-6 pt-6 md:pt-8">
       <div
-        className="relative rounded-[32px] overflow-hidden card-shadow-lg p-12 min-h-[280px] flex flex-col justify-center"
+        className="relative rounded-[24px] lg:rounded-[32px] overflow-hidden card-shadow-lg p-6 md:p-8 lg:p-12 min-h-[240px] md:min-h-[280px] flex flex-col justify-center"
         style={{ background: "#0A0A0A" }}
       >
         <div className="max-w-2xl text-white">
           <div className="cap text-white/60 mb-3">Nothing on now</div>
-          <h1 className="display-lg text-[56px] leading-[0.95]">
+          <h1 className="display-lg text-[40px] sm:text-[48px] md:text-[56px] leading-[0.95]">
             Clear deck.
           </h1>
-          <p className="text-[18px] leading-snug mt-3 text-white/75 font-medium">
+          <p className="text-[15px] md:text-[18px] leading-snug mt-3 text-white/75 font-medium">
             No class in session right now. Check your schedule for what&apos;s
             coming, or dip into planning.
           </p>
@@ -111,12 +111,12 @@ export function NowHero({ current, loaded }: NowHeroProps) {
   return (
     <section className="max-w-[1400px] mx-auto px-6 pt-8">
       <div
-        className="relative rounded-[32px] overflow-hidden card-shadow-lg glow-inner"
+        className="relative rounded-[24px] lg:rounded-[32px] overflow-hidden card-shadow-lg glow-inner"
         style={{ background: vm.color }}
       >
-        <div className="grid grid-cols-12 gap-0 items-stretch">
+        <div className="flex flex-col lg:grid lg:grid-cols-12 gap-0 items-stretch">
           {/* Left: content */}
-          <div className="col-span-7 p-10 flex flex-col justify-between text-white relative z-10">
+          <div className="lg:col-span-7 p-6 md:p-8 lg:p-10 flex flex-col justify-between text-white relative z-10 order-2 lg:order-1">
             <div>
               <div className="inline-flex items-center gap-2 bg-white/15 backdrop-blur rounded-full px-3 py-1.5 text-[11.5px] font-bold">
                 <span className="pulse" style={{ color: "#FFF" }} />
@@ -128,7 +128,7 @@ export function NowHero({ current, loaded }: NowHeroProps) {
                   </span>
                 )}
               </div>
-              <h1 className="display-lg text-[108px] leading-[0.88] mt-6 text-white">
+              <h1 className="display-lg text-[48px] sm:text-[72px] md:text-[88px] lg:text-[108px] leading-[0.88] mt-4 md:mt-6 text-white">
                 {vm.unitTitle}.
               </h1>
               {vm.unitSub && (
@@ -210,8 +210,9 @@ export function NowHero({ current, loaded }: NowHeroProps) {
             </div>
           </div>
 
-          {/* Right: image */}
-          <div className="col-span-5 relative">
+          {/* Right: image. On mobile/tablet it appears on top (order-1)
+           *  as a banner, then the content flows below. */}
+          <div className="lg:col-span-5 relative order-1 lg:order-2 h-48 sm:h-64 lg:h-auto">
             <div className="absolute inset-0">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -222,11 +223,11 @@ export function NowHero({ current, loaded }: NowHeroProps) {
               <div
                 className="absolute inset-0"
                 style={{
-                  background: `linear-gradient(to right, ${vm.color} 0%, transparent 35%)`,
+                  background: `linear-gradient(to bottom, transparent 60%, ${vm.color} 100%), linear-gradient(to right, ${vm.color} 0%, transparent 35%)`,
                 }}
               />
             </div>
-            <div className="absolute bottom-6 right-6 bg-white/95 backdrop-blur rounded-2xl px-4 py-3 card-shadow">
+            <div className="absolute bottom-4 right-4 lg:bottom-6 lg:right-6 bg-white/95 backdrop-blur rounded-2xl px-4 py-3 card-shadow">
               <div className="cap text-[var(--ink-3)]">{vm.phaseLabel}</div>
               <div className="flex items-baseline gap-2 mt-1">
                 <div
