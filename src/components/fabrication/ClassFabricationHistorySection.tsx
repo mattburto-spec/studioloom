@@ -45,73 +45,104 @@ export function ClassFabricationHistorySection({
 
   // Lazy-fetch: first time the section opens, fire the request. Cache
   // the result so re-collapsing and reopening doesn't re-fetch.
+  //
+  // Phase 6-6n: added 30s AbortController timeout + console.error on
+  // non-2xx so the "loading forever" symptom on a specific class
+  // bottoms out to a clear error state instead of a dead spinner.
+  // Retries are one-click (collapse → re-expand, or the Retry button
+  // in the error card).
+  const loadHistory = React.useCallback(async () => {
+    setState({ kind: "loading" });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 30_000);
+    try {
+      const res = await fetch(
+        `/api/teacher/fabrication/classes/${classId}/history`,
+        { credentials: "same-origin", signal: controller.signal }
+      );
+      clearTimeout(timer);
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: "" }));
+        const msg =
+          body.error ||
+          `Couldn't load class history (HTTP ${res.status} — class ${classId})`;
+        // eslint-disable-next-line no-console
+        console.error("[ClassFabricationHistory]", msg, { classId });
+        setState({ kind: "error", message: msg });
+        return;
+      }
+      const data = (await res.json()) as HistorySuccess;
+      setState({ kind: "ready", data });
+    } catch (e) {
+      clearTimeout(timer);
+      const aborted =
+        e instanceof DOMException && e.name === "AbortError";
+      const msg = aborted
+        ? `Class history took too long to load (30s timeout — class ${classId}). Try again.`
+        : e instanceof Error
+          ? e.message
+          : "Network error";
+      // eslint-disable-next-line no-console
+      console.error("[ClassFabricationHistory]", msg, { classId, error: e });
+      setState({ kind: "error", message: msg });
+    }
+  }, [classId]);
+
   React.useEffect(() => {
     if (!open) return;
     if (state.kind !== "idle") return;
-    let cancelled = false;
-    (async () => {
-      setState({ kind: "loading" });
-      try {
-        const res = await fetch(
-          `/api/teacher/fabrication/classes/${classId}/history`,
-          { credentials: "same-origin" }
-        );
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({ error: "" }));
-          if (!cancelled) {
-            setState({
-              kind: "error",
-              message:
-                body.error ||
-                `Couldn't load class history (HTTP ${res.status})`,
-            });
-          }
-          return;
-        }
-        const data = (await res.json()) as HistorySuccess;
-        if (!cancelled) setState({ kind: "ready", data });
-      } catch (e) {
-        if (!cancelled) {
-          setState({
-            kind: "error",
-            message: e instanceof Error ? e.message : "Network error",
-          });
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [open, state.kind, classId]);
+    void loadHistory();
+  }, [open, state.kind, loadHistory]);
 
   return (
-    <section className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+    <section
+      className={`rounded-2xl border bg-white overflow-hidden transition-colors ${
+        open ? "border-brand-purple/30" : "border-gray-200"
+      }`}
+    >
+      {/* Phase 6-6n: bigger + more obvious expand affordance. Chevron
+          icon (not a ›) + explicit "Show" / "Hide" label + purple
+          border on expand so the card reads as clearly interactive
+          instead of looking like a static heading. */}
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between p-4 text-left hover:bg-gray-50"
+        className="w-full flex items-center justify-between p-5 text-left hover:bg-gray-50 transition-colors"
         aria-expanded={open}
       >
         <div>
-          <h2 className="text-lg font-bold text-gray-900">
+          <h2 className="text-xl font-bold text-gray-900">
             Fabrication submissions
           </h2>
-          <p className="text-xs text-gray-500 mt-0.5">
+          <p className="text-sm text-gray-600 mt-1">
             Pass rate, revisions, and per-student breakdown for this class.
           </p>
         </div>
-        <span
-          aria-hidden="true"
-          className={`text-gray-400 text-xl transition-transform ${
-            open ? "rotate-90" : ""
-          }`}
-        >
-          ›
-        </span>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-sm font-semibold text-brand-purple">
+            {open ? "Hide" : "Show"}
+          </span>
+          <svg
+            aria-hidden="true"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className={`text-brand-purple transition-transform ${
+              open ? "rotate-180" : ""
+            }`}
+          >
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </div>
       </button>
 
       {open && (
-        <div className="border-t border-gray-100 p-4 space-y-5">
+        <div className="border-t border-gray-100 p-5 space-y-5">
           {state.kind === "loading" && (
             <div className="flex items-center gap-3 py-8 justify-center">
               <div className="w-5 h-5 border-2 border-brand-purple border-t-transparent rounded-full animate-spin" />
@@ -120,8 +151,17 @@ export function ClassFabricationHistorySection({
           )}
 
           {state.kind === "error" && (
-            <div className="rounded-xl border border-red-200 bg-red-50 p-4">
-              <p className="text-sm text-red-900">{state.message}</p>
+            <div className="rounded-xl border border-red-200 bg-red-50 p-4 flex items-start justify-between gap-3 flex-wrap">
+              <p className="text-sm text-red-900 flex-1 min-w-0">
+                {state.message}
+              </p>
+              <button
+                type="button"
+                onClick={() => void loadHistory()}
+                className="text-sm font-semibold text-red-900 underline hover:no-underline transition-all active:scale-[0.97]"
+              >
+                Retry
+              </button>
             </div>
           )}
 
