@@ -28,6 +28,7 @@ import { TopNav } from "@/components/teacher-dashboard-v2/TopNav";
 import { UnitsGrid } from "@/components/teacher-dashboard-v2/UnitsGrid";
 import { useScopedStyles } from "@/components/teacher-dashboard-v2/styles";
 import {
+  buildTodayRail,
   resolveCurrentPeriod,
   type ScheduleResponse,
 } from "@/components/teacher-dashboard-v2/current-period";
@@ -109,6 +110,11 @@ export default function TeacherDashboardClient() {
     return resolveCurrentPeriod(schedule, classes, unmarkedWork, now);
   }, [schedule, classes, unmarkedWork, now]);
 
+  const railCards = useMemo(() => {
+    if (!schedule) return [];
+    return buildTodayRail(schedule, classes, unmarkedWork, now);
+  }, [schedule, classes, unmarkedWork, now]);
+
   return (
     <div className="tl-v2 min-h-screen">
       <TopNav
@@ -119,7 +125,7 @@ export default function TeacherDashboardClient() {
         pathname={pathname}
       />
       <NowHero current={currentPeriod} />
-      <TodayRail />
+      <TodayRail cards={railCards} now={now} />
       <Insights />
       <UnitsGrid />
       <Admin />

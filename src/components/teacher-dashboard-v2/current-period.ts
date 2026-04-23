@@ -256,3 +256,124 @@ export function resolveCurrentPeriod(
     ungradedCount,
   };
 }
+
+// ---------------------------------------------------------------------------
+// TodayRail resolver — builds one RailCard per today's meeting, marked
+// with relative state (done/live/next/upcoming) so the rail can highlight
+// the current-or-imminent slot the same way NowHero does. Phase 4.
+// ---------------------------------------------------------------------------
+
+export interface RailCard {
+  /** Stable key per rail card — entry.classId + "-" + period + "-" + date. */
+  key: string;
+  /** Zero-padded period number ("01", "02" …) or "—" when the meeting
+   *  has no period assigned. */
+  num: string;
+  /** "9:00" when the timetable has periods wired, else "". */
+  time: string;
+  className: string;
+  /** Bold palette color (hex). */
+  color: string;
+  /** Paired tint (light, ~85% mix toward white). */
+  tint: string;
+  unitId: string | null;
+  unitTitle: string;
+  /** Subhead below the unit: "{N} students". */
+  sub: string;
+  state: "done" | "live" | "next" | "upcoming";
+  /** 0-100 unit completion. 0 when no progress data. */
+  progress: number;
+  /** Ungraded pages for this class+unit. 0 hides the amber chip. */
+  ungradedCount: number;
+}
+
+export function buildTodayRail(
+  schedule: ScheduleResponse,
+  classes: DashboardClass[],
+  unmarkedWork: UnmarkedWorkItem[],
+  now: Date,
+): RailCard[] {
+  if (!schedule.hasTimetable) return [];
+  const entries = schedule.entries ?? [];
+  const periods = schedule.periods ?? [];
+  if (entries.length === 0) return [];
+
+  const todayISO = now.toLocaleDateString("en-CA");
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+  const todayEntries = entries.filter((e) => e.date === todayISO);
+  if (todayEntries.length === 0) return [];
+
+  // Which entry is "next" (live-or-upcoming pick)? Reuses the same
+  // ranking as NowHero so the rail's NEXT badge always points at the
+  // hero's current selection.
+  const pickIdx = pickRelevantEntry(entries, periods, nowMinutes, todayISO);
+  const pickedEntry = pickIdx >= 0 ? entries[pickIdx] : null;
+
+  const periodByNumber = new Map(periods.map((p) => [p.number, p]));
+
+  return todayEntries.map((e) => {
+    const period = e.period != null ? periodByNumber.get(e.period) : undefined;
+    const startMin = period ? hhmmToMinutes(period.start) : -1;
+    const endMin = period ? hhmmToMinutes(period.end) : -1;
+
+    const isLive =
+      startMin >= 0 && endMin >= 0 && nowMinutes >= startMin && nowMinutes < endMin;
+    const isPast = endMin >= 0 && nowMinutes >= endMin;
+    const isPicked =
+      pickedEntry != null &&
+      pickedEntry.classId === e.classId &&
+      pickedEntry.period === e.period &&
+      pickedEntry.date === e.date;
+
+    const state: RailCard["state"] = isLive
+      ? "live"
+      : isPast
+        ? "done"
+        : isPicked
+          ? "next"
+          : "upcoming";
+
+    // Join with dashboard data for progress + student count.
+    let progress = 0;
+    let studentCount = 0;
+    for (const cls of classes) {
+      if (cls.id !== e.classId) continue;
+      studentCount = cls.studentCount;
+      if (e.unitId) {
+        const unit = cls.units.find((u) => u.unitId === e.unitId);
+        if (unit) progress = unit.completionPct;
+      }
+      break;
+    }
+
+    // Ungraded count across unmarkedWork rows for this class+unit.
+    let ungradedCount = 0;
+    if (e.unitId) {
+      for (const w of unmarkedWork) {
+        if (w.classId === e.classId && w.unitId === e.unitId) {
+          ungradedCount += w.completedPages;
+        }
+      }
+    }
+
+    const color = classColor(e.classId).color;
+    return {
+      key: `${e.classId}-${e.period ?? "?"}-${e.date}`,
+      num:
+        e.period != null
+          ? String(e.period).padStart(2, "0")
+          : "—",
+      time: period ? period.start : "",
+      className: e.className,
+      color,
+      tint: tint(color, 0.85),
+      unitId: e.unitId,
+      unitTitle: e.unitTitle ?? "—",
+      sub: `${studentCount} student${studentCount === 1 ? "" : "s"}`,
+      state,
+      progress,
+      ungradedCount,
+    };
+  });
+}
