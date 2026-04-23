@@ -4,11 +4,13 @@
  * /teacher/skills — skill card library list.
  *
  * Shows built-in cards + the teacher's own cards (drafts + published).
- * Filters by category, difficulty, ownership. Primary CTA: "+ New card".
+ * Filters by domain, tier, category, card type, ownership.
+ * Primary CTA: "+ New card".
  */
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { SKILL_TIER_LABELS, type SkillTier, type CardType } from "@/types/skills";
 
 interface CardListItem {
   id: string;
@@ -16,12 +18,18 @@ interface CardListItem {
   title: string;
   summary: string | null;
   category_id: string | null;
-  difficulty: "foundational" | "intermediate" | "advanced" | null;
+  domain_id: string | null;
+  tier: SkillTier | null;
+  age_min: number | null;
+  age_max: number | null;
+  card_type: CardType;
   estimated_min: number | null;
+  framework_anchors: unknown;
   is_built_in: boolean;
   is_published: boolean;
   created_by_teacher_id: string | null;
   forked_from: string | null;
+  author_name: string | null;
   updated_at: string;
   created_at: string;
 }
@@ -31,23 +39,27 @@ interface CategoryRow {
   label: string;
   display_order: number;
 }
+interface DomainRow {
+  id: string;
+  short_code: string;
+  label: string;
+  display_order: number;
+}
 
-const DIFFICULTY_LABELS: Record<string, string> = {
-  foundational: "Foundational",
-  intermediate: "Intermediate",
-  advanced: "Advanced",
-};
-const DIFFICULTY_COLORS: Record<string, string> = {
-  foundational: "bg-emerald-100 text-emerald-700",
-  intermediate: "bg-amber-100 text-amber-700",
-  advanced: "bg-rose-100 text-rose-700",
+const TIER_COLORS: Record<SkillTier, string> = {
+  bronze: "bg-amber-100 text-amber-800",
+  silver: "bg-slate-100 text-slate-700",
+  gold: "bg-yellow-100 text-yellow-800",
 };
 
 export default function TeacherSkillsListPage() {
   const [cards, setCards] = useState<CardListItem[] | null>(null);
   const [categories, setCategories] = useState<CategoryRow[]>([]);
+  const [domains, setDomains] = useState<DomainRow[]>([]);
+  const [domainFilter, setDomainFilter] = useState<string>("");
+  const [tierFilter, setTierFilter] = useState<string>("");
   const [categoryFilter, setCategoryFilter] = useState<string>("");
-  const [difficultyFilter, setDifficultyFilter] = useState<string>("");
+  const [cardTypeFilter, setCardTypeFilter] = useState<string>("");
   const [ownershipFilter, setOwnershipFilter] = useState<string>("all");
   const [error, setError] = useState<string | null>(null);
 
@@ -55,8 +67,10 @@ export default function TeacherSkillsListPage() {
     let abort = false;
     const fetchCards = async () => {
       const params = new URLSearchParams();
+      if (domainFilter) params.set("domain", domainFilter);
+      if (tierFilter) params.set("tier", tierFilter);
       if (categoryFilter) params.set("category", categoryFilter);
-      if (difficultyFilter) params.set("difficulty", difficultyFilter);
+      if (cardTypeFilter) params.set("card_type", cardTypeFilter);
       if (ownershipFilter !== "all") params.set("ownership", ownershipFilter);
 
       const res = await fetch(
@@ -76,10 +90,9 @@ export default function TeacherSkillsListPage() {
     return () => {
       abort = true;
     };
-  }, [categoryFilter, difficultyFilter, ownershipFilter]);
+  }, [domainFilter, tierFilter, categoryFilter, cardTypeFilter, ownershipFilter]);
 
   useEffect(() => {
-    // Categories are seeded and small — cache in state once.
     fetch("/api/teacher/skills/categories", { credentials: "include" })
       .then(async (res) => (res.ok ? res.json() : { categories: [] }))
       .then((json) =>
@@ -90,6 +103,16 @@ export default function TeacherSkillsListPage() {
         )
       )
       .catch(() => setCategories([]));
+    fetch("/api/teacher/skills/domains", { credentials: "include" })
+      .then(async (res) => (res.ok ? res.json() : { domains: [] }))
+      .then((json) =>
+        setDomains(
+          (json.domains ?? []).sort(
+            (a: DomainRow, b: DomainRow) => a.display_order - b.display_order
+          )
+        )
+      )
+      .catch(() => setDomains([]));
   }, []);
 
   const counts = useMemo(() => {
@@ -108,8 +131,9 @@ export default function TeacherSkillsListPage() {
         <div>
           <h1 className="text-3xl font-extrabold text-gray-900">Skills Library</h1>
           <p className="text-gray-500 mt-1">
-            Teach-once, reuse-everywhere skill cards. Students earn progression
-            through quizzes and applied work.
+            Teach-once, reuse-everywhere skill cards. 10 domains × 3 tiers
+            (Bronze / Silver / Gold). Students earn progression through
+            demonstration and quiz.
           </p>
         </div>
         <Link
@@ -123,6 +147,28 @@ export default function TeacherSkillsListPage() {
       {/* --- Filters --- */}
       <div className="flex flex-wrap gap-3 mb-5 items-center">
         <select
+          value={domainFilter}
+          onChange={(e) => setDomainFilter(e.target.value)}
+          className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white"
+        >
+          <option value="">All domains</option>
+          {domains.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.short_code} · {d.label}
+            </option>
+          ))}
+        </select>
+        <select
+          value={tierFilter}
+          onChange={(e) => setTierFilter(e.target.value)}
+          className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white"
+        >
+          <option value="">All tiers</option>
+          <option value="bronze">Bronze</option>
+          <option value="silver">Silver</option>
+          <option value="gold">Gold</option>
+        </select>
+        <select
           value={categoryFilter}
           onChange={(e) => setCategoryFilter(e.target.value)}
           className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white"
@@ -135,14 +181,13 @@ export default function TeacherSkillsListPage() {
           ))}
         </select>
         <select
-          value={difficultyFilter}
-          onChange={(e) => setDifficultyFilter(e.target.value)}
+          value={cardTypeFilter}
+          onChange={(e) => setCardTypeFilter(e.target.value)}
           className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white"
         >
-          <option value="">All difficulties</option>
-          <option value="foundational">Foundational</option>
-          <option value="intermediate">Intermediate</option>
-          <option value="advanced">Advanced</option>
+          <option value="">All card types</option>
+          <option value="lesson">Lessons</option>
+          <option value="routine">Thinking routines</option>
         </select>
         <div className="inline-flex rounded-lg overflow-hidden border border-gray-200">
           {(["all", "mine", "built_in"] as const).map((k) => (
@@ -203,70 +248,94 @@ export default function TeacherSkillsListPage() {
         </div>
       ) : (
         <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {cards.map((c) => (
-            <li key={c.id}>
-              <Link
-                href={
-                  c.is_built_in
-                    ? `/teacher/skills/${c.id}`
-                    : `/teacher/skills/${c.id}/edit`
-                }
-                className="block bg-white border border-gray-100 rounded-2xl p-5 hover:border-indigo-200 hover:shadow-sm transition-colors"
-              >
-                <div className="flex items-start justify-between gap-4 mb-2">
-                  <h2 className="text-lg font-bold text-gray-900">
-                    {c.title}
-                  </h2>
-                  <div className="flex flex-wrap gap-1.5 flex-shrink-0">
-                    {c.is_built_in && (
-                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
-                        Built-in
+          {cards.map((c) => {
+            const domainShortCode =
+              domains.find((d) => d.id === c.domain_id)?.short_code ?? null;
+            return (
+              <li key={c.id}>
+                <Link
+                  href={
+                    c.is_built_in
+                      ? `/teacher/skills/${c.id}`
+                      : `/teacher/skills/${c.id}/edit`
+                  }
+                  className="block bg-white border border-gray-100 rounded-2xl p-5 hover:border-indigo-200 hover:shadow-sm transition-colors"
+                >
+                  <div className="flex items-start justify-between gap-4 mb-2">
+                    <h2 className="text-lg font-bold text-gray-900">
+                      {c.title}
+                    </h2>
+                    <div className="flex flex-wrap gap-1.5 flex-shrink-0">
+                      {c.is_built_in && (
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                          Built-in
+                        </span>
+                      )}
+                      {!c.is_built_in && !c.is_published && (
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                          Draft
+                        </span>
+                      )}
+                      {!c.is_built_in && c.is_published && (
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                          Published
+                        </span>
+                      )}
+                      {c.forked_from && (
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600">
+                          Forked
+                        </span>
+                      )}
+                      {c.card_type === "routine" && (
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-violet-100 text-violet-700">
+                          Routine
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {c.summary && (
+                    <p className="text-sm text-gray-600 mb-3 line-clamp-2">
+                      {c.summary}
+                    </p>
+                  )}
+                  <div className="flex flex-wrap gap-2 items-center text-xs">
+                    {domainShortCode && (
+                      <span className="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-medium">
+                        {domainShortCode}
                       </span>
                     )}
-                    {!c.is_built_in && !c.is_published && (
-                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
-                        Draft
+                    {c.tier && (
+                      <span
+                        className={`px-2 py-0.5 rounded-full font-medium capitalize ${TIER_COLORS[c.tier]}`}
+                      >
+                        {SKILL_TIER_LABELS[c.tier]}
                       </span>
                     )}
-                    {!c.is_built_in && c.is_published && (
-                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
-                        Published
+                    {c.category_id && (
+                      <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 capitalize">
+                        {c.category_id}
                       </span>
                     )}
-                    {c.forked_from && (
-                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600">
-                        Forked
+                    {c.age_min && c.age_max && (
+                      <span className="text-gray-500">
+                        ages {c.age_min}–{c.age_max}
+                      </span>
+                    )}
+                    {c.estimated_min && (
+                      <span className="text-gray-500">
+                        ~{c.estimated_min} min
+                      </span>
+                    )}
+                    {c.author_name && (
+                      <span className="text-gray-400 ml-auto italic">
+                        by {c.author_name}
                       </span>
                     )}
                   </div>
-                </div>
-                {c.summary && (
-                  <p className="text-sm text-gray-600 mb-3 line-clamp-2">
-                    {c.summary}
-                  </p>
-                )}
-                <div className="flex flex-wrap gap-2 items-center text-xs">
-                  {c.category_id && (
-                    <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 capitalize">
-                      {c.category_id}
-                    </span>
-                  )}
-                  {c.difficulty && (
-                    <span
-                      className={`px-2 py-0.5 rounded-full font-medium ${DIFFICULTY_COLORS[c.difficulty]}`}
-                    >
-                      {DIFFICULTY_LABELS[c.difficulty]}
-                    </span>
-                  )}
-                  {c.estimated_min && (
-                    <span className="text-gray-500">
-                      ~{c.estimated_min} min
-                    </span>
-                  )}
-                </div>
-              </Link>
-            </li>
-          ))}
+                </Link>
+              </li>
+            );
+          })}
         </ul>
       )}
     </main>

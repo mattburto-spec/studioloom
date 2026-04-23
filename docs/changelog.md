@@ -4,6 +4,73 @@
 
 ---
 
+## 24 Apr 2026 — Skills Library world-class schema upgrade (migration 110) + authoring UI rebuild
+
+**Context:** Matt's goal after reading the research brief + catalogue v1: make the skills library world-class per Digital Promise / Scouts / DofE / IB ATL / CASEL / XQ / Project Zero principles. Decisions locked via Q1–Q10:
+
+- Q1 ✓ Unified schema (safety modules migrate later as separate sprint)
+- Q2 ✓ Teacher-ack button for demonstrated (studentwork pipeline deferred)
+- Q3 ✓ DofE vocabulary — Bronze / Silver / Gold
+- Q4 ✓ Matt authors all content himself
+- Q5 ✓ `domain_id` + `category_id` as separate columns (subject × cognitive action)
+- Q6 ✓ `card_type` (`lesson` | `routine`) ships now
+- Q7 ✓ "Stone prereq" → "Activity block prereq" (Stones is dead vocabulary post-pivot-shelve)
+- Q8 ✓ Resources deferred to v2
+- Q9 ✓ DM-B1 Workshop Safety Essentials replaced with "Reading a Safety Data Sheet" (catalogue edit pending)
+- Q10 ✓ Personal pilot — Matt's own students first
+
+**Migration 110** `skills_library_world_class_schema.sql`:
+- New `skill_domains` table — 10 subject-area domains seeded (DM, VC, CP, CT, LI, PM, FE, RI, DL, SM). Orthogonal to `skill_categories` (8 cognitive-action verbs). Short codes match catalogue card ID prefix.
+- `skill_cards.difficulty` renamed → `tier` with value map (foundational→bronze, intermediate→silver, advanced→gold). DofE vocabulary verbatim per research-brief principle #3.
+- 8 new columns: `domain_id` FK, `age_min`/`age_max`, `framework_anchors` JSONB, `demo_of_competency` text, `learning_outcomes` JSONB, `applied_in` JSONB, `card_type` (lesson/routine), `author_name`.
+- New indexes: tier, domain, card_type, age_band.
+- 3 existing seed cards backfilled minimally (tier + domain_id = design-making); other new fields default to empty/null — Matt will replace when authoring catalogue.
+
+**Types (`src/types/skills.ts`) fully reshaped:** `SkillTier` replaces `SkillDifficulty`, `SKILL_TIERS` / `SKILL_TIER_LABELS` exported, `FrameworkAnchor` + `CardType` + `CONTROLLED_VERBS` introduced, `SkillDomainRow` added, `SkillCardRow` + payloads extended.
+
+**API routes updated end-to-end:**
+- `GET /api/teacher/skills/cards` — filters extended with `domain`, `tier`, `card_type`
+- `POST /api/teacher/skills/cards` — validates tier enum, domain FK, age-band sanity (5–25 + min ≤ max), framework anchors shape, card_type enum, outcomes/applied_in as string arrays
+- `PATCH /api/teacher/skills/cards/[id]` — all 8 new fields individually patchable
+- `POST /api/teacher/skills/cards/[id]/publish` — minimum-publishable gate extended: title + category + **domain** + **tier** + **demo_of_competency** + ≥1 block. Digital Promise "rubric before attempt" enforced.
+- `GET /api/teacher/skills/domains` — new lookup endpoint
+- `GET /api/student/skills/cards/[slug]` — prereq query uses `tier`
+
+**`SkillCardForm` — full rebuild in 8 numbered sections** (pedagogical order):
+1. Identity (title / slug / summary / **author byline**)
+2. Taxonomy & Tier (domain, category, tier, **card type toggle**)
+3. **Pedagogical contract** — demo-of-competency with controlled-verb soft hint + banned-verb warning, learning outcomes list, framework anchors multi-select with framework-specific datalist suggestions, applied-in contexts list
+4. Sizing (estimated min + age min/max)
+5. Body (existing block editor + preview toggle)
+6. Tags
+7. External links
+8. Prerequisites (fuzzy search preserved)
+
+Controlled-verb enforcement: typing a demo line triggers a soft amber warning if it doesn't start with one of show/demonstrate/produce/explain/argue/identify/compare/sketch/make/plan/deliver. Datalist suggestions per framework — ATL gets 5 categories, CASEL gets 5 competencies, WEF gets 10 Future of Jobs skills, StudioHabits gets 8 Project Zero habits.
+
+**Viewer updates** — both teacher + student viewers render a new **Pedagogical Contract panel** (indigo) at the top, above the body, showing demo-of-competency + learning outcomes + framework anchors. Digital Promise principle: rubric shown before attempt.
+
+**Teacher list page (`/teacher/skills`):** filters extended (domain + tier + category + card_type + ownership); cards display short_code + tier pill + category pill + age band + author byline.
+
+**Verification:**
+- `npx tsc --noEmit` → 0 errors on skills files
+- `npx eslint` → 0 errors
+- `npm test` → 1854 pass / 8 skip / 0 fail
+
+**Gating:** Migration 110 NOT yet applied to prod. Coordinated code+schema change — Matt applies 110 BEFORE push to main or app breaks (references `tier`, not `difficulty`). Push held in `skills-library` branch.
+
+**Next:**
+1. Matt authors 20 Gold cards using the new form
+2. Replace DM-B1 → "Reading a Safety Data Sheet" (catalogue edit)
+3. Safety module content migration (~3-day separate sprint)
+4. Teacher-ack button for `skill.demonstrated` (~half day)
+5. First pull-moment — activity block prereq embed (~2 days)
+6. Personal pilot with Matt's students
+
+**Systems affected:** `skills-library` (in_progress, schema v0→v1 layered), `schema-registry` (skill_cards entry rewritten + new skill_domains entry), `api-registry` (+1 domains endpoint).
+
+---
+
 ## 23 Apr 2026 PM — Preflight Phase 6 SHIPPED + Checkpoint 6.1 PASSED 🎉
 
 **Context:** Closing saveme for Phase 6. Matt ran all 4 smoke

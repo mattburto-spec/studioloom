@@ -72,7 +72,7 @@ export async function GET(
     if (prereqIds.length > 0) {
       const { data: prereqCards } = await admin
         .from("skill_cards")
-        .select("id, slug, title, difficulty")
+        .select("id, slug, title, tier")
         .in("id", prereqIds)
         .eq("is_published", true);
       prereqs = (prereqCards ?? []) as SkillCardHydrated["prerequisites"];

@@ -3,22 +3,30 @@
 /**
  * SkillCardForm — shared authoring form for /teacher/skills/new and /edit.
  *
- * Controlled component that owns the card metadata + tags + external links +
- * prereqs state locally, then calls onSubmit(payload) with the final shape.
+ * Catalogue-v1 schema (migration 110): each card has tier, domain, age band,
+ * framework anchors, demo of competency, learning outcomes, applied_in, and
+ * card_type on top of the earlier title/category/body/tags/prereqs/links.
  *
- * Read-only mode renders a preview (e.g. for built-in cards): no inputs, just
- * the rendered blocks.
+ * Section order is deliberate — starts with the "identity" fields (what is
+ * this card?), then the pedagogical contract (what does earned mean?), then
+ * the body, then the extras (tags / links / prereqs). This mirrors how a
+ * Scouts-style pamphlet is structured.
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BlockEditor } from "./BlockEditor";
 import { BlockRenderer } from "./BlockRenderer";
 import "./skills.css";
-import type {
-  Block,
-  CreateSkillCardPayload,
-  SkillCardHydrated,
-  SkillDifficulty,
+import {
+  CONTROLLED_VERBS,
+  SKILL_TIER_LABELS,
+  SKILL_TIERS,
+  type Block,
+  type CardType,
+  type CreateSkillCardPayload,
+  type FrameworkAnchor,
+  type SkillCardHydrated,
+  type SkillTier,
 } from "@/types/skills";
 
 interface Category {
@@ -27,35 +35,32 @@ interface Category {
   description: string;
 }
 
+interface Domain {
+  id: string;
+  short_code: string;
+  label: string;
+  description: string;
+}
+
 interface PrereqOption {
   id: string;
   slug: string;
   title: string;
-  difficulty: string | null;
+  tier: string | null;
 }
 
 interface Props {
   mode: "create" | "edit";
   initial?: SkillCardHydrated;
   categories: Category[];
-  /**
-   * Called with the validated payload + submit intent.
-   * - In "create" mode, `publishImmediately` is true when the teacher
-   *   clicked "Create & publish" (chain a publish call after create).
-   * - In "edit" mode, always false.
-   */
+  domains: Domain[];
   onSubmit: (
     payload: CreateSkillCardPayload,
     opts: { publishImmediately: boolean }
   ) => Promise<void>;
   submitting: boolean;
   submitError: string | null;
-  /** Status line shown to the left of the submit button. Used by /edit
-   *  for "Saved at 3:45 PM" and similar. */
   statusSlot?: React.ReactNode;
-  /** Extra buttons injected into the sticky bottom action bar, to the
-   *  left of the submit button. Used by /edit to mirror the Publish
-   *  action so it sits next to Save. */
   extraActions?: React.ReactNode;
 }
 
@@ -68,10 +73,70 @@ function slugify(title: string): string {
     .slice(0, 80);
 }
 
+const FRAMEWORK_CHOICES: ReadonlyArray<{
+  value: FrameworkAnchor["framework"];
+  label: string;
+  suggestions: string[];
+}> = [
+  {
+    value: "ATL",
+    label: "IB MYP ATL",
+    suggestions: [
+      "Thinking",
+      "Research",
+      "Social",
+      "Communication",
+      "Self-Management",
+    ],
+  },
+  {
+    value: "CASEL",
+    label: "CASEL 5",
+    suggestions: [
+      "Self-Awareness",
+      "Self-Management",
+      "Social Awareness",
+      "Relationship Skills",
+      "Responsible Decision-Making",
+    ],
+  },
+  {
+    value: "WEF",
+    label: "WEF Future of Jobs 2025",
+    suggestions: [
+      "Analytical Thinking",
+      "Creative Thinking",
+      "Resilience",
+      "Leadership and Social Influence",
+      "Motivation and Self-Awareness",
+      "Curiosity",
+      "Technological Literacy",
+      "Empathy",
+      "Talent Management",
+      "Service Orientation",
+    ],
+  },
+  {
+    value: "StudioHabits",
+    label: "Studio Habits of Mind",
+    suggestions: [
+      "Develop Craft",
+      "Engage & Persist",
+      "Envision",
+      "Express",
+      "Observe",
+      "Reflect",
+      "Stretch & Explore",
+      "Understand Art Worlds",
+    ],
+  },
+];
+
 export function SkillCardForm({
   mode,
   initial,
   categories,
+  domains,
   onSubmit,
   submitting,
   submitError,
@@ -81,18 +146,52 @@ export function SkillCardForm({
   // Which button was clicked? Set by each button's onClick just before
   // the native submit fires, read inside handleSubmit.
   const publishIntentRef = useRef<boolean>(false);
+
+  // ---------- Identity ----------
   const [title, setTitle] = useState(initial?.title ?? "");
   const [slug, setSlug] = useState(initial?.slug ?? "");
   const [slugTouched, setSlugTouched] = useState(Boolean(initial?.slug));
   const [summary, setSummary] = useState(initial?.summary ?? "");
+  const [authorName, setAuthorName] = useState(initial?.author_name ?? "");
+
+  // ---------- Taxonomy ----------
   const [categoryId, setCategoryId] = useState(initial?.category_id ?? "");
-  const [difficulty, setDifficulty] = useState<SkillDifficulty | "">(
-    initial?.difficulty ?? ""
+  const [domainId, setDomainId] = useState(initial?.domain_id ?? "");
+  const [tier, setTier] = useState<SkillTier | "">(initial?.tier ?? "");
+  const [cardType, setCardType] = useState<CardType>(
+    initial?.card_type ?? "lesson"
   );
+
+  // ---------- Sizing ----------
   const [estimatedMin, setEstimatedMin] = useState<string>(
     initial?.estimated_min?.toString() ?? ""
   );
+  const [ageMin, setAgeMin] = useState<string>(
+    initial?.age_min?.toString() ?? ""
+  );
+  const [ageMax, setAgeMax] = useState<string>(
+    initial?.age_max?.toString() ?? ""
+  );
+
+  // ---------- Pedagogical contract ----------
+  const [demoOfCompetency, setDemoOfCompetency] = useState(
+    initial?.demo_of_competency ?? ""
+  );
+  const [learningOutcomes, setLearningOutcomes] = useState<string[]>(
+    initial?.learning_outcomes?.length ? initial.learning_outcomes : [""]
+  );
+  const [frameworkAnchors, setFrameworkAnchors] = useState<FrameworkAnchor[]>(
+    initial?.framework_anchors ?? []
+  );
+  const [appliedIn, setAppliedIn] = useState<string[]>(
+    initial?.applied_in?.length ? initial.applied_in : [""]
+  );
+
+  // ---------- Body ----------
   const [body, setBody] = useState<Block[]>(initial?.body ?? []);
+  const [showPreview, setShowPreview] = useState(false);
+
+  // ---------- Extras ----------
   const [tags, setTags] = useState<string[]>(initial?.tags ?? []);
   const [tagInput, setTagInput] = useState("");
   const [links, setLinks] = useState<
@@ -109,7 +208,6 @@ export function SkillCardForm({
   );
   const [prereqSearch, setPrereqSearch] = useState("");
   const [prereqOptions, setPrereqOptions] = useState<PrereqOption[]>([]);
-  const [showPreview, setShowPreview] = useState(false);
 
   // Auto-slug from title until the user edits slug manually.
   useEffect(() => {
@@ -126,15 +224,17 @@ export function SkillCardForm({
       return;
     }
     const id = window.setTimeout(async () => {
-      const res = await fetch(
-        `/api/teacher/skills/cards?ownership=all`,
-        { credentials: "include" }
-      );
+      const res = await fetch(`/api/teacher/skills/cards?ownership=all`, {
+        credentials: "include",
+      });
       if (!res.ok) return;
       const json = await res.json();
       const matches = (json.cards ?? [])
         .filter(
-          (c: PrereqOption & { is_published?: boolean; is_built_in?: boolean }) =>
+          (c: PrereqOption & {
+            is_published?: boolean;
+            is_built_in?: boolean;
+          }) =>
             (c.is_published || c.is_built_in) &&
             c.id !== initial?.id &&
             !prereqIds.includes(c.id) &&
@@ -149,11 +249,39 @@ export function SkillCardForm({
   const prereqById = useMemo(() => {
     const map = new Map<string, PrereqOption>();
     (initial?.prerequisites ?? []).forEach((p) =>
-      map.set(p.id, { ...p, difficulty: p.difficulty ?? null })
+      map.set(p.id, { ...p, tier: p.tier ?? null })
     );
     prereqOptions.forEach((o) => map.set(o.id, o));
     return map;
   }, [initial?.prerequisites, prereqOptions]);
+
+  // Does the current demo line start with a controlled verb? Soft hint.
+  const demoStartsWithControlledVerb = useMemo(() => {
+    const first = demoOfCompetency.trim().split(/\s+/)[0]?.toLowerCase() ?? "";
+    return (CONTROLLED_VERBS as readonly string[]).includes(first);
+  }, [demoOfCompetency]);
+
+  // ---------- Dynamic list helpers ----------
+  function updateListAt<T>(
+    arr: T[],
+    setter: React.Dispatch<React.SetStateAction<T[]>>,
+    idx: number,
+    value: T
+  ) {
+    const next = arr.slice();
+    next[idx] = value;
+    setter(next);
+  }
+  function removeListAt<T>(
+    arr: T[],
+    setter: React.Dispatch<React.SetStateAction<T[]>>,
+    idx: number,
+    empty: T
+  ) {
+    const next = arr.slice();
+    next.splice(idx, 1);
+    setter(next.length ? next : [empty]);
+  }
 
   function addTag() {
     const t = tagInput.trim().toLowerCase();
@@ -180,9 +308,7 @@ export function SkillCardForm({
   }
 
   function addPrereq(id: string) {
-    if (!prereqIds.includes(id)) {
-      setPrereqIds([...prereqIds, id]);
-    }
+    if (!prereqIds.includes(id)) setPrereqIds([...prereqIds, id]);
     setPrereqSearch("");
     setPrereqOptions([]);
   }
@@ -190,30 +316,62 @@ export function SkillCardForm({
     setPrereqIds(prereqIds.filter((x) => x !== id));
   }
 
+  function addAnchor() {
+    setFrameworkAnchors([...frameworkAnchors, { framework: "ATL", label: "" }]);
+  }
+  function updateAnchor(i: number, patch: Partial<FrameworkAnchor>) {
+    const next = frameworkAnchors.slice();
+    next[i] = { ...next[i], ...patch };
+    setFrameworkAnchors(next);
+  }
+  function removeAnchor(i: number) {
+    const next = frameworkAnchors.slice();
+    next.splice(i, 1);
+    setFrameworkAnchors(next);
+  }
+
+  // ---------- Submit ----------
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (submitting) return;
-    if (!title.trim() || !slug || !categoryId || !difficulty) {
-      return;
-    }
+    if (!title.trim() || !slug || !categoryId || !domainId || !tier) return;
+
     const publishImmediately = publishIntentRef.current;
-    publishIntentRef.current = false; // reset for next click
+    publishIntentRef.current = false;
+
+    const cleanedOutcomes = learningOutcomes.map((s) => s.trim()).filter(Boolean);
+    const cleanedApplied = appliedIn.map((s) => s.trim()).filter(Boolean);
+    const cleanedAnchors = frameworkAnchors.filter(
+      (a) => a.framework && a.label.trim()
+    );
+
     await onSubmit(
       {
         slug,
         title: title.trim(),
         summary: summary.trim() || undefined,
         category_id: categoryId,
-        difficulty,
+        domain_id: domainId,
+        tier,
         body,
         estimated_min: estimatedMin ? parseInt(estimatedMin, 10) : null,
+        age_min: ageMin ? parseInt(ageMin, 10) : null,
+        age_max: ageMax ? parseInt(ageMax, 10) : null,
+        framework_anchors: cleanedAnchors,
+        demo_of_competency: demoOfCompetency.trim() || null,
+        learning_outcomes: cleanedOutcomes,
+        applied_in: cleanedApplied,
+        card_type: cardType,
+        author_name: authorName.trim() || null,
         tags,
         external_links: links
           .filter((l) => l.url.trim())
           .map((l) => ({
             url: l.url.trim(),
             title: l.title.trim() || undefined,
-            kind: (l.kind as "video" | "pdf" | "doc" | "website" | "other") || undefined,
+            kind:
+              (l.kind as "video" | "pdf" | "doc" | "website" | "other") ||
+              undefined,
           })),
         prerequisite_ids: prereqIds,
       },
@@ -221,11 +379,21 @@ export function SkillCardForm({
     );
   }
 
+  // ========================================================================
+  // Render
+  // ========================================================================
   return (
     <form onSubmit={handleSubmit} className="sl-skill-scope space-y-6">
-      {/* ---------- Metadata ---------- */}
+      {/* =============== 1 · Identity =============== */}
       <section className="bg-white border border-gray-200 rounded-2xl p-6 space-y-4">
-        <h2 className="text-lg font-semibold text-gray-900">Card details</h2>
+        <header>
+          <h2 className="text-lg font-semibold text-gray-900">
+            1 · Identity
+          </h2>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Name the card, give it a slug, and stand behind it with your byline.
+          </p>
+        </header>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <label className="flex flex-col gap-1 text-sm">
@@ -238,7 +406,7 @@ export function SkillCardForm({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className="border border-gray-200 rounded-lg px-3 py-2"
-              placeholder="e.g. Ideation sketching"
+              placeholder="e.g. Hand Sketching for Ideation"
             />
           </label>
           <label className="flex flex-col gap-1 text-sm">
@@ -253,7 +421,7 @@ export function SkillCardForm({
                 setSlugTouched(true);
               }}
               className="border border-gray-200 rounded-lg px-3 py-2 font-mono"
-              placeholder="ideation-sketching"
+              placeholder="hand-sketching-for-ideation"
               disabled={mode === "edit"}
             />
             {mode === "edit" && (
@@ -272,13 +440,64 @@ export function SkillCardForm({
             value={summary}
             onChange={(e) => setSummary(e.target.value)}
             className="border border-gray-200 rounded-lg px-3 py-2"
-            placeholder="One-sentence overview shown on the card list."
+            placeholder="One sentence — what this card is about. Shown on list views."
           />
         </label>
 
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="text-gray-700 font-medium">
+            Author byline
+          </span>
+          <input
+            type="text"
+            maxLength={120}
+            value={authorName}
+            onChange={(e) => setAuthorName(e.target.value)}
+            className="border border-gray-200 rounded-lg px-3 py-2"
+            placeholder="e.g. Matt Burton — the human responsible for this content"
+          />
+          <span className="text-xs text-gray-400">
+            Scouts pamphlet model — every card has a named author standing
+            behind it. Defaults to your name; override for co-authored work.
+          </span>
+        </label>
+      </section>
+
+      {/* =============== 2 · Taxonomy & Tier =============== */}
+      <section className="bg-white border border-gray-200 rounded-2xl p-6 space-y-4">
+        <header>
+          <h2 className="text-lg font-semibold text-gray-900">
+            2 · Taxonomy &amp; Tier
+          </h2>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Where does this card live (domain + category) and how advanced is
+            it (tier)?
+          </p>
+        </header>
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <label className="flex flex-col gap-1 text-sm">
-            <span className="text-gray-700 font-medium">Category *</span>
+            <span className="text-gray-700 font-medium">
+              Domain (subject area) *
+            </span>
+            <select
+              required
+              value={domainId}
+              onChange={(e) => setDomainId(e.target.value)}
+              className="border border-gray-200 rounded-lg px-3 py-2 bg-white"
+            >
+              <option value="">Choose…</option>
+              {domains.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.short_code} · {d.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="text-gray-700 font-medium">
+              Category (cognitive action) *
+            </span>
             <select
               required
               value={categoryId}
@@ -294,23 +513,278 @@ export function SkillCardForm({
             </select>
           </label>
           <label className="flex flex-col gap-1 text-sm">
-            <span className="text-gray-700 font-medium">Difficulty *</span>
+            <span className="text-gray-700 font-medium">Tier *</span>
             <select
               required
-              value={difficulty}
-              onChange={(e) =>
-                setDifficulty(e.target.value as SkillDifficulty | "")
-              }
+              value={tier}
+              onChange={(e) => setTier(e.target.value as SkillTier | "")}
               className="border border-gray-200 rounded-lg px-3 py-2 bg-white"
             >
               <option value="">Choose…</option>
-              <option value="foundational">Foundational</option>
-              <option value="intermediate">Intermediate</option>
-              <option value="advanced">Advanced</option>
+              {SKILL_TIERS.map((t) => (
+                <option key={t} value={t}>
+                  {SKILL_TIER_LABELS[t]}
+                </option>
+              ))}
             </select>
           </label>
+        </div>
+
+        <div className="flex flex-col gap-2 text-sm">
+          <span className="text-gray-700 font-medium">Card type</span>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setCardType("lesson")}
+              className={`px-4 py-2 rounded-lg border text-sm ${
+                cardType === "lesson"
+                  ? "bg-indigo-600 text-white border-indigo-600"
+                  : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              Lesson
+            </button>
+            <button
+              type="button"
+              onClick={() => setCardType("routine")}
+              className={`px-4 py-2 rounded-lg border text-sm ${
+                cardType === "routine"
+                  ? "bg-indigo-600 text-white border-indigo-600"
+                  : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              Thinking Routine
+            </button>
+          </div>
+          <span className="text-xs text-gray-400">
+            Lesson = standard content + optional quiz. Thinking routine =
+            Project Zero-style 3–6 step prompt the student runs on their own
+            work, repeatable per artefact.
+          </span>
+        </div>
+      </section>
+
+      {/* =============== 3 · Pedagogical contract =============== */}
+      <section className="bg-white border border-gray-200 rounded-2xl p-6 space-y-4">
+        <header>
+          <h2 className="text-lg font-semibold text-gray-900">
+            3 · Pedagogical contract
+          </h2>
+          <p className="text-sm text-gray-500 mt-0.5">
+            What does <em>earned</em> mean? These fields are the rubric —
+            shown to the student <strong>before</strong> they start (Digital
+            Promise: the evidence criterion is the skill definition).
+          </p>
+        </header>
+
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="text-gray-700 font-medium">
+            Demo of competency *
+          </span>
+          <textarea
+            rows={2}
+            value={demoOfCompetency}
+            onChange={(e) => setDemoOfCompetency(e.target.value)}
+            className="border border-gray-200 rounded-lg px-3 py-2"
+            placeholder="One sentence. Start with a controlled verb (show / demonstrate / produce / explain / argue / identify / compare / sketch / make / plan / deliver)."
+          />
+          {demoOfCompetency.trim().length > 0 &&
+            !demoStartsWithControlledVerb && (
+              <span className="text-xs text-amber-600">
+                ⚠ Start with a controlled verb —{" "}
+                <code>{CONTROLLED_VERBS.join(" / ")}</code>. Banned:
+                understand, know about, appreciate (unverifiable).
+              </span>
+            )}
+        </label>
+
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-gray-700 font-medium text-sm">
+              Learning outcomes (&ldquo;Student can&hellip;&rdquo;)
+            </span>
+            <button
+              type="button"
+              onClick={() => setLearningOutcomes([...learningOutcomes, ""])}
+              className="text-xs text-indigo-600 hover:text-indigo-700"
+            >
+              + Add outcome
+            </button>
+          </div>
+          <ul className="space-y-2">
+            {learningOutcomes.map((o, i) => (
+              <li key={i} className="flex gap-2">
+                <span className="text-gray-400 text-sm pt-2">•</span>
+                <input
+                  type="text"
+                  value={o}
+                  onChange={(e) =>
+                    updateListAt(
+                      learningOutcomes,
+                      setLearningOutcomes,
+                      i,
+                      e.target.value
+                    )
+                  }
+                  placeholder="Student can identify … / produce … / argue …"
+                  className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    removeListAt(learningOutcomes, setLearningOutcomes, i, "")
+                  }
+                  disabled={learningOutcomes.length === 1}
+                  className="text-rose-600 hover:text-rose-700 text-sm px-2 disabled:opacity-30"
+                  aria-label={`Remove outcome ${i + 1}`}
+                >
+                  ×
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-gray-700 font-medium text-sm">
+              Framework anchors
+            </span>
+            <button
+              type="button"
+              onClick={addAnchor}
+              className="text-xs text-indigo-600 hover:text-indigo-700"
+            >
+              + Add anchor
+            </button>
+          </div>
+          <p className="text-xs text-gray-500 mb-2">
+            Map this card to ATL / CASEL / WEF / Studio Habits categories.
+            Defensibility for parents and admin.
+          </p>
+          {frameworkAnchors.length === 0 ? (
+            <p className="text-xs text-gray-400 italic">
+              No anchors yet. Recommended: 1–3 per card.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {frameworkAnchors.map((a, i) => {
+                const choice = FRAMEWORK_CHOICES.find(
+                  (c) => c.value === a.framework
+                );
+                return (
+                  <li
+                    key={i}
+                    className="grid grid-cols-1 md:grid-cols-[10rem_1fr_auto] gap-2 items-center"
+                  >
+                    <select
+                      value={a.framework}
+                      onChange={(e) =>
+                        updateAnchor(i, {
+                          framework: e.target
+                            .value as FrameworkAnchor["framework"],
+                        })
+                      }
+                      className="border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white"
+                    >
+                      {FRAMEWORK_CHOICES.map((c) => (
+                        <option key={c.value} value={c.value}>
+                          {c.label}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="text"
+                      list={`fa-suggestions-${i}`}
+                      value={a.label}
+                      onChange={(e) =>
+                        updateAnchor(i, { label: e.target.value })
+                      }
+                      placeholder={`e.g. ${choice?.suggestions[0] ?? "Analytical Thinking"}`}
+                      className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                    />
+                    {choice && (
+                      <datalist id={`fa-suggestions-${i}`}>
+                        {choice.suggestions.map((s) => (
+                          <option key={s} value={s} />
+                        ))}
+                      </datalist>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => removeAnchor(i)}
+                      className="text-rose-600 hover:text-rose-700 text-sm px-2"
+                      aria-label="Remove anchor"
+                    >
+                      Remove
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-gray-700 font-medium text-sm">
+              Applied in
+            </span>
+            <button
+              type="button"
+              onClick={() => setAppliedIn([...appliedIn, ""])}
+              className="text-xs text-indigo-600 hover:text-indigo-700"
+            >
+              + Add context
+            </button>
+          </div>
+          <p className="text-xs text-gray-500 mb-2">
+            Where does this card get pulled into student work? (activity block
+            prereqs, fabrication pipeline, Open Studio capability-gap, class
+            gallery, safety badges, etc.)
+          </p>
+          <ul className="space-y-2">
+            {appliedIn.map((a, i) => (
+              <li key={i} className="flex gap-2">
+                <span className="text-gray-400 text-sm pt-2">•</span>
+                <input
+                  type="text"
+                  value={a}
+                  onChange={(e) =>
+                    updateListAt(appliedIn, setAppliedIn, i, e.target.value)
+                  }
+                  placeholder="e.g. Activity block prereq — prototyping phase · Fabrication Pipeline preflight"
+                  className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => removeListAt(appliedIn, setAppliedIn, i, "")}
+                  disabled={appliedIn.length === 1}
+                  className="text-rose-600 hover:text-rose-700 text-sm px-2 disabled:opacity-30"
+                  aria-label={`Remove context ${i + 1}`}
+                >
+                  ×
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+
+      {/* =============== 4 · Sizing =============== */}
+      <section className="bg-white border border-gray-200 rounded-2xl p-6 space-y-4">
+        <header>
+          <h2 className="text-lg font-semibold text-gray-900">4 · Sizing</h2>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Age band and time estimate. Soft hints — UI will not block
+            off-band students.
+          </p>
+        </header>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <label className="flex flex-col gap-1 text-sm">
-            <span className="text-gray-700 font-medium">Estimated time (min)</span>
+            <span className="text-gray-700 font-medium">
+              Estimated time (min)
+            </span>
             <input
               type="number"
               min={1}
@@ -318,16 +792,46 @@ export function SkillCardForm({
               value={estimatedMin}
               onChange={(e) => setEstimatedMin(e.target.value)}
               className="border border-gray-200 rounded-lg px-3 py-2"
-              placeholder="e.g. 15"
+              placeholder="e.g. 60"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="text-gray-700 font-medium">Age — min</span>
+            <input
+              type="number"
+              min={5}
+              max={25}
+              value={ageMin}
+              onChange={(e) => setAgeMin(e.target.value)}
+              className="border border-gray-200 rounded-lg px-3 py-2"
+              placeholder="e.g. 11"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="text-gray-700 font-medium">Age — max</span>
+            <input
+              type="number"
+              min={5}
+              max={25}
+              value={ageMax}
+              onChange={(e) => setAgeMax(e.target.value)}
+              className="border border-gray-200 rounded-lg px-3 py-2"
+              placeholder="e.g. 13"
             />
           </label>
         </div>
       </section>
 
-      {/* ---------- Body blocks ---------- */}
+      {/* =============== 5 · Body =============== */}
       <section className="bg-white border border-gray-200 rounded-2xl p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">Body</h2>
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">5 · Body</h2>
+            <p className="text-sm text-gray-500 mt-0.5">
+              The actual lesson content. Pick blocks from the menu; reorder
+              with the arrows.
+            </p>
+          </div>
           <button
             type="button"
             onClick={() => setShowPreview((v) => !v)}
@@ -345,13 +849,15 @@ export function SkillCardForm({
         )}
       </section>
 
-      {/* ---------- Tags ---------- */}
+      {/* =============== 6 · Tags =============== */}
       <section className="bg-white border border-gray-200 rounded-2xl p-6 space-y-3">
-        <h2 className="text-lg font-semibold text-gray-900">Tags</h2>
-        <p className="text-sm text-gray-500">
-          Short lowercase labels for filtering (e.g. <code>3d-printing</code>,{" "}
-          <code>safety</code>).
-        </p>
+        <header>
+          <h2 className="text-lg font-semibold text-gray-900">6 · Tags</h2>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Short lowercase labels for filtering. Use existing tags if they
+            fit.
+          </p>
+        </header>
         <div className="flex flex-wrap gap-2">
           {tags.map((t) => (
             <span
@@ -394,10 +900,18 @@ export function SkillCardForm({
         </div>
       </section>
 
-      {/* ---------- External links ---------- */}
+      {/* =============== 7 · External links =============== */}
       <section className="bg-white border border-gray-200 rounded-2xl p-6 space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900">External links</h2>
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">
+              7 · External links
+            </h2>
+            <p className="text-sm text-gray-500 mt-0.5">
+              Supplementary videos, PDFs, reference pages. Link-checked
+              periodically.
+            </p>
+          </div>
           <button
             type="button"
             onClick={addLink}
@@ -406,10 +920,6 @@ export function SkillCardForm({
             + Add link
           </button>
         </div>
-        <p className="text-sm text-gray-500">
-          Supplementary videos, PDFs, or reference pages. We&apos;ll check them
-          periodically for dead links.
-        </p>
         {links.length === 0 ? (
           <p className="text-sm text-gray-400 italic">No links attached.</p>
         ) : (
@@ -459,13 +969,17 @@ export function SkillCardForm({
         )}
       </section>
 
-      {/* ---------- Prereqs ---------- */}
+      {/* =============== 8 · Prerequisites =============== */}
       <section className="bg-white border border-gray-200 rounded-2xl p-6 space-y-3">
-        <h2 className="text-lg font-semibold text-gray-900">Prerequisites</h2>
-        <p className="text-sm text-gray-500">
-          Cards students should master before attempting this one. Shown as
-          prompts in the library, not hard locks.
-        </p>
+        <header>
+          <h2 className="text-lg font-semibold text-gray-900">
+            8 · Prerequisites
+          </h2>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Cards students should master before attempting this one. Soft
+            prompts — not hard locks.
+          </p>
+        </header>
 
         {prereqIds.length > 0 && (
           <ul className="flex flex-wrap gap-2">
@@ -509,9 +1023,9 @@ export function SkillCardForm({
                     className="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm"
                   >
                     <span className="font-medium">{o.title}</span>
-                    {o.difficulty && (
-                      <span className="ml-2 text-xs text-gray-500">
-                        {o.difficulty}
+                    {o.tier && (
+                      <span className="ml-2 text-xs text-gray-500 capitalize">
+                        {o.tier}
                       </span>
                     )}
                   </button>
@@ -522,7 +1036,7 @@ export function SkillCardForm({
         </div>
       </section>
 
-      {/* ---------- Submit ---------- */}
+      {/* =============== Submit =============== */}
       {submitError && (
         <div className="bg-rose-50 border border-rose-200 rounded-lg p-3 text-sm text-rose-700">
           {submitError}
@@ -530,12 +1044,9 @@ export function SkillCardForm({
       )}
 
       <div className="flex items-center gap-3 sticky bottom-0 bg-white border-t border-gray-100 -mx-6 px-6 py-3">
-        {/* Left: status (e.g. "Saved at 3:45 PM") */}
         <div className="flex-1 text-sm text-gray-500 min-w-0 truncate">
           {statusSlot}
         </div>
-
-        {/* Right: extra actions (e.g. mirrored Publish on /edit) + submit(s) */}
         <div className="flex items-center gap-2">
           {extraActions}
           {mode === "create" && (
@@ -548,7 +1059,8 @@ export function SkillCardForm({
                 submitting ||
                 !title.trim() ||
                 !categoryId ||
-                !difficulty ||
+                !domainId ||
+                !tier ||
                 body.length === 0
               }
               title={
@@ -566,7 +1078,9 @@ export function SkillCardForm({
             onClick={() => {
               publishIntentRef.current = false;
             }}
-            disabled={submitting || !title.trim() || !categoryId || !difficulty}
+            disabled={
+              submitting || !title.trim() || !categoryId || !domainId || !tier
+            }
             className="px-5 py-2 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {submitting

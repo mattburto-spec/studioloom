@@ -394,6 +394,7 @@ systems:
       - path: supabase/migrations/107_student_skill_state_view.sql
       - path: supabase/migrations/108_skills_library_sample_seeds.sql
       - path: supabase/migrations/109_skills_library_authoring.sql
+      - path: supabase/migrations/110_skills_library_world_class_schema.sql
       - path: src/types/skills.ts
       - path: src/components/skills/BlockEditor.tsx
       - path: src/components/skills/BlockRenderer.tsx
@@ -402,12 +403,15 @@ systems:
       - path: src/app/api/teacher/skills/cards/[id]/route.ts
       - path: src/app/api/teacher/skills/cards/[id]/publish/route.ts
       - path: src/app/api/teacher/skills/categories/route.ts
+      - path: src/app/api/teacher/skills/domains/route.ts
       - path: src/app/api/student/skills/cards/[slug]/route.ts
       - path: src/app/teacher/skills/page.tsx
       - path: src/app/teacher/skills/new/page.tsx
       - path: src/app/teacher/skills/[id]/page.tsx
       - path: src/app/teacher/skills/[id]/edit/page.tsx
       - path: src/app/(student)/skills/cards/[slug]/page.tsx
+      - path: docs/projects/skills-library-research-brief.md
+      - path: docs/projects/skills-library-catalogue-v1.md
     future_needs: |
       Quiz types beyond MC/T/F (image identification, ordering, matching). Badge engine with teacher sign-off workflow. Forking/lineage UI. Cross-school visibility. Strength radar chart visualisation. Mastery derivation from Stone completions. Refresh mode quiz logic. Community contributor marketplace (phase 4).
     adrs: []

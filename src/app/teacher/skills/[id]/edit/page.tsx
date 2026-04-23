@@ -19,6 +19,12 @@ interface Category {
   label: string;
   description: string;
 }
+interface Domain {
+  id: string;
+  short_code: string;
+  label: string;
+  description: string;
+}
 
 export default function EditSkillCardPage() {
   const router = useRouter();
@@ -29,6 +35,7 @@ export default function EditSkillCardPage() {
   const [card, setCard] = useState<SkillCardHydrated | null>(null);
   const [editable, setEditable] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [domains, setDomains] = useState<Domain[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -58,6 +65,10 @@ export default function EditSkillCardPage() {
       .then((r) => (r.ok ? r.json() : { categories: [] }))
       .then((j) => setCategories(j.categories ?? []))
       .catch(() => setCategories([]));
+    fetch("/api/teacher/skills/domains", { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : { domains: [] }))
+      .then((j) => setDomains(j.domains ?? []))
+      .catch(() => setDomains([]));
   }, []);
 
   useEffect(() => {
@@ -267,6 +278,7 @@ export default function EditSkillCardPage() {
         mode="edit"
         initial={card}
         categories={categories}
+        domains={domains}
         onSubmit={handleSubmit}
         submitting={submitting}
         submitError={submitError}
