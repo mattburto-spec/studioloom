@@ -221,7 +221,7 @@ export default function FabricationJobStatusPage() {
   }
 
   return (
-    <main className="max-w-4xl mx-auto px-6 py-10">
+    <main className="max-w-6xl mx-auto px-6 py-10">
       <header className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900">
           {pollState.kind === "done"
@@ -347,64 +347,126 @@ function DoneStateView(props: {
   const hideSubmit = shouldHideSubmitButton(jobStatus);
 
   return (
-    <div className="space-y-4">
-      {actionError && (
-        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3">
-          <p className="text-sm text-red-900">{actionError}</p>
+    <div className="space-y-6">
+      {/* Two-column layout (desktop): rule buckets + actions on the
+          left, file preview + revision history on the right. Stacks
+          to single column on mobile. */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* ── LEFT COLUMN — review card + rule buckets + actions ── */}
+        <div className="lg:col-span-2 space-y-4">
+          {actionError && (
+            <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3">
+              <p className="text-sm text-red-900">{actionError}</p>
+            </div>
+          )}
+
+          {showReviewCard && (
+            <TeacherReviewNoteCard
+              jobStatus={jobStatus}
+              teacherNote={teacherNote}
+              teacherReviewedAt={teacherReviewedAt}
+            />
+          )}
+
+          {/* Rejected jobs are terminal — student can't re-upload on
+              this job (spec §10 Q2 — "no re-upload on this job") so
+              we skip the scan results viewer entirely. They've
+              already seen it pre-submission; the decision is final. */}
+          {jobStatus === "rejected" ? null : (
+            <ScanResultsViewer
+              scanResults={scanResults}
+              acknowledgedWarnings={localAcks}
+              revisionNumber={revisionNumber}
+              canSubmitState={gate}
+              onAcknowledge={onAcknowledge}
+              onSubmit={onSubmit}
+              onReupload={onReupload}
+              isAckInFlight={isAckInFlight}
+              isSubmitting={isSubmitting}
+              thumbnailUrl={status.revision?.thumbnailUrl ?? null}
+              fileType={status.fileType}
+              // Approved/completed/picked_up jobs are still visible to
+              // the student via direct URL, but actions are locked —
+              // same readOnly treatment the teacher detail page uses.
+              readOnly={actionsLocked}
+              // Hide Submit button on needs_revision (teacher
+              // explicitly asked for a fix) and pending_approval
+              // (already submitted). Re-upload remains available +
+              // becomes the primary purple action.
+              // shouldHideSubmitButton is the single source of truth
+              // for that decision.
+              hideSubmit={hideSubmit}
+              // The right-column preview card renders the thumbnail
+              // bigger than the inline strip — suppress the viewer's
+              // built-in strip to avoid duplication.
+              hideHeaderStrip
+            />
+          )}
         </div>
-      )}
 
-      {showReviewCard && (
-        <TeacherReviewNoteCard
-          jobStatus={jobStatus}
-          teacherNote={teacherNote}
-          teacherReviewedAt={teacherReviewedAt}
-        />
-      )}
+        {/* ── RIGHT COLUMN — preview + revision history ── */}
+        <aside className="lg:col-span-1 space-y-4">
+          <PreviewCard
+            thumbnailUrl={status.revision?.thumbnailUrl ?? null}
+            revisionNumber={revisionNumber}
+            fileType={status.fileType}
+          />
 
-      {/* Rejected jobs are terminal — student can't re-upload on this
-          job (spec §10 Q2 — "no re-upload on this job") so we skip the
-          scan results viewer entirely. They've already seen it pre-
-          submission; the decision is final. */}
-      {jobStatus === "rejected" ? null : (
-        <ScanResultsViewer
-          scanResults={scanResults}
-          acknowledgedWarnings={localAcks}
-          revisionNumber={revisionNumber}
-          canSubmitState={gate}
-          onAcknowledge={onAcknowledge}
-          onSubmit={onSubmit}
-          onReupload={onReupload}
-          isAckInFlight={isAckInFlight}
-          isSubmitting={isSubmitting}
-          thumbnailUrl={status.revision?.thumbnailUrl ?? null}
-          fileType={status.fileType}
-          // Approved/completed/picked_up jobs are still visible to the
-          // student via direct URL, but actions are locked — same
-          // readOnly treatment the teacher detail page uses.
-          readOnly={actionsLocked}
-          // Hide Submit button on needs_revision (teacher explicitly
-          // asked for a fix) and pending_approval (already submitted).
-          // Re-upload remains available + becomes the primary purple
-          // action. shouldHideSubmitButton is the single source of
-          // truth for that decision.
-          hideSubmit={hideSubmit}
-        />
-      )}
-
-      {/* Revision history — hidden when only 1 revision exists */}
-      <RevisionHistoryPanel
-        revisions={revisions}
-        currentRevision={revisionNumber}
-      />
-      {revisionsError && (
-        <p className="text-xs text-gray-500 italic">{revisionsError}</p>
-      )}
+          {/* Revision history — hidden when only 1 revision exists */}
+          <RevisionHistoryPanel
+            revisions={revisions}
+            currentRevision={revisionNumber}
+          />
+          {revisionsError && (
+            <p className="text-xs text-gray-500 italic">{revisionsError}</p>
+          )}
+        </aside>
+      </div>
 
       <div className="pt-4 text-xs text-gray-500">
         <Link href="/dashboard" className="underline hover:no-underline">
           ← Back to dashboard
         </Link>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Right-column preview card on the 2-column layout. Renders a large
+ * square thumbnail of the current revision + the revision/file-type
+ * label. Falls back to a dashed placeholder box when the worker
+ * hasn't produced a thumbnail yet (e.g. mid-scan or scan_error).
+ */
+function PreviewCard(props: {
+  thumbnailUrl: string | null;
+  revisionNumber: number;
+  fileType: "stl" | "svg";
+}) {
+  const { thumbnailUrl, revisionNumber, fileType } = props;
+  return (
+    <div className="rounded-2xl border border-gray-200 bg-white p-4 space-y-3">
+      <div className="aspect-square w-full rounded-xl border border-gray-200 bg-gray-50 overflow-hidden flex items-center justify-center">
+        {thumbnailUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={thumbnailUrl}
+            alt="Scan preview"
+            className="w-full h-full object-contain"
+          />
+        ) : (
+          <span aria-hidden="true" className="text-gray-300 text-sm">
+            preview not available
+          </span>
+        )}
+      </div>
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold text-gray-900">
+          Revision {revisionNumber}
+        </p>
+        <span className="text-xs text-gray-500 font-mono uppercase">
+          {fileType}
+        </span>
       </div>
     </div>
   );
