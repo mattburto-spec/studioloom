@@ -85,6 +85,32 @@ export function formatRelativeTime(iso: string, now: number = Date.now()): strin
 }
 
 /**
+ * Compact absolute date+time — "23 Apr · 14:32". Used on teacher
+ * history tables (Phase 6-6n) where teachers want to know exactly
+ * WHEN a submission landed, not just "3h ago" (which loses meaning
+ * after a day or two). Omits the year (schools see submissions from
+ * the current academic year). Returns the raw ISO on parse failure.
+ *
+ * Locale-agnostic format — "DD MMM · HH:mm" reads cleanly in most
+ * locales without relying on `toLocaleString` producing consistent
+ * output across browsers.
+ */
+const MONTHS_SHORT = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+export function formatDateTime(iso: string): string {
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return iso;
+  const d = new Date(t);
+  const day = d.getDate();
+  const month = MONTHS_SHORT[d.getMonth()];
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return `${day} ${month} · ${hh}:${mm}`;
+}
+
+/**
  * Decide whether the panel expands by default. More than one revision =
  * there's history to show; single-revision jobs hide the panel entirely
  * (no history to summarise).

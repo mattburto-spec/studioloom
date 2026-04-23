@@ -2346,6 +2346,22 @@ docs:
     max_age_days: 180
     last_scanned: "2026-04-21"
 
+  - path: docs/projects/preflight-phase-6-brief.md
+    title: "Preflight Phase 6 Brief — Teacher Queue + Approval"
+    purpose: "Phase 6 build brief: 7 sub-phases (6-0 reducer fix → 6-6 checkpoint). Scope: first teacher-facing surface (`/teacher/preflight` queue with status tabs + detail page + approve/return/reject/note actions), per-student + per-class fabrication history tabs, student-side `needs_revision` view. 8 open questions resolved pre-build. No new migrations. Commit plan + success criteria matrix."
+    category: projects
+    last_verified: "2026-04-23"
+    max_age_days: 90
+    last_scanned: "2026-04-23"
+
+  - path: docs/projects/preflight-phase-6-checkpoint-6-1.md
+    title: "Preflight Phase 6 Checkpoint 6.1 Report (DRAFT — smoke in progress)"
+    purpose: "Checkpoint 6.1 exit report. 14-criterion pass/fail matrix, 4 smoke scenarios (S1 happy-path approve, S2 return-for-revision including the critical PH5-FU-REUPLOAD-POLL-STUCK verification, S3 reject, S4 per-student + per-class history). Pre-smoke checklist includes the `requires_teacher_approval` seed-flip SQL. Running log of new follow-ups filed during smoke (5 filed as of 23 Apr AM: PH6-FU-PREVIEW-OVERLAY, PH6-FU-PREVIEW-PINCH-ZOOM, PH6-FU-RULE-MEDIA-EMBEDS, PH6-FU-TEACHER-CANNED-NOTES-EDITABLE, PH6-FU-MULTI-LAB-SCOPING). Awaiting S4 + final ✅ PASS sign-off."
+    category: projects
+    last_verified: "2026-04-23"
+    max_age_days: 180
+    last_scanned: "2026-04-23"
+
   - path: docs/projects/fabrication-pipeline-phase-0-brief.md
     title: "Preflight Phase 0 Brief — Spec & Pre-Build Checklist"
     purpose: "Phase 0 pre-build ritual: fixture gathering, rule threshold sign-off, machine profile verification, Fabricator kickoff call, decision doc template, Checkpoint 0.1 gates"

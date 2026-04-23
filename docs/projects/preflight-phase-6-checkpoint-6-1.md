@@ -195,7 +195,43 @@ All scenarios use:
 - `FU-CLASS-MACHINE-LINK` P3 — per-class machine filter deferred to Phase 8.
 - `FU-SCANNER-RATE-LIMIT` P3 — upload throttle.
 
-**New during Phase 6 smoke:** ⏳ _(file any new ones here as they surface — most likely candidates: teacher-email-on-submit nagging if teacher doesn't see updates, UI polish on the detail page action bar, anything surprising in the approve→student-page poll cycle)_
+**New during Phase 6 smoke (23 Apr 2026):**
+
+- **`PH6-FU-PREVIEW-OVERLAY` P2** — annotate the main thumbnail with
+  bounding boxes / highlights from each rule's `evidence` field (face
+  indices for STL, path coords for SVG) so students see WHERE the
+  issue is, not just what. Data already flows via scan_results
+  JSONB; just no UI layer yet. Filed inline in
+  `src/components/fabrication/PreviewCard.tsx`.
+- **`PH6-FU-PREVIEW-PINCH-ZOOM` P3** — wheel / pinch zoom + drag-to-pan
+  inside the preview lightbox. Current click-to-toggle covers the v1
+  use case; richer interaction if a student asks. Filed inline in
+  the student status page PreviewModal.
+- **`PH6-FU-RULE-MEDIA-EMBEDS` P2** — extend rule schema with
+  `mediaHints: [{kind: 'image'|'video', url, caption?, context?}]`
+  and render inline carousel / `<video>` player between `fix_hint`
+  and evidence in the RuleCard. Pairs with `PH5-FU-PER-RULE-ACKS`
+  (keyed Skills Library videos) + `PH6-FU-PREVIEW-OVERLAY`
+  (scanner-driven annotations). Best landed post-pilot when real
+  rule-hit distribution shows which 5-10 rules most need
+  scaffolding. Filed inline in `RuleCard.tsx`.
+- **`PH6-FU-TEACHER-CANNED-NOTES-EDITABLE` P3** — teacher-editable
+  canned-note presets (currently hardcoded in
+  `src/lib/fabrication/canned-teacher-notes.ts`). Needs per-teacher
+  storage + a management UI at `/teacher/preflight/settings`. Path
+  is clean because presets live in a standalone module — extraction
+  is straightforward. Filed inline in canned-teacher-notes.ts.
+- **`PH6-FU-MULTI-LAB-SCOPING` P2** — multi-lab schools (Matt's SFS
+  example: 3 physically-separate design labs, all Bambu gear,
+  different teachers + lab techs per lab) need a new
+  `fabrication_labs` entity + `lab_id` FK on machine_profiles /
+  fabricators / classes. Student picker defaults to their class's
+  lab; fabricator queue scoped by lab AND machine assignment; lab-
+  admin teacher role manages that lab's machine list. Phase 9+ —
+  gated on access-model-v2 (FU-O/P/R) shipping first to provide
+  "lab admin" / "school admin" role scoping. Single-lab schools
+  (NIS) work fine with v1 — not a pilot blocker. Filed inline in
+  `src/app/api/student/fabrication/picker-data/route.ts`.
 
 ---
 

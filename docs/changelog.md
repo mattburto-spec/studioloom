@@ -81,6 +81,91 @@
 
 ---
 
+## 23 Apr 2026 — Preflight Phase 6 code COMPLETE + Checkpoint 6.1 smoke IN PROGRESS
+
+**Context:** First teacher-facing surface of the Preflight pipeline.
+Ran in `preflight-active` worktree alongside parallel
+`dashboard-v2-build` (v2 polish) + a fresh `skills-library` worktree
+(Phase S1 schema). Daily merges back to main. Smoke (S1–S4) against
+studioloom.org with Matt as teacher + a `test` student account.
+
+**Phase 6 sub-phases shipped (14+ commits, all on main via preflight-active):**
+
+| | |
+|---|---|
+| 6-0 | reducer auto-unfreeze on revision bump (PH5 fix) |
+| 6-1 | teacher action endpoints + queue endpoint + teacher-orchestration lib |
+| 6-2 | `/teacher/preflight/jobs/[jobId]` detail page + `readOnly` ScanResultsViewer |
+| 6-3 | `/teacher/preflight` queue page with status tabs + counts |
+| 6-4 | per-student + per-class fabrication history |
+| 6-5 | student `needs_revision` view + `TeacherReviewNoteCard` |
+| 6-5b | reset-before-fetch ordering (closes `PH5-FU-REUPLOAD-POLL-STUCK`) |
+| 6-6 | Checkpoint 6.1 report draft with ⏳ placeholders |
+| 6-6a–l | smoke-feedback polish — see below |
+
+**Smoke-feedback polish sub-phases (a–l):**
+- **a** — 4× bigger scan thumb + scroll-to-top on teacher action
+- **b** — "Uploading your file" → "Loading your submission" (copy was wrong for nav/return entry paths)
+- **c** — hide Submit button on `needs_revision` + `pending_approval` (rude to re-submit unchanged)
+- **d** — width + typography consistency pass across all preflight pages (`max-w-6xl`, `text-3xl` h1s, cleaner section headings with coloured accent bars, no emoji)
+- **e** — 2-column layout on student status page (content left, preview + history right)
+- **f** — click-to-zoom preview lightbox with Esc + backdrop close + body-scroll-lock
+- **g** — Preflight tab added to v2 student `BoldTopNav`
+- **h** — final width polish on fabricators + submitted + upload pages
+- **i** — new `/fabrication` student overview page listing their submissions + `+ New submission` CTA; removed redundant "Back to dashboard" links
+- **j** — 2-column layout on teacher detail page; extracted `PreviewCard` into shared component
+- **k** — student **withdraw** (`POST /api/.../cancel`) + auto-filename helper (`{student}-{grade}-{unit}.ext`) + button press animations across every preflight button
+- **l** — canned-note chip strip (4–7 presets per action kind) in TeacherActionBar modal
+
+**Smoke progress (Matt on studioloom.org):**
+- ✅ **S1 Happy path** (approve) — clean end-to-end
+- ✅ **S2 Return for revision** — CRITICAL TEST. Reupload
+  transition was clean without hard-refresh, confirming the layered
+  6-0 (reducer auto-unfreeze) + 6-5b (reset-before-fetch) fix works
+  end-to-end. Closes `PH5-FU-REUPLOAD-POLL-STUCK`.
+- ✅ **S3 Reject** — red card renders without `ScanResultsViewer`,
+  Start Fresh link navigates correctly.
+- ⏳ **S4 Per-student + per-class history** — pending.
+
+**5 new follow-ups filed during smoke** (tracked inline + in Checkpoint 6.1 report):
+1. `PH6-FU-PREVIEW-OVERLAY` P2 — scanner-driven bounding boxes on
+   thumbnail showing WHERE a rule fired. Data already flows through
+   `scan_results.rules[].evidence`.
+2. `PH6-FU-PREVIEW-PINCH-ZOOM` P3 — wheel/pinch zoom + drag-pan.
+3. `PH6-FU-RULE-MEDIA-EMBEDS` P2 — extend rule schema with
+   `mediaHints`, render inline image/video below `fix_hint`. Pairs
+   with `PH5-FU-PER-RULE-ACKS` + `PH6-FU-PREVIEW-OVERLAY`.
+4. `PH6-FU-TEACHER-CANNED-NOTES-EDITABLE` P3 — teacher-editable
+   preset list with `/teacher/preflight/settings` management UI.
+5. `PH6-FU-MULTI-LAB-SCOPING` P2 — `fabrication_labs` entity for
+   schools with 3+ separate design labs (Seoul Foreign School
+   model). NIS (1 proximal DT area) works fine with v1. Phase 9+,
+   gated on access-model-v2 (FU-O/P/R) shipping first.
+
+**Resolved this session:**
+- `PH5-FU-REUPLOAD-POLL-STUCK` P2 — closed via layered Phase 6-0 +
+  6-5b fix. Verified in S2 smoke.
+
+**Systems affected:** fabrication (student + teacher surfaces +
+shared orchestration), student-dashboard (BoldTopNav nav entry),
+api-registry (+14 routes, 310 → 324 total).
+
+**No migrations.** Phase 6 is pure app.
+
+**Tests:** 1668 → 1862 (+194).
+
+**Cross-session interactions (merge friction):** `dashboard-v2-build`
+cutover to `/dashboard` + `BoldTopNav` extraction + Skills nav
+pill rename produced 2 small conflicts, both resolved in favour of
+v2's cleaner discriminated-union nav structure with the Preflight
+entry ported. `skills-library` S1 schema (migrations 105-108) ran
+in parallel with zero overlap — clean merges.
+
+**Checkpoint 6.1 sign-off pending** S4 verification + flipping
+`⏳ DRAFT` → `✅ PASS` in the report header.
+
+---
+
 ## 23 Apr 2026 — Skills Library Phase S1 schema foundation SHIPPED + APPLIED to prod
 
 **Context:** Kickoff of the Skills Library project per [`docs/projects/skills-library.md`](projects/skills-library.md) + canonical specs in `docs/specs/skills-library-spec.md` + completion-addendum. The library is the "moat" — one canonical skill card, many embed contexts (library browse, lesson activity blocks, Open Studio capability-gap, crit board, badges). Completions as `learning_events`, not a mutable table.
