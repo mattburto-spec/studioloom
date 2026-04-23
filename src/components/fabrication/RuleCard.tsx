@@ -14,6 +14,14 @@
  * Skills Library deep-link renders when the rule id matches the
  * expected R-{STL|SVG}-NN convention. Phase 5-6 will flesh out the
  * hover/disabled styling when the library catalogue populates.
+ *
+ * Future (PH6-FU-RULE-MEDIA-EMBEDS P2): extend rule schema with
+ * `mediaHints: [{kind: 'image'|'video', url, caption?, context?}]`
+ * and render an inline carousel / <video> player between fix_hint
+ * and evidence. Pairs with PH5-FU-PER-RULE-ACKS (keyed tutorials)
+ * and PH6-FU-PREVIEW-OVERLAY (annotated thumbnail showing problem
+ * region). Best landed after pilot — real rule-hit patterns will
+ * tell us which ~5-10 rules need scaffolding most.
  */
 
 import * as React from "react";
