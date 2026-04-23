@@ -1,8 +1,8 @@
 # Preflight Phase 6 — Checkpoint 6.1 Report
 
-**Status:** ⏳ DRAFT — awaiting prod smoke sign-off
-**Date signed off:** _(pending — fill in after smoke passes)_
-**Signed off by:** _(pending)_
+**Status:** ✅ PASS — all 4 smoke scenarios verified in prod
+**Date signed off:** 23 April 2026 PM
+**Signed off by:** Matt (all 4 scenarios run end-to-end against studioloom.org)
 **Date drafted:** 23 April 2026 AM
 **Brief:** [`preflight-phase-6-brief.md`](./preflight-phase-6-brief.md)
 **Phase scope:** Teacher queue + approval — triage UI, 4 teacher actions, per-student/class fabrication history, student-side needs-revision view.
@@ -108,7 +108,12 @@ All scenarios use:
 
 **Expected:** Teacher triage end-to-end works for a single submission. Queue counts stay accurate across tabs.
 
-**Result:** ⏳ _(fill in jobId + observations after smoke)_
+**Result:** ✅ **PASS** (23 Apr 2026 PM, Matt smoke).
+- Student submitted with laser profile; status transitioned through `uploaded` → `scanning` → `pending_approval` as expected. Row appeared in teacher's `Pending approval` tab with all fields populated (student, class, machine, filename, revision, waiting time, rule-count pill).
+- Teacher row-click → detail page rendered with all expected sections: header card, read-only ScanResultsViewer with student's acks visible (radios disabled), 2-column layout with preview card + revision history on the right, TeacherActionBar at bottom.
+- Teacher Approve → status pill flipped to `approved`, scroll-to-top fired (6-6a fix visible), success banner rendered.
+- Queue row moved from `Pending approval` tab to `Approved / queued` tab — counts accurate.
+- Student navigate back → green `TeacherReviewNoteCard` + read-only viewer as expected. Teacher note preserved.
 
 ---
 
@@ -133,7 +138,14 @@ All scenarios use:
 
 **Expected:** Full return → re-upload → resubmit → approve loop works. **PH5-FU-REUPLOAD-POLL-STUCK specifically: re-upload transitions without hard-refresh.** If you see the flash-of-idle or stuck state, file a new follow-up immediately and flag this criterion ⚠️.
 
-**Result:** ⏳ _(fill in jobId + observations — especially whether reupload transition was clean)_
+**Result:** ✅ **PASS** — **PH5-FU-REUPLOAD-POLL-STUCK verified closed.**
+- Teacher Return-for-revision transition clean — status pill flipped to `needs revision`, scroll-to-top fired, queue row moved to `Revisions in progress` tab as expected.
+- Student navigate back → amber `TeacherReviewNoteCard` rendered at top of left column with teacher's note preserved. Reviewed-timestamp footer visible.
+- **ScanResultsViewer correctly showed ONLY the "Re-upload a fixed version" button (purple primary)** per the 6-6c hide-Submit fix — no confusing double-CTA on needs_revision.
+- Student Re-upload → modal → drop SVG → modal closes.
+- **Transition was CLEAN — no hard-refresh needed.** Brief "Loading your submission" spinner → Rev 2 scan progress → Rev 2 scan results rendered. This confirms the layered Phase 6-0 reducer auto-unfreeze + 6-5b reset-before-fetch ordering closes PH5-FU-REUPLOAD-POLL-STUCK end-to-end.
+- Rev 2 Submit → submitted stub → back in teacher queue under `Pending approval` with `Rev 2` in the revision column. Detail page history panel now shows both revisions.
+- Teacher Approve Rev 2 → status `approved`, current_revision=2.
 
 ---
 
@@ -155,7 +167,12 @@ All scenarios use:
 
 **Expected:** Rejection is terminal for the job. Student must start fresh. No confusing "still interactive" UI.
 
-**Result:** ⏳ _(fill in jobId + observations)_
+**Result:** ✅ **PASS.**
+- Teacher Reject → status pill `rejected`, queue row moved to `Completed` tab as expected.
+- Student navigate back → red `TeacherReviewNoteCard` with note + "Start a fresh submission →" link visible. Clicking the link navigated to `/fabrication/new` cleanly.
+- **ScanResultsViewer correctly NOT rendered** on rejected — no confusing "still interactive" scan results on a terminal job.
+- Revision history panel still present (for context).
+- Withdraw button (6-6k) correctly hidden on terminal status.
 
 ---
 
@@ -178,7 +195,10 @@ All scenarios use:
 
 **Expected:** Both views render correctly, metrics accurate, drill-down links work.
 
-**Result:** ⏳ _(fill in observations — also note if any metric computes weirdly so we can patch before checkpoint signs off)_
+**Result:** ✅ **PASS.**
+- Per-student Fabrication tab: 4-metric strip rendered with accurate counts + pass-rate colour-coding (amber for 67%). Chronological job list below clickable through to detail pages. Class column + absolute date/time (6-6n/o) rendered correctly on both student and class views. Deep-link from row to detail page worked; "← Back" on detail returned to student page via 6-6m context-aware nav.
+- Per-class Fabrication section: clear "Show / Hide" expand affordance (6-6n) + purple border when open. Lazy-fetch confirmed (spinner only on first expand, cached on re-expand). 4-metric strip + per-student drill-down table + all-submissions list all rendered as expected.
+- Scaling question surfaced during smoke (Matt asked "what if 200+ submissions?"). Filed as `PH6-FU-HISTORY-PAGINATION` P2 — current uncapped behaviour works to ~200 jobs/class; needs server-side cap + filter UI + lazy-load thumbnails past row 20 for school-deployment scale. Documented inline above `fetchHistoryJobs`.
 
 ---
 

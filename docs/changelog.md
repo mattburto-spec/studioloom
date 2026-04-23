@@ -4,6 +4,80 @@
 
 ---
 
+## 23 Apr 2026 PM — Preflight Phase 6 SHIPPED + Checkpoint 6.1 PASSED 🎉
+
+**Context:** Closing saveme for Phase 6. Matt ran all 4 smoke
+scenarios end-to-end on studioloom.org; all PASS. Phase 6 is the
+first teacher-facing surface of the Preflight pipeline and also the
+closure of the Phase 5 follow-up `PH5-FU-REUPLOAD-POLL-STUCK`
+(verified fixed in S2 smoke).
+
+**Checkpoint 6.1 smoke outcomes (all PASS):**
+- **S1 Happy path (approve)** — queue → detail → Approve → student
+  sees green `TeacherReviewNoteCard` with teacher's note. Scroll-to-
+  top fired on action (6-6a). Read-only viewer on approved jobs.
+- **S2 Return for revision (CRITICAL)** — queue → detail → Return
+  with note → student sees amber card + only the Re-upload button
+  (Submit hidden per 6-6c) → student re-uploads → **transition
+  clean without hard-refresh**, confirming the layered 6-0 reducer
+  auto-unfreeze + 6-5b reset-before-fetch ordering closes
+  `PH5-FU-REUPLOAD-POLL-STUCK`.
+- **S3 Reject** — terminal red card + "Start a fresh submission →"
+  link, `ScanResultsViewer` correctly not rendered (spec §10 Q2).
+- **S4 Per-student + per-class history** — 4-metric strips + per-
+  student drill-down tables rendered accurately. Class + absolute
+  date/time columns visible (6-6n/o). Deep-links + context-aware
+  back nav (6-6m) all working.
+
+**This session's additional polish commits (after the morning smoke
+kicked off):**
+
+- **6-6m** — context-aware back nav on teacher detail page.
+  "← Back to queue" hardcoded destination broke when teachers
+  arrived from student Fabrication tab or class Fabrication
+  section. Now `router.back()` with queue fallback for bookmarks.
+- **6-6n** — per-student Fabrication tab: class chip + absolute
+  date/time (new `formatDateTime` helper). Class section expand
+  affordance redesigned (Show/Hide text + real chevron SVG +
+  purple border when open). 30s AbortController timeout +
+  console.error with classId on failure + Retry button.
+  Server-side: `HistoryJobRow.className` now populated via
+  `classes(name)` join.
+- **6-6o** — student's own `/fabrication` overview gained the same
+  Class column + absolute date/time treatment. (Teacher side was
+  fixed in 6-6n; the student overview was a separate render path
+  I'd missed.)
+- **PH6-FU-HISTORY-PAGINATION** P2 follow-up filed inline on
+  `fetchHistoryJobs` — uncapped history endpoints work at NIS
+  pilot scale (~200 jobs/class) but need cap + filters + lazy-
+  load for school-deployment scale.
+
+**6 follow-ups filed across Phase 6 (tracked in the checkpoint
+report + inline in code):**
+- `PH6-FU-PREVIEW-OVERLAY` P2
+- `PH6-FU-PREVIEW-PINCH-ZOOM` P3
+- `PH6-FU-RULE-MEDIA-EMBEDS` P2
+- `PH6-FU-TEACHER-CANNED-NOTES-EDITABLE` P3
+- `PH6-FU-MULTI-LAB-SCOPING` P2
+- `PH6-FU-HISTORY-PAGINATION` P2
+
+**Resolved:** `PH5-FU-REUPLOAD-POLL-STUCK` P2 — closed in prod by
+the layered 6-0 + 6-5b fix.
+
+**Systems affected:** fabrication (student + teacher surfaces +
+shared orchestration).
+
+**Totals:** 1668 → 1854 tests (+186). api-registry 310 → 324
+(+14 routes). No new migrations.
+
+**Next phase:** Phase 7 (Fabricator Queue + Pickup). Brief to be
+drafted on kickoff. Ships `/fab/queue` real build (currently Phase 2
+placeholder), Content-Disposition download wiring the 6-6k
+`buildFabricationDownloadFilename()` helper, pickup / complete /
+fail actions, optional notifications.
+
+---
+
 ## 23 Apr 2026 — Skills Library Phase S2A authoring core + student viewer SHIPPED
 
 **Context:** Checkpoint SL-SCHEMA (Phase S1) passed yesterday with migrations 105-108 applied to prod. S2A builds the first user-facing slice: teachers author cards, students read them, views log into `learning_events`. Deliberately does NOT include upload (deferred to S2B) or quiz/completion flow (S3).

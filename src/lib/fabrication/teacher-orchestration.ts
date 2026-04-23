@@ -856,6 +856,17 @@ interface RawHistoryJob {
  * `.eq("class_id", ...)`. Both always filter by teacher_id first so a
  * teacher can never see another teacher's rows.
  */
+/**
+ * Future (PH6-FU-HISTORY-PAGINATION P2): cap default to 100, accept
+ * ?limit + ?offset on both getTeacherStudentHistory +
+ * getTeacherClassHistory, return total count alongside rows so the
+ * UI can show "showing 100 of N". Add filter controls for status +
+ * date range. Lazy-load thumbnails past row 20 via IntersectionObserver.
+ * Current uncapped behaviour is fine at NIS pilot scale (~30 students,
+ * semester = 100–300 jobs/class — server response 300–500ms); breaks
+ * at 300+ jobs when Supabase Storage connection limits bite on the
+ * parallel signed-URL fan-out.
+ */
 async function fetchHistoryJobs(
   db: SupabaseLike,
   filter: { teacherId: string; studentId?: string; classId?: string }
