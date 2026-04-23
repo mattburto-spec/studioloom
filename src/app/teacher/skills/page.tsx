@@ -1,0 +1,274 @@
+"use client";
+
+/**
+ * /teacher/skills — skill card library list.
+ *
+ * Shows built-in cards + the teacher's own cards (drafts + published).
+ * Filters by category, difficulty, ownership. Primary CTA: "+ New card".
+ */
+
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+
+interface CardListItem {
+  id: string;
+  slug: string;
+  title: string;
+  summary: string | null;
+  category_id: string | null;
+  difficulty: "foundational" | "intermediate" | "advanced" | null;
+  estimated_min: number | null;
+  is_built_in: boolean;
+  is_published: boolean;
+  created_by_teacher_id: string | null;
+  forked_from: string | null;
+  updated_at: string;
+  created_at: string;
+}
+
+interface CategoryRow {
+  id: string;
+  label: string;
+  display_order: number;
+}
+
+const DIFFICULTY_LABELS: Record<string, string> = {
+  foundational: "Foundational",
+  intermediate: "Intermediate",
+  advanced: "Advanced",
+};
+const DIFFICULTY_COLORS: Record<string, string> = {
+  foundational: "bg-emerald-100 text-emerald-700",
+  intermediate: "bg-amber-100 text-amber-700",
+  advanced: "bg-rose-100 text-rose-700",
+};
+
+export default function TeacherSkillsListPage() {
+  const [cards, setCards] = useState<CardListItem[] | null>(null);
+  const [categories, setCategories] = useState<CategoryRow[]>([]);
+  const [categoryFilter, setCategoryFilter] = useState<string>("");
+  const [difficultyFilter, setDifficultyFilter] = useState<string>("");
+  const [ownershipFilter, setOwnershipFilter] = useState<string>("all");
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let abort = false;
+    const fetchCards = async () => {
+      const params = new URLSearchParams();
+      if (categoryFilter) params.set("category", categoryFilter);
+      if (difficultyFilter) params.set("difficulty", difficultyFilter);
+      if (ownershipFilter !== "all") params.set("ownership", ownershipFilter);
+
+      const res = await fetch(
+        `/api/teacher/skills/cards${params.toString() ? `?${params}` : ""}`,
+        { credentials: "include" }
+      );
+      if (abort) return;
+      if (!res.ok) {
+        setError("Failed to load cards.");
+        setCards([]);
+        return;
+      }
+      const json = await res.json();
+      setCards(json.cards ?? []);
+    };
+    fetchCards();
+    return () => {
+      abort = true;
+    };
+  }, [categoryFilter, difficultyFilter, ownershipFilter]);
+
+  useEffect(() => {
+    // Categories are seeded and small — cache in state once.
+    fetch("/api/teacher/skills/categories", { credentials: "include" })
+      .then(async (res) => (res.ok ? res.json() : { categories: [] }))
+      .then((json) =>
+        setCategories(
+          (json.categories ?? []).sort(
+            (a: CategoryRow, b: CategoryRow) => a.display_order - b.display_order
+          )
+        )
+      )
+      .catch(() => setCategories([]));
+  }, []);
+
+  const counts = useMemo(() => {
+    if (!cards) return { total: 0, mine: 0, builtIn: 0, drafts: 0 };
+    return {
+      total: cards.length,
+      mine: cards.filter((c) => !c.is_built_in).length,
+      builtIn: cards.filter((c) => c.is_built_in).length,
+      drafts: cards.filter((c) => !c.is_built_in && !c.is_published).length,
+    };
+  }, [cards]);
+
+  return (
+    <main className="max-w-6xl mx-auto px-4 py-8">
+      <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
+        <div>
+          <h1 className="text-3xl font-extrabold text-gray-900">Skills Library</h1>
+          <p className="text-gray-500 mt-1">
+            Teach-once, reuse-everywhere skill cards. Students earn progression
+            through quizzes and applied work.
+          </p>
+        </div>
+        <Link
+          href="/teacher/skills/new"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700"
+        >
+          + New card
+        </Link>
+      </div>
+
+      {/* --- Filters --- */}
+      <div className="flex flex-wrap gap-3 mb-5 items-center">
+        <select
+          value={categoryFilter}
+          onChange={(e) => setCategoryFilter(e.target.value)}
+          className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white"
+        >
+          <option value="">All categories</option>
+          {categories.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.label}
+            </option>
+          ))}
+        </select>
+        <select
+          value={difficultyFilter}
+          onChange={(e) => setDifficultyFilter(e.target.value)}
+          className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white"
+        >
+          <option value="">All difficulties</option>
+          <option value="foundational">Foundational</option>
+          <option value="intermediate">Intermediate</option>
+          <option value="advanced">Advanced</option>
+        </select>
+        <div className="inline-flex rounded-lg overflow-hidden border border-gray-200">
+          {(["all", "mine", "built_in"] as const).map((k) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => setOwnershipFilter(k)}
+              className={`px-3 py-1.5 text-sm ${
+                ownershipFilter === k
+                  ? "bg-indigo-600 text-white"
+                  : "bg-white text-gray-600 hover:bg-gray-50"
+              }`}
+            >
+              {k === "all" ? "All" : k === "mine" ? "Mine" : "Built-in"}
+            </button>
+          ))}
+        </div>
+        {cards && (
+          <span className="text-sm text-gray-500 ml-auto">
+            {counts.total} {counts.total === 1 ? "card" : "cards"}
+            {counts.drafts > 0 && (
+              <span className="ml-2 text-amber-600">
+                · {counts.drafts} draft{counts.drafts === 1 ? "" : "s"}
+              </span>
+            )}
+          </span>
+        )}
+      </div>
+
+      {error && (
+        <div className="mb-4 p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-lg text-sm">
+          {error}
+        </div>
+      )}
+
+      {/* --- List --- */}
+      {cards === null ? (
+        <div className="space-y-3">
+          {[...Array(4)].map((_, i) => (
+            <div
+              key={i}
+              className="bg-white rounded-2xl border border-gray-100 p-5 animate-pulse"
+            >
+              <div className="h-5 bg-gray-200 rounded w-48 mb-3" />
+              <div className="h-4 bg-gray-100 rounded w-full" />
+            </div>
+          ))}
+        </div>
+      ) : cards.length === 0 ? (
+        <div className="text-center py-16 text-gray-500">
+          <p className="mb-4">No cards match these filters.</p>
+          <Link
+            href="/teacher/skills/new"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700"
+          >
+            + Create your first card
+          </Link>
+        </div>
+      ) : (
+        <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {cards.map((c) => (
+            <li key={c.id}>
+              <Link
+                href={
+                  c.is_built_in
+                    ? `/teacher/skills/${c.id}`
+                    : `/teacher/skills/${c.id}/edit`
+                }
+                className="block bg-white border border-gray-100 rounded-2xl p-5 hover:border-indigo-200 hover:shadow-sm transition-colors"
+              >
+                <div className="flex items-start justify-between gap-4 mb-2">
+                  <h2 className="text-lg font-bold text-gray-900">
+                    {c.title}
+                  </h2>
+                  <div className="flex flex-wrap gap-1.5 flex-shrink-0">
+                    {c.is_built_in && (
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                        Built-in
+                      </span>
+                    )}
+                    {!c.is_built_in && !c.is_published && (
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                        Draft
+                      </span>
+                    )}
+                    {!c.is_built_in && c.is_published && (
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                        Published
+                      </span>
+                    )}
+                    {c.forked_from && (
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-600">
+                        Forked
+                      </span>
+                    )}
+                  </div>
+                </div>
+                {c.summary && (
+                  <p className="text-sm text-gray-600 mb-3 line-clamp-2">
+                    {c.summary}
+                  </p>
+                )}
+                <div className="flex flex-wrap gap-2 items-center text-xs">
+                  {c.category_id && (
+                    <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 capitalize">
+                      {c.category_id}
+                    </span>
+                  )}
+                  {c.difficulty && (
+                    <span
+                      className={`px-2 py-0.5 rounded-full font-medium ${DIFFICULTY_COLORS[c.difficulty]}`}
+                    >
+                      {DIFFICULTY_LABELS[c.difficulty]}
+                    </span>
+                  )}
+                  {c.estimated_min && (
+                    <span className="text-gray-500">
+                      ~{c.estimated_min} min
+                    </span>
+                  )}
+                </div>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </main>
+  );
+}

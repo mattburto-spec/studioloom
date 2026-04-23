@@ -19,7 +19,7 @@ import Link from "next/link";
 import type { StudentJobRow } from "@/lib/fabrication/orchestration";
 import {
   formatRuleCountsCompact,
-  formatRelativeTime,
+  formatDateTime,
 } from "@/components/fabrication/revision-history-helpers";
 
 type LoadState =
@@ -117,13 +117,19 @@ export default function StudentFabricationOverviewPage() {
   );
 }
 
+// Phase 6-6o: desktop grid template. Kept as a literal string (not
+// a const interpolation) because Tailwind's class-scanner only sees
+// classes it can parse at build time — dynamic template literals
+// get discarded. Column order:
+//   thumbnail · file+status · class · machine · revision · submitted
 function StudentJobList({ jobs }: { jobs: StudentJobRow[] }) {
   return (
     <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
       {/* Desktop column headers */}
-      <div className="hidden md:grid md:grid-cols-[72px_minmax(0,1.5fr)_minmax(0,1.2fr)_auto_auto] gap-4 px-4 py-2 bg-gray-50 border-b border-gray-200 text-xs font-semibold uppercase tracking-wide text-gray-500">
+      <div className="hidden md:grid md:grid-cols-[72px_minmax(0,1.6fr)_minmax(0,0.9fr)_minmax(0,1fr)_auto_auto] gap-4 px-4 py-2 bg-gray-50 border-b border-gray-200 text-xs font-semibold uppercase tracking-wide text-gray-500">
         <div aria-hidden="true" />
         <div>File</div>
+        <div>Class</div>
         <div>Machine</div>
         <div className="text-center">Revision</div>
         <div className="text-right">Submitted</div>
@@ -139,7 +145,7 @@ function StudentJobList({ jobs }: { jobs: StudentJobRow[] }) {
 
 function StudentJobListRow({ job }: { job: StudentJobRow }) {
   const counts = formatRuleCountsCompact(job.ruleCounts);
-  const when = formatRelativeTime(job.createdAt);
+  const submittedAt = formatDateTime(job.createdAt);
   const pill = statusPillClass(job.jobStatus);
 
   return (
@@ -148,8 +154,8 @@ function StudentJobListRow({ job }: { job: StudentJobRow }) {
         href={`/fabrication/jobs/${job.jobId}`}
         className="block hover:bg-gray-50 focus-visible:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-purple/30"
       >
-        {/* Desktop */}
-        <div className="hidden md:grid md:grid-cols-[72px_minmax(0,1.5fr)_minmax(0,1.2fr)_auto_auto] gap-4 items-center px-4 py-3">
+        {/* Desktop — grid cols must match the header row above exactly. */}
+        <div className="hidden md:grid md:grid-cols-[72px_minmax(0,1.6fr)_minmax(0,0.9fr)_minmax(0,1fr)_auto_auto] gap-4 items-center px-4 py-3">
           <div className="w-14 h-14 rounded border border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden shrink-0">
             {job.thumbnailUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -181,11 +187,13 @@ function StudentJobListRow({ job }: { job: StudentJobRow }) {
               {job.originalFilename}
             </p>
             {job.unitTitle && (
-              <p className="text-xs text-gray-500 truncate">
-                {job.unitTitle}
-                {job.className && ` · ${job.className}`}
-              </p>
+              <p className="text-xs text-gray-500 truncate">{job.unitTitle}</p>
             )}
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm text-gray-800 truncate">
+              {job.className ?? <span className="text-gray-400">—</span>}
+            </p>
           </div>
           <div className="min-w-0">
             <p className="text-sm text-gray-800 truncate">{job.machineLabel}</p>
@@ -199,7 +207,7 @@ function StudentJobListRow({ job }: { job: StudentJobRow }) {
             Rev {job.currentRevision}
           </div>
           <div className="text-xs text-gray-500 text-right whitespace-nowrap">
-            {when}
+            {submittedAt}
           </div>
         </div>
 
@@ -240,7 +248,7 @@ function StudentJobListRow({ job }: { job: StudentJobRow }) {
               {job.className && ` · ${job.className}`}
             </p>
             <p className="text-xs text-gray-500 mt-0.5">
-              Rev {job.currentRevision} · {when}
+              Rev {job.currentRevision} · {submittedAt}
             </p>
           </div>
         </div>

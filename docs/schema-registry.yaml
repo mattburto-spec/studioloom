@@ -9328,3 +9328,139 @@ tables:
     write: "Teachers INSERT/DELETE same scope; no UPDATE policy (immutable rows)"
   writers: ["teacher fabricator assignment UI (Phase 1B)"]
   readers: ["fabricator queue UI scoping (Phase 1B)", "preflight pipeline routing (Phase 2)"]
+
+- name: skill_cards
+  source_migration: 105_skills_library_schema.sql + 109_skills_library_authoring.sql
+  status: applied
+  applied_date: 2026-04-23
+  purpose: "Skills Library canonical content entity. Each row is one skill card with a structured-block body, category, difficulty, tags via join, prerequisite graph via join. The moat — authored once, referenced from library/lessons/Stones/Open Studio/crit board."
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    slug: TEXT UNIQUE NOT NULL
+    title: TEXT NOT NULL
+    summary: TEXT
+    category_id: TEXT REFERENCES skill_categories(id) ON DELETE RESTRICT
+    difficulty: TEXT CHECK (difficulty IN ('foundational','intermediate','advanced'))
+    body: JSONB NOT NULL DEFAULT '[]'::jsonb
+    estimated_min: INT
+    is_built_in: BOOLEAN NOT NULL DEFAULT false
+    created_by_teacher_id: UUID REFERENCES auth.users(id) ON DELETE SET NULL
+    is_published: BOOLEAN NOT NULL DEFAULT false
+    forked_from: UUID REFERENCES skill_cards(id) ON DELETE SET NULL  # S2A added; S2B writes on Fork
+    schema_version: INT NOT NULL DEFAULT 1
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+    updated_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+  indexes:
+    - skill_cards_category_idx ON (category_id)
+    - skill_cards_published_idx ON (is_published) WHERE is_published = true
+    - skill_cards_slug_idx ON (slug)
+    - skill_cards_author_idx ON (created_by_teacher_id) WHERE created_by_teacher_id IS NOT NULL
+    - skill_cards_forked_from_idx ON (forked_from) WHERE forked_from IS NOT NULL
+  triggers:
+    - skill_cards_updated_at (BEFORE UPDATE, bumps updated_at)
+  rls:
+    read: "authenticated students/teachers can read is_published = true rows, plus their own drafts (created_by_teacher_id = auth.uid())"
+    write: "S2A — teachers INSERT/UPDATE/DELETE their own non-built-in cards (created_by_teacher_id = auth.uid() AND is_built_in = false). Built-ins service-role only."
+  writers: ["teacher API POST /api/teacher/skills/cards (S2A)", "teacher API PATCH /api/teacher/skills/cards/[id] (S2A)", "teacher API DELETE /api/teacher/skills/cards/[id] (S2A)", "teacher API POST /api/teacher/skills/cards/[id]/publish (S2A)"]
+  readers: ["teacher API GET /api/teacher/skills/cards (S2A)", "teacher API GET /api/teacher/skills/cards/[id] (S2A)", "student API GET /api/student/skills/cards/[slug] (S2A)", "/skills page (Phase S5)", "lesson activity block embeds (Phase S5)", "Open Studio capability-gap surfacing (future)"]
+  notes: "Phase S1 schema — 5 tables + learning_events + student_skill_state view. S2A adds forked_from column + teacher-write RLS. See docs/projects/skills-library.md."
+
+- name: skill_categories
+  source_migration: 105_skills_library_schema.sql
+  status: applied
+  applied_date: 2026-04-23
+  purpose: "Skills Library 8-item lookup — neutral criterion taxonomy. Seeded by migration: researching/analysing/designing/creating/evaluating/reflecting/communicating/planning."
+  columns:
+    id: TEXT PRIMARY KEY
+    label: TEXT NOT NULL
+    description: TEXT NOT NULL
+    display_order: INT NOT NULL
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+  rls:
+    read: "all authenticated users"
+    write: "service role only"
+  writers: ["migration 105 (seed)"]
+  readers: ["skill_cards FK", "category filter UIs"]
+
+- name: skill_card_tags
+  source_migration: 105_skills_library_schema.sql
+  status: applied
+  applied_date: 2026-04-23
+  purpose: "Skills Library many-to-many tag list. PK (skill_id, tag)."
+  columns:
+    skill_id: UUID NOT NULL REFERENCES skill_cards(id) ON DELETE CASCADE
+    tag: TEXT NOT NULL
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+  unique_constraints:
+    - PRIMARY KEY (skill_id, tag)
+  indexes:
+    - skill_card_tags_tag_idx ON (tag)
+  rls:
+    read: "inherits — readable if parent skill_card is readable"
+    write: "S2A — teacher manages rows on their own non-built-in cards (via parent skill_cards.created_by_teacher_id = auth.uid()). Built-ins service-role only."
+
+- name: skill_prerequisites
+  source_migration: 105_skills_library_schema.sql
+  status: applied
+  applied_date: 2026-04-23
+  purpose: "Skills Library directed prereq graph. A row (X,Y) means skill X requires skill Y before it makes sense. Used by 'next up' query + lesson-embed gating."
+  columns:
+    skill_id: UUID NOT NULL REFERENCES skill_cards(id) ON DELETE CASCADE
+    prerequisite_id: UUID NOT NULL REFERENCES skill_cards(id) ON DELETE CASCADE
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+  unique_constraints:
+    - PRIMARY KEY (skill_id, prerequisite_id)
+    - CHECK (skill_id <> prerequisite_id)
+  indexes:
+    - skill_prerequisites_prereq_idx ON (prerequisite_id)
+  rls:
+    read: "inherits from skill_cards"
+    write: "S2A — teacher manages rows on their own non-built-in cards (via parent skill_cards.created_by_teacher_id = auth.uid()). Built-ins service-role only."
+
+- name: skill_external_links
+  source_migration: 105_skills_library_schema.sql
+  status: applied
+  applied_date: 2026-04-23
+  purpose: "Skills Library video/PDF/doc references attached to a card. Also used by the Resources page (Phase 18) for reverse lookups: 'which skills reference this resource?'"
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    skill_id: UUID NOT NULL REFERENCES skill_cards(id) ON DELETE CASCADE
+    url: TEXT NOT NULL
+    title: TEXT
+    kind: TEXT CHECK (kind IN ('video','pdf','doc','website','other'))
+    display_order: INT NOT NULL DEFAULT 0
+    last_checked_at: TIMESTAMPTZ
+    status: TEXT CHECK (status IN ('ok','broken','redirect','timeout','unchecked')) DEFAULT 'unchecked'
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+  indexes:
+    - skill_external_links_skill_idx ON (skill_id)
+    - skill_external_links_stale_idx ON (last_checked_at NULLS FIRST)
+  rls:
+    read: "inherits from skill_cards"
+    write: "S2A — teacher manages rows on their own non-built-in cards (via parent skill_cards.created_by_teacher_id = auth.uid()). Built-ins service-role only."
+
+- name: learning_events
+  source_migration: 106_learning_events.sql
+  status: applied
+  applied_date: 2026-04-23
+  purpose: "Cross-cutting append-only event log. Skills Library is the first consumer (skill.viewed, skill.quiz_passed, skill.quiz_failed, skill.refresh_passed, skill.refresh_acknowledged, skill.demonstrated, skill.applied). Future domains: stone.*, portfolio.*, critique.* — each spec registers its own event vocabulary."
+  columns:
+    id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
+    student_id: UUID NOT NULL (denormalized from session)
+    event_type: TEXT NOT NULL
+    subject_type: TEXT NOT NULL
+    subject_id: UUID NOT NULL
+    payload: JSONB NOT NULL DEFAULT '{}'::jsonb
+    schema_version: INT NOT NULL DEFAULT 1
+    created_at: TIMESTAMPTZ NOT NULL DEFAULT now()
+  indexes:
+    - learning_events_student_idx ON (student_id, created_at DESC)
+    - learning_events_subject_idx ON (subject_type, subject_id, created_at DESC)
+    - learning_events_event_type_idx ON (event_type)
+    - learning_events_skill_state_idx ON (subject_type, student_id, subject_id) WHERE subject_type = 'skill_card'
+  rls:
+    read: "students can SELECT their own events (auth.uid() = student_id)"
+    write: "students can INSERT their own events (WITH CHECK auth.uid() = student_id); no UPDATE/DELETE — append-only"
+  writers: ["/api/student/skills/* (Phase S3-S4 — TBD)", "service role for teacher-demonstrated events"]
+  readers: ["student_skill_state view", "teacher skill dashboards (Phase S4+)"]
+  notes: "Append-only. Corrections are new events, not mutations."

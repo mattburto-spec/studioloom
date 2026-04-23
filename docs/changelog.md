@@ -4,6 +4,244 @@
 
 ---
 
+## 23 Apr 2026 — Skills Library Phase S2A authoring core + student viewer SHIPPED
+
+**Context:** Checkpoint SL-SCHEMA (Phase S1) passed yesterday with migrations 105-108 applied to prod. S2A builds the first user-facing slice: teachers author cards, students read them, views log into `learning_events`. Deliberately does NOT include upload (deferred to S2B) or quiz/completion flow (S3).
+
+**What shipped (in `skills-library` branch, not merged to main):**
+
+- **Migration 109** `skills_library_authoring.sql` — teacher authoring surface:
+  - Adds `forked_from uuid REFERENCES skill_cards(id) ON DELETE SET NULL` column (+ partial index). Written by S2B's Fork action; left NULL in S2A.
+  - Teacher-write RLS policies on `skill_cards` + `skill_card_tags` + `skill_prerequisites` + `skill_external_links`: INSERT/UPDATE/DELETE scoped to `created_by_teacher_id = auth.uid() AND is_built_in = false`. Mirrors the shape used on `badges` + `activity_blocks`. Service role still bypasses for seeding + built-in management.
+  - Not yet applied to prod — Matt applies after checkpoint sign-off.
+
+- **Types (`src/types/skills.ts`)** — 6-variant `Block` discriminated union (prose / callout / checklist / image / video / worked_example), `SkillCardRow`, `SkillCardHydrated` with tags + external_links + prereqs, `SkillEventType` enum, create/update payload shapes. `emptyBlock(type)` factory for the editor. S2B extension points: `uploadPath` optional on image/video blocks (Storage key, overrides url when present).
+
+- **Teacher API (`/api/teacher/skills/`):**
+  - `GET /cards` — list built-ins + own drafts + all published, filtered by category/difficulty/ownership (`all`/`mine`/`built_in`). Uses admin client with explicit OR visibility clause (would work under RLS too; admin bypass keeps error surfaces symmetric with rest of /api/teacher/*).
+  - `POST /cards` — create draft. Validates slug (lowercase-kebab, 3-80), title (3-200), category (FK check), difficulty enum, body block-type whitelist. Idempotent side inserts for tags + external_links + prereqs.
+  - `GET /cards/[id]` — hydrated card (tags + links + prereq titles). Returns `{ card, editable }` — editor bounces to read-only viewer when `editable=false`.
+  - `PATCH /cards/[id]` — wholesale replace for tags/links/prereqs when provided; field-level merge for metadata. Built-ins return 403. Enforces `created_by_teacher_id = auth.uid()`.
+  - `DELETE /cards/[id]` — hard delete teacher's own non-built-in card. CASCADE handles children.
+  - `POST /cards/[id]/publish` — flips `is_published`. `{ action: "unpublish" }` reverses. Enforces minimum publishable content (title + category + difficulty + ≥1 block).
+  - `GET /categories` — thin lookup proxy to `skill_categories`.
+
+- **Student API (`/api/student/skills/cards/[slug]`):**
+  - Loads published card by slug, hydrates tags + links + prereq titles.
+  - Logs `skill.viewed` into `learning_events` with 5-minute dedupe window (prevents tab-switch / remount floods). Dedupe uses `gte created_at cutoff` — older views still count toward state transitions because the derived view takes MAX rank.
+  - Returns student's current state from `student_skill_state` view (state + freshness + last_passed_at). Absent row → `untouched`.
+  - Uses `requireStudentAuth` (token-cookie → student_sessions table), not Supabase Auth.
+
+- **Components (`src/components/skills/`):**
+  - `BlockEditor.tsx` — controlled editor for Block[]. Each variant is a dedicated per-type component (`ProseForm`, `ChecklistForm`, etc.) — pattern sidesteps TS discriminated-union narrowing loss inside nested function closures. Add/move/delete controls + inline delete confirm.
+  - `BlockRenderer.tsx` — read-only render for all 6 types. Markdown-lite prose parser (**bold** / *italic* only). YouTube + Vimeo iframe fallback + direct-mp4 video. External URL image; `/api/skills/media/[path]` reserved for S2B uploads.
+  - `SkillCardForm.tsx` — shared create/edit shell used by both teacher pages. Metadata + tags + external links + fuzzy prereq search + body editor + preview toggle.
+  - `skills.css` — scoped under `.sl-skill-scope` wrapper class so Tailwind-based teacher pages and student `.sl-v2` scope don't fight.
+
+- **Teacher pages:**
+  - `/teacher/skills` — library list with category/difficulty/ownership filters, draft/published pills, forked indicator, skeleton loaders, empty state CTA.
+  - `/teacher/skills/new` — create flow; posts then redirects to `/edit`.
+  - `/teacher/skills/[id]` — read-only viewer (for built-ins + non-editable cases).
+  - `/teacher/skills/[id]/edit` — edit form + publish/unpublish toggle + delete with inline confirm. Bounces to `/teacher/skills/[id]` when `editable=false`.
+
+- **Student page:**
+  - `/skills/cards/[slug]` — student viewer. Renders body via `BlockRenderer`, shows state + freshness chip (fresh omitted as not interesting), prereq prompt ("Before you start" with chips linking to prereq cards), external resources section, tags footer. Fires view log via the API GET. 404 handled inline.
+
+**Bug notes during build:**
+
+- Pre-existing stash `pre-library-upload: leftover scanner/saveme artifacts` got applied during a `git stash` diagnostic command. Reset 6 conflicted doc files back to HEAD (they're saveme-regenerated artifacts anyway). S2A source files were untouched.
+- TypeScript narrowing failure when block-editor forms used closures referencing `block.items` / `block.steps` inside a switch case. Fixed by extracting per-variant form components — TS can't carry narrowing through nested function closures, but each component takes the narrowed variant as its prop type.
+
+**Verification:**
+
+- `npx tsc --noEmit` → zero skills-file errors. Pre-existing codebase-wide errors (fabrication test mocks, useGalleryMultiplayer, multi-lesson-detection tests) untouched.
+- `npm test` → 1845 pass / 8 skipped / 0 fail (up from pre-S2A 1845 — no regressions).
+- `npx eslint` on S2A files → 4 initial `react/no-unescaped-entities` errors, all fixed with `&apos;`.
+
+**Not in S2A (deferred to S2B):**
+
+- Upload from disk — `skills-media` Supabase Storage bucket + upload API + image/video block toggle.
+- Fork action — copy built-in or another teacher's card into an editable draft, sets `forked_from`.
+
+**Checkpoint SL-AUTHOR-A criteria (pending Matt sign-off):**
+
+1. Teacher creates a draft card via `/teacher/skills/new`, sees it in list with Draft pill.
+2. Teacher edits body, tags, category, difficulty; saves; reloads → changes persist.
+3. Teacher toggles publish → appears as published; can unpublish.
+4. Teacher opens built-in card (read-only viewer), no edit controls.
+5. Teacher deletes own card → gone from list.
+6. Student visits `/skills/cards/[slug]` for a published card → sees full content + state chip.
+7. Second visit within 5 min does NOT duplicate `skill.viewed` row in `learning_events`.
+8. Student cannot see draft cards (404 on direct slug nav).
+9. Prereq chip on student view links to the prereq card.
+
+**Systems touched:** `skills-library` (in_progress → still in_progress, S2A layer added), `api-registry` (+~10 routes), `schema-registry` (skill_cards entry amended, 4 sibling tables' RLS note updated).
+
+**Next:** Checkpoint SL-AUTHOR-A sign-off + migration 109 apply to prod. Then S2B — upload bucket + fork. Then S3 — quiz engine + completion flow.
+
+---
+
+## 23 Apr 2026 — Preflight Phase 6 code COMPLETE + Checkpoint 6.1 smoke IN PROGRESS
+
+**Context:** First teacher-facing surface of the Preflight pipeline.
+Ran in `preflight-active` worktree alongside parallel
+`dashboard-v2-build` (v2 polish) + a fresh `skills-library` worktree
+(Phase S1 schema). Daily merges back to main. Smoke (S1–S4) against
+studioloom.org with Matt as teacher + a `test` student account.
+
+**Phase 6 sub-phases shipped (14+ commits, all on main via preflight-active):**
+
+| | |
+|---|---|
+| 6-0 | reducer auto-unfreeze on revision bump (PH5 fix) |
+| 6-1 | teacher action endpoints + queue endpoint + teacher-orchestration lib |
+| 6-2 | `/teacher/preflight/jobs/[jobId]` detail page + `readOnly` ScanResultsViewer |
+| 6-3 | `/teacher/preflight` queue page with status tabs + counts |
+| 6-4 | per-student + per-class fabrication history |
+| 6-5 | student `needs_revision` view + `TeacherReviewNoteCard` |
+| 6-5b | reset-before-fetch ordering (closes `PH5-FU-REUPLOAD-POLL-STUCK`) |
+| 6-6 | Checkpoint 6.1 report draft with ⏳ placeholders |
+| 6-6a–l | smoke-feedback polish — see below |
+
+**Smoke-feedback polish sub-phases (a–l):**
+- **a** — 4× bigger scan thumb + scroll-to-top on teacher action
+- **b** — "Uploading your file" → "Loading your submission" (copy was wrong for nav/return entry paths)
+- **c** — hide Submit button on `needs_revision` + `pending_approval` (rude to re-submit unchanged)
+- **d** — width + typography consistency pass across all preflight pages (`max-w-6xl`, `text-3xl` h1s, cleaner section headings with coloured accent bars, no emoji)
+- **e** — 2-column layout on student status page (content left, preview + history right)
+- **f** — click-to-zoom preview lightbox with Esc + backdrop close + body-scroll-lock
+- **g** — Preflight tab added to v2 student `BoldTopNav`
+- **h** — final width polish on fabricators + submitted + upload pages
+- **i** — new `/fabrication` student overview page listing their submissions + `+ New submission` CTA; removed redundant "Back to dashboard" links
+- **j** — 2-column layout on teacher detail page; extracted `PreviewCard` into shared component
+- **k** — student **withdraw** (`POST /api/.../cancel`) + auto-filename helper (`{student}-{grade}-{unit}.ext`) + button press animations across every preflight button
+- **l** — canned-note chip strip (4–7 presets per action kind) in TeacherActionBar modal
+
+**Smoke progress (Matt on studioloom.org):**
+- ✅ **S1 Happy path** (approve) — clean end-to-end
+- ✅ **S2 Return for revision** — CRITICAL TEST. Reupload
+  transition was clean without hard-refresh, confirming the layered
+  6-0 (reducer auto-unfreeze) + 6-5b (reset-before-fetch) fix works
+  end-to-end. Closes `PH5-FU-REUPLOAD-POLL-STUCK`.
+- ✅ **S3 Reject** — red card renders without `ScanResultsViewer`,
+  Start Fresh link navigates correctly.
+- ⏳ **S4 Per-student + per-class history** — pending.
+
+**5 new follow-ups filed during smoke** (tracked inline + in Checkpoint 6.1 report):
+1. `PH6-FU-PREVIEW-OVERLAY` P2 — scanner-driven bounding boxes on
+   thumbnail showing WHERE a rule fired. Data already flows through
+   `scan_results.rules[].evidence`.
+2. `PH6-FU-PREVIEW-PINCH-ZOOM` P3 — wheel/pinch zoom + drag-pan.
+3. `PH6-FU-RULE-MEDIA-EMBEDS` P2 — extend rule schema with
+   `mediaHints`, render inline image/video below `fix_hint`. Pairs
+   with `PH5-FU-PER-RULE-ACKS` + `PH6-FU-PREVIEW-OVERLAY`.
+4. `PH6-FU-TEACHER-CANNED-NOTES-EDITABLE` P3 — teacher-editable
+   preset list with `/teacher/preflight/settings` management UI.
+5. `PH6-FU-MULTI-LAB-SCOPING` P2 — `fabrication_labs` entity for
+   schools with 3+ separate design labs (Seoul Foreign School
+   model). NIS (1 proximal DT area) works fine with v1. Phase 9+,
+   gated on access-model-v2 (FU-O/P/R) shipping first.
+
+**Resolved this session:**
+- `PH5-FU-REUPLOAD-POLL-STUCK` P2 — closed via layered Phase 6-0 +
+  6-5b fix. Verified in S2 smoke.
+
+**Systems affected:** fabrication (student + teacher surfaces +
+shared orchestration), student-dashboard (BoldTopNav nav entry),
+api-registry (+14 routes, 310 → 324 total).
+
+**No migrations.** Phase 6 is pure app.
+
+**Tests:** 1668 → 1862 (+194).
+
+**Cross-session interactions (merge friction):** `dashboard-v2-build`
+cutover to `/dashboard` + `BoldTopNav` extraction + Skills nav
+pill rename produced 2 small conflicts, both resolved in favour of
+v2's cleaner discriminated-union nav structure with the Preflight
+entry ported. `skills-library` S1 schema (migrations 105-108) ran
+in parallel with zero overlap — clean merges.
+
+**Checkpoint 6.1 sign-off pending** S4 verification + flipping
+`⏳ DRAFT` → `✅ PASS` in the report header.
+
+---
+
+## 23 Apr 2026 — Skills Library Phase S1 schema foundation SHIPPED + APPLIED to prod
+
+**Context:** Kickoff of the Skills Library project per [`docs/projects/skills-library.md`](projects/skills-library.md) + canonical specs in `docs/specs/skills-library-spec.md` + completion-addendum. The library is the "moat" — one canonical skill card, many embed contexts (library browse, lesson activity blocks, Open Studio capability-gap, crit board, badges). Completions as `learning_events`, not a mutable table.
+
+Phase S1 is **schema foundation only** — no UI, no API routes, no teacher-write policies yet. Deliberately minimal to unlock S2 authoring + S3 library browse.
+
+**What shipped (in the skills-library branch, not merged to main):**
+
+- **Migration 105** `skills_library_schema.sql` — 5 tables:
+  - `skill_categories` (8-item lookup seeded: researching, analysing, designing, creating, evaluating, reflecting, communicating, planning)
+  - `skill_cards` (canonical content entity, structured-block `body` JSONB, `category_id` FK, `difficulty` enum, `estimated_min`, `is_built_in` + `created_by_teacher_id` for hybrid ownership, `is_published` draft/live)
+  - `skill_card_tags` (many-to-many flat tag list)
+  - `skill_prerequisites` (directed graph — skill X requires prerequisite Y; CHECK prevents self-reference)
+  - `skill_external_links` (video/PDF/doc references with `last_checked_at` + `status` for nightly link-check cron)
+  - Auto-bump `updated_at` trigger on skill_cards
+  - Baseline RLS: authenticated reads on published rows, author reads on own drafts; writes service-role-only until S2 authoring UI lands
+
+- **Migration 106** `learning_events.sql` — append-only cross-cutting event log:
+  - Columns: `id`, `student_id`, `event_type`, `subject_type`, `subject_id`, `payload` (JSONB), `schema_version`, `created_at`
+  - Indexes for (student, time), (subject_type, subject_id, time), (event_type), + composite on (subject_type, student_id, subject_id) filtered to skill_card
+  - RLS: students read/insert their own only (`auth.uid() = student_id`). No UPDATE/DELETE — append-only by design
+  - First consumer: `skill.*` events (viewed, quiz_passed, quiz_failed, refresh_passed, refresh_acknowledged, demonstrated, applied)
+  - Future consumers: `stone.*`, `portfolio.*`, `critique.*` — each spec registers its own event vocabulary
+
+- **Migration 107** `student_skill_state_view.sql` — derived current-state per (student, skill):
+  - Aggregates `skill.*` events from `learning_events` into a state ladder (untouched → viewed → quiz_passed → demonstrated → applied)
+  - Freshness bands: fresh (0-90 days) / cooling (91-180) / stale (>180), anchored to most recent ≥quiz_passed event
+  - Row absent = untouched (LEFT JOIN pattern for UI queries)
+  - Pure view, no materialisation — re-evaluate at scale in S4+ if perf demands
+
+- **Migration 108** `skills_library_sample_seeds.sql` — 3 sample cards for checkpoint verification:
+  - "Ideation sketching: thumbnails" (designing, foundational) — 3 structured blocks + tags
+  - "3D Printing: basic setup" (creating, foundational) — with external link to Prusa walkthrough
+  - "3D Printing: troubleshooting" (creating, intermediate) — **depends on basics** via `skill_prerequisites` — demonstrates the progression chain the spec promises
+  - All three `is_built_in: true` — survive as platform baseline
+
+**Checkpoint SL-SCHEMA criteria (for verification post-apply):**
+1. Migrations 105-108 apply cleanly to prod Supabase
+2. `SELECT count(*) FROM skill_categories` = 8
+3. `SELECT count(*) FROM skill_cards` ≥ 3
+4. Manual INSERT on `learning_events` with `event_type='skill.viewed'` → `student_skill_state` returns state='viewed' for that student+skill
+5. Prereq chain query demonstrates: a student who has `skill.quiz_passed` on 3D-basics would unlock 3D-troubleshooting as "next up"
+
+**Registries updated:**
+- `docs/schema-registry.yaml` — 6 new entries (skill_cards, skill_categories, skill_card_tags, skill_prerequisites, skill_external_links, learning_events; plus student_skill_state view conceptually via schema migration 107)
+- `docs/projects/WIRING.yaml` — `skills-library` system status: `planned` → `in_progress`
+- `docs/doc-manifest.yaml` — last_verified on touched docs
+- `docs/changelog.md` — this entry
+
+**Known deferrals (not in S1 scope, captured for later phases):**
+- `estimated_min` added to schema but not yet surfaced in UI (S5)
+- Teacher authoring UI → S2
+- Quiz engine → S3
+- "Next up" query + freshness gating → S4
+- `/skills` page upgrade from placeholder → S5
+- Radar chart, badge engine, forking, cross-school visibility → all deferred per spec
+- No Open Studio capability-gap wiring yet — that's a future phase once Open Studio Mode ships
+
+**Files:**
+- NEW: `supabase/migrations/105_skills_library_schema.sql`
+- NEW: `supabase/migrations/106_learning_events.sql`
+- NEW: `supabase/migrations/107_student_skill_state_view.sql`
+- NEW: `supabase/migrations/108_skills_library_sample_seeds.sql`
+- MODIFIED: `docs/schema-registry.yaml` (6 new table entries appended)
+- MODIFIED: `docs/projects/WIRING.yaml` (skills-library status)
+- MODIFIED: `docs/doc-manifest.yaml` (last_verified bumps)
+- MODIFIED: `docs/changelog.md` (this entry)
+
+**Systems affected:** `skills-library` (v0 → v0 planning, schema in_progress), `learning-events` (new system effectively created — existed only in spec).
+
+**Commits:** 1 commit on `skills-library` branch (worktree at `/Users/matt/CWORK/skills`). **Not pushed to origin/main** — awaits Matt's review + migration apply to prod Supabase. Push discipline: migrations must be applied to prod before main merge.
+
+**Session context:** Dashboard-v2 polish paused mid-Phase-17 for Matt's strategic shift to Skills Library. Discovered existing canonical specs (skills-library-spec.md + completion-addendum, both 11 Apr 2026) — my earlier student-skills-page.md marked superseded. Worktree created at `/Users/matt/CWORK/skills` on branch `skills-library` (dropping "questerra" prefix per Matt's renaming direction).
+
+---
+
 ## 22 Apr 2026 — Student Dashboard v2 (Bold) SHIPPED: Phases 1-8 complete, cutover live
 
 **Context:** End-to-end build and production cutover of a new Bold-design student dashboard, ported from `docs/newlook/PYPX Student Dashboard/student_bold.jsx`. Built phased behind a cookie gate, then promoted to the default `/dashboard` for all students. Ran in parallel with a separate Preflight session in `questerra-preflight/`; git worktrees used to isolate the two sessions after an early cross-contamination incident where Preflight's `git add` swept up uncommitted dashboard changes into commit `a88b330`.

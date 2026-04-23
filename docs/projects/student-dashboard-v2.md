@@ -28,6 +28,7 @@ Shipped behind `sl_v2=1` cookie at `/dashboard/v2` during build.
 | 14 | General bidirectional notes system | ⏳ Planned | — |
 | 15 | Delete `/dashboard-legacy` rollback (≥ 2026-04-29) | ⏳ Scheduled | — |
 | 16 | Accessibility pass | ⏳ Planned | — |
+| 17 | `/skills` placeholder page + nav pill refactor (real page = Skills Library workshop) | ✅ Done (thin) | _(this commit)_ |
 
 ## End-of-project TODO list
 
