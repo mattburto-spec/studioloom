@@ -51,13 +51,81 @@ export type WorkedExampleBlock = {
   steps: string[]; // rendered as ordered list
 };
 
+// ----- Rich blocks (S2A.5 batch) -----------------------------------------
+
+/**
+ * Generic iframe embed. Domain-safelisted at render time (Sketchfab, Figma,
+ * Codepen, Miro, Desmos, Observable, GeoGebra). Keep videos in VideoBlock.
+ */
+export type EmbedBlock = {
+  type: "embed";
+  url: string;
+  title?: string; // iframe title for a11y; also shown as caption
+  aspectRatio?: "16:9" | "4:3" | "1:1";
+  caption?: string;
+};
+
+/** Click-to-reveal collapsible. Body is markdown-lite like prose. */
+export type AccordionBlock = {
+  type: "accordion";
+  title: string;
+  body: string;
+};
+
+/** Question shown; answer hidden behind a reveal button. Supports self-test. */
+export type ThinkAloudBlock = {
+  type: "think_aloud";
+  prompt: string;
+  answer: string;
+};
+
+/** Before/after draggable slider. Both images must render at the same aspect. */
+export type CompareImagesBlock = {
+  type: "compare_images";
+  beforeUrl: string;
+  afterUrl: string;
+  beforeLabel?: string;
+  afterLabel?: string;
+  caption?: string;
+};
+
+/** Paginated image gallery (one-at-a-time with prev/next + dots). */
+export type GalleryBlock = {
+  type: "gallery";
+  images: Array<{ url: string; caption?: string; alt?: string }>;
+};
+
+/** Code snippet. Displayed monospace; language label only (no highlighting yet). */
+export type CodeBlockBlock = {
+  type: "code";
+  code: string;
+  language?: string;
+  filename?: string;
+};
+
+/** Two columns of markdown-lite — compare good/bad, material A/B, etc. */
+export type SideBySideBlock = {
+  type: "side_by_side";
+  leftTitle?: string;
+  leftText: string;
+  rightTitle?: string;
+  rightText: string;
+};
+
 export type Block =
   | ProseBlock
   | CalloutBlock
   | ChecklistBlock
   | ImageBlock
   | VideoBlock
-  | WorkedExampleBlock;
+  | WorkedExampleBlock
+  | EmbedBlock
+  | AccordionBlock
+  | ThinkAloudBlock
+  | CompareImagesBlock
+  | GalleryBlock
+  | CodeBlockBlock
+  | SideBySideBlock;
 
 export const BLOCK_TYPES = [
   "prose",
@@ -66,6 +134,13 @@ export const BLOCK_TYPES = [
   "image",
   "video",
   "worked_example",
+  "embed",
+  "accordion",
+  "think_aloud",
+  "compare_images",
+  "gallery",
+  "code",
+  "side_by_side",
 ] as const;
 
 export type BlockType = (typeof BLOCK_TYPES)[number];
@@ -87,6 +162,60 @@ export function emptyBlock(type: BlockType): Block {
       return { type: "video", url: "", caption: "" };
     case "worked_example":
       return { type: "worked_example", title: "", steps: [""] };
+    case "embed":
+      return { type: "embed", url: "", title: "", aspectRatio: "16:9" };
+    case "accordion":
+      return { type: "accordion", title: "", body: "" };
+    case "think_aloud":
+      return { type: "think_aloud", prompt: "", answer: "" };
+    case "compare_images":
+      return {
+        type: "compare_images",
+        beforeUrl: "",
+        afterUrl: "",
+        beforeLabel: "Before",
+        afterLabel: "After",
+      };
+    case "gallery":
+      return { type: "gallery", images: [{ url: "", caption: "", alt: "" }] };
+    case "code":
+      return { type: "code", code: "", language: "" };
+    case "side_by_side":
+      return {
+        type: "side_by_side",
+        leftTitle: "",
+        leftText: "",
+        rightTitle: "",
+        rightText: "",
+      };
+  }
+}
+
+/**
+ * Safelist of embed domains for iframe render. Anything not in this list is
+ * rejected (rendered as a fallback link). Videos should use VideoBlock —
+ * this is intentionally excluded here.
+ */
+export const EMBED_HOSTS = [
+  "sketchfab.com",
+  "figma.com",
+  "codepen.io",
+  "miro.com",
+  "desmos.com",
+  "observablehq.com",
+  "geogebra.org",
+] as const;
+
+export function isSafeEmbedUrl(raw: string): boolean {
+  try {
+    const u = new URL(raw);
+    if (u.protocol !== "https:") return false;
+    const host = u.hostname.toLowerCase();
+    return EMBED_HOSTS.some(
+      (allowed) => host === allowed || host.endsWith("." + allowed)
+    );
+  } catch {
+    return false;
   }
 }
 
