@@ -9331,8 +9331,8 @@ tables:
 
 - name: skill_cards
   source_migration: 105_skills_library_schema.sql
-  status: pending_apply
-  applied_date: null
+  status: applied
+  applied_date: 2026-04-23
   purpose: "Skills Library canonical content entity. Each row is one skill card with a structured-block body, category, difficulty, tags via join, prerequisite graph via join. The moat — authored once, referenced from library/lessons/Stones/Open Studio/crit board."
   columns:
     id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
@@ -9365,8 +9365,8 @@ tables:
 
 - name: skill_categories
   source_migration: 105_skills_library_schema.sql
-  status: pending_apply
-  applied_date: null
+  status: applied
+  applied_date: 2026-04-23
   purpose: "Skills Library 8-item lookup — neutral criterion taxonomy. Seeded by migration: researching/analysing/designing/creating/evaluating/reflecting/communicating/planning."
   columns:
     id: TEXT PRIMARY KEY
@@ -9382,8 +9382,8 @@ tables:
 
 - name: skill_card_tags
   source_migration: 105_skills_library_schema.sql
-  status: pending_apply
-  applied_date: null
+  status: applied
+  applied_date: 2026-04-23
   purpose: "Skills Library many-to-many tag list. PK (skill_id, tag)."
   columns:
     skill_id: UUID NOT NULL REFERENCES skill_cards(id) ON DELETE CASCADE
@@ -9399,8 +9399,8 @@ tables:
 
 - name: skill_prerequisites
   source_migration: 105_skills_library_schema.sql
-  status: pending_apply
-  applied_date: null
+  status: applied
+  applied_date: 2026-04-23
   purpose: "Skills Library directed prereq graph. A row (X,Y) means skill X requires skill Y before it makes sense. Used by 'next up' query + lesson-embed gating."
   columns:
     skill_id: UUID NOT NULL REFERENCES skill_cards(id) ON DELETE CASCADE
@@ -9417,8 +9417,8 @@ tables:
 
 - name: skill_external_links
   source_migration: 105_skills_library_schema.sql
-  status: pending_apply
-  applied_date: null
+  status: applied
+  applied_date: 2026-04-23
   purpose: "Skills Library video/PDF/doc references attached to a card. Also used by the Resources page (Phase 18) for reverse lookups: 'which skills reference this resource?'"
   columns:
     id: UUID PRIMARY KEY DEFAULT gen_random_uuid()
@@ -9439,8 +9439,8 @@ tables:
 
 - name: learning_events
   source_migration: 106_learning_events.sql
-  status: pending_apply
-  applied_date: null
+  status: applied
+  applied_date: 2026-04-23
   purpose: "Cross-cutting append-only event log. Skills Library is the first consumer (skill.viewed, skill.quiz_passed, skill.quiz_failed, skill.refresh_passed, skill.refresh_acknowledged, skill.demonstrated, skill.applied). Future domains: stone.*, portfolio.*, critique.* — each spec registers its own event vocabulary."
   columns:
     id: UUID PRIMARY KEY DEFAULT gen_random_uuid()

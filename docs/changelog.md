@@ -4,7 +4,7 @@
 
 ---
 
-## 23 Apr 2026 — Skills Library Phase S1 schema foundation (not yet applied to prod)
+## 23 Apr 2026 — Skills Library Phase S1 schema foundation SHIPPED + APPLIED to prod
 
 **Context:** Kickoff of the Skills Library project per [`docs/projects/skills-library.md`](projects/skills-library.md) + canonical specs in `docs/specs/skills-library-spec.md` + completion-addendum. The library is the "moat" — one canonical skill card, many embed contexts (library browse, lesson activity blocks, Open Studio capability-gap, crit board, badges). Completions as `learning_events`, not a mutable table.
 
