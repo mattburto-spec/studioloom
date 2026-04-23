@@ -1,6 +1,6 @@
 # Preflight Phase 7 — Lab Tech Pickup + Completion
 
-**Status:** DRAFT — 9 open questions pending Matt sign-off (§11). First sub-phase (7-1) opens after decisions locked.
+**Status:** READY — all 9 pre-build open questions resolved 23 Apr 2026 PM ("all recommended"). First sub-phase (7-1) opens next.
 **Date drafted:** 23 April 2026 PM
 **Spec source:** `docs/projects/fabrication-pipeline.md` §10 (Lab Tech UX), §13 Phase 7
 **Predecessor:** Phase 6 SHIPPED + Checkpoint 6.1 PASSED all 4 scenarios (main HEAD `5a3b801`).
