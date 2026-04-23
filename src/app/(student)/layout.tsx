@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { StudentContext } from "./student-context";
-import { QuickToolFAB } from "@/components/toolkit/QuickToolFAB";
+// QuickToolFAB import removed 23 Apr 2026 — Matt's call, was floating on
+// every student route including /fabrication/* where it didn't belong.
+// Component file preserved for future re-integration via a unified surface.
 import { StudioSetup } from "@/components/student/StudioSetup";
 import { BugReportButton } from "@/components/shared/BugReportButton";
 import { BoldTopNav } from "@/components/student/BoldTopNav";
@@ -19,7 +21,6 @@ export default function StudentLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  const pathname = usePathname();
   const [student, setStudent] = useState<Student | null>(null);
   const [classInfo, setClassInfo] = useState<Class | null>(null);
   const [loading, setLoading] = useState(true);
@@ -149,8 +150,10 @@ export default function StudentLayout({
           />
           {children}
 
-          {/* QuickToolFAB — available on all student pages except the dashboard */}
-          {pathname !== "/dashboard" && <QuickToolFAB />}
+          {/* QuickToolFAB removed 23 Apr 2026 — was floating on every
+              student route (including /fabrication/*) where it didn't
+              belong. Design Tools access will return via the /my-tools
+              route or a future unified tools surface. */}
 
           {/* Bug report button — always available for students */}
           <BugReportButton role="student" classId={classInfo?.id} />
