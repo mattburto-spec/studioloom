@@ -20,7 +20,10 @@ import {
   formatPassRate,
   formatAvgRevisions,
 } from "./fabrication-history-helpers";
-import { formatRuleCountsCompact, formatRelativeTime } from "./revision-history-helpers";
+import {
+  formatRuleCountsCompact,
+  formatDateTime,
+} from "./revision-history-helpers";
 import type {
   HistorySuccess,
   HistoryJobRow,
@@ -108,7 +111,14 @@ export function StudentFabricationHistory({
           </p>
         </div>
       ) : (
-        <HistoryJobList jobs={jobs} showStudentColumn={false} />
+        // Student scope: hide redundant student-name column, surface
+        // class name as a chip since the student may be enrolled in
+        // multiple classes. Phase 6-6n.
+        <HistoryJobList
+          jobs={jobs}
+          showStudentColumn={false}
+          showClassColumn
+        />
       )}
     </div>
   );
@@ -187,15 +197,23 @@ function MetricCard({
 
 /**
  * Chronological job list — each row links to the Phase 6-2 detail
- * page. `showStudentColumn` controls whether the student name renders
- * (on for class view, off for student view where it'd be redundant).
+ * page.
+ *
+ *   showStudentColumn — on for class-scope (multiple students contribute
+ *                       to the list); off for per-student page.
+ *   showClassColumn   — on for per-student-scope (student may be enrolled
+ *                       in multiple classes); off for class-scope (all
+ *                       rows share the same class, column would be
+ *                       redundant). Phase 6-6n.
  */
 export function HistoryJobList({
   jobs,
   showStudentColumn,
+  showClassColumn = false,
 }: {
   jobs: HistoryJobRow[];
   showStudentColumn: boolean;
+  showClassColumn?: boolean;
 }) {
   return (
     <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
@@ -205,6 +223,7 @@ export function HistoryJobList({
             key={j.jobId}
             row={j}
             showStudent={showStudentColumn}
+            showClass={showClassColumn}
           />
         ))}
       </ul>
@@ -215,12 +234,14 @@ export function HistoryJobList({
 function HistoryJobRowItem({
   row,
   showStudent,
+  showClass,
 }: {
   row: HistoryJobRow;
   showStudent: boolean;
+  showClass: boolean;
 }) {
   const counts = formatRuleCountsCompact(row.ruleCounts);
-  const when = formatRelativeTime(row.createdAt);
+  const submittedAt = formatDateTime(row.createdAt);
   const pill = statusPillClass(row.status);
 
   return (
@@ -249,6 +270,11 @@ function HistoryJobRowItem({
             ) : (
               <span className="text-xs text-green-700">clean</span>
             )}
+            {showClass && row.className && (
+              <span className="text-xs px-1.5 py-0.5 rounded bg-brand-purple/10 text-brand-purple font-semibold">
+                {row.className}
+              </span>
+            )}
           </div>
           <p className="text-xs text-gray-600 truncate mt-0.5">
             {row.machineLabel}
@@ -258,7 +284,7 @@ function HistoryJobRowItem({
           </p>
         </div>
         <div className="text-xs text-gray-500 whitespace-nowrap shrink-0">
-          {when}
+          {submittedAt}
         </div>
       </Link>
     </li>

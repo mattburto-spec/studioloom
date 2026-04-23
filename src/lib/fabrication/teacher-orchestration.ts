@@ -782,6 +782,11 @@ export interface HistoryJobRow {
   machineLabel: string;
   machineCategory: "3d_printer" | "laser_cutter" | null;
   unitTitle: string | null;
+  /** Phase 6-6n — surfaced so the per-student Fabrication tab can
+   *  show which class each submission came from (students may be
+   *  enrolled in multiple classes). Class scope: same value for all
+   *  rows, UI hides the column to avoid redundancy. */
+  className: string | null;
   /** Only present on class-scope responses (so the student column
    *  renders). Null on student-scope responses. */
   studentId: string | null;
@@ -828,6 +833,7 @@ interface RawHistoryJob {
   id: string;
   status: string;
   current_revision: number;
+  classes: { name: string | null } | { name: string | null }[] | null;
   created_at: string;
   updated_at: string;
   original_filename: string;
@@ -861,6 +867,7 @@ async function fetchHistoryJobs(
       id, status, current_revision, created_at, updated_at, original_filename,
       student_id, unit_id,
       students(display_name, username),
+      classes(name),
       units(title),
       machine_profiles(name, machine_category),
       fabrication_job_revisions(revision_number, scan_results)
@@ -907,6 +914,7 @@ async function fetchHistoryJobs(
     }
 
     const studentRow = pickFirst(raw.students);
+    const classRow = pickFirst(raw.classes);
     const unitRow = pickFirst(raw.units);
     const machineRow = pickFirst(raw.machine_profiles);
     const studentName =
@@ -925,6 +933,7 @@ async function fetchHistoryJobs(
         (machineRow?.machine_category as HistoryJobRow["machineCategory"]) ??
         null,
       unitTitle: unitRow?.title ?? null,
+      className: classRow?.name ?? null,
       studentId: raw.student_id,
       studentName,
       currentRevisionFailingRuleIds: failingRuleIds,
