@@ -5,6 +5,7 @@ import {
   formatReviewedAt,
   shouldShowReviewCard,
   shouldHideSubmitButton,
+  canWithdrawJob,
 } from "../teacher-review-note-helpers";
 
 /**
@@ -120,6 +121,24 @@ describe("shouldHideSubmitButton", () => {
     expect(shouldHideSubmitButton("approved")).toBe(false);
     expect(shouldHideSubmitButton("rejected")).toBe(false);
     expect(shouldHideSubmitButton("completed")).toBe(false);
+  });
+});
+
+describe("canWithdrawJob", () => {
+  it("allows withdraw for pre-teacher-action statuses", () => {
+    expect(canWithdrawJob("uploaded")).toBe(true);
+    expect(canWithdrawJob("scanning")).toBe(true);
+    expect(canWithdrawJob("pending_approval")).toBe(true);
+    expect(canWithdrawJob("needs_revision")).toBe(true);
+  });
+  it("blocks withdraw once the teacher has actioned / fabricator has picked up", () => {
+    expect(canWithdrawJob("approved")).toBe(false);
+    expect(canWithdrawJob("rejected")).toBe(false);
+    expect(canWithdrawJob("picked_up")).toBe(false);
+    expect(canWithdrawJob("completed")).toBe(false);
+  });
+  it("already-cancelled shows no button (terminal)", () => {
+    expect(canWithdrawJob("cancelled")).toBe(false);
   });
 });
 

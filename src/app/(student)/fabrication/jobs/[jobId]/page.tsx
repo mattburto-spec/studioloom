@@ -39,6 +39,7 @@ import {
   shouldShowReviewCard,
   studentActionsLocked,
   shouldHideSubmitButton,
+  canWithdrawJob,
 } from "@/components/fabrication/teacher-review-note-helpers";
 import { canSubmit, type Rule } from "@/lib/fabrication/rule-buckets";
 import type {
@@ -191,6 +192,43 @@ export default function FabricationJobStatusPage() {
     setIsReuploadOpen(true);
   }
 
+  // Phase 6-6k — student withdraw. Inline confirm (window.confirm is
+  // good enough for v1; if we need a styled modal later, build one).
+  // After success, redirect to the /fabrication overview so the
+  // student sees the updated state + can start fresh if they want.
+  const [isWithdrawing, setIsWithdrawing] = React.useState(false);
+  async function handleWithdraw() {
+    if (!jobId) return;
+    if (
+      typeof window !== "undefined" &&
+      !window.confirm(
+        "Withdraw this submission? Your teacher won't see it anymore. You can start a fresh submission afterwards."
+      )
+    ) {
+      return;
+    }
+    setActionError(null);
+    setIsWithdrawing(true);
+    try {
+      const res = await fetch(
+        `/api/student/fabrication/jobs/${jobId}/cancel`,
+        { method: "POST", credentials: "same-origin" }
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: "" }));
+        setActionError(
+          body.error || `Couldn't withdraw (HTTP ${res.status})`
+        );
+        setIsWithdrawing(false);
+        return;
+      }
+      router.push("/fabrication");
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : "Network error withdrawing");
+      setIsWithdrawing(false);
+    }
+  }
+
   async function handleReuploadSuccess() {
     setIsReuploadOpen(false);
 
@@ -255,8 +293,10 @@ export default function FabricationJobStatusPage() {
           onAcknowledge={handleAcknowledge}
           onSubmit={handleSubmit}
           onReupload={handleReupload}
+          onWithdraw={handleWithdraw}
           isAckInFlight={isAckInFlight}
           isSubmitting={isSubmitting}
+          isWithdrawing={isWithdrawing}
           actionError={actionError}
         />
       ) : jobId ? (
@@ -314,8 +354,10 @@ function DoneStateView(props: {
   onAcknowledge: (ruleId: string, choice: AckChoice) => void;
   onSubmit: () => void;
   onReupload: () => void;
+  onWithdraw: () => void;
   isAckInFlight: boolean;
   isSubmitting: boolean;
+  isWithdrawing: boolean;
   actionError: string | null;
 }) {
   const {
@@ -326,8 +368,10 @@ function DoneStateView(props: {
     onAcknowledge,
     onSubmit,
     onReupload,
+    onWithdraw,
     isAckInFlight,
     isSubmitting,
+    isWithdrawing,
     actionError,
   } = props;
 
@@ -345,6 +389,7 @@ function DoneStateView(props: {
   const showReviewCard = shouldShowReviewCard(jobStatus, teacherNote);
   const actionsLocked = studentActionsLocked(jobStatus);
   const hideSubmit = shouldHideSubmitButton(jobStatus);
+  const showWithdraw = canWithdrawJob(jobStatus);
 
   return (
     <div className="space-y-6">
@@ -401,6 +446,26 @@ function DoneStateView(props: {
               // built-in strip to avoid duplication.
               hideHeaderStrip
             />
+          )}
+
+          {/* Phase 6-6k — student withdraw. Rendered under the viewer
+              (not inside it) so teachers reading the teacher detail
+              page don't accidentally see this on their readOnly
+              render — the viewer's own button block is where teacher
+              actions go. Only shown when the job is still
+              student-reversible (not approved / rejected / picked up /
+              completed). */}
+          {showWithdraw && (
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={onWithdraw}
+                disabled={isWithdrawing || isSubmitting || isAckInFlight}
+                className="text-sm font-medium text-gray-600 hover:text-red-700 underline underline-offset-2 decoration-gray-400 hover:decoration-red-400 disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-[0.97]"
+              >
+                {isWithdrawing ? "Withdrawing…" : "Withdraw submission"}
+              </button>
+            </div>
           )}
         </div>
 
