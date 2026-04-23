@@ -67,7 +67,7 @@ export function teacherReviewStyleFor(jobStatus: string): TeacherReviewStyle {
         cardClass: "border-green-300 bg-green-50",
         headingClass: "text-green-900",
         heading: "Your teacher approved this submission",
-        hint: "Your file is cleared to fabricate. The lab tech will pick it up from here.",
+        hint: "Your file is cleared to fabricate. It'll be picked up and run on the machine soon.",
         showStartFreshCta: false,
       };
     default:
