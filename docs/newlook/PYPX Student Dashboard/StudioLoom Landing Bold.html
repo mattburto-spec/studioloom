@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>StudioLoom — The platform for classrooms that make, solve, and create</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Bricolage+Grotesque:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&family=Syne:wght@400;500;600;700;800&family=Archivo:wght@400;500;600;700;800&family=Unbounded:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+  <style>
+    .serif-em { font-family: "Instrument Serif", serif; font-style: italic; font-weight: 400; letter-spacing: -0.015em; }
+  </style>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <style>
+    :root {
+      --bg: #F7F6F2;
+      --bg-warm: #F1EDE4;
+      --surface: #FFFFFF;
+      --ink: #0A0A0A;
+      --ink-2: #3A3A3A;
+      --ink-3: #6B6B6B;
+      --hair: #E8E6DF;
+      --accent: #E86F2C;
+      --accent-dark: #C85618;
+      --display-font: "Manrope";
+      --display-tracking: -0.04em;
+    }
+    html, body { background: var(--bg); color: var(--ink); -webkit-font-smoothing: antialiased; }
+    body { font-family: 'DM Sans', system-ui, sans-serif; }
+    .display, .display-lg, .display-xl { font-family: var(--display-font), system-ui, sans-serif; letter-spacing: var(--display-tracking); font-weight: 700; }
+    .display-lg { letter-spacing: -0.045em; }
+    .display-xl { letter-spacing: -0.055em; font-weight: 800; }
+    .mono { font-family: "JetBrains Mono", ui-monospace, monospace; }
+    .tnum { font-variant-numeric: tabular-nums; }
+    .cap { text-transform: uppercase; letter-spacing: 0.12em; font-weight: 700; font-size: 10.5px; }
+    .card-shadow { box-shadow: 0 1px 2px rgba(10,10,10,0.04), 0 8px 24px -12px rgba(10,10,10,0.08); }
+    .card-shadow-lg { box-shadow: 0 1px 2px rgba(10,10,10,0.04), 0 20px 60px -24px rgba(10,10,10,0.22); }
+    .glow-inner::after {
+      content: ""; position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
+      background: radial-gradient(circle at 18% 12%, rgba(255,255,255,0.25), transparent 55%);
+    }
+    .btn-primary { background: var(--ink); color: white; font-weight: 700; letter-spacing: -0.01em; transition: transform 150ms ease, box-shadow 150ms ease; }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 12px 28px -12px rgba(10,10,10,0.35); }
+    .btn-secondary { background: white; color: var(--ink); font-weight: 700; border: 1px solid var(--hair); transition: all 150ms ease; }
+    .btn-secondary:hover { border-color: var(--ink); transform: translateY(-1px); }
+    .pulse { display: inline-block; width: 8px; height: 8px; border-radius: 999px; background: currentColor; position: relative; }
+    .pulse::after {
+      content: ""; position: absolute; inset: -6px; border-radius: 999px; border: 2px solid currentColor; opacity: 0;
+      animation: ring 2s ease-out infinite;
+    }
+    @keyframes ring { 0% { opacity: 0.6; transform: scale(0.6);} 100% { opacity: 0; transform: scale(1.8);} }
+    .marquee-mask { mask-image: linear-gradient(to right, transparent, black 8%, black 92%, transparent); }
+    /* grain overlay for hero */
+    .grain::before {
+      content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0.035; border-radius: inherit;
+      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence baseFrequency='0.9'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel" src="landing_bold.jsx"></script>
+</body>
+</html>
