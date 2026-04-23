@@ -19,6 +19,10 @@
  */
 
 import * as React from "react";
+import {
+  cannedNotesForAction,
+  insertCannedNote,
+} from "@/lib/fabrication/canned-teacher-notes";
 
 /**
  * Shared press-animation suffix for preflight action buttons (Phase
@@ -165,13 +169,43 @@ export function TeacherActionBar(props: TeacherActionBarProps) {
               {activeModal === "approve-note" &&
                 "Approve the submission and leave an optional message for the student."}
             </p>
+            {/* Phase 6-6l — canned-note chip strip. Teachers triaging
+                a queue of 15+ submissions hit the same 5-6 reasons
+                over and over; one-click insert into the textarea
+                (appends with a blank line if there's already text) +
+                free edit after. Presets live in
+                src/lib/fabrication/canned-teacher-notes.ts so teacher-
+                editable (P3 follow-up) will have a clean extraction
+                path. */}
+            <div className="mb-3">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
+                Quick inserts
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {cannedNotesForAction(activeModal).map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() =>
+                      setNoteDraft((current) =>
+                        insertCannedNote(current, preset)
+                      )
+                    }
+                    title={preset}
+                    className={`text-left text-xs px-2.5 py-1 rounded-full border border-gray-200 bg-gray-50 text-gray-700 hover:bg-white hover:border-brand-purple/40 max-w-full ${PRESS}`}
+                  >
+                    <span className="line-clamp-1 block">{preset}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
             <textarea
               value={noteDraft}
               onChange={(e) => setNoteDraft(e.target.value)}
-              rows={4}
+              rows={5}
               placeholder={
                 activeModal === "return"
-                  ? "e.g. Wall at the back is too thin — bump to 1 mm"
+                  ? "Pick a quick-insert above, or type your own message."
                   : "Your message…"
               }
               className="w-full rounded-lg border border-gray-300 p-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-purple"
