@@ -4,6 +4,82 @@
 
 ---
 
+## 23 Apr 2026 — Skills Library Phase S1 schema foundation SHIPPED + APPLIED to prod
+
+**Context:** Kickoff of the Skills Library project per [`docs/projects/skills-library.md`](projects/skills-library.md) + canonical specs in `docs/specs/skills-library-spec.md` + completion-addendum. The library is the "moat" — one canonical skill card, many embed contexts (library browse, lesson activity blocks, Open Studio capability-gap, crit board, badges). Completions as `learning_events`, not a mutable table.
+
+Phase S1 is **schema foundation only** — no UI, no API routes, no teacher-write policies yet. Deliberately minimal to unlock S2 authoring + S3 library browse.
+
+**What shipped (in the skills-library branch, not merged to main):**
+
+- **Migration 105** `skills_library_schema.sql` — 5 tables:
+  - `skill_categories` (8-item lookup seeded: researching, analysing, designing, creating, evaluating, reflecting, communicating, planning)
+  - `skill_cards` (canonical content entity, structured-block `body` JSONB, `category_id` FK, `difficulty` enum, `estimated_min`, `is_built_in` + `created_by_teacher_id` for hybrid ownership, `is_published` draft/live)
+  - `skill_card_tags` (many-to-many flat tag list)
+  - `skill_prerequisites` (directed graph — skill X requires prerequisite Y; CHECK prevents self-reference)
+  - `skill_external_links` (video/PDF/doc references with `last_checked_at` + `status` for nightly link-check cron)
+  - Auto-bump `updated_at` trigger on skill_cards
+  - Baseline RLS: authenticated reads on published rows, author reads on own drafts; writes service-role-only until S2 authoring UI lands
+
+- **Migration 106** `learning_events.sql` — append-only cross-cutting event log:
+  - Columns: `id`, `student_id`, `event_type`, `subject_type`, `subject_id`, `payload` (JSONB), `schema_version`, `created_at`
+  - Indexes for (student, time), (subject_type, subject_id, time), (event_type), + composite on (subject_type, student_id, subject_id) filtered to skill_card
+  - RLS: students read/insert their own only (`auth.uid() = student_id`). No UPDATE/DELETE — append-only by design
+  - First consumer: `skill.*` events (viewed, quiz_passed, quiz_failed, refresh_passed, refresh_acknowledged, demonstrated, applied)
+  - Future consumers: `stone.*`, `portfolio.*`, `critique.*` — each spec registers its own event vocabulary
+
+- **Migration 107** `student_skill_state_view.sql` — derived current-state per (student, skill):
+  - Aggregates `skill.*` events from `learning_events` into a state ladder (untouched → viewed → quiz_passed → demonstrated → applied)
+  - Freshness bands: fresh (0-90 days) / cooling (91-180) / stale (>180), anchored to most recent ≥quiz_passed event
+  - Row absent = untouched (LEFT JOIN pattern for UI queries)
+  - Pure view, no materialisation — re-evaluate at scale in S4+ if perf demands
+
+- **Migration 108** `skills_library_sample_seeds.sql` — 3 sample cards for checkpoint verification:
+  - "Ideation sketching: thumbnails" (designing, foundational) — 3 structured blocks + tags
+  - "3D Printing: basic setup" (creating, foundational) — with external link to Prusa walkthrough
+  - "3D Printing: troubleshooting" (creating, intermediate) — **depends on basics** via `skill_prerequisites` — demonstrates the progression chain the spec promises
+  - All three `is_built_in: true` — survive as platform baseline
+
+**Checkpoint SL-SCHEMA criteria (for verification post-apply):**
+1. Migrations 105-108 apply cleanly to prod Supabase
+2. `SELECT count(*) FROM skill_categories` = 8
+3. `SELECT count(*) FROM skill_cards` ≥ 3
+4. Manual INSERT on `learning_events` with `event_type='skill.viewed'` → `student_skill_state` returns state='viewed' for that student+skill
+5. Prereq chain query demonstrates: a student who has `skill.quiz_passed` on 3D-basics would unlock 3D-troubleshooting as "next up"
+
+**Registries updated:**
+- `docs/schema-registry.yaml` — 6 new entries (skill_cards, skill_categories, skill_card_tags, skill_prerequisites, skill_external_links, learning_events; plus student_skill_state view conceptually via schema migration 107)
+- `docs/projects/WIRING.yaml` — `skills-library` system status: `planned` → `in_progress`
+- `docs/doc-manifest.yaml` — last_verified on touched docs
+- `docs/changelog.md` — this entry
+
+**Known deferrals (not in S1 scope, captured for later phases):**
+- `estimated_min` added to schema but not yet surfaced in UI (S5)
+- Teacher authoring UI → S2
+- Quiz engine → S3
+- "Next up" query + freshness gating → S4
+- `/skills` page upgrade from placeholder → S5
+- Radar chart, badge engine, forking, cross-school visibility → all deferred per spec
+- No Open Studio capability-gap wiring yet — that's a future phase once Open Studio Mode ships
+
+**Files:**
+- NEW: `supabase/migrations/105_skills_library_schema.sql`
+- NEW: `supabase/migrations/106_learning_events.sql`
+- NEW: `supabase/migrations/107_student_skill_state_view.sql`
+- NEW: `supabase/migrations/108_skills_library_sample_seeds.sql`
+- MODIFIED: `docs/schema-registry.yaml` (6 new table entries appended)
+- MODIFIED: `docs/projects/WIRING.yaml` (skills-library status)
+- MODIFIED: `docs/doc-manifest.yaml` (last_verified bumps)
+- MODIFIED: `docs/changelog.md` (this entry)
+
+**Systems affected:** `skills-library` (v0 → v0 planning, schema in_progress), `learning-events` (new system effectively created — existed only in spec).
+
+**Commits:** 1 commit on `skills-library` branch (worktree at `/Users/matt/CWORK/skills`). **Not pushed to origin/main** — awaits Matt's review + migration apply to prod Supabase. Push discipline: migrations must be applied to prod before main merge.
+
+**Session context:** Dashboard-v2 polish paused mid-Phase-17 for Matt's strategic shift to Skills Library. Discovered existing canonical specs (skills-library-spec.md + completion-addendum, both 11 Apr 2026) — my earlier student-skills-page.md marked superseded. Worktree created at `/Users/matt/CWORK/skills` on branch `skills-library` (dropping "questerra" prefix per Matt's renaming direction).
+
+---
+
 ## 22 Apr 2026 — Student Dashboard v2 (Bold) SHIPPED: Phases 1-8 complete, cutover live
 
 **Context:** End-to-end build and production cutover of a new Bold-design student dashboard, ported from `docs/newlook/PYPX Student Dashboard/student_bold.jsx`. Built phased behind a cookie gate, then promoted to the default `/dashboard` for all students. Ran in parallel with a separate Preflight session in `questerra-preflight/`; git worktrees used to isolate the two sessions after an early cross-contamination incident where Preflight's `git add` swept up uncommitted dashboard changes into commit `a88b330`.
