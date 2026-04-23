@@ -168,12 +168,17 @@ export function Icon({ name, size = 16, s = 2 }: { name: IconName; size?: number
 
 // ================= PILL NAV =================
 
-const NAV_S: { label: string; anchor: string | null }[] = [
+const NAV_S: { label: string; anchor: string | null; href?: string }[] = [
   { label: "My work",   anchor: "dashboard-hero" },
   { label: "Units",     anchor: "dashboard-units" },
   { label: "Badges",    anchor: "dashboard-badges" },
   { label: "Journal",   anchor: null },
   { label: "Resources", anchor: null },
+  // Preflight (Phase 6-6g) is the first href-based nav entry — goes
+  // to a real route rather than scrolling to a dashboard anchor.
+  // When the route renderer sees `href`, it bypasses the anchor /
+  // disabled paths and renders a plain <Link>.
+  { label: "Preflight", anchor: null, href: "/fabrication/new" },
 ];
 
 // ================= SCOPED STYLES =================
@@ -342,6 +347,21 @@ export function BoldTopNav({
         {/* Pill nav hides below md — mobile students scroll through sections rather than jump. */}
         <nav className="hidden md:flex items-center gap-0.5">
           {NAV_S.map((n) => {
+            // href takes precedence over anchor — wired routes render
+            // as plain Links regardless of where the user currently is.
+            if (n.href) {
+              const hrefActive = pathname.startsWith(n.href);
+              const classNames = `px-3 py-1.5 rounded-full text-[12.5px] font-semibold transition ${
+                hrefActive
+                  ? "bg-[var(--sl-ink)] text-white"
+                  : "text-[var(--sl-ink-2)] hover:bg-white"
+              }`;
+              return (
+                <Link key={n.label} href={n.href} className={classNames}>
+                  {n.label}
+                </Link>
+              );
+            }
             const disabled = n.anchor === null;
             const active = onDashboard && n.anchor === "dashboard-hero"; // "My work" active on dashboard
             const classNames = `px-3 py-1.5 rounded-full text-[12.5px] font-semibold transition ${
