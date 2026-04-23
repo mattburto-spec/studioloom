@@ -13,8 +13,7 @@
  */
 
 import * as React from "react";
-import { useParams } from "next/navigation";
-import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
 import { ScanResultsViewer } from "@/components/fabrication/ScanResultsViewer";
 import { RevisionHistoryPanel } from "@/components/fabrication/RevisionHistoryPanel";
 import { TeacherActionBar } from "@/components/fabrication/TeacherActionBar";
@@ -33,7 +32,23 @@ type LoadState =
 
 export default function TeacherJobDetailPage() {
   const params = useParams<{ jobId: string }>();
+  const router = useRouter();
   const jobId = params?.jobId;
+
+  // Phase 6-6m: context-aware back navigation. Detail page is reachable
+  // from the queue page, the per-student Fabrication tab, the per-class
+  // Fabrication section, and direct-URL entry (email link / bookmark).
+  // Hardcoding href="/teacher/preflight" was wrong for every path except
+  // the queue. Use router.back() when we have history; fall back to the
+  // queue for direct entries (window.history.length > 1 gate — otherwise
+  // back() would exit the app entirely on a fresh tab).
+  function handleBack() {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
+    } else {
+      router.push("/teacher/preflight");
+    }
+  }
 
   const [state, setState] = React.useState<LoadState>({ kind: "loading" });
   const [isBusy, setIsBusy] = React.useState(false);
@@ -130,9 +145,13 @@ export default function TeacherJobDetailPage() {
   return (
     <main className="max-w-6xl mx-auto px-6 py-10 space-y-6">
       <div className="text-sm">
-        <Link href="/teacher/preflight" className="text-brand-purple hover:underline">
-          ← Back to queue
-        </Link>
+        <button
+          type="button"
+          onClick={handleBack}
+          className="text-brand-purple hover:underline transition-all active:scale-[0.97]"
+        >
+          ← Back
+        </button>
       </div>
 
       {state.kind === "loading" && (
