@@ -43,7 +43,7 @@ Bold's sections (in render order): `TopNav` · `NowHero` · `TodayRail`
 | 3A | `NowHero` — wire class/unit/period/phase% (reused `/api/teacher/schedule/today`, no new endpoint needed) | ✅ Done |
 | 3B | `NowHero` — wire student count + ungraded count pills (ready/unready ratio deferred — needs per-student page progress) | ✅ Done |
 | 4 | `TodayRail` — real today's entries rendered as cards with state (live/next/upcoming/done) | ✅ Done |
-| 5 | `Insights` — client-side reducer mapping 6 `InsightType`s → 4 Bold buckets (Act/Grade/Watch/Celebrate) | ⏳ Planned |
+| 5 | `Insights` — client-side reducer mapping 6 `InsightType`s → 4 Bold buckets (Act/Grade/Watch/Celebrate) | ✅ Done |
 | 6 | `UnitsGrid` — wire from `data.classes[].units`, badges (safety/forked/NM), thumbnail, completion % | ⏳ Planned |
 | 7 | `Admin` — pending-invite count, safety alerts, quick settings links | ⏳ Planned |
 | 8 | Cutover `/teacher/dashboard` → v2, move old to `/teacher/dashboard-legacy` | ⏳ Planned |

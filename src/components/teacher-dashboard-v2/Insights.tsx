@@ -1,9 +1,76 @@
 "use client";
 
+import Link from "next/link";
 import { I } from "./icons";
 import { INSIGHTS } from "./mock-data";
+import type { InsightBucket } from "./insight-buckets";
 
-export function Insights() {
+interface InsightsProps {
+  /** Real buckets. Empty array → mock fallback so the section never
+   *  renders a blank block mid-build. Phase 9 swaps this to a proper
+   *  empty state when `data.insights` is legitimately empty (rather
+   *  than just unfetched). */
+  buckets: InsightBucket[];
+}
+
+interface CardVM {
+  key: string;
+  bg: string;
+  accent: string;
+  text: string;
+  tag: string;
+  big: string;
+  unit: string;
+  body: string;
+  who: string[];
+  whoOverflow: number;
+  href: string | null;
+  cta: string;
+  isEmpty: boolean;
+}
+
+function fromBucket(b: InsightBucket): CardVM {
+  return {
+    key: b.tag,
+    bg: b.bg,
+    accent: b.accent,
+    text: b.text,
+    tag: b.tag,
+    big: b.big,
+    unit: b.unit,
+    body: b.body,
+    who: b.who,
+    whoOverflow: b.whoOverflow,
+    href: b.href,
+    cta: b.cta,
+    isEmpty: b.isEmpty,
+  };
+}
+
+function fromMock(m: (typeof INSIGHTS)[number], i: number): CardVM {
+  return {
+    key: `mock-${i}`,
+    bg: m.bg,
+    accent: m.accent,
+    text: m.text,
+    tag: m.tag,
+    big: m.big,
+    unit: m.unit,
+    body: m.body,
+    who: m.who ?? [],
+    whoOverflow: 0,
+    href: null,
+    cta: m.cta,
+    isEmpty: false,
+  };
+}
+
+export function Insights({ buckets }: InsightsProps) {
+  const cards: CardVM[] =
+    buckets.length > 0
+      ? buckets.map(fromBucket)
+      : INSIGHTS.map(fromMock);
+
   return (
     <section className="max-w-[1400px] mx-auto px-6 pt-12">
       <div className="flex items-end justify-between mb-4">
@@ -18,72 +85,86 @@ export function Insights() {
         </button>
       </div>
       <div className="grid grid-cols-4 gap-4">
-        {INSIGHTS.map((it, i) => (
-          <article
-            key={i}
-            className="relative rounded-3xl p-6 hover:-translate-y-0.5 transition cursor-pointer flex flex-col min-h-[280px]"
-            style={{ background: it.bg, color: it.text }}
-          >
-            <div className="flex items-center justify-between">
-              <span className="cap" style={{ color: it.accent }}>
-                {it.tag}
-              </span>
-              <button
-                className="w-7 h-7 rounded-full hover:bg-white/60 flex items-center justify-center"
-                style={{ color: it.text }}
+        {cards.map((c) => {
+          const body = (
+            <article
+              className={`relative rounded-3xl p-6 hover:-translate-y-0.5 transition ${
+                c.href ? "cursor-pointer" : ""
+              } flex flex-col min-h-[280px] ${c.isEmpty ? "opacity-60" : ""}`}
+              style={{ background: c.bg, color: c.text }}
+            >
+              <div className="flex items-center justify-between">
+                <span className="cap" style={{ color: c.accent }}>
+                  {c.tag}
+                </span>
+                <button
+                  className="w-7 h-7 rounded-full hover:bg-white/60 flex items-center justify-center"
+                  style={{ color: c.text }}
+                  aria-label="More options"
+                >
+                  <I name="more" size={14} />
+                </button>
+              </div>
+              <div
+                className="display-lg text-[72px] leading-[0.9] mt-4 tnum"
+                style={{ color: c.accent }}
               >
-                <I name="more" size={14} />
-              </button>
-            </div>
-            <div
-              className="display-lg text-[72px] leading-[0.9] mt-4 tnum"
-              style={{ color: it.accent }}
-            >
-              {it.big}
-            </div>
-            <div className="text-[13px] font-bold mt-1">{it.unit}</div>
-            <p
-              className="text-[12.5px] leading-relaxed mt-3 flex-1"
-              style={{ color: it.text, opacity: 0.85 }}
-            >
-              {it.body}
-            </p>
-            <div
-              className="flex items-center justify-between mt-4 pt-4 border-t"
-              style={{ borderColor: `${it.accent}33` }}
-            >
-              {it.who ? (
-                <div className="flex items-center">
-                  {it.who.slice(0, 4).map((a, idx) => (
-                    <div
-                      key={idx}
-                      className="w-7 h-7 rounded-full text-white flex items-center justify-center font-extrabold text-[9.5px] border-2 -ml-1.5 first:ml-0"
-                      style={{ background: it.accent, borderColor: it.bg }}
-                    >
-                      {a}
-                    </div>
-                  ))}
-                  {it.who.length > 4 && (
-                    <div
-                      className="text-[11px] ml-1 font-bold"
-                      style={{ color: it.accent }}
-                    >
-                      +{it.who.length - 4}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div />
-              )}
-              <button
-                className="inline-flex items-center gap-1 text-[11.5px] font-extrabold hover:gap-2 transition-all"
-                style={{ color: it.accent }}
+                {c.big}
+              </div>
+              <div className="text-[13px] font-bold mt-1">{c.unit}</div>
+              <p
+                className="text-[12.5px] leading-relaxed mt-3 flex-1"
+                style={{ color: c.text, opacity: 0.85 }}
               >
-                {it.cta} <I name="arrow" size={11} s={2.5} />
-              </button>
-            </div>
-          </article>
-        ))}
+                {c.body}
+              </p>
+              <div
+                className="flex items-center justify-between mt-4 pt-4 border-t"
+                style={{ borderColor: `${c.accent}33` }}
+              >
+                {c.who.length > 0 ? (
+                  <div className="flex items-center">
+                    {c.who.map((initials, idx) => (
+                      <div
+                        key={idx}
+                        className="w-7 h-7 rounded-full text-white flex items-center justify-center font-extrabold text-[9.5px] border-2 -ml-1.5 first:ml-0"
+                        style={{
+                          background: c.accent,
+                          borderColor: c.bg,
+                        }}
+                      >
+                        {initials}
+                      </div>
+                    ))}
+                    {c.whoOverflow > 0 && (
+                      <div
+                        className="text-[11px] ml-1 font-bold"
+                        style={{ color: c.accent }}
+                      >
+                        +{c.whoOverflow}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div />
+                )}
+                <span
+                  className="inline-flex items-center gap-1 text-[11.5px] font-extrabold hover:gap-2 transition-all"
+                  style={{ color: c.accent }}
+                >
+                  {c.cta} <I name="arrow" size={11} s={2.5} />
+                </span>
+              </div>
+            </article>
+          );
+          return c.href ? (
+            <Link key={c.key} href={c.href} className="block">
+              {body}
+            </Link>
+          ) : (
+            <div key={c.key}>{body}</div>
+          );
+        })}
       </div>
     </section>
   );

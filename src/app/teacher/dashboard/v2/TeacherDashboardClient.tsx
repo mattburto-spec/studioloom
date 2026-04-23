@@ -33,9 +33,11 @@ import {
   type ScheduleResponse,
 } from "@/components/teacher-dashboard-v2/current-period";
 import { useTeacher } from "@/app/teacher/teacher-context";
+import { buildInsightBuckets } from "@/components/teacher-dashboard-v2/insight-buckets";
 import type {
   DashboardData,
   DashboardClass,
+  DashboardInsight,
   UnmarkedWorkItem,
 } from "@/types/dashboard";
 
@@ -47,6 +49,7 @@ export default function TeacherDashboardClient() {
   const [scope, setScope] = useState<string>("all");
   const [classes, setClasses] = useState<DashboardClass[]>([]);
   const [unmarkedWork, setUnmarkedWork] = useState<UnmarkedWorkItem[]>([]);
+  const [insights, setInsights] = useState<DashboardInsight[] | null>(null);
   const [schedule, setSchedule] = useState<ScheduleResponse | null>(null);
   const [now, setNow] = useState<Date>(() => new Date());
 
@@ -69,6 +72,7 @@ export default function TeacherDashboardClient() {
         if (!cancelled) {
           setClasses(json.classes);
           setUnmarkedWork(json.unmarkedWork ?? []);
+          setInsights(json.insights ?? []);
         }
       } catch {
         // Phase 9 adds error surfaces. For now the chip stays on
@@ -115,6 +119,14 @@ export default function TeacherDashboardClient() {
     return buildTodayRail(schedule, classes, unmarkedWork, now);
   }, [schedule, classes, unmarkedWork, now]);
 
+  // Insights render the mock fallback while `insights === null` (still
+  // loading) and the real buckets once the fetch resolves — even if the
+  // server returned an empty array, which becomes an "all clear" state.
+  const insightBuckets = useMemo(() => {
+    if (insights === null) return [];
+    return buildInsightBuckets(insights);
+  }, [insights]);
+
   return (
     <div className="tl-v2 min-h-screen">
       <TopNav
@@ -126,7 +138,7 @@ export default function TeacherDashboardClient() {
       />
       <NowHero current={currentPeriod} />
       <TodayRail cards={railCards} now={now} />
-      <Insights />
+      <Insights buckets={insightBuckets} />
       <UnitsGrid />
       <Admin />
     </div>
