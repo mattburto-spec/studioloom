@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import type { JSX } from "react";
 import type { UnitContentData, StudentProgress } from "@/types";
 
@@ -361,6 +362,16 @@ function TopNav({ student, loading }: { student: SessionStudent; loading: boolea
               {n}
             </button>
           ))}
+          {/* Preflight — first wired nav entry. Goes straight to the
+              upload page; from there students drop into the soft-gate
+              flow + can navigate to any of their existing job's status
+              page via the revision-history panel. Phase 6-6g. */}
+          <Link
+            href="/fabrication/new"
+            className="px-3 py-1.5 rounded-full text-[12.5px] font-semibold transition text-[var(--sl-ink-2)] hover:bg-white"
+          >
+            Preflight
+          </Link>
         </nav>
         <div className="flex-1" />
         <button className="w-9 h-9 rounded-full hover:bg-white flex items-center justify-center text-[var(--sl-ink-2)]">
