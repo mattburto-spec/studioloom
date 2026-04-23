@@ -110,6 +110,11 @@ export async function GET(request: NextRequest) {
     const tier = url.searchParams.get("tier");
     const cardType = url.searchParams.get("card_type");
     const ownership = url.searchParams.get("ownership"); // 'mine' | 'built_in' | 'all' (default)
+    // ageBand filter: 'primary' (8-11) | 'middle' (11-14) | 'senior' (14-18) | 'all' (default)
+    // Filters cards whose age_min/age_max overlaps the requested band. Cards with
+    // NULL age_min/age_max are treated as "any band" (always included) — they're
+    // legacy rows or cards the author hasn't age-scoped yet.
+    const ageBand = url.searchParams.get("age_band");
 
     const admin = createAdminClient();
 
@@ -131,6 +136,27 @@ export async function GET(request: NextRequest) {
     }
     if (cardType && VALID_CARD_TYPES.includes(cardType as CardType)) {
       query = query.eq("card_type", cardType);
+    }
+
+    // Age-band overlap filter. A card is "in" a band if its age_min..age_max
+    // range overlaps the band range, OR if its age_min/age_max are NULL
+    // (unscoped). PostgREST can't express "null OR range-overlap" in one .or
+    // clause cleanly, so we pick the simpler formulation: include cards whose
+    // age_max >= band.min AND age_min <= band.max (classic overlap), treating
+    // NULL as open-ended. We do that with .or() conditionals.
+    if (ageBand && ageBand !== "all") {
+      const bands: Record<string, { min: number; max: number }> = {
+        primary: { min: 8, max: 11 },
+        middle: { min: 11, max: 14 },
+        senior: { min: 14, max: 18 },
+      };
+      const b = bands[ageBand];
+      if (b) {
+        // (age_max IS NULL OR age_max >= b.min) AND (age_min IS NULL OR age_min <= b.max)
+        query = query
+          .or(`age_max.is.null,age_max.gte.${b.min}`)
+          .or(`age_min.is.null,age_min.lte.${b.max}`);
+      }
     }
 
     if (ownership === "mine") {

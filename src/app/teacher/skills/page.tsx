@@ -52,6 +52,25 @@ const TIER_COLORS: Record<SkillTier, string> = {
   gold: "bg-yellow-100 text-yellow-800",
 };
 
+/**
+ * Classify a card by its age band for display. A card is "Primary" if its
+ * upper bound is ≤ 11, "Senior" if its lower bound is ≥ 14, otherwise
+ * "Middle". Cards without an age band return null (no badge shown).
+ */
+function ageBandLabel(
+  ageMin: number | null,
+  ageMax: number | null
+): { label: "Primary" | "Middle" | "Senior"; cls: string } | null {
+  if (ageMin == null && ageMax == null) return null;
+  if (ageMax != null && ageMax <= 11) {
+    return { label: "Primary", cls: "bg-sky-100 text-sky-700" };
+  }
+  if (ageMin != null && ageMin >= 14) {
+    return { label: "Senior", cls: "bg-purple-100 text-purple-700" };
+  }
+  return { label: "Middle", cls: "bg-teal-100 text-teal-700" };
+}
+
 export default function TeacherSkillsListPage() {
   const [cards, setCards] = useState<CardListItem[] | null>(null);
   const [categories, setCategories] = useState<CategoryRow[]>([]);
@@ -60,6 +79,7 @@ export default function TeacherSkillsListPage() {
   const [tierFilter, setTierFilter] = useState<string>("");
   const [categoryFilter, setCategoryFilter] = useState<string>("");
   const [cardTypeFilter, setCardTypeFilter] = useState<string>("");
+  const [ageBandFilter, setAgeBandFilter] = useState<string>("");
   const [ownershipFilter, setOwnershipFilter] = useState<string>("all");
   const [error, setError] = useState<string | null>(null);
 
@@ -71,6 +91,7 @@ export default function TeacherSkillsListPage() {
       if (tierFilter) params.set("tier", tierFilter);
       if (categoryFilter) params.set("category", categoryFilter);
       if (cardTypeFilter) params.set("card_type", cardTypeFilter);
+      if (ageBandFilter) params.set("age_band", ageBandFilter);
       if (ownershipFilter !== "all") params.set("ownership", ownershipFilter);
 
       const res = await fetch(
@@ -90,7 +111,7 @@ export default function TeacherSkillsListPage() {
     return () => {
       abort = true;
     };
-  }, [domainFilter, tierFilter, categoryFilter, cardTypeFilter, ownershipFilter]);
+  }, [domainFilter, tierFilter, categoryFilter, cardTypeFilter, ageBandFilter, ownershipFilter]);
 
   useEffect(() => {
     fetch("/api/teacher/skills/categories", { credentials: "include" })
@@ -189,6 +210,17 @@ export default function TeacherSkillsListPage() {
           <option value="lesson">Lessons</option>
           <option value="routine">Thinking routines</option>
         </select>
+        <select
+          value={ageBandFilter}
+          onChange={(e) => setAgeBandFilter(e.target.value)}
+          className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white"
+          title="Filter by schooling stage"
+        >
+          <option value="">All age bands</option>
+          <option value="primary">Primary (8–11)</option>
+          <option value="middle">Middle (11–14)</option>
+          <option value="senior">Senior (14–18)</option>
+        </select>
         <div className="inline-flex rounded-lg overflow-hidden border border-gray-200">
           {(["all", "mine", "built_in"] as const).map((k) => (
             <button
@@ -251,6 +283,7 @@ export default function TeacherSkillsListPage() {
           {cards.map((c) => {
             const domainShortCode =
               domains.find((d) => d.id === c.domain_id)?.short_code ?? null;
+            const band = ageBandLabel(c.age_min, c.age_max);
             return (
               <li key={c.id}>
                 <Link
@@ -266,6 +299,14 @@ export default function TeacherSkillsListPage() {
                       {c.title}
                     </h2>
                     <div className="flex flex-wrap gap-1.5 flex-shrink-0">
+                      {band && (
+                        <span
+                          className={`text-xs font-semibold px-2 py-0.5 rounded-full ${band.cls}`}
+                          title={`Age ${c.age_min ?? "?"}–${c.age_max ?? "?"}`}
+                        >
+                          {band.label}
+                        </span>
+                      )}
                       {c.is_built_in && (
                         <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
                           Built-in
