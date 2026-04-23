@@ -1,34 +1,67 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
+import type { DashboardClass } from "@/types/dashboard";
+import type { Teacher } from "@/types";
 import { I } from "./icons";
-import { PROGRAMS, NAV } from "./mock-data";
+import { NAV_ITEMS, activeNavHref, classColor, getInitials } from "./nav-config";
 
 interface TopNavProps {
+  /** Current teacher — null while TeacherContext resolves. */
+  teacher: Teacher | null;
+  /** Class list from /api/teacher/dashboard. Empty while loading. */
+  classes: DashboardClass[];
+  /** Active scope id — "all" or a class id. */
   scope: string;
   onScope: (id: string) => void;
-  /** Phase 2+ — teacher initials for avatar. Defaults to "MG" until wired. */
-  initials?: string;
+  /** Current pathname for active-link highlighting. Resolved by the
+   *  parent (via usePathname) so the nav doesn't double-subscribe. */
+  pathname: string;
 }
 
-export function TopNav({ scope, onScope, initials = "MG" }: TopNavProps) {
+export function TopNav({
+  teacher,
+  classes,
+  scope,
+  onScope,
+  pathname,
+}: TopNavProps) {
   const [open, setOpen] = useState(false);
-  const cur = PROGRAMS.find((p) => p.id === scope) ?? PROGRAMS[0];
+
+  // Scope options: "All classes" + one entry per class, colour-keyed
+  // by hash(class.id) so colours stay stable across reloads.
+  const scopeOptions = [
+    { id: "all", name: "All classes", color: "#0A0A0A", icon: "🏠" },
+    ...classes.map((c) => ({
+      id: c.id,
+      name: c.name,
+      color: classColor(c.id).color,
+      icon: "📓",
+    })),
+  ];
+  const cur = scopeOptions.find((p) => p.id === scope) ?? scopeOptions[0];
+
+  const initials = teacher ? getInitials(teacher.name) : "··";
+  const activeHref = activeNavHref(pathname);
 
   return (
     <header className="sticky top-0 z-30 bg-[var(--bg)]/80 backdrop-blur-lg border-b border-[var(--hair)]">
       <div className="max-w-[1400px] mx-auto px-6 h-16 flex items-center gap-4">
         {/* Brand */}
-        <div className="flex items-center gap-2.5">
+        <Link
+          href="/teacher/dashboard/v2"
+          className="flex items-center gap-2.5"
+        >
           <div className="w-9 h-9 rounded-2xl bg-[var(--ink)] flex items-center justify-center text-white display text-[15px]">
             #
           </div>
           <div className="display text-[17px] leading-none">StudioLoom</div>
-        </div>
+        </Link>
 
         <div className="w-px h-6 bg-[var(--hair)] mx-1" />
 
-        {/* Scope chip — Phase 1 stub. Will become class-filter in Phase 2. */}
+        {/* Scope chip — class filter */}
         <div className="relative">
           <button
             onClick={() => setOpen((v) => !v)}
@@ -51,8 +84,8 @@ export function TopNav({ scope, onScope, initials = "MG" }: TopNavProps) {
                 className="fixed inset-0 z-40"
                 onClick={() => setOpen(false)}
               />
-              <div className="absolute top-full left-0 mt-2 z-50 bg-white rounded-2xl card-shadow-lg w-64 p-1.5">
-                {PROGRAMS.map((p) => (
+              <div className="absolute top-full left-0 mt-2 z-50 bg-white rounded-2xl card-shadow-lg w-64 p-1.5 max-h-[60vh] overflow-y-auto">
+                {scopeOptions.map((p) => (
                   <button
                     key={p.id}
                     onClick={() => {
@@ -80,34 +113,47 @@ export function TopNav({ scope, onScope, initials = "MG" }: TopNavProps) {
           )}
         </div>
 
-        {/* Nav — Phase 1 stub. Real nav items wired in Phase 2. */}
+        {/* Nav */}
         <nav className="flex items-center gap-0.5 ml-2">
-          {NAV.map((n, i) => (
-            <button
-              key={n}
-              className={`px-3 py-1.5 rounded-full text-[12.5px] font-semibold transition ${
-                i === 0
-                  ? "bg-[var(--ink)] text-white"
-                  : "text-[var(--ink-2)] hover:bg-white"
-              }`}
-            >
-              {n}
-            </button>
-          ))}
+          {NAV_ITEMS.map((item) => {
+            const isActive = item.href === activeHref;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`px-3 py-1.5 rounded-full text-[12.5px] font-semibold transition ${
+                  isActive
+                    ? "bg-[var(--ink)] text-white"
+                    : "text-[var(--ink-2)] hover:bg-white"
+                }`}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
         </nav>
 
         <div className="flex-1" />
 
         {/* Right */}
-        <button className="w-9 h-9 rounded-full hover:bg-white flex items-center justify-center text-[var(--ink-2)]">
+        <button
+          className="w-9 h-9 rounded-full hover:bg-white flex items-center justify-center text-[var(--ink-2)]"
+          aria-label="Search"
+        >
           <I name="search" size={16} />
         </button>
-        <button className="w-9 h-9 rounded-full hover:bg-white flex items-center justify-center text-[var(--ink-2)] relative">
+        <button
+          className="w-9 h-9 rounded-full hover:bg-white flex items-center justify-center text-[var(--ink-2)] relative"
+          aria-label="Notifications"
+        >
           <I name="bell" size={16} />
           <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-[#E86F2C] border-2 border-[var(--bg)]" />
         </button>
         <div className="flex items-center gap-2 pl-1">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#9333EA] to-[#E86F2C] text-white flex items-center justify-center font-bold text-[11px]">
+          <div
+            className="w-8 h-8 rounded-full bg-gradient-to-br from-[#9333EA] to-[#E86F2C] text-white flex items-center justify-center font-bold text-[11px]"
+            title={teacher?.name ?? undefined}
+          >
             {initials}
           </div>
         </div>

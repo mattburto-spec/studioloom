@@ -3,30 +3,10 @@
  * Replaced section-by-section in Phases 2-7 with real data wiring.
  */
 
-export interface Program {
-  id: string;
-  name: string;
-  color: string;
-  icon: string;
-}
-
-export const PROGRAMS: Program[] = [
-  { id: "all", name: "All programs", color: "#0A0A0A", icon: "🏠" },
-  { id: "design", name: "MYP Design", color: "#E86F2C", icon: "🛠" },
-  { id: "pypx", name: "PYPX", color: "#9333EA", icon: "🌱" },
-  { id: "service", name: "Service as Action", color: "#10B981", icon: "🤝" },
-];
-
-export const NAV: string[] = [
-  "Dashboard",
-  "Classes",
-  "Units",
-  "Toolkit",
-  "Badges",
-  "Alerts",
-  "Students",
-  "Library",
-];
+/* PROGRAMS + NAV moved to nav-config.ts in Phase 2 (scope chip is now
+ * a class-filter derived from /api/teacher/dashboard, and the nav
+ * list tracks real teacher routes with an active-pathname highlight).
+ */
 
 export interface NextClass {
   period: string;

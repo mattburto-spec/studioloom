@@ -39,7 +39,7 @@ Bold's sections (in render order): `TopNav` · `NowHero` · `TodayRail`
 |-------|-------|--------|
 | 0 | Pre-flight audit + verify current-period data availability | ✅ Done |
 | 1 | Scaffold `/teacher/dashboard/v2` behind `tl_v2=1`, Bold palette, mock data, one component per section | ✅ Done |
-| 2 | Wire TopNav + welcome header to `useTeacher()` + `/api/teacher/dashboard` | ⏳ Planned |
+| 2 | Wire TopNav + welcome header to `useTeacher()` + `/api/teacher/dashboard` | ✅ Done |
 | 3A | `NowHero` — new `/api/teacher/dashboard/current-period` endpoint, wire class/unit/period/phase% | ⏳ Planned |
 | 3B | `NowHero` — wire ungraded + ready/students counts, "Start teaching" → `/teacher/teach/[unitId]` | ⏳ Planned |
 | 4 | `TodayRail` — extend endpoint to full-day slots, render 4-6 period cards with state (next/upcoming/later) | ⏳ Planned |
