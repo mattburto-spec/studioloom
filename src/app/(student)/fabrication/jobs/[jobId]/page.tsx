@@ -221,9 +221,9 @@ export default function FabricationJobStatusPage() {
   }
 
   return (
-    <main className="max-w-2xl mx-auto px-6 py-10">
+    <main className="max-w-4xl mx-auto px-6 py-10">
       <header className="mb-8">
-        <h1 className="text-2xl font-bold">
+        <h1 className="text-3xl font-bold text-gray-900">
           {pollState.kind === "done"
             ? headerTitleForStatus(
                 (pollState.status as JobStatusSuccess).jobStatus
@@ -231,7 +231,7 @@ export default function FabricationJobStatusPage() {
             : "Checking your file"}
         </h1>
         {pollState.kind !== "done" && (
-          <p className="text-sm text-gray-600 mt-1">
+          <p className="text-base text-gray-600 mt-2">
             We&apos;re running a quick machine-readiness check before your file
             goes to the lab tech.
           </p>
