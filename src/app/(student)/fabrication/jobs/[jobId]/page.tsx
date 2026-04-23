@@ -28,7 +28,6 @@
 
 import * as React from "react";
 import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
 import { useFabricationStatus } from "@/hooks/useFabricationStatus";
 import { ScanProgressCard } from "@/components/fabrication/ScanProgressCard";
 import { ScanResultsViewer } from "@/components/fabrication/ScanResultsViewer";
@@ -421,12 +420,6 @@ function DoneStateView(props: {
             <p className="text-xs text-gray-500 italic">{revisionsError}</p>
           )}
         </aside>
-      </div>
-
-      <div className="pt-4 text-xs text-gray-500">
-        <Link href="/dashboard" className="underline hover:no-underline">
-          ← Back to dashboard
-        </Link>
       </div>
     </div>
   );

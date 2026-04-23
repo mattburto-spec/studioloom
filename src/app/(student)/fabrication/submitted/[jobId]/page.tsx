@@ -177,10 +177,10 @@ function SubmittedCard({ jobStatus }: { jobStatus: string }) {
 
       <div className="flex flex-col sm:flex-row gap-3">
         <Link
-          href="/dashboard"
+          href="/fabrication"
           className="flex-1 py-2.5 rounded-xl border border-gray-300 bg-white text-sm font-semibold text-center text-gray-800 hover:bg-gray-50"
         >
-          Back to dashboard
+          All my submissions
         </Link>
         <Link
           href="/fabrication/new"

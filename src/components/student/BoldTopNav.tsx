@@ -177,8 +177,11 @@ const NAV_S: { label: string; anchor: string | null; href?: string }[] = [
   // Preflight (Phase 6-6g) is the first href-based nav entry — goes
   // to a real route rather than scrolling to a dashboard anchor.
   // When the route renderer sees `href`, it bypasses the anchor /
-  // disabled paths and renders a plain <Link>.
-  { label: "Preflight", anchor: null, href: "/fabrication/new" },
+  // disabled paths and renders a plain <Link>. Points at the
+  // overview /fabrication (Phase 6-6i) so students land on the list
+  // of their existing submissions; from there a prominent "New
+  // submission" CTA jumps to /fabrication/new.
+  { label: "Preflight", anchor: null, href: "/fabrication" },
 ];
 
 // ================= SCOPED STYLES =================
