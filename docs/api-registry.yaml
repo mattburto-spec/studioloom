@@ -5,7 +5,7 @@
 # Cross-referenced with docs/schema-registry.yaml (tables) and docs/ai-call-sites.yaml (AI calls).
 #
 # Last synced: 2026-04-14
-# Total routes: 324
+# Total routes: 332
 
 routes:
 - path: /api/admin/ai-model
@@ -1393,6 +1393,22 @@ routes:
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
+- path: /api/student/skills/cards/[slug]
+  method: GET
+  file: src/app/api/student/skills/cards/[slug]/route.ts
+  auth: student
+  tables_read:
+  - learning_events
+  - skill_card_tags
+  - skill_cards
+  - skill_external_links
+  - skill_prerequisites
+  - student_skill_state
+  tables_written:
+  - learning_events
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: Reference to unknown table 'student_skill_state' — not in schema-registry
 - path: /api/student/studio-preferences
   method: GET
   file: src/app/api/student/studio-preferences/route.ts
@@ -3002,6 +3018,113 @@ routes:
   - school_calendar_terms
   tables_written:
   - school_calendar_terms
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/skills/cards
+  method: GET
+  file: src/app/api/teacher/skills/cards/route.ts
+  auth: teacher
+  tables_read:
+  - skill_cards
+  - skill_categories
+  tables_written:
+  - skill_card_tags
+  - skill_cards
+  - skill_categories
+  - skill_external_links
+  - skill_prerequisites
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/skills/cards
+  method: POST
+  file: src/app/api/teacher/skills/cards/route.ts
+  auth: teacher
+  tables_read:
+  - skill_cards
+  - skill_categories
+  tables_written:
+  - skill_card_tags
+  - skill_cards
+  - skill_categories
+  - skill_external_links
+  - skill_prerequisites
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/skills/cards/[id]
+  method: GET
+  file: src/app/api/teacher/skills/cards/[id]/route.ts
+  auth: teacher
+  tables_read:
+  - skill_card_tags
+  - skill_cards
+  - skill_categories
+  - skill_external_links
+  - skill_prerequisites
+  tables_written:
+  - skill_card_tags
+  - skill_cards
+  - skill_external_links
+  - skill_prerequisites
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/skills/cards/[id]
+  method: PATCH
+  file: src/app/api/teacher/skills/cards/[id]/route.ts
+  auth: teacher
+  tables_read:
+  - skill_card_tags
+  - skill_cards
+  - skill_categories
+  - skill_external_links
+  - skill_prerequisites
+  tables_written:
+  - skill_card_tags
+  - skill_cards
+  - skill_external_links
+  - skill_prerequisites
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/skills/cards/[id]
+  method: DELETE
+  file: src/app/api/teacher/skills/cards/[id]/route.ts
+  auth: teacher
+  tables_read:
+  - skill_card_tags
+  - skill_cards
+  - skill_categories
+  - skill_external_links
+  - skill_prerequisites
+  tables_written:
+  - skill_card_tags
+  - skill_cards
+  - skill_external_links
+  - skill_prerequisites
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/skills/cards/[id]/publish
+  method: POST
+  file: src/app/api/teacher/skills/cards/[id]/publish/route.ts
+  auth: teacher
+  tables_read:
+  - skill_cards
+  tables_written:
+  - skill_cards
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/skills/categories
+  method: GET
+  file: src/app/api/teacher/skills/categories/route.ts
+  auth: teacher
+  tables_read:
+  - skill_categories
+  tables_written: []
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null

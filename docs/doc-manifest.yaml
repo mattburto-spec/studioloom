@@ -2355,8 +2355,8 @@ docs:
     last_scanned: "2026-04-23"
 
   - path: docs/projects/preflight-phase-6-checkpoint-6-1.md
-    title: "Preflight Phase 6 Checkpoint 6.1 Report (DRAFT — smoke in progress)"
-    purpose: "Checkpoint 6.1 exit report. 14-criterion pass/fail matrix, 4 smoke scenarios (S1 happy-path approve, S2 return-for-revision including the critical PH5-FU-REUPLOAD-POLL-STUCK verification, S3 reject, S4 per-student + per-class history). Pre-smoke checklist includes the `requires_teacher_approval` seed-flip SQL. Running log of new follow-ups filed during smoke (5 filed as of 23 Apr AM: PH6-FU-PREVIEW-OVERLAY, PH6-FU-PREVIEW-PINCH-ZOOM, PH6-FU-RULE-MEDIA-EMBEDS, PH6-FU-TEACHER-CANNED-NOTES-EDITABLE, PH6-FU-MULTI-LAB-SCOPING). Awaiting S4 + final ✅ PASS sign-off."
+    title: "Preflight Phase 6 Checkpoint 6.1 Report (✅ PASS)"
+    purpose: "Checkpoint 6.1 exit report — signed off 23 Apr 2026 PM. All 4 smoke scenarios verified in prod on studioloom.org: S1 happy-path approve, S2 return-for-revision (closed PH5-FU-REUPLOAD-POLL-STUCK via layered 6-0 + 6-5b fix), S3 reject, S4 per-student + per-class history. 6 new follow-ups filed: PH6-FU-PREVIEW-OVERLAY P2, PH6-FU-PREVIEW-PINCH-ZOOM P3, PH6-FU-RULE-MEDIA-EMBEDS P2, PH6-FU-TEACHER-CANNED-NOTES-EDITABLE P3, PH6-FU-MULTI-LAB-SCOPING P2, PH6-FU-HISTORY-PAGINATION P2. No new migrations. Tests 1668 → 1854 (+186)."
     category: projects
     last_verified: "2026-04-23"
     max_age_days: 180
