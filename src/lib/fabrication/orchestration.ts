@@ -1295,6 +1295,87 @@ export async function listRevisions(
 }
 
 // ============================================================
+// Phase 6-6k — cancelJob (student withdraw)
+// ============================================================
+
+/** Which statuses a student is allowed to withdraw from. After the
+ *  teacher has actioned the job (approved/returned/rejected) or the
+ *  fabricator has picked it up, the decision is no longer
+ *  student-reversible. `cancelled` is idempotent. */
+const CANCELLABLE_STATUSES: readonly string[] = [
+  "uploaded",
+  "scanning",
+  "pending_approval",
+  "needs_revision",
+];
+
+export interface CancelJobRequest {
+  studentId: string;
+  jobId: string;
+}
+
+export interface CancelJobSuccess {
+  jobId: string;
+  newStatus: "cancelled";
+}
+
+export type CancelJobResult = CancelJobSuccess | OrchestrationError;
+
+/**
+ * Student withdraws their own submission. Transitions
+ * `fabrication_jobs.status` → `cancelled` when the current status is
+ * one of the student-reversible states (see `CANCELLABLE_STATUSES`).
+ *
+ *   - Ownership: 404 when job not found OR student_id mismatch.
+ *   - Status guard: 409 with an explanatory message when the job is
+ *     already terminal from the teacher's POV (approved / rejected /
+ *     picked_up / completed / cancelled).
+ *   - Idempotent: calling cancel on an already-cancelled job returns
+ *     200 with newStatus: 'cancelled' (no 409 noise on
+ *     double-clicks).
+ *
+ * Data is NOT deleted — the row stays in `fabrication_jobs` for
+ * audit trail. Phase 9+ can add a soft-hide UI toggle if the
+ * cancelled list gets noisy.
+ */
+export async function cancelJob(
+  db: SupabaseLike,
+  params: CancelJobRequest
+): Promise<CancelJobResult> {
+  const ownership = await loadOwnedJob(db, params.studentId, params.jobId);
+  if (isOrchestrationError(ownership)) return ownership;
+
+  // Idempotent: already cancelled → return the same success shape.
+  if (ownership.job.status === "cancelled") {
+    return { jobId: params.jobId, newStatus: "cancelled" };
+  }
+
+  if (!CANCELLABLE_STATUSES.includes(ownership.job.status)) {
+    return {
+      error: {
+        status: 409,
+        message: `Can't withdraw a job in status '${ownership.job.status}'. Your teacher has already acted on this submission.`,
+      },
+    };
+  }
+
+  const update = await db
+    .from("fabrication_jobs")
+    .update({ status: "cancelled" })
+    .eq("id", params.jobId);
+  if (update.error) {
+    return {
+      error: {
+        status: 500,
+        message: `Status transition failed: ${update.error.message}`,
+      },
+    };
+  }
+
+  return { jobId: params.jobId, newStatus: "cancelled" };
+}
+
+// ============================================================
 // Phase 6-6i — listStudentJobs (student-side overview)
 // ============================================================
 

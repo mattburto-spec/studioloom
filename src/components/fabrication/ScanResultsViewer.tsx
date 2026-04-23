@@ -224,7 +224,7 @@ export function ScanResultsViewer(props: ScanResultsViewerProps) {
                 type="button"
                 onClick={onSubmit}
                 disabled={!canSubmitState.ok || disabledFromAction}
-                className="flex-1 py-2.5 rounded-xl bg-brand-purple text-white text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
+                className="flex-1 py-2.5 rounded-xl bg-brand-purple text-white text-sm font-semibold transition-all hover:opacity-90 active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
               >
                 {isSubmitting ? "Submitting…" : "Submit for approval"}
               </button>
@@ -235,8 +235,8 @@ export function ScanResultsViewer(props: ScanResultsViewerProps) {
               disabled={disabledFromAction}
               className={
                 hideSubmit
-                  ? "flex-1 py-2.5 rounded-xl bg-brand-purple text-white text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
-                  : "flex-1 py-2.5 rounded-xl border border-gray-300 bg-white text-sm font-semibold text-gray-800 disabled:opacity-40 disabled:cursor-not-allowed"
+                  ? "flex-1 py-2.5 rounded-xl bg-brand-purple text-white text-sm font-semibold transition-all hover:opacity-90 active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
+                  : "flex-1 py-2.5 rounded-xl border border-gray-300 bg-white text-sm font-semibold text-gray-800 transition-all hover:bg-gray-50 active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
               }
             >
               Re-upload a fixed version

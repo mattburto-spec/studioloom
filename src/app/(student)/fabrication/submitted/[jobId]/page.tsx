@@ -178,13 +178,13 @@ function SubmittedCard({ jobStatus }: { jobStatus: string }) {
       <div className="flex flex-col sm:flex-row gap-3">
         <Link
           href="/fabrication"
-          className="flex-1 py-2.5 rounded-xl border border-gray-300 bg-white text-sm font-semibold text-center text-gray-800 hover:bg-gray-50"
+          className="flex-1 py-2.5 rounded-xl border border-gray-300 bg-white text-sm font-semibold text-center text-gray-800 transition-all hover:bg-gray-50 active:scale-[0.98]"
         >
           All my submissions
         </Link>
         <Link
           href="/fabrication/new"
-          className="flex-1 py-2.5 rounded-xl bg-brand-purple text-white text-sm font-semibold text-center hover:opacity-90"
+          className="flex-1 py-2.5 rounded-xl bg-brand-purple text-white text-sm font-semibold text-center transition-all hover:opacity-90 active:scale-[0.98]"
         >
           Submit another file
         </Link>

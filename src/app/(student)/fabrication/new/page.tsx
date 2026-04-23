@@ -312,7 +312,7 @@ export default function FabricationNewPage() {
             type="button"
             onClick={handleUpload}
             disabled={!canUpload}
-            className="w-full py-2.5 rounded-xl bg-brand-purple text-white text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
+            className="w-full py-2.5 rounded-xl bg-brand-purple text-white text-sm font-semibold transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
           >
             {uploadState.kind === "error" ? "Try again" : "Upload and scan"}
           </button>

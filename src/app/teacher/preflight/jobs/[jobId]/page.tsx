@@ -19,6 +19,7 @@ import { ScanResultsViewer } from "@/components/fabrication/ScanResultsViewer";
 import { RevisionHistoryPanel } from "@/components/fabrication/RevisionHistoryPanel";
 import { TeacherActionBar } from "@/components/fabrication/TeacherActionBar";
 import { PreviewCard } from "@/components/fabrication/PreviewCard";
+import { buildFabricationDownloadFilename } from "@/lib/fabrication/download-filename";
 import { canSubmit, type Rule } from "@/lib/fabrication/rule-buckets";
 import type {
   TeacherJobDetailSuccess,
@@ -287,7 +288,19 @@ function ReadyView(props: {
             thumbnailUrl={detail.currentRevisionData?.thumbnailUrl ?? null}
             revisionNumber={detail.job.currentRevision}
             fileType={fileType}
-            subtitle={detail.job.originalFilename}
+            // Shows the filename the fabricator will see when they
+            // download this file (Phase 6-6k). Originally Matt asked
+            // teachers to mentally map "random-student-filename.stl"
+            // to whose print it actually is; this previews the auto-
+            // renamed version using student name + class + unit.
+            // Context header above still shows the student's original
+            // filename for reference.
+            subtitle={buildFabricationDownloadFilename({
+              studentName: detail.student.name,
+              gradeLevel: detail.classInfo?.name ?? null,
+              unitTitle: detail.unit?.title ?? null,
+              originalFilename: detail.job.originalFilename,
+            })}
           />
 
           {/* Revision history — hidden by the panel when only 1

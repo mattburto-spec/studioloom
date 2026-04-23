@@ -20,6 +20,14 @@
 
 import * as React from "react";
 
+/**
+ * Shared press-animation suffix for preflight action buttons (Phase
+ * 6-6k). Applied to every primary-action button in the surface so
+ * there's consistent tactile feedback on click. Disabled state
+ * cancels the scale animation so it's obvious nothing's happening.
+ */
+const PRESS = "transition-all active:scale-[0.97] disabled:active:scale-100";
+
 export interface TeacherActionBarProps {
   jobStatus: string;
   currentNote: string | null;
@@ -81,7 +89,7 @@ export function TeacherActionBar(props: TeacherActionBarProps) {
           type="button"
           onClick={() => props.onApprove(undefined)}
           disabled={!canTakeAction}
-          className="flex-1 sm:flex-none px-4 py-2 rounded-lg bg-green-600 text-white text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-green-700"
+          className={`flex-1 sm:flex-none px-4 py-2 rounded-lg bg-green-600 text-white text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-green-700 ${PRESS}`}
         >
           Approve
         </button>
@@ -89,7 +97,7 @@ export function TeacherActionBar(props: TeacherActionBarProps) {
           type="button"
           onClick={() => openModal("approve-note")}
           disabled={!canTakeAction}
-          className="flex-1 sm:flex-none px-4 py-2 rounded-lg border border-green-600 text-green-700 text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-green-50"
+          className={`flex-1 sm:flex-none px-4 py-2 rounded-lg border border-green-600 text-green-700 text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-green-50 ${PRESS}`}
         >
           Approve with note
         </button>
@@ -97,7 +105,7 @@ export function TeacherActionBar(props: TeacherActionBarProps) {
           type="button"
           onClick={() => openModal("return")}
           disabled={!canTakeAction}
-          className="flex-1 sm:flex-none px-4 py-2 rounded-lg bg-amber-500 text-white text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-amber-600"
+          className={`flex-1 sm:flex-none px-4 py-2 rounded-lg bg-amber-500 text-white text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-amber-600 ${PRESS}`}
         >
           Return for revision
         </button>
@@ -105,7 +113,7 @@ export function TeacherActionBar(props: TeacherActionBarProps) {
           type="button"
           onClick={() => openModal("reject")}
           disabled={!canTakeAction}
-          className="flex-1 sm:flex-none px-4 py-2 rounded-lg border border-red-600 text-red-700 text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-red-50"
+          className={`flex-1 sm:flex-none px-4 py-2 rounded-lg border border-red-600 text-red-700 text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-red-50 ${PRESS}`}
         >
           Reject
         </button>
@@ -113,7 +121,7 @@ export function TeacherActionBar(props: TeacherActionBarProps) {
           type="button"
           onClick={() => openModal("note")}
           disabled={isBusy}
-          className="flex-1 sm:flex-none px-4 py-2 rounded-lg border border-gray-300 text-gray-700 text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50"
+          className={`flex-1 sm:flex-none px-4 py-2 rounded-lg border border-gray-300 text-gray-700 text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50 ${PRESS}`}
         >
           Add/update note
         </button>
@@ -172,7 +180,7 @@ export function TeacherActionBar(props: TeacherActionBarProps) {
               <button
                 type="button"
                 onClick={closeModal}
-                className="px-4 py-2 rounded-lg border border-gray-300 text-gray-800 text-sm font-semibold hover:bg-gray-50"
+                className={`px-4 py-2 rounded-lg border border-gray-300 text-gray-800 text-sm font-semibold hover:bg-gray-50 ${PRESS}`}
               >
                 Cancel
               </button>
@@ -184,7 +192,7 @@ export function TeacherActionBar(props: TeacherActionBarProps) {
                   (activeModal === "return" || activeModal === "note") &&
                   !noteDraft.trim()
                 }
-                className="px-4 py-2 rounded-lg bg-brand-purple text-white text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
+                className={`px-4 py-2 rounded-lg bg-brand-purple text-white text-sm font-semibold hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed ${PRESS}`}
               >
                 Confirm
               </button>

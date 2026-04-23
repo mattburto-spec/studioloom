@@ -71,7 +71,7 @@ export default function StudentFabricationOverviewPage() {
         </div>
         <Link
           href="/fabrication/new"
-          className="inline-flex items-center gap-2 rounded-xl bg-brand-purple text-white px-4 py-2.5 text-sm font-semibold hover:opacity-90"
+          className="inline-flex items-center gap-2 rounded-xl bg-brand-purple text-white px-4 py-2.5 text-sm font-semibold transition-all hover:opacity-90 active:scale-[0.97]"
         >
           <span aria-hidden="true" className="text-lg leading-none">+</span>
           New submission

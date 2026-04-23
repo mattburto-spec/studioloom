@@ -127,13 +127,13 @@ export default function TeacherPreflightPage() {
             type="button"
             onClick={fetchQueue}
             disabled={state.loading}
-            className="text-sm px-3 py-1.5 rounded border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50"
+            className="text-sm px-3 py-1.5 rounded border border-gray-300 bg-white transition-all hover:bg-gray-50 active:scale-[0.97] disabled:opacity-50 disabled:active:scale-100"
           >
             {state.loading ? "Refreshing…" : "Refresh"}
           </button>
           <Link
             href="/teacher/preflight/fabricators"
-            className="text-sm px-3 py-1.5 rounded border border-gray-300 bg-white hover:bg-gray-50 text-gray-700"
+            className="text-sm px-3 py-1.5 rounded border border-gray-300 bg-white text-gray-700 transition-all hover:bg-gray-50 active:scale-[0.97]"
           >
             Lab techs
           </Link>

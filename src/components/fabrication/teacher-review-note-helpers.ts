@@ -104,6 +104,23 @@ export function studentActionsLocked(jobStatus: string): boolean {
 }
 
 /**
+ * Phase 6-6k: is this status one the student can still withdraw from?
+ * Mirrors `CANCELLABLE_STATUSES` in orchestration.ts — kept in sync
+ * by convention (tiny list, unlikely to drift). UI uses this to
+ * decide whether to show the "Withdraw submission" button. Terminal
+ * statuses (approved/rejected/picked_up/completed/cancelled) hide
+ * the button — the decision has either been made or already undone.
+ */
+export function canWithdrawJob(jobStatus: string): boolean {
+  return (
+    jobStatus === "uploaded" ||
+    jobStatus === "scanning" ||
+    jobStatus === "pending_approval" ||
+    jobStatus === "needs_revision"
+  );
+}
+
+/**
  * Phase 6-6c: the student can interact with the scan results viewer
  * (acknowledge, re-upload) but the "Submit for approval" button is
  * inappropriate in two cases:
