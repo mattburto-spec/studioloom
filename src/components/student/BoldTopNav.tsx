@@ -168,17 +168,22 @@ export function Icon({ name, size = 16, s = 2 }: { name: IconName; size?: number
 
 // ================= PILL NAV =================
 
-const NAV_S: { label: string; anchor: string | null; href?: string }[] = [
+// Pill nav supports three variants:
+//   - { anchor } → smooth-scroll to an id on /dashboard; /dashboard#id elsewhere
+//   - { route }  → navigate to a dedicated route (supports subroutes for active match)
+//   - {}         → disabled "Coming soon"
+type NavItem =
+  | { label: string; anchor: string }
+  | { label: string; route: string }
+  | { label: string };
+
+const NAV_S: NavItem[] = [
   { label: "My work",   anchor: "dashboard-hero" },
   { label: "Units",     anchor: "dashboard-units" },
-  { label: "Badges",    anchor: "dashboard-badges" },
-  { label: "Journal",   anchor: null },
-  { label: "Resources", anchor: null },
-  // Preflight (Phase 6-6g) is the first href-based nav entry — goes
-  // to a real route rather than scrolling to a dashboard anchor.
-  // When the route renderer sees `href`, it bypasses the anchor /
-  // disabled paths and renders a plain <Link>.
-  { label: "Preflight", anchor: null, href: "/fabrication/new" },
+  { label: "Skills",    route:  "/skills" },
+  { label: "Journal"    }, // disabled — Phase 14 notes system
+  { label: "Resources"  }, // disabled — Phase 18 resources library
+  { label: "Preflight", route:  "/fabrication/new" }, // Preflight Phase 6 — real route, active on any /fabrication/* subroute
 ];
 
 // ================= SCOPED STYLES =================
@@ -347,23 +352,15 @@ export function BoldTopNav({
         {/* Pill nav hides below md — mobile students scroll through sections rather than jump. */}
         <nav className="hidden md:flex items-center gap-0.5">
           {NAV_S.map((n) => {
-            // href takes precedence over anchor — wired routes render
-            // as plain Links regardless of where the user currently is.
-            if (n.href) {
-              const hrefActive = pathname.startsWith(n.href);
-              const classNames = `px-3 py-1.5 rounded-full text-[12.5px] font-semibold transition ${
-                hrefActive
-                  ? "bg-[var(--sl-ink)] text-white"
-                  : "text-[var(--sl-ink-2)] hover:bg-white"
-              }`;
-              return (
-                <Link key={n.label} href={n.href} className={classNames}>
-                  {n.label}
-                </Link>
-              );
-            }
-            const disabled = n.anchor === null;
-            const active = onDashboard && n.anchor === "dashboard-hero"; // "My work" active on dashboard
+            const hasAnchor = "anchor" in n;
+            const hasRoute = "route" in n;
+            const disabled = !hasAnchor && !hasRoute;
+            // Active when on the matching route or any subroute (for route
+            // pills; e.g. /fabrication/jobs/... lights up Preflight) OR on
+            // dashboard for the default "My work" anchor pill.
+            const active =
+              (hasRoute && (pathname === n.route || pathname.startsWith(n.route + "/") || (n.route === "/fabrication/new" && pathname.startsWith("/fabrication/")))) ||
+              (onDashboard && hasAnchor && n.anchor === "dashboard-hero");
             const classNames = `px-3 py-1.5 rounded-full text-[12.5px] font-semibold transition ${
               active
                 ? "bg-[var(--sl-ink)] text-white"
@@ -378,15 +375,21 @@ export function BoldTopNav({
                 </button>
               );
             }
+            if (hasRoute) {
+              return (
+                <Link key={n.label} href={n.route} className={classNames}>
+                  {n.label}
+                </Link>
+              );
+            }
+            // anchor variant
             if (onDashboard) {
-              // In-page anchor scroll
               return (
                 <button key={n.label} onClick={() => scrollTo(n.anchor)} className={classNames}>
                   {n.label}
                 </button>
               );
             }
-            // From non-dashboard routes, navigate to /dashboard with hash
             return (
               <Link key={n.label} href={`/dashboard#${n.anchor}`} className={classNames}>
                 {n.label}
