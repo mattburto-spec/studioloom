@@ -4,6 +4,83 @@
 
 ---
 
+## 23 Apr 2026 — Skills Library Phase S2A authoring core + student viewer SHIPPED
+
+**Context:** Checkpoint SL-SCHEMA (Phase S1) passed yesterday with migrations 105-108 applied to prod. S2A builds the first user-facing slice: teachers author cards, students read them, views log into `learning_events`. Deliberately does NOT include upload (deferred to S2B) or quiz/completion flow (S3).
+
+**What shipped (in `skills-library` branch, not merged to main):**
+
+- **Migration 109** `skills_library_authoring.sql` — teacher authoring surface:
+  - Adds `forked_from uuid REFERENCES skill_cards(id) ON DELETE SET NULL` column (+ partial index). Written by S2B's Fork action; left NULL in S2A.
+  - Teacher-write RLS policies on `skill_cards` + `skill_card_tags` + `skill_prerequisites` + `skill_external_links`: INSERT/UPDATE/DELETE scoped to `created_by_teacher_id = auth.uid() AND is_built_in = false`. Mirrors the shape used on `badges` + `activity_blocks`. Service role still bypasses for seeding + built-in management.
+  - Not yet applied to prod — Matt applies after checkpoint sign-off.
+
+- **Types (`src/types/skills.ts`)** — 6-variant `Block` discriminated union (prose / callout / checklist / image / video / worked_example), `SkillCardRow`, `SkillCardHydrated` with tags + external_links + prereqs, `SkillEventType` enum, create/update payload shapes. `emptyBlock(type)` factory for the editor. S2B extension points: `uploadPath` optional on image/video blocks (Storage key, overrides url when present).
+
+- **Teacher API (`/api/teacher/skills/`):**
+  - `GET /cards` — list built-ins + own drafts + all published, filtered by category/difficulty/ownership (`all`/`mine`/`built_in`). Uses admin client with explicit OR visibility clause (would work under RLS too; admin bypass keeps error surfaces symmetric with rest of /api/teacher/*).
+  - `POST /cards` — create draft. Validates slug (lowercase-kebab, 3-80), title (3-200), category (FK check), difficulty enum, body block-type whitelist. Idempotent side inserts for tags + external_links + prereqs.
+  - `GET /cards/[id]` — hydrated card (tags + links + prereq titles). Returns `{ card, editable }` — editor bounces to read-only viewer when `editable=false`.
+  - `PATCH /cards/[id]` — wholesale replace for tags/links/prereqs when provided; field-level merge for metadata. Built-ins return 403. Enforces `created_by_teacher_id = auth.uid()`.
+  - `DELETE /cards/[id]` — hard delete teacher's own non-built-in card. CASCADE handles children.
+  - `POST /cards/[id]/publish` — flips `is_published`. `{ action: "unpublish" }` reverses. Enforces minimum publishable content (title + category + difficulty + ≥1 block).
+  - `GET /categories` — thin lookup proxy to `skill_categories`.
+
+- **Student API (`/api/student/skills/cards/[slug]`):**
+  - Loads published card by slug, hydrates tags + links + prereq titles.
+  - Logs `skill.viewed` into `learning_events` with 5-minute dedupe window (prevents tab-switch / remount floods). Dedupe uses `gte created_at cutoff` — older views still count toward state transitions because the derived view takes MAX rank.
+  - Returns student's current state from `student_skill_state` view (state + freshness + last_passed_at). Absent row → `untouched`.
+  - Uses `requireStudentAuth` (token-cookie → student_sessions table), not Supabase Auth.
+
+- **Components (`src/components/skills/`):**
+  - `BlockEditor.tsx` — controlled editor for Block[]. Each variant is a dedicated per-type component (`ProseForm`, `ChecklistForm`, etc.) — pattern sidesteps TS discriminated-union narrowing loss inside nested function closures. Add/move/delete controls + inline delete confirm.
+  - `BlockRenderer.tsx` — read-only render for all 6 types. Markdown-lite prose parser (**bold** / *italic* only). YouTube + Vimeo iframe fallback + direct-mp4 video. External URL image; `/api/skills/media/[path]` reserved for S2B uploads.
+  - `SkillCardForm.tsx` — shared create/edit shell used by both teacher pages. Metadata + tags + external links + fuzzy prereq search + body editor + preview toggle.
+  - `skills.css` — scoped under `.sl-skill-scope` wrapper class so Tailwind-based teacher pages and student `.sl-v2` scope don't fight.
+
+- **Teacher pages:**
+  - `/teacher/skills` — library list with category/difficulty/ownership filters, draft/published pills, forked indicator, skeleton loaders, empty state CTA.
+  - `/teacher/skills/new` — create flow; posts then redirects to `/edit`.
+  - `/teacher/skills/[id]` — read-only viewer (for built-ins + non-editable cases).
+  - `/teacher/skills/[id]/edit` — edit form + publish/unpublish toggle + delete with inline confirm. Bounces to `/teacher/skills/[id]` when `editable=false`.
+
+- **Student page:**
+  - `/skills/cards/[slug]` — student viewer. Renders body via `BlockRenderer`, shows state + freshness chip (fresh omitted as not interesting), prereq prompt ("Before you start" with chips linking to prereq cards), external resources section, tags footer. Fires view log via the API GET. 404 handled inline.
+
+**Bug notes during build:**
+
+- Pre-existing stash `pre-library-upload: leftover scanner/saveme artifacts` got applied during a `git stash` diagnostic command. Reset 6 conflicted doc files back to HEAD (they're saveme-regenerated artifacts anyway). S2A source files were untouched.
+- TypeScript narrowing failure when block-editor forms used closures referencing `block.items` / `block.steps` inside a switch case. Fixed by extracting per-variant form components — TS can't carry narrowing through nested function closures, but each component takes the narrowed variant as its prop type.
+
+**Verification:**
+
+- `npx tsc --noEmit` → zero skills-file errors. Pre-existing codebase-wide errors (fabrication test mocks, useGalleryMultiplayer, multi-lesson-detection tests) untouched.
+- `npm test` → 1845 pass / 8 skipped / 0 fail (up from pre-S2A 1845 — no regressions).
+- `npx eslint` on S2A files → 4 initial `react/no-unescaped-entities` errors, all fixed with `&apos;`.
+
+**Not in S2A (deferred to S2B):**
+
+- Upload from disk — `skills-media` Supabase Storage bucket + upload API + image/video block toggle.
+- Fork action — copy built-in or another teacher's card into an editable draft, sets `forked_from`.
+
+**Checkpoint SL-AUTHOR-A criteria (pending Matt sign-off):**
+
+1. Teacher creates a draft card via `/teacher/skills/new`, sees it in list with Draft pill.
+2. Teacher edits body, tags, category, difficulty; saves; reloads → changes persist.
+3. Teacher toggles publish → appears as published; can unpublish.
+4. Teacher opens built-in card (read-only viewer), no edit controls.
+5. Teacher deletes own card → gone from list.
+6. Student visits `/skills/cards/[slug]` for a published card → sees full content + state chip.
+7. Second visit within 5 min does NOT duplicate `skill.viewed` row in `learning_events`.
+8. Student cannot see draft cards (404 on direct slug nav).
+9. Prereq chip on student view links to the prereq card.
+
+**Systems touched:** `skills-library` (in_progress → still in_progress, S2A layer added), `api-registry` (+~10 routes), `schema-registry` (skill_cards entry amended, 4 sibling tables' RLS note updated).
+
+**Next:** Checkpoint SL-AUTHOR-A sign-off + migration 109 apply to prod. Then S2B — upload bucket + fork. Then S3 — quiz engine + completion flow.
+
+---
+
 ## 23 Apr 2026 — Skills Library Phase S1 schema foundation SHIPPED + APPLIED to prod
 
 **Context:** Kickoff of the Skills Library project per [`docs/projects/skills-library.md`](projects/skills-library.md) + canonical specs in `docs/specs/skills-library-spec.md` + completion-addendum. The library is the "moat" — one canonical skill card, many embed contexts (library browse, lesson activity blocks, Open Studio capability-gap, crit board, badges). Completions as `learning_events`, not a mutable table.
