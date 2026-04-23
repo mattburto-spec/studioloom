@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -32,52 +32,59 @@ function isPublicTeacherPath(pathname: string): boolean {
   return PUBLIC_TEACHER_PATHS.includes(pathname);
 }
 
-const NAV_ITEMS = [
-  { href: "/teacher/dashboard", label: "Dashboard", icon: (
+/**
+ * Teacher top nav — slimmed 23 Apr 2026.
+ *
+ * Shape: Dashboard | Classes | Units | Students | Skills | Resources | Preflight.
+ * Toolkit, Badges and Library moved to the avatar dropdown (temporary parking
+ * until the bigger teacher redesign). Alerts moved to a bell icon on the
+ * right of the header with a red-dot count. Settings moved into the avatar
+ * dropdown (no more standalone cog button).
+ *
+ * A NavItem is a discriminated union: a `route` entry is a real link, a
+ * `disabled` entry renders as a greyed-out pill with a "Soon" badge (used
+ * for Resources, which doesn't have a page yet).
+ */
+type NavItem =
+  | { label: string; route: string; icon: React.ReactNode }
+  | { label: string; disabled: true; icon: React.ReactNode };
+
+const NAV_ITEMS: NavItem[] = [
+  { label: "Dashboard", route: "/teacher/dashboard", icon: (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <rect x="3" y="3" width="7" height="9" rx="1" /><rect x="14" y="3" width="7" height="5" rx="1" /><rect x="14" y="12" width="7" height="9" rx="1" /><rect x="3" y="16" width="7" height="5" rx="1" />
     </svg>
   )},
-  { href: "/teacher/classes", label: "Classes", icon: (
+  { label: "Classes", route: "/teacher/classes", icon: (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
     </svg>
   )},
-  { href: "/teacher/units", label: "Units", icon: (
+  { label: "Units", route: "/teacher/units", icon: (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />
     </svg>
   )},
-  { href: "/teacher/toolkit", label: "Toolkit", icon: (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="2" y="4" width="20" height="16" rx="2" /><path d="M12 4v16" /><path d="M2 12h20" />
-    </svg>
-  )},
-  { href: "/teacher/safety", label: "Badges", icon: (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-    </svg>
-  )},
-  { href: "/teacher/safety/alerts", label: "Alerts", icon: (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-      <line x1="12" y1="9" x2="12" y2="13" />
-      <line x1="12" y1="17" x2="12.01" y2="17" />
-    </svg>
-  )},
-  { href: "/teacher/students", label: "Students", icon: (
+  { label: "Students", route: "/teacher/students", icon: (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
     </svg>
   )},
-  { href: "/teacher/library", label: "Library", icon: (
+  { label: "Skills", route: "/teacher/skills", icon: (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+      <path d="M12 2l2.5 6 6.5.5-5 4.5 1.5 6.5L12 16l-5.5 3.5L8 13l-5-4.5 6.5-.5L12 2z" />
+    </svg>
+  )},
+  // Resources page doesn't exist yet — placeholder pill until Phase 18.
+  { label: "Resources", disabled: true, icon: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />
+      <path d="M8 7h8M8 11h8M8 15h5" />
     </svg>
   )},
   // Preflight link → /teacher/preflight redirects to /fabricators in Phase 1B-2.
   // Phase 2 swaps the root to the submission queue; fabricators becomes a sub-nav.
-  { href: "/teacher/preflight", label: "Preflight", icon: (
+  { label: "Preflight", route: "/teacher/preflight", icon: (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <rect x="3" y="7" width="18" height="13" rx="2" /><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><path d="M12 11v6" /><path d="M9 14h6" />
     </svg>
@@ -94,6 +101,27 @@ export default function TeacherLayout({
   const [teacher, setTeacher] = useState<Teacher | null>(null);
   const [loading, setLoading] = useState(true);
   const [criticalAlertCount, setCriticalAlertCount] = useState(0);
+
+  // Avatar dropdown state — hooks must live above the early returns below.
+  const [avatarOpen, setAvatarOpen] = useState(false);
+  const avatarRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!avatarOpen) return;
+    function onDocClick(e: MouseEvent) {
+      if (avatarRef.current && !avatarRef.current.contains(e.target as Node)) {
+        setAvatarOpen(false);
+      }
+    }
+    function onEsc(e: KeyboardEvent) {
+      if (e.key === "Escape") setAvatarOpen(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    document.addEventListener("keydown", onEsc);
+    return () => {
+      document.removeEventListener("mousedown", onDocClick);
+      document.removeEventListener("keydown", onEsc);
+    };
+  }, [avatarOpen]);
 
   useEffect(() => {
     async function loadTeacher() {
@@ -180,6 +208,12 @@ export default function TeacherLayout({
 
   const isSettingsActive = pathname.startsWith("/teacher/settings");
 
+  async function handleLogout() {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    window.location.href = "/";
+  }
+
   return (
     <TeacherContext.Provider value={{ teacher }}>
       <div className="min-h-screen bg-surface-alt">
@@ -213,92 +247,258 @@ export default function TeacherLayout({
 
               <nav className="flex items-center gap-1">
                 {(() => {
-                  // Longest-prefix match so nested routes (e.g. /teacher/safety/alerts)
-                  // don't also activate their parent (e.g. /teacher/safety for Badges).
-                  const activeHref = NAV_ITEMS
-                    .filter((item) => pathname === item.href || pathname.startsWith(item.href + "/"))
-                    .sort((a, b) => b.href.length - a.href.length)[0]?.href;
+                  // Longest-prefix match so nested routes don't also activate
+                  // their parent (e.g. avoiding /teacher/skills/[id] lighting
+                  // up a sibling pill). Only `route` NavItems can be active.
+                  const routedItems = NAV_ITEMS.filter(
+                    (i): i is Extract<NavItem, { route: string }> => "route" in i
+                  );
+                  const activeRoute = routedItems
+                    .filter(
+                      (item) =>
+                        pathname === item.route ||
+                        pathname.startsWith(item.route + "/")
+                    )
+                    .sort((a, b) => b.route.length - a.route.length)[0]?.route;
+
                   return NAV_ITEMS.map((item) => {
-                    const isActive = item.href === activeHref;
-                    return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-150"
-                      style={{
-                        color: isActive ? "#7B2FF2" : "#6B7280",
-                        background: isActive ? "rgba(123,47,242,0.08)" : "transparent",
-                      }}
-                      onMouseEnter={(e) => {
-                        if (!isActive) {
-                          e.currentTarget.style.background = "rgba(0,0,0,0.04)";
-                          e.currentTarget.style.color = "#1A1A2E";
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (!isActive) {
-                          e.currentTarget.style.background = "transparent";
-                          e.currentTarget.style.color = "#6B7280";
-                        }
-                      }}
-                    >
-                      <span style={{ opacity: isActive ? 1 : 0.6 }}>{item.icon}</span>
-                      {item.label}
-                      {item.href === "/teacher/safety/alerts" && criticalAlertCount > 0 && (
+                    if ("disabled" in item) {
+                      return (
                         <span
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            minWidth: "18px",
-                            height: "18px",
-                            padding: "0 5px",
-                            borderRadius: "9px",
-                            fontSize: "11px",
-                            fontWeight: 700,
-                            lineHeight: 1,
-                            color: "#fff",
-                            background: "#DC2626",
-                          }}
+                          key={item.label}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium cursor-not-allowed"
+                          style={{ color: "#C4C7CE" }}
+                          title="Coming soon"
                         >
-                          {criticalAlertCount}
+                          <span style={{ opacity: 0.5 }}>{item.icon}</span>
+                          {item.label}
+                          <span
+                            style={{
+                              fontSize: "10px",
+                              fontWeight: 700,
+                              letterSpacing: "0.05em",
+                              padding: "1px 5px",
+                              borderRadius: "999px",
+                              color: "#9CA3AF",
+                              background: "#F3F4F6",
+                              textTransform: "uppercase",
+                            }}
+                          >
+                            Soon
+                          </span>
                         </span>
-                      )}
-                    </Link>
+                      );
+                    }
+
+                    const isActive = item.route === activeRoute;
+                    return (
+                      <Link
+                        key={item.route}
+                        href={item.route}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-150"
+                        style={{
+                          color: isActive ? "#7B2FF2" : "#6B7280",
+                          background: isActive ? "rgba(123,47,242,0.08)" : "transparent",
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!isActive) {
+                            e.currentTarget.style.background = "rgba(0,0,0,0.04)";
+                            e.currentTarget.style.color = "#1A1A2E";
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isActive) {
+                            e.currentTarget.style.background = "transparent";
+                            e.currentTarget.style.color = "#6B7280";
+                          }
+                        }}
+                      >
+                        <span style={{ opacity: isActive ? 1 : 0.6 }}>{item.icon}</span>
+                        {item.label}
+                      </Link>
                     );
                   });
                 })()}
               </nav>
             </div>
 
-            {/* Right: settings + user + logout */}
+            {/* Right: alerts bell + avatar dropdown */}
             <div className="flex items-center gap-2">
+              {/* Bell — Alerts. Red dot only (no count) per Matt's spec; the
+                  exact count is visible inside the Alerts page itself. */}
               <Link
-                href="/teacher/settings"
-                className="p-2 rounded-lg transition-colors duration-150"
+                href="/teacher/safety/alerts"
+                className="relative p-2 rounded-lg transition-colors duration-150 hover:bg-black/5"
                 style={{
-                  color: isSettingsActive ? "#7B2FF2" : "#9CA3AF",
-                  background: isSettingsActive ? "rgba(123,47,242,0.08)" : "transparent",
+                  color: pathname.startsWith("/teacher/safety/alerts")
+                    ? "#7B2FF2"
+                    : "#6B7280",
+                  background: pathname.startsWith("/teacher/safety/alerts")
+                    ? "rgba(123,47,242,0.08)"
+                    : "transparent",
                 }}
-                title="Settings"
+                title={
+                  criticalAlertCount > 0
+                    ? `${criticalAlertCount} critical alert${criticalAlertCount === 1 ? "" : "s"}`
+                    : "Alerts"
+                }
+                aria-label="Alerts"
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z" />
-                  <circle cx="12" cy="12" r="3" />
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
                 </svg>
+                {criticalAlertCount > 0 && (
+                  <span
+                    aria-hidden
+                    style={{
+                      position: "absolute",
+                      top: "6px",
+                      right: "6px",
+                      width: "8px",
+                      height: "8px",
+                      borderRadius: "50%",
+                      background: "#DC2626",
+                      border: "2px solid #fff",
+                    }}
+                  />
+                )}
               </Link>
+
               <div className="w-px h-5 bg-border mx-1" />
-              <span className="text-sm text-text-secondary">{teacher?.name}</span>
-              <button
-                onClick={async () => {
-                  const supabase = createClient();
-                  await supabase.auth.signOut();
-                  window.location.href = "/";
-                }}
-                className="text-sm text-text-secondary/60 hover:text-text-primary transition-colors px-2 py-1 rounded-lg hover:bg-surface-alt"
-              >
-                Log out
-              </button>
+
+              {/* Avatar dropdown — click name to open Settings / secondary links / Log out. */}
+              <div className="relative" ref={avatarRef}>
+                <button
+                  type="button"
+                  onClick={() => setAvatarOpen((v) => !v)}
+                  className="flex items-center gap-1.5 px-2 py-1 rounded-lg transition-colors hover:bg-black/5"
+                  aria-haspopup="menu"
+                  aria-expanded={avatarOpen}
+                >
+                  <span
+                    className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold text-white"
+                    style={{ background: "linear-gradient(135deg, #7B2FF2, #5C16C5)" }}
+                    aria-hidden
+                  >
+                    {(teacher?.name ?? "?").trim().charAt(0).toUpperCase() || "?"}
+                  </span>
+                  <span className="text-sm text-text-primary font-medium">
+                    {teacher?.name ?? "Account"}
+                  </span>
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{
+                      color: "#9CA3AF",
+                      transform: avatarOpen ? "rotate(180deg)" : "rotate(0)",
+                      transition: "transform 150ms ease",
+                    }}
+                  >
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </button>
+
+                {avatarOpen && (
+                  <div
+                    role="menu"
+                    className="absolute right-0 mt-2 w-56 rounded-xl border border-black/5 bg-white shadow-lg overflow-hidden z-40"
+                    style={{
+                      background: "rgba(255,255,255,0.98)",
+                      backdropFilter: "blur(8px)",
+                    }}
+                  >
+                    {teacher?.email && (
+                      <div className="px-4 py-3 border-b border-black/5">
+                        <div className="text-sm font-semibold text-text-primary truncate">
+                          {teacher.name}
+                        </div>
+                        <div className="text-xs text-text-secondary truncate">
+                          {teacher.email}
+                        </div>
+                      </div>
+                    )}
+
+                    <DropdownLink
+                      href="/teacher/settings"
+                      active={isSettingsActive}
+                      onClick={() => setAvatarOpen(false)}
+                      label="Settings"
+                      icon={
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="3" />
+                          <path d="M12.22 2h-.44a2 2 0 00-2 2v.18a2 2 0 01-1 1.73l-.43.25a2 2 0 01-2 0l-.15-.08a2 2 0 00-2.73.73l-.22.38a2 2 0 00.73 2.73l.15.1a2 2 0 011 1.72v.51a2 2 0 01-1 1.74l-.15.09a2 2 0 00-.73 2.73l.22.38a2 2 0 002.73.73l.15-.08a2 2 0 012 0l.43.25a2 2 0 011 1.73V20a2 2 0 002 2h.44a2 2 0 002-2v-.18a2 2 0 011-1.73l.43-.25a2 2 0 012 0l.15.08a2 2 0 002.73-.73l.22-.39a2 2 0 00-.73-2.73l-.15-.08a2 2 0 01-1-1.74v-.5a2 2 0 011-1.74l.15-.09a2 2 0 00.73-2.73l-.22-.38a2 2 0 00-2.73-.73l-.15.08a2 2 0 01-2 0l-.43-.25a2 2 0 01-1-1.73V4a2 2 0 00-2-2z" />
+                        </svg>
+                      }
+                    />
+
+                    {/* Secondary — parked here until the teacher-redesign reshuffles things. */}
+                    <div className="border-t border-black/5" />
+                    <DropdownLink
+                      href="/teacher/toolkit"
+                      active={pathname.startsWith("/teacher/toolkit")}
+                      onClick={() => setAvatarOpen(false)}
+                      label="Toolkit"
+                      icon={
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="2" y="4" width="20" height="16" rx="2" />
+                          <path d="M12 4v16M2 12h20" />
+                        </svg>
+                      }
+                    />
+                    <DropdownLink
+                      href="/teacher/safety"
+                      active={
+                        pathname.startsWith("/teacher/safety") &&
+                        !pathname.startsWith("/teacher/safety/alerts")
+                      }
+                      onClick={() => setAvatarOpen(false)}
+                      label="Badges"
+                      icon={
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                        </svg>
+                      }
+                    />
+                    <DropdownLink
+                      href="/teacher/library"
+                      active={pathname.startsWith("/teacher/library")}
+                      onClick={() => setAvatarOpen(false)}
+                      label="Library"
+                      icon={
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+                          <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+                        </svg>
+                      }
+                    />
+
+                    <div className="border-t border-black/5" />
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setAvatarOpen(false);
+                        handleLogout();
+                      }}
+                      className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left text-text-secondary hover:bg-black/5 transition-colors"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                        <polyline points="16 17 21 12 16 7" />
+                        <line x1="21" y1="12" x2="9" y2="12" />
+                      </svg>
+                      Log out
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </header>
@@ -308,5 +508,45 @@ export default function TeacherLayout({
         <BugReportButton role="teacher" />
       </div>
     </TeacherContext.Provider>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Dropdown menu item — single shared style for the avatar dropdown so Settings
+// and the parked Toolkit/Badges/Library entries render the same.
+// ---------------------------------------------------------------------------
+function DropdownLink({
+  href,
+  label,
+  icon,
+  active,
+  onClick,
+}: {
+  href: string;
+  label: string;
+  icon: React.ReactNode;
+  active?: boolean;
+  onClick?: () => void;
+}) {
+  return (
+    <Link
+      href={href}
+      role="menuitem"
+      onClick={onClick}
+      className="flex items-center gap-2 px-4 py-2.5 text-sm transition-colors"
+      style={{
+        color: active ? "#7B2FF2" : "#1A1A2E",
+        background: active ? "rgba(123,47,242,0.08)" : "transparent",
+      }}
+      onMouseEnter={(e) => {
+        if (!active) e.currentTarget.style.background = "rgba(0,0,0,0.04)";
+      }}
+      onMouseLeave={(e) => {
+        if (!active) e.currentTarget.style.background = "transparent";
+      }}
+    >
+      <span style={{ opacity: 0.7 }}>{icon}</span>
+      {label}
+    </Link>
   );
 }
