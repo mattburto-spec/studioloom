@@ -34,6 +34,7 @@ import {
 } from "@/components/teacher-dashboard-v2/current-period";
 import { useTeacher } from "@/app/teacher/teacher-context";
 import { buildInsightBuckets } from "@/components/teacher-dashboard-v2/insight-buckets";
+import { buildUnitCards } from "@/components/teacher-dashboard-v2/unit-cards";
 import type {
   DashboardData,
   DashboardClass,
@@ -127,6 +128,11 @@ export default function TeacherDashboardClient() {
     return buildInsightBuckets(insights);
   }, [insights]);
 
+  const unitCards = useMemo(
+    () => buildUnitCards(classes, unmarkedWork),
+    [classes, unmarkedWork],
+  );
+
   return (
     <div className="tl-v2 min-h-screen">
       <TopNav
@@ -139,7 +145,7 @@ export default function TeacherDashboardClient() {
       <NowHero current={currentPeriod} />
       <TodayRail cards={railCards} now={now} />
       <Insights buckets={insightBuckets} />
-      <UnitsGrid />
+      <UnitsGrid cards={unitCards} />
       <Admin />
     </div>
   );
