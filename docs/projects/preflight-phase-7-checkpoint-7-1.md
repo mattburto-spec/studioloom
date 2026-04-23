@@ -184,11 +184,18 @@ Expect: `status='completed'`, `completion_status='failed'`, note matches what yo
 
 ## Next phase
 
-**Phase 8 — Machine Profiles Admin UI** (~1–2 days per spec §13). Let teachers create + customise machine profiles without dev intervention (current state: 12 system templates hardcoded, no UI to add new ones). Ships:
-- Teacher UI: create machine profile from template, customise dimensions / kerf / operation color map
-- Rule overrides UI (advanced — collapsed by default)
-- `requires_teacher_approval` toggle per machine (currently SQL-only)
+**Phase 8 — Lab + Machine + Fabricator Admin (EXPANDED)** (~2–3 days). Brief drafted 24 Apr 2026 AM at [`preflight-phase-8-brief.md`](./preflight-phase-8-brief.md) — status DRAFT, pre-sign-off, 6 open questions for Matt to resolve.
 
-Matt Checkpoint 8.1: a teacher can configure their school's 3 machines in under 5 minutes.
+Originally §13 Phase 8 was just "Machine Profiles Admin UI" (~1–2 days). This brief **folds in Phase 9's lab-scoping work** (the `PH6-FU-MULTI-LAB-SCOPING` P2 follow-up filed during Phase 6 smoke) + **reshapes the admin as a visual + relational surface** instead of three separate list pages.
 
-Brief to be drafted after Phase 7 sign-off.
+Ships:
+- `fabrication_labs` entity + `machine_profiles.lab_id` + `classes.default_lab_id` (migration + backfill)
+- Lab CRUD (create "2nd floor design lab" etc.), machine CRUD (add a new Bambu A1, edit colour maps), fabricator reassignment
+- New `/teacher/preflight/lab-setup` visual page replacing `/teacher/preflight/fabricators`
+- Student picker auto-filters by class's default lab (closes `FU-CLASS-MACHINE-LINK`)
+
+Net effect: Phase 9 estimate reduces to just "Analytics + Polish".
+
+Pre-conditions: this checkpoint (7.1) PASSED + Matt resolves the 6 open questions in §5 of the Phase 8 brief.
+
+Matt Checkpoint 8.1: a teacher can set up a lab with 3 machines + assign a fabricator, end-to-end in the visual admin, in under 5 minutes.

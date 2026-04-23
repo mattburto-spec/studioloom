@@ -14,9 +14,13 @@
  * separate design labs (e.g. Seoul Foreign School — 3 labs, different
  * teachers / lab techs per lab) need a `fabrication_labs` entity
  * + lab_id on machine_profiles / fabricators / classes so students
- * submit to THEIR lab's Bambu, not the school-wide Bambu pool. Spec
- * lives in the RuleCard-level follow-up notes in the design doc.
- * Phase 9+ — gated on access-model-v2 (FU-O/P/R) shipping first.
+ * submit to THEIR lab's Bambu, not the school-wide Bambu pool.
+ *
+ * Brought forward to Phase 8 (from originally-Phase-9) per a
+ * 24 Apr 2026 conversation — folded into a unified visual lab +
+ * machine + fabricator admin page. Spec: `preflight-phase-8-brief.md`.
+ * 6 open questions still pending sign-off before 8-1 opens. Blocked
+ * on Phase 7 Checkpoint 7.1 signing off first.
  *
  * Auth: student cookie-token session.
  * Cache: private, no-cache (Lesson #11).
