@@ -18,6 +18,7 @@ import Link from "next/link";
 import { ScanResultsViewer } from "@/components/fabrication/ScanResultsViewer";
 import { RevisionHistoryPanel } from "@/components/fabrication/RevisionHistoryPanel";
 import { TeacherActionBar } from "@/components/fabrication/TeacherActionBar";
+import { PreviewCard } from "@/components/fabrication/PreviewCard";
 import { canSubmit, type Rule } from "@/lib/fabrication/rule-buckets";
 import type {
   TeacherJobDetailSuccess,
@@ -186,7 +187,9 @@ function ReadyView(props: {
 
   return (
     <>
-      {/* Context header */}
+      {/* Context header — full-width above the 2-column split so the
+          student name + status pill are glanceable without eye-
+          scanning a single column. */}
       <header className="rounded-2xl border border-gray-200 bg-white p-6">
         <h1 className="text-2xl font-bold text-gray-900">
           {detail.student.name}
@@ -226,53 +229,75 @@ function ReadyView(props: {
         </div>
       </header>
 
-      {actionError && (
-        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3">
-          <p className="text-sm text-red-900">{actionError}</p>
+      {/* Two-column layout matching the student status page (6-6e/j):
+          scan results + teacher action bar on the left, preview card
+          + revision history on the right. Stacks to single column on
+          mobile. */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* ── LEFT COLUMN — banners + scan results + action bar ── */}
+        <div className="lg:col-span-2 space-y-4">
+          {actionError && (
+            <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3">
+              <p className="text-sm text-red-900">{actionError}</p>
+            </div>
+          )}
+          {actionSuccess && !actionError && (
+            <div role="status" className="rounded-xl border border-green-200 bg-green-50 p-3">
+              <p className="text-sm text-green-900">{actionSuccess}</p>
+            </div>
+          )}
+
+          {/* Scan results (read-only). Header strip is suppressed —
+              the right-column preview card renders a bigger thumbnail
+              + context header card above already shows filename /
+              machine / revision. */}
+          <ScanResultsViewer
+            scanResults={scanResults}
+            acknowledgedWarnings={detail.acknowledgedWarnings}
+            revisionNumber={detail.job.currentRevision}
+            canSubmitState={gate}
+            onAcknowledge={() => {}}
+            onSubmit={() => {}}
+            onReupload={() => {}}
+            thumbnailUrl={detail.currentRevisionData?.thumbnailUrl ?? null}
+            filename={detail.job.originalFilename}
+            machineLabel={detail.machine.name}
+            fileType={fileType}
+            readOnly
+            hideHeaderStrip
+          />
+
+          {/* Action bar — sits at the bottom of the left column so the
+              teacher's primary actions are below the evidence they
+              just reviewed. */}
+          <TeacherActionBar
+            jobStatus={detail.job.status}
+            currentNote={detail.job.teacherReviewNote}
+            isBusy={isBusy}
+            onApprove={props.onApprove}
+            onReturn={props.onReturn}
+            onReject={props.onReject}
+            onSaveNote={props.onSaveNote}
+          />
         </div>
-      )}
-      {actionSuccess && !actionError && (
-        <div role="status" className="rounded-xl border border-green-200 bg-green-50 p-3">
-          <p className="text-sm text-green-900">{actionSuccess}</p>
-        </div>
-      )}
 
-      {/* Scan results (read-only) — pass filename + machineLabel so the
-          viewer's header strip next to the thumbnail has informative
-          context instead of just rendering as a floating preview. The
-          student-side status page already passes these; omitting them
-          here was an oversight in Phase 6-2. */}
-      <ScanResultsViewer
-        scanResults={scanResults}
-        acknowledgedWarnings={detail.acknowledgedWarnings}
-        revisionNumber={detail.job.currentRevision}
-        canSubmitState={gate}
-        onAcknowledge={() => {}}
-        onSubmit={() => {}}
-        onReupload={() => {}}
-        thumbnailUrl={detail.currentRevisionData?.thumbnailUrl ?? null}
-        filename={detail.job.originalFilename}
-        machineLabel={detail.machine.name}
-        fileType={fileType}
-        readOnly
-      />
+        {/* ── RIGHT COLUMN — preview + revision history ── */}
+        <aside className="lg:col-span-1 space-y-4">
+          <PreviewCard
+            thumbnailUrl={detail.currentRevisionData?.thumbnailUrl ?? null}
+            revisionNumber={detail.job.currentRevision}
+            fileType={fileType}
+            subtitle={detail.job.originalFilename}
+          />
 
-      {/* Action bar */}
-      <TeacherActionBar
-        jobStatus={detail.job.status}
-        currentNote={detail.job.teacherReviewNote}
-        isBusy={isBusy}
-        onApprove={props.onApprove}
-        onReturn={props.onReturn}
-        onReject={props.onReject}
-        onSaveNote={props.onSaveNote}
-      />
-
-      {/* Revision history */}
-      <RevisionHistoryPanel
-        revisions={detail.revisions.map(summaryToHistoryRow)}
-        currentRevision={detail.job.currentRevision}
-      />
+          {/* Revision history — hidden by the panel when only 1
+              revision exists. */}
+          <RevisionHistoryPanel
+            revisions={detail.revisions.map(summaryToHistoryRow)}
+            currentRevision={detail.job.currentRevision}
+          />
+        </aside>
+      </div>
     </>
   );
 }
