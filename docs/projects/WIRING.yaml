@@ -340,7 +340,7 @@ systems:
   - id: skills-library
     name: Skills Library — Canonical Content Layer
     category: Content / Curriculum
-    status: planned
+    status: in_progress
     currentVersion: 0
     summary: |
       One canonical skill card, many embed contexts (library browse, Stone prereqs, lesson activity blocks, Open Studio capability-gap, crit board pins, badges). Schema: skill_cards + tags + prerequisites + external_links + categories + quizzes. Completions as learning_events → student_skill_state derived view. Six quiz types all gradable without a model. State ladder (not_started → viewed → quiz_passed → demonstrated → mastered) + freshness (current/cooling/stale). Context-aware gating (state × freshness × embed requirement → full card / refresh / skip). Strength radar chart computed on view. Strategic frame — the library is the moat (15 years of teacher-authored material competitors cannot copy). Supersedes self-help-library.md idea. Workshop project ~4-6 days.
