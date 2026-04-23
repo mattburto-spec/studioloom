@@ -128,9 +128,28 @@ export function NowHero({ current, loaded }: NowHeroProps) {
                   </span>
                 )}
               </div>
-              <h1 className="display-lg text-[48px] sm:text-[72px] md:text-[88px] lg:text-[108px] leading-[0.88] mt-4 md:mt-6 text-white">
-                {vm.unitTitle}.
-              </h1>
+              {/* Auto-scale title: short unit names stay dramatic, long ones
+               *  shrink so they're more likely to fit a single line. Same
+               *  bucket approach as the student hero (DashboardClient.tsx
+               *  ~line 628), tuned for the teacher hero's larger lg size. */}
+              {(() => {
+                const len = vm.unitTitle.length;
+                const sizeCls =
+                  len > 22
+                    ? "text-[36px] sm:text-[48px] md:text-[56px] lg:text-[64px]"
+                    : len > 16
+                      ? "text-[44px] sm:text-[60px] md:text-[72px] lg:text-[84px]"
+                      : len > 10
+                        ? "text-[48px] sm:text-[72px] md:text-[88px] lg:text-[100px]"
+                        : "text-[48px] sm:text-[72px] md:text-[88px] lg:text-[108px]";
+                return (
+                  <h1
+                    className={`display-lg ${sizeCls} leading-[0.88] mt-4 md:mt-6 text-white`}
+                  >
+                    {vm.unitTitle}.
+                  </h1>
+                );
+              })()}
               {vm.unitSub && (
                 <p className="text-[22px] leading-snug mt-3 text-white/85 max-w-md font-medium">
                   {vm.unitSub}
