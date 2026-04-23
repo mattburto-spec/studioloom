@@ -47,7 +47,7 @@ export default function ViewSkillCardPage() {
 
   if (loadError) {
     return (
-      <main className="max-w-3xl mx-auto px-4 py-8">
+      <main className="max-w-6xl mx-auto px-4 py-8">
         <div className="bg-rose-50 border border-rose-200 rounded-lg p-4 text-rose-700">
           {loadError}
         </div>
@@ -57,7 +57,7 @@ export default function ViewSkillCardPage() {
 
   if (!card) {
     return (
-      <main className="max-w-3xl mx-auto px-4 py-8">
+      <main className="max-w-6xl mx-auto px-4 py-8">
         <div className="animate-pulse space-y-4">
           <div className="h-8 bg-gray-200 rounded w-1/3" />
           <div className="h-32 bg-gray-100 rounded" />
@@ -67,7 +67,7 @@ export default function ViewSkillCardPage() {
   }
 
   return (
-    <main className="sl-skill-scope max-w-3xl mx-auto px-4 py-8">
+    <main className="sl-skill-scope max-w-6xl mx-auto px-4 py-8">
       <div className="mb-4">
         <Link
           href="/teacher/skills"

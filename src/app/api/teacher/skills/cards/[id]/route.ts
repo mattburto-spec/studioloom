@@ -12,6 +12,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { BLOCK_TYPES } from "@/types/skills";
 import type {
   Block,
   SkillCardHydrated,
@@ -36,14 +37,7 @@ function createSupabaseServer(request: NextRequest) {
 }
 
 const DIFFICULTIES: SkillDifficulty[] = ["foundational", "intermediate", "advanced"];
-const VALID_BLOCK_TYPES = new Set([
-  "prose",
-  "callout",
-  "checklist",
-  "image",
-  "video",
-  "worked_example",
-]);
+const VALID_BLOCK_TYPES = new Set<string>(BLOCK_TYPES);
 
 function validateBody(body: unknown): body is Block[] {
   if (!Array.isArray(body)) return false;
