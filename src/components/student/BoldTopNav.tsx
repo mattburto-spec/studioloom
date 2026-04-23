@@ -181,9 +181,13 @@ const NAV_S: NavItem[] = [
   { label: "My work",   anchor: "dashboard-hero" },
   { label: "Units",     anchor: "dashboard-units" },
   { label: "Skills",    route:  "/skills" },
+  // Preflight Phase 6-6i — lands students on the /fabrication
+  // overview (list of their submissions). "+ New submission" CTA on
+  // that page jumps to /fabrication/new. Pill highlights across every
+  // /fabrication/* subpath via the route + startsWith match below.
+  { label: "Preflight", route:  "/fabrication" },
   { label: "Journal"    }, // disabled — Phase 14 notes system
   { label: "Resources"  }, // disabled — Phase 18 resources library
-  { label: "Preflight", route:  "/fabrication/new" }, // Preflight Phase 6 — real route, active on any /fabrication/* subroute
 ];
 
 // ================= SCOPED STYLES =================

@@ -1293,3 +1293,146 @@ export async function listRevisions(
 
   return { revisions: summaries };
 }
+
+// ============================================================
+// Phase 6-6i — listStudentJobs (student-side overview)
+// ============================================================
+
+/**
+ * Compact summary row for the student's own overview page at
+ * `/fabrication`. Mirrors the teacher queue row shape but scoped to
+ * `fabrication_jobs.student_id = studentId` so each student sees
+ * only their own submissions.
+ */
+export interface StudentJobRow {
+  jobId: string;
+  machineLabel: string;
+  machineCategory: "3d_printer" | "laser_cutter" | null;
+  unitTitle: string | null;
+  className: string | null;
+  thumbnailUrl: string | null;
+  currentRevision: number;
+  ruleCounts: { block: number; warn: number; fyi: number };
+  jobStatus: string;
+  createdAt: string;
+  updatedAt: string;
+  originalFilename: string;
+}
+
+export interface ListStudentJobsSuccess {
+  jobs: StudentJobRow[];
+}
+export type ListStudentJobsResult = ListStudentJobsSuccess | OrchestrationError;
+
+interface RawStudentJobRow {
+  id: string;
+  status: string;
+  current_revision: number;
+  created_at: string;
+  updated_at: string;
+  original_filename: string;
+  classes: { name: string | null } | null;
+  units: { title: string | null } | null;
+  machine_profiles: { name: string | null; machine_category: string | null } | null;
+  fabrication_job_revisions: Array<{
+    revision_number: number;
+    thumbnail_path: string | null;
+    scan_results: { rules?: Array<{ severity?: string }> | null } | null;
+  }> | null;
+}
+
+/**
+ * Return all fabrication jobs for a student, newest first, with a
+ * signed thumbnail URL + rule-count summary for the current
+ * revision. Used by the `/fabrication` overview page.
+ *
+ * One round-trip via PostgREST nested-select — joins student →
+ * classes / units / machine_profiles + all revisions. Matches the
+ * pattern used by the teacher-side `getTeacherQueue` so behaviour
+ * stays consistent.
+ */
+export async function listStudentJobs(
+  db: SupabaseLike,
+  params: { studentId: string; limit?: number }
+): Promise<ListStudentJobsResult> {
+  const { studentId, limit = 100 } = params;
+  const boundedLimit = Math.max(1, Math.min(limit, 200));
+
+  const result = await db
+    .from("fabrication_jobs")
+    .select(
+      `
+      id, status, current_revision, created_at, updated_at, original_filename,
+      classes(name),
+      units(title),
+      machine_profiles(name, machine_category),
+      fabrication_job_revisions(revision_number, thumbnail_path, scan_results)
+      `
+    )
+    .eq("student_id", studentId)
+    .order("created_at", { ascending: false })
+    .range(0, boundedLimit - 1);
+
+  const { data, error } = result as {
+    data: RawStudentJobRow[] | null;
+    error: { message: string } | null;
+  };
+  if (error) {
+    return {
+      error: { status: 500, message: `Student jobs lookup failed: ${error.message}` },
+    };
+  }
+
+  const rows = data ?? [];
+
+  // Build StudentJobRow shape with per-row signed thumbnail URLs
+  // (parallel mint, same pattern as getTeacherQueue).
+  const built: StudentJobRow[] = await Promise.all(
+    rows.map(async (raw) => {
+      const latestRev = (raw.fabrication_job_revisions ?? []).find(
+        (r) => r.revision_number === raw.current_revision
+      );
+
+      let thumbnailUrl: string | null = null;
+      if (latestRev?.thumbnail_path) {
+        const signed = await db.storage
+          .from(FABRICATION_THUMBNAIL_BUCKET)
+          .createSignedUrl(latestRev.thumbnail_path, THUMBNAIL_URL_TTL_SECONDS);
+        if (!signed.error && signed.data) {
+          thumbnailUrl = signed.data.signedUrl;
+        }
+      }
+
+      const counts = countRulesBySeverity(latestRev?.scan_results?.rules);
+
+      // Defensive: PostgREST may return nested joins as array-of-one
+      // (1:1 FK) or object (inferred singular). Accept both shapes —
+      // same pattern as teacher-orchestration.ts pickFirst helper.
+      const classRow = Array.isArray(raw.classes) ? raw.classes[0] : raw.classes;
+      const unitRow = Array.isArray(raw.units) ? raw.units[0] : raw.units;
+      const machineRow = Array.isArray(raw.machine_profiles)
+        ? raw.machine_profiles[0]
+        : raw.machine_profiles;
+
+      return {
+        jobId: raw.id,
+        machineLabel: machineRow?.name ?? "Unknown machine",
+        machineCategory:
+          (machineRow?.machine_category as StudentJobRow["machineCategory"]) ??
+          null,
+        unitTitle: unitRow?.title ?? null,
+        className: classRow?.name ?? null,
+        thumbnailUrl,
+        currentRevision: raw.current_revision,
+        ruleCounts: counts,
+        jobStatus: raw.status,
+        createdAt: raw.created_at,
+        updatedAt: raw.updated_at,
+        originalFilename: raw.original_filename,
+      };
+    })
+  );
+
+  return { jobs: built };
+}
+
