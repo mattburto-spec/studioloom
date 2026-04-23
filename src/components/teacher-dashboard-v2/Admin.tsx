@@ -2,17 +2,17 @@
 
 import Link from "next/link";
 import { I } from "./icons";
-import { UNASSIGNED } from "./mock-data";
 import { classColor } from "./nav-config";
 import type { DashboardClass } from "@/types/dashboard";
 
 interface AdminProps {
   /** All active classes. Phase 7 derives the "Housekeeping" list from
-   *  here by filtering for classes with zero active units. Empty
-   *  array or not-yet-loaded → render mock fallback so the row
-   *  doesn't collapse to "0 classes without units" during initial
-   *  page load. */
+   *  here by filtering for classes with zero active units. */
   classes: DashboardClass[];
+  /** False while the dashboard fetch is still in flight — we render
+   *  null then so the section doesn't briefly read "0 classes" during
+   *  load. */
+  loaded: boolean;
 }
 
 interface EmptyClassVM {
@@ -36,19 +36,9 @@ function fromClasses(classes: DashboardClass[]): EmptyClassVM[] {
     }));
 }
 
-function fromMock(): EmptyClassVM[] {
-  return UNASSIGNED.map((c, i) => ({
-    key: `mock-${i}`,
-    name: c.name,
-    students: c.students,
-    color: c.color,
-    assignHref: "/teacher/units",
-  }));
-}
-
-export function Admin({ classes }: AdminProps) {
-  const emptyClasses =
-    classes.length > 0 ? fromClasses(classes) : fromMock();
+export function Admin({ classes, loaded }: AdminProps) {
+  if (!loaded) return null;
+  const emptyClasses = fromClasses(classes);
   const count = emptyClasses.length;
 
   // When there's nothing to clean up, skip the whole row — mid-build

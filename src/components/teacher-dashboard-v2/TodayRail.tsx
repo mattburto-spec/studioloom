@@ -2,16 +2,17 @@
 
 import Link from "next/link";
 import { I } from "./icons";
-import { SCHEDULE } from "./mock-data";
+import { SectionEmpty } from "./empty-states";
 import type { RailCard } from "./current-period";
 
 interface TodayRailProps {
-  /** Real schedule cards. Empty array → render mock fallback so the
-   *  rail never looks broken mid-build; Phase 9 swaps this to a proper
-   *  empty state. */
+  /** Real schedule cards. Empty + loaded → empty state banner. */
   cards: RailCard[];
   /** Wall-clock "today" used for the rail heading. */
   now: Date;
+  /** False while the schedule fetch is still in flight. We don't
+   *  render skeletons here — the dashboard-level skeleton covers it. */
+  loaded: boolean;
 }
 
 /** View-model the rail renders. Keeps the mock + real-data branches
@@ -49,27 +50,6 @@ function fromCard(c: RailCard): CardVM {
   };
 }
 
-function fromMockSlot(
-  s: (typeof SCHEDULE)[number],
-  i: number,
-): CardVM {
-  return {
-    key: `mock-${i}`,
-    num: s.num,
-    time: s.time,
-    className: s.class,
-    color: s.color,
-    tint: s.tint,
-    unitTitle: s.unit,
-    sub: s.sub,
-    state: s.state === "next" ? "next" : s.state === "done" ? "done" : "upcoming",
-    progress: s.progress,
-    ungradedCount: s.ungraded,
-    note: s.note,
-    href: null,
-  };
-}
-
 function formatRailHeading(d: Date): string {
   const weekday = d.toLocaleDateString("en-GB", { weekday: "short" });
   const day = d.getDate();
@@ -77,14 +57,15 @@ function formatRailHeading(d: Date): string {
   return `Today · ${weekday} ${day} ${month}`;
 }
 
-export function TodayRail({ cards, now }: TodayRailProps) {
+export function TodayRail({ cards, now, loaded }: TodayRailProps) {
   // Cap at 4 visible slots so the grid stays single-row at the Bold
   // design's width. Teachers with >4 periods/day see the first 4 —
-  // Phase 9 layout pass can add a "+N more" affordance.
-  const vms: CardVM[] =
-    cards.length > 0
-      ? cards.slice(0, 4).map(fromCard)
-      : SCHEDULE.map(fromMockSlot);
+  // layout pass can add a "+N more" affordance.
+  const vms: CardVM[] = cards.slice(0, 4).map(fromCard);
+
+  // Nothing to render pre-load — the dashboard-level skeleton already
+  // has a placeholder for this section.
+  if (!loaded) return null;
 
   return (
     <section className="max-w-[1400px] mx-auto px-6 pt-10">
@@ -97,10 +78,21 @@ export function TodayRail({ cards, now }: TodayRailProps) {
             Your day, at a glance.
           </h2>
         </div>
-        <button className="text-[12.5px] font-bold text-[var(--ink-2)] hover:text-[var(--ink)] inline-flex items-center gap-1">
-          See week <I name="chevR" size={12} s={2.5} />
-        </button>
+        {vms.length > 0 && (
+          <button className="text-[12.5px] font-bold text-[var(--ink-2)] hover:text-[var(--ink)] inline-flex items-center gap-1">
+            See week <I name="chevR" size={12} s={2.5} />
+          </button>
+        )}
       </div>
+      {vms.length === 0 ? (
+        <SectionEmpty
+          eyebrow="No classes today"
+          heading="Enjoy the quiet."
+          body="When you have classes scheduled, they'll show up here with the current period highlighted."
+          ctaLabel="Check your timetable"
+          ctaHref="/teacher/timetable"
+        />
+      ) : (
       <div className="grid grid-cols-4 gap-3">
         {vms.map((s) => {
           const isLive = s.state === "live";
@@ -213,6 +205,7 @@ export function TodayRail({ cards, now }: TodayRailProps) {
           );
         })}
       </div>
+      )}
     </section>
   );
 }

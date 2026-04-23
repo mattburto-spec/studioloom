@@ -2,14 +2,15 @@
 
 import Link from "next/link";
 import { I } from "./icons";
-import { NEXT } from "./mock-data";
 import type { CurrentPeriod } from "./current-period";
 
 interface NowHeroProps {
-  /** Resolved current-or-next period. Null → renders the mock fallback
-   *  so the hero always has something to show (blank space on a design-
-   *  heavy hero looks broken). */
+  /** Resolved current-or-next period. Null + loaded → "no class now"
+   *  empty-state variant; null + still-loading → skeleton (rendered by
+   *  the dashboard-level shell, so we just return null here). */
   current: CurrentPeriod | null;
+  /** False while the schedule fetch is in flight. */
+  loaded: boolean;
 }
 
 /** View-model NowHero renders. Keeps the mock + real-data branches
@@ -54,29 +55,47 @@ function fromCurrent(c: CurrentPeriod): HeroVM {
   };
 }
 
-function fromMock(): HeroVM {
-  return {
-    periodLabel: NEXT.period,
-    startTime: NEXT.time,
-    startsInMin: NEXT.startsIn,
-    state: "upcoming",
-    room: NEXT.room,
-    className: NEXT.class,
-    color: NEXT.color,
-    colorDark: NEXT.colorDark,
-    unitId: null,
-    unitTitle: NEXT.title,
-    unitSub: NEXT.sub,
-    phaseLabel: NEXT.phase,
-    phasePct: NEXT.phasePct,
-    img: NEXT.img,
-    studentCount: NEXT.students,
-    ungradedCount: NEXT.ungraded,
-  };
+/** "No class right now" hero — black background, nothing pulsing. */
+function NoClassHero() {
+  return (
+    <section className="max-w-[1400px] mx-auto px-6 pt-8">
+      <div
+        className="relative rounded-[32px] overflow-hidden card-shadow-lg p-12 min-h-[280px] flex flex-col justify-center"
+        style={{ background: "#0A0A0A" }}
+      >
+        <div className="max-w-2xl text-white">
+          <div className="cap text-white/60 mb-3">Nothing on now</div>
+          <h1 className="display-lg text-[56px] leading-[0.95]">
+            Clear deck.
+          </h1>
+          <p className="text-[18px] leading-snug mt-3 text-white/75 font-medium">
+            No class in session right now. Check your schedule for what&apos;s
+            coming, or dip into planning.
+          </p>
+          <div className="flex items-center gap-3 mt-6">
+            <Link
+              href="/teacher/units"
+              className="bg-white text-[var(--ink)] rounded-full px-5 py-2.5 font-bold text-[13px]"
+            >
+              Plan a unit
+            </Link>
+            <Link
+              href="/teacher/timetable"
+              className="bg-white/15 backdrop-blur hover:bg-white/25 text-white rounded-full px-4 py-2.5 font-bold text-[12.5px]"
+            >
+              View timetable
+            </Link>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
 }
 
-export function NowHero({ current }: NowHeroProps) {
-  const vm = current ? fromCurrent(current) : fromMock();
+export function NowHero({ current, loaded }: NowHeroProps) {
+  if (!loaded) return null;
+  if (!current) return <NoClassHero />;
+  const vm = fromCurrent(current);
   const teachHref = vm.unitId ? `/teacher/teach/${vm.unitId}` : null;
 
   // Top-left status pill text.
@@ -233,3 +252,11 @@ export function NowHero({ current }: NowHeroProps) {
     </section>
   );
 }
+
+/* The `current ? "complete" : "of developing ideas"` ternary inside the
+ * phase-progress chip used to read the mock's "developing ideas" phrase
+ * when current was null. Post-Phase-9 current can never be null here
+ * (null → NoClassHero returns early), so all renders show "complete".
+ * The ternary stays for now — cleaning it up churns the JSX for no user-
+ * facing change. Worth removing next time this file gets touched.
+ */

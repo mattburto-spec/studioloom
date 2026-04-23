@@ -2,15 +2,18 @@
 
 import Link from "next/link";
 import { I } from "./icons";
-import { UNITS, type BadgeKind, type UnitCardData as MockUnit } from "./mock-data";
+import { SectionEmpty } from "./empty-states";
 import type { UnitCardData, UnitBadgeKind } from "./unit-cards";
 
 interface UnitsGridProps {
-  /** Real (class × unit) cards. Empty → mock fallback. */
+  /** Real (class × unit) cards. Empty + loaded → empty-state banner
+   *  prompting the teacher to assign their first unit. */
   cards: UnitCardData[];
+  /** False while the dashboard fetch is still in flight. */
+  loaded: boolean;
 }
 
-/** View-model the grid renders. Converges mock + real data. */
+/** View-model the grid renders. Real-data only post-Phase-9. */
 interface CardVM {
   key: string;
   title: string;
@@ -23,7 +26,6 @@ interface CardVM {
   img: string;
   ungradedCount: number;
   realBadges: UnitBadgeKind[];
-  mockBadges: BadgeKind[];
   teachHref: string | null;
   editHref: string | null;
   hubHref: string | null;
@@ -42,30 +44,9 @@ function fromCard(c: UnitCardData): CardVM {
     img: c.img,
     ungradedCount: c.ungradedCount,
     realBadges: c.badges,
-    mockBadges: [],
     teachHref: `/teacher/teach/${c.unitId}`,
     editHref: `/teacher/units/${c.unitId}/class/${c.classId}/edit`,
     hubHref: `/teacher/units/${c.unitId}/class/${c.classId}`,
-  };
-}
-
-function fromMock(u: MockUnit): CardVM {
-  return {
-    key: u.id,
-    title: u.title,
-    kicker: u.kicker,
-    classTag: u.classTag,
-    color: u.color,
-    tint: u.tint,
-    students: u.students,
-    progress: u.progress,
-    img: u.img,
-    ungradedCount: 0,
-    realBadges: [],
-    mockBadges: u.badges,
-    teachHref: null,
-    editHref: null,
-    hubHref: null,
   };
 }
 
@@ -103,30 +84,8 @@ function RealBadge({ kind, color }: { kind: UnitBadgeKind; color: string }) {
   );
 }
 
-function MockBadge({ kind }: { kind: BadgeKind }) {
-  if (kind === "pink-re") {
-    return (
-      <div className="w-6 h-6 rounded-lg bg-[#EC4899] text-white text-[9px] font-extrabold flex items-center justify-center">
-        RE
-      </div>
-    );
-  }
-  if (kind === "amber") {
-    return (
-      <div className="w-6 h-6 rounded-lg bg-[#FBBF24] flex items-center justify-center">
-        <div className="w-2 h-2 rounded-full bg-white" />
-      </div>
-    );
-  }
-  return (
-    <div className="w-6 h-6 rounded-lg border-2 border-[var(--hair)] flex items-center justify-center">
-      <div className="w-2 h-2 rounded-full bg-[var(--hair)]" />
-    </div>
-  );
-}
-
 function UnitCard({ u }: { u: CardVM }) {
-  const hasBadges = u.realBadges.length > 0 || u.mockBadges.length > 0;
+  const hasBadges = u.realBadges.length > 0;
   return (
     <article className="group bg-white rounded-3xl overflow-hidden card-shadow hover:card-shadow-lg hover:-translate-y-0.5 transition-all">
       {/* Image */}
@@ -154,9 +113,6 @@ function UnitCard({ u }: { u: CardVM }) {
           <div className="absolute top-4 right-4 flex items-center gap-1.5">
             {u.realBadges.map((b) => (
               <RealBadge key={b} kind={b} color={u.color} />
-            ))}
-            {u.mockBadges.map((b, i) => (
-              <MockBadge key={i} kind={b} />
             ))}
           </div>
         )}
@@ -245,9 +201,29 @@ function UnitCard({ u }: { u: CardVM }) {
   );
 }
 
-export function UnitsGrid({ cards }: UnitsGridProps) {
-  const vms: CardVM[] =
-    cards.length > 0 ? cards.map(fromCard) : UNITS.map(fromMock);
+export function UnitsGrid({ cards, loaded }: UnitsGridProps) {
+  if (!loaded) return null;
+  const vms: CardVM[] = cards.map(fromCard);
+
+  if (vms.length === 0) {
+    return (
+      <section className="max-w-[1400px] mx-auto px-6 pt-12">
+        <div className="mb-4">
+          <div className="cap text-[var(--ink-3)]">Active units · 0</div>
+          <h2 className="display text-[32px] leading-none mt-1">
+            Nothing on the loom yet.
+          </h2>
+        </div>
+        <SectionEmpty
+          eyebrow="No units assigned"
+          heading="Pick a unit to get your classroom moving."
+          body="Assign one of your existing units to a class, or spin up a new one with the AI wizard."
+          ctaLabel="Browse the unit library"
+          ctaHref="/teacher/units"
+        />
+      </section>
+    );
+  }
 
   return (
     <section className="max-w-[1400px] mx-auto px-6 pt-12">

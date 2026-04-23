@@ -2,15 +2,15 @@
 
 import Link from "next/link";
 import { I } from "./icons";
-import { INSIGHTS } from "./mock-data";
 import type { InsightBucket } from "./insight-buckets";
 
 interface InsightsProps {
-  /** Real buckets. Empty array → mock fallback so the section never
-   *  renders a blank block mid-build. Phase 9 swaps this to a proper
-   *  empty state when `data.insights` is legitimately empty (rather
-   *  than just unfetched). */
+  /** Always four buckets when loaded (Act/Grade/Watch/Celebrate); an
+   *  empty-bucket has isEmpty=true and renders a calm "nothing here"
+   *  card rather than hiding — the 4-column grid stays solid. */
   buckets: InsightBucket[];
+  /** False while the dashboard fetch is still in flight. */
+  loaded: boolean;
 }
 
 interface CardVM {
@@ -47,29 +47,9 @@ function fromBucket(b: InsightBucket): CardVM {
   };
 }
 
-function fromMock(m: (typeof INSIGHTS)[number], i: number): CardVM {
-  return {
-    key: `mock-${i}`,
-    bg: m.bg,
-    accent: m.accent,
-    text: m.text,
-    tag: m.tag,
-    big: m.big,
-    unit: m.unit,
-    body: m.body,
-    who: m.who ?? [],
-    whoOverflow: 0,
-    href: null,
-    cta: m.cta,
-    isEmpty: false,
-  };
-}
-
-export function Insights({ buckets }: InsightsProps) {
-  const cards: CardVM[] =
-    buckets.length > 0
-      ? buckets.map(fromBucket)
-      : INSIGHTS.map(fromMock);
+export function Insights({ buckets, loaded }: InsightsProps) {
+  if (!loaded) return null;
+  const cards: CardVM[] = buckets.map(fromBucket);
 
   return (
     <section className="max-w-[1400px] mx-auto px-6 pt-12">

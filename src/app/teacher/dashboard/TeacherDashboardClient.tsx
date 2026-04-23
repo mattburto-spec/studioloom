@@ -3,19 +3,10 @@
 /* ================================================================
  * TeacherDashboardClient — Bold teacher dashboard.
  *
- * Phase 2 (wired):
- *   - TopNav pulls teacher + classes from TeacherContext +
- *     /api/teacher/dashboard.
- *
- * Phase 3A (wired):
- *   - NowHero consumes a resolved CurrentPeriod joined from
- *     /api/teacher/schedule/today (timetable + periods + entries)
- *     and /api/teacher/dashboard (unit thumbnails + completion %).
- *     Falls back to mock if the teacher has no timetable or no
- *     meetings today — blank hero would look broken.
- *
- * Phases 3B-7 (pending): hero ungraded/ready counts, TodayRail,
- *   Insights, UnitsGrid, Admin — still mock data.
+ * Phase 1-8 built + cut over to production. Phase 9 (this commit)
+ * added loading skeletons + empty states: no more flash-of-mock on
+ * first render, dedicated welcome state for new teachers with zero
+ * classes, and proper "nothing here" states per section.
  * ================================================================ */
 
 import { useEffect, useMemo, useState } from "react";
@@ -27,6 +18,10 @@ import { TodayRail } from "@/components/teacher-dashboard-v2/TodayRail";
 import { TopNav } from "@/components/teacher-dashboard-v2/TopNav";
 import { UnitsGrid } from "@/components/teacher-dashboard-v2/UnitsGrid";
 import { useScopedStyles } from "@/components/teacher-dashboard-v2/styles";
+import {
+  DashboardSkeleton,
+  NoClassesWelcome,
+} from "@/components/teacher-dashboard-v2/empty-states";
 import {
   buildTodayRail,
   resolveCurrentPeriod,
@@ -52,6 +47,8 @@ export default function TeacherDashboardClient() {
   const [unmarkedWork, setUnmarkedWork] = useState<UnmarkedWorkItem[]>([]);
   const [insights, setInsights] = useState<DashboardInsight[] | null>(null);
   const [schedule, setSchedule] = useState<ScheduleResponse | null>(null);
+  const [dashboardLoaded, setDashboardLoaded] = useState(false);
+  const [scheduleLoaded, setScheduleLoaded] = useState(false);
   const [now, setNow] = useState<Date>(() => new Date());
 
   // Re-pick the "current period" every minute so `startsIn`
@@ -68,16 +65,19 @@ export default function TeacherDashboardClient() {
     (async () => {
       try {
         const res = await fetch("/api/teacher/dashboard");
-        if (!res.ok) return;
+        if (!res.ok) {
+          if (!cancelled) setDashboardLoaded(true);
+          return;
+        }
         const json: DashboardData = await res.json();
         if (!cancelled) {
           setClasses(json.classes);
           setUnmarkedWork(json.unmarkedWork ?? []);
           setInsights(json.insights ?? []);
+          setDashboardLoaded(true);
         }
       } catch {
-        // Phase 9 adds error surfaces. For now the chip stays on
-        // "All classes" if the fetch fails.
+        if (!cancelled) setDashboardLoaded(true);
       }
     })();
     return () => {
@@ -97,12 +97,17 @@ export default function TeacherDashboardClient() {
         const qs = new URLSearchParams({ days: "1" });
         if (tz) qs.set("tz", tz);
         const res = await fetch(`/api/teacher/schedule/today?${qs}`);
-        if (!res.ok) return;
+        if (!res.ok) {
+          if (!cancelled) setScheduleLoaded(true);
+          return;
+        }
         const json: ScheduleResponse = await res.json();
-        if (!cancelled) setSchedule(json);
+        if (!cancelled) {
+          setSchedule(json);
+          setScheduleLoaded(true);
+        }
       } catch {
-        // Same graceful degradation — NowHero will render its mock
-        // fallback if the resolver returns null.
+        if (!cancelled) setScheduleLoaded(true);
       }
     })();
     return () => {
@@ -120,9 +125,6 @@ export default function TeacherDashboardClient() {
     return buildTodayRail(schedule, classes, unmarkedWork, now);
   }, [schedule, classes, unmarkedWork, now]);
 
-  // Insights render the mock fallback while `insights === null` (still
-  // loading) and the real buckets once the fetch resolves — even if the
-  // server returned an empty array, which becomes an "all clear" state.
   const insightBuckets = useMemo(() => {
     if (insights === null) return [];
     return buildInsightBuckets(insights);
@@ -133,6 +135,13 @@ export default function TeacherDashboardClient() {
     [classes, unmarkedWork],
   );
 
+  // The whole page hinges on both fetches having resolved. While
+  // either is pending we render the page-level skeleton below the
+  // TopNav — the hydrated chrome is fine to show immediately.
+  const allLoaded = dashboardLoaded && scheduleLoaded;
+  // "Brand new teacher" state: fetches done, still no classes.
+  const showWelcome = allLoaded && classes.length === 0;
+
   return (
     <div className="tl-v2 min-h-screen">
       <TopNav
@@ -142,11 +151,19 @@ export default function TeacherDashboardClient() {
         onScope={setScope}
         pathname={pathname}
       />
-      <NowHero current={currentPeriod} />
-      <TodayRail cards={railCards} now={now} />
-      <Insights buckets={insightBuckets} />
-      <UnitsGrid cards={unitCards} />
-      <Admin classes={classes} />
+      {!allLoaded ? (
+        <DashboardSkeleton />
+      ) : showWelcome ? (
+        <NoClassesWelcome teacherName={teacher?.name ?? ""} />
+      ) : (
+        <>
+          <NowHero current={currentPeriod} loaded={scheduleLoaded} />
+          <TodayRail cards={railCards} now={now} loaded={scheduleLoaded} />
+          <Insights buckets={insightBuckets} loaded={dashboardLoaded} />
+          <UnitsGrid cards={unitCards} loaded={dashboardLoaded} />
+          <Admin classes={classes} loaded={dashboardLoaded} />
+        </>
+      )}
     </div>
   );
 }
