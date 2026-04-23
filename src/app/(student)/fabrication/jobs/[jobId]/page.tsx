@@ -34,6 +34,12 @@ import { ScanProgressCard } from "@/components/fabrication/ScanProgressCard";
 import { ScanResultsViewer } from "@/components/fabrication/ScanResultsViewer";
 import { RevisionHistoryPanel } from "@/components/fabrication/RevisionHistoryPanel";
 import { ReuploadModal } from "@/components/fabrication/ReuploadModal";
+import { TeacherReviewNoteCard } from "@/components/fabrication/TeacherReviewNoteCard";
+import {
+  shouldShowReviewCard,
+  studentActionsLocked,
+  shouldHideSubmitButton,
+} from "@/components/fabrication/teacher-review-note-helpers";
 import { canSubmit, type Rule } from "@/lib/fabrication/rule-buckets";
 import type {
   AckChoice,
@@ -187,23 +193,42 @@ export default function FabricationJobStatusPage() {
 
   async function handleReuploadSuccess() {
     setIsReuploadOpen(false);
-    // Re-fetch the revision history so the new revision appears.
-    await fetchRevisions();
-    // Reset the poll reducer so the current 'done' state unfreezes —
-    // the next POLL_SUCCESS will transition to 'polling' for the new
-    // revision, and then 'done' again once it scans.
+
+    // PH5-FU-REUPLOAD-POLL-STUCK fix (Phase 6-5b): reset all local
+    // state + the poll reducer BEFORE awaiting the revision-history
+    // fetch. This matters because the poll hook keeps ticking every
+    // 2s regardless of reducer state — the ~100-500ms fetchRevisions
+    // window is exactly when a Rev N+1 POLL_SUCCESS is most likely to
+    // land. Old order (await then reset) meant:
+    //   (a) poll fires during await → reducer auto-unfreezes to
+    //       polling/done for Rev N+1 (via Phase 6-0 fix), THEN
+    //       resetPoll() wipes that state back to idle → ~2s "flash
+    //       of idle" until the next poll re-transitions.
+    //   (b) if resetPoll ever broke (future refactor), we'd be back
+    //       to the original stuck-on-Rev-N bug.
+    // New order: reducer is idle BEFORE the poll can land → single
+    // clean transition idle → polling/done on the first Rev N+1
+    // response. Phase 6-0's reducer auto-unfreeze stays as a
+    // defensive safety net, not the primary mechanism.
     resetPoll();
-    // Drop local ack state — acks are per-revision and the new
-    // revision starts with none.
     setLocalAcks({});
     hydratedFromServerRef.current = false;
+
+    // Re-fetch the revision history so the new revision appears.
+    // Any poll that lands during this await transitions the now-idle
+    // reducer to polling/done for the new revision without racing.
+    await fetchRevisions();
   }
 
   return (
     <main className="max-w-2xl mx-auto px-6 py-10">
       <header className="mb-8">
         <h1 className="text-2xl font-bold">
-          {pollState.kind === "done" ? "Your scan is ready" : "Checking your file"}
+          {pollState.kind === "done"
+            ? headerTitleForStatus(
+                (pollState.status as JobStatusSuccess).jobStatus
+              )
+            : "Checking your file"}
         </h1>
         {pollState.kind !== "done" && (
           <p className="text-sm text-gray-600 mt-1">
@@ -256,6 +281,28 @@ export default function FabricationJobStatusPage() {
 }
 
 /**
+ * Header title selector — keyed on jobStatus so a student returning
+ * to the page after a teacher action lands on the right framing
+ * instead of a generic "Your scan is ready".
+ */
+function headerTitleForStatus(jobStatus: string): string {
+  switch (jobStatus) {
+    case "needs_revision":
+      return "Revision requested";
+    case "rejected":
+      return "Submission rejected";
+    case "approved":
+    case "picked_up":
+    case "completed":
+      return "Submission approved";
+    case "pending_approval":
+      return "Waiting for teacher approval";
+    default:
+      return "Your scan is ready";
+  }
+}
+
+/**
  * Extracted so the main component stays readable. Computes canSubmit
  * from the live ack state + renders the soft-gate UI + any action error.
  */
@@ -292,6 +339,12 @@ function DoneStateView(props: {
     acknowledgedWarnings: localAcks,
     revisionNumber,
   });
+  const jobStatus = status.jobStatus;
+  const teacherNote = status.teacherReviewNote ?? null;
+  const teacherReviewedAt = status.teacherReviewedAt ?? null;
+  const showReviewCard = shouldShowReviewCard(jobStatus, teacherNote);
+  const actionsLocked = studentActionsLocked(jobStatus);
+  const hideSubmit = shouldHideSubmitButton(jobStatus);
 
   return (
     <div className="space-y-4">
@@ -301,19 +354,43 @@ function DoneStateView(props: {
         </div>
       )}
 
-      <ScanResultsViewer
-        scanResults={scanResults}
-        acknowledgedWarnings={localAcks}
-        revisionNumber={revisionNumber}
-        canSubmitState={gate}
-        onAcknowledge={onAcknowledge}
-        onSubmit={onSubmit}
-        onReupload={onReupload}
-        isAckInFlight={isAckInFlight}
-        isSubmitting={isSubmitting}
-        thumbnailUrl={status.revision?.thumbnailUrl ?? null}
-        fileType={status.fileType}
-      />
+      {showReviewCard && (
+        <TeacherReviewNoteCard
+          jobStatus={jobStatus}
+          teacherNote={teacherNote}
+          teacherReviewedAt={teacherReviewedAt}
+        />
+      )}
+
+      {/* Rejected jobs are terminal — student can't re-upload on this
+          job (spec §10 Q2 — "no re-upload on this job") so we skip the
+          scan results viewer entirely. They've already seen it pre-
+          submission; the decision is final. */}
+      {jobStatus === "rejected" ? null : (
+        <ScanResultsViewer
+          scanResults={scanResults}
+          acknowledgedWarnings={localAcks}
+          revisionNumber={revisionNumber}
+          canSubmitState={gate}
+          onAcknowledge={onAcknowledge}
+          onSubmit={onSubmit}
+          onReupload={onReupload}
+          isAckInFlight={isAckInFlight}
+          isSubmitting={isSubmitting}
+          thumbnailUrl={status.revision?.thumbnailUrl ?? null}
+          fileType={status.fileType}
+          // Approved/completed/picked_up jobs are still visible to the
+          // student via direct URL, but actions are locked — same
+          // readOnly treatment the teacher detail page uses.
+          readOnly={actionsLocked}
+          // Hide Submit button on needs_revision (teacher explicitly
+          // asked for a fix) and pending_approval (already submitted).
+          // Re-upload remains available + becomes the primary purple
+          // action. shouldHideSubmitButton is the single source of
+          // truth for that decision.
+          hideSubmit={hideSubmit}
+        />
+      )}
 
       {/* Revision history — hidden when only 1 revision exists */}
       <RevisionHistoryPanel

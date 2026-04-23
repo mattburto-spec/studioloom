@@ -41,6 +41,10 @@ export interface RuleCardProps {
    *  aware middle ack label so SVG rules don't talk about "slicer".
    *  Defaults to 'stl' for backwards compat. */
   fileType?: "stl" | "svg";
+  /** Phase 6-2 (teacher view): when true, radios render checked if the
+   *  student acked but interaction is disabled. Also suppresses
+   *  onAcknowledge firing. Combined with ScanResultsViewer's readOnly. */
+  readOnly?: boolean;
 }
 
 export function RuleCard({
@@ -49,8 +53,10 @@ export function RuleCard({
   onAcknowledge,
   disabled = false,
   fileType = "stl",
+  readOnly = false,
 }: RuleCardProps) {
   const ackLabels = ackOptionLabelsForFileType(fileType);
+  const interactionDisabled = disabled || readOnly;
   const display = severityDisplay(rule.severity);
   const skillsUrl = skillsLibraryUrl(rule.id);
   const evidenceText = formatEvidence(rule.evidence);
@@ -92,18 +98,25 @@ export function RuleCard({
             </details>
           )}
 
-          {/* Should-fix: ack radio group */}
-          {rule.severity === "warn" && onAcknowledge && (
-            <fieldset className="mt-3" disabled={disabled}>
-              <legend className="sr-only">Acknowledge {rule.id}</legend>
+          {/* Should-fix: ack radio group (interactive for students;
+              read-only view of student's choice for teachers) */}
+          {rule.severity === "warn" && (onAcknowledge || readOnly) && (
+            <fieldset className="mt-3" disabled={interactionDisabled}>
+              <legend className="sr-only">
+                {readOnly
+                  ? `Student acknowledgement for ${rule.id}`
+                  : `Acknowledge ${rule.id}`}
+              </legend>
               <div className="space-y-1.5">
                 {ACK_OPTION_ORDER.map((choice) => {
                   const checked = currentChoice === choice;
                   return (
                     <label
                       key={choice}
-                      className={`flex items-start gap-2 text-sm cursor-pointer ${
-                        disabled ? "opacity-60 cursor-not-allowed" : ""
+                      className={`flex items-start gap-2 text-sm ${
+                        interactionDisabled
+                          ? "opacity-70 cursor-default"
+                          : "cursor-pointer"
                       }`}
                     >
                       <input
@@ -111,8 +124,12 @@ export function RuleCard({
                         name={`ack-${rule.id}`}
                         value={choice}
                         checked={checked}
-                        onChange={() => onAcknowledge(rule.id, choice)}
-                        disabled={disabled}
+                        onChange={() => {
+                          if (!readOnly && onAcknowledge) {
+                            onAcknowledge(rule.id, choice);
+                          }
+                        }}
+                        disabled={interactionDisabled}
                         className="mt-0.5"
                       />
                       <span className="text-gray-800">
@@ -122,6 +139,11 @@ export function RuleCard({
                   );
                 })}
               </div>
+              {readOnly && !currentChoice && (
+                <p className="text-xs text-gray-500 italic mt-2">
+                  Student has not acknowledged this warning yet.
+                </p>
+              )}
             </fieldset>
           )}
 

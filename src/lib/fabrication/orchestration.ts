@@ -398,6 +398,18 @@ export interface JobStatusSuccess {
    * includeResults=true. Omitted on thin polls.
    */
   acknowledgedWarnings?: { [revisionKey: string]: { [ruleId: string]: { choice: string; timestamp: string } } } | null;
+  /**
+   * Phase 6-5: teacher_review_note + teacher_reviewed_at from
+   * fabrication_jobs when includeResults=true. Populated after a
+   * teacher acts via /api/teacher/fabrication/jobs/[jobId]/{approve,
+   * return-for-revision, reject, note}. Student UI keys off jobStatus
+   * + the note to render the amber/red review card (see
+   * TeacherReviewNoteCard). Both fields null when teacher hasn't
+   * touched the job. Omitted (not in the payload at all) on thin
+   * polls so the 2s poll stays tiny.
+   */
+  teacherReviewNote?: string | null;
+  teacherReviewedAt?: string | null;
 }
 
 export type JobStatusResult = JobStatusSuccess | OrchestrationError;
@@ -1030,6 +1042,11 @@ export async function getJobStatus(
   // 2s poll case. One DB round trip either way.
   let ackWarnings: { [k: string]: { [r: string]: { choice: string; timestamp: string } } } | null =
     null;
+  // Phase 6-5: teacher review fields surface on includeResults=true
+  // polls so the student status page can render the amber/red review
+  // card without an extra round-trip. Thin polls skip these.
+  let teacherReviewNote: string | null = null;
+  let teacherReviewedAt: string | null = null;
   let job: {
     id: string;
     student_id: string;
@@ -1041,7 +1058,9 @@ export async function getJobStatus(
   if (includeResults) {
     const full = await db
       .from("fabrication_jobs")
-      .select("id, student_id, status, current_revision, acknowledged_warnings, file_type")
+      .select(
+        "id, student_id, status, current_revision, acknowledged_warnings, file_type, teacher_review_note, teacher_reviewed_at"
+      )
       .eq("id", jobId)
       .maybeSingle();
     if (full.error) {
@@ -1053,6 +1072,8 @@ export async function getJobStatus(
       return { error: { status: 404, message: "Job not found" } };
     }
     ackWarnings = full.data.acknowledged_warnings ?? null;
+    teacherReviewNote = full.data.teacher_review_note ?? null;
+    teacherReviewedAt = full.data.teacher_reviewed_at ?? null;
     job = full.data;
   } else {
     const ownership = await loadOwnedJob(db, studentId, jobId);
@@ -1149,6 +1170,8 @@ export async function getJobStatus(
       ? {
           scanResults: revResult.data?.scan_results ?? null,
           acknowledgedWarnings: ackWarnings,
+          teacherReviewNote,
+          teacherReviewedAt,
         }
       : {}),
   };
