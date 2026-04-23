@@ -249,10 +249,12 @@ export default function FabricationNewPage() {
   }
 
   return (
-    <main className="max-w-2xl mx-auto px-6 py-10">
+    <main className="max-w-4xl mx-auto px-6 py-10">
       <header className="mb-8">
-        <h1 className="text-2xl font-bold">Submit a file for fabrication</h1>
-        <p className="text-sm text-gray-600 mt-1">
+        <h1 className="text-3xl font-bold text-gray-900">
+          Submit a file for fabrication
+        </h1>
+        <p className="text-base text-gray-600 mt-2">
           Upload an STL (3D print) or SVG (laser cut) file. We&apos;ll check it
           for common problems before it hits the machine.
         </p>

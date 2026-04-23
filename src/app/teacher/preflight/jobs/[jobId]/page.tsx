@@ -126,7 +126,7 @@ export default function TeacherJobDetailPage() {
   }
 
   return (
-    <main className="max-w-4xl mx-auto px-6 py-10 space-y-6">
+    <main className="max-w-6xl mx-auto px-6 py-10 space-y-6">
       <div className="text-sm">
         <Link href="/teacher/preflight" className="text-brand-purple hover:underline">
           ← Back to queue
@@ -187,16 +187,16 @@ function ReadyView(props: {
   return (
     <>
       {/* Context header */}
-      <header className="rounded-xl border border-gray-200 bg-white p-5">
-        <h1 className="text-xl font-bold text-gray-900">
-          {detail.student.name}{" "}
+      <header className="rounded-2xl border border-gray-200 bg-white p-6">
+        <h1 className="text-2xl font-bold text-gray-900">
+          {detail.student.name}
           {detail.classInfo && (
             <span className="text-gray-500 font-normal">
-              — {detail.classInfo.name}
+              {" "}— {detail.classInfo.name}
             </span>
           )}
         </h1>
-        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-600">
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-600">
           <span>
             <strong>{detail.machine.name}</strong>
             {detail.machine.category && ` (${detail.machine.category.replace("_", " ")})`}

@@ -111,14 +111,14 @@ export default function TeacherPreflightPage() {
   }
 
   return (
-    <main className="max-w-6xl mx-auto px-6 py-8 space-y-5">
+    <main className="max-w-6xl mx-auto px-6 py-10 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">
+          <h1 className="text-3xl font-bold text-gray-900">
             Preflight submissions
           </h1>
-          <p className="text-sm text-gray-600 mt-0.5">
+          <p className="text-base text-gray-600 mt-2">
             Review student fabrication jobs, approve or return for revision.
           </p>
         </div>

@@ -79,7 +79,7 @@ export default function FabricationSubmittedPage() {
   }, [jobId]);
 
   return (
-    <main className="max-w-2xl mx-auto px-6 py-10">
+    <main className="max-w-4xl mx-auto px-6 py-10">
       {!jobId && (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4">
           <p className="text-sm text-red-900">
@@ -165,12 +165,14 @@ function SubmittedCard({ jobStatus }: { jobStatus: string }) {
   const msg = messageForStatus(jobStatus);
   return (
     <div className="space-y-6">
-      <div className="rounded-xl border border-gray-200 bg-white p-6 text-center">
-        <div aria-hidden="true" className="text-4xl mb-3">
+      <div className="rounded-2xl border border-gray-200 bg-white p-10 text-center">
+        <div aria-hidden="true" className="text-5xl mb-4">
           {msg.icon}
         </div>
-        <h1 className="text-xl font-bold text-gray-900">{msg.heading}</h1>
-        <p className="text-sm text-gray-600 mt-2 max-w-md mx-auto">{msg.body}</p>
+        <h1 className="text-3xl font-bold text-gray-900">{msg.heading}</h1>
+        <p className="text-base text-gray-600 mt-3 max-w-xl mx-auto">
+          {msg.body}
+        </p>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">
