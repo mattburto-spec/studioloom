@@ -820,7 +820,11 @@ function MiddleRow({ buckets, badges }: { buckets: PriorityBuckets; badges: Badg
     <section id="dashboard-priority" className="max-w-[1400px] mx-auto px-6 pt-10">
       <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
         {/* Earned badges card */}
-        <div className="md:col-span-5 relative rounded-3xl overflow-hidden card-shadow-lg glow-inner p-6 text-white" style={{ background: "linear-gradient(135deg, #1F2937 0%, #111827 100%)" }}>
+        <Link
+          href="/skills"
+          className="md:col-span-5 relative rounded-3xl overflow-hidden card-shadow-lg glow-inner p-6 text-white group hover:card-shadow-lg block"
+          style={{ background: "linear-gradient(135deg, #1F2937 0%, #111827 100%)" }}
+        >
           <div className="relative">
             <div className="cap text-white/60 inline-flex items-center gap-2"><Icon name="trophy" size={12} s={2.5} /> You&apos;ve earned</div>
             <h2 className="display text-[40px] leading-none mt-1">
@@ -838,9 +842,12 @@ function MiddleRow({ buckets, badges }: { buckets: PriorityBuckets; badges: Badg
                 Pass a safety test to earn your first badge.
               </div>
             )}
+            <div className="mt-5 text-[11px] font-extrabold text-white/70 group-hover:text-white inline-flex items-center gap-1 transition">
+              See all skills <Icon name="arrow" size={11} s={2.5} />
+            </div>
           </div>
           <div className="absolute top-5 right-5 text-[#FBBF24] opacity-60"><Icon name="sparkle" size={36} s={1.5} /></div>
-        </div>
+        </Link>
 
         {/* Next to unlock */}
         <div className="md:col-span-4">
