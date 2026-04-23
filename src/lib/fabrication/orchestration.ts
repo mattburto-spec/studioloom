@@ -410,6 +410,17 @@ export interface JobStatusSuccess {
    */
   teacherReviewNote?: string | null;
   teacherReviewedAt?: string | null;
+  /**
+   * Phase 7-5: lab-tech completion fields from fabrication_jobs when
+   * includeResults=true. Populated after a fabricator acts via
+   * /api/fab/jobs/[jobId]/{complete,fail}. Student UI keys off
+   * `completionStatus` + `completionNote` to render the green/red
+   * result card (LabTechCompletionCard). All three null when no
+   * fabricator action yet. Omitted on thin polls.
+   */
+  completionStatus?: string | null;
+  completionNote?: string | null;
+  completedAt?: string | null;
 }
 
 export type JobStatusResult = JobStatusSuccess | OrchestrationError;
@@ -1047,6 +1058,9 @@ export async function getJobStatus(
   // card without an extra round-trip. Thin polls skip these.
   let teacherReviewNote: string | null = null;
   let teacherReviewedAt: string | null = null;
+  let completionStatus: string | null = null;
+  let completionNote: string | null = null;
+  let completedAt: string | null = null;
   let job: {
     id: string;
     student_id: string;
@@ -1059,7 +1073,7 @@ export async function getJobStatus(
     const full = await db
       .from("fabrication_jobs")
       .select(
-        "id, student_id, status, current_revision, acknowledged_warnings, file_type, teacher_review_note, teacher_reviewed_at"
+        "id, student_id, status, current_revision, acknowledged_warnings, file_type, teacher_review_note, teacher_reviewed_at, completion_status, completion_note, completed_at"
       )
       .eq("id", jobId)
       .maybeSingle();
@@ -1074,6 +1088,9 @@ export async function getJobStatus(
     ackWarnings = full.data.acknowledged_warnings ?? null;
     teacherReviewNote = full.data.teacher_review_note ?? null;
     teacherReviewedAt = full.data.teacher_reviewed_at ?? null;
+    completionStatus = full.data.completion_status ?? null;
+    completionNote = full.data.completion_note ?? null;
+    completedAt = full.data.completed_at ?? null;
     job = full.data;
   } else {
     const ownership = await loadOwnedJob(db, studentId, jobId);
@@ -1172,6 +1189,9 @@ export async function getJobStatus(
           acknowledgedWarnings: ackWarnings,
           teacherReviewNote,
           teacherReviewedAt,
+          completionStatus,
+          completionNote,
+          completedAt,
         }
       : {}),
   };

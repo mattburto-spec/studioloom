@@ -41,6 +41,11 @@ import {
   shouldHideSubmitButton,
   canWithdrawJob,
 } from "@/components/fabrication/teacher-review-note-helpers";
+import { LabTechCompletionCard } from "@/components/fabrication/LabTechCompletionCard";
+import {
+  shouldShowCompletionCard,
+  shouldHideScanViewerForCompletion,
+} from "@/components/fabrication/lab-tech-completion-helpers";
 import { canSubmit, type Rule } from "@/lib/fabrication/rule-buckets";
 import type {
   AckChoice,
@@ -264,7 +269,8 @@ export default function FabricationJobStatusPage() {
         <h1 className="text-3xl font-bold text-gray-900">
           {pollState.kind === "done"
             ? headerTitleForStatus(
-                (pollState.status as JobStatusSuccess).jobStatus
+                (pollState.status as JobStatusSuccess).jobStatus,
+                (pollState.status as JobStatusSuccess).completionStatus ?? null
               )
             : "Checking your file"}
         </h1>
@@ -325,16 +331,30 @@ export default function FabricationJobStatusPage() {
  * to the page after a teacher action lands on the right framing
  * instead of a generic "Your scan is ready".
  */
-function headerTitleForStatus(jobStatus: string): string {
+function headerTitleForStatus(
+  jobStatus: string,
+  completionStatus?: string | null
+): string {
   switch (jobStatus) {
     case "needs_revision":
       return "Revision requested";
     case "rejected":
       return "Submission rejected";
     case "approved":
-    case "picked_up":
-    case "completed":
       return "Submission approved";
+    case "picked_up":
+      return "Being fabricated";
+    case "completed":
+      // Phase 7-5: split by completion_status — "ready to collect"
+      // for printed/cut vs "couldn't run this" for failed. Null
+      // fallback keeps the pre-Phase-7 framing for any edge row
+      // that reaches `completed` without a populated
+      // completion_status column.
+      if (completionStatus === "failed") return "The lab tech couldn't run this";
+      if (completionStatus === "printed" || completionStatus === "cut") {
+        return "Your file is ready to collect";
+      }
+      return "Submission complete";
     case "pending_approval":
       return "Waiting for teacher approval";
     default:
@@ -391,6 +411,18 @@ function DoneStateView(props: {
   const hideSubmit = shouldHideSubmitButton(jobStatus);
   const showWithdraw = canWithdrawJob(jobStatus);
 
+  // Phase 7-5: lab-tech completion state. When status=completed, the
+  // LabTechCompletionCard replaces the ScanResultsViewer — the run is
+  // done, the scan rules aren't actionable anymore. Same pattern as
+  // rejected (Phase 6-5).
+  const completionStatus = status.completionStatus ?? null;
+  const completionNote = status.completionNote ?? null;
+  const completedAt = status.completedAt ?? null;
+  const showCompletionCard = shouldShowCompletionCard(jobStatus);
+  const hideScanViewer =
+    jobStatus === "rejected" ||
+    shouldHideScanViewerForCompletion(jobStatus);
+
   return (
     <div className="space-y-6">
       {/* Two-column layout (desktop): rule buckets + actions on the
@@ -413,11 +445,23 @@ function DoneStateView(props: {
             />
           )}
 
-          {/* Rejected jobs are terminal — student can't re-upload on
-              this job (spec §10 Q2 — "no re-upload on this job") so
-              we skip the scan results viewer entirely. They've
-              already seen it pre-submission; the decision is final. */}
-          {jobStatus === "rejected" ? null : (
+          {/* Phase 7-5: completed jobs render the lab-tech result
+              card (green for printed/cut, red for failed). Replaces
+              the scan viewer entirely — run is done, rules aren't
+              actionable anymore. Same terminal treatment as
+              rejected. */}
+          {showCompletionCard && (
+            <LabTechCompletionCard
+              completionStatus={completionStatus}
+              completionNote={completionNote}
+              completedAt={completedAt}
+            />
+          )}
+
+          {/* Scan viewer hidden on rejected + completed (both
+              terminal). Otherwise render interactive / read-only
+              based on actionsLocked. */}
+          {hideScanViewer ? null : (
             <ScanResultsViewer
               scanResults={scanResults}
               acknowledgedWarnings={localAcks}
