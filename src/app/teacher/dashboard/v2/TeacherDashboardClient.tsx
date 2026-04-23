@@ -146,7 +146,7 @@ export default function TeacherDashboardClient() {
       <TodayRail cards={railCards} now={now} />
       <Insights buckets={insightBuckets} />
       <UnitsGrid cards={unitCards} />
-      <Admin />
+      <Admin classes={classes} />
     </div>
   );
 }

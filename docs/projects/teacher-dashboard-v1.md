@@ -45,7 +45,7 @@ Bold's sections (in render order): `TopNav` · `NowHero` · `TodayRail`
 | 4 | `TodayRail` — real today's entries rendered as cards with state (live/next/upcoming/done) | ✅ Done |
 | 5 | `Insights` — client-side reducer mapping 6 `InsightType`s → 4 Bold buckets (Act/Grade/Watch/Celebrate) | ✅ Done |
 | 6 | `UnitsGrid` — wire from `data.classes[].units`, badges (fork/ungraded/NM), thumbnail, completion % | ✅ Done |
-| 7 | `Admin` — pending-invite count, safety alerts, quick settings links | ⏳ Planned |
+| 7 | `Admin` — empty-class housekeeping list with per-class "Assign unit" link (invites / safety / drafts deferred — not cheaply derivable) | ✅ Done |
 | 8 | Cutover `/teacher/dashboard` → v2, move old to `/teacher/dashboard-legacy` | ⏳ Planned |
 | 9 | Polish — refresh/loading states, empty states (no classes yet), error boundary | ⏳ Planned |
 | 10 | Responsive pass (tablet first — teachers use iPads for Teaching Mode) | ⏳ Planned |
