@@ -12,55 +12,146 @@
 
 // ============================================================================
 // Block body — discriminated union
+//
+// The deprecated legacy block types (ProseBlock, CalloutBlock, etc.) are
+// defined further down in this file as ProseBlock_Deprecated etc. Type
+// aliases preserve the old names so any existing code referring to
+// `ProseBlock` keeps compiling. Do not re-add the old definitions here.
 // ============================================================================
 
-export type ProseBlock = {
-  type: "prose";
-  text: string; // markdown-lite; renderer handles **bold**, *italic*, line breaks
-};
+// ============================================================================
+// Rich blocks — the "world-class" block types ported from the safety system
+// (src/lib/safety/content-blocks.ts). These are pedagogically purpose-built
+// and replace the earlier generic blocks as the primary authoring vocabulary.
+//
+// Design principles (from docs/projects/skills-library-research-brief.md):
+//   - One card = one competency; blocks are the internal structure.
+//   - Every block has explicit teaching intent (a key_lesson, a related_rule,
+//     a correct/wrong feedback pair). No "just some text in a box."
+//   - Blocks are composable — a card can mix a micro_story, a key_concept,
+//     a step_by_step, and a comprehension_check.
+// ============================================================================
 
-export type CalloutBlock = {
-  type: "callout";
-  tone: "tip" | "warning" | "note";
-  text: string;
-};
-
-export type ChecklistBlock = {
-  type: "checklist";
-  items: string[];
-};
-
-export type ImageBlock = {
-  type: "image";
-  url: string; // external URL in S2A; S2B may set uploadPath instead
-  caption?: string;
-  alt?: string;
-  uploadPath?: string; // S2B — Supabase Storage key, overrides url when present
-};
-
-export type VideoBlock = {
-  type: "video";
-  url: string; // YouTube / Vimeo / direct mp4 in S2A
-  caption?: string;
-  uploadPath?: string; // S2B — Supabase Storage key
-};
-
-export type WorkedExampleBlock = {
-  type: "worked_example";
+/**
+ * Core teaching block. Rich content — markdown + icon + tips + examples +
+ * optional warning + optional image. Replaces the earlier generic `prose`
+ * and `callout` blocks; use this whenever you want "here's a concept."
+ */
+export type KeyConceptBlock = {
+  type: "key_concept";
   title: string;
-  steps: string[]; // rendered as ordered list
+  icon?: string;            // emoji or single char; renders at top-left
+  content: string;          // markdown-lite (paragraphs + **bold** + *italic*)
+  tips?: string[];
+  examples?: string[];
+  warning?: string;         // highlighted callout inside the block
+  image?: string;           // URL; optional inline image
 };
 
-// ----- Rich blocks (S2A.5 batch) -----------------------------------------
+/**
+ * A real (or realistic) incident narrative with analysis reveals. Powerful
+ * for safety, resilience, ethics cards. Each analysis prompt shows a
+ * question first; student clicks to reveal the answer. Ends with the
+ * explicit key_lesson and (optionally) a rule reference.
+ */
+export type MicroStoryBlock = {
+  type: "micro_story";
+  title: string;
+  narrative: string;                 // the story itself (paragraphs)
+  is_real_incident: boolean;         // labeled "Real incident" if true
+  analysis_prompts: Array<{ question: string; reveal_answer: string }>;
+  key_lesson: string;                // headline takeaway
+  related_rule?: string;             // e.g. "Workshop rule #3"
+};
+
+/**
+ * Branching decision scenario. Student picks a choice; each branch has
+ * correct/incorrect + specific feedback + optional consequence. Supports
+ * chaining via next_branch_id so you can build multi-step decision trees.
+ */
+export type ScenarioBlock = {
+  type: "scenario";
+  title: string;
+  setup: string;                     // situation description
+  illustration?: string;             // optional URL
+  branches: Array<{
+    id: string;
+    choice_text: string;
+    is_correct: boolean;
+    feedback: string;
+    consequence?: string;
+    next_branch_id?: string;         // for multi-step chains
+  }>;
+};
+
+/**
+ * Structured before/after comparison. Unlike CompareImagesBlock, this
+ * carries explicit teaching payload: what hazards are in "before", what
+ * principles fix them in "after", and the headline key_difference.
+ */
+export type BeforeAfterBlock = {
+  type: "before_after";
+  title: string;
+  before: { image?: string; caption: string; hazards: string[] };
+  after:  { image?: string; caption: string; principles: string[] };
+  key_difference: string;
+};
+
+/**
+ * Numbered step sequence with per-step image + warning + optional
+ * checkpoint. Replaces both `worked_example` and `checklist`.
+ */
+export type StepByStepBlock = {
+  type: "step_by_step";
+  title: string;
+  steps: Array<{
+    number: number;
+    instruction: string;
+    image?: string;
+    warning?: string;
+    checkpoint?: string;             // "check before continuing"
+  }>;
+};
+
+/**
+ * Single-question multiple-choice check — preview of the S3 quiz engine.
+ * Correct + wrong feedback authored per-question; optional hint.
+ */
+export type ComprehensionCheckBlock = {
+  type: "comprehension_check";
+  question: string;
+  options: string[];
+  correct_index: number;             // 0-based index into options[]
+  feedback_correct: string;
+  feedback_wrong: string;
+  hint?: string;                     // shown on first wrong attempt
+};
+
+/**
+ * YouTube / Vimeo embed with start/end trim. Replaces the earlier generic
+ * `video` block. URL parsing identifies provider at render time.
+ */
+export type VideoEmbedBlock = {
+  type: "video_embed";
+  title?: string;
+  url: string;
+  start_time?: number;               // seconds; optional trim start
+  end_time?: number;                 // seconds; optional trim end
+  caption?: string;
+};
+
+// ============================================================================
+// Generic blocks that safety doesn't have — keep because they fill real gaps
+// ============================================================================
 
 /**
  * Generic iframe embed. Domain-safelisted at render time (Sketchfab, Figma,
- * Codepen, Miro, Desmos, Observable, GeoGebra). Keep videos in VideoBlock.
+ * Codepen, Miro, Desmos, Observable, GeoGebra). Video goes in VideoEmbedBlock.
  */
 export type EmbedBlock = {
   type: "embed";
   url: string;
-  title?: string; // iframe title for a11y; also shown as caption
+  title?: string;
   aspectRatio?: "16:9" | "4:3" | "1:1";
   caption?: string;
 };
@@ -72,15 +163,71 @@ export type AccordionBlock = {
   body: string;
 };
 
-/** Question shown; answer hidden behind a reveal button. Supports self-test. */
-export type ThinkAloudBlock = {
+/** Paginated image gallery (one-at-a-time with prev/next + dots). */
+export type GalleryBlock = {
+  type: "gallery";
+  images: Array<{ url: string; caption?: string; alt?: string }>;
+};
+
+// ============================================================================
+// Deprecated blocks — legacy shape from the earlier S2A.5 batch. Not shown
+// in the "Add block" menu any more, but renderers keep them working so old
+// bodies don't go dark. When Matt replaces the 3 seed cards these go away
+// from the DB naturally.
+// ============================================================================
+
+/** @deprecated — use KeyConceptBlock instead. */
+export type ProseBlock_Deprecated = {
+  type: "prose";
+  text: string;
+};
+
+/** @deprecated — use KeyConceptBlock with `warning` field. */
+export type CalloutBlock_Deprecated = {
+  type: "callout";
+  tone: "tip" | "warning" | "note";
+  text: string;
+};
+
+/** @deprecated — use StepByStepBlock. */
+export type ChecklistBlock_Deprecated = {
+  type: "checklist";
+  items: string[];
+};
+
+/** @deprecated — use KeyConceptBlock.image or GalleryBlock. */
+export type ImageBlock_Deprecated = {
+  type: "image";
+  url: string;
+  caption?: string;
+  alt?: string;
+  uploadPath?: string;
+};
+
+/** @deprecated — use VideoEmbedBlock. */
+export type VideoBlock_Deprecated = {
+  type: "video";
+  url: string;
+  caption?: string;
+  uploadPath?: string;
+};
+
+/** @deprecated — use StepByStepBlock. */
+export type WorkedExampleBlock_Deprecated = {
+  type: "worked_example";
+  title: string;
+  steps: string[];
+};
+
+/** @deprecated — use MicroStoryBlock. */
+export type ThinkAloudBlock_Deprecated = {
   type: "think_aloud";
   prompt: string;
   answer: string;
 };
 
-/** Before/after draggable slider. Both images must render at the same aspect. */
-export type CompareImagesBlock = {
+/** @deprecated — use BeforeAfterBlock. */
+export type CompareImagesBlock_Deprecated = {
   type: "compare_images";
   beforeUrl: string;
   afterUrl: string;
@@ -89,22 +236,16 @@ export type CompareImagesBlock = {
   caption?: string;
 };
 
-/** Paginated image gallery (one-at-a-time with prev/next + dots). */
-export type GalleryBlock = {
-  type: "gallery";
-  images: Array<{ url: string; caption?: string; alt?: string }>;
-};
-
-/** Code snippet. Displayed monospace; language label only (no highlighting yet). */
-export type CodeBlockBlock = {
+/** @deprecated — niche; removed from authoring menu. */
+export type CodeBlock_Deprecated = {
   type: "code";
   code: string;
   language?: string;
   filename?: string;
 };
 
-/** Two columns of markdown-lite — compare good/bad, material A/B, etc. */
-export type SideBySideBlock = {
+/** @deprecated — use BeforeAfterBlock or two adjacent KeyConceptBlocks. */
+export type SideBySideBlock_Deprecated = {
   type: "side_by_side";
   leftTitle?: string;
   leftText: string;
@@ -112,33 +253,74 @@ export type SideBySideBlock = {
   rightText: string;
 };
 
+// ============================================================================
+// Block union + registries
+// ============================================================================
+
+// Legacy type aliases for any external code still referencing the old names.
+// Point to the deprecated shapes so DB bodies round-trip through the union.
+export type ProseBlock           = ProseBlock_Deprecated;
+export type CalloutBlock         = CalloutBlock_Deprecated;
+export type ChecklistBlock       = ChecklistBlock_Deprecated;
+export type ImageBlock           = ImageBlock_Deprecated;
+export type VideoBlock           = VideoBlock_Deprecated;
+export type WorkedExampleBlock   = WorkedExampleBlock_Deprecated;
+export type ThinkAloudBlock      = ThinkAloudBlock_Deprecated;
+export type CompareImagesBlock   = CompareImagesBlock_Deprecated;
+export type CodeBlockBlock       = CodeBlock_Deprecated;
+export type SideBySideBlock      = SideBySideBlock_Deprecated;
+
 export type Block =
-  | ProseBlock
-  | CalloutBlock
-  | ChecklistBlock
-  | ImageBlock
-  | VideoBlock
-  | WorkedExampleBlock
+  // Rich pedagogical blocks (primary authoring vocabulary)
+  | KeyConceptBlock
+  | MicroStoryBlock
+  | ScenarioBlock
+  | BeforeAfterBlock
+  | StepByStepBlock
+  | ComprehensionCheckBlock
+  | VideoEmbedBlock
+  // Generic blocks that fill real gaps
   | EmbedBlock
   | AccordionBlock
-  | ThinkAloudBlock
-  | CompareImagesBlock
   | GalleryBlock
-  | CodeBlockBlock
-  | SideBySideBlock;
+  // Deprecated — kept for legacy body compatibility, not shown in the editor
+  | ProseBlock_Deprecated
+  | CalloutBlock_Deprecated
+  | ChecklistBlock_Deprecated
+  | ImageBlock_Deprecated
+  | VideoBlock_Deprecated
+  | WorkedExampleBlock_Deprecated
+  | ThinkAloudBlock_Deprecated
+  | CompareImagesBlock_Deprecated
+  | CodeBlock_Deprecated
+  | SideBySideBlock_Deprecated;
 
+/**
+ * ALL valid block types (server validation accepts any of these in card
+ * bodies — including legacy/deprecated types for backward compat).
+ */
 export const BLOCK_TYPES = [
+  // Rich
+  "key_concept",
+  "micro_story",
+  "scenario",
+  "before_after",
+  "step_by_step",
+  "comprehension_check",
+  "video_embed",
+  // Generic (kept)
+  "embed",
+  "accordion",
+  "gallery",
+  // Deprecated (legacy accept)
   "prose",
   "callout",
   "checklist",
   "image",
   "video",
   "worked_example",
-  "embed",
-  "accordion",
   "think_aloud",
   "compare_images",
-  "gallery",
   "code",
   "side_by_side",
 ] as const;
@@ -146,10 +328,84 @@ export const BLOCK_TYPES = [
 export type BlockType = (typeof BLOCK_TYPES)[number];
 
 /**
+ * Block types shown in the "Add block" menu. Deprecated types are excluded —
+ * they can still render if present in existing bodies, but new authoring
+ * reaches for the rich vocabulary only.
+ */
+export const AUTHORABLE_BLOCK_TYPES: readonly BlockType[] = [
+  "key_concept",
+  "micro_story",
+  "scenario",
+  "before_after",
+  "step_by_step",
+  "comprehension_check",
+  "video_embed",
+  "embed",
+  "accordion",
+  "gallery",
+] as const;
+
+/**
  * Empty/default block factory — used by BlockEditor when adding a new block.
+ * Only authorable types have factories; deprecated types can only appear in
+ * legacy bodies read from the DB.
  */
 export function emptyBlock(type: BlockType): Block {
   switch (type) {
+    case "key_concept":
+      return { type: "key_concept", title: "", content: "" };
+    case "micro_story":
+      return {
+        type: "micro_story",
+        title: "",
+        narrative: "",
+        is_real_incident: false,
+        analysis_prompts: [{ question: "", reveal_answer: "" }],
+        key_lesson: "",
+      };
+    case "scenario":
+      return {
+        type: "scenario",
+        title: "",
+        setup: "",
+        branches: [
+          { id: "b1", choice_text: "", is_correct: true, feedback: "" },
+          { id: "b2", choice_text: "", is_correct: false, feedback: "" },
+        ],
+      };
+    case "before_after":
+      return {
+        type: "before_after",
+        title: "",
+        before: { caption: "", hazards: [""] },
+        after: { caption: "", principles: [""] },
+        key_difference: "",
+      };
+    case "step_by_step":
+      return {
+        type: "step_by_step",
+        title: "",
+        steps: [{ number: 1, instruction: "" }],
+      };
+    case "comprehension_check":
+      return {
+        type: "comprehension_check",
+        question: "",
+        options: ["", ""],
+        correct_index: 0,
+        feedback_correct: "",
+        feedback_wrong: "",
+      };
+    case "video_embed":
+      return { type: "video_embed", url: "" };
+    case "embed":
+      return { type: "embed", url: "", title: "", aspectRatio: "16:9" };
+    case "accordion":
+      return { type: "accordion", title: "", body: "" };
+    case "gallery":
+      return { type: "gallery", images: [{ url: "", caption: "", alt: "" }] };
+
+    // Deprecated — kept for completeness but authoring path never reaches these.
     case "prose":
       return { type: "prose", text: "" };
     case "callout":
@@ -162,10 +418,6 @@ export function emptyBlock(type: BlockType): Block {
       return { type: "video", url: "", caption: "" };
     case "worked_example":
       return { type: "worked_example", title: "", steps: [""] };
-    case "embed":
-      return { type: "embed", url: "", title: "", aspectRatio: "16:9" };
-    case "accordion":
-      return { type: "accordion", title: "", body: "" };
     case "think_aloud":
       return { type: "think_aloud", prompt: "", answer: "" };
     case "compare_images":
@@ -176,8 +428,6 @@ export function emptyBlock(type: BlockType): Block {
         beforeLabel: "Before",
         afterLabel: "After",
       };
-    case "gallery":
-      return { type: "gallery", images: [{ url: "", caption: "", alt: "" }] };
     case "code":
       return { type: "code", code: "", language: "" };
     case "side_by_side":

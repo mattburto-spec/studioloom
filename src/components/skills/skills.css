@@ -727,3 +727,534 @@
 .sl-skill-sidebyside__col p:last-child {
   margin-bottom: 0;
 }
+
+/* =====================================================================
+   Rich blocks — the "world-class" authoring vocabulary (from migration #3)
+===================================================================== */
+
+/* ------ KeyConcept (rich teaching card) ------------------------------ */
+.sl-skill-kc {
+  border: 1px solid var(--sl-skill-border);
+  border-radius: var(--sl-skill-radius);
+  padding: 1rem 1.125rem;
+  background: #fff;
+}
+.sl-skill-kc__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+  margin-bottom: 0.5rem;
+}
+.sl-skill-kc__icon {
+  font-size: 1.5rem;
+  line-height: 1.2;
+  flex-shrink: 0;
+}
+.sl-skill-kc__title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--sl-skill-text);
+}
+.sl-skill-kc__image {
+  margin: 0.5rem 0 0.75rem 0;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--sl-skill-border);
+}
+.sl-skill-kc__image img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+.sl-skill-kc__content {
+  margin-bottom: 0.75rem;
+}
+.sl-skill-kc__sublabel {
+  display: block;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--sl-skill-muted);
+  margin-bottom: 0.25rem;
+}
+.sl-skill-kc__tips,
+.sl-skill-kc__examples {
+  margin-top: 0.625rem;
+}
+.sl-skill-kc__tips ul,
+.sl-skill-kc__examples ul {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+.sl-skill-kc__tips li,
+.sl-skill-kc__examples li {
+  margin-bottom: 0.25rem;
+  line-height: 1.55;
+}
+.sl-skill-kc__warning {
+  margin-top: 0.875rem;
+  padding: 0.625rem 0.875rem;
+  border-left: 3px solid #f59e0b;
+  background: #fffbeb;
+  color: #78350f;
+  border-radius: 6px;
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  line-height: 1.5;
+}
+.sl-skill-kc__warning-icon {
+  flex-shrink: 0;
+  line-height: 1.4;
+}
+
+/* ------ MicroStory ---------------------------------------------------- */
+.sl-skill-story {
+  border: 1px solid #fed7aa;
+  border-radius: var(--sl-skill-radius);
+  padding: 1rem 1.125rem;
+  background: linear-gradient(180deg, #fffbeb 0%, #fff 60%);
+}
+.sl-skill-story__head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.375rem;
+}
+.sl-skill-story__badge {
+  display: inline-flex;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  background: #b91c1c;
+  color: #fff;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.sl-skill-story__title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+.sl-skill-story__narrative {
+  margin-bottom: 0.875rem;
+}
+.sl-skill-story__analysis {
+  margin-top: 0.5rem;
+}
+.sl-skill-story__analysis ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.sl-skill-story__prompt {
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--sl-skill-border);
+  border-radius: 8px;
+  background: #fff;
+  margin-bottom: 0.5rem;
+}
+.sl-skill-story__q {
+  font-weight: 600;
+  margin-bottom: 0.375rem;
+}
+.sl-skill-story__a {
+  padding: 0.5rem 0.625rem;
+  background: #ecfdf5;
+  border-left: 3px solid #10b981;
+  border-radius: 6px;
+  color: #065f46;
+  line-height: 1.55;
+}
+.sl-skill-story__reveal {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.375rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid var(--sl-skill-accent);
+  background: #fff;
+  color: var(--sl-skill-accent);
+  font-weight: 600;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+.sl-skill-story__reveal:hover {
+  background: var(--sl-skill-accent);
+  color: #fff;
+}
+.sl-skill-story__lesson {
+  margin-top: 0.75rem;
+  padding: 0.625rem 0.875rem;
+  background: #eef2ff;
+  border-left: 3px solid var(--sl-skill-accent);
+  border-radius: 6px;
+  color: #3730a3;
+  line-height: 1.55;
+}
+.sl-skill-story__rule {
+  margin-top: 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--sl-skill-muted);
+  font-style: italic;
+}
+
+/* ------ Scenario (branching decision) --------------------------------- */
+.sl-skill-scenario {
+  border: 1px solid var(--sl-skill-border);
+  border-radius: var(--sl-skill-radius);
+  padding: 1rem 1.125rem;
+  background: #fff;
+}
+.sl-skill-scenario__head {
+  margin-bottom: 0.5rem;
+}
+.sl-skill-scenario__title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+.sl-skill-scenario__image {
+  margin: 0.5rem 0;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--sl-skill-border);
+}
+.sl-skill-scenario__image img {
+  max-width: 100%;
+  display: block;
+}
+.sl-skill-scenario__setup {
+  margin-bottom: 0.75rem;
+  line-height: 1.6;
+}
+.sl-skill-scenario__step {
+  margin: 0.75rem 0;
+  padding: 0.625rem 0.75rem;
+  background: #f9fafb;
+  border: 1px solid var(--sl-skill-border);
+  border-radius: 8px;
+}
+.sl-skill-scenario__chosen {
+  font-size: 0.875rem;
+  color: var(--sl-skill-muted);
+  margin-bottom: 0.5rem;
+}
+.sl-skill-scenario__feedback {
+  padding: 0.5rem 0.625rem;
+  border-radius: 6px;
+  line-height: 1.55;
+}
+.sl-skill-scenario__feedback--correct {
+  background: #ecfdf5;
+  border-left: 3px solid #10b981;
+  color: #065f46;
+}
+.sl-skill-scenario__feedback--incorrect {
+  background: #fef2f2;
+  border-left: 3px solid #ef4444;
+  color: #7f1d1d;
+}
+.sl-skill-scenario__consequence {
+  margin-top: 0.5rem;
+  padding: 0.375rem 0.5rem;
+  background: #fff;
+  border: 1px dashed var(--sl-skill-border);
+  border-radius: 6px;
+}
+.sl-skill-scenario__choices {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+.sl-skill-scenario__choice {
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--sl-skill-border);
+  border-radius: 8px;
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+  font-size: 0.9375rem;
+  transition: all 120ms ease;
+}
+.sl-skill-scenario__choice:hover {
+  border-color: var(--sl-skill-accent);
+  background: #f5f3ff;
+}
+.sl-skill-scenario__reset {
+  margin-top: 0.75rem;
+  text-align: center;
+}
+.sl-skill-scenario__reset-btn {
+  padding: 0.375rem 0.875rem;
+  border: 1px solid var(--sl-skill-border);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--sl-skill-muted);
+  cursor: pointer;
+  font-size: 0.8125rem;
+}
+.sl-skill-scenario__reset-btn:hover {
+  color: var(--sl-skill-text);
+  background: #f9fafb;
+}
+
+/* ------ BeforeAfter (structured comparison) --------------------------- */
+.sl-skill-ba {
+  border: 1px solid var(--sl-skill-border);
+  border-radius: var(--sl-skill-radius);
+  padding: 1rem 1.125rem;
+  background: #fff;
+}
+.sl-skill-ba__head {
+  margin-bottom: 0.625rem;
+}
+.sl-skill-ba__title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+.sl-skill-ba__pair {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+}
+@media (min-width: 768px) {
+  .sl-skill-ba__pair {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+.sl-skill-ba__col {
+  border: 1px solid var(--sl-skill-border);
+  border-radius: 8px;
+  padding: 0.75rem 0.875rem;
+}
+.sl-skill-ba__col--before {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+.sl-skill-ba__col--after {
+  background: #ecfdf5;
+  border-color: #bbf7d0;
+}
+.sl-skill-ba__label {
+  display: inline-block;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  margin-bottom: 0.5rem;
+}
+.sl-skill-ba__col--before .sl-skill-ba__label {
+  background: #7f1d1d;
+  color: #fff;
+}
+.sl-skill-ba__col--after .sl-skill-ba__label {
+  background: #065f46;
+  color: #fff;
+}
+.sl-skill-ba__col figure {
+  margin: 0 0 0.5rem 0;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--sl-skill-border);
+}
+.sl-skill-ba__col figure img {
+  max-width: 100%;
+  display: block;
+}
+.sl-skill-ba__caption {
+  margin: 0 0 0.5rem 0;
+  line-height: 1.55;
+  font-weight: 500;
+}
+.sl-skill-ba__list {
+  margin: 0;
+  padding-left: 1.125rem;
+}
+.sl-skill-ba__list li {
+  margin-bottom: 0.25rem;
+  line-height: 1.5;
+}
+.sl-skill-ba__key {
+  margin-top: 0.75rem;
+  padding: 0.625rem 0.875rem;
+  background: #eef2ff;
+  border-left: 3px solid var(--sl-skill-accent);
+  border-radius: 6px;
+  color: #3730a3;
+  line-height: 1.55;
+}
+
+/* ------ StepByStep ---------------------------------------------------- */
+.sl-skill-sbs {
+  border: 1px solid var(--sl-skill-border);
+  border-radius: var(--sl-skill-radius);
+  padding: 1rem 1.125rem;
+  background: #fff;
+}
+.sl-skill-sbs__title {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+.sl-skill-sbs__steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.sl-skill-sbs__step {
+  display: grid;
+  grid-template-columns: 2rem 1fr;
+  gap: 0.625rem;
+  padding: 0.625rem 0.75rem;
+  background: #f9fafb;
+  border: 1px solid var(--sl-skill-border);
+  border-radius: 8px;
+}
+.sl-skill-sbs__num {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  background: var(--sl-skill-accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.9375rem;
+}
+.sl-skill-sbs__body {
+  min-width: 0;
+}
+.sl-skill-sbs__instruction {
+  line-height: 1.55;
+  margin-bottom: 0.375rem;
+}
+.sl-skill-sbs__image {
+  margin: 0.375rem 0;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--sl-skill-border);
+}
+.sl-skill-sbs__image img {
+  max-width: 100%;
+  display: block;
+}
+.sl-skill-sbs__warning {
+  margin-top: 0.375rem;
+  padding: 0.375rem 0.625rem;
+  background: #fffbeb;
+  border-left: 3px solid #f59e0b;
+  color: #78350f;
+  border-radius: 6px;
+  display: flex;
+  gap: 0.5rem;
+  line-height: 1.45;
+}
+.sl-skill-sbs__checkpoint {
+  margin-top: 0.375rem;
+  padding: 0.375rem 0.625rem;
+  background: #eef2ff;
+  border-left: 3px solid var(--sl-skill-accent);
+  border-radius: 6px;
+  line-height: 1.45;
+}
+
+/* ------ ComprehensionCheck -------------------------------------------- */
+.sl-skill-cc {
+  border: 1px solid var(--sl-skill-border);
+  border-radius: var(--sl-skill-radius);
+  padding: 1rem 1.125rem;
+  background: #fff;
+}
+.sl-skill-cc__question {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  line-height: 1.5;
+}
+.sl-skill-cc__options {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 0.625rem 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+.sl-skill-cc__option {
+  width: 100%;
+  padding: 0.625rem 0.875rem;
+  border: 1px solid var(--sl-skill-border);
+  border-radius: 8px;
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+  font-size: 0.9375rem;
+  transition: all 120ms ease;
+}
+.sl-skill-cc__option:hover:not(:disabled) {
+  border-color: var(--sl-skill-accent);
+  background: #f5f3ff;
+}
+.sl-skill-cc__option:disabled {
+  cursor: default;
+}
+.sl-skill-cc__option--correct {
+  background: #ecfdf5;
+  border-color: #10b981;
+  color: #065f46;
+}
+.sl-skill-cc__option--wrong {
+  background: #fef2f2;
+  border-color: #ef4444;
+  color: #7f1d1d;
+}
+.sl-skill-cc__feedback {
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  margin-top: 0.375rem;
+  line-height: 1.55;
+}
+.sl-skill-cc__feedback--correct {
+  background: #ecfdf5;
+  border-left: 3px solid #10b981;
+  color: #065f46;
+}
+.sl-skill-cc__feedback--wrong {
+  background: #fef2f2;
+  border-left: 3px solid #ef4444;
+  color: #7f1d1d;
+}
+.sl-skill-cc__hint {
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: #eef2ff;
+  border-left: 3px solid var(--sl-skill-accent);
+  border-radius: 6px;
+}
+.sl-skill-cc__retry {
+  margin-top: 0.5rem;
+  text-align: right;
+}
+.sl-skill-cc__retry-btn {
+  padding: 0.375rem 0.75rem;
+  border: 1px solid var(--sl-skill-border);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--sl-skill-muted);
+  cursor: pointer;
+  font-size: 0.8125rem;
+}
+.sl-skill-cc__retry-btn:hover {
+  color: var(--sl-skill-text);
+  background: #f9fafb;
+}
