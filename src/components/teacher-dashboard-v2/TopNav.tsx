@@ -50,7 +50,7 @@ export function TopNav({
       <div className="max-w-[1400px] mx-auto px-6 h-16 flex items-center gap-4">
         {/* Brand */}
         <Link
-          href="/teacher/dashboard/v2"
+          href="/teacher/dashboard"
           className="flex items-center gap-2.5"
         >
           <div className="w-9 h-9 rounded-2xl bg-[var(--ink)] flex items-center justify-center text-white display text-[15px]">

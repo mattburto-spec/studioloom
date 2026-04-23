@@ -35,13 +35,14 @@ function isPublicTeacherPath(pathname: string): boolean {
 /**
  * Chromeless teacher paths render without the shared header/nav but
  * still pass through auth + teacher-context. Used by the Bold
- * dashboard v2 which ships its own TopNav — double chrome would
- * stack the legacy header on top. Removed at Phase 8 cutover when
- * the Bold nav becomes universal (tracker:
- * docs/projects/teacher-dashboard-v1.md).
+ * dashboard at /teacher/dashboard which ships its own TopNav —
+ * rendering the legacy sticky header on top would stack two navs.
+ * The legacy dashboard lives at /teacher/dashboard-legacy (scheduled
+ * for deletion ≥ 2026-05-01) and still uses the shared chrome.
+ * Tracker: docs/projects/teacher-dashboard-v1.md.
  */
 const CHROMELESS_TEACHER_PATHS: readonly string[] = [
-  "/teacher/dashboard/v2",
+  "/teacher/dashboard",
 ];
 
 function isChromelessTeacherPath(pathname: string): boolean {

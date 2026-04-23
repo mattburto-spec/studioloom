@@ -46,11 +46,11 @@ Bold's sections (in render order): `TopNav` · `NowHero` · `TodayRail`
 | 5 | `Insights` — client-side reducer mapping 6 `InsightType`s → 4 Bold buckets (Act/Grade/Watch/Celebrate) | ✅ Done |
 | 6 | `UnitsGrid` — wire from `data.classes[].units`, badges (fork/ungraded/NM), thumbnail, completion % | ✅ Done |
 | 7 | `Admin` — empty-class housekeeping list with per-class "Assign unit" link (invites / safety / drafts deferred — not cheaply derivable) | ✅ Done |
-| 8 | Cutover `/teacher/dashboard` → v2, move old to `/teacher/dashboard-legacy` | ⏳ Planned |
+| 8 | Cutover `/teacher/dashboard` → Bold shell, move old to `/teacher/dashboard-legacy`, drop `tl_v2` cookie gate + enable/disable routes | ✅ Done |
 | 9 | Polish — refresh/loading states, empty states (no classes yet), error boundary | ⏳ Planned |
 | 10 | Responsive pass (tablet first — teachers use iPads for Teaching Mode) | ⏳ Planned |
 | 11 | Accessibility pass | ⏳ Planned |
-| 12 | Delete `/teacher/dashboard-legacy` (≥ 1 week post-cutover) | ⏳ Planned |
+| 12 | Delete `/teacher/dashboard-legacy` (scheduled for ≥ 2026-05-01, 1 week after cutover on 2026-04-24) | ⏳ Planned |
 
 ## Open questions (decide during Phase 0)
 

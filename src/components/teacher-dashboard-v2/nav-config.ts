@@ -3,13 +3,11 @@
  * `active` logic: longest-prefix match against the current pathname
  * so nested routes (e.g. /teacher/safety/alerts) activate the most
  * specific nav item (Alerts) rather than both Alerts *and* Badges.
- * Same pattern as src/app/teacher/layout.tsx NAV_ITEMS (the legacy
- * nav) — kept in sync until Phase 8 cutover, after which the legacy
- * list can be deleted.
- *
- * The Dashboard href points at /teacher/dashboard/v2 during the build
- * so clicks inside the Bold shell don't kick the user back to the
- * legacy dashboard. Swap to /teacher/dashboard at Phase 8 cutover.
+ * Mirrors the pattern in src/app/teacher/layout.tsx NAV_ITEMS — both
+ * still exist post-cutover: layout.tsx renders the legacy chrome on
+ * everything except /teacher/dashboard (the Bold shell brings its
+ * own TopNav). The legacy NAV_ITEMS is deleted when dashboard-legacy
+ * is removed.
  */
 
 export interface NavItem {
@@ -18,7 +16,7 @@ export interface NavItem {
 }
 
 export const NAV_ITEMS: NavItem[] = [
-  { label: "Dashboard", href: "/teacher/dashboard/v2" },
+  { label: "Dashboard", href: "/teacher/dashboard" },
   { label: "Classes",   href: "/teacher/classes" },
   { label: "Units",     href: "/teacher/units" },
   { label: "Toolkit",   href: "/teacher/toolkit" },
