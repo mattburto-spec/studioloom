@@ -49,8 +49,8 @@ interface Variant {
 function variantFor(completionStatus: string | null): Variant {
   if (completionStatus === "failed") {
     return {
-      heading: "The lab tech couldn't run this",
-      hint: "Read the note below, then start a fresh submission when you're ready.",
+      heading: "Your run didn't complete",
+      hint: "Read the note below to see what happened, then start a fresh submission when you're ready.",
       rootClass: "rounded-2xl border border-red-200 bg-red-50 p-5",
       headingClass: "text-red-900 font-bold text-base",
       noteBlockClass: "rounded-lg border border-red-200 bg-white p-3 mt-3",
@@ -92,7 +92,7 @@ export function LabTechCompletionCard({
       {completionNote && completionNote.trim() && (
         <div className={v.noteBlockClass}>
           <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">
-            Lab tech note
+            Note from the fabricator
           </p>
           <p className="text-sm text-gray-800 whitespace-pre-wrap">
             {completionNote}

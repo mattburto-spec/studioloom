@@ -277,7 +277,7 @@ export default function FabricationJobStatusPage() {
         {pollState.kind !== "done" && (
           <p className="text-base text-gray-600 mt-2">
             We&apos;re running a quick machine-readiness check before your file
-            goes to the lab tech.
+            goes into the fabrication queue.
           </p>
         )}
       </header>
@@ -350,7 +350,7 @@ function headerTitleForStatus(
       // fallback keeps the pre-Phase-7 framing for any edge row
       // that reaches `completed` without a populated
       // completion_status column.
-      if (completionStatus === "failed") return "The lab tech couldn't run this";
+      if (completionStatus === "failed") return "Your run didn't complete";
       if (completionStatus === "printed" || completionStatus === "cut") {
         return "Your file is ready to collect";
       }
