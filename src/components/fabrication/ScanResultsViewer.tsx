@@ -81,24 +81,26 @@ export function ScanResultsViewer(props: ScanResultsViewerProps) {
   const disabledFromAction = isSubmitting || isAckInFlight;
 
   return (
-    <div className="space-y-6">
-      {/* Header strip — thumbnail + file metadata */}
+    <div className="space-y-8">
+      {/* Header strip — thumbnail + file metadata. Centred on wider
+          containers so the thumbnail isn't floating against the left
+          edge with acres of empty space. */}
       {(filename || thumbnailUrl || machineLabel) && (
-        <div className="flex items-start gap-4 rounded-xl border border-gray-200 bg-white p-4">
+        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 rounded-2xl border border-gray-200 bg-white p-6">
           {thumbnailUrl && (
             <img
               src={thumbnailUrl}
               alt="Scan preview"
-              className="w-40 h-40 rounded-lg border border-gray-200 object-contain bg-gray-50 shrink-0"
+              className="w-64 h-64 rounded-xl border border-gray-200 object-contain bg-gray-50 shrink-0"
             />
           )}
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 w-full">
             {filename && (
-              <h2 className="text-sm font-semibold text-gray-900 truncate">
+              <h2 className="text-base font-semibold text-gray-900 break-all">
                 {filename}
               </h2>
             )}
-            <div className="text-xs text-gray-500 mt-0.5 space-x-1.5">
+            <div className="text-sm text-gray-600 mt-1 space-x-2">
               {machineLabel && <span>{machineLabel}</span>}
               {machineLabel && <span aria-hidden="true">·</span>}
               <span>Revision {revisionNumber}</span>
@@ -109,17 +111,24 @@ export function ScanResultsViewer(props: ScanResultsViewerProps) {
 
       {/* Must-fix bucket */}
       {buckets.mustFix.length > 0 && (
-        <section aria-labelledby="mustfix-heading" className="space-y-3">
+        <section aria-labelledby="mustfix-heading" className="space-y-4">
           <h2
             id="mustfix-heading"
-            className="text-sm font-bold text-red-900 uppercase tracking-wide"
+            className="text-xl font-bold text-gray-900 flex items-center gap-3"
           >
-            🛑 {buckets.mustFix.length} must fix
+            <span
+              aria-hidden="true"
+              className="inline-block w-1.5 h-7 rounded-full bg-red-500"
+            />
+            Must fix
+            <span className="text-base font-normal text-gray-500">
+              ({buckets.mustFix.length})
+            </span>
           </h2>
           {buckets.mustFix.map((rule) => (
             <RuleCard key={rule.id} rule={rule} disabled={disabledFromAction} />
           ))}
-          <p className="text-xs text-red-800 italic">
+          <p className="text-sm text-red-800 italic">
             These must be resolved in the file — re-upload a fixed version before
             submitting.
           </p>
@@ -128,12 +137,24 @@ export function ScanResultsViewer(props: ScanResultsViewerProps) {
 
       {/* Should-fix bucket */}
       {buckets.shouldFix.length > 0 && (
-        <section aria-labelledby="shouldfix-heading" className="space-y-3">
+        <section aria-labelledby="shouldfix-heading" className="space-y-4">
           <h2
             id="shouldfix-heading"
-            className="text-sm font-bold text-amber-900 uppercase tracking-wide"
+            className="text-xl font-bold text-gray-900 flex items-center gap-3 flex-wrap"
           >
-            ⚠️ {buckets.shouldFix.length} should fix — acknowledge each
+            <span
+              aria-hidden="true"
+              className="inline-block w-1.5 h-7 rounded-full bg-amber-500"
+            />
+            Should fix
+            <span className="text-base font-normal text-gray-500">
+              ({buckets.shouldFix.length})
+            </span>
+            {!readOnly && (
+              <span className="text-sm font-normal text-amber-800">
+                — acknowledge each
+              </span>
+            )}
           </h2>
           {buckets.shouldFix.map((rule) => (
             <RuleCard
@@ -151,12 +172,19 @@ export function ScanResultsViewer(props: ScanResultsViewerProps) {
 
       {/* FYI bucket */}
       {buckets.fyi.length > 0 && (
-        <section aria-labelledby="fyi-heading" className="space-y-3">
+        <section aria-labelledby="fyi-heading" className="space-y-4">
           <h2
             id="fyi-heading"
-            className="text-sm font-bold text-gray-700 uppercase tracking-wide"
+            className="text-xl font-bold text-gray-900 flex items-center gap-3"
           >
-            ℹ️ {buckets.fyi.length} FYI
+            <span
+              aria-hidden="true"
+              className="inline-block w-1.5 h-7 rounded-full bg-gray-400"
+            />
+            Good to know
+            <span className="text-base font-normal text-gray-500">
+              ({buckets.fyi.length})
+            </span>
           </h2>
           {buckets.fyi.map((rule) => (
             <RuleCard key={rule.id} rule={rule} disabled={disabledFromAction} />
