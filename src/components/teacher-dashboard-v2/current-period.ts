@@ -12,7 +12,7 @@
  *   - If no meetings today → null.
  */
 
-import type { DashboardClass } from "@/types/dashboard";
+import type { DashboardClass, UnmarkedWorkItem } from "@/types/dashboard";
 import { classColor } from "./nav-config";
 
 export interface ScheduleEntry {
@@ -63,6 +63,12 @@ export interface CurrentPeriod {
   unitThumbnailUrl: string;
   /** 0-100. Null if no progress data available. */
   completionPct: number | null;
+  /** Number of students in this class. 0 if not resolved. */
+  studentCount: number;
+  /** Number of completed pages by students in this class+unit that are
+   *  awaiting teacher review. Sum of UnmarkedWorkItem.completedPages
+   *  filtered to the hero's classId + unitId. */
+  ungradedCount: number;
 }
 
 const FALLBACK_IMG =
@@ -161,6 +167,7 @@ export function pickRelevantEntry(
 export function resolveCurrentPeriod(
   schedule: ScheduleResponse,
   classes: DashboardClass[],
+  unmarkedWork: UnmarkedWorkItem[],
   now: Date,
 ): CurrentPeriod | null {
   if (!schedule.hasTimetable) return null;
@@ -198,18 +205,34 @@ export function resolveCurrentPeriod(
         ? 0
         : Math.max(0, startMin - nowMinutes);
 
-  // Look up unit thumbnail + completionPct from the dashboard data.
+  // Look up unit thumbnail + completionPct + student count from the
+  // dashboard data.
   let unitThumbnailUrl = FALLBACK_IMG;
   let completionPct: number | null = null;
-  if (entry.unitId) {
-    for (const cls of classes) {
-      if (cls.id !== entry.classId) continue;
+  let studentCount = 0;
+  for (const cls of classes) {
+    if (cls.id !== entry.classId) continue;
+    studentCount = cls.studentCount;
+    if (entry.unitId) {
       const unit = cls.units.find((u) => u.unitId === entry.unitId);
       if (unit) {
         if (unit.thumbnailUrl) unitThumbnailUrl = unit.thumbnailUrl;
         completionPct = unit.completionPct;
       }
-      break;
+    }
+    break;
+  }
+
+  // Ungraded = sum of completedPages across unmarkedWork rows matching
+  // this class + unit. The dashboard endpoint already caps unmarkedWork
+  // at 20 rows by most-recent-completion — enough for the hero chip to
+  // reflect "today's pile" without a dedicated query.
+  let ungradedCount = 0;
+  if (entry.unitId) {
+    for (const w of unmarkedWork) {
+      if (w.classId === entry.classId && w.unitId === entry.unitId) {
+        ungradedCount += w.completedPages;
+      }
     }
   }
 
@@ -229,5 +252,7 @@ export function resolveCurrentPeriod(
     unitTitle: entry.unitTitle ?? "—",
     unitThumbnailUrl,
     completionPct,
+    studentCount,
+    ungradedCount,
   };
 }

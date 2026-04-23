@@ -32,7 +32,11 @@ import {
   type ScheduleResponse,
 } from "@/components/teacher-dashboard-v2/current-period";
 import { useTeacher } from "@/app/teacher/teacher-context";
-import type { DashboardData, DashboardClass } from "@/types/dashboard";
+import type {
+  DashboardData,
+  DashboardClass,
+  UnmarkedWorkItem,
+} from "@/types/dashboard";
 
 export default function TeacherDashboardClient() {
   useScopedStyles();
@@ -41,6 +45,7 @@ export default function TeacherDashboardClient() {
   const pathname = usePathname();
   const [scope, setScope] = useState<string>("all");
   const [classes, setClasses] = useState<DashboardClass[]>([]);
+  const [unmarkedWork, setUnmarkedWork] = useState<UnmarkedWorkItem[]>([]);
   const [schedule, setSchedule] = useState<ScheduleResponse | null>(null);
   const [now, setNow] = useState<Date>(() => new Date());
 
@@ -60,7 +65,10 @@ export default function TeacherDashboardClient() {
         const res = await fetch("/api/teacher/dashboard");
         if (!res.ok) return;
         const json: DashboardData = await res.json();
-        if (!cancelled) setClasses(json.classes);
+        if (!cancelled) {
+          setClasses(json.classes);
+          setUnmarkedWork(json.unmarkedWork ?? []);
+        }
       } catch {
         // Phase 9 adds error surfaces. For now the chip stays on
         // "All classes" if the fetch fails.
@@ -98,8 +106,8 @@ export default function TeacherDashboardClient() {
 
   const currentPeriod = useMemo(() => {
     if (!schedule) return null;
-    return resolveCurrentPeriod(schedule, classes, now);
-  }, [schedule, classes, now]);
+    return resolveCurrentPeriod(schedule, classes, unmarkedWork, now);
+  }, [schedule, classes, unmarkedWork, now]);
 
   return (
     <div className="tl-v2 min-h-screen">

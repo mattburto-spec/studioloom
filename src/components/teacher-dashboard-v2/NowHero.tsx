@@ -29,6 +29,8 @@ interface HeroVM {
   phaseLabel: string;
   phasePct: number;
   img: string;
+  studentCount: number;
+  ungradedCount: number;
 }
 
 function fromCurrent(c: CurrentPeriod): HeroVM {
@@ -47,6 +49,8 @@ function fromCurrent(c: CurrentPeriod): HeroVM {
     phaseLabel: "Unit progress",
     phasePct: c.completionPct ?? 0,
     img: c.unitThumbnailUrl,
+    studentCount: c.studentCount,
+    ungradedCount: c.ungradedCount,
   };
 }
 
@@ -66,6 +70,8 @@ function fromMock(): HeroVM {
     phaseLabel: NEXT.phase,
     phasePct: NEXT.phasePct,
     img: NEXT.img,
+    studentCount: NEXT.students,
+    ungradedCount: NEXT.ungraded,
   };
 }
 
@@ -113,8 +119,7 @@ export function NowHero({ current }: NowHeroProps) {
               )}
             </div>
 
-            {/* Meta pills — class, phase, room, time. Ready/ungraded
-             *  land in Phase 3B (needs completion + unmarked counts). */}
+            {/* Meta pills — class, phase, students, ungraded, room+time. */}
             <div className="flex items-center gap-2 mt-8 flex-wrap">
               <span
                 className="bg-white rounded-full pl-1 pr-3 py-1 flex items-center gap-1.5 text-[12px] font-bold"
@@ -126,6 +131,16 @@ export function NowHero({ current }: NowHeroProps) {
               <span className="bg-white/15 backdrop-blur rounded-full px-3 py-1 text-[12px] font-bold text-white">
                 {vm.phaseLabel}
               </span>
+              {vm.studentCount > 0 && (
+                <span className="bg-white/15 backdrop-blur rounded-full px-3 py-1 text-[12px] font-bold text-white tnum">
+                  {vm.studentCount} student{vm.studentCount === 1 ? "" : "s"}
+                </span>
+              )}
+              {vm.ungradedCount > 0 && (
+                <span className="bg-[#FBBF24] text-[#78350F] rounded-full px-3 py-1 text-[12px] font-extrabold tnum">
+                  {vm.ungradedCount} to grade
+                </span>
+              )}
               {vm.room && (
                 <span className="text-white/70 text-[12px] font-semibold ml-1">
                   Room {vm.room}
