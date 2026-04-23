@@ -49,7 +49,7 @@ Bold's sections (in render order): `TopNav` · `NowHero` · `TodayRail`
 | 8 | Cutover `/teacher/dashboard` → Bold shell, move old to `/teacher/dashboard-legacy`, drop `tl_v2` cookie gate + enable/disable routes | ✅ Done |
 | 9 | Loading skeleton + per-section empty states + 0-classes welcome hero (mock fallback fully removed) | ✅ Done |
 | 9b | Refresh button + error boundary (deferred — non-blocking) | ⏳ Planned |
-| 10 | Responsive pass (tablet first — teachers use iPads for Teaching Mode) | ⏳ Planned |
+| 10 | Responsive pass — hero stacks, grids flow 1→2→4 (rail/insights) + 1→2 (units), TopNav compresses, type scales | ✅ Done |
 | 11 | Accessibility pass | ⏳ Planned |
 | 12 | Delete `/teacher/dashboard-legacy` (scheduled for ≥ 2026-05-01, 1 week after cutover on 2026-04-24) | ⏳ Planned |
 
