@@ -125,13 +125,13 @@ function messageForStatus(status: string): SubmittedMessage {
     case "pending_approval":
       return {
         heading: "Submitted — waiting for your teacher to review",
-        body: "Your teacher will see this in their fabrication queue. Once approved, the lab tech can queue the file on the machine.",
+        body: "Your teacher will see this in their queue. Once approved, your file goes into the pickup queue for the machine.",
         icon: "📨",
       };
     case "approved":
       return {
-        heading: "Submitted — ready for the lab tech to queue",
-        body: "Your file has been approved and is in the lab tech's pickup queue. You'll get an email when it's printed / cut.",
+        heading: "Submitted — ready to fabricate",
+        body: "Your file has been approved and is in the pickup queue for the machine. You'll get an email when it's printed or cut.",
         icon: "✅",
       };
     case "needs_revision":
@@ -143,7 +143,7 @@ function messageForStatus(status: string): SubmittedMessage {
     case "picked_up":
       return {
         heading: "Your file is being fabricated",
-        body: "The lab tech has picked up your submission. Check back later for the completion update.",
+        body: "Your submission has been picked up and is being prepared. Check back later for the completion update.",
         icon: "🛠️",
       };
     case "completed":
