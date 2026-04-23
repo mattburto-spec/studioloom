@@ -53,6 +53,12 @@ export interface ScanResultsViewerProps {
    *  Caller derives via shouldHideSubmitButton(jobStatus). Ignored
    *  when readOnly is true (that hides both anyway). */
   hideSubmit?: boolean;
+  /** Phase 6-6e: suppress the built-in thumbnail + metadata header
+   *  strip. Set when the caller renders its own preview panel (e.g.
+   *  the student status page's 2-column layout moves the thumbnail
+   *  to a sidebar card alongside the revision history). Bucket
+   *  sections + actions still render. */
+  hideHeaderStrip?: boolean;
 }
 
 export function ScanResultsViewer(props: ScanResultsViewerProps) {
@@ -72,6 +78,7 @@ export function ScanResultsViewer(props: ScanResultsViewerProps) {
     fileType = "stl",
     readOnly = false,
     hideSubmit = false,
+    hideHeaderStrip = false,
   } = props;
 
   const buckets = classifyRules(scanResults);
@@ -84,8 +91,10 @@ export function ScanResultsViewer(props: ScanResultsViewerProps) {
     <div className="space-y-8">
       {/* Header strip — thumbnail + file metadata. Centred on wider
           containers so the thumbnail isn't floating against the left
-          edge with acres of empty space. */}
-      {(filename || thumbnailUrl || machineLabel) && (
+          edge with acres of empty space. Suppressed by hideHeaderStrip
+          when the page renders its own preview panel (e.g. 2-column
+          student layout). */}
+      {!hideHeaderStrip && (filename || thumbnailUrl || machineLabel) && (
         <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 rounded-2xl border border-gray-200 bg-white p-6">
           {thumbnailUrl && (
             <img
