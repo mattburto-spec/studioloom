@@ -4,6 +4,57 @@
 
 ---
 
+## 22 Apr 2026 — Student Dashboard v2 (Bold) SHIPPED: Phases 1-8 complete, cutover live
+
+**Context:** End-to-end build and production cutover of a new Bold-design student dashboard, ported from `docs/newlook/PYPX Student Dashboard/student_bold.jsx`. Built phased behind a cookie gate, then promoted to the default `/dashboard` for all students. Ran in parallel with a separate Preflight session in `questerra-preflight/`; git worktrees used to isolate the two sessions after an early cross-contamination incident where Preflight's `git add` swept up uncommitted dashboard changes into commit `a88b330`.
+
+**What shipped (all phases in one day):**
+- **Phase 1** (`b89e89d`) — scaffold at `/dashboard/v2` behind `sl_v2=1` cookie gate, all 6 mock sections ported
+- **Phase 2** (`b2a8d12`) — TopNav + hero greeting wired to `/api/auth/student-session`
+- **Phase 3A** (swept into `a88b330`, fix `934ddfe`) — hero unit identity (title/subtitle/class/color/image) from `/api/student/units`, per-subject color palette mirrored from current dashboard's `SUBJECT_MAP`
+- **Phase 3B** (`cfa2a00`) — hero current task card: the specific activity block the student is up to in their current lesson, lesson-level block progress (X/N), real due date. Uses `content.sections[]` + `student_progress.responses` keyed as `activity_<activityId>` or `section_<index>` (mirrors the unit page's own key convention)
+- **Phase 4** (`454f98b`) — priority queue classified from `/api/student/insights` per type-based rules (Overdue / Today = top continue_work / Soon = rest by priority, capped at 5). Button navigation via `<Link>` when href present, inert `<button>` in preview mode
+- **Phase 4.5** (`97b3046` + `67bacab`) — hero Continue button wired to current task page; mock-flash fix (initial state null → skeletons → real data; fallback to MOCK only on 401/error)
+- **Phase 5** (`20f40f7`) — units grid from `/api/student/units` with real colors/images/progress. Open Studio inline marker intentionally dropped per Matt (will be separate card or hero when implemented)
+- **Phase 6** (`d913fe8`) — badges from `/api/student/safety/pending` (earned + pending, safety badges are binary → progress always 0, status text via student_status)
+- **Phase 7** (`8d6483b`) — Feedback section DROPPED entirely (no backing data; returns when general notes system ships)
+- **Phase 8** (`d07ef97`, merge `be5c1d6`) — cutover: `v2/page.tsx` + `DashboardV2Client.tsx` moved to `dashboard/`, renamed `DashboardClient`; old dashboard preserved at `/dashboard-legacy` for 1-week rollback; cookie gate removed; layout escape-hatch condition updated from `/dashboard/v2` → `/dashboard`
+
+**Matt's product decisions captured in tracker (`docs/projects/student-dashboard-v2.md`):**
+- Hero = project-management tool, not activity feed. "Current task" = specific activity block, "task progress" = progress through lesson's blocks. Don't use "phase" in student copy.
+- Notes system is deferred; when built, must be bidirectional (teacher + student) and NOT siloed 1:1.
+- Open Studio gets its own card (or hero) when active — no inline markers on regular unit cards.
+- Per-card due dates dropped from grid cards; Matt will wire as part of assessment/grading work.
+- Theme system decision deferred; "I'll add more themes later".
+- Focus mode (future): hide everything except next step, escape to return to full dashboard.
+- Snooze is a behaviour experiment to try with students.
+
+**Phases 9-16 planned & ordered in `docs/projects/student-dashboard-v2.md`:** bell count + pill nav anchors + dead-link cleanup + hide fake teacher note (quick wins); unified header across routes; responsive pass; focus mode; snooze; notes system; legacy cleanup; a11y.
+
+**Infrastructure change:** Three git worktrees now standard:
+- `/Users/matt/CWORK/questerra` = main (merge baseline, neither session works here)
+- `/Users/matt/CWORK/questerra-dashboard` = dashboard work on branch `dashboard-v2-build`
+- `/Users/matt/CWORK/questerra-preflight` = preflight work on branch `preflight-active`
+Isolates uncommitted-change bleed between parallel sessions. Documented in both session CLAUDE.md files. Top-level `.claude/launch.json` has entries for all three dev servers (ports 3000 / 3100 / 3200).
+
+**Files touched:**
+- NEW: `src/app/(student)/dashboard/DashboardClient.tsx` (1300+ lines)
+- NEW: `src/app/(student)/dashboard/page.tsx` (replaces old 391-line page)
+- NEW: `src/app/(student)/dashboard-legacy/page.tsx` (archived old dashboard)
+- MODIFIED: `src/app/(student)/layout.tsx` — route-aware escape hatch on `/dashboard`
+- NEW: `docs/projects/student-dashboard-v2.md` — build tracker + Phase 9-16 ordered plan
+- MODIFIED: `CLAUDE.md` — added Student Dashboard v2 section with "continue dashboard" trigger phrase
+
+**Test counts:** no new tests (UI-only work; existing 1409 npm tests untouched). No migrations.
+
+**Commits:** 9 on `dashboard-v2-build`, merged to `main` as merge commit `be5c1d6`. Pushed origin/main. Deployed to prod by Vercel.
+
+**Systems affected:** `student-dashboard` (v1 → v2, Bold redesign).
+
+**Session context:** Matt drove methodical phase-by-phase with checkpoint sign-offs. Used localhost + Vercel preview URLs for verification. Hit two interesting issues: (1) parallel session cross-contamination via shared working tree (fixed via worktrees), (2) mock-data flash before real data on initial page load (fixed via skeleton + null-initial-state pattern). Phase 8 cutover went clean; production `studioloom.org/dashboard` now serves the Bold dashboard for all students.
+
+---
+
 ## 21 Apr 2026 — Preflight Phase 2A shipped + Checkpoint 2.1 PASSED (smoke test session)
 
 **Context:** Resume of Phase 2A build after 11 commits landed in prior sessions (`5e00518..262ae0c`). This session ran the prod smoke test validation portion of Checkpoint 2.1 — the criterion-by-criterion sign-off, not new code. One real bug surfaced (OOM on 256MB Fly tier) and was fixed inline.

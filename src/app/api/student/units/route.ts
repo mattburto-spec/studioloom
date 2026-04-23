@@ -97,12 +97,21 @@ export async function GET(request: NextRequest) {
     .select("id, title, description, thumbnail_url, content_data")
     .in("id", unitIds);
 
-  // Get progress for this student (dashboard only needs completion status, not full responses JSONB)
-  const { data: progress } = await supabase
+  // Get progress for this student.
+  // NB: earlier select included page_number + completed — neither exists on
+  // student_progress in current schema, which caused Supabase to return
+  // null + a silent error. We didn't destructure error so every unit saw
+  // an empty progress array → every card read "Start unit" even when the
+  // student had real progress. Using "*" defensively; payload is small.
+  const { data: progress, error: progressError } = await supabase
     .from("student_progress")
-    .select("student_id, unit_id, page_id, page_number, status, completed, time_spent, updated_at")
+    .select("*")
     .eq("student_id", studentId)
     .in("unit_id", unitIds);
+
+  if (progressError) {
+    console.error("[student/units] progress query error:", progressError);
+  }
 
   // Combine units with progress
   const unitsWithProgress = (units || []).map((unit) => {
