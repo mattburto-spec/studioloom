@@ -97,6 +97,23 @@ export function NowHero({ current, loaded }: NowHeroProps) {
   if (!current) return <NoClassHero />;
   const vm = fromCurrent(current);
   const teachHref = vm.unitId ? `/teacher/teach/${vm.unitId}` : null;
+  // Class-local routes need both unitId + classId. The progress/edit
+  // hrefs fall through to the unit-level page when classId is missing,
+  // which is rare (schedule entries always carry classId — this is
+  // mostly a type guard).
+  const classId = current.classId;
+  const planHref =
+    vm.unitId && classId
+      ? `/teacher/units/${vm.unitId}/class/${classId}/edit`
+      : vm.unitId
+        ? `/teacher/units/${vm.unitId}`
+        : null;
+  const progressHref =
+    vm.unitId && classId
+      ? `/teacher/units/${vm.unitId}/class/${classId}`
+      : vm.unitId
+        ? `/teacher/units/${vm.unitId}`
+        : null;
 
   // Top-left status pill text.
   const statusPrefix =
@@ -208,9 +225,9 @@ export function NowHero({ current, loaded }: NowHeroProps) {
                   <I name="play" size={12} s={0} /> Start teaching
                 </button>
               )}
-              {vm.unitId ? (
+              {planHref ? (
                 <Link
-                  href={`/teacher/units/${vm.unitId}`}
+                  href={planHref}
                   className="bg-white/15 backdrop-blur hover:bg-white/25 text-white rounded-full px-5 py-3 font-bold text-[13.5px]"
                 >
                   Lesson plan
@@ -223,9 +240,6 @@ export function NowHero({ current, loaded }: NowHeroProps) {
                   Lesson plan
                 </button>
               )}
-              <button className="text-white/70 hover:text-white rounded-full px-3 py-3 font-semibold text-[13px]">
-                Skip →
-              </button>
             </div>
           </div>
 
@@ -246,26 +260,54 @@ export function NowHero({ current, loaded }: NowHeroProps) {
                 }}
               />
             </div>
-            <div className="absolute bottom-4 right-4 lg:bottom-6 lg:right-6 bg-white/95 backdrop-blur rounded-2xl px-4 py-3 card-shadow">
-              <div className="cap text-[var(--ink-3)]">{vm.phaseLabel}</div>
-              <div className="flex items-baseline gap-2 mt-1">
-                <div
-                  className="display text-[32px] leading-none tnum"
-                  style={{ color: vm.colorDark }}
-                >
-                  {vm.phasePct}%
+            {progressHref ? (
+              <Link
+                href={progressHref}
+                className="absolute bottom-4 right-4 lg:bottom-6 lg:right-6 bg-white/95 backdrop-blur rounded-2xl px-4 py-3 card-shadow hover:-translate-y-0.5 transition block"
+                title="Open class progress"
+              >
+                <div className="cap text-[var(--ink-3)] flex items-center gap-1">
+                  {vm.phaseLabel}
+                  <I name="arrow" size={10} s={2.5} />
                 </div>
-                <div className="text-[11px] text-[var(--ink-3)]">
-                  {current ? "complete" : "of developing ideas"}
+                <div className="flex items-baseline gap-2 mt-1">
+                  <div
+                    className="display text-[32px] leading-none tnum"
+                    style={{ color: vm.colorDark }}
+                  >
+                    {vm.phasePct}%
+                  </div>
+                  <div className="text-[11px] text-[var(--ink-3)]">
+                    complete
+                  </div>
+                </div>
+                <div className="mt-2 w-40 h-1.5 bg-[var(--hair)] rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full"
+                    style={{ width: `${vm.phasePct}%`, background: vm.color }}
+                  />
+                </div>
+              </Link>
+            ) : (
+              <div className="absolute bottom-4 right-4 lg:bottom-6 lg:right-6 bg-white/95 backdrop-blur rounded-2xl px-4 py-3 card-shadow">
+                <div className="cap text-[var(--ink-3)]">{vm.phaseLabel}</div>
+                <div className="flex items-baseline gap-2 mt-1">
+                  <div
+                    className="display text-[32px] leading-none tnum"
+                    style={{ color: vm.colorDark }}
+                  >
+                    {vm.phasePct}%
+                  </div>
+                  <div className="text-[11px] text-[var(--ink-3)]">complete</div>
+                </div>
+                <div className="mt-2 w-40 h-1.5 bg-[var(--hair)] rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full"
+                    style={{ width: `${vm.phasePct}%`, background: vm.color }}
+                  />
                 </div>
               </div>
-              <div className="mt-2 w-40 h-1.5 bg-[var(--hair)] rounded-full overflow-hidden">
-                <div
-                  className="h-full rounded-full"
-                  style={{ width: `${vm.phasePct}%`, background: vm.color }}
-                />
-              </div>
-            </div>
+            )}
           </div>
         </div>
       </div>
@@ -273,10 +315,3 @@ export function NowHero({ current, loaded }: NowHeroProps) {
   );
 }
 
-/* The `current ? "complete" : "of developing ideas"` ternary inside the
- * phase-progress chip used to read the mock's "developing ideas" phrase
- * when current was null. Post-Phase-9 current can never be null here
- * (null → NoClassHero returns early), so all renders show "complete".
- * The ternary stays for now — cleaning it up churns the JSX for no user-
- * facing change. Worth removing next time this file gets touched.
- */

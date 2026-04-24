@@ -53,6 +53,7 @@ export interface CurrentPeriod {
   /** "live" while we're inside start..end, else "upcoming". */
   state: "live" | "upcoming" | "later";
   room: string | null;
+  classId: string;
   className: string;
   classColor: string;
   classColorDark: string;
@@ -244,6 +245,7 @@ export function resolveCurrentPeriod(
     startsInMin,
     state,
     room: entry.room,
+    classId: entry.classId,
     className: entry.className,
     classColor: color,
     classColorDark: darken(color, 0.7),
