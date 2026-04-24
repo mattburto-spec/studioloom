@@ -1,8 +1,14 @@
--- Migration 111: PYPX Exhibition schema
+-- Migration 115: PYPX Exhibition schema
 -- ═══════════════════════════════════════════════════════════════════════════
 --
 -- Phase 13a of the teacher-dashboard-v1 build (see
 -- docs/projects/teacher-dashboard-v1-phase-13a-brief.md).
+--
+-- History: originally drafted as migration 111. Renumbered to 115 on
+-- 25 April 2026 after parallel branches claimed 111–114:
+--   - origin/main:         111 skill_card_refs, 112 skill_card_quiz
+--   - preflight-active:    113 fabrication_labs, 114 backfill_fabrication_labs
+-- Contents unchanged — only the filename prefix + this comment.
 --
 -- Adds:
 --   1. `class_units.exhibition_config JSONB` — per class+unit config for

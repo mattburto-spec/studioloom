@@ -101,7 +101,7 @@ Rule of thumb: in 13a (no student UI yet) the teacher can edit everything so Pyp
 
 | Step | Scope | Stop trigger |
 |------|-------|--------------|
-| 13a-1 | Migration 111 — add `exhibition_config` column + create `student_projects` table + RLS. | Any SQL validation error, FK conflict. |
+| 13a-1 | Migration 115 — add `exhibition_config` column + create `student_projects` table + RLS. (Originally 111; renumbered 25 Apr 2026 after parallel branches claimed 111–114.) | Any SQL validation error, FK conflict. |
 | 13a-2 | API routes — `exhibition` GET/PATCH + `student-projects` GET/POST. Tests for auth + basic payload shape. | Any RLS denies a happy path. |
 | 13a-3 | Route scaffold — `/teacher/classes/[classId]/exhibition` page + "Exhibition" entry-point button on class detail (PYP-only). | Route doesn't render under TeacherShell. |
 | 13a-4 | Dates card — exhibition_date + flexible milestones[] + check-in cadence. | Save round-trips fail. |
