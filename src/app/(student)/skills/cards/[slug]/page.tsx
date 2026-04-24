@@ -15,6 +15,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { BlockRenderer } from "@/components/skills/BlockRenderer";
+import { SkillCardQuizRunner } from "@/components/skills/SkillCardQuizRunner";
 import "@/components/skills/skills.css";
 import { SKILL_TIER_LABELS, type SkillCardHydrated, type SkillTier } from "@/types/skills";
 
@@ -235,6 +236,25 @@ export default function StudentSkillCardPage() {
       <article>
         <BlockRenderer blocks={card.body} />
       </article>
+
+      {/* Quiz runner — Phase A (migration 112). Only renders when the card
+          has at least one quiz question. Writes skill.quiz_passed on pass
+          which advances student_skill_state to rank 2. */}
+      {card.quiz_questions && card.quiz_questions.length > 0 && (
+        <SkillCardQuizRunner
+          cardId={card.id}
+          cardSlug={card.slug}
+          cardTitle={card.title}
+          questions={card.quiz_questions}
+          questionCount={
+            card.question_count && card.question_count > 0
+              ? Math.min(card.question_count, card.quiz_questions.length)
+              : card.quiz_questions.length
+          }
+          passThreshold={card.pass_threshold ?? 80}
+          retakeCooldownMinutes={card.retake_cooldown_minutes ?? 0}
+        />
+      )}
 
       {card.external_links.length > 0 && (
         <section className="mt-8 border-t border-gray-200 pt-6">

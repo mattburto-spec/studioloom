@@ -13,10 +13,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { BLOCK_TYPES, SKILL_TIERS } from "@/types/skills";
+import {
+  validateQuizQuestions,
+  validatePassThreshold,
+  validateRetakeCooldown,
+  validateQuestionCount,
+} from "@/lib/skills/validate-quiz";
 import type {
   Block,
   CardType,
   FrameworkAnchor,
+  QuizQuestion,
   SkillCardHydrated,
   SkillCardRow,
   UpdateSkillCardPayload,
@@ -339,6 +346,31 @@ export async function PATCH(
     }
     if (payload.author_name !== undefined) {
       update.author_name = payload.author_name?.toString().trim() || null;
+    }
+
+    // ---- Quiz fields (Phase A, migration 112) --------------------------------
+    if (payload.quiz_questions !== undefined) {
+      const err = validateQuizQuestions(payload.quiz_questions);
+      if (err) return NextResponse.json({ error: err }, { status: 400 });
+      update.quiz_questions = payload.quiz_questions as QuizQuestion[];
+    }
+    if (payload.pass_threshold !== undefined) {
+      const err = validatePassThreshold(payload.pass_threshold);
+      if (err) return NextResponse.json({ error: err }, { status: 400 });
+      update.pass_threshold = payload.pass_threshold;
+    }
+    if (payload.retake_cooldown_minutes !== undefined) {
+      const err = validateRetakeCooldown(payload.retake_cooldown_minutes);
+      if (err) return NextResponse.json({ error: err }, { status: 400 });
+      update.retake_cooldown_minutes = payload.retake_cooldown_minutes;
+    }
+    if (payload.question_count !== undefined) {
+      const poolSize = Array.isArray(payload.quiz_questions)
+        ? payload.quiz_questions.length
+        : Infinity; // not patching pool simultaneously — can't cap-check
+      const err = validateQuestionCount(payload.question_count, poolSize);
+      if (err) return NextResponse.json({ error: err }, { status: 400 });
+      update.question_count = payload.question_count;
     }
 
     if (Object.keys(update).length > 0) {

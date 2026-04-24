@@ -17,6 +17,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { BlockEditor } from "./BlockEditor";
 import { BlockRenderer } from "./BlockRenderer";
 import "./skills.css";
+import { nanoid } from "nanoid";
 import {
   CONTROLLED_VERBS,
   SKILL_TIER_LABELS,
@@ -25,6 +26,8 @@ import {
   type CardType,
   type CreateSkillCardPayload,
   type FrameworkAnchor,
+  type QuizQuestion,
+  type QuizQuestionType,
   type SkillCardHydrated,
   type SkillTier,
 } from "@/types/skills";
@@ -190,6 +193,20 @@ export function SkillCardForm({
   // ---------- Body ----------
   const [body, setBody] = useState<Block[]>(initial?.body ?? []);
   const [showPreview, setShowPreview] = useState(false);
+
+  // ---------- Quiz (Phase A, migration 112) ----------
+  const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>(
+    initial?.quiz_questions ?? []
+  );
+  const [passThreshold, setPassThreshold] = useState<string>(
+    (initial?.pass_threshold ?? 80).toString()
+  );
+  const [retakeCooldown, setRetakeCooldown] = useState<string>(
+    (initial?.retake_cooldown_minutes ?? 0).toString()
+  );
+  const [questionCount, setQuestionCount] = useState<string>(
+    initial?.question_count != null ? String(initial.question_count) : ""
+  );
 
   // ---------- Extras ----------
   const [tags, setTags] = useState<string[]>(initial?.tags ?? []);
@@ -374,6 +391,18 @@ export function SkillCardForm({
               undefined,
           })),
         prerequisite_ids: prereqIds,
+        // Quiz (Phase A) — only send if the teacher has configured at least
+        // one question. Empty array is valid server-side (signals "no quiz").
+        quiz_questions: quizQuestions,
+        pass_threshold: passThreshold
+          ? Math.min(100, Math.max(0, parseInt(passThreshold, 10) || 80))
+          : 80,
+        retake_cooldown_minutes: retakeCooldown
+          ? Math.max(0, parseInt(retakeCooldown, 10) || 0)
+          : 0,
+        question_count: questionCount
+          ? Math.max(1, parseInt(questionCount, 10)) || null
+          : null,
       },
       { publishImmediately }
     );
@@ -1036,6 +1065,18 @@ export function SkillCardForm({
         </div>
       </section>
 
+      {/* =============== 9 · Quiz (optional) =============== */}
+      <QuizSection
+        questions={quizQuestions}
+        setQuestions={setQuizQuestions}
+        passThreshold={passThreshold}
+        setPassThreshold={setPassThreshold}
+        retakeCooldown={retakeCooldown}
+        setRetakeCooldown={setRetakeCooldown}
+        questionCount={questionCount}
+        setQuestionCount={setQuestionCount}
+      />
+
       {/* =============== Submit =============== */}
       {submitError && (
         <div className="bg-rose-50 border border-rose-200 rounded-lg p-3 text-sm text-rose-700">
@@ -1092,5 +1133,302 @@ export function SkillCardForm({
         </div>
       </div>
     </form>
+  );
+}
+
+// ============================================================================
+// QuizSection — renders the "9 · Quiz" authoring UI.
+// ============================================================================
+// Split out of the main form body because it has its own helpers for
+// managing questions array mutations (add/remove/update + set correct).
+
+const QUIZ_QUESTION_TYPES: Array<{ value: QuizQuestionType; label: string }> = [
+  { value: "multiple_choice", label: "Multiple choice" },
+  { value: "true_false", label: "True / False" },
+  { value: "scenario", label: "Scenario (MC)" },
+];
+
+function QuizSection({
+  questions,
+  setQuestions,
+  passThreshold,
+  setPassThreshold,
+  retakeCooldown,
+  setRetakeCooldown,
+  questionCount,
+  setQuestionCount,
+}: {
+  questions: QuizQuestion[];
+  setQuestions: React.Dispatch<React.SetStateAction<QuizQuestion[]>>;
+  passThreshold: string;
+  setPassThreshold: React.Dispatch<React.SetStateAction<string>>;
+  retakeCooldown: string;
+  setRetakeCooldown: React.Dispatch<React.SetStateAction<string>>;
+  questionCount: string;
+  setQuestionCount: React.Dispatch<React.SetStateAction<string>>;
+}) {
+  function addQuestion() {
+    const q: QuizQuestion = {
+      id: nanoid(8),
+      type: "multiple_choice",
+      prompt: "",
+      options: ["", ""],
+      correct_answer: "0",
+      explanation: "",
+    };
+    setQuestions((prev) => [...prev, q]);
+  }
+  function removeQuestion(idx: number) {
+    setQuestions((prev) => prev.filter((_, i) => i !== idx));
+  }
+  function updateQuestion(idx: number, patch: Partial<QuizQuestion>) {
+    setQuestions((prev) => prev.map((q, i) => (i === idx ? { ...q, ...patch } : q)));
+  }
+  function setOption(idx: number, optIdx: number, value: string) {
+    setQuestions((prev) =>
+      prev.map((q, i) => {
+        if (i !== idx) return q;
+        const options = [...(q.options ?? [])];
+        options[optIdx] = value;
+        return { ...q, options };
+      })
+    );
+  }
+  function addOption(idx: number) {
+    setQuestions((prev) =>
+      prev.map((q, i) =>
+        i === idx
+          ? { ...q, options: [...(q.options ?? []), ""] }
+          : q
+      )
+    );
+  }
+  function removeOption(idx: number, optIdx: number) {
+    setQuestions((prev) =>
+      prev.map((q, i) => {
+        if (i !== idx) return q;
+        const options = (q.options ?? []).filter((_, j) => j !== optIdx);
+        // If the removed option was the correct one, reset to index 0.
+        let correct_answer = q.correct_answer;
+        if (typeof correct_answer === "string") {
+          const correctIdx = parseInt(correct_answer, 10);
+          if (correctIdx === optIdx) correct_answer = "0";
+          else if (correctIdx > optIdx) correct_answer = String(correctIdx - 1);
+        }
+        return { ...q, options, correct_answer };
+      })
+    );
+  }
+  function setCorrectOption(idx: number, optIdx: number) {
+    updateQuestion(idx, { correct_answer: String(optIdx) });
+  }
+  function changeType(idx: number, type: QuizQuestionType) {
+    setQuestions((prev) =>
+      prev.map((q, i) => {
+        if (i !== idx) return q;
+        if (type === "true_false") {
+          return {
+            ...q,
+            type,
+            options: ["True", "False"],
+            correct_answer: "0",
+          };
+        }
+        // mc / scenario — preserve existing options if any; ensure at least 2
+        const options = q.options && q.options.length >= 2 ? q.options : ["", ""];
+        return { ...q, type, options };
+      })
+    );
+  }
+
+  return (
+    <section className="bg-white border border-gray-200 rounded-2xl p-6 space-y-4">
+      <header>
+        <h2 className="text-lg font-semibold text-gray-900">9 · Quiz</h2>
+        <p className="text-sm text-gray-500 mt-0.5">
+          Optional. When a card has one or more questions here, students see
+          a &ldquo;Take the quiz&rdquo; section at the bottom of the card.
+          Passing writes <code>skill.quiz_passed</code> and advances the
+          student&apos;s skill state.
+        </p>
+      </header>
+
+      {/* Quiz-level settings */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <label className="text-sm text-gray-700 flex flex-col gap-1">
+          Pass threshold (%)
+          <input
+            type="number"
+            min={0}
+            max={100}
+            value={passThreshold}
+            onChange={(e) => setPassThreshold(e.target.value)}
+            className="border border-gray-200 rounded-lg px-3 py-2"
+          />
+        </label>
+        <label className="text-sm text-gray-700 flex flex-col gap-1">
+          Retake cooldown (minutes)
+          <input
+            type="number"
+            min={0}
+            value={retakeCooldown}
+            onChange={(e) => setRetakeCooldown(e.target.value)}
+            className="border border-gray-200 rounded-lg px-3 py-2"
+          />
+          <span className="text-xs text-gray-400">
+            0 = no cooldown. Only applies after a failed attempt.
+          </span>
+        </label>
+        <label className="text-sm text-gray-700 flex flex-col gap-1">
+          Questions per attempt
+          <input
+            type="number"
+            min={1}
+            max={questions.length || undefined}
+            value={questionCount}
+            onChange={(e) => setQuestionCount(e.target.value)}
+            placeholder={`All ${questions.length}`}
+            className="border border-gray-200 rounded-lg px-3 py-2"
+          />
+          <span className="text-xs text-gray-400">
+            Blank = use all. If set, a random subset is drawn per attempt.
+          </span>
+        </label>
+      </div>
+
+      {/* Questions list */}
+      <div className="space-y-3">
+        {questions.length === 0 && (
+          <p className="text-sm text-gray-500 italic">
+            No quiz questions yet. Add one to enable the quiz on this card.
+          </p>
+        )}
+        {questions.map((q, idx) => (
+          <div
+            key={q.id}
+            className="border border-gray-200 rounded-xl p-4 space-y-3 bg-gray-50"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                  Question {idx + 1}
+                </span>
+                <select
+                  value={q.type}
+                  onChange={(e) =>
+                    changeType(idx, e.target.value as QuizQuestionType)
+                  }
+                  className="border border-gray-200 rounded-lg px-2 py-1 text-xs bg-white"
+                >
+                  {QUIZ_QUESTION_TYPES.map((t) => (
+                    <option key={t.value} value={t.value}>
+                      {t.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button
+                type="button"
+                onClick={() => removeQuestion(idx)}
+                className="text-xs text-rose-600 hover:text-rose-700"
+              >
+                Remove
+              </button>
+            </div>
+
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="text-gray-700 font-medium">Prompt</span>
+              <textarea
+                rows={2}
+                value={q.prompt}
+                onChange={(e) => updateQuestion(idx, { prompt: e.target.value })}
+                className="border border-gray-200 rounded-lg px-3 py-2"
+                placeholder="e.g. Which PPE is required when soldering?"
+              />
+            </label>
+
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-700">
+                  Options (select the correct one)
+                </span>
+                {q.type !== "true_false" && (
+                  <button
+                    type="button"
+                    onClick={() => addOption(idx)}
+                    className="text-xs text-indigo-600 hover:text-indigo-700"
+                  >
+                    + Option
+                  </button>
+                )}
+              </div>
+              <ul className="space-y-1.5">
+                {(q.options ?? []).map((opt, optIdx) => (
+                  <li key={optIdx} className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name={`correct-${q.id}`}
+                      checked={
+                        typeof q.correct_answer === "string" &&
+                        parseInt(q.correct_answer, 10) === optIdx
+                      }
+                      onChange={() => setCorrectOption(idx, optIdx)}
+                      className="flex-shrink-0"
+                    />
+                    <input
+                      type="text"
+                      value={opt}
+                      onChange={(e) => setOption(idx, optIdx, e.target.value)}
+                      className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm"
+                      placeholder={
+                        q.type === "true_false"
+                          ? optIdx === 0
+                            ? "True"
+                            : "False"
+                          : `Option ${String.fromCharCode(65 + optIdx)}`
+                      }
+                      disabled={q.type === "true_false"}
+                    />
+                    {q.type !== "true_false" && (q.options ?? []).length > 2 && (
+                      <button
+                        type="button"
+                        onClick={() => removeOption(idx, optIdx)}
+                        className="text-gray-400 hover:text-rose-600 text-sm"
+                        aria-label="Remove option"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="text-gray-700 font-medium">
+                Explanation (shown after answering)
+              </span>
+              <textarea
+                rows={2}
+                value={q.explanation}
+                onChange={(e) =>
+                  updateQuestion(idx, { explanation: e.target.value })
+                }
+                className="border border-gray-200 rounded-lg px-3 py-2"
+                placeholder="Why this is right — or why the other options aren't."
+              />
+            </label>
+          </div>
+        ))}
+      </div>
+
+      <button
+        type="button"
+        onClick={addQuestion}
+        className="px-4 py-2 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700"
+      >
+        + Add question
+      </button>
+    </section>
   );
 }

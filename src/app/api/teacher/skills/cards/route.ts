@@ -19,11 +19,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { BLOCK_TYPES, SKILL_TIERS } from "@/types/skills";
+import {
+  validateQuizQuestions,
+  validatePassThreshold,
+  validateRetakeCooldown,
+  validateQuestionCount,
+} from "@/lib/skills/validate-quiz";
 import type {
   Block,
   CardType,
   CreateSkillCardPayload,
   FrameworkAnchor,
+  QuizQuestion,
   SkillCardRow,
   SkillTier,
 } from "@/types/skills";
@@ -220,6 +227,10 @@ export async function POST(request: NextRequest) {
       tags,
       external_links,
       prerequisite_ids,
+      quiz_questions,
+      pass_threshold,
+      retake_cooldown_minutes,
+      question_count,
     } = payload;
 
     // ---- Validation --------------------------------------------------------
@@ -303,6 +314,24 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+    // ---- Quiz field validation (Phase A, migration 112) ------------------
+    if (quiz_questions !== undefined) {
+      const err = validateQuizQuestions(quiz_questions);
+      if (err) return NextResponse.json({ error: err }, { status: 400 });
+    }
+    {
+      const err = validatePassThreshold(pass_threshold);
+      if (err) return NextResponse.json({ error: err }, { status: 400 });
+    }
+    {
+      const err = validateRetakeCooldown(retake_cooldown_minutes);
+      if (err) return NextResponse.json({ error: err }, { status: 400 });
+    }
+    {
+      const poolSize = Array.isArray(quiz_questions) ? quiz_questions.length : 0;
+      const err = validateQuestionCount(question_count, poolSize);
+      if (err) return NextResponse.json({ error: err }, { status: 400 });
+    }
 
     const admin = createAdminClient();
 
@@ -357,6 +386,11 @@ export async function POST(request: NextRequest) {
         applied_in: applied_in ?? [],
         card_type: card_type ?? "lesson",
         author_name: author_name?.toString().trim() || null,
+        // Quiz fields — default to empty/80/0 if omitted.
+        quiz_questions: (quiz_questions as QuizQuestion[] | undefined) ?? [],
+        pass_threshold: pass_threshold ?? 80,
+        retake_cooldown_minutes: retake_cooldown_minutes ?? 0,
+        question_count: question_count ?? null,
         is_built_in: false,
         created_by_teacher_id: user.id,
         is_published: false,

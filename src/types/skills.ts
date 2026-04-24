@@ -534,6 +534,11 @@ export interface SkillCardRow {
   applied_in: string[];
   card_type: CardType;
   author_name: string | null;
+  // Quiz (migration 112)
+  quiz_questions: QuizQuestion[];
+  pass_threshold: number;
+  retake_cooldown_minutes: number;
+  question_count: number | null; // NULL = use full pool
   is_built_in: boolean;
   created_by_teacher_id: string | null;
   is_published: boolean;
@@ -620,6 +625,74 @@ export const CONTROLLED_VERBS = [
 export type ControlledVerb = (typeof CONTROLLED_VERBS)[number];
 
 // ============================================================================
+// Quiz types — ported from the safety-badges quiz engine (migration 112)
+// ============================================================================
+
+/**
+ * One question in a skill card's quiz. Shape mirrors the safety
+ * BadgeQuestion so the same runner + scoring code can work against both.
+ * For Phase A we support the 3 most common types; sequence/match can be
+ * added in Phase B if migrating safety content requires them.
+ */
+export type QuizQuestionType = "multiple_choice" | "true_false" | "scenario";
+
+export interface QuizQuestion {
+  id: string;
+  type: QuizQuestionType;
+  prompt: string;
+  options?: string[]; // MC + T/F
+  /** Correct answer — string for MC index-as-string / T/F answer text,
+   *  string[] for multi-select (not used in Phase A), number[] for
+   *  sequence (Phase B). Kept as union for shape parity with badges. */
+  correct_answer: string | string[] | number[];
+  explanation: string;
+  topic?: string;
+  difficulty?: "easy" | "medium" | "hard";
+}
+
+/** One student's answer to one question — matches the badge answer shape. */
+export interface QuizAnswer {
+  question_id: string;
+  selected: string | string[] | number[];
+  time_ms?: number;
+}
+
+/** A graded answer returned by the submit endpoint. */
+export interface QuizAnswerResult {
+  question_id: string;
+  prompt: string;
+  correct: boolean;
+  explanation: string;
+}
+
+export interface QuizSubmitResponse {
+  score: number;
+  passed: boolean;
+  total: number;
+  correct: number;
+  pass_threshold: number;
+  attempt_number: number;
+  results: QuizAnswerResult[];
+  /** Rate-limited retake: minutes left until the student can try again
+   *  after a failed attempt. 0 / undefined = can retry now. */
+  retake_after_minutes?: number;
+}
+
+/** Live cooldown + state for the intro screen before a student starts. */
+export interface QuizStatus {
+  has_quiz: boolean;
+  question_count: number; // effective count (may be less than pool if question_count set)
+  pass_threshold: number;
+  retake_cooldown_minutes: number;
+  last_attempt_at: string | null;
+  attempt_count: number;
+  best_score: number | null;
+  passed: boolean;
+  /** How many more minutes until a retake is allowed (after a fail). */
+  cooldown_remaining_minutes: number;
+}
+
+// ============================================================================
 // Event types — consumed by learning_events (migration 106)
 // ============================================================================
 
@@ -675,6 +748,11 @@ export interface CreateSkillCardPayload {
   tags?: string[];
   external_links?: ExternalLinkInput[];
   prerequisite_ids?: string[];
+  // Quiz (migration 112) — optional; empty/absent = no quiz on this card.
+  quiz_questions?: QuizQuestion[];
+  pass_threshold?: number;
+  retake_cooldown_minutes?: number;
+  question_count?: number | null;
 }
 
 export interface UpdateSkillCardPayload {
@@ -696,4 +774,9 @@ export interface UpdateSkillCardPayload {
   tags?: string[];
   external_links?: ExternalLinkInput[];
   prerequisite_ids?: string[];
+  // Quiz (migration 112)
+  quiz_questions?: QuizQuestion[];
+  pass_threshold?: number;
+  retake_cooldown_minutes?: number;
+  question_count?: number | null;
 }
