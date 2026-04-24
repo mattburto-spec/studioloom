@@ -45,14 +45,42 @@ export const PROGRAMS: Record<ProgramId, ProgramMeta> = {
   inquiry: { id: "inquiry", name: "Inquiry",           color: "#F59E0B", icon: "🔍" },
 };
 
-/** Resolve a class to a single program ID. See file comment for rules. */
+/** Resolve a class to a single program ID. See file comment for rules.
+ *
+ * Signal precedence:
+ *   1. Class framework. The class framework picker writes one of the
+ *      stored enum values (IB_MYP / IB_PYP / GCSE_DT / IGCSE_DT /
+ *      A_LEVEL_DT / ACARA_DT / PLTW). Anything starting with PYP
+ *      → "pypx" regardless of attached units, since the framework is
+ *      the strongest signal.
+ *   2. First active unit's unit_type (design / service / pp / inquiry).
+ *      A class with a Service unit lands in the Service program; a
+ *      class with a PYP Exhibition unit (unit_type="inquiry") lands
+ *      in PYPX.
+ *   3. No units yet → fall back to "design" (most common default for
+ *      MYP / GCSE / A-Level / IGCSE / PLTW / ACARA Design frameworks).
+ */
 export function getClassProgram(cls: DashboardClass): ProgramId {
   const framework = (cls.framework ?? "").toUpperCase();
-  if (framework === "PYP") return "pypx";
+  // PYP framework always means PYPX regardless of unit type. Accept a
+  // few variants to be forgiving about the exact enum string teachers
+  // may have stored (IB_PYP is the canonical value the picker writes,
+  // plain PYP is older legacy, PYPX is the program short-name).
+  if (
+    framework === "IB_PYP" ||
+    framework === "PYP" ||
+    framework === "PYPX"
+  ) {
+    return "pypx";
+  }
   const unitType = cls.units[0]?.unitType;
   if (unitType === "service") return "service";
   if (unitType === "pp") return "pp";
-  if (unitType === "inquiry") return "inquiry";
+  // "inquiry" is the PYP Exhibition unit type in IB schools — treat
+  // it as PYPX rather than a separate Inquiry program to match what
+  // teachers expect from the chip. If a genuine non-PYP inquiry use
+  // case surfaces later we'll split these again.
+  if (unitType === "inquiry") return "pypx";
   return "design";
 }
 
