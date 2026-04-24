@@ -17,11 +17,9 @@ import { QuickCaptureFAB } from "@/components/portfolio/QuickCaptureFAB";
 import { PortfolioPanel } from "@/components/portfolio/PortfolioPanel";
 import { ExportPagePdf } from "@/components/student/ExportPagePdf";
 import { NarrativeModal } from "@/components/portfolio/NarrativeModal";
-import { VocabWarmup } from "@/components/student/VocabWarmup";
-import { TextToSpeech } from "@/components/student/TextToSpeech";
 import { useUnitNav } from "@/contexts/UnitNavContext";
 import { ScrollReveal } from "@/components/student/ScrollReveal";
-import { toEmbedUrl } from "@/lib/video-embed";
+import { LessonHeader, LessonIntro } from "@/components/student/lesson-bold";
 import StudentFeedbackPulse from "@/components/teacher/knowledge/StudentFeedbackPulse";
 // DesignAssistantWidget import removed in Phase 10 polish. Component file
 // still exists — will be re-integrated via a unified AI-mentor surface.
@@ -116,7 +114,6 @@ function UnitPageViewInner({
     (classInfo?.framework as FrameworkId | null | undefined) ?? "IB_MYP";
 
   let sectionNum = 0;
-  const hasContext = pageContent?.learningGoal || pageContent?.vocabWarmup || pageContent?.introduction;
 
   const displayTitle = currentPage
     ? (currentPage.phaseLabel && pageContent?.title?.startsWith(`${currentPage.phaseLabel}: `)
@@ -129,81 +126,81 @@ function UnitPageViewInner({
     return null;
   }
 
+  // Derive LessonHeader props once — keeps JSX block below readable.
+  const lessonTitleDisplay =
+    currentPage && (journeyMode || currentPage.type === "lesson")
+      ? displayTitle
+      : currentPage
+        ? `${currentPage.id}: ${displayTitle}`
+        : data?.unit.title || "Lesson";
+  const lessonStrandLabel =
+    currentPage && !journeyMode && currentPage.type !== "lesson" && criterion
+      ? `Criterion ${currentPage.criterion}: ${criterion.name}`
+      : undefined;
+  const lessonCriterionChips =
+    currentPage && (journeyMode || currentPage.type === "lesson") && pageContent?.sections
+      ? collectCriterionChips(pageContent.sections, framework)
+      : undefined;
+
   return (
-    <div className="min-h-screen bg-white">
+    <div className="lesson-bold min-h-screen" style={{ background: "var(--sl-bg)" }}>
       {/* Lesson sticky bar removed in Phase 10 follow-up — its mobile
           hamburger now lives in the layout-owned BoldTopNav via
           SidebarSlotContext. The Dashboard button was redundant with the
           nav logo. Progress + title are already shown in the hero block
           below. */}
 
-      {/* ── Hero header — full-width gradient block ── */}
+      {/* ── Lesson header — warm-paper Bold card ── */}
       {currentPage ? (
-      <div className="w-full" style={{ background: `linear-gradient(135deg, #1A1A2E 0%, ${pageColor} 100%)` }}>
-        <div className="max-w-5xl mx-auto px-6 pt-6 pb-10">
-
-          <p className="text-sm text-white/70 font-medium mb-3 uppercase tracking-wider">
-            Lesson {currentIndex + 1} of {enabledPages.length}
-          </p>
-
-          <h1 className="text-4xl md:text-5xl font-extrabold text-white leading-tight">
-            {journeyMode || currentPage.type === "lesson"
-              ? displayTitle
-              : `${currentPage.id}: ${displayTitle}`}
-          </h1>
-
-          {/* Badges */}
-          <div className="flex items-center gap-2 mt-5 flex-wrap">
-            {(journeyMode || currentPage.type === "lesson") && pageContent?.sections && (
-              collectCriterionChips(pageContent.sections, framework).map(chip => (
-                <span
-                  key={chip.key}
-                  className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-white/20 text-white"
-                >
-                  <span className="w-2 h-2 rounded-full bg-white/60" />
-                  {chip.kind === "label" || chip.kind === "implicit"
-                    ? `${chip.short}: ${chip.name}`
-                    : chip.kind === "unknown"
-                      ? chip.tag
-                      : "Not assessed"}
-                </span>
-              ))
-            )}
-            {!journeyMode && currentPage.type !== "lesson" && criterion && (
-              <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-full bg-white/20 text-white">
-                Criterion {currentPage.criterion}: {criterion.name}
-              </span>
-            )}
-            {currentSettings.assessment_type === "summative" && (
-              <span className="inline-flex items-center text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-full bg-white/20 text-white">
-                Summative
-              </span>
-            )}
-            {currentSettings.export_pdf && pageContent?.sections && (
-              <ExportPagePdf
-                pageId={pageId}
-                pageTitle={pageContent.title || currentPage.title}
-                sections={pageContent.sections}
-                responses={responses}
-                studentName={data.studentName || "Student"}
-                unitTitle={data.unit.title}
-              />
-            )}
+        <div className="max-w-5xl mx-auto px-6 pt-6">
+          <LessonHeader
+            phaseName={currentPage.phaseLabel}
+            phaseColor={pageColor}
+            lessonIndex={currentIndex + 1}
+            lessonTotal={enabledPages.length}
+            strandLabel={lessonStrandLabel}
+            title={lessonTitleDisplay}
+            whyItMatters={pageContent?.learningGoal}
+            learningObjectives={pageContent?.success_criteria}
+            criterionChips={lessonCriterionChips}
+            summative={currentSettings.assessment_type === "summative"}
+            actions={
+              currentSettings.export_pdf && pageContent?.sections ? (
+                <ExportPagePdf
+                  pageId={pageId}
+                  pageTitle={pageContent.title || currentPage.title}
+                  sections={pageContent.sections}
+                  responses={responses}
+                  studentName={data.studentName || "Student"}
+                  unitTitle={data.unit.title}
+                />
+              ) : undefined
+            }
+          />
+        </div>
+      ) : (
+        /* No lesson content — show a helpful empty state in the warm-paper shell */
+        <div className="max-w-5xl mx-auto px-6 pt-6">
+          <div className="card-lb p-8">
+            <h1
+              className="display-lg"
+              style={{
+                fontSize: "clamp(32px, 4.5vw, 44px)",
+                lineHeight: "1",
+                color: "var(--sl-ink)",
+              }}
+            >
+              {data?.unit.title || "Unit"}
+            </h1>
+            <p
+              className="mt-3"
+              style={{ fontSize: "15px", color: "var(--sl-ink-2)" }}
+            >
+              This unit doesn&apos;t have any lesson content yet. Your teacher will
+              add content soon.
+            </p>
           </div>
         </div>
-      </div>
-      ) : (
-      /* No lesson content — show a helpful empty state instead of blank page */
-      <div className="w-full" style={{ background: "linear-gradient(135deg, #1A1A2E 0%, #6B7280 100%)" }}>
-        <div className="max-w-5xl mx-auto px-6 pt-6 pb-10">
-          <h1 className="text-3xl md:text-4xl font-extrabold text-white leading-tight">
-            {data?.unit.title || "Unit"}
-          </h1>
-          <p className="text-white/70 mt-3">
-            This unit doesn&apos;t have any lesson content yet. Your teacher will add content soon.
-          </p>
-        </div>
-      </div>
       )}
 
       {/* ── Open Studio Banner ── */}
@@ -247,99 +244,16 @@ function UnitPageViewInner({
       )}
 
       {currentPage && (<>
-        {/* ── Section 1: Context (Learning Goal + Vocab + Intro) ── */}
-        {hasContext && (
-          <>
-            {/* Learning goal — gradient colored block */}
-            {pageContent?.learningGoal && (
-              <ScrollReveal>
-                <div
-                  className="full-bleed py-10 mb-8"
-                  style={{ background: `linear-gradient(135deg, #1A1A2E 0%, ${pageColor} 100%)` }}
-                >
-                  <div className="max-w-5xl mx-auto px-6">
-                    <div className="flex items-center justify-between mb-3">
-                      <h2 className="text-sm font-bold uppercase tracking-widest text-white/70">
-                        Learning Objectives
-                      </h2>
-                      <TextToSpeech text={pageContent.learningGoal} />
-                    </div>
-                    <p className="text-xl md:text-2xl font-medium text-white leading-relaxed">
-                      {pageContent.learningGoal}
-                    </p>
-                  </div>
-                </div>
-              </ScrollReveal>
-            )}
-
-            <SectionDivider number={++sectionNum} color={pageColor} />
-
-            {/* Vocab warmup — bold colored accent block */}
-            {pageContent?.vocabWarmup && (
-              <ScrollReveal delay={100}>
-                <div
-                  className="rounded-2xl p-6 md:p-8 mb-8"
-                  style={{ backgroundColor: pageColor + "18" }}
-                >
-                  <VocabWarmup warmup={pageContent.vocabWarmup} ellLevel={data.ellLevel} />
-                </div>
-              </ScrollReveal>
-            )}
-
-            {/* Introduction — big readable paragraph */}
-            {pageContent?.introduction && (
-              <ScrollReveal delay={150}>
-                <div className="mb-8">
-                  <div className="flex items-start gap-3">
-                    <p className="text-lg text-gray-700 leading-relaxed flex-1">
-                      {pageContent.introduction.text}
-                    </p>
-                    <TextToSpeech text={pageContent.introduction.text} />
-                  </div>
-                  {pageContent.introduction.media?.type === "image" && (
-                    <div className="mt-6 rounded-2xl overflow-hidden shadow-sm">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={pageContent.introduction.media.url} alt="" className="w-full" />
-                    </div>
-                  )}
-                  {pageContent.introduction.media?.type === "video" && (() => {
-                    const embedUrl = toEmbedUrl(pageContent.introduction.media!.url);
-                    return embedUrl ? (
-                      <div className="mt-6 rounded-2xl overflow-hidden bg-black aspect-video shadow-sm">
-                        <iframe
-                          src={embedUrl}
-                          className="w-full h-full"
-                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                          allowFullScreen
-                        />
-                      </div>
-                    ) : null;
-                  })()}
-                  {pageContent.introduction.links && pageContent.introduction.links.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mt-4">
-                      {pageContent.introduction.links.map((link, i) => (
-                        <a
-                          key={i}
-                          href={link.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-opacity hover:opacity-80"
-                          style={{ backgroundColor: pageColor + "15", color: pageColor }}
-                        >
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                            <polyline points="15 3 21 3 21 9" />
-                            <line x1="10" y1="14" x2="21" y2="3" />
-                          </svg>
-                          {link.label}
-                        </a>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </ScrollReveal>
-            )}
-          </>
+        {/* ── Context block (vocab + intro text + media + links) — warm-paper Bold ── */}
+        {(pageContent?.vocabWarmup || pageContent?.introduction) && (
+          <ScrollReveal>
+            <LessonIntro
+              vocabWarmup={pageContent?.vocabWarmup}
+              introduction={pageContent?.introduction}
+              ellLevel={data.ellLevel}
+              pageColor={pageColor}
+            />
+          </ScrollReveal>
         )}
 
         {/* Skills for this lesson — renders only when teacher has pinned

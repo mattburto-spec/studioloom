@@ -153,23 +153,33 @@ describe("render-path wiring lock — student lesson page (5.10.3)", () => {
     expect(pageSource).toMatch(/\?\?\s*["']IB_MYP["']/);
   });
 
-  it("badge block no longer uses CRITERIA[tag as CriterionKey] lookup", () => {
-    // CRITERIA is still imported (strand header path at ~line 107 uses it),
-    // but the badge block inner pipeline must not.
-    const badgeBlockMatch = pageSource.match(
-      /\{\s*\/\*\s*Badges\s*\*\/\s*\}[\s\S]*?collectCriterionChips\([\s\S]*?\)\.map\(/,
+  it("chip rendering never falls back to CRITERIA[tag as CriterionKey] lookup", () => {
+    // CRITERIA is still imported (strand header path uses it), but the old
+    // inline-chip pipeline must not resurface anywhere in page.tsx. After the
+    // Lesson Bold refactor, chip rendering moved into LessonHeader via a
+    // `criterionChips` prop — the legacy pattern would reappear as a drift
+    // from that refactor.
+    expect(pageSource).not.toMatch(/CRITERIA\[tag\s+as\s+CriterionKey\]/);
+    expect(pageSource).not.toMatch(
+      /pageContent\.sections\.flatMap\(.*section\.criterionTags/,
     );
-    expect(badgeBlockMatch).not.toBeNull();
-    // And the old pattern `CRITERIA[tag as CriterionKey]` must not appear
-    // inside the badge block segment.
-    const badgeSegment = badgeBlockMatch?.[0] ?? "";
-    expect(badgeSegment).not.toMatch(/CRITERIA\[tag\s+as\s+CriterionKey\]/);
   });
 
   it("calls collectCriterionChips with (pageContent.sections, framework)", () => {
     expect(pageSource).toMatch(
       /collectCriterionChips\s*\(\s*pageContent\.sections\s*,\s*framework\s*\)/,
     );
+  });
+
+  it("threads criterion chips into LessonHeader via the criterionChips prop", () => {
+    // Post-Lesson-Bold shape: chip array is computed via collectCriterionChips
+    // (locked above) and passed as `criterionChips={...}` to LessonHeader.
+    // This guard fires if someone removes the prop plumbing or reverts to
+    // inline badge rendering.
+    expect(pageSource).toMatch(
+      /import\s*\{[^}]*\bLessonHeader\b[^}]*\}\s*from\s*["']@\/components\/student\/lesson-bold["']/,
+    );
+    expect(pageSource).toMatch(/criterionChips\s*=\s*\{[^}]*\}/);
   });
 });
 
