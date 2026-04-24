@@ -5,7 +5,7 @@
 # Cross-referenced with docs/schema-registry.yaml (tables) and docs/ai-call-sites.yaml (AI calls).
 #
 # Last synced: 2026-04-14
-# Total routes: 337
+# Total routes: 347
 
 routes:
 - path: /api/admin/ai-model
@@ -2627,6 +2627,60 @@ routes:
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
+- path: /api/teacher/labs
+  method: GET
+  file: src/app/api/teacher/labs/route.ts
+  auth: teacher
+  tables_read: []
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/labs
+  method: POST
+  file: src/app/api/teacher/labs/route.ts
+  auth: teacher
+  tables_read: []
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/labs/[id]
+  method: PATCH
+  file: src/app/api/teacher/labs/[id]/route.ts
+  auth: teacher
+  tables_read: []
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/labs/[id]
+  method: DELETE
+  file: src/app/api/teacher/labs/[id]/route.ts
+  auth: teacher
+  tables_read: []
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/labs/[id]/bulk-approval
+  method: POST
+  file: src/app/api/teacher/labs/[id]/bulk-approval/route.ts
+  auth: teacher
+  tables_read: []
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/labs/[id]/machines
+  method: PATCH
+  file: src/app/api/teacher/labs/[id]/machines/route.ts
+  auth: teacher
+  tables_read: []
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
 - path: /api/teacher/lesson-editor/ai-field
   method: POST
   file: src/app/api/teacher/lesson-editor/ai-field/route.ts
@@ -2671,6 +2725,42 @@ routes:
   tables_read: []
   tables_written:
   - content_items
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/machine-profiles
+  method: GET
+  file: src/app/api/teacher/machine-profiles/route.ts
+  auth: teacher
+  tables_read: []
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/machine-profiles
+  method: POST
+  file: src/app/api/teacher/machine-profiles/route.ts
+  auth: teacher
+  tables_read: []
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/machine-profiles/[id]
+  method: PATCH
+  file: src/app/api/teacher/machine-profiles/[id]/route.ts
+  auth: teacher
+  tables_read: []
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/machine-profiles/[id]
+  method: DELETE
+  file: src/app/api/teacher/machine-profiles/[id]/route.ts
+  auth: teacher
+  tables_read: []
+  tables_written: []
   ai_call_sites: []
   cost_ceiling_usd: null
   notes: null
