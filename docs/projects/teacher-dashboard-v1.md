@@ -50,8 +50,9 @@ Bold's sections (in render order): `TopNav` · `NowHero` · `TodayRail`
 | 9 | Loading skeleton + per-section empty states + 0-classes welcome hero (mock fallback fully removed) | ✅ Done |
 | 9b | Refresh button + error boundary (deferred — non-blocking) | ⏳ Planned |
 | 10 | Responsive pass — hero stacks, grids flow 1→2→4 (rail/insights) + 1→2 (units), TopNav compresses, type scales | ✅ Done |
-| 11 | Accessibility pass | ⏳ Planned |
-| 12 | Delete `/teacher/dashboard-legacy` (scheduled for ≥ 2026-05-01, 1 week after cutover on 2026-04-24) | ⏳ Planned |
+| 11 | Unified Bold chrome across all teacher routes — move BoldTopNav + `.tl-v2` styles into `teacher/layout.tsx` so `/teacher/classes`, `/teacher/units`, `/teacher/students`, `/teacher/skills`, `/teacher/preflight`, etc. stop rendering the legacy sticky header. Mirrors student dashboard Phase 10. Smoke every teacher route for layout clashes (z-index, sticky overlap, scoped-CSS leakage). | ⏳ Planned |
+| 12 | Accessibility pass | ⏳ Planned |
+| 13 | Delete `/teacher/dashboard-legacy` (scheduled for ≥ 2026-05-01, 1 week after cutover on 2026-04-24) | ⏳ Planned |
 
 ## Open questions (decide during Phase 0)
 
