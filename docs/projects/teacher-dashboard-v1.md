@@ -52,11 +52,16 @@ Bold's sections (in render order): `TopNav` · `NowHero` · `TodayRail`
 | 10 | Responsive pass — hero stacks, grids flow 1→2→4 (rail/insights) + 1→2 (units), TopNav compresses, type scales | ✅ Done |
 | 11 | Unified Bold chrome across all teacher routes — BoldTopNav + `.tl-v2` styles lifted into `teacher/layout.tsx` via new `TeacherShell`. /teacher/dashboard/classes/units/students/skills/preflight/settings/toolkit/safety/library/library etc. now all render the same chrome; projector route stays chromeless. | ✅ Done |
 | 12 | Program scope wiring — chip now lists All programs + one entry per program the teacher teaches (Design / PYPX / Service / PP / Inquiry, derived from `framework` + first unit's `unit_type`). Hero / rail / insights / units / admin all narrow to the selected program. Scope state lifted to `TeacherShellContext`. | ✅ Done |
-| 13 | First alternate dashboard model: **PYPX Exhibition** — port `docs/newlook/PYPX Student Dashboard/pypx_dashboard.jsx` into a teacher view: every student's Exhibition project + milestones + next step, replacing hero/rail/units when `scope === "pypx"`. Ship the Teacher ↔ Student model-switch pattern so Phase 14+ can drop in Service, PP, Inquiry variants. Needs: per-scope view registry, default hero/rail/units model keeps working for MYP Design + others. | ⏳ Planned |
+| 13 | First alternate dashboard model: **PYPX Exhibition** — per-scope view registry (`views/registry.ts`) + `DefaultView` (extracted hero/rail/insights/units/admin) + `PypxView` (purple Exhibition banner + 5-phase PYP inquiry strip with aggregate class position). Client delegates rendering to `resolveDashboardView(scope)`. PypxView is a v1 — rich Exhibition data (per-student project titles, central idea, per-student phase) lands in later phases once the data layer grows. | ✅ Done |
 | 14 | Service as Action dashboard model — community impact + hours + reflections. Consumes the Phase 13 registry. | ⏳ Planned |
 | 15 | Personal Project dashboard model — supervisor pairs + essay milestones + check-ins. Consumes the Phase 13 registry. | ⏳ Planned |
 | 16 | Accessibility pass | ⏳ Planned |
 | 17 | Delete `/teacher/dashboard-legacy` (scheduled for ≥ 2026-05-01, 1 week after cutover on 2026-04-24) | ⏳ Planned |
+
+## Future (post-v1, not scheduled)
+
+- **Dedicated week view page** — the TodayRail "Week" button currently jumps to `/teacher/settings?tab=timetable` (the cycle-editor). A better destination is a dedicated `/teacher/week` (or similar) route rendering this week's classes beautifully: timeline strip / day columns / unit thumbnails per period, lesson status pills, quick "start teaching" per period. Bold-styled, not a config table.
+- **Year viewer + planner** — pair with the week view: `/teacher/year` zooms out to term/semester blocks showing unit assignments across the calendar. Room for the teacher to drag units onto weeks, see term start/end, holidays, etc. Bigger piece of work — likely after Phases 13-17 land.
 
 ## Open questions (decide during Phase 0)
 

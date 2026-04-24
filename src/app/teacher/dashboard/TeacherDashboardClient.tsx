@@ -3,19 +3,15 @@
 /* ================================================================
  * TeacherDashboardClient — Bold teacher dashboard body.
  *
- * Phase 1-10 built the dashboard sections; Phase 11 pushed the Bold
- * chrome (TopNav + scoped CSS + scope state + class fetch) up into
- * `src/app/teacher/layout.tsx` via TeacherShell so every teacher
- * route renders under the same navigation. This file is now just the
- * dashboard *body*: hero, rail, insights, units, admin.
+ * Phase 13 — data-loading + filtering stays here; the rendered body
+ * comes from a per-scope view resolved at render time. DefaultView
+ * (all-programs + Design) keeps the hero/rail/insights/units/admin
+ * layout; PypxView (scope === "pypx") swaps in an Exhibition-themed
+ * body. Adding Service / PP / Inquiry views is just: write the
+ * component, drop it in views/registry.ts.
  * ================================================================ */
 
 import { useEffect, useMemo, useState } from "react";
-import { Admin } from "@/components/teacher-dashboard-v2/Admin";
-import { Insights } from "@/components/teacher-dashboard-v2/Insights";
-import { NowHero } from "@/components/teacher-dashboard-v2/NowHero";
-import { TodayRail } from "@/components/teacher-dashboard-v2/TodayRail";
-import { UnitsGrid } from "@/components/teacher-dashboard-v2/UnitsGrid";
 import {
   DashboardSkeleton,
   NoClassesWelcome,
@@ -30,6 +26,7 @@ import { buildInsightBuckets } from "@/components/teacher-dashboard-v2/insight-b
 import { buildUnitCards } from "@/components/teacher-dashboard-v2/unit-cards";
 import { useTeacherShell } from "@/components/teacher-dashboard-v2/TeacherShellContext";
 import { filterClassesByScope } from "@/components/teacher-dashboard-v2/program";
+import { resolveDashboardView } from "@/components/teacher-dashboard-v2/views/registry";
 import type {
   DashboardData,
   DashboardClass,
@@ -53,10 +50,6 @@ export default function TeacherDashboardClient() {
     return () => clearInterval(tick);
   }, []);
 
-  // Dashboard fetch. Yes, TeacherShell also hits /api/teacher/dashboard
-  // for the class list — accept the duplicate for now; consolidation
-  // will happen alongside the Phase 12 program-scope rollout when
-  // we'll lift dashboard data into shared context.
   useEffect(() => {
     if (!teacher) return;
     let cancelled = false;
@@ -88,8 +81,7 @@ export default function TeacherDashboardClient() {
     let cancelled = false;
     (async () => {
       try {
-        const tz =
-          Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
         const qs = new URLSearchParams({ days: "1" });
         if (tz) qs.set("tz", tz);
         const res = await fetch(`/api/teacher/schedule/today?${qs}`);
@@ -111,9 +103,8 @@ export default function TeacherDashboardClient() {
     };
   }, [teacher]);
 
-  // Phase 12 — narrow all four body sections to the selected program.
-  // The scope chip writes to TeacherShell; everything below reads the
-  // filtered roster so hero/rail/insights/units/admin all agree.
+  // Scope filter — all views see the same filtered input, so the chip
+  // behaves consistently across programs.
   const filteredClasses = useMemo(
     () => filterClassesByScope(classes, scope),
     [classes, scope],
@@ -129,10 +120,6 @@ export default function TeacherDashboardClient() {
   const filteredInsights = useMemo(() => {
     if (insights === null) return null;
     if (scope === "all") return insights;
-    // DashboardInsight carries subtitle like "Student · Class Name · Unit".
-    // We don't have classId on the insight row itself, so we match by
-    // class name contained in the subtitle. Imperfect but reasonable
-    // for a v1 filter.
     const allowedNames = new Set(filteredClasses.map((c) => c.name));
     return insights.filter((i) =>
       Array.from(allowedNames).some((n) => i.subtitle.includes(` · ${n} · `)),
@@ -151,11 +138,12 @@ export default function TeacherDashboardClient() {
 
   const railCards = useMemo(() => {
     if (!schedule) return [];
-    const all = buildTodayRail(schedule, filteredClasses, filteredUnmarkedWork, now);
-    // buildTodayRail maps every schedule entry → a card, even ones
-    // whose class isn't in the filtered roster (student counts come
-    // from the `classes` param; meetings come from the schedule). Drop
-    // rail cards that aren't in the selected program.
+    const all = buildTodayRail(
+      schedule,
+      filteredClasses,
+      filteredUnmarkedWork,
+      now,
+    );
     return all.filter((c) => filteredClassIds.has(c.classId));
   }, [schedule, filteredClasses, filteredClassIds, filteredUnmarkedWork, now]);
 
@@ -175,24 +163,18 @@ export default function TeacherDashboardClient() {
   if (!allLoaded) return <DashboardSkeleton />;
   if (showWelcome) return <NoClassesWelcome teacherName={teacher?.name ?? ""} />;
 
+  const View = resolveDashboardView(scope);
   return (
-    <>
-      {/* Hero + today rail share the same row on lg+ (2/3 + 1/3 split)
-       *  so the huge hero doesn't push the rail below the fold on
-       *  wide screens. Stacks as two blocks below lg. */}
-      <section className="max-w-[1400px] mx-auto px-4 md:px-6 pt-6 md:pt-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-stretch">
-          <div className="lg:col-span-2">
-            <NowHero current={currentPeriod} loaded={scheduleLoaded} />
-          </div>
-          <div className="lg:col-span-1">
-            <TodayRail cards={railCards} now={now} loaded={scheduleLoaded} />
-          </div>
-        </div>
-      </section>
-      <Insights buckets={insightBuckets} loaded={dashboardLoaded} />
-      <UnitsGrid cards={unitCards} loaded={dashboardLoaded} />
-      <Admin classes={filteredClasses} loaded={dashboardLoaded} />
-    </>
+    <View
+      teacher={teacher}
+      classes={filteredClasses}
+      currentPeriod={currentPeriod}
+      railCards={railCards}
+      insightBuckets={insightBuckets}
+      unitCards={unitCards}
+      now={now}
+      dashboardLoaded={dashboardLoaded}
+      scheduleLoaded={scheduleLoaded}
+    />
   );
 }
