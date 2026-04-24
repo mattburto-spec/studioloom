@@ -20,6 +20,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireTeacherAuth } from "@/lib/auth/verify-teacher-unit";
 import { getPageList } from "@/lib/unit-adapter";
+import type { UnitContentData } from "@/types";
 
 interface FlatPage {
   unit_id: string;
@@ -39,13 +40,35 @@ export async function GET(request: NextRequest) {
 
     const admin = createAdminClient();
 
-    // Teacher's authored units — match the existing "author_teacher_id OR
-    // teacher_id" dual-ownership pattern for robustness against legacy rows.
-    const { data: units } = await admin
-      .from("units")
-      .select("id, title, content_data")
-      .or(`author_teacher_id.eq.${teacherId},teacher_id.eq.${teacherId}`)
-      .order("updated_at", { ascending: false });
+    // Teacher's authored units — split into two .eq() queries + merge
+    // because PostgREST .or() silently returned empty in the demo-ack route
+    // for normal teacher_id matches. Same bug pattern, same fix.
+    const [{ data: ownedUnits }, { data: authoredUnits }] = await Promise.all([
+      admin
+        .from("units")
+        .select("id, title, content_data, updated_at")
+        .eq("teacher_id", teacherId),
+      admin
+        .from("units")
+        .select("id, title, content_data, updated_at")
+        .eq("author_teacher_id", teacherId),
+    ]);
+    const seenIds = new Set<string>();
+    const units: Array<{
+      id: string;
+      title: string | null;
+      content_data: UnitContentData | null;
+      updated_at: string;
+    }> = [];
+    for (const u of [...(ownedUnits ?? []), ...(authoredUnits ?? [])]) {
+      if (seenIds.has(u.id)) continue;
+      seenIds.add(u.id);
+      units.push(u);
+    }
+    // Preserve updated-desc ordering
+    units.sort((a, b) =>
+      (b.updated_at ?? "").localeCompare(a.updated_at ?? "")
+    );
 
     const flat: FlatPage[] = [];
     for (const u of units ?? []) {
