@@ -5,7 +5,7 @@
 # Cross-referenced with docs/schema-registry.yaml (tables) and docs/ai-call-sites.yaml (AI calls).
 #
 # Last synced: 2026-04-14
-# Total routes: 337
+# Total routes: 342
 
 routes:
 - path: /api/admin/ai-model
@@ -2622,6 +2622,51 @@ routes:
   method: DELETE
   file: src/app/api/teacher/knowledge/upload/route.ts
   auth: public
+  tables_read: []
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/labs
+  method: GET
+  file: src/app/api/teacher/labs/route.ts
+  auth: teacher
+  tables_read: []
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/labs
+  method: POST
+  file: src/app/api/teacher/labs/route.ts
+  auth: teacher
+  tables_read: []
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/labs/[id]
+  method: PATCH
+  file: src/app/api/teacher/labs/[id]/route.ts
+  auth: teacher
+  tables_read: []
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/labs/[id]
+  method: DELETE
+  file: src/app/api/teacher/labs/[id]/route.ts
+  auth: teacher
+  tables_read: []
+  tables_written: []
+  ai_call_sites: []
+  cost_ceiling_usd: null
+  notes: null
+- path: /api/teacher/labs/[id]/machines
+  method: PATCH
+  file: src/app/api/teacher/labs/[id]/machines/route.ts
+  auth: teacher
   tables_read: []
   tables_written: []
   ai_call_sites: []
