@@ -38,7 +38,8 @@ interface ClassLite {
  * `teacher_id` as the canonical owner field and falls back to
  * `author_teacher_id` for legacy / forked rows. Split into two `.eq()`
  * queries + merge because PostgREST `.or()` was silently returning empty
- * for normal `teacher_id` matches (first bug report 24 Apr 2026).
+ * for normal `teacher_id` matches (bug reported 24 Apr 2026 — Matt's
+ * DemoAckPanel saw "no classes" despite owning many).
  */
 async function getTeacherClasses(
   admin: ReturnType<typeof createAdminClient>,
