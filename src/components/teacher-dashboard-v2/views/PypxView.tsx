@@ -81,91 +81,22 @@ export function PypxView({
 
   return (
     <>
-      {/* Exhibition setup CTA — always-visible strip guiding the teacher
-       *  to each PYP class's setup page. First-time PYP teachers would
-       *  otherwise have to discover the small "Exhibition" button buried
-       *  inside each class detail page; this surfaces the setup route
-       *  prominently on the main dashboard. Renders one card per PYP
-       *  class the teacher currently has in scope. */}
-      {classes.length > 0 && (
-        <section className="max-w-[1400px] mx-auto px-4 md:px-6 pt-6 md:pt-8">
-          <div className="bg-white rounded-2xl border border-[var(--hair)] p-5 md:p-6">
-            <div className="flex items-start justify-between gap-4 mb-3">
-              <div>
-                <div className="cap text-[var(--ink-3)]">Exhibition setup</div>
-                <h2 className="display text-[22px] lg:text-[26px] leading-none mt-1">
-                  Configure dates, mentors, and projects.
-                </h2>
-                <p className="text-[13px] text-[var(--ink-3)] mt-2 max-w-xl leading-snug">
-                  Set the Exhibition date and milestones, then assign each
-                  student a mentor and seed their project inquiry. Students
-                  can take over their own entries once the PYPX student view
-                  ships.
-                </p>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-              {classes.map((c) => {
-                const needsUnit = c.units.length === 0;
-                return (
-                  <Link
-                    key={c.id}
-                    href={`/teacher/classes/${c.id}/exhibition`}
-                    className="group flex items-center gap-3 px-4 py-3 rounded-xl border border-[var(--hair)] hover:border-transparent hover:shadow-md transition bg-gradient-to-br from-white to-purple-50/40"
-                  >
-                    <div
-                      className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-white font-extrabold text-[13px]"
-                      style={{
-                        background:
-                          "linear-gradient(135deg, #9333EA 0%, #C026D3 100%)",
-                      }}
-                    >
-                      🌱
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-[13.5px] font-bold text-[var(--ink)] truncate">
-                        {c.name}
-                      </div>
-                      <div className="text-[11px] text-[var(--ink-3)] mt-0.5">
-                        {needsUnit
-                          ? "Needs a unit · set up →"
-                          : `${c.studentCount} student${c.studentCount === 1 ? "" : "s"} · set up →`}
-                      </div>
-                    </div>
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="text-[var(--ink-3)] group-hover:text-purple-700 transition shrink-0"
-                    >
-                      <path d="M5 12h14M13 6l6 6-6 6" />
-                    </svg>
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-        </section>
-      )}
-
       {/* Exhibition banner — purple gradient, Bold type. Replaces the
-       *  MYP hero entirely. */}
+       *  MYP hero entirely. On lg+ splits into left (text) + right
+       *  (per-class setup cards) so the previously-empty right side
+       *  is earning its keep. Setup cards are the primary CTA for
+       *  first-time PYP teachers. */}
       <section className="max-w-[1400px] mx-auto px-4 md:px-6 pt-6 md:pt-8">
         <div
-          className="relative rounded-[24px] lg:rounded-[32px] overflow-hidden card-shadow-lg p-6 md:p-8 lg:p-12"
+          className="relative rounded-[24px] lg:rounded-[32px] overflow-hidden card-shadow-lg p-6 md:p-8 lg:p-10"
           style={{
             background:
               "linear-gradient(135deg, #7B2FF2 0%, #9333EA 45%, #C026D3 100%)",
           }}
         >
-          {/* decorative dots */}
+          {/* decorative dots — kept as a subtle accent behind everything. */}
           <svg
-            className="absolute top-0 right-0 opacity-15 pointer-events-none"
+            className="absolute top-0 right-0 opacity-10 pointer-events-none"
             width="340"
             height="220"
             viewBox="0 0 340 220"
@@ -175,19 +106,83 @@ export function PypxView({
             <circle cx="310" cy="170" r="36" fill="#fff" />
             <circle cx="190" cy="24" r="18" fill="#fff" />
           </svg>
-          <div className="relative text-white max-w-2xl">
-            <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur rounded-full px-3 py-1.5 text-[11.5px] font-bold">
-              PYPX · Exhibition
+
+          <div className="relative grid grid-cols-1 lg:grid-cols-5 gap-6 lg:gap-8 items-center">
+            {/* Left: title + summary */}
+            <div className="lg:col-span-3 text-white">
+              <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur rounded-full px-3 py-1.5 text-[11.5px] font-bold">
+                PYPX · Exhibition
+              </div>
+              <h1 className="display-lg text-[44px] sm:text-[56px] md:text-[72px] lg:text-[80px] leading-[0.95] mt-4">
+                {firstName}&apos;s Exhibition.
+              </h1>
+              <p className="text-[15px] md:text-[18px] leading-snug mt-3 text-white/85 font-medium">
+                {totals.totalClasses} class{totals.totalClasses === 1 ? "" : "es"}{" "}
+                · {totals.totalStudents} student
+                {totals.totalStudents === 1 ? "" : "s"} · tracking towards
+                Exhibition day.
+              </p>
             </div>
-            <h1 className="display-lg text-[56px] sm:text-[72px] md:text-[88px] leading-[0.95] mt-4 md:mt-6">
-              {firstName}&apos;s Exhibition.
-            </h1>
-            <p className="text-[16px] md:text-[20px] leading-snug mt-3 md:mt-4 text-white/85 font-medium">
-              {totals.totalClasses} class{totals.totalClasses === 1 ? "" : "es"}{" "}
-              · {totals.totalStudents} student
-              {totals.totalStudents === 1 ? "" : "s"} · tracking towards
-              Exhibition day.
-            </p>
+
+            {/* Right: per-class setup CTAs. Always visible (until we can
+             *  detect a fully-configured class, which needs an
+             *  exhibition_config join on the dashboard endpoint —
+             *  deferred). Card styling is semi-transparent white so it
+             *  reads on the purple gradient without competing with the
+             *  title type. */}
+            {classes.length > 0 && (
+              <div className="lg:col-span-2">
+                <div className="text-[10.5px] font-extrabold uppercase tracking-[0.08em] text-white/70 mb-2.5">
+                  Exhibition setup
+                </div>
+                <div className="flex flex-col gap-2">
+                  {classes.map((c) => {
+                    const needsUnit = c.units.length === 0;
+                    return (
+                      <Link
+                        key={c.id}
+                        href={`/teacher/classes/${c.id}/exhibition`}
+                        className="group flex items-center gap-3 px-3.5 py-2.5 rounded-xl bg-white/95 hover:bg-white hover:-translate-y-0.5 transition shadow-sm"
+                      >
+                        <div
+                          className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 text-white text-[14px]"
+                          style={{
+                            background:
+                              "linear-gradient(135deg, #9333EA 0%, #C026D3 100%)",
+                          }}
+                          aria-hidden
+                        >
+                          🌱
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[13px] font-bold text-[var(--ink)] truncate">
+                            {c.name}
+                          </div>
+                          <div className="text-[10.5px] text-[var(--ink-3)] mt-0.5">
+                            {needsUnit
+                              ? "Needs a unit · set up →"
+                              : `${c.studentCount} student${c.studentCount === 1 ? "" : "s"} · set up →`}
+                          </div>
+                        </div>
+                        <svg
+                          width="13"
+                          height="13"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="text-[var(--ink-3)] group-hover:text-purple-700 transition shrink-0"
+                        >
+                          <path d="M5 12h14M13 6l6 6-6 6" />
+                        </svg>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </section>
