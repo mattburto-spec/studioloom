@@ -10,6 +10,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { BlockRenderer } from "@/components/skills/BlockRenderer";
+import { DemoAckPanel } from "@/components/skills/DemoAckPanel";
+import { useTeacher } from "@/app/teacher/teacher-context";
 import "@/components/skills/skills.css";
 import { SKILL_TIER_LABELS, type SkillCardHydrated, type SkillTier } from "@/types/skills";
 
@@ -22,6 +24,7 @@ const TIER_COLORS: Record<SkillTier, string> = {
 export default function ViewSkillCardPage() {
   const params = useParams();
   const id = params.id as string;
+  const { teacher } = useTeacher();
   const [card, setCard] = useState<SkillCardHydrated | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -238,6 +241,14 @@ export default function ViewSkillCardPage() {
               </li>
             ))}
           </ul>
+        </section>
+      )}
+
+      {/* Teacher-ack demo panel. Only rendered for published / built-in cards —
+          unpublished drafts aren't demonstrable yet. */}
+      {(card.is_published || card.is_built_in) && (
+        <section className="mt-8">
+          <DemoAckPanel cardId={card.id} teacherId={teacher?.id} />
         </section>
       )}
     </main>

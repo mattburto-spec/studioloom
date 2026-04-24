@@ -12,6 +12,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { SkillCardForm } from "@/components/skills/SkillCardForm";
+import { DemoAckPanel } from "@/components/skills/DemoAckPanel";
+import { useTeacher } from "@/app/teacher/teacher-context";
 import type { CreateSkillCardPayload, SkillCardHydrated } from "@/types/skills";
 
 interface Category {
@@ -30,6 +32,7 @@ export default function EditSkillCardPage() {
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
+  const { teacher } = useTeacher();
   const id = params.id as string;
 
   const [card, setCard] = useState<SkillCardHydrated | null>(null);
@@ -328,6 +331,14 @@ export default function EditSkillCardPage() {
           </button>
         }
       />
+
+      {/* Teacher-ack demo panel. Only meaningful once published — a draft
+          card can't be demonstrated until students can see it. */}
+      {card.is_published && (
+        <section className="mt-8">
+          <DemoAckPanel cardId={card.id} teacherId={teacher?.id} />
+        </section>
+      )}
     </main>
   );
 }
