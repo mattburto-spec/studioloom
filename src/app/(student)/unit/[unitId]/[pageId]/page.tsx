@@ -19,7 +19,13 @@ import { ExportPagePdf } from "@/components/student/ExportPagePdf";
 import { NarrativeModal } from "@/components/portfolio/NarrativeModal";
 import { useUnitNav } from "@/contexts/UnitNavContext";
 import { ScrollReveal } from "@/components/student/ScrollReveal";
-import { LessonHeader, LessonIntro } from "@/components/student/lesson-bold";
+import {
+  LessonHeader,
+  LessonIntro,
+  LessonFooter,
+  LessonToolsRail,
+  type LessonTool,
+} from "@/components/student/lesson-bold";
 import StudentFeedbackPulse from "@/components/teacher/knowledge/StudentFeedbackPulse";
 // DesignAssistantWidget import removed in Phase 10 polish. Component file
 // still exists — will be re-integrated via a unified AI-mentor surface.
@@ -125,6 +131,10 @@ function UnitPageViewInner({
   if (!currentPage && allPages.length > 0) {
     return null;
   }
+
+  // Derive prev-page navigation target (usePageData only exposes nextPage).
+  const prevPage =
+    currentIndex > 0 ? enabledPages[currentIndex - 1] : null;
 
   // Derive LessonHeader props once — keeps JSX block below readable.
   const lessonTitleDisplay =
@@ -358,42 +368,41 @@ function UnitPageViewInner({
           </div>
         )}
 
-        {/* ── Complete & Continue — solid colored block ── */}
-        <ScrollReveal>
-          <div
-            className="mt-12 full-bleed py-10 text-center"
-            style={{ backgroundColor: pageColor }}
-          >
-            <button
-              onClick={async () => {
-                await saveProgress("complete");
-                if (student?.id) {
-                  // Show feedback pulse before navigating
-                  setPendingNavTarget(nextPage ? `/unit/${unitId}/${nextPage.id}` : null);
-                  setShowFeedbackPulse(true);
-                } else if (nextPage) {
-                  router.push(`/unit/${unitId}/${nextPage.id}`);
-                }
-              }}
-              disabled={saving}
-              className="px-10 py-4 rounded-xl font-bold text-lg transition-all hover:shadow-lg hover:scale-105 active:scale-95 disabled:opacity-50 bg-white"
-              style={{ color: pageColor }}
-            >
-              {saving
-                ? "Saving..."
-                : nextPage
-                  ? "Complete & Continue"
-                  : "Mark as Complete"}
-            </button>
-            {nextPage && (
-              <p className="text-sm text-white/70 mt-3">
-                Next: Lesson {currentIndex + 2}
-              </p>
-            )}
-          </div>
-        </ScrollReveal>
       </>)}
       </main>
+
+      {/* ── Lesson footer — Previous / Next preview / Complete & continue ── */}
+      {currentPage && (
+        <LessonFooter
+          onPrev={
+            prevPage
+              ? () => router.push(`/unit/${unitId}/${prevPage.id}`)
+              : undefined
+          }
+          onComplete={async () => {
+            await saveProgress("complete");
+            if (student?.id) {
+              // Show feedback pulse before navigating — feeds timing model.
+              setPendingNavTarget(nextPage ? `/unit/${unitId}/${nextPage.id}` : null);
+              setShowFeedbackPulse(true);
+            } else if (nextPage) {
+              router.push(`/unit/${unitId}/${nextPage.id}`);
+            }
+          }}
+          saving={saving}
+          nextPreview={
+            nextPage
+              ? {
+                  eyebrow: `Next · Lesson ${currentIndex + 2}`,
+                  title:
+                    (nextPage.phaseLabel && nextPage.title.startsWith(`${nextPage.phaseLabel}: `)
+                      ? nextPage.title.slice(nextPage.phaseLabel.length + 2)
+                      : nextPage.title) || "Next lesson",
+                }
+              : undefined
+          }
+        />
+      )}
 
       {/* Panels */}
       <PlanningPanel unitId={unitId} open={planOpen} onClose={() => setPlanOpen(false)} pages={allPages} />
@@ -470,78 +479,63 @@ function UnitPageViewInner({
 
       {/* NM pulse removed from here — moved inline above Complete & Continue */}
 
-      {/* Floating action buttons */}
+      {/* ── Right-side tools rail — Journal / My Plan / Schedule / Gallery ── */}
       {!planOpen && !portfolioOpen && !ganttOpen && (
-        <div className="fixed right-4 z-40 flex flex-col-reverse items-end gap-3" style={{ bottom: "5.5rem" }}>
-          <div className="group flex items-center gap-2 animate-pop-in">
-            <span className="px-2.5 py-1 rounded-lg bg-gray-900/80 text-white text-xs font-medium shadow-lg opacity-0 translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 pointer-events-none whitespace-nowrap">
-              Journal
-            </span>
-            <button
-              onClick={() => setPortfolioOpen(true)}
-              className="w-11 h-11 rounded-full gradient-cta text-white shadow-lg shadow-brand-pink/30 hover:scale-110 hover:shadow-xl active:scale-95 transition-all duration-150 flex items-center justify-center"
-              aria-label="Journal"
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-              </svg>
-            </button>
-          </div>
-
-          <div className="group flex items-center gap-2 animate-pop-in" style={{ animationDelay: "50ms" }}>
-            <span className="px-2.5 py-1 rounded-lg bg-gray-900/80 text-white text-xs font-medium shadow-lg opacity-0 translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 pointer-events-none whitespace-nowrap">
-              My Plan
-            </span>
-            <button
-              onClick={() => setPlanOpen(true)}
-              className="w-11 h-11 rounded-full gradient-cta text-white shadow-lg shadow-brand-pink/30 hover:scale-110 hover:shadow-xl active:scale-95 transition-all duration-150 flex items-center justify-center"
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 11l3 3L22 4" />
-                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-              </svg>
-            </button>
-          </div>
-
-          <div className="group flex items-center gap-2 animate-pop-in" style={{ animationDelay: "100ms" }}>
-            <span className="px-2.5 py-1 rounded-lg bg-gray-900/80 text-white text-xs font-medium shadow-lg opacity-0 translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 pointer-events-none whitespace-nowrap">
-              Schedule
-            </span>
-            <button
-              onClick={() => setGanttOpen(true)}
-              className="w-11 h-11 rounded-full gradient-cta text-white shadow-lg shadow-brand-pink/30 hover:scale-110 hover:shadow-xl active:scale-95 transition-all duration-150 flex items-center justify-center"
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                <line x1="16" y1="2" x2="16" y2="6" />
-                <line x1="8" y1="2" x2="8" y2="6" />
-                <line x1="3" y1="10" x2="21" y2="10" />
-              </svg>
-            </button>
-          </div>
-
-          <div className="group flex items-center gap-2 animate-pop-in" style={{ animationDelay: "150ms" }}>
-            <span className="px-2.5 py-1 rounded-lg bg-gray-900/80 text-white text-xs font-medium shadow-lg opacity-0 translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 pointer-events-none whitespace-nowrap">
-              Class Gallery
-            </span>
-            <button
-              onClick={() => window.open("/dashboard#gallery", "_blank")}
-              className="w-11 h-11 rounded-full text-white shadow-lg hover:scale-110 hover:shadow-xl active:scale-95 transition-all duration-150 flex items-center justify-center"
-              style={{ background: "linear-gradient(135deg, #EC4899, #DB2777)", boxShadow: "0 4px 14px rgba(236, 72, 153, 0.35)" }}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="3" width="7" height="7" rx="1" />
-                <rect x="14" y="3" width="7" height="7" rx="1" />
-                <rect x="3" y="14" width="7" height="7" rx="1" />
-                <rect x="14" y="14" width="7" height="7" rx="1" />
-              </svg>
-            </button>
-          </div>
-
-          {/* Design Tools floating button removed in Phase 10 polish — not
-              project-management and not relevant to non-Design units. */}
-        </div>
+        <LessonToolsRail
+          tools={(
+            [
+              {
+                id: "journal",
+                label: "Journal",
+                onClick: () => setPortfolioOpen(true),
+                icon: (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                  </svg>
+                ),
+              },
+              {
+                id: "plan",
+                label: "My Plan",
+                onClick: () => setPlanOpen(true),
+                icon: (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M9 11l3 3L22 4" />
+                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                  </svg>
+                ),
+              },
+              {
+                id: "schedule",
+                label: "Schedule",
+                onClick: () => setGanttOpen(true),
+                icon: (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                    <line x1="16" y1="2" x2="16" y2="6" />
+                    <line x1="8" y1="2" x2="8" y2="6" />
+                    <line x1="3" y1="10" x2="21" y2="10" />
+                  </svg>
+                ),
+              },
+              {
+                id: "gallery",
+                label: "Class Gallery",
+                accent: true,
+                onClick: () => window.open("/dashboard#gallery", "_blank"),
+                icon: (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="3" width="7" height="7" rx="1" />
+                    <rect x="14" y="3" width="7" height="7" rx="1" />
+                    <rect x="3" y="14" width="7" height="7" rx="1" />
+                    <rect x="14" y="14" width="7" height="7" rx="1" />
+                  </svg>
+                ),
+              },
+            ] as LessonTool[]
+          )}
+        />
       )}
 
       <QuickCaptureFAB
