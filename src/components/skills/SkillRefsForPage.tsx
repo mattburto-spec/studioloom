@@ -65,13 +65,18 @@ export function SkillRefsForPage({ pageId }: { pageId: string }) {
   const [fetchError, setFetchError] = useState<string | null>(null);
 
   // Debug mode: add `?debug_skills=1` to the URL to see a visible empty /
-  // loading / error panel even when no pins exist. Useful for verifying
-  // the component is mounted + the API is reachable + the pageId matches
-  // what the teacher pinned to. Off by default so students see nothing
-  // when there's nothing to show.
-  const debug =
-    typeof window !== "undefined" &&
-    new URLSearchParams(window.location.search).get("debug_skills") === "1";
+  // loading / error panel even when no pins exist. Client-only flag —
+  // the initial SSR render reads debug=false because `window` is undefined,
+  // then useEffect flips it on client. This matches how Next handles
+  // URL-driven UI in app router client components without hydration
+  // warnings.
+  const [debug, setDebug] = useState(false);
+  useEffect(() => {
+    const on =
+      typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).get("debug_skills") === "1";
+    if (on) setDebug(true);
+  }, []);
 
   useEffect(() => {
     let abort = false;
