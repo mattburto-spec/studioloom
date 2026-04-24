@@ -27,8 +27,7 @@ interface CardVM {
   ungradedCount: number;
   realBadges: UnitBadgeKind[];
   teachHref: string | null;
-  editHref: string | null;
-  hubHref: string | null;
+  manageHref: string | null;
 }
 
 function fromCard(c: UnitCardData): CardVM {
@@ -45,8 +44,7 @@ function fromCard(c: UnitCardData): CardVM {
     ungradedCount: c.ungradedCount,
     realBadges: c.badges,
     teachHref: `/teacher/teach/${c.unitId}`,
-    editHref: `/teacher/units/${c.unitId}/class/${c.classId}/edit`,
-    hubHref: `/teacher/units/${c.unitId}/class/${c.classId}`,
+    manageHref: `/teacher/units/${c.unitId}/class/${c.classId}`,
   };
 }
 
@@ -162,39 +160,38 @@ function UnitCard({ u }: { u: CardVM }) {
             {u.progress}%
           </div>
         </div>
-        {/* Footer */}
+        {/* Footer — grading status on the left, Manage on the right.
+         *  "Hub / Edit / …" row dropped: Hub was the same page Manage
+         *  links to, Edit is reachable from there as a tab, and the
+         *  `…` overflow button was never wired to anything. */}
         <div className="mt-4 flex items-center justify-between pt-4 border-t border-[var(--hair)]">
           {u.ungradedCount > 0 ? (
             <div
-              className="text-[11.5px] font-bold"
+              className="text-[12px] font-bold"
               style={{ color: u.color }}
             >
               {u.ungradedCount} to grade
             </div>
           ) : (
-            <div className="text-[11.5px] text-[var(--ink-3)] font-semibold">
+            <div className="text-[12px] text-[var(--ink-3)] font-semibold">
               up to date
             </div>
           )}
-          <div className="flex items-center gap-4 text-[11.5px] font-bold text-[var(--ink-3)]">
-            {u.hubHref ? (
-              <Link href={u.hubHref} className="hover:text-[var(--ink)]">
-                Hub
-              </Link>
-            ) : (
-              <button className="hover:text-[var(--ink)]">Hub</button>
-            )}
-            {u.editHref ? (
-              <Link href={u.editHref} className="hover:text-[var(--ink)]">
-                Edit
-              </Link>
-            ) : (
-              <button className="hover:text-[var(--ink)]">Edit</button>
-            )}
-            <button className="hover:text-[var(--ink)]" aria-label="More">
-              <I name="more" size={14} />
+          {u.manageHref ? (
+            <Link
+              href={u.manageHref}
+              className="border border-[var(--hair)] hover:bg-[var(--bg)] rounded-full px-4 py-2 text-[12.5px] font-bold transition whitespace-nowrap"
+            >
+              Manage
+            </Link>
+          ) : (
+            <button
+              disabled
+              className="border border-[var(--hair)] rounded-full px-4 py-2 text-[12.5px] font-bold opacity-60 whitespace-nowrap"
+            >
+              Manage
             </button>
-          </div>
+          )}
         </div>
       </div>
     </article>
@@ -251,7 +248,7 @@ export function UnitsGrid({ cards, loaded }: UnitsGridProps) {
           </Link>
         </div>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {vms.map((u) => (
           <UnitCard key={u.key} u={u} />
         ))}

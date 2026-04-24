@@ -30,8 +30,8 @@ export function DashboardSkeleton() {
           />
         ))}
       </div>
-      <div className="mt-10 md:mt-12 grid grid-cols-1 md:grid-cols-2 gap-5">
-        {[0, 1].map((i) => (
+      <div className="mt-10 md:mt-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        {[0, 1, 2].map((i) => (
           <div
             key={i}
             className="rounded-3xl h-[360px] bg-white/60 animate-pulse"
